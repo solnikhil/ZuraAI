@@ -49,6 +49,26 @@ export default function Overlay() {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isSelectionMode, isChatActive])
 
+    // Handle reset-overlay event from main process (triggered on shortcut)
+    useEffect(() => {
+        const handleResetOverlay = () => {
+            // Reset state when overlay is shown via shortcut
+            setIsSelectionMode(false)
+            setSelection(null)
+            setIsDragging(false)
+            setStartPos(null)
+            setViewingImage(null)
+            // Don't reset screenshot and messages - keep context
+        }
+
+        if (window.ipcRenderer) {
+            window.ipcRenderer.on('reset-overlay', handleResetOverlay)
+            return () => {
+                window.ipcRenderer.off('reset-overlay', handleResetOverlay)
+            }
+        }
+    }, [])
+
     // Scroll to bottom of chat
     useEffect(() => {
         if (isChatActive && messagesEndRef.current) {

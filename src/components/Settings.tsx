@@ -123,38 +123,10 @@ export default function Settings() {
                         <h2 className="section-title">General Settings</h2>
 
                         <div className="setting-group">
-                            <h3>Appearance</h3>
-                            <div className="setting-item">
-                                <label className="setting-label">Theme</label>
-                                <select
-                                    className="setting-select"
-                                    value={pendingSettings.theme}
-                                    onChange={(e) => handleSettingChange({ theme: e.target.value as any })}
-                                >
-                                    <option value="dark">Dark</option>
-                                    <option value="light">Light</option>
-                                    <option value="system">System Default</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="setting-group">
-                            <h3>Overlay Behavior</h3>
-                            <div className="setting-item">
-                                <label className="checkbox-wrapper">
-                                    <input
-                                        type="checkbox"
-                                        className="checkbox-input"
-                                        checked={pendingSettings.autoHideOverlay}
-                                        onChange={(e) => handleSettingChange({ autoHideOverlay: e.target.checked })}
-                                    />
-                                    <span>Auto-hide overlay when focus is lost</span>
-                                </label>
-                            </div>
-
+                            <h3>Overlay</h3>
                             <div className="setting-item">
                                 <label className="setting-label">
-                                    Overlay Transparency
+                                    Transparency
                                     <span className="range-value">{Math.round(pendingSettings.overlayTransparency * 100)}%</span>
                                 </label>
                                 <input
@@ -167,6 +139,18 @@ export default function Settings() {
                                     onChange={(e) => handleSettingChange({ overlayTransparency: parseFloat(e.target.value) })}
                                 />
                                 <p className="setting-description">Adjust the opacity of the overlay window.</p>
+                            </div>
+
+                            <div className="setting-item">
+                                <label className="checkbox-wrapper">
+                                    <input
+                                        type="checkbox"
+                                        className="checkbox-input"
+                                        checked={pendingSettings.autoHideOverlay}
+                                        onChange={(e) => handleSettingChange({ autoHideOverlay: e.target.checked })}
+                                    />
+                                    <span>Auto-hide when focus is lost</span>
+                                </label>
                             </div>
                         </div>
 
