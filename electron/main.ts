@@ -167,12 +167,13 @@ ipcMain.on('settings-changed', (_event, settings) => {
     if (settingsToLog.systemPrompt && settingsToLog.systemPrompt.length > 50) {
         settingsToLog.systemPrompt = settingsToLog.systemPrompt.substring(0, 50) + '... (truncated)'
     }
-    console.log('[SETTINGS] Updated:', JSON.stringify(settingsToLog, null, 2))
+    // console.log('[SETTINGS] Updated:', JSON.stringify(settingsToLog, null, 2))
 
-    new Notification({
-        title: 'Zura Settings',
-        body: 'Settings updated successfully'
-    }).show()
+    // Only notify if explicitly requested or critical (avoiding spam on every keystroke/sync)
+    // new Notification({
+    //     title: 'Zura Settings',
+    //     body: 'Settings updated successfully'
+    // }).show()
 
     // Handle settings changes that affect the main process
     if (settings.shortcuts?.toggleOverlay) {
