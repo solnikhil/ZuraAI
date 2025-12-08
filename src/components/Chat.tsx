@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import { checkOllamaStatus, generateOllamaCompletion } from '../services/ollama'
+import { generatePerplexityCompletion } from '../services/perplexity'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -57,6 +58,8 @@ export default function Chat() {
         try {
             if (settings.modelProvider === 'ollama') {
                 await callOllama(userPrompt, image)
+            } else if (settings.modelProvider === 'perplexity') {
+                await callPerplexity(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
@@ -70,6 +73,47 @@ export default function Chat() {
             setMessages(prev => [...prev, errorMessage])
         } finally {
             setIsLoading(false)
+        }
+    }
+
+    const callPerplexity = async (userPrompt: string, image?: string) => {
+        if (!settings.perplexityApiKey) {
+            throw new Error("Please configure your Perplexity API Key in Settings.")
+        }
+
+        try {
+            const messagesPayload = []
+            if (settings.systemPrompt) {
+                messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+            }
+
+            // Perplexity currently doesn't support image input in the same standard way for all models
+            // but we'll stick to text for now to be safe, or just append image if it was supported.
+            // For this implementation, we will append a note if an image was attached but not sent?
+            // Or just send text.
+            messagesPayload.push({ role: 'user', content: userPrompt })
+
+            if (image) {
+                // Determine if we should warn the user?
+                // For now, let's just proceed with text.
+            }
+
+            const response = await generatePerplexityCompletion(
+                settings.perplexityApiKey,
+                settings.aiModel,
+                messagesPayload,
+                { temperature: settings.temperature, max_tokens: settings.maxTokens }
+            )
+
+            const aiMessage: Message = {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: response.choices[0].message.content
+            }
+            setMessages(prev => [...prev, aiMessage])
+
+        } catch (error: any) {
+            throw new Error(`Perplexity Error: ${error.message || "Could not connect"}`)
         }
     }
 

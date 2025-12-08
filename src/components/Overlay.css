@@ -180,16 +180,7 @@
     }
 }
 
-.message-model-info {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
-    /* Darker grey as requested */
-    margin-left: 1px;
-    margin-bottom: 0px;
-    /* Tighter spacing */
-    font-weight: 500;
-    line-height: 1;
-}
+
 
 /* Message Footer */
 .message-footer {
@@ -198,10 +189,21 @@
     gap: 10px;
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 11px;
     color: rgba(255, 255, 255, 0.4);
     width: 100%;
+    position: relative;
+}
+
+.message-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 75%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    /* Slightly more visible for contrast on short line */
 }
 
 .footer-item {
@@ -258,6 +260,50 @@
     color: rgba(255, 255, 255, 0.92);
     font-size: 14px;
     line-height: 1.55;
+}
+
+/* Custom Tooltips */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-tooltip]:hover::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: rgba(10, 10, 12, 0.95);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    animation: tooltipFade 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    letter-spacing: 0.3px;
+    font-weight: 500;
+}
+
+/* Special case for Copy button to avoid double cursor */
+.copy-btn[data-tooltip] {
+    cursor: pointer;
+}
+
+@keyframes tooltipFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(0) scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-8px) scale(1);
+    }
 }
 
 /* Compact Image Attachment Stub */

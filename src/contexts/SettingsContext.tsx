@@ -15,14 +15,17 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // New fields for Ollama integration
-    modelProvider: 'openrouter' | 'ollama'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
+    perplexityApiKey: string
+    perplexityModels: Array<{ code: string; displayName: string }>
 }
 
 const defaultSettings: Settings = {
     theme: 'dark',
     openRouterApiKey: '',
+    perplexityApiKey: '',
     aiModel: 'x-ai/grok-4.1-fast',
     temperature: 0.7,
     maxTokens: 1000,
@@ -72,7 +75,14 @@ Respond like a premium AI assistant who delivers polished, well-formatted inform
     ],
     modelProvider: 'openrouter',
     ollamaUrl: 'http://localhost:11434',
-    ollamaModels: []
+    ollamaModels: [],
+    perplexityModels: [
+        { code: 'sonar', displayName: 'Sonar' },
+        { code: 'sonar-pro', displayName: 'Sonar Pro' },
+        { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
+        { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
+        { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+    ]
 }
 
 interface SettingsContextType {
@@ -102,6 +112,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
+        if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
+        if (!parsed.perplexityModels) parsed.perplexityModels = defaultSettings.perplexityModels
 
         return parsed
     })

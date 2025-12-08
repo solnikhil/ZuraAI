@@ -297,6 +297,14 @@ export default function Overlay() {
         }
     }
 
+    const [copiedId, setCopiedId] = useState<string | null>(null)
+
+    const handleCopy = (id: string, content: string) => {
+        navigator.clipboard.writeText(content)
+        setCopiedId(id)
+        setTimeout(() => setCopiedId(null), 2000)
+    }
+
     return (
         <div
             className={`overlay-container ${isSelectionMode ? 'selection-mode' : ''} ${isChatActive ? 'chat-active' : ''}`}
@@ -351,18 +359,13 @@ export default function Overlay() {
                     <div className="chat-messages-list">
                         {messages.map(msg => (
                             <div key={msg.id} className={`chat-message-item ${msg.role}`}>
-                                {msg.role === 'assistant' && msg.model && (
-                                    <div className="message-model-info">
-                                        {msg.model}
-                                    </div>
-                                )}
                                 <div className="message-content">
                                     {msg.image && (
                                         <div
                                             className="message-attachment-compact"
                                             onClick={() => setViewingImage(msg.image || null)}
                                             style={{ cursor: 'pointer' }}
-                                            title="Click to view full size"
+                                            data-tooltip="Click to view full size"
                                         >
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                 <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"></path>
@@ -398,18 +401,35 @@ export default function Overlay() {
                                     </div>
                                     {msg.role === 'assistant' && (
                                         <div className="message-footer">
+                                            {msg.model && (
+                                                <>
+                                                    <div className="footer-item" data-tooltip="AI Model">
+                                                        <span>{msg.model}</span>
+                                                    </div>
+                                                    <div className="footer-separator">•</div>
+                                                </>
+                                            )}
                                             <div
                                                 className="footer-item copy-btn"
-                                                onClick={() => navigator.clipboard.writeText(msg.content)}
-                                                title="Copy to clipboard"
+                                                onClick={() => handleCopy(msg.id, msg.content)}
+                                                data-tooltip={copiedId === msg.id ? "Copied!" : "Copy to clipboard"}
                                             >
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                                                <span>Copy</span>
+                                                {copiedId === msg.id ? (
+                                                    <>
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                        <span>Copied</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                                        <span>Copy</span>
+                                                    </>
+                                                )}
                                             </div>
                                             {msg.usage && (
                                                 <>
                                                     <div className="footer-separator">•</div>
-                                                    <div className="footer-item" title="Input / Output Tokens">
+                                                    <div className="footer-item" data-tooltip="Input / Output Tokens">
                                                         <span>{msg.usage.inputTokens} / {msg.usage.outputTokens} T</span>
                                                     </div>
                                                 </>
@@ -417,7 +437,7 @@ export default function Overlay() {
                                             {msg.latency && (
                                                 <>
                                                     <div className="footer-separator">•</div>
-                                                    <div className="footer-item">
+                                                    <div className="footer-item" data-tooltip="Response Latency">
                                                         <span>{(msg.latency / 1000).toFixed(2)}s</span>
                                                     </div>
                                                 </>

@@ -202,6 +202,17 @@ export default function Settings() {
                                 </button>
 
                                 <button
+                                    className={`provider-btn ${pendingSettings.modelProvider === 'perplexity' ? 'active' : ''}`}
+                                    onClick={() => handleSettingChange({ modelProvider: 'perplexity', aiModel: 'sonar-reasoning-pro' })}
+                                >
+                                    <div className="provider-icon">🧠</div>
+                                    <div className="provider-info">
+                                        <span className="provider-name">Perplexity</span>
+                                        <span className="provider-desc">Real-time Search & Reasoning</span>
+                                    </div>
+                                </button>
+
+                                <button
                                     className={`provider-btn ${pendingSettings.modelProvider === 'ollama' ? 'active' : ''}`}
                                     onClick={() => handleSettingChange({ modelProvider: 'ollama' })}
                                 >
@@ -218,14 +229,14 @@ export default function Settings() {
                             </div>
                         </div>
 
-                        {pendingSettings.modelProvider === 'openrouter' ? (
+                        {pendingSettings.modelProvider === 'openrouter' && (
                             <>
                                 <div className="setting-group">
                                     <h3>OpenRouter API</h3>
                                     <div className="setting-item">
                                         <label className="setting-label">API Key</label>
-                                        <div className="api-key-input-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                        <div className="api-key-input-wrapper">
+                                            <div className="input-row">
                                                 <input
                                                     type={showApiKey ? "text" : "password"}
                                                     className="setting-input"
@@ -239,22 +250,15 @@ export default function Settings() {
                                                 </button>
                                             </div>
                                             {showApiKey && pendingSettings.openRouterApiKey && (
-                                                <div style={{
-                                                    padding: '12px',
-                                                    background: 'rgba(0,0,0,0.3)',
-                                                    borderRadius: '6px',
-                                                    fontFamily: 'monospace',
-                                                    fontSize: '13px',
-                                                    wordBreak: 'break-all',
-                                                    color: '#4ade80',
-                                                    border: '1px solid rgba(74, 222, 128, 0.2)'
-                                                }}>
+                                                <div className="api-key-display">
                                                     {pendingSettings.openRouterApiKey}
                                                 </div>
                                             )}
                                         </div>
                                         <p className="setting-description">
-                                            Your key is stored locally and never shared. Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>openrouter.ai</a>
+                                            <p className="setting-description">
+                                                Your key is stored locally and never shared. Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: '#ff8c69' }}>openrouter.ai</a>
+                                            </p>
                                         </p>
                                     </div>
 
@@ -278,7 +282,51 @@ export default function Settings() {
                                     </div>
                                 </div>
                             </>
-                        ) : (
+                        )}
+
+                        {pendingSettings.modelProvider === 'perplexity' && (
+                            <>
+                                <div className="setting-group">
+                                    <h3>Perplexity Configuration</h3>
+                                    <div className="setting-item">
+                                        <label className="setting-label">API Key</label>
+                                        <div className="api-key-input-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <input
+                                                    type={showApiKey ? "text" : "password"}
+                                                    className="setting-input"
+                                                    placeholder="Enter your Perplexity API key..."
+                                                    value={pendingSettings.perplexityApiKey}
+                                                    onChange={(e) => handleSettingChange({ perplexityApiKey: e.target.value })}
+                                                    style={{ flex: 1 }}
+                                                />
+                                                <button className="visibility-toggle" onClick={() => setShowApiKey(!showApiKey)}>
+                                                    {showApiKey ? "Hide" : "Show"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p className="setting-description">
+                                            Get your key at <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>perplexity.ai</a>
+                                        </p>
+                                    </div>
+
+                                    <div className="setting-item">
+                                        <label className="setting-label">Model</label>
+                                        <select
+                                            className="setting-select"
+                                            value={pendingSettings.aiModel}
+                                            onChange={(e) => handleSettingChange({ aiModel: e.target.value })}
+                                        >
+                                            {(pendingSettings.perplexityModels || []).map(model => (
+                                                <option key={model.code} value={model.code}>{model.displayName}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {pendingSettings.modelProvider === 'ollama' && (
                             <>
                                 <div className="setting-group">
                                     <h3>Ollama Configuration</h3>
@@ -332,16 +380,7 @@ export default function Settings() {
                                             </button>
 
                                             {apiTestResult && (
-                                                <div style={{
-                                                    padding: '12px',
-                                                    background: 'rgba(0,0,0,0.2)',
-                                                    borderRadius: '6px',
-                                                    fontSize: '13px',
-                                                    fontFamily: 'monospace',
-                                                    whiteSpace: 'pre-wrap',
-                                                    border: apiTestResult.startsWith('✅') ? '1px solid rgba(74, 222, 128, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)',
-                                                    color: apiTestResult.startsWith('✅') ? '#4ade80' : '#ef4444'
-                                                }}>
+                                                <div className={`test-result ${apiTestResult.startsWith('✅') ? 'success' : 'error'}`}>
                                                     {apiTestResult}
                                                 </div>
                                             )}
@@ -382,9 +421,9 @@ export default function Settings() {
                                     rows={4}
                                     style={{
                                         width: '100%',
-                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        background: 'rgba(0, 0, 0, 0.2)',
                                         border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '6px',
+                                        borderRadius: '10px',
                                         padding: '10px',
                                         color: '#fff',
                                         marginTop: '5px',
@@ -483,29 +522,32 @@ export default function Settings() {
             {hasChanges && (
                 <div className="save-bar" style={{
                     position: 'fixed',
-                    bottom: '20px',
+                    bottom: '30px',
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    background: '#252525',
-                    padding: '15px 30px',
+                    background: 'rgba(20, 20, 20, 0.8)',
+                    padding: '12px 24px',
                     borderRadius: '50px',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
                     display: 'flex',
-                    gap: '15px',
+                    gap: '12px',
                     alignItems: 'center',
                     zIndex: 1000,
-                    border: '1px solid rgba(255,255,255,0.1)'
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    backdropFilter: 'blur(16px)'
                 }}>
-                    <span style={{ color: '#ccc', marginRight: '10px' }}>Unsaved changes</span>
+                    <span style={{ color: '#e0e0e0', marginRight: '8px', fontSize: '0.9rem' }}>Unsaved changes</span>
                     <button
                         onClick={cancelChanges}
                         style={{
                             background: 'transparent',
-                            border: '1px solid #666',
+                            border: '1px solid rgba(255,255,255,0.2)',
                             color: '#ccc',
-                            padding: '8px 20px',
+                            padding: '8px 16px',
                             borderRadius: '20px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            transition: 'all 0.2s'
                         }}
                     >
                         Cancel
@@ -513,13 +555,16 @@ export default function Settings() {
                     <button
                         onClick={saveChanges}
                         style={{
-                            background: '#3b82f6',
+                            background: '#ff8c69',
                             border: 'none',
-                            color: 'white',
+                            color: '#000',
                             padding: '8px 20px',
                             borderRadius: '20px',
                             cursor: 'pointer',
-                            fontWeight: 'bold'
+                            fontWeight: '600',
+                            fontSize: '0.85rem',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 4px 12px rgba(255, 140, 105, 0.3)'
                         }}
                     >
                         Save Changes
@@ -602,14 +647,14 @@ export default function Settings() {
                                                             onChange={(e) => setEditModelCode(e.target.value)}
                                                             placeholder="Model Code"
                                                             className="setting-input"
-                                                            style={{ flex: 1, padding: '8px' }}
+                                                            style={{ flex: 1 }}
                                                         />
                                                         <input
                                                             value={editModelName}
                                                             onChange={(e) => setEditModelName(e.target.value)}
                                                             placeholder="Display Name"
                                                             className="setting-input"
-                                                            style={{ flex: 1, padding: '8px' }}
+                                                            style={{ flex: 1 }}
                                                         />
                                                         <button onClick={saveEditModel} style={{ padding: '8px 12px', background: '#22c55e', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>✓</button>
                                                         <button onClick={() => setEditingModelIndex(null)} style={{ padding: '8px 12px', background: '#666', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>✕</button>
@@ -636,10 +681,10 @@ export default function Settings() {
                                                             )}
                                                             <button onClick={() => startEditModel(index)} style={{
                                                                 padding: '6px 10px',
-                                                                background: 'rgba(59, 130, 246, 0.2)',
+                                                                background: 'rgba(255, 140, 105, 0.15)',
                                                                 border: 'none',
                                                                 borderRadius: '4px',
-                                                                color: '#3b82f6',
+                                                                color: '#ff8c69',
                                                                 cursor: 'pointer',
                                                                 fontSize: '12px'
                                                             }}>✎</button>
@@ -690,8 +735,8 @@ export default function Settings() {
                                     style={{
                                         width: '100%',
                                         padding: '12px',
-                                        background: (newModelCode && newModelName) ? '#3b82f6' : 'rgba(59, 130, 246, 0.3)',
-                                        color: 'white',
+                                        background: (newModelCode && newModelName) ? '#ff8c69' : 'rgba(255, 140, 105, 0.2)',
+                                        color: (newModelCode && newModelName) ? '#000' : 'rgba(255, 255, 255, 0.3)',
                                         border: 'none',
                                         borderRadius: '8px',
                                         cursor: (newModelCode && newModelName) ? 'pointer' : 'default',
