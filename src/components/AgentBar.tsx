@@ -200,123 +200,121 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
                 )}
 
                 {/* Expanded controls - model switcher & submit */}
-                {isExpanded && (
-                    <div className="agent-controls">
-                        <div
-                            className="model-switcher"
-                            ref={dropdownRef}
-                            onClick={() => setShowModelDropdown(!showModelDropdown)}
-                        >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
-                            </svg>
-                            <span className="current-model">{getCurrentModelName()}</span>
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M6 9l6 6 6-6" />
-                            </svg>
+                <div className={`agent-controls ${isExpanded ? 'visible' : 'hidden'}`}>
+                    <div
+                        className="model-switcher"
+                        ref={dropdownRef}
+                        onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"></path>
+                        </svg>
+                        <span className="current-model">{getCurrentModelName()}</span>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 9l6 6 6-6" />
+                        </svg>
 
-                            {showModelDropdown && (
-                                <div className="model-dropdown">
-                                    {(settings.configuredModels || []).length > 0 && (
-                                        <>
-                                            <div
-                                                className="model-section-label"
-                                                onClick={(e) => toggleSection('openrouter', e)}
+                        {showModelDropdown && (
+                            <div className="model-dropdown">
+                                {(settings.configuredModels || []).length > 0 && (
+                                    <>
+                                        <div
+                                            className="model-section-label"
+                                            onClick={(e) => toggleSection('openrouter', e)}
+                                        >
+                                            <span>OpenRouter</span>
+                                            <svg
+                                                width="10"
+                                                height="10"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                style={{
+                                                    transform: expandedSections.openrouter ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                    transition: 'transform 0.2s ease'
+                                                }}
                                             >
-                                                <span>OpenRouter</span>
-                                                <svg
-                                                    width="10"
-                                                    height="10"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    style={{
-                                                        transform: expandedSections.openrouter ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                        transition: 'transform 0.2s ease'
-                                                    }}
-                                                >
-                                                    <path d="M6 9l6 6 6-6" />
-                                                </svg>
+                                                <path d="M6 9l6 6 6-6" />
+                                            </svg>
+                                        </div>
+                                        {expandedSections.openrouter && (settings.configuredModels || []).map(model => (
+                                            <div
+                                                key={model.code}
+                                                className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleModelSelect(model.code);
+                                                }}
+                                            >
+                                                <span className="model-name">{model.displayName}</span>
+                                                {settings.aiModel === model.code && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                                    </svg>
+                                                )}
                                             </div>
-                                            {expandedSections.openrouter && (settings.configuredModels || []).map(model => (
-                                                <div
-                                                    key={model.code}
-                                                    className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleModelSelect(model.code);
-                                                    }}
-                                                >
-                                                    <span className="model-name">{model.displayName}</span>
-                                                    {settings.aiModel === model.code && (
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </>
-                                    )}
+                                        ))}
+                                    </>
+                                )}
 
-                                    {(settings.ollamaModels || []).length > 0 && (
-                                        <>
-                                            <div
-                                                className="model-section-label"
-                                                style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}
-                                                onClick={(e) => toggleSection('ollama', e)}
+                                {(settings.ollamaModels || []).length > 0 && (
+                                    <>
+                                        <div
+                                            className="model-section-label"
+                                            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}
+                                            onClick={(e) => toggleSection('ollama', e)}
+                                        >
+                                            <span>Ollama</span>
+                                            <svg
+                                                width="10"
+                                                height="10"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                style={{
+                                                    transform: expandedSections.ollama ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                    transition: 'transform 0.2s ease'
+                                                }}
                                             >
-                                                <span>Ollama</span>
-                                                <svg
-                                                    width="10"
-                                                    height="10"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    style={{
-                                                        transform: expandedSections.ollama ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                        transition: 'transform 0.2s ease'
-                                                    }}
-                                                >
-                                                    <path d="M6 9l6 6 6-6" />
-                                                </svg>
+                                                <path d="M6 9l6 6 6-6" />
+                                            </svg>
+                                        </div>
+                                        {expandedSections.ollama && (settings.ollamaModels || []).map(model => (
+                                            <div
+                                                key={model.code}
+                                                className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleModelSelect(model.code);
+                                                }}
+                                            >
+                                                <span className="model-name">{model.displayName}</span>
+                                                {settings.aiModel === model.code && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                                    </svg>
+                                                )}
                                             </div>
-                                            {expandedSections.ollama && (settings.ollamaModels || []).map(model => (
-                                                <div
-                                                    key={model.code}
-                                                    className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleModelSelect(model.code);
-                                                    }}
-                                                >
-                                                    <span className="model-name">{model.displayName}</span>
-                                                    {settings.aiModel === model.code && (
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                            <polyline points="20 6 9 17 4 12"></polyline>
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        <button type="submit" className="submit-btn" onClick={handleSubmit} disabled={!prompt.trim()}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="12" y1="19" x2="12" y2="5"></line>
-                                <polyline points="5 12 12 5 19 12"></polyline>
-                            </svg>
-                        </button>
+                                        ))}
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
-                )}
+                    <button type="submit" className="submit-btn" onClick={handleSubmit} disabled={!prompt.trim()}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="19" x2="12" y2="5"></line>
+                            <polyline points="5 12 12 5 19 12"></polyline>
+                        </svg>
+                    </button>
+                </div>
 
                 {/* Collapsed submit button */}
                 {!isExpanded && (

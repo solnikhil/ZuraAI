@@ -15,6 +15,13 @@ interface Message {
     content: string
     image?: string
     isThinking?: boolean
+    model?: string
+    latency?: number
+    usage?: {
+        inputTokens: number
+        outputTokens: number
+        totalTokens: number
+    }
 }
 
 export default function Overlay() {
@@ -59,8 +66,9 @@ export default function Overlay() {
             setIsDragging(false)
             setStartPos(null)
             setViewingImage(null)
-            // Only collapse if there's no chat history - otherwise keep expanded
-            setIsChatActive(prev => messages.length > 0 ? prev : false)
+            // If there are messages, ensure the chat is active/visible
+            // Otherwise, collapse it (false)
+            setIsChatActive(messages.length > 0)
         }
 
         if (window.ipcRenderer) {
@@ -137,17 +145,26 @@ export default function Overlay() {
         }
         messagesPayload.push(userMessage)
 
+        const startTime = performance.now()
         const response = await generateOllamaCompletion(
             settings.ollamaUrl || 'http://localhost:11434',
             settings.aiModel,
             messagesPayload,
             { temperature: settings.temperature }
         )
+        const endTime = performance.now()
 
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: response.message.content
+            content: response.message.content,
+            model: `ollama/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: response.prompt_eval_count || 0,
+                outputTokens: response.eval_count || 0,
+                totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0)
+            }
         }
         setMessages(prev => [...prev, aiMessage])
     }
@@ -181,6 +198,7 @@ export default function Overlay() {
             messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
         }
 
+        const startTime = performance.now()
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -200,12 +218,20 @@ export default function Overlay() {
         }
 
         const data = await response.json()
+        const endTime = performance.now()
         const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: aiContent
+            content: aiContent,
+            model: `openrouter/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: data.usage?.prompt_tokens || 0,
+                outputTokens: data.usage?.completion_tokens || 0,
+                totalTokens: data.usage?.total_tokens || 0
+            }
         }
         setMessages(prev => [...prev, aiMessage])
     }
@@ -214,6 +240,7 @@ export default function Overlay() {
         console.log("Prompt submitted:", prompt)
         if (screenshot) {
             callAI(prompt, screenshot)
+            setScreenshot(null) // Clear screenshot after sending
         } else {
             callAI(prompt)
         }
@@ -324,15 +351,25 @@ export default function Overlay() {
                     <div className="chat-messages-list">
                         {messages.map(msg => (
                             <div key={msg.id} className={`chat-message-item ${msg.role}`}>
+                                {msg.role === 'assistant' && msg.model && (
+                                    <div className="message-model-info">
+                                        {msg.model}
+                                    </div>
+                                )}
                                 <div className="message-content">
                                     {msg.image && (
                                         <div
-                                            className="message-image"
+                                            className="message-attachment-compact"
                                             onClick={() => setViewingImage(msg.image || null)}
                                             style={{ cursor: 'pointer' }}
                                             title="Click to view full size"
                                         >
-                                            <img src={msg.image} alt="Attachment" />
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"></path>
+                                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                                <polyline points="21 15 16 10 5 21"></polyline>
+                                            </svg>
+                                            <span>Image Attached</span>
                                         </div>
                                     )}
                                     <div className="text markdown-body">
@@ -359,6 +396,34 @@ export default function Overlay() {
                                             }}
                                         />
                                     </div>
+                                    {msg.role === 'assistant' && (
+                                        <div className="message-footer">
+                                            <div
+                                                className="footer-item copy-btn"
+                                                onClick={() => navigator.clipboard.writeText(msg.content)}
+                                                title="Copy to clipboard"
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                                <span>Copy</span>
+                                            </div>
+                                            {msg.usage && (
+                                                <>
+                                                    <div className="footer-separator">•</div>
+                                                    <div className="footer-item" title="Input / Output Tokens">
+                                                        <span>{msg.usage.inputTokens} / {msg.usage.outputTokens} T</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {msg.latency && (
+                                                <>
+                                                    <div className="footer-separator">•</div>
+                                                    <div className="footer-item">
+                                                        <span>{(msg.latency / 1000).toFixed(2)}s</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
