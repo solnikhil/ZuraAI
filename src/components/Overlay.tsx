@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { generateOllamaCompletion } from '../services/ollama'
 
 interface Message {
     id: string
@@ -87,20 +88,7 @@ export default function Overlay() {
         }
     }, [isSelectionMode])
 
-    const callOpenRouter = async (userPrompt: string, image?: string) => {
-        const apiKey = settings.openRouterApiKey || (import.meta as any).env?.VITE_OPENROUTER_API_KEY
-
-        if (!apiKey) {
-            const errorMessage: Message = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: "Please configure your OpenRouter API Key in Settings."
-            }
-            setMessages(prev => [...prev, errorMessage])
-            setIsChatActive(true)
-            return
-        }
-
+    const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
 
         // Add user message immediately
@@ -111,65 +99,21 @@ export default function Overlay() {
             image: image
         }
         setMessages(prev => [...prev, userMessage])
-        setIsChatActive(true) // Expand chat
+        setIsChatActive(true)
 
         try {
-            let messagesPayload: any[] = []
-
-            if (image) {
-                messagesPayload = [
-                    {
-                        "role": "user",
-                        "content": [
-                            { "type": "text", "text": userPrompt },
-                            { "type": "image_url", "image_url": { "url": image } }
-                        ]
-                    }
-                ]
+            if (settings.modelProvider === 'ollama') {
+                await callOllama(userPrompt, image)
             } else {
-                messagesPayload = [
-                    { "role": "user", "content": userPrompt }
-                ]
+                await callOpenRouter(userPrompt, image)
             }
-
-            if (settings.systemPrompt) {
-                messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
-            }
-
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    "model": settings.aiModel,
-                    "messages": messagesPayload,
-                    "temperature": settings.temperature,
-                    "max_tokens": settings.maxTokens
-                })
-            })
-
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`)
-            }
-
-            const data = await response.json()
-            const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
-
-            const aiMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: aiContent
-            }
-            setMessages(prev => [...prev, aiMessage])
         } catch (error: any) {
-            console.error("API Error:", error)
+            console.error("AI Error:", error)
             window.ipcRenderer.send('log-to-terminal', `[API ERROR] ${error.message || error}`)
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: "Sorry, there was an error connecting to the AI. Please check your API key and internet connection."
+                content: error.message || "An unexpected error occurred."
             }
             setMessages(prev => [...prev, errorMessage])
         } finally {
@@ -177,12 +121,100 @@ export default function Overlay() {
         }
     }
 
+    const callOllama = async (userPrompt: string, image?: string) => {
+        const messagesPayload = []
+        if (settings.systemPrompt) {
+            messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+        }
+
+        const userMessage: any = { role: 'user', content: userPrompt }
+        if (image) {
+            const base64Image = image.includes(',') ? image.split(',')[1] : image
+            if (base64Image) {
+                userMessage.images = [base64Image]
+            }
+        }
+        messagesPayload.push(userMessage)
+
+        const response = await generateOllamaCompletion(
+            settings.ollamaUrl || 'http://localhost:11434',
+            settings.aiModel,
+            messagesPayload,
+            { temperature: settings.temperature }
+        )
+
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: response.message.content
+        }
+        setMessages(prev => [...prev, aiMessage])
+    }
+
+    const callOpenRouter = async (userPrompt: string, image?: string) => {
+        const apiKey = settings.openRouterApiKey || (import.meta as any).env?.VITE_OPENROUTER_API_KEY
+
+        if (!apiKey) {
+            throw new Error("Please configure your OpenRouter API Key in Settings.")
+        }
+
+        let messagesPayload: any[] = []
+
+        if (image) {
+            messagesPayload = [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": userPrompt },
+                        { "type": "image_url", "image_url": { "url": image } }
+                    ]
+                }
+            ]
+        } else {
+            messagesPayload = [
+                { "role": "user", "content": userPrompt }
+            ]
+        }
+
+        if (settings.systemPrompt) {
+            messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
+        }
+
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "model": settings.aiModel,
+                "messages": messagesPayload,
+                "temperature": settings.temperature,
+                "max_tokens": settings.maxTokens
+            })
+        })
+
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status}`)
+        }
+
+        const data = await response.json()
+        const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: aiContent
+        }
+        setMessages(prev => [...prev, aiMessage])
+    }
+
     const handlePromptSubmit = (prompt: string) => {
         console.log("Prompt submitted:", prompt)
         if (screenshot) {
-            callOpenRouter(prompt, screenshot)
+            callAI(prompt, screenshot)
         } else {
-            callOpenRouter(prompt)
+            callAI(prompt)
         }
     }
 

@@ -245,3 +245,127 @@
 .danger-btn:hover {
     background-color: #dc2626;
 }
+
+/* AI Provider Selection */
+.provider-selector {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.provider-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px;
+    background-color: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    text-align: left;
+}
+
+.provider-btn:hover {
+    background-color: #2a2a2a;
+    border-color: #666;
+}
+
+.provider-btn.active {
+    background-color: #2563eb;
+    border-color: #3b82f6;
+}
+
+.provider-icon {
+    font-size: 1.5rem;
+}
+
+.provider-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.provider-name {
+    font-weight: 600;
+    color: #fff;
+    font-size: 1rem;
+}
+
+.provider-desc {
+    font-size: 0.8rem;
+    color: #aaa;
+    margin-top: 2px;
+}
+
+.provider-btn.active .provider-desc {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Status Indicators */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.status-dot.online {
+    background-color: #4ade80;
+    box-shadow: 0 0 5px #4ade80;
+}
+
+.status-dot.offline {
+    background-color: #ef4444;
+}
+
+.input-with-button {
+    display: flex;
+    gap: 10px;
+}
+
+.secondary-btn {
+    padding: 8px 16px;
+    background-color: #333;
+    border: 1px solid #555;
+    color: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.secondary-btn:hover:not(:disabled) {
+    background-color: #444;
+}
+
+.secondary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.error-message {
+    color: #ef4444;
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+.empty-state-message {
+    padding: 20px;
+    background-color: #1a1a1a;
+    border: 1px dashed #444;
+    border-radius: 6px;
+    color: #888;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.empty-state-message code {
+    background-color: #333;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #fff;
+    font-family: monospace;
+}

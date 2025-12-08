@@ -48,13 +48,22 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
     };
 
     const handleModelSelect = (modelCode: string) => {
-        updateSettings({ aiModel: modelCode });
+        // Check if it's an OpenRouter model
+        const isOpenRouter = (settings.configuredModels || []).find(m => m.code === modelCode);
+
+        if (isOpenRouter) {
+            updateSettings({ aiModel: modelCode, modelProvider: 'openrouter' });
+        } else {
+            // Assume Ollama
+            updateSettings({ aiModel: modelCode, modelProvider: 'ollama' });
+        }
         setShowModelDropdown(false);
     };
 
     // Get display name for current model
     const getCurrentModelName = () => {
-        const model = (settings.configuredModels || []).find(m => m.code === settings.aiModel);
+        const allModels = [...(settings.configuredModels || []), ...(settings.ollamaModels || [])];
+        const model = allModels.find(m => m.code === settings.aiModel);
         if (model) return model.displayName;
 
         // Fallback - show last part of model code
@@ -137,23 +146,51 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
 
                         {showModelDropdown && (
                             <div className="model-dropdown">
-                                {(settings.configuredModels || []).map(model => (
-                                    <div
-                                        key={model.code}
-                                        className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleModelSelect(model.code);
-                                        }}
-                                    >
-                                        <span className="model-name">{model.displayName}</span>
-                                        {settings.aiModel === model.code && (
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="20 6 9 17 4 12"></polyline>
-                                            </svg>
-                                        )}
-                                    </div>
-                                ))}
+                                {(settings.configuredModels || []).length > 0 && (
+                                    <>
+                                        <div style={{ padding: '8px 12px', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cloud AI</div>
+                                        {(settings.configuredModels || []).map(model => (
+                                            <div
+                                                key={model.code}
+                                                className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleModelSelect(model.code);
+                                                }}
+                                            >
+                                                <span className="model-name">{model.displayName}</span>
+                                                {settings.aiModel === model.code && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
+
+                                {(settings.ollamaModels || []).length > 0 && (
+                                    <>
+                                        <div style={{ padding: '8px 12px', fontSize: '11px', color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>Local AI</div>
+                                        {(settings.ollamaModels || []).map(model => (
+                                            <div
+                                                key={model.code}
+                                                className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleModelSelect(model.code);
+                                                }}
+                                            >
+                                                <span className="model-name">{model.displayName}</span>
+                                                {settings.aiModel === model.code && (
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>

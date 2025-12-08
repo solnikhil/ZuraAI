@@ -48,6 +48,8 @@
     width: 32px;
     height: 32px;
     flex-shrink: 0;
+    background-color: #000;
+    border-radius: 8px;
 }
 
 .action-btn {

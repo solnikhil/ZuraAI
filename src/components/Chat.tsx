@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
+import { checkOllamaStatus, generateOllamaCompletion } from '../services/ollama'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -20,98 +21,152 @@ export default function Chat() {
     ])
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
+    const [isOllamaRunning, setIsOllamaRunning] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
+    // Check Ollama status
+    useEffect(() => {
+        const checkStatus = async () => {
+            if (settings.modelProvider === 'ollama') {
+                const status = await checkOllamaStatus(settings.ollamaUrl || 'http://localhost:11434')
+                setIsOllamaRunning(status)
+            }
+        }
+
+        checkStatus()
+        // Check every 10 seconds if Ollama is selected
+        let interval: NodeJS.Timeout
+        if (settings.modelProvider === 'ollama') {
+            interval = setInterval(checkStatus, 10000)
+        }
+
+        return () => clearInterval(interval)
+    }, [settings.modelProvider, settings.ollamaUrl])
+
     useEffect(() => {
         scrollToBottom()
     }, [messages, isLoading])
 
-    const callOpenRouter = async (userPrompt: string, image?: string) => {
-        const apiKey = settings.openRouterApiKey || import.meta.env.VITE_OPENROUTER_API_KEY
-
-        if (!apiKey) {
-            const errorMessage: Message = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: "Please configure your OpenRouter API Key in Settings."
-            }
-            setMessages(prev => [...prev, errorMessage])
-            return
-        }
-
+    const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
+
         try {
-            let messagesPayload: any[] = []
-
-            if (image) {
-                messagesPayload = [
-                    {
-                        "role": "user",
-                        "content": [
-                            { "type": "text", "text": userPrompt },
-                            { "type": "image_url", "image_url": { "url": image } }
-                        ]
-                    }
-                ]
+            if (settings.modelProvider === 'ollama') {
+                await callOllama(userPrompt, image)
             } else {
-                messagesPayload = [
-                    { "role": "user", "content": userPrompt }
-                ]
+                await callOpenRouter(userPrompt, image)
             }
-
-            if (settings.systemPrompt) {
-                messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
-            }
-
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${apiKey}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    "model": settings.aiModel,
-                    "messages": messagesPayload,
-                    "temperature": settings.temperature,
-                    "max_tokens": settings.maxTokens
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`)
-            }
-
-            const data = await response.json()
-
-            if (!response.ok) {
-                const errorMsg = data.error?.message || `API Error: ${response.status}`
-                throw new Error(errorMsg)
-            }
-
-            const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
-
-            const aiMessage: Message = {
-                id: Date.now().toString(),
-                role: 'assistant',
-                content: aiContent
-            }
-            setMessages(prev => [...prev, aiMessage])
         } catch (error: any) {
-            console.error("API Error:", error)
-            window.ipcRenderer.send('log-to-terminal', `[API ERROR] ${error.message || error}`)
+            console.error("AI Error:", error)
             const errorMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: "Sorry, there was an error connecting to the AI. Please check your API key and internet connection."
+                content: error.message || "An unexpected error occurred."
             }
             setMessages(prev => [...prev, errorMessage])
         } finally {
             setIsLoading(false)
         }
+    }
+
+    const callOllama = async (userPrompt: string, image?: string) => {
+        try {
+            const messagesPayload = []
+            if (settings.systemPrompt) {
+                messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+            }
+
+            const userMessage: any = { role: 'user', content: userPrompt }
+            if (image) {
+                // Extract base64 from data URL if present
+                const base64Image = image.includes(',') ? image.split(',')[1] : image
+                if (base64Image) {
+                    userMessage.images = [base64Image]
+                }
+            }
+            messagesPayload.push(userMessage)
+
+            const response = await generateOllamaCompletion(
+                settings.ollamaUrl || 'http://localhost:11434',
+                settings.aiModel,
+                messagesPayload,
+                { temperature: settings.temperature }
+            )
+
+            const aiMessage: Message = {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: response.message.content
+            }
+            setMessages(prev => [...prev, aiMessage])
+
+        } catch (error: any) {
+            throw new Error(`Ollama Error: ${error.message || "Could not connect"}`)
+        }
+    }
+
+    const callOpenRouter = async (userPrompt: string, image?: string) => {
+        const apiKey = settings.openRouterApiKey || import.meta.env.VITE_OPENROUTER_API_KEY
+
+        if (!apiKey) {
+            throw new Error("Please configure your OpenRouter API Key in Settings.")
+        }
+
+        let messagesPayload: any[] = []
+
+        if (image) {
+            messagesPayload = [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": userPrompt },
+                        { "type": "image_url", "image_url": { "url": image } }
+                    ]
+                }
+            ]
+        } else {
+            messagesPayload = [
+                { "role": "user", "content": userPrompt }
+            ]
+        }
+
+        if (settings.systemPrompt) {
+            messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
+        }
+
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "model": settings.aiModel,
+                "messages": messagesPayload,
+                "temperature": settings.temperature,
+                "max_tokens": settings.maxTokens
+            })
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}))
+            const errorMsg = data.error?.message || `API Error: ${response.status}`
+            throw new Error(errorMsg)
+        }
+
+        const data = await response.json()
+        const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+
+        const aiMessage: Message = {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: aiContent
+        }
+        setMessages(prev => [...prev, aiMessage])
     }
 
     useEffect(() => {
@@ -123,7 +178,7 @@ export default function Chat() {
                 image: image
             }
             setMessages(prev => [...prev, userMessage])
-            callOpenRouter(prompt, image)
+            callAI(prompt, image)
         }
 
         if (window.ipcRenderer) {
@@ -146,7 +201,7 @@ export default function Chat() {
 
         setMessages(prev => [...prev, userMessage])
         setInput('')
-        callOpenRouter(input)
+        callAI(input)
     }
 
     const openSettings = () => {
@@ -168,7 +223,34 @@ export default function Chat() {
                 alignItems: 'center',
                 backgroundColor: '#1a1a1a'
             }}>
-                <span style={{ fontWeight: 600, color: '#fff' }}>Zura Chat</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontWeight: 600, color: '#fff' }}>Zura Chat</span>
+                    {settings.modelProvider === 'ollama' && (
+                        <div
+                            title={isOllamaRunning ? "Ollama is running" : "Ollama is stopped"}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '0.8rem',
+                                padding: '4px 8px',
+                                background: isOllamaRunning ? 'rgba(74, 222, 128, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                border: `1px solid ${isOllamaRunning ? 'rgba(74, 222, 128, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                                borderRadius: '12px',
+                                color: isOllamaRunning ? '#4ade80' : '#ef4444'
+                            }}
+                        >
+                            <div style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                backgroundColor: isOllamaRunning ? '#4ade80' : '#ef4444',
+                                boxShadow: isOllamaRunning ? '0 0 5px #4ade80' : 'none'
+                            }} />
+                            {isOllamaRunning ? 'Ollama Online' : 'Ollama Offline'}
+                        </div>
+                    )}
+                </div>
                 <button
                     onClick={openSettings}
                     style={{

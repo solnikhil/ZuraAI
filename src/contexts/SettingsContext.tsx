@@ -14,6 +14,10 @@ export interface Settings {
     systemPrompt: string
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
+    // New fields for Ollama integration
+    modelProvider: 'openrouter' | 'ollama'
+    ollamaUrl: string
+    ollamaModels: Array<{ code: string; displayName: string }>
 }
 
 const defaultSettings: Settings = {
@@ -65,7 +69,10 @@ Respond like a premium AI assistant who delivers polished, well-formatted inform
         { code: 'openai/gpt-4o-mini', displayName: 'GPT-4o Mini' },
         { code: 'google/gemini-2.0-flash-exp:free', displayName: 'Gemini 2.0 Flash' },
         { code: 'meta-llama/llama-3.3-70b-instruct', displayName: 'Llama 3.3 70B' },
-    ]
+    ],
+    modelProvider: 'openrouter',
+    ollamaUrl: 'http://localhost:11434',
+    ollamaModels: []
 }
 
 interface SettingsContextType {
@@ -90,6 +97,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.systemPrompt.includes('Keep responses concise and actionable')) {
             parsed.systemPrompt = defaultSettings.systemPrompt
         }
+
+        // Initialize new fields if missing
+        if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
+        if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
+        if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
 
         return parsed
     })
