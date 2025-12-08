@@ -59,7 +59,8 @@ export default function Overlay() {
             setIsDragging(false)
             setStartPos(null)
             setViewingImage(null)
-            // Don't reset screenshot and messages - keep context
+            // Only collapse if there's no chat history - otherwise keep expanded
+            setIsChatActive(prev => messages.length > 0 ? prev : false)
         }
 
         if (window.ipcRenderer) {
@@ -68,7 +69,7 @@ export default function Overlay() {
                 window.ipcRenderer.off('reset-overlay', handleResetOverlay)
             }
         }
-    }, [])
+    }, [messages.length])
 
     // Scroll to bottom of chat
     useEffect(() => {
@@ -384,6 +385,7 @@ export default function Overlay() {
                 isChatActive={isChatActive}
                 onViewScreenshot={() => screenshot && setViewingImage(screenshot)}
                 onDetachScreenshot={() => setScreenshot(null)}
+                onNewChat={() => { setMessages([]); setScreenshot(null); setIsChatActive(false); }}
             />
 
             {/* Full-screen Image Viewer */}

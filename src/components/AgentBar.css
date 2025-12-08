@@ -1,38 +1,52 @@
+/* ==== CONTAINER ==== */
 .agent-bar-container {
     position: fixed;
     bottom: 40px;
     left: 50%;
     transform: translateX(-50%);
-    width: 100%;
-    max-width: 700px;
     z-index: 1000;
     pointer-events: auto;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    /* Spring animation timing */
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .agent-bar-container.hidden {
     opacity: 0;
-    transform: translateX(-50%) translateY(20px);
+    transform: translateX(-50%) translateY(20px) scale(0.95);
     pointer-events: none;
+}
+
+/* COLLAPSED STATE */
+.agent-bar-container.collapsed {
+    width: auto;
+    max-width: 420px;
+}
+
+/* EXPANDED STATE */
+.agent-bar-container.expanded {
+    width: 100%;
+    max-width: 620px;
 }
 
 .agent-bar-container.chat-active {
     bottom: 20px;
-    max-width: 600px;
 }
 
+/* ==== BAR ==== */
 .agent-bar {
-    background: rgba(20, 20, 20, 0.6);
-    backdrop-filter: blur(30px);
-    -webkit-backdrop-filter: blur(30px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 12px 16px;
+    background: rgba(18, 18, 20, 0.75);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s ease;
+    gap: 10px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .agent-bar-container.chat-active .agent-bar {
@@ -41,38 +55,56 @@
     border-top: none;
 }
 
+/* ==== LOGO ICON ==== */
 .agent-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
-    background-color: #000;
-    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+.agent-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0.5;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.agent-icon:hover img {
+    opacity: 1;
+    transform: scale(1.12);
+}
+
+/* ==== ACTION BUTTONS ==== */
 .action-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.45);
     cursor: pointer;
     padding: 6px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: rgba(255, 255, 255, 0.9);
 }
 
+/* ==== INPUT ==== */
 .agent-form {
     flex: 1;
     display: flex;
+    min-width: 0;
 }
 
 .agent-input {
@@ -80,163 +112,206 @@
     background: transparent;
     border: none;
     color: rgba(255, 255, 255, 0.9);
-    font-size: 16px;
-    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-family: 'Inter', 'Outfit', sans-serif;
     outline: none;
 }
 
 .agent-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.35);
 }
 
+/* ==== CONTROLS (Expanded) ==== */
 .agent-controls {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     flex-shrink: 0;
+    animation: controlsSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+@keyframes controlsSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+/* ==== MODEL SWITCHER ==== */
 .model-switcher {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 13px;
+    gap: 5px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .model-switcher:hover {
     color: rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .current-model {
-    max-width: 120px;
+    max-width: 100px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+/* ==== DROPDOWN ==== */
 .model-dropdown {
     position: absolute;
     bottom: 100%;
     right: 0;
     margin-bottom: 8px;
-    background: rgba(30, 30, 30, 0.98);
+    background: rgba(24, 24, 28, 0.98);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 8px;
-    min-width: 200px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 6px;
+    min-width: 180px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    animation: dropdownSlide 0.15s ease-out;
+    animation: dropdownSpring 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     z-index: 1000;
 }
 
-@keyframes dropdownSlide {
+@keyframes dropdownSpring {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(10px) scale(0.95);
     }
 
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
+}
+
+.model-section-label {
+    padding: 6px 10px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.model-section-label:hover {
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .model-option {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
-    border-radius: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.15s ease;
 }
 
 .model-option:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .model-option.active {
-    background: rgba(255, 140, 105, 0.15);
+    background: rgba(255, 140, 105, 0.12);
     color: #FF8C69;
 }
 
 .model-option .model-name {
-    font-size: 13px;
+    font-size: 12px;
 }
 
+/* ==== SUBMIT BUTTON ==== */
 .submit-btn {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
     background: #FF8C69;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #1e1e1e;
+    color: #1a1a1a;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .submit-btn:hover {
     background: #ff9d7f;
-    transform: translateY(-1px);
+    transform: scale(1.05);
 }
 
 .submit-btn:disabled {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.25);
     cursor: default;
     transform: none;
 }
 
+.submit-btn.compact {
+    width: 26px;
+    height: 26px;
+}
+
+/* ==== SCREENSHOT PREVIEW ==== */
 .screenshot-preview {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.1);
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.08);
     padding: 4px 8px;
     border-radius: 6px;
-    margin-right: 8px;
+    cursor: pointer;
+    animation: controlsSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .screenshot-preview img {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     object-fit: cover;
     border-radius: 4px;
 }
 
 .screenshot-badge {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.8);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .detach-btn {
     position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 18px;
-    height: 18px;
+    top: -6px;
+    right: -6px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: rgba(60, 60, 60, 0.9);
+    background: rgba(60, 60, 60, 0.95);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 9px;
     cursor: pointer;
     opacity: 0;
     transform: scale(0.8);
