@@ -79,6 +79,27 @@ export default function Overlay() {
         }
     }, [messages.length])
 
+    // Handle direct screenshot selection mode (Ctrl+Shift+X shortcut)
+    useEffect(() => {
+        const handleStartScreenshotSelection = () => {
+            console.log('[Overlay] Entering direct screenshot selection mode')
+            // Reset any existing state and enter selection mode
+            setSelection(null)
+            setIsDragging(false)
+            setStartPos(null)
+            setViewingImage(null)
+            // Enter selection mode directly - screen is already captured
+            setIsSelectionMode(true)
+        }
+
+        if (window.ipcRenderer) {
+            window.ipcRenderer.on('start-screenshot-selection', handleStartScreenshotSelection)
+            return () => {
+                window.ipcRenderer.off('start-screenshot-selection', handleStartScreenshotSelection)
+            }
+        }
+    }, [])
+
     // Scroll to bottom of chat
     useEffect(() => {
         if (isChatActive && messagesEndRef.current) {

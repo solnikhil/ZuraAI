@@ -154,6 +154,42 @@ app.whenReady().then(() => {
             }
         }
     })
+
+    // Ctrl+Shift+X - Direct screenshot selection mode
+    globalShortcut.register('CommandOrControl+Shift+X', async () => {
+        console.log('[SHORTCUT] Screenshot mode triggered')
+
+        // Hide overlay while capturing
+        if (overlayWin) {
+            overlayWin.hide()
+        }
+
+        // Small delay to ensure window is hidden
+        await new Promise(resolve => setTimeout(resolve, 50))
+
+        // Capture the screen
+        const displaySize = screen.getPrimaryDisplay().size
+        const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: displaySize,
+            fetchWindowIcons: false
+        })
+
+        const primarySource = sources[0]
+        if (primarySource) {
+            currentScreenshot = primarySource.thumbnail
+            console.log('[CAPTURE] Screenshot captured for selection, size:', currentScreenshot.getSize())
+        }
+
+        // Show overlay in selection mode
+        if (overlayWin) {
+            overlayWin.show()
+            overlayWin.focus()
+            overlayWin.setAlwaysOnTop(true)
+            // Send direct screenshot selection mode signal
+            overlayWin.webContents.send('start-screenshot-selection')
+        }
+    })
 })
 
 // IPC Handlers
