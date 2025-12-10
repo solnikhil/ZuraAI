@@ -34,6 +34,8 @@ export default function Overlay() {
     const [screenshot, setScreenshot] = useState<string | null>(null)
     const [messages, setMessages] = useState<Message[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [streamingContent, setStreamingContent] = useState('')
+    const [isStreaming, setIsStreaming] = useState(false)
 
     const [isChatActive, setIsChatActive] = useState(false)
     const [viewingImage, setViewingImage] = useState<string | null>(null)
@@ -106,7 +108,7 @@ export default function Overlay() {
         if (isChatActive && messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
         }
-    }, [messages, isChatActive])
+    }, [messages, isChatActive, streamingContent])
 
     // Enable click-through when not in selection mode
     useEffect(() => {
@@ -118,6 +120,38 @@ export default function Overlay() {
             window.ipcRenderer.send('set-ignore-mouse-events', false)
         }
     }, [isSelectionMode])
+
+    // Typewriter effect function - returns when complete, caller handles cleanup
+    const typewriterEffect = async (text: string): Promise<void> => {
+        setIsStreaming(true)
+        setStreamingContent('')
+
+        const baseSpeed = 12
+        const fastSpeed = 4
+
+        let i = 0
+        const length = text.length
+
+        while (i < length) {
+            const inCodeBlock = text.substring(0, i).split('```').length % 2 === 0
+            const speed = inCodeBlock ? fastSpeed : baseSpeed
+            const chunkSize = inCodeBlock ? 5 : 2
+            const chunk = text.substring(i, Math.min(i + chunkSize, length))
+
+            setStreamingContent(prev => prev + chunk)
+            i += chunkSize
+
+            await new Promise(resolve => setTimeout(resolve, speed))
+        }
+
+        // Don't clear here - let the caller add message first, then clear
+    }
+
+    // Helper to finish streaming and add message
+    const finishStreaming = () => {
+        setIsStreaming(false)
+        setStreamingContent('')
+    }
 
     const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
@@ -143,14 +177,18 @@ export default function Overlay() {
         } catch (error: any) {
             console.error("AI Error:", error)
             window.ipcRenderer.send('log-to-terminal', `[API ERROR] ${error.message || error}`)
+
+            const errorMsg = error.message || "An unexpected error occurred."
+            setIsLoading(false)
+            await typewriterEffect(errorMsg)
+
             const errorMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: error.message || "An unexpected error occurred."
+                content: errorMsg
             }
             setMessages(prev => [...prev, errorMessage])
-        } finally {
-            setIsLoading(false)
+            finishStreaming()
         }
     }
 
@@ -178,10 +216,16 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
+        const content = response.message.content
+
+        // Show typewriter effect
+        setIsLoading(false)
+        await typewriterEffect(content)
+
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: response.message.content,
+            content: content,
             model: `ollama/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
@@ -191,6 +235,7 @@ export default function Overlay() {
             }
         }
         setMessages(prev => [...prev, aiMessage])
+        finishStreaming()
     }
 
     const callPerplexity = async (userPrompt: string, image?: string) => {
@@ -215,10 +260,16 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
+        const content = response.choices[0].message.content
+
+        // Show typewriter effect
+        setIsLoading(false)
+        await typewriterEffect(content)
+
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: response.choices[0].message.content,
+            content: content,
             model: `perplexity/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
@@ -228,6 +279,7 @@ export default function Overlay() {
             }
         }
         setMessages(prev => [...prev, aiMessage])
+        finishStreaming()
     }
 
     const callOpenRouter = async (userPrompt: string, image?: string) => {
@@ -282,6 +334,10 @@ export default function Overlay() {
         const endTime = performance.now()
         const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
+        // Show typewriter effect
+        setIsLoading(false)
+        await typewriterEffect(aiContent)
+
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
@@ -295,6 +351,7 @@ export default function Overlay() {
             }
         }
         setMessages(prev => [...prev, aiMessage])
+        finishStreaming()
     }
 
     const handlePromptSubmit = (prompt: string) => {
@@ -514,6 +571,20 @@ export default function Overlay() {
                                     <div className="thinking-indicator">
                                         <span>.</span><span>.</span><span>.</span>
                                     </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Streaming content (typewriter effect) */}
+                        {isStreaming && streamingContent && (
+                            <div className="chat-message-item assistant">
+                                <div className="message-content">
+                                    <div className="text markdown-body">
+                                        <ReactMarkdown
+                                            children={streamingContent}
+                                            remarkPlugins={[remarkGfm]}
+                                        />
+                                    </div>
+                                    <span className="cursor-blink">▌</span>
                                 </div>
                             </div>
                         )}

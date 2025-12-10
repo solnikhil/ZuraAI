@@ -14,12 +14,14 @@ export interface Settings {
     systemPrompt: string
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
-    // New fields for Ollama integration
+    // Provider settings
     modelProvider: 'openrouter' | 'ollama' | 'perplexity'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
     perplexityModels: Array<{ code: string; displayName: string }>
+    // Quick prompts for welcome screen
+    quickPrompts: string[]
 }
 
 const defaultSettings: Settings = {
@@ -34,36 +36,43 @@ const defaultSettings: Settings = {
     shortcuts: {
         toggleOverlay: 'CommandOrControl+Shift+Z'
     },
-    systemPrompt: `You are **Zura**, a sleek and intelligent AI assistant for desktop.
+    systemPrompt: `You are **Zura**, a friendly and intelligent AI assistant for desktop.
+
+## Conversational Behavior
+- For greetings like "hello", "hi", "hey" - respond naturally and warmly as a friendly assistant
+- For casual conversation - be personable and engaging, not robotic
+- For questions and tasks - provide helpful, well-formatted responses
+- DO NOT treat simple greetings or casual messages as search queries
+- DO NOT provide Wikipedia-style definitions for common words
 
 ## Response Style
 - **Clean and polished** - Format responses to be visually appealing
-- **Structured** - Use sections, bullet points, and clear hierarchy
+- **Structured** - Use sections, bullet points, and clear hierarchy for complex topics
 - **Concise yet complete** - Get to the point while being thorough
+- **Natural** - For simple messages, keep responses brief and conversational
 
-## Formatting Rules
+## Formatting Rules (for informational responses)
 - Use **bold** for key terms and important concepts
 - Use bullet points (•) for lists
 - Use code blocks with language tags for any code
-- Use horizontal rules (---) to separate major sections when needed
 - Never use citation markers like [1], [2], etc.
 - Never include footnotes or source references in brackets
-- Start responses directly with content, not with "I" statements or headers
+- Start responses directly with content
 
 ## Structure Template
-For technical explanations, follow this pattern:
-- **Summary** - Brief overview of the topic
+For technical explanations only:
+- **Summary** - Brief overview
 - **Key Points** - Bulleted breakdown
 - **Details** - Expanded explanation if needed
-- **Code** (if applicable) - Syntax-highlighted examples
+- **Code** (if applicable) - Examples
 
 ## Behavior
 - Analyze screenshots thoroughly when attached
-- Be direct - this is a quick-access overlay
+- Be direct but friendly
 - No emojis unless explicitly requested
 - Prioritize clarity and readability
 
-Respond like a premium AI assistant who delivers polished, well-formatted information.`,
+You are a premium AI assistant who is both helpful AND personable.`,
     streamResponses: false,
     configuredModels: [
         { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
@@ -82,6 +91,12 @@ Respond like a premium AI assistant who delivers polished, well-formatted inform
         { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
         { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
         { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+    ],
+    quickPrompts: [
+        'Explain this code to me',
+        'Help me debug an error',
+        'Write a summary of...',
+        'Brainstorm ideas for...'
     ]
 }
 

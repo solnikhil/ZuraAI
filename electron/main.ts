@@ -1,10 +1,14 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification } from 'electron'
 import path from 'path'
+import * as chatStore from './chatStore'
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
 process.env.DIST = DIST_PATH
 process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../public')
+
+// Production mode check
+const isProduction = app.isPackaged
 
 // Global references
 let overlayWin: BrowserWindow | null = null
@@ -22,21 +26,29 @@ function createSettingsWindow() {
     settingsWin = new BrowserWindow({
         width: 900,
         height: 700,
-        title: 'Zura Settings',
+        title: 'Zura',
         icon: path.join(process.env.PUBLIC || '', 'tray-icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            devTools: !isProduction,  // Disable DevTools in production
+            spellcheck: false,        // Disable spellcheck for performance
         },
         autoHideMenuBar: true,
         backgroundColor: '#1a1a1a',
+        show: false,  // Don't show until ready
+    })
+
+    // Show when ready to prevent white flash
+    settingsWin.once('ready-to-show', () => {
+        settingsWin?.show()
     })
 
     if (process.env.VITE_DEV_SERVER_URL) {
-        settingsWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}#settings`)
+        settingsWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
     } else {
-        settingsWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'settings' })
+        settingsWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'dashboard' })
     }
 
     settingsWin.on('closed', () => {
@@ -108,11 +120,14 @@ function createOverlayWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            devTools: !isProduction,  // Disable DevTools in production
+            spellcheck: false,        // Disable spellcheck for performance
+            backgroundThrottling: false,  // Keep overlay responsive when hidden
         },
     })
 
     if (process.env.VITE_DEV_SERVER_URL) {
-        overlayWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}#overlay`)
+        overlayWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`)
     } else {
         overlayWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'overlay' })
     }
@@ -223,6 +238,53 @@ ipcMain.on('settings-changed', (_event, settings) => {
         overlayWin.webContents.send('settings-updated', settings)
     }
 })
+
+// ==================== CHAT STORE IPC HANDLERS ====================
+
+ipcMain.handle('chat-store:get-all', () => {
+    return chatStore.getAllSessions()
+})
+
+ipcMain.handle('chat-store:save-all', (_event, sessions) => {
+    chatStore.saveAllSessions(sessions)
+    return true
+})
+
+ipcMain.handle('chat-store:create-session', (_event, session) => {
+    chatStore.createSession(session)
+    return true
+})
+
+ipcMain.handle('chat-store:update-session', (_event, id, updates) => {
+    chatStore.updateSession(id, updates)
+    return true
+})
+
+ipcMain.handle('chat-store:add-message', (_event, sessionId, message) => {
+    chatStore.addMessageToSession(sessionId, message)
+    return true
+})
+
+ipcMain.handle('chat-store:delete-session', (_event, id) => {
+    chatStore.deleteSession(id)
+    return true
+})
+
+ipcMain.handle('chat-store:clear-all', () => {
+    chatStore.clearAllSessions()
+    return true
+})
+
+ipcMain.handle('chat-store:migrate', (_event, localStorageData) => {
+    chatStore.migrateFromLocalStorage(localStorageData)
+    return true
+})
+
+ipcMain.handle('chat-store:get-path', () => {
+    return chatStore.getStoreFilePath()
+})
+
+// ===============================================================
 
 ipcMain.handle('capture-screen', async () => {
     console.log('[CAPTURE] Requested')

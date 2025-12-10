@@ -360,6 +360,27 @@
     }
 }
 
+/* Cursor blink for typewriter effect */
+.cursor-blink {
+    color: #667eea;
+    animation: cursorBlink 1s infinite;
+    margin-left: 2px;
+    font-weight: normal;
+}
+
+@keyframes cursorBlink {
+
+    0%,
+    50% {
+        opacity: 1;
+    }
+
+    51%,
+    100% {
+        opacity: 0;
+    }
+}
+
 /* Prompt box styles */
 .prompt-box:not(.expanded) form {
     padding: 0;
