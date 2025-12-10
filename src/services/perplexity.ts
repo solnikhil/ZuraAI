@@ -18,14 +18,6 @@ export interface PerplexityResponse {
     }
 }
 
-// Helper to log to terminal via IPC
-const logToTerminal = (message: string) => {
-    if ((window as any).ipcRenderer) {
-        (window as any).ipcRenderer.send('log-to-terminal', message)
-    }
-    console.log(message)
-}
-
 export const generatePerplexityCompletion = async (
     apiKey: string,
     model: string,
@@ -53,8 +45,6 @@ export const generatePerplexityCompletion = async (
         requestBody.max_tokens = options.max_tokens
     }
 
-    logToTerminal('[Perplexity] Request: ' + JSON.stringify(requestBody))
-
     try {
         const makeRequest = async (body: any) => {
             const res = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -72,19 +62,15 @@ export const generatePerplexityCompletion = async (
 
         // If 400 (Bad Request) or 422 (Unprocessable Entity), try stripping optional parameters
         if (!response.ok && (response.status === 400 || response.status === 422)) {
-            logToTerminal(`[Perplexity] Failed with ${response.status}. Retrying with minimal parameters...`)
-
             const minimalBody = {
                 model: model,
                 messages: messages
             }
-            logToTerminal('[Perplexity] Retry Request: ' + JSON.stringify(minimalBody))
             response = await makeRequest(minimalBody)
         }
 
         if (!response.ok) {
             const errorText = await response.text()
-            logToTerminal('[Perplexity] Error Response: ' + errorText)
 
             let errorData: any = {}
             try {
@@ -98,10 +84,8 @@ export const generatePerplexityCompletion = async (
         }
 
         const result = await response.json()
-        logToTerminal('[Perplexity] Success!')
         return result
     } catch (error: any) {
-        logToTerminal('[Perplexity] Fetch Error: ' + error.message)
         throw error
     }
 }

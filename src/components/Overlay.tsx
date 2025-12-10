@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { generateOllamaCompletion } from '../services/ollama'
+import { generatePerplexityCompletion } from '../services/perplexity'
 
 interface Message {
     id: string
@@ -134,6 +135,8 @@ export default function Overlay() {
         try {
             if (settings.modelProvider === 'ollama') {
                 await callOllama(userPrompt, image)
+            } else if (settings.modelProvider === 'perplexity') {
+                await callPerplexity(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
@@ -185,6 +188,43 @@ export default function Overlay() {
                 inputTokens: response.prompt_eval_count || 0,
                 outputTokens: response.eval_count || 0,
                 totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0)
+            }
+        }
+        setMessages(prev => [...prev, aiMessage])
+    }
+
+    const callPerplexity = async (userPrompt: string, image?: string) => {
+        if (!settings.perplexityApiKey) {
+            throw new Error("Please configure your Perplexity API Key in Settings.")
+        }
+
+        const messagesPayload = []
+        if (settings.systemPrompt) {
+            messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+        }
+
+        // Perplexity doesn't support images, so just include the text
+        messagesPayload.push({ role: 'user', content: userPrompt })
+
+        const startTime = performance.now()
+        const response = await generatePerplexityCompletion(
+            settings.perplexityApiKey,
+            settings.aiModel,
+            messagesPayload,
+            { temperature: settings.temperature, max_tokens: settings.maxTokens }
+        )
+        const endTime = performance.now()
+
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: response.choices[0].message.content,
+            model: `perplexity/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: response.usage?.prompt_tokens || 0,
+                outputTokens: response.usage?.completion_tokens || 0,
+                totalTokens: response.usage?.total_tokens || 0
             }
         }
         setMessages(prev => [...prev, aiMessage])
