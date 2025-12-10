@@ -566,7 +566,7 @@ export default function Settings() {
                                 <p style={{ fontSize: '1.1rem', color: '#aaa' }}>Your AI Companion for Desktop</p>
                                 <div style={{ marginTop: '30px', color: '#666' }}>
                                     <p>Version 1.0.0</p>
-                                    <p>© 2024 Zura AI</p>
+                                    <p>© 2025 Zura AI</p>
                                 </div>
                             </div>
                         </div>

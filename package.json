@@ -36,17 +36,20 @@
   "build": {
     "appId": "com.zura.ai",
     "productName": "Zura",
+    "executableName": "Zura",
     "asar": true,
     "compression": "maximum",
     "win": {
       "target": [
         "nsis"
       ],
-      "icon": "public/icon.png"
+      "icon": "public/icon.png",
+      "executableName": "Zura"
     },
     "nsis": {
       "oneClick": true,
-      "perMachine": false
+      "perMachine": false,
+      "shortcutName": "Zura"
     },
     "files": [
       "dist/**/*",
