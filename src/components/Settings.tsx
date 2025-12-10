@@ -171,6 +171,61 @@ export default function Settings() {
                                 </label>
                             </div>
                         </div>
+
+                        {/* Quick Prompts Section */}
+                        <div className="setting-group">
+                            <h3>Quick Prompts</h3>
+                            <p className="setting-description" style={{ marginBottom: '15px' }}>
+                                These suggestions appear on the welcome screen when starting a new chat.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {(pendingSettings.quickPrompts || []).map((prompt, index) => (
+                                    <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <input
+                                            type="text"
+                                            className="setting-input"
+                                            value={prompt}
+                                            onChange={(e) => {
+                                                const updated = [...(pendingSettings.quickPrompts || [])]
+                                                updated[index] = e.target.value
+                                                handleSettingChange({ quickPrompts: updated })
+                                            }}
+                                            style={{ flex: 1 }}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                const updated = (pendingSettings.quickPrompts || []).filter((_, i) => i !== index)
+                                                handleSettingChange({ quickPrompts: updated })
+                                            }}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: 'rgba(239, 68, 68, 0.2)',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                color: '#ef4444',
+                                                cursor: 'pointer'
+                                            }}
+                                        >✕</button>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => {
+                                        const updated = [...(pendingSettings.quickPrompts || []), 'New prompt...']
+                                        handleSettingChange({ quickPrompts: updated })
+                                    }}
+                                    style={{
+                                        padding: '10px',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px dashed rgba(255,255,255,0.2)',
+                                        borderRadius: '8px',
+                                        color: '#888',
+                                        cursor: 'pointer',
+                                        marginTop: '4px'
+                                    }}
+                                >+ Add Prompt</button>
+                            </div>
+                        </div>
+
                         <div className="setting-group danger-zone">
                             <h3>Reset</h3>
                             <div className="setting-item">
