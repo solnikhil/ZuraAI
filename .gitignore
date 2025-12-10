@@ -1,15 +1,18 @@
 # Dependencies
 node_modules/
+.pnpm-store
 
 # Build output
 dist/
 dist-electron/
 release/
+build/
 
 # Environment files
 .env
 .env.local
 .env.*.local
+*.env
 
 # Logs
 npm-debug.log*
@@ -17,17 +20,40 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+logs/
 
 # Testing
 coverage/
+.nyc_output/
 
 # OS files
 .DS_Store
-Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 ehthumbs.db
+Thumbs.db
 Desktop.ini
 
 # IDE files
 .vscode/
 .idea/
+*.swp
+*.swo
+*.swn
+.settings/
+*.sublime-workspace
+
+# Tools
+.eslintcache
+.stylelintcache
 *.tsbuildinfo
+.vite/
+
+# Local/Temp
+*.tmp
+*.temp
+tmp/
+temp/
+local/
