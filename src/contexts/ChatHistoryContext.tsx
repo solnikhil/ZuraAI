@@ -30,6 +30,7 @@ interface ChatHistoryContextType {
     clearAllSessions: () => void
     updateSessionTitle: (id: string, title: string) => void
     refreshSessions: () => Promise<void>
+    clearCurrentSession: () => void
 }
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
@@ -190,6 +191,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
     }
 
+    const clearCurrentSession = () => {
+        setCurrentSessionId(null)
+    }
+
     return (
         <ChatHistoryContext.Provider value={{
             sessions,
@@ -201,7 +206,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             deleteSession,
             clearAllSessions,
             updateSessionTitle,
-            refreshSessions
+            refreshSessions,
+            clearCurrentSession
         }}>
             {children}
         </ChatHistoryContext.Provider>

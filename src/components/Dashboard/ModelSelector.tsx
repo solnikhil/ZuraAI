@@ -1,27 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check, Sparkles } from 'lucide-react'
+import { ChevronDown, Check, Settings } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
+
+interface ModelWithProvider {
+    code: string
+    displayName: string
+    provider: 'ollama' | 'perplexity' | 'openrouter'
+}
 
 export default function ModelSelector() {
     const { settings, updateSettings } = useSettings()
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
-    // Get available models based on provider
-    const getAvailableModels = () => {
-        switch (settings.modelProvider) {
-            case 'ollama':
-                return settings.ollamaModels
-            case 'perplexity':
-                return settings.perplexityModels
-            case 'openrouter':
-            default:
-                return settings.configuredModels
+    // Get ALL models from ALL providers
+    const getAllModels = (): ModelWithProvider[] => {
+        const allModels: ModelWithProvider[] = []
+
+        // Ollama models
+        if (settings.ollamaModels && settings.ollamaModels.length > 0) {
+            settings.ollamaModels.forEach(m => {
+                allModels.push({ ...m, provider: 'ollama' })
+            })
         }
+
+        // Perplexity models
+        if (settings.perplexityModels && settings.perplexityModels.length > 0) {
+            settings.perplexityModels.forEach(m => {
+                allModels.push({ ...m, provider: 'perplexity' })
+            })
+        }
+
+        // OpenRouter models
+        if (settings.configuredModels && settings.configuredModels.length > 0) {
+            settings.configuredModels.forEach(m => {
+                allModels.push({ ...m, provider: 'openrouter' })
+            })
+        }
+
+        return allModels
     }
 
-    const models = getAvailableModels() || []
-    const currentModelName = models.find(m => m.code === settings.aiModel)?.displayName || settings.aiModel.split('/').pop()
+    const allModels = getAllModels()
+
+    // Find current model info
+    const currentModel = allModels.find(m => m.code === settings.aiModel)
+    const currentModelName = currentModel?.displayName || settings.aiModel.split('/').pop()
+
+    const getProviderLabel = (provider: string) => {
+        switch (provider) {
+            case 'ollama': return 'Ollama'
+            case 'perplexity': return 'Perplexity'
+            case 'openrouter': return 'OpenRouter'
+            default: return provider
+        }
+    }
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -34,177 +67,141 @@ export default function ModelSelector() {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    const handleSelectModel = (modelCode: string) => {
-        updateSettings({ aiModel: modelCode })
+    const handleSelectModel = (model: ModelWithProvider) => {
+        // Update both the model AND the provider
+        updateSettings({
+            aiModel: model.code,
+            modelProvider: model.provider
+        })
         setIsOpen(false)
     }
 
-    const getProviderIcon = () => {
-        // You could add specific icons here later
-        return <Sparkles size={14} className={settings.modelProvider === 'ollama' ? 'text-green-400' : 'text-orange-400'} />
+    // Group models by provider
+    const ollamaModels = allModels.filter(m => m.provider === 'ollama')
+    const perplexityModels = allModels.filter(m => m.provider === 'perplexity')
+    const openrouterModels = allModels.filter(m => m.provider === 'openrouter')
+
+    const renderModelGroup = (title: string, models: ModelWithProvider[]) => {
+        if (models.length === 0) return null
+        return (
+            <div key={title}>
+                <div style={{
+                    padding: '8px 12px 4px',
+                    fontSize: '0.65rem',
+                    color: '#666',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px'
+                }}>
+                    {title}
+                </div>
+                {models.map(model => (
+                    <div
+                        key={model.code}
+                        onClick={() => handleSelectModel(model)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderRadius: '8px',
+                            backgroundColor: settings.aiModel === model.code ? 'rgba(255,255,255,0.06)' : 'transparent',
+                            transition: 'all 0.15s'
+                        }}
+                        onMouseEnter={e => {
+                            if (settings.aiModel !== model.code) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'
+                        }}
+                        onMouseLeave={e => {
+                            if (settings.aiModel !== model.code) e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ color: '#e0e0e0', fontSize: '0.85rem', fontWeight: 500 }}>{model.displayName}</span>
+                        </div>
+                        {settings.aiModel === model.code && <Check size={14} color="#fff" />}
+                    </div>
+                ))}
+            </div>
+        )
     }
 
     return (
-        <div style={{ position: 'relative', zIndex: 50 }} ref={dropdownRef}>
+        <div style={{ position: 'relative', zIndex: 100 }} ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    background: isOpen ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                    gap: '4px',
+                    background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#e0e0e0',
-                    fontSize: '0.9rem',
+                    fontSize: '0.75rem',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    padding: '8px 16px 8px 12px',
-                    borderRadius: '24px',
-                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                    backdropFilter: 'blur(10px)',
-                    boxShadow: isOpen ? '0 0 0 2px rgba(255,255,255,0.1)' : 'none'
+                    padding: '6px 10px',
+                    borderRadius: '16px',
+                    transition: 'all 0.2s ease',
+                    color: '#fff'
                 }}
-                onMouseEnter={e => {
-                    if (!isOpen) e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
-                }}
-                onMouseLeave={e => {
-                    if (!isOpen) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
             >
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '20px',
-                    height: '20px',
-                    borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.1)'
-                }}>
-                    {getProviderIcon()}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.1 }}>
-                    <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {settings.modelProvider === 'ollama' ? 'Ollama' : settings.modelProvider === 'perplexity' ? 'Perplexity' : 'Cloud'}
-                    </span>
-                    <span style={{ fontSize: '0.85rem' }}>{currentModelName}</span>
-                </div>
-
+                <Settings size={12} color="#888" />
+                <span style={{ color: '#888' }}>{getProviderLabel(settings.modelProvider)}</span>
+                <span style={{ color: '#ccc' }}>{currentModelName}</span>
                 <ChevronDown
                     size={14}
                     style={{
-                        color: '#888',
-                        marginLeft: '8px',
+                        color: '#666',
+                        marginLeft: '2px',
                         transform: isOpen ? 'rotate(180deg)' : 'none',
-                        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                        transition: 'transform 0.2s',
+                        opacity: 0.7
                     }}
                 />
             </button>
 
-            {/* Dropdown with animation logic needing CSS or simple mounting */}
+            {/* Dropdown - Opens upward since it's at bottom of screen */}
             {isOpen && (
-                <div className="model-dropdown-im" style={{
+                <div className="model-dropdown-text" style={{
                     position: 'absolute',
-                    top: 'calc(100% + 8px)',
+                    bottom: 'calc(100% + 8px)',
                     left: '0',
-                    width: '320px',
-                    backgroundColor: 'rgba(30, 30, 30, 0.95)',
-                    backdropFilter: 'blur(20px)',
+                    width: '280px',
+                    backgroundColor: '#1a1a1a',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '16px',
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
-                    padding: '8px',
+                    borderRadius: '12px',
+                    boxShadow: '0 -10px 30px rgba(0,0,0,0.5)',
+                    padding: '6px',
                     overflow: 'hidden',
-                    animation: 'dropdown-slide 0.2s ease-out'
+                    zIndex: 101,
+                    animation: 'dropdown-fade-up 0.15s ease-out'
                 }}>
-                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                        <div style={{
-                            padding: '12px 12px 8px',
-                            fontSize: '0.75rem',
-                            color: '#666',
-                            fontWeight: 600,
-                            textTransform: 'uppercase',
-                            letterSpacing: '1px',
-                            borderBottom: '1px solid rgba(255,255,255,0.05)',
-                            marginBottom: '8px'
-                        }}>
-                            Available Models
-                        </div>
-                        {models.map(model => (
-                            <div
-                                key={model.code}
-                                onClick={() => handleSelectModel(model.code)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '12px',
-                                    cursor: 'pointer',
-                                    borderRadius: '10px',
-                                    backgroundColor: settings.aiModel === model.code ? 'rgba(255,255,255,0.1)' : 'transparent',
-                                    transition: 'all 0.15s',
-                                    marginBottom: '2px',
-                                    border: settings.aiModel === model.code ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent'
-                                }}
-                                onMouseEnter={e => {
-                                    if (settings.aiModel !== model.code) {
-                                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-                                        e.currentTarget.style.transform = 'translateX(2px)'
-                                    }
-                                }}
-                                onMouseLeave={e => {
-                                    if (settings.aiModel !== model.code) {
-                                        e.currentTarget.style.backgroundColor = 'transparent'
-                                        e.currentTarget.style.transform = 'none'
-                                    }
-                                }}
-                            >
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span style={{ color: settings.aiModel === model.code ? '#fff' : '#e0e0e0', fontSize: '0.9rem', fontWeight: 500 }}>
-                                        {model.displayName}
-                                    </span>
-                                    <span style={{ color: settings.aiModel === model.code ? '#aaa' : '#666', fontSize: '0.75rem' }}>
-                                        {model.code}
-                                    </span>
-                                </div>
-                                {settings.aiModel === model.code && (
-                                    <div style={{
-                                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                        padding: '4px',
-                                        borderRadius: '50%',
-                                        boxShadow: '0 0 10px rgba(118, 75, 162, 0.5)'
-                                    }}>
-                                        <Check size={12} color="#fff" strokeWidth={3} />
-                                    </div>
-                                )}
+                    <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                        {renderModelGroup('Ollama', ollamaModels)}
+                        {renderModelGroup('Perplexity', perplexityModels)}
+                        {renderModelGroup('OpenRouter', openrouterModels)}
+                        {allModels.length === 0 && (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '0.85rem' }}>
+                                No models configured. Check Settings.
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
             )}
 
             <style>{`
-                @keyframes dropdown-slide {
-                    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-                    to { opacity: 1; transform: translateY(0) scale(1); }
+                @keyframes dropdown-fade {
+                    from { opacity: 0; transform: translateY(-4px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
-                
-                /* Custom Scrollbar for dropdown */
-                .model-dropdown-im ::-webkit-scrollbar {
-                    width: 4px;
+                @keyframes dropdown-fade-up {
+                    from { opacity: 0; transform: translateY(4px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
-                .model-dropdown-im ::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .model-dropdown-im ::-webkit-scrollbar-thumb {
-                    background: rgba(255,255,255,0.1);
-                    border-radius: 2px;
-                }
-                .model-dropdown-im ::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255,255,255,0.2);
-                }
+                .model-dropdown-text ::-webkit-scrollbar { width: 4px; }
+                .model-dropdown-text ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
             `}</style>
         </div>
     )

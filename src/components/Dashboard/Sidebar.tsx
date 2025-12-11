@@ -10,7 +10,7 @@ interface SidebarProps {
 export default function Sidebar({ onOpenSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [isCollapsed, setIsCollapsed] = useState(false)
-    const { sessions, currentSessionId, switchSession, createSession, deleteSession } = useChatHistory()
+    const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
     const { settings } = useSettings()
 
     const filteredSessions = sessions.filter(s =>
@@ -105,8 +105,8 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
 
     return (
         <div style={{
-            width: isCollapsed ? '72px' : '280px',
-            background: 'linear-gradient(180deg, #0a0a0a 0%, #111 100%)',
+            width: isCollapsed ? '56px' : '200px',
+            background: '#121212',
             borderRight: '1px solid rgba(255,255,255,0.06)',
             display: 'flex',
             flexDirection: 'column',
@@ -165,7 +165,7 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
 
                 {/* New Chat Button */}
                 <button
-                    onClick={() => createSession()}
+                    onClick={() => clearCurrentSession()}
                     title="New Chat"
                     style={{
                         width: '100%',
@@ -177,18 +177,18 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
                         cursor: 'pointer',
                         borderRadius: '12px',
                         border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                        background: 'rgba(255,255,255,0.06)',
                         color: '#fff',
                         fontSize: '0.9rem',
                         fontWeight: 500,
                         transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={e => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)'
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
                     }}
                     onMouseLeave={e => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
                     }}
                 >
@@ -267,8 +267,8 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
                         width: '8px',
                         height: '8px',
                         borderRadius: '50%',
-                        backgroundColor: settings.modelProvider === 'ollama' ? '#22c55e' : '#f97316',
-                        boxShadow: settings.modelProvider === 'ollama' ? '0 0 8px #22c55e' : '0 0 8px #f97316',
+                        backgroundColor: '#888',
+                        boxShadow: 'none',
                         flexShrink: 0
                     }} />
                     {!isCollapsed && (
