@@ -12,9 +12,11 @@ interface SettingsProps {
 
 export default function Settings({ onClose }: SettingsProps) {
     const { settings, updateSettings, resetSettings } = useSettings()
+    const { sessions } = useChatHistory()
     const [pendingSettings, setPendingSettings] = useState(settings)
-    const [activeSection, setActiveSection] = useState<SettingsSection>('preferences')
+    const [activeSection, setActiveSection] = useState<SettingsSection>('usage')
     const [showApiKey, setShowApiKey] = useState(false)
+    const [usagePeriod, setUsagePeriod] = useState<'7d' | '30d' | '12m'>('7d')
 
     // Model editing
     const [newModelCode, setNewModelCode] = useState('')
