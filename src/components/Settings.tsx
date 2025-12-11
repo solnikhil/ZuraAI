@@ -26,6 +26,10 @@ export default function Settings() {
     const [isCheckingOllama, setIsCheckingOllama] = useState(false)
     const [apiTestResult, setApiTestResult] = useState<string | null>(null)
 
+    // Overlay State
+    const [gameTitle, setGameTitle] = useState('')
+    const [attachStatus, setAttachStatus] = useState<string | null>(null)
+
     // Sync pending settings when global settings change
     useEffect(() => {
         setPendingSettings(settings)
@@ -123,6 +127,14 @@ export default function Settings() {
         handleSettingChange({ configuredModels: updatedModels, aiModel: newAiModel })
     }
 
+    const attachToGame = () => {
+        if (gameTitle && window.ipcRenderer) {
+            window.ipcRenderer.send('overlay:attach', gameTitle)
+            setAttachStatus(`Request sent to attach to "${gameTitle}"`)
+            setTimeout(() => setAttachStatus(null), 3000)
+        }
+    }
+
     return (
         <div className="settings-container">
             <div className="settings-sidebar">
@@ -169,6 +181,34 @@ export default function Settings() {
                                     />
                                     <span>Auto-hide when focus is lost</span>
                                 </label>
+                            </div>
+                        </div>
+
+                        <div className="setting-group">
+                            <h3>Game Integration</h3>
+                            <div className="setting-item">
+                                <label className="setting-label">Attach Overlay to Game</label>
+                                <p className="setting-description">Use this if the overlay doesn't appear in full-screen games.</p>
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                    <input
+                                        type="text"
+                                        className="setting-input"
+                                        placeholder="Game Window Title (e.g. Overwatch)"
+                                        value={gameTitle}
+                                        onChange={(e) => setGameTitle(e.target.value)}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <button
+                                        className="secondary-btn"
+                                        onClick={attachToGame}
+                                        disabled={!gameTitle}
+                                    >
+                                        Attach
+                                    </button>
+                                </div>
+                                {attachStatus && (
+                                    <p style={{ color: '#22c55e', fontSize: '0.9rem', marginTop: '5px' }}>{attachStatus}</p>
+                                )}
                             </div>
                         </div>
 

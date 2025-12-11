@@ -8,6 +8,13 @@ export interface Message {
     image?: string
     timestamp: number
     tokenCount?: number
+    model?: string
+    latency?: number
+    usage?: {
+        inputTokens: number
+        outputTokens: number
+        totalTokens: number
+    }
 }
 
 export interface ChatSession {
@@ -65,7 +72,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         }
     }, [])
 
-    // Initialize and migrate from localStorage if needed
+    // Initialize and listen for updates
     useEffect(() => {
         const initializeStore = async () => {
             if (isElectron) {
@@ -95,6 +102,18 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         }
 
         initializeStore()
+
+        // Listen for updates from other windows
+        if (isElectron) {
+            const handleUpdate = () => {
+                console.log('Chat store updated, reloading...')
+                loadSessions()
+            }
+            window.ipcRenderer.on('chat-store:updated', handleUpdate)
+            return () => {
+                window.ipcRenderer.off('chat-store:updated', handleUpdate)
+            }
+        }
     }, [loadSessions])
 
     // Save sessions whenever they change (after initialization)

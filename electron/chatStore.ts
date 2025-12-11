@@ -12,6 +12,13 @@ export interface Message {
     image?: string
     timestamp: number
     tokenCount?: number
+    model?: string
+    latency?: number
+    usage?: {
+        inputTokens: number
+        outputTokens: number
+        totalTokens: number
+    }
 }
 
 export interface ChatSession {

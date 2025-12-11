@@ -9,6 +9,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion } from '../../services/perplexity'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
+import ModelSelector from './ModelSelector'
 
 export default function ChatArea() {
     const { sessions, currentSessionId, addMessageToSession, createSession } = useChatHistory()
@@ -186,6 +187,16 @@ export default function ChatArea() {
                 background: 'linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)',
                 position: 'relative'
             }}>
+                {/* Header for Empty State too - for consistency */}
+                <div style={{
+                    padding: '16px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center', // Centered in empty state looks nice
+                }}>
+                    <ModelSelector />
+                </div>
+
                 {/* Centered Welcome */}
                 <div style={{
                     flex: 1,
@@ -289,25 +300,10 @@ export default function ChatArea() {
                 padding: '16px 24px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: 'flex-start', // Align left like reference
                 borderBottom: '1px solid rgba(255,255,255,0.06)'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                        width: '32px',
-                        height: '32px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        <Sparkles size={16} color="#fff" />
-                    </div>
-                    <span style={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>
-                        {settings.aiModel.split('/').pop()}
-                    </span>
-                </div>
+                <ModelSelector />
             </div>
 
             {/* Messages */}
@@ -665,3 +661,4 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
         </div>
     )
 }
+
