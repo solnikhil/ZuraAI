@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
-import { useChatHistory, Message as ChatMessage } from '../contexts/ChatHistoryContext'
 import './Overlay.css'
 import ShinyText from './ShinyText'
 import AgentBar from './AgentBar'
@@ -33,14 +32,7 @@ export default function Overlay() {
     const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null)
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [screenshot, setScreenshot] = useState<string | null>(null)
-    const { createSession, addMessageToSession, sessions } = useChatHistory()
-    const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-
-    // Derived messages from active session
-    const messages = activeSessionId
-        ? sessions.find(s => s.id === activeSessionId)?.messages || []
-        : []
-
+    const [messages, setMessages] = useState<Message[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [streamingContent, setStreamingContent] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
@@ -89,15 +81,6 @@ export default function Overlay() {
             }
         }
     }, [messages.length])
-
-    // Load latest session on mount if available
-    useEffect(() => {
-        if (!activeSessionId && sessions.length > 0) {
-            // Optional: Start fresh or load last? User requested sync, implies continuity.
-            // Let's load the most recent one.
-            setActiveSessionId(sessions[0].id)
-        }
-    }, [sessions, activeSessionId])
 
     // Handle direct screenshot selection mode (Ctrl+Shift+X shortcut)
     useEffect(() => {
@@ -173,20 +156,14 @@ export default function Overlay() {
     const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
 
-        // Create session if needed or use active
-        let sessionId = activeSessionId
-        if (!sessionId) {
-            sessionId = createSession(userPrompt)
-            setActiveSessionId(sessionId)
-        }
-
-        // Add user message to persistent store
-        addMessageToSession(sessionId, {
+        // Add user message immediately
+        const userMessage: Message = {
+            id: Date.now().toString(),
             role: 'user',
             content: userPrompt,
             image: image
-        })
-
+        }
+        setMessages(prev => [...prev, userMessage])
         setIsChatActive(true)
 
         try {
@@ -205,12 +182,12 @@ export default function Overlay() {
             setIsLoading(false)
             await typewriterEffect(errorMsg)
 
-            if (sessionId) {
-                addMessageToSession(sessionId, {
-                    role: 'assistant',
-                    content: errorMsg
-                })
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: errorMsg
             }
+            setMessages(prev => [...prev, errorMessage])
             finishStreaming()
         }
     }
@@ -245,15 +222,19 @@ export default function Overlay() {
         setIsLoading(false)
         await typewriterEffect(content)
 
-        // Add to persistent store
-        if (activeSessionId) {
-            addMessageToSession(activeSessionId, {
-                role: 'assistant',
-                content: content,
-                image: undefined, // Explicitly undefined as it's optional
-                tokenCount: (response.prompt_eval_count || 0) + (response.eval_count || 0)
-            })
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: content,
+            model: `ollama/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: response.prompt_eval_count || 0,
+                outputTokens: response.eval_count || 0,
+                totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0)
+            }
         }
+        setMessages(prev => [...prev, aiMessage])
         finishStreaming()
     }
 
@@ -285,15 +266,19 @@ export default function Overlay() {
         setIsLoading(false)
         await typewriterEffect(content)
 
-        // Add to persistent store
-        if (activeSessionId) {
-            addMessageToSession(activeSessionId, {
-                role: 'assistant',
-                content: content,
-                image: undefined,
-                tokenCount: response.usage?.total_tokens || 0
-            })
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: content,
+            model: `perplexity/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: response.usage?.prompt_tokens || 0,
+                outputTokens: response.usage?.completion_tokens || 0,
+                totalTokens: response.usage?.total_tokens || 0
+            }
         }
+        setMessages(prev => [...prev, aiMessage])
         finishStreaming()
     }
 
@@ -353,22 +338,19 @@ export default function Overlay() {
         setIsLoading(false)
         await typewriterEffect(aiContent)
 
-        // Add to persistent store
-        if (activeSessionId) {
-            addMessageToSession(activeSessionId, {
-                role: 'assistant',
-                content: aiContent,
-                image: undefined,
-                tokenCount: data.usage?.total_tokens || 0,
-                model: `openrouter/${settings.aiModel}`,
-                latency: Math.round(endTime - startTime),
-                usage: {
-                    inputTokens: data.usage?.prompt_tokens || 0,
-                    outputTokens: data.usage?.completion_tokens || 0,
-                    totalTokens: data.usage?.total_tokens || 0
-                }
-            })
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: aiContent,
+            model: `openrouter/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: data.usage?.prompt_tokens || 0,
+                outputTokens: data.usage?.completion_tokens || 0,
+                totalTokens: data.usage?.total_tokens || 0
+            }
         }
+        setMessages(prev => [...prev, aiMessage])
         finishStreaming()
     }
 
@@ -620,11 +602,7 @@ export default function Overlay() {
                 isChatActive={isChatActive}
                 onViewScreenshot={() => screenshot && setViewingImage(screenshot)}
                 onDetachScreenshot={() => setScreenshot(null)}
-                onNewChat={() => {
-                    const newId = createSession(); // Start fresh session
-                    setActiveSessionId(newId);
-                    setIsChatActive(false);
-                }}
+                onNewChat={() => { setMessages([]); setScreenshot(null); setIsChatActive(false); }}
             />
 
             {/* Full-screen Image Viewer */}

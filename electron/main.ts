@@ -1,5 +1,4 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification } from 'electron'
-import { OverlayController, OVERLAY_WINDOW_OPTS } from 'electron-overlay-window'
 import path from 'path'
 import * as chatStore from './chatStore'
 
@@ -52,13 +51,8 @@ function createSettingsWindow() {
         settingsWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'dashboard' })
     }
 
-    // Intercept close event to hide instead of destroy
-    settingsWin.on('close', (e) => {
-        if (!isQuitting) {
-            e.preventDefault()
-            settingsWin?.hide()
-        }
-        return false // Prevent window from closing
+    settingsWin.on('closed', () => {
+        settingsWin = null
     })
 }
 
@@ -112,16 +106,15 @@ function createOverlayWindow() {
     const { width, height } = primaryDisplay.workAreaSize
 
     overlayWin = new BrowserWindow({
-        ...OVERLAY_WINDOW_OPTS,
         width,
         height,
         x: 0,
         y: 0,
-        // transparent: true, // Handled by OVERLAY_WINDOW_OPTS
-        // frame: false,      // Handled by OVERLAY_WINDOW_OPTS
-        // alwaysOnTop: true, // Handled by OVERLAY_WINDOW_OPTS
-        // skipTaskbar: true, // Handled by OVERLAY_WINDOW_OPTS
-        // hasShadow: false,  // Handled by OVERLAY_WINDOW_OPTS
+        transparent: true,
+        frame: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        hasShadow: false,
         show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -161,7 +154,6 @@ app.on('before-quit', () => {
 app.whenReady().then(() => {
     createTray()
     createOverlayWindow()
-    createSettingsWindow() // Create and show the main window on startup
 
     globalShortcut.register('CommandOrControl+Shift+Z', async () => {
         console.log('[SHORTCUT] Triggered')
@@ -253,50 +245,38 @@ ipcMain.handle('chat-store:get-all', () => {
     return chatStore.getAllSessions()
 })
 
-const broadcastChatUpdate = () => {
-    if (settingsWin) settingsWin.webContents.send('chat-store:updated')
-    if (overlayWin) overlayWin.webContents.send('chat-store:updated')
-}
-
 ipcMain.handle('chat-store:save-all', (_event, sessions) => {
     chatStore.saveAllSessions(sessions)
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:create-session', (_event, session) => {
     chatStore.createSession(session)
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:update-session', (_event, id, updates) => {
     chatStore.updateSession(id, updates)
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:add-message', (_event, sessionId, message) => {
     chatStore.addMessageToSession(sessionId, message)
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:delete-session', (_event, id) => {
     chatStore.deleteSession(id)
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:clear-all', () => {
     chatStore.clearAllSessions()
-    broadcastChatUpdate()
     return true
 })
 
 ipcMain.handle('chat-store:migrate', (_event, localStorageData) => {
     chatStore.migrateFromLocalStorage(localStorageData)
-    broadcastChatUpdate()
     return true
 })
 
@@ -413,28 +393,3 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
 ipcMain.on('open-settings', () => {
     createSettingsWindow()
 })
-
-// ==================== OVERLAY CONTROL ====================
-
-ipcMain.on('overlay:attach', (_event, target) => {
-    // target can be a window title string or process ID (if supported)
-    console.log('[OVERLAY] Attaching to:', target)
-    if (overlayWin) {
-        OverlayController.attachByTitle(overlayWin, target)
-        // Also ensure it's activated
-        OverlayController.activateOverlay(overlayWin)
-    }
-})
-
-ipcMain.on('overlay:activate', () => {
-    if (overlayWin) {
-        OverlayController.activateOverlay()
-    }
-})
-
-ipcMain.on('overlay:deactivate', () => {
-    if (overlayWin) {
-        OverlayController.focusTarget()
-    }
-})
-

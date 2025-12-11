@@ -300,7 +300,7 @@ export default function ChatArea() {
                 padding: '16px 24px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'flex-start', // Align left like reference
+                justifyContent: 'center',
                 borderBottom: '1px solid rgba(255,255,255,0.06)'
             }}>
                 <ModelSelector />
