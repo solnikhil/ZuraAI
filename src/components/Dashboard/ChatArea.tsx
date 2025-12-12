@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, User } from 'lucide-react'
+import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -9,6 +9,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion } from '../../services/perplexity'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
+import ModelSelector from './ModelSelector'
 
 export default function ChatArea() {
     const { sessions, currentSessionId, addMessageToSession, createSession } = useChatHistory()
@@ -40,130 +41,73 @@ export default function ChatArea() {
         }
     }, [input])
 
-    // Typewriter effect function - returns when complete, caller handles cleanup
+    // Typewriter effect function
     const typewriterEffect = async (text: string): Promise<void> => {
         setIsStreaming(true)
         setStreamingContent('')
-
-        // Speed settings (ms per character)
-        const baseSpeed = 15  // Normal speed
-        const fastSpeed = 5   // For code blocks
-
+        const baseSpeed = 15
+        const fastSpeed = 5
         let i = 0
         const length = text.length
-
         while (i < length) {
-            // Check if we're in a code block for faster rendering
             const inCodeBlock = text.substring(0, i).split('```').length % 2 === 0
             const speed = inCodeBlock ? fastSpeed : baseSpeed
-
-            // Add characters in chunks for smoother rendering
             const chunkSize = inCodeBlock ? 5 : 2
             const chunk = text.substring(i, Math.min(i + chunkSize, length))
-
             setStreamingContent(prev => prev + chunk)
             i += chunkSize
-
             await new Promise(resolve => setTimeout(resolve, speed))
         }
-
-        // Don't clear here - let the caller add message first, then clear
     }
 
-    // Helper to finish streaming and add message
     const finishStreaming = () => {
         setIsStreaming(false)
         setStreamingContent('')
     }
 
-
     const handleSendMessage = async () => {
         if (!input.trim() || isLoading) return
-
         const userMessageContent = input
         setInput('')
         setIsLoading(true)
 
         let targetSessionId = currentSessionId
-        let isNewSession = false
-
-        // If no session exists, create one (which also adds the first user message)
         if (!targetSessionId) {
             targetSessionId = createSession(userMessageContent)
-            isNewSession = true
         } else {
-            // Only add user message if this is an existing session
-            addMessageToSession(targetSessionId, {
-                role: 'user',
-                content: userMessageContent
-            })
+            addMessageToSession(targetSessionId, { role: 'user', content: userMessageContent })
         }
 
         try {
             let responseContent = ""
-
-            // Build optimized context with token management
             const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }))
-            const optimizedHistory = buildOptimizedContext(
-                conversationHistory,
-                userMessageContent,
-                settings.systemPrompt,
-                settings.aiModel
-            )
+            const optimizedHistory = buildOptimizedContext(conversationHistory, userMessageContent, settings.systemPrompt, settings.aiModel)
 
             if (settings.modelProvider === 'ollama') {
-                const res = await generateOllamaCompletion(
-                    settings.ollamaUrl,
-                    settings.aiModel,
-                    optimizedHistory,
-                    { temperature: settings.temperature }
-                )
+                const res = await generateOllamaCompletion(settings.ollamaUrl, settings.aiModel, optimizedHistory, { temperature: settings.temperature })
                 responseContent = res.message.content
-
             } else if (settings.modelProvider === 'perplexity') {
-                const res = await generatePerplexityCompletion(
-                    settings.perplexityApiKey,
-                    settings.aiModel,
-                    optimizedHistory
-                )
+                const res = await generatePerplexityCompletion(settings.perplexityApiKey, settings.aiModel, optimizedHistory)
                 responseContent = res.choices[0].message.content
             } else {
-                const apiKey = settings.openRouterApiKey
-
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${apiKey}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        "model": settings.aiModel,
-                        "messages": optimizedHistory
-                    })
+                    headers: { "Authorization": `Bearer ${settings.openRouterApiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ "model": settings.aiModel, "messages": optimizedHistory })
                 })
                 const data = await res.json()
                 responseContent = data.choices?.[0]?.message?.content || "Error: No response"
             }
 
-            // Show typewriter effect
             setIsLoading(false)
             await typewriterEffect(responseContent)
-
-            // Save the complete message after animation, then clear streaming
-            addMessageToSession(targetSessionId!, {
-                role: 'assistant',
-                content: responseContent
-            })
+            addMessageToSession(targetSessionId!, { role: 'assistant', content: responseContent })
             finishStreaming()
-
         } catch (error: any) {
             setIsLoading(false)
             const errorMsg = `Error: ${error.message}`
             await typewriterEffect(errorMsg)
-            addMessageToSession(targetSessionId!, {
-                role: 'assistant',
-                content: errorMsg
-            })
+            addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
             finishStreaming()
         }
     }
@@ -183,9 +127,21 @@ export default function ChatArea() {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100vh',
-                background: 'linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)',
+                background: '#0a0a0a',
                 position: 'relative'
             }}>
+                {/* Header */}
+                <div style={{
+                    padding: '12px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                }}>
+                    <Sparkles size={20} color="#888" />
+                    <span style={{ color: '#ccc', fontSize: '0.95rem', fontWeight: 500 }}>New Conversation</span>
+                    <ChevronDown size={14} color="#666" />
+                </div>
+
                 {/* Centered Welcome */}
                 <div style={{
                     flex: 1,
@@ -208,27 +164,15 @@ export default function ChatArea() {
                     }}>
                         <Sparkles size={32} color="#fff" />
                     </div>
-                    <h1 style={{
-                        fontSize: '2rem',
-                        fontWeight: 600,
-                        color: '#fff',
-                        marginBottom: '8px',
-                        letterSpacing: '-0.02em'
-                    }}>What can I help with?</h1>
-                    <p style={{
-                        fontSize: '1rem',
-                        color: '#666',
-                        marginBottom: '40px'
-                    }}>Ask anything, or start with a suggestion below</p>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#fff', marginBottom: '8px', letterSpacing: '-0.02em' }}>
+                        What can I help with?
+                    </h1>
+                    <p style={{ fontSize: '1rem', color: '#666', marginBottom: '40px' }}>
+                        Ask anything, or start with a suggestion below
+                    </p>
 
                     {/* Quick Suggestions */}
-                    <div style={{
-                        display: 'flex',
-                        gap: '12px',
-                        flexWrap: 'wrap',
-                        justifyContent: 'center',
-                        maxWidth: '600px'
-                    }}>
+                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '600px' }}>
                         {settings.quickPrompts.map((suggestion, idx) => (
                             <button
                                 key={idx}
@@ -246,12 +190,10 @@ export default function ChatArea() {
                                 onMouseEnter={e => {
                                     e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
                                     e.currentTarget.style.color = '#fff'
-                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
                                 }}
                                 onMouseLeave={e => {
                                     e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
                                     e.currentTarget.style.color = '#aaa'
-                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
                                 }}
                             >
                                 {suggestion}
@@ -281,33 +223,22 @@ export default function ChatArea() {
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
-            background: 'linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%)',
+            background: '#0a0a0a',
             position: 'relative'
         }}>
-            {/* Header */}
+            {/* Header - Session Title */}
             <div style={{
-                padding: '16px 24px',
+                padding: '12px 20px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                borderBottom: '1px solid rgba(255,255,255,0.06)'
+                gap: '8px',
+                borderBottom: '1px solid rgba(255,255,255,0.05)'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                        width: '32px',
-                        height: '32px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        <Sparkles size={16} color="#fff" />
-                    </div>
-                    <span style={{ fontWeight: 600, color: '#fff', fontSize: '0.95rem' }}>
-                        {settings.aiModel.split('/').pop()}
-                    </span>
-                </div>
+                <Sparkles size={20} color="#888" />
+                <span style={{ color: '#ccc', fontSize: '0.95rem', fontWeight: 500 }}>
+                    {currentSession?.title || 'New Conversation'}
+                </span>
+                <ChevronDown size={14} color="#666" />
             </div>
 
             {/* Messages */}
@@ -317,65 +248,18 @@ export default function ChatArea() {
                         <MessageBubble key={msg.id} message={msg} />
                     ))}
                     {isLoading && (
-                        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-                            <div style={{
-                                width: '36px',
-                                height: '36px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                borderRadius: '10px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                            }}>
-                                <Sparkles size={18} color="#fff" className="animate-pulse" />
-                            </div>
-                            <div style={{
-                                padding: '16px 20px',
-                                backgroundColor: 'rgba(255,255,255,0.03)',
-                                borderRadius: '16px',
-                                borderTopLeftRadius: '4px'
-                            }}>
-                                <div className="typing-indicator">
-                                    <span></span><span></span><span></span>
-                                </div>
+                        <div style={{ marginBottom: '24px' }}>
+                            <div className="typing-indicator">
+                                <span></span><span></span><span></span>
                             </div>
                         </div>
                     )}
-                    {/* Streaming content (typewriter effect) */}
                     {isStreaming && streamingContent && (
-                        <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-                            <div style={{
-                                width: '36px',
-                                height: '36px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                borderRadius: '10px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                            }}>
-                                <Sparkles size={18} color="#fff" />
+                        <div style={{ marginBottom: '24px' }}>
+                            <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7' }}>
+                                <HighlightFirstWord content={streamingContent} />
                             </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{
-                                    padding: '14px 18px',
-                                    backgroundColor: 'rgba(255,255,255,0.03)',
-                                    borderRadius: '16px',
-                                    borderTopLeftRadius: '4px',
-                                    color: '#e0e0e0',
-                                    fontSize: '0.95rem',
-                                    lineHeight: '1.7'
-                                }}>
-                                    <div className="markdown-content">
-                                        <ReactMarkdown
-                                            children={streamingContent}
-                                            remarkPlugins={[remarkGfm]}
-                                        />
-                                    </div>
-                                    <span className="cursor-blink">▌</span>
-                                </div>
-                            </div>
+                            <span className="cursor-blink">▌</span>
                         </div>
                     )}
                     <div ref={messagesEndRef} />
@@ -392,9 +276,6 @@ export default function ChatArea() {
                     onKeyDown={handleKeyDown}
                     textareaRef={textareaRef}
                 />
-                <div style={{ textAlign: 'center', fontSize: '0.72rem', color: '#555', marginTop: '12px' }}>
-                    Zura can make mistakes. Consider checking important information.
-                </div>
             </div>
 
             <style>{`
@@ -415,17 +296,9 @@ export default function ChatArea() {
                     0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
                     40% { transform: scale(1); opacity: 1; }
                 }
-                .animate-pulse {
-                    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-                }
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                }
                 .cursor-blink {
-                    color: #667eea;
+                    color: #f59e0b;
                     animation: blink 1s infinite;
-                    margin-left: 2px;
                 }
                 @keyframes blink {
                     0%, 50% { opacity: 1; }
@@ -433,6 +306,22 @@ export default function ChatArea() {
                 }
             `}</style>
         </div>
+    )
+}
+
+// Component to highlight first word in gold
+function HighlightFirstWord({ content }: { content: string }) {
+    const firstSpaceIndex = content.indexOf(' ')
+    if (firstSpaceIndex === -1) {
+        return <span style={{ color: '#f59e0b' }}>{content}</span>
+    }
+    const firstWord = content.substring(0, firstSpaceIndex)
+    const rest = content.substring(firstSpaceIndex)
+    return (
+        <>
+            <span style={{ color: '#f59e0b' }}>{firstWord}</span>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{rest}</ReactMarkdown>
+        </>
     )
 }
 
@@ -446,189 +335,140 @@ function MessageBubble({ message }: { message: any }) {
         setTimeout(() => setCopied(false), 2000)
     }
 
-    return (
-        <div style={{
-            display: 'flex',
-            gap: '16px',
-            marginBottom: '24px',
-            flexDirection: isUser ? 'row-reverse' : 'row',
-            justifyContent: isUser ? 'flex-start' : 'flex-start'
-        }}>
-            {/* Avatar */}
+    if (isUser) {
+        // User message - right aligned dark pill
+        return (
             <div style={{
-                width: '36px',
-                height: '36px',
-                background: isUser ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                borderRadius: '10px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                marginBottom: '24px'
+            }}>
+                <div style={{
+                    padding: '12px 18px',
+                    backgroundColor: '#2a2a2a',
+                    borderRadius: '20px',
+                    color: '#e0e0e0',
+                    fontSize: '0.95rem',
+                    maxWidth: '70%',
+                    whiteSpace: 'pre-wrap'
+                }}>
+                    {message.content}
+                </div>
+            </div>
+        )
+    }
+
+    // AI message - left aligned, no bubble, colored first word
+    const firstSpaceIndex = message.content.indexOf(' ')
+    const firstWord = firstSpaceIndex > -1 ? message.content.substring(0, firstSpaceIndex) : message.content
+    const restContent = firstSpaceIndex > -1 ? message.content.substring(firstSpaceIndex) : ''
+
+    return (
+        <div style={{ marginBottom: '24px' }}>
+            {/* Message content */}
+            <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
+                <span style={{ color: '#f59e0b' }}>{firstWord}</span>
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                        code({ node, inline, className, children, ...props }: any) {
+                            const match = /language-(\w+)/.exec(className || '')
+                            return !inline && match ? (
+                                <div style={{ position: 'relative', margin: '12px 0' }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        padding: '8px 12px',
+                                        backgroundColor: '#1e1e1e',
+                                        borderTopLeftRadius: '8px',
+                                        borderTopRightRadius: '8px',
+                                        fontSize: '0.75rem',
+                                        color: '#888'
+                                    }}>
+                                        <span>{match[1]}</span>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(String(children))}
+                                            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.75rem' }}
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                    <SyntaxHighlighter
+                                        {...props}
+                                        children={String(children).replace(/\n$/, '')}
+                                        style={vscDarkPlus}
+                                        language={match[1]}
+                                        PreTag="div"
+                                        customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}
+                                    />
+                                </div>
+                            ) : (
+                                <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em' }}>
+                                    {children}
+                                </code>
+                            )
+                        }
+                    }}
+                >
+                    {restContent}
+                </ReactMarkdown>
+            </div>
+
+            {/* Action buttons - only Copy works */}
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <ActionButton icon={<Copy size={14} />} onClick={handleCopy} />
+            </div>
+        </div>
+    )
+}
+
+function ActionButton({ icon, onClick }: { icon: React.ReactNode, onClick?: () => void }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#555',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flexShrink: 0
-            }}>
-                {isUser ? <User size={18} color="#fff" /> : <Sparkles size={18} color="#fff" />}
-            </div>
-
-            {/* Content */}
-            <div style={{
-                flex: 1,
-                maxWidth: isUser ? '75%' : '100%'
-            }}>
-                <div style={{
-                    padding: '14px 18px',
-                    backgroundColor: isUser ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(124, 58, 237, 0.15) 100%)' : 'rgba(255,255,255,0.03)',
-                    background: isUser ? 'linear-gradient(135deg, rgba(79, 70, 229, 0.25) 0%, rgba(124, 58, 237, 0.15) 100%)' : 'rgba(255,255,255,0.03)',
-                    borderRadius: '16px',
-                    borderTopLeftRadius: isUser ? '16px' : '4px',
-                    borderTopRightRadius: isUser ? '4px' : '16px',
-                    border: isUser ? '1px solid rgba(124, 58, 237, 0.3)' : 'none',
-                    color: '#e0e0e0',
-                    fontSize: '0.95rem',
-                    lineHeight: '1.7',
-                    position: 'relative'
-                }}>
-                    {isUser ? (
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
-                    ) : (
-                        <div className="markdown-content">
-                            <ReactMarkdown
-                                children={message.content}
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                    code({ node, inline, className, children, ...props }: any) {
-                                        const match = /language-(\w+)/.exec(className || '')
-                                        return !inline && match ? (
-                                            <div style={{ position: 'relative', margin: '12px 0' }}>
-                                                <div style={{
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center',
-                                                    padding: '8px 12px',
-                                                    backgroundColor: '#1e1e1e',
-                                                    borderTopLeftRadius: '8px',
-                                                    borderTopRightRadius: '8px',
-                                                    fontSize: '0.75rem',
-                                                    color: '#888'
-                                                }}>
-                                                    <span>{match[1]}</span>
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(String(children))
-                                                        }}
-                                                        style={{
-                                                            background: 'none',
-                                                            border: 'none',
-                                                            color: '#888',
-                                                            cursor: 'pointer',
-                                                            fontSize: '0.75rem'
-                                                        }}
-                                                    >
-                                                        Copy
-                                                    </button>
-                                                </div>
-                                                <SyntaxHighlighter
-                                                    {...props}
-                                                    children={String(children).replace(/\n$/, '')}
-                                                    style={vscDarkPlus}
-                                                    language={match[1]}
-                                                    PreTag="div"
-                                                    customStyle={{
-                                                        margin: 0,
-                                                        borderTopLeftRadius: 0,
-                                                        borderTopRightRadius: 0,
-                                                        borderBottomLeftRadius: '8px',
-                                                        borderBottomRightRadius: '8px'
-                                                    }}
-                                                />
-                                            </div>
-                                        ) : (
-                                            <code {...props} style={{
-                                                background: 'rgba(255,255,255,0.1)',
-                                                padding: '2px 6px',
-                                                borderRadius: '4px',
-                                                fontSize: '0.9em'
-                                            }}>
-                                                {children}
-                                            </code>
-                                        )
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-                </div>
-
-                {/* Actions (for assistant messages) */}
-                {!isUser && (
-                    <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        marginTop: '8px',
-                        paddingLeft: '4px'
-                    }}>
-                        <button
-                            onClick={handleCopy}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '4px 8px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#666',
-                                fontSize: '0.75rem',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                            onMouseLeave={e => e.currentTarget.style.color = '#666'}
-                        >
-                            {copied ? <Check size={12} /> : <Copy size={12} />}
-                            {copied ? 'Copied!' : 'Copy'}
-                        </button>
-                    </div>
-                )}
-            </div>
-        </div>
+                transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
+            onMouseLeave={e => e.currentTarget.style.color = '#555'}
+        >
+            {icon}
+        </button>
     )
 }
 
 function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }: any) {
     return (
         <div style={{
-            backgroundColor: 'rgba(255,255,255,0.03)',
-            borderRadius: '20px',
+            backgroundColor: '#1a1a1a',
+            borderRadius: '16px',
             padding: '12px 16px',
             display: 'flex',
-            alignItems: 'flex-end',
-            gap: '12px',
-            border: '1px solid rgba(255,255,255,0.08)',
-            transition: 'all 0.2s ease'
+            flexDirection: 'column',
+            gap: '8px',
+            border: '1px solid rgba(255,255,255,0.08)'
         }}>
-            {/* Attachment */}
-            <button style={{
-                background: 'none',
-                border: 'none',
-                padding: '8px',
-                cursor: 'pointer',
-                color: '#666',
-                borderRadius: '8px',
-                transition: 'all 0.15s'
-            }}>
-                <Paperclip size={18} />
-            </button>
-
             {/* Textarea */}
             <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Message Zura..."
+                placeholder="Ask a new question..."
                 disabled={isLoading}
                 rows={1}
                 style={{
-                    flex: 1,
+                    width: '100%',
                     backgroundColor: 'transparent',
                     border: 'none',
                     color: '#fff',
@@ -637,31 +477,56 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
                     fontSize: '0.95rem',
                     lineHeight: '1.5',
                     minHeight: '24px',
-                    maxHeight: '200px',
-                    padding: '8px 0'
+                    maxHeight: '200px'
                 }}
             />
 
-            {/* Send */}
-            <button
-                onClick={onSend}
-                disabled={isLoading || !input.trim()}
-                style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    background: input.trim() ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255,255,255,0.05)',
-                    color: input.trim() ? '#fff' : '#444',
-                    cursor: input.trim() ? 'pointer' : 'default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.2s ease'
-                }}
-            >
-                <Send size={18} />
-            </button>
+            {/* Bottom row - model selector and send */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <ModelSelector />
+                </div>
+                <button
+                    onClick={onSend}
+                    disabled={isLoading || !input.trim()}
+                    style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: input.trim() ? '#f59e0b' : 'rgba(255,255,255,0.1)',
+                        color: input.trim() ? '#000' : '#444',
+                        cursor: input.trim() ? 'pointer' : 'default',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease'
+                    }}
+                >
+                    <Send size={18} />
+                </button>
+            </div>
         </div>
+    )
+}
+
+function IconButton({ icon }: { icon: React.ReactNode }) {
+    return (
+        <button style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#666',
+            cursor: 'pointer',
+            padding: '8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.15s'
+        }}
+            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
+            onMouseLeave={e => e.currentTarget.style.color = '#666'}
+        >
+            {icon}
+        </button>
     )
 }

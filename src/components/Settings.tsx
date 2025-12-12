@@ -1,73 +1,62 @@
 import React, { useState, useEffect } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
+import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
-import './Settings.css'
+import { User, BarChart2, Settings as SettingsIcon, Puzzle, Brain, ChevronRight, LogOut, Plus, Trash2, Edit2, Check, X, ArrowLeft, Activity } from 'lucide-react'
 
-type SettingsTab = 'general' | 'ai' | 'shortcuts' | 'about'
+type SettingsSection = 'usage' | 'preferences' | 'models' | 'shortcuts' | 'about'
 
-export default function Settings() {
+interface SettingsProps {
+    onClose?: () => void
+}
+
+export default function Settings({ onClose }: SettingsProps) {
     const { settings, updateSettings, resetSettings } = useSettings()
+    const { sessions } = useChatHistory()
     const [pendingSettings, setPendingSettings] = useState(settings)
-
-    // Local state
-    const [activeTab, setActiveTab] = useState<SettingsTab>('general')
+    const [activeSection, setActiveSection] = useState<SettingsSection>('usage')
     const [showApiKey, setShowApiKey] = useState(false)
-    const [showModelModal, setShowModelModal] = useState(false)
+    const [usagePeriod, setUsagePeriod] = useState<'7d' | '30d' | '12m'>('7d')
 
-    // Model editing state
+    // Model editing
     const [newModelCode, setNewModelCode] = useState('')
     const [newModelName, setNewModelName] = useState('')
-    const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null)
-    const [editModelCode, setEditModelCode] = useState('')
-    const [editModelName, setEditModelName] = useState('')
+    const [editingIndex, setEditingIndex] = useState<number | null>(null)
+    const [editCode, setEditCode] = useState('')
+    const [editName, setEditName] = useState('')
 
-    // Ollama state
+    // Ollama
     const [isOllamaConnected, setIsOllamaConnected] = useState(false)
     const [isCheckingOllama, setIsCheckingOllama] = useState(false)
-    const [apiTestResult, setApiTestResult] = useState<string | null>(null)
 
-    // Sync pending settings when global settings change
     useEffect(() => {
         setPendingSettings(settings)
     }, [settings])
 
-    // Check Ollama status
     const checkOllama = async () => {
-        if (!pendingSettings.ollamaUrl) return
-
         setIsCheckingOllama(true)
         const connected = await checkOllamaStatus(pendingSettings.ollamaUrl)
         setIsOllamaConnected(connected)
-
         if (connected) {
-            refreshOllamaModels()
+            const models = await listOllamaModels(pendingSettings.ollamaUrl)
+            if (models.length > 0) {
+                const formatted = models.map(m => ({
+                    code: m.name,
+                    displayName: `${m.name} (${m.details.parameter_size})`
+                }))
+                handleChange({ ollamaModels: formatted })
+            }
         }
         setIsCheckingOllama(false)
     }
 
-    const refreshOllamaModels = async () => {
-        const models = await listOllamaModels(pendingSettings.ollamaUrl)
-        if (models.length > 0) {
-            const formattedModels = models.map(m => ({
-                code: m.name,
-                displayName: `${m.name} (${m.details.parameter_size})`
-            }))
-            // Update settings directly so the UI reflects it immediately
-            handleSettingChange({ ollamaModels: formattedModels })
-        }
-    }
-
-    // Auto-refresh Ollama
     useEffect(() => {
         if (pendingSettings.modelProvider === 'ollama') {
             checkOllama()
-            // Auto-refresh every 30 seconds
-            const interval = setInterval(checkOllama, 30000)
-            return () => clearInterval(interval)
         }
-    }, [pendingSettings.modelProvider, pendingSettings.ollamaUrl])
+    }, [pendingSettings.modelProvider])
 
-    const handleSettingChange = (changes: Partial<typeof settings>) => {
+    const handleChange = (changes: Partial<typeof settings>) => {
         setPendingSettings(prev => ({ ...prev, ...changes }))
     }
 
@@ -83,507 +72,429 @@ export default function Settings() {
 
     const addModel = () => {
         if (newModelCode && newModelName) {
-            const newModel = { code: newModelCode, displayName: newModelName }
-            const updatedModels = [...(pendingSettings.configuredModels || []), newModel]
-            handleSettingChange({
-                configuredModels: updatedModels,
-                aiModel: newModelCode
-            })
+            const updated = [...(pendingSettings.configuredModels || []), { code: newModelCode, displayName: newModelName }]
+            handleChange({ configuredModels: updated })
             setNewModelCode('')
             setNewModelName('')
         }
     }
 
-    const startEditModel = (index: number) => {
-        const model = pendingSettings.configuredModels[index]
-        setEditingModelIndex(index)
-        setEditModelCode(model.code)
-        setEditModelName(model.displayName)
+    const deleteModel = (index: number) => {
+        const updated = pendingSettings.configuredModels.filter((_: any, i: number) => i !== index)
+        handleChange({ configuredModels: updated })
     }
 
-    const saveEditModel = () => {
-        if (editingModelIndex !== null && editModelCode && editModelName) {
-            const updatedModels = [...pendingSettings.configuredModels]
-            const oldCode = updatedModels[editingModelIndex].code
-            updatedModels[editingModelIndex] = { code: editModelCode, displayName: editModelName }
-            const newAiModel = pendingSettings.aiModel === oldCode ? editModelCode : pendingSettings.aiModel
-            handleSettingChange({ configuredModels: updatedModels, aiModel: newAiModel })
-            setEditingModelIndex(null)
-            setEditModelCode('')
-            setEditModelName('')
+    const startEdit = (index: number) => {
+        const model = pendingSettings.configuredModels[index]
+        setEditingIndex(index)
+        setEditCode(model.code)
+        setEditName(model.displayName)
+    }
+
+    const saveEdit = () => {
+        if (editingIndex !== null && editCode && editName) {
+            const updated = [...pendingSettings.configuredModels]
+            updated[editingIndex] = { code: editCode, displayName: editName }
+            handleChange({ configuredModels: updated })
+            setEditingIndex(null)
         }
     }
 
-    const deleteModel = (index: number) => {
-        const modelCode = pendingSettings.configuredModels[index].code
-        const updatedModels = pendingSettings.configuredModels.filter((_: any, i: number) => i !== index)
-        const newAiModel = pendingSettings.aiModel === modelCode
-            ? (updatedModels[0]?.code || 'x-ai/grok-4.1-fast')
-            : pendingSettings.aiModel
-        handleSettingChange({ configuredModels: updatedModels, aiModel: newAiModel })
-    }
+    const navItems = [
+        { id: 'usage', label: 'Usage', icon: <BarChart2 size={18} /> },
+        { id: 'preferences', label: 'Preferences', icon: <SettingsIcon size={18} /> },
+        { id: 'models', label: 'Models', icon: <Puzzle size={18} /> },
+        { id: 'shortcuts', label: 'Shortcuts', icon: <Brain size={18} /> },
+        { id: 'about', label: 'About', icon: <User size={18} /> }
+    ]
 
     return (
-        <div className="settings-container">
-            <div className="settings-sidebar">
-                <div className="settings-header">
-                    <div className="settings-title-wrapper">
-                        <h2 className="settings-title">Settings</h2>
+        <div style={{
+            display: 'flex',
+            height: '100vh',
+            background: '#0a0a0a',
+            color: '#e0e0e0',
+            fontFamily: "'Inter', -apple-system, sans-serif"
+        }}>
+            {/* Left Panel - Profile & Nav */}
+            <div style={{
+                width: '280px',
+                background: '#0f0f0f',
+                borderRight: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '24px 16px'
+            }}>
+                {/* Back Button */}
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 12px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#888',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            marginBottom: '20px',
+                            borderRadius: '8px'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                    >
+                        <ArrowLeft size={18} />
+                        Back to Chat
+                    </button>
+                )}
+
+                {/* Profile Card */}
+                <div style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    marginBottom: '24px',
+                    border: '1px solid rgba(255,255,255,0.06)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                        <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <User size={24} color="#fff" />
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 600, fontSize: '1rem' }}>User</div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Local Setup</div>
+                        </div>
+                    </div>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 0',
+                        borderTop: '1px solid rgba(255,255,255,0.06)',
+                        marginTop: '8px'
+                    }}>
+                        <span style={{ fontSize: '0.85rem', color: '#888' }}>Blur personal info</span>
+                        <div style={{
+                            width: '36px',
+                            height: '20px',
+                            background: 'rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            cursor: 'pointer'
+                        }} />
                     </div>
                 </div>
 
-                <nav className="settings-nav">
-                    <button className={`nav-item ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>General</button>
-                    <button className={`nav-item ${activeTab === 'ai' ? 'active' : ''}`} onClick={() => setActiveTab('ai')}>AI Configuration</button>
-                    <button className={`nav-item ${activeTab === 'shortcuts' ? 'active' : ''}`} onClick={() => setActiveTab('shortcuts')}>Shortcuts</button>
-                    <button className={`nav-item ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>About</button>
+                {/* Navigation */}
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {navItems.map(item => (
+                        <button
+                            key={item.id}
+                            onClick={() => setActiveSection(item.id as SettingsSection)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '12px 14px',
+                                background: activeSection === item.id ? 'rgba(255,255,255,0.06)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '10px',
+                                color: activeSection === item.id ? '#fff' : '#888',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: 500,
+                                transition: 'all 0.15s',
+                                width: '100%',
+                                textAlign: 'left'
+                            }}
+                        >
+                            {item.icon}
+                            {item.label}
+                        </button>
+                    ))}
                 </nav>
+
+                <div style={{ flex: 1 }} />
+
+                {/* Reset Button */}
+                <button
+                    onClick={resetSettings}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        borderRadius: '10px',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <LogOut size={16} />
+                    Reset to Defaults
+                </button>
             </div>
 
-            <div className="settings-content">
-                {activeTab === 'general' && (
-                    <div className="settings-section">
-                        <h2 className="section-title">General Settings</h2>
-                        <div className="setting-group">
-                            <h3>Overlay</h3>
-                            <div className="setting-item">
-                                <label className="setting-label">
-                                    Transparency
-                                    <span className="range-value">{Math.round(pendingSettings.overlayTransparency * 100)}%</span>
-                                </label>
-                                <input
-                                    type="range" min="0.5" max="1" step="0.05"
-                                    className="setting-range"
-                                    value={pendingSettings.overlayTransparency}
-                                    onChange={(e) => handleSettingChange({ overlayTransparency: parseFloat(e.target.value) })}
-                                />
-                                <p className="setting-description">Adjust the opacity of the overlay window.</p>
-                            </div>
-                            <div className="setting-item">
-                                <label className="checkbox-wrapper">
-                                    <input
-                                        type="checkbox"
-                                        className="checkbox-input"
-                                        checked={pendingSettings.autoHideOverlay}
-                                        onChange={(e) => handleSettingChange({ autoHideOverlay: e.target.checked })}
-                                    />
-                                    <span>Auto-hide when focus is lost</span>
-                                </label>
-                            </div>
-                        </div>
+            {/* Main Content */}
+            <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
+                <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '8px' }}>Settings</h1>
+                <p style={{ color: '#666', marginBottom: '32px', fontSize: '0.9rem' }}>Manage your preferences and configuration</p>
 
-                        {/* Quick Prompts Section */}
-                        <div className="setting-group">
-                            <h3>Quick Prompts</h3>
-                            <p className="setting-description" style={{ marginBottom: '15px' }}>
-                                These suggestions appear on the welcome screen when starting a new chat.
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {(pendingSettings.quickPrompts || []).map((prompt, index) => (
-                                    <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {activeSection === 'preferences' && (
+                    <div>
+                        {/* Providers Section */}
+                        <Section title="Providers">
+                            <div style={{
+                                background: 'rgba(255,255,255,0.02)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255,255,255,0.06)',
+                                overflow: 'hidden'
+                            }}>
+                                {/* OpenRouter */}
+                                <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '1.2rem' }}>☁️</span>
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>OpenRouter</span>
+                                        <span style={{ fontSize: '0.75rem', color: '#666' }}>Cloud Models</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
                                         <input
-                                            type="text"
-                                            className="setting-input"
-                                            value={prompt}
-                                            onChange={(e) => {
-                                                const updated = [...(pendingSettings.quickPrompts || [])]
-                                                updated[index] = e.target.value
-                                                handleSettingChange({ quickPrompts: updated })
-                                            }}
-                                            style={{ flex: 1 }}
+                                            type={showApiKey ? 'text' : 'password'}
+                                            value={pendingSettings.openRouterApiKey}
+                                            onChange={e => handleChange({ openRouterApiKey: e.target.value })}
+                                            placeholder="sk-or-..."
+                                            style={{ ...inputStyle, flex: 1 }}
                                         />
-                                        <button
-                                            onClick={() => {
-                                                const updated = (pendingSettings.quickPrompts || []).filter((_, i) => i !== index)
-                                                handleSettingChange({ quickPrompts: updated })
-                                            }}
-                                            style={{
-                                                padding: '8px 12px',
-                                                background: 'rgba(239, 68, 68, 0.2)',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                color: '#ef4444',
-                                                cursor: 'pointer'
-                                            }}
-                                        >✕</button>
+                                        <button onClick={() => setShowApiKey(!showApiKey)} style={btnSecondary}>
+                                            {showApiKey ? 'Hide' : 'Show'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Perplexity */}
+                                <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '1.2rem' }}>🧠</span>
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>Perplexity</span>
+                                        <span style={{ fontSize: '0.75rem', color: '#666' }}>Search + AI</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            type={showApiKey ? 'text' : 'password'}
+                                            value={pendingSettings.perplexityApiKey}
+                                            onChange={e => handleChange({ perplexityApiKey: e.target.value })}
+                                            placeholder="pplx-..."
+                                            style={{ ...inputStyle, flex: 1 }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Ollama */}
+                                <div style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '1.2rem' }}>💻</span>
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>Ollama</span>
+                                        <span style={{ fontSize: '0.75rem', color: '#666' }}>Local</span>
+                                        <span style={{
+                                            marginLeft: 'auto',
+                                            fontSize: '0.7rem',
+                                            padding: '2px 8px',
+                                            borderRadius: '10px',
+                                            background: isOllamaConnected ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                            color: isOllamaConnected ? '#22c55e' : '#ef4444'
+                                        }}>
+                                            {isOllamaConnected ? 'Connected' : 'Not connected'}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            value={pendingSettings.ollamaUrl}
+                                            onChange={e => handleChange({ ollamaUrl: e.target.value })}
+                                            placeholder="http://localhost:11434"
+                                            style={{ ...inputStyle, flex: 1 }}
+                                        />
+                                        <button onClick={checkOllama} disabled={isCheckingOllama} style={btnSecondary}>
+                                            {isCheckingOllama ? '...' : 'Refresh'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Section>
+
+                        {/* System Prompt */}
+                        <Section title="System Prompt">
+                            <textarea
+                                value={pendingSettings.systemPrompt}
+                                onChange={e => handleChange({ systemPrompt: e.target.value })}
+                                placeholder="You are a helpful AI assistant..."
+                                style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
+                            />
+                        </Section>
+
+                        {/* Temperature */}
+                        <Section title={`Temperature: ${pendingSettings.temperature}`}>
+                            <input
+                                type="range"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value={pendingSettings.temperature}
+                                onChange={e => handleChange({ temperature: parseFloat(e.target.value) })}
+                                style={{ width: '100%', accentColor: '#f59e0b' }}
+                            />
+                        </Section>
+                    </div>
+                )}
+
+                {activeSection === 'models' && (
+                    <div>
+                        <Section title="Configured Models (OpenRouter)">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                                {(pendingSettings.configuredModels || []).map((model: any, index: number) => (
+                                    <div key={model.code} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '12px 16px',
+                                        background: 'rgba(255,255,255,0.03)',
+                                        borderRadius: '10px',
+                                        border: '1px solid rgba(255,255,255,0.06)'
+                                    }}>
+                                        {editingIndex === index ? (
+                                            <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                                                <input value={editCode} onChange={e => setEditCode(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                                                <input value={editName} onChange={e => setEditName(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                                                <button onClick={saveEdit} style={{ ...btnSecondary, background: '#22c55e', color: '#fff' }}><Check size={14} /></button>
+                                                <button onClick={() => setEditingIndex(null)} style={btnSecondary}><X size={14} /></button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div>
+                                                    <div style={{ fontWeight: 500 }}>{model.displayName}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#666' }}>{model.code}</div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '6px' }}>
+                                                    <button onClick={() => startEdit(index)} style={btnIcon}><Edit2 size={14} /></button>
+                                                    <button onClick={() => deleteModel(index)} style={{ ...btnIcon, color: '#ef4444' }}><Trash2 size={14} /></button>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 ))}
-                                <button
-                                    onClick={() => {
-                                        const updated = [...(pendingSettings.quickPrompts || []), 'New prompt...']
-                                        handleSettingChange({ quickPrompts: updated })
-                                    }}
-                                    style={{
-                                        padding: '10px',
-                                        background: 'rgba(255,255,255,0.05)',
-                                        border: '1px dashed rgba(255,255,255,0.2)',
+                            </div>
+
+                            {/* Add New */}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input
+                                    value={newModelCode}
+                                    onChange={e => setNewModelCode(e.target.value)}
+                                    placeholder="Model code (e.g., openai/gpt-4)"
+                                    style={{ ...inputStyle, flex: 1 }}
+                                />
+                                <input
+                                    value={newModelName}
+                                    onChange={e => setNewModelName(e.target.value)}
+                                    placeholder="Display name"
+                                    style={{ ...inputStyle, flex: 1 }}
+                                />
+                                <button onClick={addModel} disabled={!newModelCode || !newModelName} style={{
+                                    ...btnSecondary,
+                                    background: newModelCode && newModelName ? '#f59e0b' : 'rgba(255,255,255,0.05)',
+                                    color: newModelCode && newModelName ? '#000' : '#666'
+                                }}>
+                                    <Plus size={16} />
+                                </button>
+                            </div>
+                        </Section>
+
+                        {/* Ollama Models (read-only) */}
+                        <Section title="Ollama Models (Auto-detected)">
+                            {(pendingSettings.ollamaModels || []).length > 0 ? (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {pendingSettings.ollamaModels.map((m: any) => (
+                                        <span key={m.code} style={{
+                                            padding: '8px 12px',
+                                            background: 'rgba(255,255,255,0.03)',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            color: '#aaa'
+                                        }}>{m.displayName}</span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ color: '#666', fontSize: '0.85rem' }}>Connect to Ollama to see available models.</p>
+                            )}
+                        </Section>
+
+                        {/* Perplexity Models (read-only) */}
+                        <Section title="Perplexity Models">
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {(pendingSettings.perplexityModels || []).map((m: any) => (
+                                    <span key={m.code} style={{
+                                        padding: '8px 12px',
+                                        background: 'rgba(255,255,255,0.03)',
                                         borderRadius: '8px',
-                                        color: '#888',
-                                        cursor: 'pointer',
-                                        marginTop: '4px'
-                                    }}
-                                >+ Add Prompt</button>
+                                        fontSize: '0.85rem',
+                                        color: '#aaa'
+                                    }}>{m.displayName}</span>
+                                ))}
                             </div>
-                        </div>
-
-                        <div className="setting-group danger-zone">
-                            <h3>Reset</h3>
-                            <div className="setting-item">
-                                <p className="setting-description" style={{ marginBottom: '15px' }}>
-                                    Restore all settings to their default values. This action cannot be undone.
-                                </p>
-                                <button onClick={resetSettings} className="danger-btn">Reset to Defaults</button>
-                            </div>
-                        </div>
+                        </Section>
                     </div>
                 )}
 
-                {activeTab === 'ai' && (
-                    <div className="settings-section">
-                        <h2 className="section-title">AI Configuration</h2>
-
-                        <div className="setting-group">
-                            <label className="setting-label">AI Provider</label>
-                            <div className="provider-selector">
-                                <button
-                                    className={`provider-btn ${pendingSettings.modelProvider === 'openrouter' ? 'active' : ''}`}
-                                    onClick={() => handleSettingChange({ modelProvider: 'openrouter' })}
-                                >
-                                    <div className="provider-icon">☁️</div>
-                                    <div className="provider-info">
-                                        <span className="provider-name">OpenRouter</span>
-                                        <span className="provider-desc">Cloud Models (GPT-4, Claude)</span>
-                                    </div>
-                                </button>
-
-                                <button
-                                    className={`provider-btn ${pendingSettings.modelProvider === 'perplexity' ? 'active' : ''}`}
-                                    onClick={() => handleSettingChange({ modelProvider: 'perplexity', aiModel: 'sonar-reasoning-pro' })}
-                                >
-                                    <div className="provider-icon">🧠</div>
-                                    <div className="provider-info">
-                                        <span className="provider-name">Perplexity</span>
-                                        <span className="provider-desc">Real-time Search & Reasoning</span>
-                                    </div>
-                                </button>
-
-                                <button
-                                    className={`provider-btn ${pendingSettings.modelProvider === 'ollama' ? 'active' : ''}`}
-                                    onClick={() => handleSettingChange({ modelProvider: 'ollama' })}
-                                >
-                                    <div className="provider-icon">💻</div>
-                                    <div className="provider-info">
-                                        <span className="provider-name">Ollama</span>
-                                        <span className="provider-desc">Local Models (Llama 3, Mistral)</span>
-                                    </div>
-                                    {pendingSettings.modelProvider === 'ollama' && (
-                                        <div className={`status-dot ${isOllamaConnected ? 'online' : 'offline'}`}
-                                            title={isOllamaConnected ? 'Connected' : 'Disconnected'} />
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        {pendingSettings.modelProvider === 'openrouter' && (
-                            <>
-                                <div className="setting-group">
-                                    <h3>OpenRouter API</h3>
-                                    <div className="setting-item">
-                                        <label className="setting-label">API Key</label>
-                                        <div className="api-key-input-wrapper">
-                                            <div className="input-row">
-                                                <input
-                                                    type={showApiKey ? "text" : "password"}
-                                                    className="setting-input"
-                                                    placeholder="Enter your OpenRouter API key..."
-                                                    value={pendingSettings.openRouterApiKey}
-                                                    onChange={(e) => handleSettingChange({ openRouterApiKey: e.target.value })}
-                                                    style={{ flex: 1 }}
-                                                />
-                                                <button className="visibility-toggle" onClick={() => setShowApiKey(!showApiKey)}>
-                                                    {showApiKey ? "Hide" : "Show"}
-                                                </button>
-                                            </div>
-                                            {showApiKey && pendingSettings.openRouterApiKey && (
-                                                <div className="api-key-display">
-                                                    {pendingSettings.openRouterApiKey}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <p className="setting-description">
-                                            <p className="setting-description">
-                                                Your key is stored locally and never shared. Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: '#ff8c69' }}>openrouter.ai</a>
-                                            </p>
-                                        </p>
-                                    </div>
-
-                                    <div className="setting-item">
-                                        <label className="setting-label">Model</label>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <select
-                                                className="setting-select"
-                                                value={pendingSettings.aiModel}
-                                                onChange={(e) => handleSettingChange({ aiModel: e.target.value })}
-                                            >
-                                                {pendingSettings.configuredModels.map(model => (
-                                                    <option key={model.code} value={model.code}>{model.displayName}</option>
-                                                ))}
-                                            </select>
-                                            <button onClick={() => setShowModelModal(true)} className="secondary-btn">⚙️ Configure</button>
-                                        </div>
-                                        <p className="setting-description" style={{ marginTop: '8px' }}>
-                                            {pendingSettings.configuredModels?.length || 0} model(s) configured
-                                        </p>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {pendingSettings.modelProvider === 'perplexity' && (
-                            <>
-                                <div className="setting-group">
-                                    <h3>Perplexity Configuration</h3>
-                                    <div className="setting-item">
-                                        <label className="setting-label">API Key</label>
-                                        <div className="api-key-input-wrapper" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <div style={{ display: 'flex', gap: '10px' }}>
-                                                <input
-                                                    type={showApiKey ? "text" : "password"}
-                                                    className="setting-input"
-                                                    placeholder="Enter your Perplexity API key..."
-                                                    value={pendingSettings.perplexityApiKey}
-                                                    onChange={(e) => handleSettingChange({ perplexityApiKey: e.target.value })}
-                                                    style={{ flex: 1 }}
-                                                />
-                                                <button className="visibility-toggle" onClick={() => setShowApiKey(!showApiKey)}>
-                                                    {showApiKey ? "Hide" : "Show"}
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <p className="setting-description">
-                                            Get your key at <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>perplexity.ai</a>
-                                        </p>
-                                    </div>
-
-                                    <div className="setting-item">
-                                        <label className="setting-label">Model</label>
-                                        <select
-                                            className="setting-select"
-                                            value={pendingSettings.aiModel}
-                                            onChange={(e) => handleSettingChange({ aiModel: e.target.value })}
-                                        >
-                                            {(pendingSettings.perplexityModels || []).map(model => (
-                                                <option key={model.code} value={model.code}>{model.displayName}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {pendingSettings.modelProvider === 'ollama' && (
-                            <>
-                                <div className="setting-group">
-                                    <h3>Ollama Configuration</h3>
-                                    <div className="setting-item">
-                                        <label className="setting-label">Ollama URL</label>
-                                        <div className="input-with-button">
-                                            <input
-                                                type="text"
-                                                className="setting-input"
-                                                value={pendingSettings.ollamaUrl}
-                                                onChange={(e) => handleSettingChange({ ollamaUrl: e.target.value })}
-                                                placeholder="http://localhost:11434"
-                                            />
-                                            <button
-                                                className="secondary-btn"
-                                                onClick={checkOllama}
-                                                disabled={isCheckingOllama}
-                                            >
-                                                {isCheckingOllama ? 'Checking...' : 'Refresh'}
-                                            </button>
-                                        </div>
-                                        {!isOllamaConnected && !isCheckingOllama && (
-                                            <p className="error-message">Could not connect to Ollama. Ensure it's running.</p>
-                                        )}
-                                    </div>
-
-                                    <div className="setting-item">
-                                        <label className="setting-label">API Connection Test</label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <button
-                                                className="secondary-btn"
-                                                onClick={async () => {
-                                                    setApiTestResult('Testing connection...')
-                                                    const start = Date.now()
-                                                    try {
-                                                        const connected = await checkOllamaStatus(pendingSettings.ollamaUrl || 'http://localhost:11434')
-                                                        const ping = Date.now() - start
-                                                        if (connected) {
-                                                            const models = await listOllamaModels(pendingSettings.ollamaUrl || 'http://localhost:11434')
-                                                            setApiTestResult(`✅ Success! Connected in ${ping}ms.\nFound ${models.length} models available using API version default.`)
-                                                        } else {
-                                                            setApiTestResult(`❌ Failed to connect to ${pendingSettings.ollamaUrl || 'http://localhost:11434'}.\nEnsure Ollama is running (try 'ollama serve').`)
-                                                        }
-                                                    } catch (err: any) {
-                                                        setApiTestResult(`❌ Error: ${err.message}`)
-                                                    }
-                                                }}
-                                                style={{ alignSelf: 'flex-start' }}
-                                            >
-                                                Run Connection Test
-                                            </button>
-
-                                            {apiTestResult && (
-                                                <div className={`test-result ${apiTestResult.startsWith('✅') ? 'success' : 'error'}`}>
-                                                    {apiTestResult}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="setting-item">
-                                        <label className="setting-label">Local Model</label>
-                                        {pendingSettings.ollamaModels?.length > 0 ? (
-                                            <select
-                                                className="setting-select"
-                                                value={pendingSettings.aiModel}
-                                                onChange={(e) => handleSettingChange({ aiModel: e.target.value })}
-                                            >
-                                                {pendingSettings.ollamaModels.map(model => (
-                                                    <option key={model.code} value={model.code}>{model.displayName}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="empty-state-message">
-                                                No models found. Run <code>ollama pull llama3</code>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        <div className="setting-group">
-                            <h3>Behavior</h3>
-                            <div className="setting-item">
-                                <label className="setting-label">System Prompt</label>
-                                <textarea
-                                    className="setting-textarea"
-                                    value={pendingSettings.systemPrompt}
-                                    onChange={(e) => handleSettingChange({ systemPrompt: e.target.value })}
-                                    placeholder="You are a helpful AI assistant..."
-                                    rows={4}
-                                    style={{
-                                        width: '100%',
-                                        background: 'rgba(0, 0, 0, 0.2)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        borderRadius: '10px',
-                                        padding: '10px',
-                                        color: '#fff',
-                                        marginTop: '5px',
-                                        resize: 'vertical'
-                                    }}
-                                />
-                                <p className="setting-description">Instructions that define how the AI behaves.</p>
-                            </div>
-
-                            <div className="setting-item">
-                                <label className="checkbox-wrapper">
-                                    <input
-                                        type="checkbox"
-                                        className="checkbox-input"
-                                        checked={pendingSettings.streamResponses}
-                                        onChange={(e) => handleSettingChange({ streamResponses: e.target.checked })}
-                                    />
-                                    <span>Stream Responses (Typewriter effect)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div className="setting-group">
-                            <h3>Parameters</h3>
-                            <div className="setting-item">
-                                <label className="setting-label">
-                                    Temperature
-                                    <span className="range-value">{pendingSettings.temperature}</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="2"
-                                    step="0.1"
-                                    className="setting-range"
-                                    value={pendingSettings.temperature}
-                                    onChange={(e) => handleSettingChange({ temperature: parseFloat(e.target.value) })}
-                                />
-                                <p className="setting-description">Higher values make output more random, lower values more deterministic.</p>
-                            </div>
-
-                            <div className="setting-item">
-                                <label className="setting-label">Max Tokens</label>
-                                <input
-                                    type="number"
-                                    className="setting-input"
-                                    value={pendingSettings.maxTokens}
-                                    onChange={(e) => handleSettingChange({ maxTokens: parseInt(e.target.value) })}
-                                />
-                            </div>
-                        </div>
+                {activeSection === 'shortcuts' && (
+                    <div>
+                        <Section title="Toggle Overlay">
+                            <input
+                                value={pendingSettings.shortcuts?.toggleOverlay || 'Ctrl+Shift+Z'}
+                                readOnly
+                                style={{ ...inputStyle, cursor: 'not-allowed', opacity: 0.7 }}
+                            />
+                            <p style={{ color: '#666', fontSize: '0.8rem', marginTop: '8px' }}>Customization coming soon.</p>
+                        </Section>
                     </div>
                 )}
 
-                {activeTab === 'shortcuts' && (
-                    <div className="settings-section">
-                        <h2 className="section-title">Keyboard Shortcuts</h2>
-
-                        <div className="setting-group">
-                            <h3>Global Shortcuts</h3>
-                            <div className="setting-item">
-                                <label className="setting-label">Toggle Overlay</label>
-                                <input
-                                    type="text"
-                                    className="setting-input"
-                                    value={pendingSettings.shortcuts.toggleOverlay}
-                                    readOnly
-                                    style={{ cursor: 'not-allowed', opacity: 0.7 }}
-                                />
-                                <p className="setting-description">
-                                    Currently set to Command/Control + Shift + Z. Customization coming soon.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'about' && (
-                    <div className="settings-section">
-                        <h2 className="section-title">About Zura</h2>
-
-                        <div className="setting-group">
-                            <div style={{ textAlign: 'center', padding: '20px' }}>
-                                <h1 style={{ fontSize: '2.5rem', marginBottom: '10px', background: 'linear-gradient(45deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Zura</h1>
-                                <p style={{ fontSize: '1.1rem', color: '#aaa' }}>Your AI Companion for Desktop</p>
-                                <div style={{ marginTop: '30px', color: '#666' }}>
-                                    <p>Version 1.0.0</p>
-                                    <p>© 2025 Zura AI</p>
-                                </div>
-                            </div>
-                        </div>
+                {activeSection === 'about' && (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>
+                        <h1 style={{
+                            fontSize: '3rem',
+                            marginBottom: '8px',
+                            background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                        }}>Zura</h1>
+                        <p style={{ color: '#888', marginBottom: '24px' }}>Your AI Desktop Companion</p>
+                        <p style={{ color: '#666' }}>Version 1.0.0</p>
+                        <p style={{ color: '#666' }}>© 2025 Zura AI</p>
                     </div>
                 )}
             </div>
 
+            {/* Save Bar */}
             {hasChanges && (
-                <div className="save-bar" style={{
+                <div style={{
                     position: 'fixed',
-                    bottom: '30px',
+                    bottom: '24px',
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    background: 'rgba(20, 20, 20, 0.8)',
+                    background: 'rgba(20, 20, 20, 0.95)',
                     padding: '12px 24px',
                     borderRadius: '50px',
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
                     display: 'flex',
                     gap: '12px',
                     alignItems: 'center',
@@ -591,223 +502,58 @@ export default function Settings() {
                     border: '1px solid rgba(255,255,255,0.1)',
                     backdropFilter: 'blur(16px)'
                 }}>
-                    <span style={{ color: '#e0e0e0', marginRight: '8px', fontSize: '0.9rem' }}>Unsaved changes</span>
-                    <button
-                        onClick={cancelChanges}
-                        style={{
-                            background: 'transparent',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            color: '#ccc',
-                            padding: '8px 16px',
-                            borderRadius: '20px',
-                            cursor: 'pointer',
-                            fontSize: '0.85rem',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={saveChanges}
-                        style={{
-                            background: '#ff8c69',
-                            border: 'none',
-                            color: '#000',
-                            padding: '8px 20px',
-                            borderRadius: '20px',
-                            cursor: 'pointer',
-                            fontWeight: '600',
-                            fontSize: '0.85rem',
-                            transition: 'all 0.2s',
-                            boxShadow: '0 4px 12px rgba(255, 140, 105, 0.3)'
-                        }}
-                    >
-                        Save Changes
-                    </button>
+                    <span style={{ color: '#ccc', fontSize: '0.85rem' }}>Unsaved changes</span>
+                    <button onClick={cancelChanges} style={btnSecondary}>Cancel</button>
+                    <button onClick={saveChanges} style={{
+                        ...btnSecondary,
+                        background: '#f59e0b',
+                        color: '#000',
+                        fontWeight: 600
+                    }}>Save</button>
                 </div>
             )}
-
-            {showModelModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: 'rgba(0,0,0,0.8)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 2000
-                }}>
-                    <div style={{
-                        background: '#1a1a1a',
-                        borderRadius: '16px',
-                        width: '90%',
-                        maxWidth: '600px',
-                        maxHeight: '80vh',
-                        overflow: 'auto',
-                        border: '1px solid rgba(255,255,255,0.1)'
-                    }}>
-                        {/* Modal Header */}
-                        <div style={{
-                            padding: '20px',
-                            borderBottom: '1px solid rgba(255,255,255,0.1)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            position: 'sticky',
-                            top: 0,
-                            background: '#1a1a1a',
-                            zIndex: 1
-                        }}>
-                            <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Configure Models</h2>
-                            <button
-                                onClick={() => {
-                                    setShowModelModal(false);
-                                    setEditingModelIndex(null);
-                                }}
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#888',
-                                    fontSize: '24px',
-                                    cursor: 'pointer',
-                                    padding: '5px'
-                                }}
-                            >×</button>
-                        </div>
-
-                        {/* Modal Content */}
-                        <div style={{ padding: '20px' }}>
-                            {/* All Configured Models */}
-                            <div style={{ marginBottom: '25px' }}>
-                                <h3 style={{ fontSize: '0.9rem', color: '#888', marginBottom: '12px' }}>Your Models</h3>
-                                {pendingSettings.configuredModels && pendingSettings.configuredModels.length > 0 ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {pendingSettings.configuredModels.map((model: { code: string; displayName: string }, index: number) => (
-                                            <div key={model.code} style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                padding: '12px 15px',
-                                                background: pendingSettings.aiModel === model.code ? 'rgba(255, 140, 105, 0.1)' : 'rgba(255,255,255,0.03)',
-                                                borderRadius: '10px',
-                                                border: pendingSettings.aiModel === model.code ? '1px solid #FF8C69' : '1px solid transparent'
-                                            }}>
-                                                {editingModelIndex === index ? (
-                                                    <div style={{ flex: 1, display: 'flex', gap: '10px', alignItems: 'center' }}>
-                                                        <input
-                                                            value={editModelCode}
-                                                            onChange={(e) => setEditModelCode(e.target.value)}
-                                                            placeholder="Model Code"
-                                                            className="setting-input"
-                                                            style={{ flex: 1 }}
-                                                        />
-                                                        <input
-                                                            value={editModelName}
-                                                            onChange={(e) => setEditModelName(e.target.value)}
-                                                            placeholder="Display Name"
-                                                            className="setting-input"
-                                                            style={{ flex: 1 }}
-                                                        />
-                                                        <button onClick={saveEditModel} style={{ padding: '8px 12px', background: '#22c55e', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>✓</button>
-                                                        <button onClick={() => setEditingModelIndex(null)} style={{ padding: '8px 12px', background: '#666', border: 'none', borderRadius: '4px', color: 'white', cursor: 'pointer' }}>✕</button>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <div>
-                                                            <div style={{ fontWeight: 500 }}>{model.displayName}</div>
-                                                            <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>{model.code}</div>
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            {pendingSettings.aiModel === model.code ? (
-                                                                <span style={{ color: '#FF8C69', fontSize: '12px', padding: '4px 10px', background: 'rgba(255, 140, 105, 0.2)', borderRadius: '4px' }}>Active</span>
-                                                            ) : (
-                                                                <button onClick={() => handleSettingChange({ aiModel: model.code })} style={{
-                                                                    padding: '6px 14px',
-                                                                    background: 'rgba(255,255,255,0.1)',
-                                                                    border: 'none',
-                                                                    borderRadius: '4px',
-                                                                    color: '#ccc',
-                                                                    cursor: 'pointer',
-                                                                    fontSize: '12px'
-                                                                }}>Use</button>
-                                                            )}
-                                                            <button onClick={() => startEditModel(index)} style={{
-                                                                padding: '6px 10px',
-                                                                background: 'rgba(255, 140, 105, 0.15)',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                color: '#ff8c69',
-                                                                cursor: 'pointer',
-                                                                fontSize: '12px'
-                                                            }}>✎</button>
-                                                            <button onClick={() => deleteModel(index)} style={{
-                                                                padding: '6px 10px',
-                                                                background: 'rgba(239, 68, 68, 0.2)',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                color: '#ef4444',
-                                                                cursor: 'pointer',
-                                                                fontSize: '12px'
-                                                            }}>✕</button>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p style={{ color: '#666', fontSize: '14px' }}>No models configured.</p>
-                                )}
-                            </div>
-
-                            {/* Add New Model Form */}
-                            <div style={{ padding: '20px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                                <h3 style={{ fontSize: '0.9rem', color: '#ccc', marginBottom: '15px' }}>Add New Model</h3>
-                                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Model Code (e.g. amazon/nova-pro-v1)"
-                                        value={newModelCode}
-                                        onChange={(e) => setNewModelCode(e.target.value)}
-                                        className="setting-input"
-                                        style={{ flex: 1, padding: '12px' }}
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Display Name"
-                                        value={newModelName}
-                                        onChange={(e) => setNewModelName(e.target.value)}
-                                        className="setting-input"
-                                        style={{ flex: 1, padding: '12px' }}
-                                    />
-                                </div>
-                                <button
-                                    onClick={addModel}
-                                    disabled={!newModelCode || !newModelName}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px',
-                                        background: (newModelCode && newModelName) ? '#ff8c69' : 'rgba(255, 140, 105, 0.2)',
-                                        color: (newModelCode && newModelName) ? '#000' : 'rgba(255, 255, 255, 0.3)',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        cursor: (newModelCode && newModelName) ? 'pointer' : 'default',
-                                        fontWeight: 500
-                                    }}
-                                >
-                                    + Add Model
-                                </button>
-                                <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#666', textAlign: 'center' }}>
-                                    Find model codes at <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: '#3b82f6' }}>openrouter.ai/models</a>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div >
+        </div>
     )
+}
+
+function Section({ title, children }: { title: string, children: React.ReactNode }) {
+    return (
+        <div style={{ marginBottom: '28px' }}>
+            <h3 style={{ fontSize: '0.9rem', color: '#888', marginBottom: '12px', fontWeight: 500 }}>{title}</h3>
+            {children}
+        </div>
+    )
+}
+
+const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 14px',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '10px',
+    color: '#e0e0e0',
+    fontSize: '0.9rem',
+    outline: 'none'
+}
+
+const btnSecondary: React.CSSProperties = {
+    padding: '10px 16px',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '10px',
+    color: '#ccc',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+}
+
+const btnIcon: React.CSSProperties = {
+    padding: '8px',
+    background: 'transparent',
+    border: 'none',
+    color: '#888',
+    cursor: 'pointer',
+    borderRadius: '6px'
 }
