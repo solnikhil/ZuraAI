@@ -10,22 +10,28 @@ process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../publi
 // Production mode check
 const isProduction = app.isPackaged
 
+// Fix cursor flickering during window resize on Windows
+app.commandLine.appendSwitch('disable-gpu-compositing')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+
 // Global references
 let overlayWin: BrowserWindow | null = null
-let settingsWin: BrowserWindow | null = null
+let mainWindow: BrowserWindow | null = null
 let currentScreenshot: NativeImage | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
-function createSettingsWindow() {
-    if (settingsWin) {
-        settingsWin.focus()
+function createMainWindow() {
+    if (mainWindow) {
+        mainWindow.focus()
         return
     }
 
-    settingsWin = new BrowserWindow({
-        width: 900,
-        height: 700,
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        minWidth: 900,
+        minHeight: 600,
         title: 'Zura',
         icon: path.join(process.env.PUBLIC || '', 'tray-icon.png'),
         webPreferences: {
@@ -41,18 +47,18 @@ function createSettingsWindow() {
     })
 
     // Show when ready to prevent white flash
-    settingsWin.once('ready-to-show', () => {
-        settingsWin?.show()
+    mainWindow.once('ready-to-show', () => {
+        mainWindow?.show()
     })
 
     if (process.env.VITE_DEV_SERVER_URL) {
-        settingsWin.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
+        mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
     } else {
-        settingsWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'dashboard' })
+        mainWindow.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'dashboard' })
     }
 
-    settingsWin.on('closed', () => {
-        settingsWin = null
+    mainWindow.on('closed', () => {
+        mainWindow = null
     })
 }
 
@@ -63,25 +69,20 @@ function createTray() {
 
     const contextMenu = Menu.buildFromTemplate([
         {
-            label: 'Show Chat',
+            label: 'Open Chat',
             click: () => {
-                if (overlayWin) {
-                    overlayWin.show()
+                if (mainWindow) {
+                    mainWindow.show()
+                    mainWindow.focus()
                 } else {
-                    console.log('No active session to show')
+                    createMainWindow()
                 }
             }
         },
         {
             label: 'Settings',
             click: () => {
-                createSettingsWindow()
-            }
-        },
-        {
-            label: 'Hide Chat',
-            click: () => {
-                if (overlayWin) overlayWin.hide()
+                createMainWindow() // Settings is inside main window now
             }
         },
         { type: 'separator' },
@@ -132,6 +133,11 @@ function createOverlayWindow() {
         overlayWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'overlay' })
     }
 
+    // Don't auto-show overlay on startup anymore
+    // overlayWin.once('ready-to-show', () => {
+    //    overlayWin?.show()
+    // })
+
     overlayWin.on('close', (e) => {
         if (!isQuitting) {
             e.preventDefault()
@@ -153,6 +159,7 @@ app.on('before-quit', () => {
 
 app.whenReady().then(() => {
     createTray()
+    createMainWindow() // Open main window on start
     createOverlayWindow()
 
     globalShortcut.register('CommandOrControl+Shift+Z', async () => {
@@ -391,5 +398,5 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
 })
 
 ipcMain.on('open-settings', () => {
-    createSettingsWindow()
+    createMainWindow()
 })

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard } from 'lucide-react'
+import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown } from 'lucide-react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 
@@ -10,6 +10,7 @@ interface SidebarProps {
 export default function Sidebar({ onOpenSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [isCollapsed, setIsCollapsed] = useState(false)
+    const [isListExpanded, setIsListExpanded] = useState(true)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
     const { settings } = useSettings()
 
@@ -17,107 +18,27 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
         s.title.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
-    // Group sessions by date
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const lastWeek = new Date(today)
-    lastWeek.setDate(lastWeek.getDate() - 7)
-
-    const todaySessions = filteredSessions.filter(s => new Date(s.updatedAt) >= today)
-    const yesterdaySessions = filteredSessions.filter(s => {
-        const d = new Date(s.updatedAt)
-        return d >= yesterday && d < today
-    })
-    const olderSessions = filteredSessions.filter(s => new Date(s.updatedAt) < yesterday)
-
-    const renderSessionGroup = (title: string, sessionList: typeof sessions) => {
-        if (sessionList.length === 0) return null
-        return (
-            <div style={{ marginBottom: '16px' }}>
-                <div style={{
-                    fontSize: '0.7rem',
-                    color: '#666',
-                    padding: '8px 12px 6px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    display: isCollapsed ? 'none' : 'block',
-                    whiteSpace: 'nowrap',
-                    opacity: isCollapsed ? 0 : 1,
-                    transition: 'opacity 0.2s'
-                }}>{title}</div>
-                {sessionList.map(session => (
-                    <div
-                        key={session.id}
-                        onClick={() => switchSession(session.id)}
-                        className="session-item"
-                        title={isCollapsed ? session.title : ''}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '10px 12px',
-                            cursor: 'pointer',
-                            borderRadius: '10px',
-                            fontSize: '0.88rem',
-                            color: currentSessionId === session.id ? '#fff' : '#b4b4b4',
-                            backgroundColor: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
-                            transition: 'all 0.15s ease',
-                            position: 'relative',
-                            justifyContent: isCollapsed ? 'center' : 'flex-start'
-                        }}
-                    >
-                        <MessageSquare size={18} color={currentSessionId === session.id ? '#fff' : '#666'} style={{ flexShrink: 0 }} />
-                        <span style={{
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: isCollapsed ? 'none' : 'block',
-                            opacity: isCollapsed ? 0 : 1,
-                            transition: 'opacity 0.2s'
-                        }}>
-                            {session.title}
-                        </span>
-                        {!isCollapsed && (
-                            <div
-                                className="delete-btn"
-                                onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
-                                style={{
-                                    opacity: 0,
-                                    transition: 'opacity 0.15s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: '4px',
-                                    borderRadius: '6px'
-                                }}
-                            >
-                                <Trash2 size={13} color="#888" />
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        )
-    }
+    // Sessions list
+    const sessionList = filteredSessions
 
     return (
         <div style={{
-            width: isCollapsed ? '56px' : '200px',
-            background: '#121212',
-            borderRight: '1px solid rgba(255,255,255,0.06)',
+            width: isCollapsed ? '72px' : '260px',
+            background: '#040812',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '24px',
+            margin: '16px', // Floating on all sides
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
+            height: 'calc(100vh - 32px)',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            position: 'relative'
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            position: 'relative',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
         }}>
             {/* Header */}
             <div style={{
-                padding: isCollapsed ? '16px 8px' : '16px 12px 8px',
+                padding: isCollapsed ? '16px 8px' : '16px 12px 0', // Reduced bottom padding
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px'
@@ -197,7 +118,37 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
                 </button>
 
                 {/* Search */}
-                {!isCollapsed && (
+                {/* Search */}
+                {isCollapsed ? (
+                    <button
+                        onClick={() => setIsCollapsed(false)}
+                        title="Search"
+                        style={{
+                            width: '100%',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            padding: '10px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#666',
+                            cursor: 'pointer',
+                            borderRadius: '10px',
+                            marginBottom: '10px',
+                            transition: 'color 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
+                            e.currentTarget.style.color = '#fff'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                            e.currentTarget.style.color = '#666'
+                        }}
+                    >
+                        <Search size={20} />
+                    </button>
+                ) : (
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -205,7 +156,8 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
                         borderRadius: '10px',
                         padding: '8px 12px',
                         border: '1px solid rgba(255,255,255,0.06)',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        marginBottom: '10px'
                     }}>
                         <Search size={14} color="#666" style={{ marginRight: '10px', flexShrink: 0 }} />
                         <input
@@ -230,14 +182,98 @@ export default function Sidebar({ onOpenSettings }: SidebarProps) {
             <div style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: isCollapsed ? '8px 4px 0' : '8px 8px 0',
+                padding: isCollapsed ? '8px 4px 0' : '0 16px 0',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px'
+                gap: '2px'
             }}>
-                {renderSessionGroup('Today', todaySessions)}
-                {renderSessionGroup('Yesterday', yesterdaySessions)}
-                {renderSessionGroup('Previous', olderSessions)}
+                {!isCollapsed && filteredSessions.length > 0 && (
+                    <div
+                        onClick={() => setIsListExpanded(!isListExpanded)}
+                        style={{
+                            fontSize: '0.85rem',
+                            color: '#888',
+                            padding: '8px 4px',
+                            marginTop: '4px',
+                            marginBottom: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            userSelect: 'none'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#ccc'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                    >
+                        <ChevronDown
+                            size={14}
+                            style={{
+                                transition: 'transform 0.2s',
+                                transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)'
+                            }}
+                        />
+                        <span>Your chats</span>
+                    </div>
+                )}
+
+                <div style={{
+                    display: isListExpanded && !isCollapsed ? 'flex' : 'none',
+                    flexDirection: 'column',
+                    gap: '2px'
+                }}>
+                    {filteredSessions.map(session => (
+                        <div
+                            key={session.id}
+                            onClick={() => switchSession(session.id)}
+                            className="session-item"
+                            title={isCollapsed ? session.title : ''}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '8px 8px', // More compact padding
+                                cursor: 'pointer',
+                                borderRadius: '8px',
+                                fontSize: '0.9rem', // Slightly larger text matching image
+                                color: currentSessionId === session.id ? '#fff' : '#b4b4b4',
+                                backgroundColor: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                transition: 'all 0.15s ease',
+                                position: 'relative',
+                                justifyContent: isCollapsed ? 'center' : 'flex-start'
+                            }}
+                        >
+                            {/* Removed Icon */}
+                            <span style={{
+                                flex: 1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: isCollapsed ? 'none' : 'block',
+                                opacity: isCollapsed ? 0 : 1,
+                                transition: 'opacity 0.2s',
+                                fontWeight: currentSessionId === session.id ? 500 : 400
+                            }}>
+                                {session.title}
+                            </span>
+                            {!isCollapsed && currentSessionId === session.id && (
+                                <div
+                                    className="delete-btn"
+                                    onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
+                                    style={{
+                                        opacity: 0,
+                                        transition: 'opacity 0.15s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '4px',
+                                        borderRadius: '6px'
+                                    }}
+                                >
+                                    <Trash2 size={13} color="#888" />
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             {/* Footer */}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic } from 'lucide-react'
+import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -19,8 +19,10 @@ export default function ChatArea() {
     const [isLoading, setIsLoading] = useState(false)
     const [streamingContent, setStreamingContent] = useState('')
     const [isStreaming, setIsStreaming] = useState(false)
+    const [isInputFocused, setIsInputFocused] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const stopRef = useRef(false)
 
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
@@ -50,6 +52,7 @@ export default function ChatArea() {
         let i = 0
         const length = text.length
         while (i < length) {
+            if (stopRef.current) break
             const inCodeBlock = text.substring(0, i).split('```').length % 2 === 0
             const speed = inCodeBlock ? fastSpeed : baseSpeed
             const chunkSize = inCodeBlock ? 5 : 2
@@ -70,6 +73,7 @@ export default function ChatArea() {
         const userMessageContent = input
         setInput('')
         setIsLoading(true)
+        stopRef.current = false
 
         let targetSessionId = currentSessionId
         if (!targetSessionId) {
@@ -77,6 +81,10 @@ export default function ChatArea() {
         } else {
             addMessageToSession(targetSessionId, { role: 'user', content: userMessageContent })
         }
+
+        const startTime = performance.now()
+        let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+        let model = settings.aiModel
 
         try {
             let responseContent = ""
@@ -86,9 +94,21 @@ export default function ChatArea() {
             if (settings.modelProvider === 'ollama') {
                 const res = await generateOllamaCompletion(settings.ollamaUrl, settings.aiModel, optimizedHistory, { temperature: settings.temperature })
                 responseContent = res.message.content
+                usage = {
+                    inputTokens: res.prompt_eval_count || 0,
+                    outputTokens: res.eval_count || 0,
+                    totalTokens: (res.prompt_eval_count || 0) + (res.eval_count || 0)
+                }
+                model = `ollama/${settings.aiModel}`
             } else if (settings.modelProvider === 'perplexity') {
                 const res = await generatePerplexityCompletion(settings.perplexityApiKey, settings.aiModel, optimizedHistory)
                 responseContent = res.choices[0].message.content
+                usage = {
+                    inputTokens: res.usage?.prompt_tokens || 0,
+                    outputTokens: res.usage?.completion_tokens || 0,
+                    totalTokens: res.usage?.total_tokens || 0
+                }
+                model = `perplexity/${settings.aiModel}`
             } else {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
@@ -97,11 +117,27 @@ export default function ChatArea() {
                 })
                 const data = await res.json()
                 responseContent = data.choices?.[0]?.message?.content || "Error: No response"
+                usage = {
+                    inputTokens: data.usage?.prompt_tokens || 0,
+                    outputTokens: data.usage?.completion_tokens || 0,
+                    totalTokens: data.usage?.total_tokens || 0
+                }
+                model = `openrouter/${settings.aiModel}`
             }
+
+            const endTime = performance.now()
+            const latency = Math.round(endTime - startTime)
 
             setIsLoading(false)
             await typewriterEffect(responseContent)
-            addMessageToSession(targetSessionId!, { role: 'assistant', content: responseContent })
+
+            addMessageToSession(targetSessionId!, {
+                role: 'assistant',
+                content: responseContent,
+                model,
+                latency,
+                usage
+            })
             finishStreaming()
         } catch (error: any) {
             setIsLoading(false)
@@ -127,20 +163,11 @@ export default function ChatArea() {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100vh',
-                background: '#0a0a0a',
+                background: '#121212',
                 position: 'relative'
             }}>
-                {/* Header */}
-                <div style={{
-                    padding: '12px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                }}>
-                    <Sparkles size={20} color="#888" />
-                    <span style={{ color: '#ccc', fontSize: '0.95rem', fontWeight: 500 }}>New Conversation</span>
-                    <ChevronDown size={14} color="#666" />
-                </div>
+                {/* Header - Empty for spacing */}
+                <div style={{ padding: '20px' }}></div>
 
                 {/* Centered Welcome */}
                 <div style={{
@@ -149,69 +176,112 @@ export default function ChatArea() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '40px'
+                    padding: '40px',
+                    gap: '32px'
                 }}>
-                    <div style={{
-                        width: '64px',
-                        height: '64px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        borderRadius: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '24px',
-                        boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3)'
+                    {/* Title */}
+                    <h1 style={{
+                        fontSize: '2.5rem',
+                        fontWeight: 400,
+                        color: '#fff',
+                        letterSpacing: '-0.02em',
+                        fontFamily: 'inherit'
                     }}>
-                        <Sparkles size={32} color="#fff" />
-                    </div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#fff', marginBottom: '8px', letterSpacing: '-0.02em' }}>
-                        What can I help with?
+                        zura
                     </h1>
-                    <p style={{ fontSize: '1rem', color: '#666', marginBottom: '40px' }}>
-                        Ask anything, or start with a suggestion below
-                    </p>
 
-                    {/* Quick Suggestions */}
-                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '600px' }}>
-                        {settings.quickPrompts.map((suggestion, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setInput(suggestion)}
+                    {/* Input Area Group */}
+                    <div style={{ width: '100%', maxWidth: '600px' }}>
+                        <div style={{
+                            background: 'linear-gradient(145deg, #1a1a1a, #121212)',
+                            borderRadius: '24px',
+                            padding: '24px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '16px',
+                            border: isInputFocused
+                                ? '1px solid rgba(255, 165, 0, 0.3)'
+                                : '1px solid rgba(255,255,255,0.08)',
+                            boxShadow: isInputFocused
+                                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 165, 0, 0.1)'
+                                : '0 4px 20px rgba(0,0,0,0.2)',
+                            transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                            minHeight: '140px'
+                        }}>
+                            <textarea
+                                ref={textareaRef}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                onFocus={() => setIsInputFocused(true)}
+                                onBlur={() => setIsInputFocused(false)}
+                                placeholder="Ask a question..."
+                                rows={1}
                                 style={{
-                                    padding: '10px 16px',
-                                    borderRadius: '20px',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    background: 'rgba(255,255,255,0.03)',
-                                    color: '#aaa',
-                                    fontSize: '0.85rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
+                                    width: '100%',
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    color: '#fff',
+                                    resize: 'none',
+                                    outline: 'none',
+                                    fontSize: '1.2rem',
+                                    fontWeight: 400,
+                                    fontFamily: 'inherit',
+                                    lineHeight: '1.6',
+                                    minHeight: '48px',
+                                    maxHeight: '200px'
                                 }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                                    e.currentTarget.style.color = '#fff'
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                    e.currentTarget.style.color = '#aaa'
-                                }}
-                            >
-                                {suggestion}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                            />
 
-                {/* Input Area */}
-                <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 20px 40px' }}>
-                    <InputBar
-                        input={input}
-                        setInput={setInput}
-                        onSend={handleSendMessage}
-                        isLoading={isLoading || isStreaming}
-                        onKeyDown={handleKeyDown}
-                        textareaRef={textareaRef}
-                    />
+                            {/* Bottom Controls inside input */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <ModelSelector />
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button style={{
+                                        background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '10px', color: '#aaa', cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                                            e.currentTarget.style.color = '#fff'
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                            e.currentTarget.style.color = '#aaa'
+                                        }}
+                                    >
+                                        <Paperclip size={18} />
+                                    </button>
+                                    <button
+                                        onClick={handleSendMessage}
+                                        disabled={isLoading || !input.trim()}
+                                        style={{
+                                            background: input.trim() ? '#ffe4c4' : 'rgba(255,255,255,0.05)',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '10px',
+                                            color: input.trim() ? '#000' : '#444',
+                                            cursor: input.trim() ? 'pointer' : 'default',
+                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                            transform: input.trim() ? 'scale(1)' : 'scale(0.95)'
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            {!input.trim() && (
+                                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center', height: '18px' }}>
+                                                    <div style={{ width: '3px', height: '3px', background: '#444', borderRadius: '50%' }}></div>
+                                                    <div style={{ width: '3px', height: '3px', background: '#444', borderRadius: '50%' }}></div>
+                                                </div>
+                                            )}
+                                            {input.trim() && <Send size={18} />}
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         )
@@ -223,7 +293,7 @@ export default function ChatArea() {
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
-            background: '#0a0a0a',
+            background: '#121212',
             position: 'relative'
         }}>
             {/* Header - Session Title */}
@@ -257,7 +327,7 @@ export default function ChatArea() {
                     {isStreaming && streamingContent && (
                         <div style={{ marginBottom: '24px' }}>
                             <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7' }}>
-                                <HighlightFirstWord content={streamingContent} />
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
                             </div>
                             <span className="cursor-blink">▌</span>
                         </div>
@@ -273,6 +343,11 @@ export default function ChatArea() {
                     setInput={setInput}
                     onSend={handleSendMessage}
                     isLoading={isLoading || isStreaming}
+                    onStop={() => {
+                        stopRef.current = true
+                        setIsLoading(false)
+                        setIsStreaming(false)
+                    }}
                     onKeyDown={handleKeyDown}
                     textareaRef={textareaRef}
                 />
@@ -310,20 +385,7 @@ export default function ChatArea() {
 }
 
 // Component to highlight first word in gold
-function HighlightFirstWord({ content }: { content: string }) {
-    const firstSpaceIndex = content.indexOf(' ')
-    if (firstSpaceIndex === -1) {
-        return <span style={{ color: '#f59e0b' }}>{content}</span>
-    }
-    const firstWord = content.substring(0, firstSpaceIndex)
-    const rest = content.substring(firstSpaceIndex)
-    return (
-        <>
-            <span style={{ color: '#f59e0b' }}>{firstWord}</span>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{rest}</ReactMarkdown>
-        </>
-    )
-}
+
 
 function MessageBubble({ message }: { message: any }) {
     const [copied, setCopied] = useState(false)
@@ -358,16 +420,12 @@ function MessageBubble({ message }: { message: any }) {
         )
     }
 
-    // AI message - left aligned, no bubble, colored first word
-    const firstSpaceIndex = message.content.indexOf(' ')
-    const firstWord = firstSpaceIndex > -1 ? message.content.substring(0, firstSpaceIndex) : message.content
-    const restContent = firstSpaceIndex > -1 ? message.content.substring(firstSpaceIndex) : ''
 
+    // AI message - left aligned, no bubble
     return (
         <div style={{ marginBottom: '24px' }}>
             {/* Message content */}
             <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-                <span style={{ color: '#f59e0b' }}>{firstWord}</span>
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
@@ -411,59 +469,193 @@ function MessageBubble({ message }: { message: any }) {
                         }
                     }}
                 >
-                    {restContent}
+                    {message.content}
                 </ReactMarkdown>
             </div>
 
-            {/* Action buttons - only Copy works */}
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <ActionButton icon={<Copy size={14} />} onClick={handleCopy} />
+            {/* Action Bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                {/* Copy Button */}
+                <button
+                    onClick={handleCopy}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: copied ? '#4ade80' : '#666',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        transition: 'all 0.2s',
+                        fontSize: '0.8rem',
+                        fontFamily: 'inherit'
+                    }}
+                    onMouseEnter={e => !copied && (e.currentTarget.style.color = '#e0e0e0')}
+                    onMouseLeave={e => !copied && (e.currentTarget.style.color = '#666')}
+                >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+
+                {/* Info Tooltip */}
+                {message.usage && (
+                    <div style={{ position: 'relative' }} className="info-trigger">
+                        <Info
+                            size={14}
+                            style={{ cursor: 'pointer', color: '#666' }}
+                            className="info-icon"
+                        />
+
+                        <div className="info-popover" style={{
+                            position: 'absolute',
+                            top: '24px',
+                            left: '0',
+                            backgroundColor: '#1a1a1a',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            padding: '16px',
+                            width: '280px',
+                            zIndex: 100,
+                            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                            display: 'none', // Controlled by CSS hover
+                            flexDirection: 'column',
+                            gap: '12px'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <Info size={16} color="#e0e0e0" />
+                                <span style={{ fontWeight: 600, color: '#e0e0e0', fontSize: '0.9rem' }}>Response Info</span>
+                            </div>
+
+                            {/* Model */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Model</span>
+                                <div style={{
+                                    background: '#ffe4c4', // Peach/Beige color like screenshot
+                                    color: '#5c4033',
+                                    padding: '4px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <Cpu size={12} />
+                                    <span>{message.model?.split('/').pop() || 'Unknown Model'}</span>
+                                </div>
+                            </div>
+
+                            {/* Generation Time */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Generation Time</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#e0e0e0', fontSize: '0.85rem' }}>
+                                    <Clock size={14} />
+                                    <span>{(message.latency ? message.latency / 1000 : 0).toFixed(2)}s</span>
+                                </div>
+                            </div>
+
+                            {/* Token Usage */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Token Usage</span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div style={{
+                                        background: '#252525',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ArrowDown size={12} color="#888" />
+                                            <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Input</span>
+                                        </div>
+                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {message.usage?.inputTokens.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div style={{
+                                        background: '#252525',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ArrowUp size={12} color="#888" />
+                                            <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Output</span>
+                                        </div>
+                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {message.usage?.outputTokens.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{
+                                    background: '#252525',
+                                    padding: '8px 12px',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Sigma size={14} color="#888" />
+                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>Total</span>
+                                    </div>
+                                    <span style={{ color: '#e0e0e0', fontWeight: 700, fontSize: '0.9rem' }}>
+                                        {message.usage?.totalTokens.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            <style>{`
+                .info-trigger:hover .info-popover {
+                    display: flex !important;
+                }
+                .info-trigger:hover .info-icon {
+                    color: #fff !important;
+                }
+            `}</style>
         </div>
     )
 }
 
-function ActionButton({ icon, onClick }: { icon: React.ReactNode, onClick?: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#555',
-                cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.15s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
-            onMouseLeave={e => e.currentTarget.style.color = '#555'}
-        >
-            {icon}
-        </button>
-    )
-}
+function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, textareaRef }: any) {
+    const [isFocused, setIsFocused] = React.useState(false)
 
-function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }: any) {
     return (
         <div style={{
-            backgroundColor: '#1a1a1a',
-            borderRadius: '16px',
-            padding: '12px 16px',
+            background: 'linear-gradient(145deg, #1a1a1a, #121212)',
+            borderRadius: '24px',
+            padding: '24px',
             display: 'flex',
             flexDirection: 'column',
-            gap: '8px',
-            border: '1px solid rgba(255,255,255,0.08)'
+            gap: '16px',
+            border: isFocused
+                ? '1px solid rgba(255, 165, 0, 0.3)'
+                : '1px solid rgba(255,255,255,0.08)',
+            boxShadow: isFocused
+                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 165, 0, 0.1)'
+                : '0 4px 20px rgba(0,0,0,0.2)',
+            transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
         }}>
-            {/* Textarea */}
             <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 placeholder="Ask a new question..."
                 disabled={isLoading}
                 rows={1}
@@ -474,37 +666,62 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
                     color: '#fff',
                     resize: 'none',
                     outline: 'none',
-                    fontSize: '0.95rem',
-                    lineHeight: '1.5',
-                    minHeight: '24px',
+                    fontSize: '1.1rem',
+                    fontWeight: 400,
+                    fontFamily: 'inherit',
+                    lineHeight: '1.6',
+                    minHeight: '32px',
                     maxHeight: '200px'
                 }}
             />
 
             {/* Bottom row - model selector and send */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <ModelSelector />
                 </div>
-                <button
-                    onClick={onSend}
-                    disabled={isLoading || !input.trim()}
-                    style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: input.trim() ? '#f59e0b' : 'rgba(255,255,255,0.1)',
-                        color: input.trim() ? '#000' : '#444',
-                        cursor: input.trim() ? 'pointer' : 'default',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s ease'
-                    }}
-                >
-                    <Send size={18} />
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            color: '#aaa',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                            e.currentTarget.style.color = '#fff'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                            e.currentTarget.style.color = '#aaa'
+                        }}
+                    >
+                        <Paperclip size={18} />
+                    </button>
+                    <button
+                        onClick={isLoading ? onStop : onSend}
+                        disabled={!isLoading && !input.trim()}
+                        style={{
+                            background: isLoading ? 'rgba(255,255,255,0.1)' : (input.trim() ? '#ffe4c4' : 'rgba(255,255,255,0.05)'),
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '10px 14px',
+                            color: isLoading ? '#fff' : (input.trim() ? '#000' : '#444'),
+                            cursor: (isLoading || input.trim()) ? 'pointer' : 'default',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                            transform: (isLoading || input.trim()) ? 'scale(1)' : 'scale(0.95)'
+                        }}
+                    >
+                        {isLoading ? <Square size={18} fill="currentColor" /> : <Send size={18} />}
+                    </button>
+                </div>
             </div>
         </div>
     )

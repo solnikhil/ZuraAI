@@ -7,7 +7,7 @@ export default function DashboardLayout() {
     const [showSettings, setShowSettings] = useState(false)
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#121212' }}>
             <Sidebar onOpenSettings={() => setShowSettings(true)} />
 
             {/* Main Content Area - either ChatArea or Settings */}
