@@ -97,10 +97,11 @@ You are a premium AI assistant who is both helpful AND personable.`,
     ],
     geminiApiKey: '',
     geminiModels: [
-        { code: 'gemini-2.5-flash-preview-05-20', displayName: 'Gemini 2.5 Flash' },
-        { code: 'gemini-2.5-pro-preview-05-06', displayName: 'Gemini 2.5 Pro' },
+        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+        { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+        { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
         { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
-        { code: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
     ],
     quickPrompts: [
         'Explain this code to me',
@@ -140,7 +141,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
         if (!parsed.perplexityModels) parsed.perplexityModels = defaultSettings.perplexityModels
         if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
-        if (!parsed.geminiModels) parsed.geminiModels = defaultSettings.geminiModels
+        // Force migration: Always use latest Gemini models
+        parsed.geminiModels = defaultSettings.geminiModels
 
         return parsed
     })

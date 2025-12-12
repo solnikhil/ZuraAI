@@ -51,12 +51,14 @@ export const generateGeminiCompletion = async (
     }
 
     try {
+        // Using the official REST API format with x-goog-api-key header
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": apiKey
                 },
                 body: JSON.stringify(requestBody)
             }

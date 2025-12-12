@@ -330,6 +330,24 @@ export default function Settings({ onClose }: SettingsProps) {
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Gemini */}
+                                <div style={{ padding: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                        <span style={{ fontSize: '1.2rem' }}>✨</span>
+                                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>Gemini</span>
+                                        <span style={{ fontSize: '0.75rem', color: '#666' }}>Google AI</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            type={showApiKey ? 'text' : 'password'}
+                                            value={pendingSettings.geminiApiKey}
+                                            onChange={e => handleChange({ geminiApiKey: e.target.value })}
+                                            placeholder="AIza..."
+                                            style={{ ...inputStyle, flex: 1 }}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </Section>
 
@@ -442,6 +460,21 @@ export default function Settings({ onClose }: SettingsProps) {
                         <Section title="Perplexity Models">
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                 {(pendingSettings.perplexityModels || []).map((m: any) => (
+                                    <span key={m.code} style={{
+                                        padding: '8px 12px',
+                                        background: 'rgba(255,255,255,0.03)',
+                                        borderRadius: '8px',
+                                        fontSize: '0.85rem',
+                                        color: '#aaa'
+                                    }}>{m.displayName}</span>
+                                ))}
+                            </div>
+                        </Section>
+
+                        {/* Gemini Models */}
+                        <Section title="Gemini Models">
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {(pendingSettings.geminiModels || []).map((m: any) => (
                                     <span key={m.code} style={{
                                         padding: '8px 12px',
                                         background: 'rgba(255,255,255,0.03)',

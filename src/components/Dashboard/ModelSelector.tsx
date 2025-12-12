@@ -5,7 +5,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini'
 }
 
 export default function ModelSelector() {
@@ -16,7 +16,8 @@ export default function ModelSelector() {
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
         ollama: false,
         perplexity: false,
-        openrouter: false
+        openrouter: false,
+        gemini: false
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
@@ -33,6 +34,9 @@ export default function ModelSelector() {
         }
         if (settings.configuredModels) {
             settings.configuredModels.forEach(m => allModels.push({ ...m, provider: 'openrouter' }))
+        }
+        if (settings.geminiModels) {
+            settings.geminiModels.forEach(m => allModels.push({ ...m, provider: 'gemini' }))
         }
         return allModels
     }
@@ -138,12 +142,12 @@ export default function ModelSelector() {
         )
     }, [allModels, searchQuery])
 
-    // Grouping Logic
     const groupedModels = useMemo(() => {
         return {
             ollama: filteredModels.filter(m => m.provider === 'ollama'),
             perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
-            openrouter: filteredModels.filter(m => m.provider === 'openrouter')
+            openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
+            gemini: filteredModels.filter(m => m.provider === 'gemini')
         }
     }, [filteredModels])
 
@@ -343,6 +347,7 @@ export default function ModelSelector() {
                         {renderGroup('ollama', 'Ollama', <Database size={14} />, groupedModels.ollama)}
                         {renderGroup('perplexity', 'Perplexity', <Globe size={14} />, groupedModels.perplexity)}
                         {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
+                        {renderGroup('gemini', 'Gemini', <Sparkles size={14} />, groupedModels.gemini)}
 
                         {filteredModels.length === 0 && (
                             <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>

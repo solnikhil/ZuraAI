@@ -432,8 +432,29 @@ function MessageBubble({ message }: { message: any }) {
 
 
     // AI message - left aligned, no bubble
+    const messageRef = React.useRef<HTMLDivElement>(null)
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        // Ctrl+A or Cmd+A to select only this message
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+            e.preventDefault()
+            if (messageRef.current) {
+                const selection = window.getSelection()
+                const range = document.createRange()
+                range.selectNodeContents(messageRef.current)
+                selection?.removeAllRanges()
+                selection?.addRange(range)
+            }
+        }
+    }
+
     return (
-        <div style={{ marginBottom: '24px' }}>
+        <div
+            style={{ marginBottom: '24px' }}
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+            ref={messageRef}
+        >
             {/* Message content */}
             <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
                 <ReactMarkdown
