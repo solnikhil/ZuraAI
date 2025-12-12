@@ -8,6 +8,7 @@ import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion } from '../../services/perplexity'
+import { generateGeminiCompletion } from '../../services/gemini'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
 import ModelSelector from './ModelSelector'
 
@@ -109,6 +110,15 @@ export default function ChatArea() {
                     totalTokens: res.usage?.total_tokens || 0
                 }
                 model = `perplexity/${settings.aiModel}`
+            } else if (settings.modelProvider === 'gemini') {
+                const res = await generateGeminiCompletion(settings.geminiApiKey, settings.aiModel, optimizedHistory, { temperature: settings.temperature })
+                responseContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
+                usage = {
+                    inputTokens: res.usageMetadata?.promptTokenCount || 0,
+                    outputTokens: res.usageMetadata?.candidatesTokenCount || 0,
+                    totalTokens: res.usageMetadata?.totalTokenCount || 0
+                }
+                model = `gemini/${settings.aiModel}`
             } else {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",

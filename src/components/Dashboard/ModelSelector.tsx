@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu } from 'lucide-react'
+import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
 
 interface ModelWithProvider {
@@ -12,7 +12,13 @@ export default function ModelSelector() {
     const { settings, updateSettings } = useSettings()
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
-    const [viewMode, setViewMode] = useState<'favorites' | 'list'>('favorites')
+    // Collapse states for groups
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+        ollama: false,
+        perplexity: false,
+        openrouter: false
+    })
+
     const dropdownRef = useRef<HTMLDivElement>(null)
 
     // Get ALL models from ALL providers
@@ -36,22 +42,20 @@ export default function ModelSelector() {
     // Helper component for Logo with fallback
     const ModelIcon = ({ model, icon, color, size = 24 }: any) => {
         const [imgError, setImgError] = useState(false)
-        const sanitizedCode = model.code.replace(/[:\/]/g, '-')
+        const provider = model.provider // Use provider instead of model code
 
         if (!imgError) {
             return (
                 <img
-                    src={`/model-logos/${sanitizedCode}.png`}
+                    src={`/provider-logos/${provider}.png`}
                     alt={model.displayName}
-                    onError={(e) => {
-                        // Try common variations just in case? No, keep it simple.
-                        setImgError(true)
-                    }}
+                    onError={() => setImgError(true)}
                     style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain', borderRadius: '4px' }}
                 />
             )
         }
 
+        // Fallback to Icon
         return (
             <div style={{
                 padding: size === 24 ? '12px' : '0',
@@ -67,7 +71,23 @@ export default function ModelSelector() {
         )
     }
 
-    // Detect Model Family & Attributes
+    // Helper for Provider Logo (in headers)
+    const ProviderLogo = ({ provider, size = 14 }: { provider: string, size?: number }) => {
+        const [imgError, setImgError] = useState(false)
+        if (!imgError) {
+            return (
+                <img
+                    src={`/provider-logos/${provider}.png`}
+                    alt={provider}
+                    onError={() => setImgError(true)}
+                    style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain' }}
+                />
+            )
+        }
+        return null // Or a fallback icon
+    }
+
+    // Detect Model Family & Attributes (Recycled from previous step)
     const getModelAttributes = (model: ModelWithProvider) => {
         const code = model.code.toLowerCase()
         const name = model.displayName.toLowerCase()
@@ -79,19 +99,19 @@ export default function ModelSelector() {
         // Icon Logic
         if (code.includes('gemini') || name.includes('gemini')) {
             icon = <Sparkles size={16} />
-            color = '#4dabf7' // Blue/Cyan
+            color = '#4dabf7'
         } else if (code.includes('claude') || name.includes('claude')) {
             icon = <Box size={16} />
-            color = '#da7756' // Orange/Brown like Claude logo
+            color = '#da7756'
         } else if (code.includes('gpt') || name.includes('gpt') || code.includes('openai')) {
             icon = <Cpu size={16} />
-            color = '#10a37f' // OpenAI Green
+            color = '#10a37f'
         } else if (code.includes('mistral') || name.includes('mistral')) {
             icon = <Zap size={16} />
-            color = '#fcc419' // Yellow
+            color = '#fcc419'
         } else if (code.includes('llama') || name.includes('llama')) {
             icon = <Brain size={16} />
-            color = '#339af0' // Blue
+            color = '#339af0'
         }
 
         // Badge Logic
@@ -106,6 +126,10 @@ export default function ModelSelector() {
         return { icon, color, badge }
     }
 
+    const currentModel = allModels.find(m => m.code === settings.aiModel)
+    const currentName = currentModel?.displayName || settings.aiModel.split('/').pop()
+
+    // Filter Logic
     const filteredModels = useMemo(() => {
         if (!searchQuery.trim()) return allModels
         return allModels.filter(m =>
@@ -114,18 +138,14 @@ export default function ModelSelector() {
         )
     }, [allModels, searchQuery])
 
-    // Simplified Favorites Logic (pinned heuristics for now)
-    const favoriteModels = useMemo(() => {
-        // Prioritize: Gemini, Claude, GPT
-        return allModels.filter(m => {
-            const lower = m.displayName.toLowerCase()
-            return lower.includes('gpt-4') || lower.includes('claude-3') || lower.includes('gemini') || lower.includes('sonar')
-        }).slice(0, 8) // Limit to top 8 to simulate favorites
-    }, [allModels])
-
-
-    const currentModel = allModels.find(m => m.code === settings.aiModel)
-    const currentName = currentModel?.displayName || settings.aiModel.split('/').pop()
+    // Grouping Logic
+    const groupedModels = useMemo(() => {
+        return {
+            ollama: filteredModels.filter(m => m.provider === 'ollama'),
+            perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
+            openrouter: filteredModels.filter(m => m.provider === 'openrouter')
+        }
+    }, [filteredModels])
 
     // Close on outside click
     useEffect(() => {
@@ -141,6 +161,98 @@ export default function ModelSelector() {
     const handleSelect = (model: ModelWithProvider) => {
         updateSettings({ aiModel: model.code, modelProvider: model.provider })
         setIsOpen(false)
+    }
+
+    const toggleGroup = (provider: string) => {
+        setCollapsedGroups(prev => ({
+            ...prev,
+            [provider]: !prev[provider]
+        }))
+    }
+
+    const renderGroup = (provider: string, title: string, icon: React.ReactNode, models: ModelWithProvider[]) => {
+        if (models.length === 0 && !searchQuery) return null // Hide empty groups if not searching (if searching, hiding is fine too)
+
+        // If searching and no matches in group, hide it
+        if (models.length === 0) return null
+
+        const isCollapsed = collapsedGroups[provider]
+
+        return (
+            <div style={{ marginBottom: '8px' }}>
+                <div
+                    onClick={() => toggleGroup(provider)}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 4px',
+                        cursor: 'pointer',
+                        color: '#888',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        userSelect: 'none'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#ccc'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#888'}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ProviderLogo provider={provider} size={14} />
+                        <span>{title}</span>
+                        <span style={{ fontSize: '0.7rem', opacity: 0.6, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '10px' }}>
+                            {models.length}
+                        </span>
+                    </div>
+                    <ChevronDown size={14} style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+                </div>
+
+                {!isCollapsed && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {models.map(model => {
+                            const { icon: attrIcon, color, badge } = getModelAttributes(model)
+                            const isActive = settings.aiModel === model.code
+                            return (
+                                <div
+                                    key={model.code}
+                                    onClick={() => handleSelect(model)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '10px 12px',
+                                        borderRadius: '12px',
+                                        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s'
+                                    }}
+                                    onMouseEnter={e => {
+                                        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        if (!isActive) e.currentTarget.style.background = 'transparent'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex' }}>
+                                        <ModelIcon
+                                            model={model}
+                                            icon={attrIcon}
+                                            color={color}
+                                            size={20}
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ color: '#ddd', fontSize: '0.9rem' }}>{model.displayName}</span>
+                                        {badge}
+                                    </div>
+
+                                    {isActive && <Check size={14} color="#fff" />}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        )
     }
 
     return (
@@ -191,7 +303,7 @@ export default function ModelSelector() {
                     position: 'absolute',
                     bottom: 'calc(100% + 12px)',
                     left: '-12px',
-                    width: '380px',
+                    width: '320px',
                     backgroundColor: '#111',
                     border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '20px',
@@ -228,181 +340,14 @@ export default function ModelSelector() {
 
                     {/* Content Section */}
                     <div className="custom-scrollbar" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {renderGroup('ollama', 'Ollama', <Database size={14} />, groupedModels.ollama)}
+                        {renderGroup('perplexity', 'Perplexity', <Globe size={14} />, groupedModels.perplexity)}
+                        {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
 
-                        {/* Favorites Grid (Only show if no search or searching favorites) */}
-                        {!searchQuery.trim() && viewMode === 'favorites' && (
-                            <div style={{ marginBottom: '24px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', color: '#ff6b6b', fontSize: '0.85rem', fontWeight: 600 }}>
-                                    <Star size={12} fill="currentColor" />
-                                    <span>Favorites</span>
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                                    {favoriteModels.map(model => {
-                                        const { icon, color, badge } = getModelAttributes(model)
-                                        const isActive = settings.aiModel === model.code
-                                        return (
-                                            <div
-                                                key={model.code}
-                                                onClick={() => handleSelect(model)}
-                                                style={{
-                                                    background: isActive ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                                                    border: isActive ? `1px solid ${color}` : '1px solid rgba(255,255,255,0.06)',
-                                                    borderRadius: '16px',
-                                                    padding: '16px',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    gap: '12px',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s',
-                                                    position: 'relative'
-                                                }}
-                                                onMouseEnter={e => {
-                                                    if (!isActive) {
-                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
-                                                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'
-                                                    }
-                                                }}
-                                                onMouseLeave={e => {
-                                                    if (!isActive) {
-                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
-                                                    }
-                                                }}
-                                            >
-                                                {/* Badge */}
-                                                {badge && <div style={{ position: 'absolute', top: '10px', right: '10px' }}>{badge}</div>}
-
-                                                {/* Icon */}
-                                                <ModelIcon
-                                                    model={model}
-                                                    icon={icon}
-                                                    color={color}
-                                                />
-
-                                                {/* Name */}
-                                                <span style={{ color: '#eee', fontSize: '0.85rem', fontWeight: 500, textAlign: 'center', lineHeight: '1.4' }}>
-                                                    {model.displayName}
-                                                </span>
-
-                                                {/* Action Bar (View/Select) */}
-                                                <div style={{ display: 'flex', gap: '6px', marginTop: 'auto', width: '100%' }}>
-                                                    <div style={{
-                                                        flex: 1,
-                                                        background: 'rgba(255,255,255,0.05)',
-                                                        borderRadius: '8px',
-                                                        height: '28px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        color: isActive ? '#fff' : '#666'
-                                                    }}>
-                                                        <Eye size={14} />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
+                        {filteredModels.length === 0 && (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>
                         )}
-
-                        {/* List Section (Others or Search Results) */}
-                        <div>
-                            {!searchQuery.trim() && viewMode === 'favorites' && (
-                                <div style={{ marginBottom: '12px', color: '#888', fontSize: '0.85rem', fontWeight: 600 }}>
-                                    Others
-                                </div>
-                            )}
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {(searchQuery.trim() ? filteredModels : allModels.filter(m => !favoriteModels.includes(m))).map(model => {
-                                    const { icon, color, badge } = getModelAttributes(model)
-                                    const isActive = settings.aiModel === model.code
-                                    return (
-                                        <div
-                                            key={model.code}
-                                            onClick={() => handleSelect(model)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '12px',
-                                                padding: '10px 12px',
-                                                borderRadius: '12px',
-                                                background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.15s'
-                                            }}
-                                            onMouseEnter={e => {
-                                                if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                                            }}
-                                            onMouseLeave={e => {
-                                                if (!isActive) e.currentTarget.style.background = 'transparent'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex' }}>
-                                                <ModelIcon
-                                                    model={model}
-                                                    icon={icon}
-                                                    color={color}
-                                                    size={20}
-                                                />
-                                            </div>
-                                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <span style={{ color: '#ddd', fontSize: '0.9rem' }}>{model.displayName}</span>
-                                                {badge}
-                                            </div>
-
-                                            {/* Action Buttons */}
-                                            <div style={{ display: 'flex', gap: '6px' }}>
-                                                <div style={{ padding: '6px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: isActive ? '#fff' : '#666' }}>
-                                                    <Eye size={14} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                                {filteredModels.length === 0 && (
-                                    <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>
-                                )}
-                            </div>
-                        </div>
                     </div>
-
-                    {/* Footer / Tabs */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingTop: '12px',
-                        borderTop: '1px solid rgba(255,255,255,0.1)'
-                    }}>
-                        <button
-                            onClick={() => setViewMode('favorites')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                background: 'transparent', border: 'none',
-                                color: viewMode === 'favorites' ? '#ff6b6b' : '#666',
-                                cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600
-                            }}>
-                            {/* Dot Indicator */}
-                            {viewMode === 'favorites' && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }}></div>}
-                            Favorites
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                background: 'transparent', border: 'none',
-                                color: viewMode === 'list' ? '#ff6b6b' : '#666',
-                                cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600
-                            }}>
-                            {viewMode === 'list' && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }}></div>}
-                            Show all
-                        </button>
-                        <Filter size={14} color="#666" />
-                    </div>
-
                 </div>
             )}
 

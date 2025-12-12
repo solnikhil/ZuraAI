@@ -15,11 +15,14 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
     perplexityModels: Array<{ code: string; displayName: string }>
+    // Gemini settings
+    geminiApiKey: string
+    geminiModels: Array<{ code: string; displayName: string }>
     // Quick prompts for welcome screen
     quickPrompts: string[]
 }
@@ -92,6 +95,13 @@ You are a premium AI assistant who is both helpful AND personable.`,
         { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
         { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
     ],
+    geminiApiKey: '',
+    geminiModels: [
+        { code: 'gemini-2.5-flash-preview-05-20', displayName: 'Gemini 2.5 Flash' },
+        { code: 'gemini-2.5-pro-preview-05-06', displayName: 'Gemini 2.5 Pro' },
+        { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+        { code: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro' },
+    ],
     quickPrompts: [
         'Explain this code to me',
         'Help me debug an error',
@@ -129,6 +139,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
         if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
         if (!parsed.perplexityModels) parsed.perplexityModels = defaultSettings.perplexityModels
+        if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
+        if (!parsed.geminiModels) parsed.geminiModels = defaultSettings.geminiModels
 
         return parsed
     })
