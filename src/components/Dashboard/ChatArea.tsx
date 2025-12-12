@@ -48,19 +48,45 @@ export default function ChatArea() {
     const typewriterEffect = async (text: string): Promise<void> => {
         setIsStreaming(true)
         setStreamingContent('')
-        const baseSpeed = 15
-        const fastSpeed = 5
+
+        // Settings for "natural" feel
+        // Settings for "natural" feel - SPEED UP
+        const minDelay = 1 // Was 2
+        const maxDelay = 5 // Was 15
+        const punctuationDelay = 15 // Was 40
+
         let i = 0
         const length = text.length
+        let inCodeBlock = false
+
         while (i < length) {
             if (stopRef.current) break
-            const inCodeBlock = text.substring(0, i).split('```').length % 2 === 0
-            const speed = inCodeBlock ? fastSpeed : baseSpeed
-            const chunkSize = inCodeBlock ? 5 : 2
-            const chunk = text.substring(i, Math.min(i + chunkSize, length))
+
+            // Check for code block toggle
+            if (text.substring(i, i + 3) === '```') {
+                inCodeBlock = !inCodeBlock
+            }
+
+            // Determine chunk size and delay
+            // Faster in code blocks, slower for natural text
+            const chunk = inCodeBlock
+                ? text.substring(i, Math.min(i + 8, length)) // Larger chunks for code
+                : text.charAt(i) // Character by character for text
+
+            const char = chunk[chunk.length - 1]
+            let delay = inCodeBlock ? minDelay : Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay)
+
+            // Add slight pause for punctuation in natural text
+            if (!inCodeBlock && ['.', '!', '?', '\n'].includes(char)) {
+                delay += punctuationDelay
+            } else if (!inCodeBlock && [',', ';', ':'].includes(char)) {
+                delay += punctuationDelay / 2
+            }
+
             setStreamingContent(prev => prev + chunk)
-            i += chunkSize
-            await new Promise(resolve => setTimeout(resolve, speed))
+            i += chunk.length
+
+            await new Promise(resolve => setTimeout(resolve, delay))
         }
     }
 
@@ -540,8 +566,9 @@ function MessageBubble({ message }: { message: any }) {
 
                         <div className="info-popover" style={{
                             position: 'absolute',
-                            top: '24px',
+                            bottom: '100%', // Changed from top: 24px to bottom: 100%
                             left: '0',
+                            marginBottom: '10px', // Add spacing
                             backgroundColor: '#1a1a1a',
                             border: '1px solid rgba(255,255,255,0.1)',
                             borderRadius: '12px',
@@ -666,17 +693,17 @@ function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, texta
 
     return (
         <div style={{
-            background: 'linear-gradient(145deg, #1a1a1a, #121212)',
+            background: 'linear-gradient(145deg, #161412, #101010)',
             borderRadius: '24px',
             padding: '24px',
             display: 'flex',
             flexDirection: 'column',
             gap: '16px',
             border: isFocused
-                ? '1px solid rgba(255, 165, 0, 0.3)'
-                : '1px solid rgba(255,255,255,0.08)',
+                ? '1px solid rgba(245, 158, 11, 0.2)'
+                : '1px solid rgba(245, 158, 11, 0.05)',
             boxShadow: isFocused
-                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 165, 0, 0.1)'
+                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 20px rgba(245, 158, 11, 0.03)'
                 : '0 4px 20px rgba(0,0,0,0.2)',
             transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
         }}>
