@@ -26,7 +26,15 @@ export const generateChatTitle = async (
         titleModel: string
     }
 ): Promise<string> => {
-    const prompt = `Generate a title that is EXACTLY 3 words to summarize this user request. Return ONLY the 3-word title, no quotes, punctuation, or explanation.
+    const prompt = `Generate a concise 3-word title for this chat. Format should be descriptive like these examples:
+- "UI/UX improvement tips"
+- "Real-time systems explained"  
+- "Repo maintenance guide"
+- "Interview script preparation"
+- "Git vs GitHub"
+- "How hackathons work"
+
+Return ONLY the title, no quotes or punctuation. Make it descriptive and helpful.
 
 User message: "${userMessage.slice(0, 200)}"`
 

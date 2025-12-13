@@ -168,9 +168,19 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                 justifyContent: isCollapsed ? 'center' : 'flex-start'
                             }}
                         >
-                            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block' }}>{session.title}</span>
-                            {!isCollapsed && currentSessionId === session.id && (
-                                <div className="delete-btn" onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }} style={{ opacity: 0, padding: '4px', borderRadius: '6px' }}>
+                            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block', minWidth: 0 }}>{session.title}</span>
+                            {!isCollapsed && (
+                                <div
+                                    className="delete-btn"
+                                    onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
+                                    style={{
+                                        opacity: 0,
+                                        padding: '4px',
+                                        borderRadius: '6px',
+                                        visibility: currentSessionId === session.id ? 'visible' : 'hidden',
+                                        flexShrink: 0
+                                    }}
+                                >
                                     <Trash2 size={13} color="#888" />
                                 </div>
                             )}

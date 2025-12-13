@@ -5,7 +5,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
 }
 
 export default function ModelSelector() {
@@ -17,7 +17,8 @@ export default function ModelSelector() {
         ollama: false,
         perplexity: false,
         openrouter: false,
-        gemini: false
+        gemini: false,
+        groq: false
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
@@ -37,6 +38,9 @@ export default function ModelSelector() {
         }
         if (settings.geminiModels) {
             settings.geminiModels.forEach(m => allModels.push({ ...m, provider: 'gemini' }))
+        }
+        if (settings.groqModels) {
+            settings.groqModels.forEach(m => allModels.push({ ...m, provider: 'groq' }))
         }
         return allModels
     }
@@ -147,7 +151,8 @@ export default function ModelSelector() {
             ollama: filteredModels.filter(m => m.provider === 'ollama'),
             perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
             openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
-            gemini: filteredModels.filter(m => m.provider === 'gemini')
+            gemini: filteredModels.filter(m => m.provider === 'gemini'),
+            groq: filteredModels.filter(m => m.provider === 'groq')
         }
     }, [filteredModels])
 
@@ -348,6 +353,7 @@ export default function ModelSelector() {
                         {renderGroup('perplexity', 'Perplexity', <Globe size={14} />, groupedModels.perplexity)}
                         {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
                         {renderGroup('gemini', 'Gemini', <Sparkles size={14} />, groupedModels.gemini)}
+                        {renderGroup('groq', 'Groq', <Zap size={14} />, groupedModels.groq)}
 
                         {filteredModels.length === 0 && (
                             <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>

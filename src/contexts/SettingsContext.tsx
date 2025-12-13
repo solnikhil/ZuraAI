@@ -16,7 +16,10 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq'
+    // Groq settings
+    groqApiKey: string
+    groqModels: Array<{ code: string; displayName: string }>
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
@@ -109,6 +112,14 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
         { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
         { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
     ],
+    groqApiKey: '',
+    groqModels: [
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
+        { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
+        { code: 'llama-guard-3-8b', displayName: 'Llama Guard 3 8B' },
+        { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
+        { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
+    ],
     quickPrompts: [
         'Explain this code to me',
         'Help me debug an error',
@@ -149,6 +160,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
         // Force migration: Always use latest Gemini models
         parsed.geminiModels = defaultSettings.geminiModels
+        // Initialize Groq fields if missing
+        if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
+        if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
 

@@ -9,6 +9,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion } from '../../services/perplexity'
 import { generateGeminiCompletion } from '../../services/gemini'
+import { generateGroqCompletion } from '../../services/groq'
 import { generateChatTitle } from '../../services/titleGenerator'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
 import ModelSelector from './ModelSelector'
@@ -30,14 +31,30 @@ export default function ChatArea() {
 
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
+    const prevLoadingRef = useRef(false)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
+    // Scroll strategy:
+    // 1. When sending (isLoading=true): Scroll to bottom to show the spacer/loading
+    // 2. When finished (isLoading=false): Snap the view to the last user message so it "stays" at the top
     useEffect(() => {
-        scrollToBottom()
-    }, [messages, isLoading])
+        if (isLoading) {
+            scrollToBottom()
+        } else if (prevLoadingRef.current && !isLoading) {
+            // Response just arrived - find the last user message and anchor to it
+            setTimeout(() => {
+                const userMessages = document.querySelectorAll('.message.user')
+                const lastUserMessage = userMessages[userMessages.length - 1]
+                if (lastUserMessage) {
+                    lastUserMessage.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+            }, 100)
+        }
+        prevLoadingRef.current = isLoading
+    }, [isLoading])
 
     // Auto-resize textarea
     useEffect(() => {
@@ -98,6 +115,15 @@ export default function ChatArea() {
                     totalTokens: res.usageMetadata?.totalTokenCount || 0
                 }
                 model = `gemini/${settings.aiModel}`
+            } else if (settings.modelProvider === 'groq') {
+                const res = await generateGroqCompletion(settings.groqApiKey, settings.aiModel, optimizedHistory, { temperature: settings.temperature })
+                responseContent = res.choices?.[0]?.message?.content || "Error: No response"
+                usage = {
+                    inputTokens: res.usage?.prompt_tokens || 0,
+                    outputTokens: res.usage?.completion_tokens || 0,
+                    totalTokens: res.usage?.total_tokens || 0
+                }
+                model = `groq/${settings.aiModel}`
             } else {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
