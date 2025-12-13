@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Square } from 'lucide-react'
+import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -9,21 +9,24 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion } from '../../services/perplexity'
 import { generateGeminiCompletion } from '../../services/gemini'
+import { generateChatTitle } from '../../services/titleGenerator'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
 import ModelSelector from './ModelSelector'
 
+import BlurText from '../BlurText'
+
+import GradientText from '../GradientText'
+
 export default function ChatArea() {
-    const { sessions, currentSessionId, addMessageToSession, createSession } = useChatHistory()
+    const { sessions, currentSessionId, addMessageToSession, createSession, updateSessionTitle } = useChatHistory()
     const { settings } = useSettings()
 
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
-    const [streamingContent, setStreamingContent] = useState('')
-    const [isStreaming, setIsStreaming] = useState(false)
     const [isInputFocused, setIsInputFocused] = useState(false)
+    const [isTitleAnimated, setIsTitleAnimated] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
-    const stopRef = useRef(false)
 
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
@@ -34,7 +37,7 @@ export default function ChatArea() {
 
     useEffect(() => {
         scrollToBottom()
-    }, [messages, isLoading, streamingContent])
+    }, [messages, isLoading])
 
     // Auto-resize textarea
     useEffect(() => {
@@ -44,67 +47,17 @@ export default function ChatArea() {
         }
     }, [input])
 
-    // Typewriter effect function
-    const typewriterEffect = async (text: string): Promise<void> => {
-        setIsStreaming(true)
-        setStreamingContent('')
-
-        // Settings for "natural" feel
-        // Settings for "natural" feel - SPEED UP
-        const minDelay = 1 // Was 2
-        const maxDelay = 5 // Was 15
-        const punctuationDelay = 15 // Was 40
-
-        let i = 0
-        const length = text.length
-        let inCodeBlock = false
-
-        while (i < length) {
-            if (stopRef.current) break
-
-            // Check for code block toggle
-            if (text.substring(i, i + 3) === '```') {
-                inCodeBlock = !inCodeBlock
-            }
-
-            // Determine chunk size and delay
-            // Faster in code blocks, slower for natural text
-            const chunk = inCodeBlock
-                ? text.substring(i, Math.min(i + 8, length)) // Larger chunks for code
-                : text.charAt(i) // Character by character for text
-
-            const char = chunk[chunk.length - 1]
-            let delay = inCodeBlock ? minDelay : Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay)
-
-            // Add slight pause for punctuation in natural text
-            if (!inCodeBlock && ['.', '!', '?', '\n'].includes(char)) {
-                delay += punctuationDelay
-            } else if (!inCodeBlock && [',', ';', ':'].includes(char)) {
-                delay += punctuationDelay / 2
-            }
-
-            setStreamingContent(prev => prev + chunk)
-            i += chunk.length
-
-            await new Promise(resolve => setTimeout(resolve, delay))
-        }
-    }
-
-    const finishStreaming = () => {
-        setIsStreaming(false)
-        setStreamingContent('')
-    }
-
     const handleSendMessage = async () => {
         if (!input.trim() || isLoading) return
         const userMessageContent = input
         setInput('')
         setIsLoading(true)
-        stopRef.current = false
 
         let targetSessionId = currentSessionId
+        let isNewSession = false
         if (!targetSessionId) {
             targetSessionId = createSession(userMessageContent)
+            isNewSession = true
         } else {
             addMessageToSession(targetSessionId, { role: 'user', content: userMessageContent })
         }
@@ -164,9 +117,6 @@ export default function ChatArea() {
             const endTime = performance.now()
             const latency = Math.round(endTime - startTime)
 
-            setIsLoading(false)
-            await typewriterEffect(responseContent)
-
             addMessageToSession(targetSessionId!, {
                 role: 'assistant',
                 content: responseContent,
@@ -174,13 +124,20 @@ export default function ChatArea() {
                 latency,
                 usage
             })
-            finishStreaming()
-        } catch (error: any) {
             setIsLoading(false)
+
+            // Generate AI title for new sessions (fire-and-forget)
+            if (isNewSession && targetSessionId) {
+                generateChatTitle(userMessageContent, settings).then(title => {
+                    if (title) {
+                        updateSessionTitle(targetSessionId!, title)
+                    }
+                }).catch(console.error)
+            }
+        } catch (error: any) {
             const errorMsg = `Error: ${error.message}`
-            await typewriterEffect(errorMsg)
             addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
-            finishStreaming()
+            setIsLoading(false)
         }
     }
 
@@ -213,33 +170,57 @@ export default function ChatArea() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     padding: '40px',
-                    gap: '32px'
+                    gap: '16px' // Reduced gap to place just above
                 }}>
                     {/* Title */}
-                    <h1 style={{
-                        fontSize: '2.5rem',
-                        fontWeight: 400,
-                        color: '#fff',
-                        letterSpacing: '-0.02em',
-                        fontFamily: 'inherit'
-                    }}>
-                        zura
-                    </h1>
+                    {!isTitleAnimated ? (
+                        <BlurText
+                            text="zura"
+                            delay={200}
+                            animateBy="letters"
+                            direction="top"
+                            stepDuration={1}
+                            easing="easeOut"
+                            className="blur-text-title"
+                            onAnimationComplete={() => setIsTitleAnimated(true)}
+                        />
+                    ) : (
+                        <GradientText
+                            colors={['#ffffff', '#888888', '#ffffff', '#888888', '#ffffff']}
+                            animationSpeed={12}
+                            showBorder={false}
+                            className="blur-text-title"
+                        >
+                            zura
+                        </GradientText>
+                    )}
+
+                    <style>{`
+                        .blur-text-title {
+                            font-size: 2.5rem;
+                            font-weight: 700;
+                            color: #fff;
+                            letter-spacing: -0.05em;
+                            opacity: 0.9;
+                            margin: 0;
+                            font-family: inherit;
+                        }
+                    `}</style>
 
                     {/* Input Area Group */}
                     <div style={{ width: '100%', maxWidth: '600px' }}>
                         <div style={{
-                            background: 'linear-gradient(145deg, #1a1a1a, #121212)',
+                            background: 'linear-gradient(145deg, #161412, #101010)',
                             borderRadius: '24px',
                             padding: '24px',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '16px',
                             border: isInputFocused
-                                ? '1px solid rgba(255, 165, 0, 0.3)'
+                                ? '1px solid rgba(255, 202, 40, 0.4)'
                                 : '1px solid rgba(255,255,255,0.08)',
                             boxShadow: isInputFocused
-                                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255, 165, 0, 0.1)'
+                                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 25px rgba(255, 202, 40, 0.15)'
                                 : '0 4px 20px rgba(0,0,0,0.2)',
                             transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
                             minHeight: '140px'
@@ -294,25 +275,20 @@ export default function ChatArea() {
                                         onClick={handleSendMessage}
                                         disabled={isLoading || !input.trim()}
                                         style={{
-                                            background: input.trim() ? '#ffe4c4' : 'rgba(255,255,255,0.05)',
+                                            background: input.trim() ? '#FFCA28' : 'rgba(255,255,255,0.05)',
                                             border: 'none',
                                             borderRadius: '8px',
                                             padding: '10px',
                                             color: input.trim() ? '#000' : '#444',
                                             cursor: input.trim() ? 'pointer' : 'default',
                                             transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                            transform: input.trim() ? 'scale(1)' : 'scale(0.95)'
+                                            transform: input.trim() ? 'scale(1)' : 'scale(0.95)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            {!input.trim() && (
-                                                <div style={{ display: 'flex', gap: '3px', alignItems: 'center', height: '18px' }}>
-                                                    <div style={{ width: '3px', height: '3px', background: '#444', borderRadius: '50%' }}></div>
-                                                    <div style={{ width: '3px', height: '3px', background: '#444', borderRadius: '50%' }}></div>
-                                                </div>
-                                            )}
-                                            {input.trim() && <Send size={18} />}
-                                        </div>
+                                        <Send size={18} />
                                     </button>
                                 </div>
                             </div>
@@ -360,13 +336,9 @@ export default function ChatArea() {
                             </div>
                         </div>
                     )}
-                    {isStreaming && streamingContent && (
-                        <div style={{ marginBottom: '24px' }}>
-                            <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7' }}>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
-                            </div>
-                            <span className="cursor-blink">▌</span>
-                        </div>
+                    {/* Spacer to push content up when waiting for AI response */}
+                    {isLoading && (
+                        <div style={{ minHeight: 'calc(100vh - 350px)' }} />
                     )}
                     <div ref={messagesEndRef} />
                 </div>
@@ -378,12 +350,7 @@ export default function ChatArea() {
                     input={input}
                     setInput={setInput}
                     onSend={handleSendMessage}
-                    isLoading={isLoading || isStreaming}
-                    onStop={() => {
-                        stopRef.current = true
-                        setIsLoading(false)
-                        setIsStreaming(false)
-                    }}
+                    isLoading={isLoading}
                     onKeyDown={handleKeyDown}
                     textareaRef={textareaRef}
                 />
@@ -688,7 +655,7 @@ function MessageBubble({ message }: { message: any }) {
     )
 }
 
-function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, textareaRef }: any) {
+function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }: any) {
     const [isFocused, setIsFocused] = React.useState(false)
 
     return (
@@ -700,10 +667,10 @@ function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, texta
             flexDirection: 'column',
             gap: '16px',
             border: isFocused
-                ? '1px solid rgba(245, 158, 11, 0.2)'
-                : '1px solid rgba(245, 158, 11, 0.05)',
+                ? '1px solid rgba(255, 202, 40, 0.3)'
+                : '1px solid rgba(255, 202, 40, 0.05)',
             boxShadow: isFocused
-                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 20px rgba(245, 158, 11, 0.03)'
+                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 20px rgba(255, 202, 40, 0.1)'
                 : '0 4px 20px rgba(0,0,0,0.2)',
             transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
         }}>
@@ -714,7 +681,7 @@ function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, texta
                 onKeyDown={onKeyDown}
                 onFocus={() => setIsFocused(true)}
                 onBlur={() => setIsFocused(false)}
-                placeholder="Ask a new question..."
+                placeholder="Ask a question..."
                 disabled={isLoading}
                 rows={1}
                 style={{
@@ -761,23 +728,23 @@ function InputBar({ input, setInput, onSend, isLoading, onStop, onKeyDown, texta
                         <Paperclip size={18} />
                     </button>
                     <button
-                        onClick={isLoading ? onStop : onSend}
-                        disabled={!isLoading && !input.trim()}
+                        onClick={onSend}
+                        disabled={isLoading || !input.trim()}
                         style={{
-                            background: isLoading ? 'rgba(255,255,255,0.1)' : (input.trim() ? '#ffe4c4' : 'rgba(255,255,255,0.05)'),
+                            background: input.trim() && !isLoading ? '#FFCA28' : 'rgba(255,255,255,0.05)',
                             border: 'none',
                             borderRadius: '8px',
                             padding: '10px 14px',
-                            color: isLoading ? '#fff' : (input.trim() ? '#000' : '#444'),
-                            cursor: (isLoading || input.trim()) ? 'pointer' : 'default',
+                            color: input.trim() && !isLoading ? '#000' : '#444',
+                            cursor: input.trim() && !isLoading ? 'pointer' : 'default',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                            transform: (isLoading || input.trim()) ? 'scale(1)' : 'scale(0.95)'
+                            transform: input.trim() && !isLoading ? 'scale(1)' : 'scale(0.95)'
                         }}
                     >
-                        {isLoading ? <Square size={18} fill="currentColor" /> : <Send size={18} />}
+                        <Send size={18} />
                     </button>
                 </div>
             </div>

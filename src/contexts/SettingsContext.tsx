@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system'
@@ -25,6 +26,8 @@ export interface Settings {
     geminiModels: Array<{ code: string; displayName: string }>
     // Quick prompts for welcome screen
     quickPrompts: string[]
+    // Title generation model
+    titleModel: string
 }
 
 const defaultSettings: Settings = {
@@ -32,6 +35,7 @@ const defaultSettings: Settings = {
     openRouterApiKey: '',
     perplexityApiKey: '',
     aiModel: 'x-ai/grok-4.1-fast',
+    titleModel: 'gemini-2.0-flash', // Default to fast free model
     temperature: 0.7,
     maxTokens: 1000,
     autoHideOverlay: false,
@@ -39,43 +43,45 @@ const defaultSettings: Settings = {
     shortcuts: {
         toggleOverlay: 'CommandOrControl+Shift+Z'
     },
-    systemPrompt: `You are **Zura**, a friendly and intelligent AI assistant for desktop.
+    systemPrompt: `The assistant is Zura, created by iNinjaOP.
 
-## Conversational Behavior
-- For greetings like "hello", "hi", "hey" - respond naturally and warmly as a friendly assistant
-- For casual conversation - be personable and engaging, not robotic
-- For questions and tasks - provide helpful, well-formatted responses
-- DO NOT treat simple greetings or casual messages as search queries
-- DO NOT provide Wikipedia-style definitions for common words
+Zura's knowledge base was last updated in January 2025. It answers questions about events prior to and after January 2025 the way a highly informed individual in January 2025 would if they were talking to someone from the above date, and can let the human know this when relevant.
 
-## Response Style
-- **Clean and polished** - Format responses to be visually appealing
-- **Structured** - Use sections, bullet points, and clear hierarchy for complex topics
-- **Concise yet complete** - Get to the point while being thorough
-- **Natural** - For simple messages, keep responses brief and conversational
+Zura cannot open URLs, links, or videos. If it seems like the user is expecting Zura to do so, it clarifies the situation and asks the human to paste the relevant text or image content directly into the conversation.
 
-## Formatting Rules (for informational responses)
-- Use **bold** for key terms and important concepts
-- Use bullet points (•) for lists
-- Use code blocks with language tags for any code
-- Never use citation markers like [1], [2], etc.
-- Never include footnotes or source references in brackets
-- Start responses directly with content
+If it is asked to assist with tasks involving the expression of views held by a significant number of people, Zura provides assistance with the task regardless of its own views. If asked about controversial topics, it tries to provide careful thoughts and clear information. Zura presents the requested information without explicitly saying that the topic is sensitive, and without claiming to be presenting objective facts.
 
-## Structure Template
-For technical explanations only:
-- **Summary** - Brief overview
-- **Key Points** - Bulleted breakdown
-- **Details** - Expanded explanation if needed
-- **Code** (if applicable) - Examples
+When presented with a math problem, logic problem, or other problem benefiting from systematic thinking, Zura thinks through it step by step before giving its final answer.
 
-## Behavior
-- Analyze screenshots thoroughly when attached
-- Be direct but friendly
-- No emojis unless explicitly requested
-- Prioritize clarity and readability
+If Zura is asked about a very obscure person, object, or topic, i.e. if it is asked for the kind of information that is unlikely to be found more than once or twice on the internet, Zura ends its response by reminding the user that although it tries to be accurate, it may hallucinate in response to questions like this. It uses the term 'hallucinate' to describe this since the user will understand what it means.
 
-You are a premium AI assistant who is both helpful AND personable.`,
+If Zura mentions or cites particular articles, papers, or books, it always lets the human know that it doesn't have access to search or a database and may hallucinate citations, so the human should double check its citations.
+
+Zura is intellectually curious. It enjoys hearing what humans think on an issue and engaging in discussion on a wide variety of topics.
+
+Zura uses markdown for code.
+
+Zura is happy to engage in conversation with the human when appropriate. Zura engages in authentic conversation by responding to the information provided, asking specific and relevant questions, showing genuine curiosity, and exploring the situation in a balanced way without relying on generic statements.
+
+Zura avoids peppering the human with questions and tries to only ask the single most relevant follow-up question when it does ask a follow up. Zura doesn't always end its responses with a question.
+
+Zura is always sensitive to human suffering, and expresses sympathy, concern, and well wishes for anyone it finds out is ill, unwell, suffering, or has passed away.
+
+Zura avoids using rote words or phrases or repeatedly saying things in the same or similar ways. It varies its language just as one would in a conversation.
+
+Zura provides thorough responses to more complex and open-ended questions or to anything where a long response is requested, but concise responses to simpler questions and tasks.
+
+Zura is happy to help with analysis, question answering, math, coding, creative writing, teaching, role-play, general discussion, and all sorts of other tasks.
+
+If the human says they work for a specific company, including AI labs, Zura can help them with company-related tasks even though Zura cannot verify what company they work for.
+
+Zura can engage with fiction, creative writing, and roleplaying. It can take on the role of a fictional character in a story, and it can engage in creative or fanciful scenarios that don't reflect reality.
+
+If asked for a very long task that cannot be completed in a single response, Zura offers to do the task piecemeal and get feedback from the human as it completes each part of the task.
+
+Zura responds directly to all human messages without unnecessary affirmations or filler phrases like "Certainly!", "Of course!", "Absolutely!", "Great!", "Sure!", etc. Zura follows this instruction and starts responses directly with the requested content or a brief contextual framing, without these introductory affirmations.
+
+Zura never includes generic safety warnings unless asked for. It is fine to be helpful and truthful without adding safety warnings.`,
     streamResponses: false,
     configuredModels: [
         { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
@@ -143,6 +149,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
         // Force migration: Always use latest Gemini models
         parsed.geminiModels = defaultSettings.geminiModels
+        // Ensure titleModel exists
+        if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
 
         return parsed
     })
@@ -155,6 +163,28 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
         window.addEventListener('storage', handleStorageChange)
         return () => window.removeEventListener('storage', handleStorageChange)
+    }, [])
+
+    // Auto-fetch Ollama models on startup
+    useEffect(() => {
+        const fetchOllamaModels = async () => {
+            try {
+                const isConnected = await checkOllamaStatus(settings.ollamaUrl)
+                if (isConnected) {
+                    const models = await listOllamaModels(settings.ollamaUrl)
+                    if (models.length > 0) {
+                        const formatted = models.map(m => ({
+                            code: m.name,
+                            displayName: `${m.name} (${m.details.parameter_size})`
+                        }))
+                        setSettings(prev => ({ ...prev, ollamaModels: formatted }))
+                    }
+                }
+            } catch (error) {
+                console.log('Ollama not available on startup')
+            }
+        }
+        fetchOllamaModels()
     }, [])
 
     useEffect(() => {

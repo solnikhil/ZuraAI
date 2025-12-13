@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification, shell } from 'electron'
 import path from 'path'
 import * as chatStore from './chatStore'
 
@@ -44,6 +44,14 @@ function createMainWindow() {
         autoHideMenuBar: true,
         backgroundColor: '#1a1a1a',
         show: false,  // Don't show until ready
+    })
+
+    // Handle external links - open in default browser
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('https:') || url.startsWith('http:')) {
+            shell.openExternal(url)
+        }
+        return { action: 'deny' }
     })
 
     // Show when ready to prevent white flash
