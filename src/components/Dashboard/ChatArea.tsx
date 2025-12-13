@@ -31,30 +31,15 @@ export default function ChatArea() {
 
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
-    const prevLoadingRef = useRef(false)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
-    // Scroll strategy:
-    // 1. When sending (isLoading=true): Scroll to bottom to show the spacer/loading
-    // 2. When finished (isLoading=false): Snap the view to the last user message so it "stays" at the top
+    // Auto-scroll to bottom when messages change or loading starts
     useEffect(() => {
-        if (isLoading) {
-            scrollToBottom()
-        } else if (prevLoadingRef.current && !isLoading) {
-            // Response just arrived - find the last user message and anchor to it
-            setTimeout(() => {
-                const userMessages = document.querySelectorAll('.message.user')
-                const lastUserMessage = userMessages[userMessages.length - 1]
-                if (lastUserMessage) {
-                    lastUserMessage.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }
-            }, 100)
-        }
-        prevLoadingRef.current = isLoading
-    }, [isLoading])
+        scrollToBottom()
+    }, [messages, isLoading])
 
     // Auto-resize textarea
     useEffect(() => {

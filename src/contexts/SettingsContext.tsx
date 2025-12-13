@@ -17,9 +17,6 @@ export interface Settings {
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
     modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq'
-    // Groq settings
-    groqApiKey: string
-    groqModels: Array<{ code: string; displayName: string }>
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
@@ -27,6 +24,9 @@ export interface Settings {
     // Gemini settings
     geminiApiKey: string
     geminiModels: Array<{ code: string; displayName: string }>
+    // Groq settings
+    groqApiKey: string
+    groqModels: Array<{ code: string; displayName: string }>
     // Quick prompts for welcome screen
     quickPrompts: string[]
     // Title generation model
@@ -114,7 +114,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
     ],
     groqApiKey: '',
     groqModels: [
-        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B' },
         { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
         { code: 'llama-guard-3-8b', displayName: 'Llama Guard 3 8B' },
         { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },

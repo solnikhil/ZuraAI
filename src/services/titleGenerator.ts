@@ -1,4 +1,5 @@
 import { generateGeminiCompletion } from './gemini'
+import { generateGroqCompletion } from './groq'
 
 /**
  * Generates a short, descriptive title for a chat session based on the user's first message.
@@ -22,6 +23,7 @@ export const generateChatTitle = async (
         geminiApiKey: string
         openRouterApiKey: string
         perplexityApiKey: string
+        groqApiKey: string
         aiModel: string
         titleModel: string
     }
@@ -30,11 +32,12 @@ export const generateChatTitle = async (
 - "UI/UX improvement tips"
 - "Real-time systems explained"  
 - "Repo maintenance guide"
-- "Interview script preparation"
-- "Git vs GitHub"
-- "How hackathons work"
 
-Return ONLY the title, no quotes or punctuation. Make it descriptive and helpful.
+IMPORTANT rules:
+1. Return ONLY the 3-word title.
+2. Do NOT say "Here is the title" or any other conversational text.
+3. Do NOT use quotes.
+4. Do NOT use markdown.
 
 User message: "${userMessage.slice(0, 200)}"`
 
@@ -42,8 +45,20 @@ User message: "${userMessage.slice(0, 200)}"`
         let title = ''
         const titleModel = settings.titleModel || 'gemini-2.0-flash'
 
-        // Check if it's a direct Gemini model (starts with gemini-)
-        if (titleModel.startsWith('gemini-') && settings.geminiApiKey) {
+        // Known Groq models
+        const groqModels = [
+            'llama-3.3-70b-versatile',
+            'llama-3.1-8b-instant',
+            'llama-guard-3-8b',
+            'mixtral-8x7b-32768',
+            'gemma2-9b-it'
+        ]
+
+        // Check availability
+        const isGemini = titleModel.startsWith('gemini-') && settings.geminiApiKey
+        const isGroq = groqModels.includes(titleModel) && settings.groqApiKey
+
+        if (isGemini) {
             const res = await generateGeminiCompletion(
                 settings.geminiApiKey,
                 titleModel,
@@ -51,6 +66,14 @@ User message: "${userMessage.slice(0, 200)}"`
                 { temperature: 0.3 }
             )
             title = res.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        } else if (isGroq) {
+            const res = await generateGroqCompletion(
+                settings.groqApiKey,
+                titleModel,
+                [{ role: 'user', content: prompt }],
+                { temperature: 0.3 }
+            )
+            title = res.choices?.[0]?.message?.content || ''
         } else if (settings.openRouterApiKey) {
             // Fallback to OpenRouter for everything else
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {

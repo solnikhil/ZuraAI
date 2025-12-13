@@ -21,6 +21,7 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     const [showOpenRouterKey, setShowOpenRouterKey] = useState(false)
     const [showPerplexityKey, setShowPerplexityKey] = useState(false)
     const [showGeminiKey, setShowGeminiKey] = useState(false)
+    const [showGroqKey, setShowGroqKey] = useState(false)
 
     // Ollama
     const [isOllamaConnected, setIsOllamaConnected] = useState(false)
@@ -793,6 +794,23 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         </div>
                                     </div>
 
+                                    {/* Groq */}
+                                    <div>
+                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Groq API Key</label>
+                                        <div style={{ display: 'flex', gap: 10 }}>
+                                            <input
+                                                type={showGroqKey ? 'text' : 'password'}
+                                                className="setting-input-scira"
+                                                value={pendingSettings.groqApiKey}
+                                                onChange={e => handleChange({ groqApiKey: e.target.value })}
+                                                placeholder="gsk_..."
+                                            />
+                                            <button onClick={() => setShowGroqKey(!showGroqKey)} style={{ padding: '0 12px', background: '#222', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                                {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     {/* Ollama */}
                                     <div>
                                         <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Ollama URL</label>
@@ -826,6 +844,51 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     style={{ minHeight: 200, resize: 'vertical', fontFamily: 'inherit', fontSize: '0.9rem', lineHeight: 1.7 }}
                                     placeholder="Enter the system prompt for the AI..."
                                 />
+                            </div>
+
+                            {/* Title Generation Model */}
+                            <div className="settings-section-card">
+                                <h3 className="section-head">Title Generation</h3>
+                                <div style={{ marginBottom: 12 }}>
+                                    <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Model for generating chat titles</label>
+                                    <select
+                                        className="setting-input-scira"
+                                        value={pendingSettings.titleModel}
+                                        onChange={e => handleChange({ titleModel: e.target.value })}
+                                        style={{ padding: '12px 16px', fontSize: '0.9rem', cursor: 'pointer' }}
+                                    >
+                                        <optgroup label="Gemini">
+                                            {(pendingSettings.geminiModels || []).map((m: any) => (
+                                                <option key={m.code} value={m.code}>{m.displayName}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="Groq">
+                                            {(pendingSettings.groqModels || []).map((m: any) => (
+                                                <option key={m.code} value={m.code}>{m.displayName}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="OpenRouter">
+                                            {(pendingSettings.configuredModels || []).map((m: any) => (
+                                                <option key={m.code} value={m.code}>{m.displayName}</option>
+                                            ))}
+                                        </optgroup>
+                                        <optgroup label="Perplexity">
+                                            {(pendingSettings.perplexityModels || []).map((m: any) => (
+                                                <option key={m.code} value={m.code}>{m.displayName}</option>
+                                            ))}
+                                        </optgroup>
+                                        {(pendingSettings.ollamaModels || []).length > 0 && (
+                                            <optgroup label="Ollama">
+                                                {(pendingSettings.ollamaModels || []).map((m: any) => (
+                                                    <option key={m.code} value={m.code}>{m.displayName}</option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                    </select>
+                                    <div style={{ color: '#666', fontSize: '0.8rem', marginTop: 8 }}>
+                                        Recommended: Fast models like Gemini 2.0 Flash or Groq Llama 3.1 8B
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1120,6 +1183,40 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         {(pendingSettings.geminiModels || []).map((model: any, index: number) => (
                                             <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
                                                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4dabf7' }} />
+                                                <div>
+                                                    <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
+                                                    <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Groq Models */}
+                            {(pendingSettings.groqModels || []).length > 0 && (
+                                <div className="settings-section-card" style={{ marginTop: 24, background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
+                                    <div style={{
+                                        padding: '20px 24px',
+                                        borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                        background: 'linear-gradient(to right, rgba(252,196,25,0.05), transparent)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <img src="/provider-logos/groq.png" alt="Groq" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
+                                            <div>
+                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Groq</h3>
+                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Ultra-fast LPU inference</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ padding: '6px 12px', background: 'rgba(252,196,25,0.1)', borderRadius: 20, color: '#fcc419', fontSize: '0.85rem', fontWeight: 500 }}>
+                                            {(pendingSettings.groqModels || []).length} Models
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                                        {(pendingSettings.groqModels || []).map((model: any, index: number) => (
+                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fcc419' }} />
                                                 <div>
                                                     <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
                                                     <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>

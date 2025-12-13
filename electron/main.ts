@@ -14,6 +14,16 @@ const isProduction = app.isPackaged
 app.commandLine.appendSwitch('disable-gpu-compositing')
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
+// Memory Optimization: Reduce process count and overhead
+app.commandLine.appendSwitch('disable-site-isolation-trials')
+app.commandLine.appendSwitch('wm-window-animations-disabled')
+
+// Set App Name explicitly
+if (process.platform === 'win32') {
+    app.setAppUserModelId('com.zura.ai')
+}
+app.setName('Zura')
+
 // Global references
 let overlayWin: BrowserWindow | null = null
 let mainWindow: BrowserWindow | null = null
@@ -38,7 +48,7 @@ function createMainWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            devTools: !isProduction,  // Disable DevTools in production
+            devTools: false,          // Explicitly disabled as requested
             spellcheck: false,        // Disable spellcheck for performance
         },
         autoHideMenuBar: true,
@@ -52,6 +62,14 @@ function createMainWindow() {
             shell.openExternal(url)
         }
         return { action: 'deny' }
+    })
+
+    // Handle in-page navigation (e.g. clicking links)
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        if (url.startsWith('https:') || url.startsWith('http:')) {
+            event.preventDefault()
+            shell.openExternal(url)
+        }
     })
 
     // Show when ready to prevent white flash
@@ -129,10 +147,25 @@ function createOverlayWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            devTools: !isProduction,  // Disable DevTools in production
+            devTools: false,          // Explicitly disabled as requested
             spellcheck: false,        // Disable spellcheck for performance
             backgroundThrottling: false,  // Keep overlay responsive when hidden
         },
+    })
+
+    // Handle external links in overlay
+    overlayWin.webContents.setWindowOpenHandler(({ url }) => {
+        if (url.startsWith('https:') || url.startsWith('http:')) {
+            shell.openExternal(url)
+        }
+        return { action: 'deny' }
+    })
+
+    overlayWin.webContents.on('will-navigate', (event, url) => {
+        if (url.startsWith('https:') || url.startsWith('http:')) {
+            event.preventDefault()
+            shell.openExternal(url)
+        }
     })
 
     if (process.env.VITE_DEV_SERVER_URL) {

@@ -19,7 +19,7 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
     const [prompt, setPrompt] = useState('');
     const [isExpanded, setIsExpanded] = useState(false);
     const [showModelDropdown, setShowModelDropdown] = useState(false);
-    const [expandedSections, setExpandedSections] = useState({ openrouter: true, ollama: true, perplexity: true, groq: true });
+    const [expandedSections, setExpandedSections] = useState({ openrouter: true, ollama: true, perplexity: true });
     const inputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -103,18 +103,18 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
         setIsExpanded(true);
     };
 
-    const handleModelSelect = (modelCode: string, provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq') => {
+    const handleModelSelect = (modelCode: string, provider: 'openrouter' | 'ollama' | 'perplexity') => {
         updateSettings({ aiModel: modelCode, modelProvider: provider });
         setShowModelDropdown(false);
     };
 
-    const toggleSection = (section: 'openrouter' | 'ollama' | 'perplexity' | 'groq', e: React.MouseEvent) => {
+    const toggleSection = (section: 'openrouter' | 'ollama' | 'perplexity', e: React.MouseEvent) => {
         e.stopPropagation();
         setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
     const getCurrentModelName = () => {
-        const allModels = [...(settings.configuredModels || []), ...(settings.ollamaModels || []), ...(settings.perplexityModels || []), ...(settings.groqModels || [])];
+        const allModels = [...(settings.configuredModels || []), ...(settings.ollamaModels || []), ...(settings.perplexityModels || [])];
         const model = allModels.find(m => m.code === settings.aiModel);
         if (model) return model.displayName;
         const parts = settings.aiModel.split('/');
@@ -333,51 +333,6 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleModelSelect(model.code, 'perplexity');
-                                                }}
-                                            >
-                                                <span className="model-name">{model.displayName}</span>
-                                                {settings.aiModel === model.code && (
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                                    </svg>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </>
-                                )}
-
-                                {(settings.groqModels || []).length > 0 && (
-                                    <>
-                                        <div
-                                            className="model-section-label"
-                                            style={{ borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}
-                                            onClick={(e) => toggleSection('groq', e)}
-                                        >
-                                            <span>Groq</span>
-                                            <svg
-                                                width="10"
-                                                height="10"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                style={{
-                                                    transform: expandedSections.groq ? 'rotate(180deg)' : 'rotate(0deg)',
-                                                    transition: 'transform 0.2s ease'
-                                                }}
-                                            >
-                                                <path d="M6 9l6 6 6-6" />
-                                            </svg>
-                                        </div>
-                                        {expandedSections.groq && (settings.groqModels || []).map(model => (
-                                            <div
-                                                key={model.code}
-                                                className={`model-option ${settings.aiModel === model.code ? 'active' : ''}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleModelSelect(model.code, 'groq');
                                                 }}
                                             >
                                                 <span className="model-name">{model.displayName}</span>

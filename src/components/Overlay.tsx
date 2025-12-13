@@ -9,7 +9,6 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
-import { generateGroqCompletion } from '../services/groq'
 
 interface Message {
     id: string
@@ -172,8 +171,6 @@ export default function Overlay() {
                 await callOllama(userPrompt, image)
             } else if (settings.modelProvider === 'perplexity') {
                 await callPerplexity(userPrompt, image)
-            } else if (settings.modelProvider === 'groq') {
-                await callGroq(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
@@ -274,50 +271,6 @@ export default function Overlay() {
             role: 'assistant',
             content: content,
             model: `perplexity/${settings.aiModel}`,
-            latency: Math.round(endTime - startTime),
-            usage: {
-                inputTokens: response.usage?.prompt_tokens || 0,
-                outputTokens: response.usage?.completion_tokens || 0,
-                totalTokens: response.usage?.total_tokens || 0
-            }
-        }
-        setMessages(prev => [...prev, aiMessage])
-        finishStreaming()
-    }
-
-    const callGroq = async (userPrompt: string, image?: string) => {
-        if (!settings.groqApiKey) {
-            throw new Error("Please configure your Groq API Key in Settings.")
-        }
-
-        const messagesPayload = []
-        if (settings.systemPrompt) {
-            messagesPayload.push({ role: 'system', content: settings.systemPrompt })
-        }
-
-        // Groq doesn't support images directly, so just include the text
-        messagesPayload.push({ role: 'user', content: userPrompt })
-
-        const startTime = performance.now()
-        const response = await generateGroqCompletion(
-            settings.groqApiKey,
-            settings.aiModel,
-            messagesPayload,
-            { temperature: settings.temperature, max_tokens: settings.maxTokens }
-        )
-        const endTime = performance.now()
-
-        const content = response.choices?.[0]?.message?.content || "Error: No response"
-
-        // Show typewriter effect
-        setIsLoading(false)
-        await typewriterEffect(content)
-
-        const aiMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: content,
-            model: `groq/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
                 inputTokens: response.usage?.prompt_tokens || 0,
