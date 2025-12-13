@@ -184,43 +184,47 @@ export default function ChatArea() {
                     gap: '16px' // Reduced gap to place just above
                 }}>
                     {/* Title */}
-                    {!isTitleAnimated ? (
-                        <BlurText
-                            text="zura"
-                            delay={200}
-                            animateBy="letters"
-                            direction="top"
-                            stepDuration={1}
-                            easing="easeOut"
-                            className="blur-text-title"
-                            onAnimationComplete={() => setIsTitleAnimated(true)}
-                        />
-                    ) : (
-                        <GradientText
-                            colors={['#ffffff', '#888888', '#ffffff', '#888888', '#ffffff']}
-                            animationSpeed={12}
-                            showBorder={false}
-                            className="blur-text-title"
-                        >
-                            zura
-                        </GradientText>
-                    )}
+                    {/* Title - Gradient Zura */}
+                    <GradientText
+                        colors={['#ffffff', '#888888', '#ffffff', '#888888', '#ffffff']}
+                        animationSpeed={12}
+                        showBorder={false}
+                        className="blur-text-title"
+                    >
+                        zura
+                    </GradientText>
+
+
 
                     <style>{`
                         .blur-text-title {
-                            font-size: 2.5rem;
+                            font-size: 3rem;
                             font-weight: 700;
                             color: #fff;
                             letter-spacing: -0.05em;
-                            opacity: 0.9;
                             margin: 0;
                             font-family: inherit;
+                        }
+                        .blur-text-placeholder {
+                            font-size: 1.2rem;
+                            color: #666;
+                            font-weight: 400;
+                            letter-spacing: -0.01em;
+                            pointer-events: none;
+                        }
+                        @keyframes blur-in-up {
+                            0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
+                            100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+                        }
+                        .animate-in-control {
+                            animation: blur-in-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
                         }
                     `}</style>
 
                     {/* Input Area Group */}
                     <div style={{ width: '100%', maxWidth: '600px' }}>
                         <div style={{
+                            position: 'relative',
                             background: 'linear-gradient(145deg, #161412, #101010)',
                             borderRadius: '24px',
                             padding: '24px',
@@ -236,6 +240,19 @@ export default function ChatArea() {
                             transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
                             minHeight: '140px'
                         }}>
+                            {/* Animated Placeholder */}
+                            {!input && (
+                                <div style={{ position: 'absolute', top: '24px', left: '24px', pointerEvents: 'none', zIndex: 10 }}>
+                                    <BlurText
+                                        text="Ask a question..."
+                                        delay={200}
+                                        animateBy="words"
+                                        direction="top"
+                                        stepDuration={1}
+                                        className="blur-text-placeholder"
+                                    />
+                                </div>
+                            )}
                             <textarea
                                 ref={textareaRef}
                                 value={input}
@@ -243,7 +260,7 @@ export default function ChatArea() {
                                 onKeyDown={handleKeyDown}
                                 onFocus={() => setIsInputFocused(true)}
                                 onBlur={() => setIsInputFocused(false)}
-                                placeholder="Ask a question..."
+                                placeholder=""
                                 rows={1}
                                 style={{
                                     width: '100%',
@@ -257,16 +274,18 @@ export default function ChatArea() {
                                     fontFamily: 'inherit',
                                     lineHeight: '1.6',
                                     minHeight: '48px',
-                                    maxHeight: '200px'
+                                    maxHeight: '200px',
+                                    padding: 0,
+                                    margin: 0
                                 }}
                             />
 
                             {/* Bottom Controls inside input */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', gap: '8px' }}>
+                                <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.3s' }}>
                                     <ModelSelector />
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
+                                <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
                                         background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '10px', color: '#aaa', cursor: 'pointer',
                                         transition: 'all 0.2s'
@@ -337,8 +356,12 @@ export default function ChatArea() {
             {/* Messages */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                    {messages.map(msg => (
-                        <MessageBubble key={msg.id} message={msg} />
+                    {messages.map((msg, idx) => (
+                        <MessageBubble
+                            key={msg.id}
+                            message={msg}
+                            animate={idx === messages.length - 1 && msg.role === 'assistant' && Date.now() - msg.timestamp < 60000} // Only animate recent messages (< 1 min old)
+                        />
                     ))}
                     {isLoading && (
                         <div style={{ marginBottom: '24px' }}>
@@ -401,9 +424,35 @@ export default function ChatArea() {
 // Component to highlight first word in gold
 
 
-function MessageBubble({ message }: { message: any }) {
+// Component to highlight first word in gold
+function MessageBubble({ message, animate = false }: { message: any, animate?: boolean }) {
     const [copied, setCopied] = useState(false)
+    const [displayedContent, setDisplayedContent] = useState(animate ? '' : message.content)
     const isUser = message.role === 'user'
+
+    useEffect(() => {
+        if (!animate) {
+            setDisplayedContent(message.content)
+            return
+        }
+
+        // If content is already fully displayed (e.g. from props update), don't restart
+        if (displayedContent === message.content) return
+
+        let currentIndex = 0
+        // Speed up animation: 2 chars every 10ms
+        const interval = setInterval(() => {
+            if (currentIndex >= message.content.length) {
+                setDisplayedContent(message.content)
+                clearInterval(interval)
+                return
+            }
+            setDisplayedContent(prev => message.content.slice(0, prev.length + 3))
+            currentIndex += 3
+        }, 10)
+
+        return () => clearInterval(interval)
+    }, [message.content, animate])
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content)
@@ -497,14 +546,55 @@ function MessageBubble({ message }: { message: any }) {
                                     />
                                 </div>
                             ) : (
-                                <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em' }}>
+                                <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'menubar' }}>
                                     {children}
                                 </code>
                             )
-                        }
+                        },
+                        blockquote: ({ node, ...props }) => (
+                            <blockquote style={{
+                                borderLeft: '4px solid #f59e0b',
+                                background: 'rgba(255,255,255,0.05)',
+                                padding: '12px 16px',
+                                margin: '16px 0',
+                                borderRadius: '0 8px 8px 0',
+                                color: '#d0d0d0'
+                            }} {...props} />
+                        ),
+                        table: ({ node, ...props }) => (
+                            <div style={{ overflowX: 'auto', margin: '16px 0', borderRadius: '8px', border: '1px solid #333' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', background: '#1e1e1e' }} {...props} />
+                            </div>
+                        ),
+                        th: ({ node, ...props }) => (
+                            <th style={{
+                                borderBottom: '1px solid #444',
+                                padding: '12px',
+                                textAlign: 'left',
+                                fontWeight: 600,
+                                color: '#fff',
+                                background: '#252525'
+                            }} {...props} />
+                        ),
+                        td: ({ node, ...props }) => (
+                            <td style={{
+                                borderBottom: '1px solid #333',
+                                padding: '12px',
+                                color: '#ccc'
+                            }} {...props} />
+                        ),
+                        a: ({ node, ...props }) => (
+                            <a style={{ color: '#f59e0b', textDecoration: 'none', borderBottom: '1px dotted #f59e0b', transition: 'all 0.2s' }} target="_blank" rel="noopener noreferrer" {...props} />
+                        ),
+                        ul: ({ node, ...props }) => <ul style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
+                        ol: ({ node, ...props }) => <ol style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
+                        h1: ({ node, ...props }) => <h1 style={{ fontSize: '1.5em', fontWeight: 700, margin: '24px 0 16px', color: '#fff' }} {...props} />,
+                        h2: ({ node, ...props }) => <h2 style={{ fontSize: '1.3em', fontWeight: 600, margin: '20px 0 12px', color: '#f0f0f0' }} {...props} />,
+                        h3: ({ node, ...props }) => <h3 style={{ fontSize: '1.1em', fontWeight: 600, margin: '16px 0 8px', color: '#e0e0e0' }} {...props} />
                     }}
                 >
-                    {message.content}
+
+                    {displayedContent + (animate && displayedContent !== message.content ? ' ▍' : '')}
                 </ReactMarkdown>
             </div>
 
