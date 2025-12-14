@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, Link, Brain, ArrowLeft, Github, Star } from 'lucide-react'
+import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, Link, Brain, ArrowLeft, Github, Star, ListTodo } from 'lucide-react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 
@@ -403,7 +403,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
                     { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
                     { id: 'connectors', label: 'Connectors', icon: <Link size={18} /> },
-                    { id: 'memories', label: 'Memories', icon: <Brain size={18} /> }
+                    { id: 'memories', label: 'Memories', icon: <Brain size={18} /> },
+                    { id: 'todos', label: 'Todos', icon: <ListTodo size={18} /> }
                 ].map((item, index) => (
                     <button
                         key={item.id}

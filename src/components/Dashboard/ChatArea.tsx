@@ -216,7 +216,7 @@ export default function ChatArea() {
 
             if (settings.thinkingModeEnabled) {
                 const parsed = parseThinkingContent(responseContent)
-                thinking = parsed.thinking || '(AI processed the query)'  // Fallback if no thinking format detected
+                thinking = parsed.thinking  // Only set if actual thinking content was detected
                 answer = parsed.answer
             }
 
@@ -226,8 +226,8 @@ export default function ChatArea() {
                 model,
                 latency,
                 usage,
-                thinking: settings.thinkingModeEnabled ? thinking : undefined,
-                thinkingDuration: settings.thinkingModeEnabled ? latency : undefined
+                thinking: thinking,  // Only set if actual thinking content was detected
+                thinkingDuration: thinking ? latency : undefined  // Only set duration if thinking exists
             })
             setIsLoading(false)
 
@@ -361,7 +361,7 @@ export default function ChatArea() {
                                     color: '#fff',
                                     resize: 'none',
                                     outline: 'none',
-                                    fontSize: '1.2rem',
+                                    fontSize: '0.95rem',
                                     fontWeight: 400,
                                     fontFamily: 'inherit',
                                     lineHeight: '1.6',
@@ -939,7 +939,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
                     color: '#fff',
                     resize: 'none',
                     outline: 'none',
-                    fontSize: '1.1rem',
+                    fontSize: '0.95rem',
                     fontWeight: 400,
                     fontFamily: 'inherit',
                     lineHeight: '1.6',

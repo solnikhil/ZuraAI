@@ -33,6 +33,16 @@ export interface Settings {
     titleModel: string
     // Thinking mode
     thinkingModeEnabled: boolean
+    // Todo items
+    todos: TodoItem[]
+}
+
+// Todo item structure
+export interface TodoItem {
+    id: string
+    text: string
+    completed: boolean
+    createdAt: number
 }
 
 // Thinking mode system prompt - used when thinking mode is enabled
@@ -232,7 +242,8 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         'Write a summary of...',
         'Brainstorm ideas for...'
     ],
-    thinkingModeEnabled: false
+    thinkingModeEnabled: false,
+    todos: []
 }
 
 interface SettingsContextType {
@@ -272,6 +283,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
+        // Initialize todos if missing
+        if (!parsed.todos) parsed.todos = []
 
         return parsed
     })

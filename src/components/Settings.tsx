@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettings, TodoItem } from '../contexts/SettingsContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
-import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft } from 'lucide-react'
+import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo } from 'lucide-react'
 import { motion } from 'framer-motion'
 import './Settings.css'
 
@@ -1257,6 +1257,167 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 </div>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ========== TODOS SECTION ========== */}
+                    {activeSection === 'todos' && (
+                        <div style={{ padding: '40px', paddingBottom: 100 }}>
+                            <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+                                <div style={{
+                                    width: 64, height: 64, borderRadius: 18,
+                                    background: 'linear-gradient(135deg, rgba(255,200,120,0.15), rgba(255,150,80,0.1))',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+                                }}>
+                                    <ListTodo size={32} color="#FFE4C4" />
+                                </div>
+                                <div>
+                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #FFE4C4, #ff9966)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Todo List</h2>
+                                    <div className="page-subtitle" style={{ fontSize: '1rem', marginTop: 4 }}>Keep track of your tasks</div>
+                                </div>
+                            </div>
+
+                            {/* Add Todo Input */}
+                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <input
+                                        type="text"
+                                        className="setting-input-scira"
+                                        placeholder="Add a new todo..."
+                                        value={newModelCode}
+                                        onChange={e => setNewModelCode(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && newModelCode.trim()) {
+                                                const newTodo: TodoItem = {
+                                                    id: Date.now().toString(),
+                                                    text: newModelCode.trim(),
+                                                    completed: false,
+                                                    createdAt: Date.now()
+                                                }
+                                                handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
+                                                setNewModelCode('')
+                                            }
+                                        }}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (newModelCode.trim()) {
+                                                const newTodo: TodoItem = {
+                                                    id: Date.now().toString(),
+                                                    text: newModelCode.trim(),
+                                                    completed: false,
+                                                    createdAt: Date.now()
+                                                }
+                                                handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
+                                                setNewModelCode('')
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '12px 20px',
+                                            background: 'linear-gradient(135deg, #FFE4C4, #ff9966)',
+                                            border: 'none',
+                                            borderRadius: 10,
+                                            color: '#000',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8
+                                        }}
+                                    >
+                                        <Plus size={18} />
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Todo List */}
+                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden' }}>
+                                {(!pendingSettings.todos || pendingSettings.todos.length === 0) ? (
+                                    <div style={{ padding: 40, textAlign: 'center', color: '#666' }}>
+                                        <ListTodo size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
+                                        <div style={{ fontSize: '1.1rem', marginBottom: 8 }}>No todos yet</div>
+                                        <div style={{ fontSize: '0.9rem' }}>Add your first todo above!</div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {pendingSettings.todos.map((todo: TodoItem, index: number) => (
+                                            <motion.div
+                                                key={todo.id}
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 16,
+                                                    padding: '16px 20px',
+                                                    borderBottom: index < pendingSettings.todos.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                                                    background: todo.completed ? 'rgba(255,255,255,0.02)' : 'transparent'
+                                                }}
+                                            >
+                                                <button
+                                                    onClick={() => {
+                                                        const updated = pendingSettings.todos.map((t: TodoItem) =>
+                                                            t.id === todo.id ? { ...t, completed: !t.completed } : t
+                                                        )
+                                                        handleChange({ todos: updated })
+                                                    }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                                >
+                                                    {todo.completed ? (
+                                                        <CheckSquare size={22} color="#FFE4C4" />
+                                                    ) : (
+                                                        <Square size={22} color="#666" />
+                                                    )}
+                                                </button>
+                                                <span style={{
+                                                    flex: 1,
+                                                    fontSize: '1rem',
+                                                    color: todo.completed ? '#666' : '#e0e0e0',
+                                                    textDecoration: todo.completed ? 'line-through' : 'none',
+                                                    transition: 'all 0.2s'
+                                                }}>
+                                                    {todo.text}
+                                                </span>
+                                                <button
+                                                    onClick={() => {
+                                                        const updated = pendingSettings.todos.filter((t: TodoItem) => t.id !== todo.id)
+                                                        handleChange({ todos: updated })
+                                                    }}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        padding: 8,
+                                                        borderRadius: 8,
+                                                        color: '#666',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={e => e.currentTarget.style.color = '#ff6b6b'}
+                                                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Stats */}
+                            {pendingSettings.todos && pendingSettings.todos.length > 0 && (
+                                <div style={{ marginTop: 16, display: 'flex', gap: 16, justifyContent: 'center' }}>
+                                    <div style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, fontSize: '0.85rem', color: '#888' }}>
+                                        {pendingSettings.todos.filter((t: TodoItem) => !t.completed).length} remaining
+                                    </div>
+                                    <div style={{ padding: '8px 16px', background: 'rgba(255,228,196,0.1)', borderRadius: 20, fontSize: '0.85rem', color: '#FFE4C4' }}>
+                                        {pendingSettings.todos.filter((t: TodoItem) => t.completed).length} completed
                                     </div>
                                 </div>
                             )}
