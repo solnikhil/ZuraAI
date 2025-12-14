@@ -293,6 +293,40 @@
     height: 26px;
 }
 
+/* ==== THINKING TOGGLE ==== */
+.thinking-toggle {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+}
+
+.thinking-toggle:hover {
+    background: rgba(255, 140, 105, 0.1);
+    border-color: rgba(255, 140, 105, 0.3);
+    color: rgba(255, 140, 105, 0.9);
+    transform: scale(1.05);
+}
+
+.thinking-toggle.active {
+    background: rgba(255, 140, 105, 0.15);
+    border-color: rgba(255, 140, 105, 0.4);
+    color: #FF8C69;
+    box-shadow: 0 0 12px rgba(255, 140, 105, 0.25);
+}
+
+.thinking-toggle.active:hover {
+    background: rgba(255, 140, 105, 0.2);
+}
+
 /* ==== SCREENSHOT PREVIEW ==== */
 .screenshot-preview {
     position: relative;

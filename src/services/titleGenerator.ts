@@ -1,5 +1,7 @@
 import { generateGeminiCompletion } from './gemini'
 import { generateGroqCompletion } from './groq'
+import { generateOllamaCompletion } from './ollama'
+import { generatePerplexityCompletion } from './perplexity'
 
 /**
  * Generates a short, descriptive title for a chat session based on the user's first message.
@@ -18,15 +20,7 @@ const enforceThreeWords = (title: string): string => {
 
 export const generateChatTitle = async (
     userMessage: string,
-    settings: {
-        modelProvider: string
-        geminiApiKey: string
-        openRouterApiKey: string
-        perplexityApiKey: string
-        groqApiKey: string
-        aiModel: string
-        titleModel: string
-    }
+    settings: any // Using any to accept the full settings object structure
 ): Promise<string> => {
     const prompt = `Generate a concise 3-word title for this chat. Format should be descriptive like these examples:
 - "UI/UX improvement tips"
@@ -45,18 +39,27 @@ User message: "${userMessage.slice(0, 200)}"`
         let title = ''
         const titleModel = settings.titleModel || 'gemini-2.0-flash'
 
-        // Known Groq models
-        const groqModels = [
+        // Determine Provider
+        const isGemini = titleModel.startsWith('gemini-') && settings.geminiApiKey
+
+        // Check if it's a known Groq model or if we are forced to use Groq
+        const knownGroqModels = [
             'llama-3.3-70b-versatile',
             'llama-3.1-8b-instant',
             'llama-guard-3-8b',
             'mixtral-8x7b-32768',
             'gemma2-9b-it'
         ]
+        // Also check against configured groqModels if passed
+        const configuredGroqModels = settings.groqModels?.map((m: any) => m.code) || []
+        const isGroq = (knownGroqModels.includes(titleModel) || configuredGroqModels.includes(titleModel)) && settings.groqApiKey
 
-        // Check availability
-        const isGemini = titleModel.startsWith('gemini-') && settings.geminiApiKey
-        const isGroq = groqModels.includes(titleModel) && settings.groqApiKey
+        // Check for Ollama (usually no API key needed, but needs URL)
+        // We assume if the model is NOT gemini/groq/openrouter/perplexity, it might be Ollama if configured
+        const isOllama = settings.modelProvider === 'ollama' && !settings.titleModel // If no specific title model set, and main is ollama
+            || (settings.ollamaModels?.some((m: any) => m.name === titleModel)) // Or if title model is in ollama list
+
+        const isPerplexity = titleModel.startsWith('sonar') && settings.perplexityApiKey
 
         if (isGemini) {
             const res = await generateGeminiCompletion(
@@ -74,6 +77,22 @@ User message: "${userMessage.slice(0, 200)}"`
                 { temperature: 0.3 }
             )
             title = res.choices?.[0]?.message?.content || ''
+        } else if (isPerplexity) {
+            const res = await generatePerplexityCompletion(
+                settings.perplexityApiKey,
+                titleModel,
+                [{ role: 'user', content: prompt }],
+                // Perplexity usually expects messages
+            )
+            title = res.choices?.[0]?.message?.content || ''
+        } else if (isOllama && settings.ollamaUrl) {
+            const res = await generateOllamaCompletion(
+                settings.ollamaUrl,
+                titleModel || settings.aiModel, // Use title model or fall back to main model
+                [{ role: 'user', content: prompt }],
+                { temperature: 0.3 }
+            )
+            title = res.message?.content || ''
         } else if (settings.openRouterApiKey) {
             // Fallback to OpenRouter for everything else
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -83,7 +102,7 @@ User message: "${userMessage.slice(0, 200)}"`
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    model: titleModel,
+                    model: titleModel.includes('openrouter') ? titleModel.replace('openrouter/', '') : titleModel,
                     messages: [{ role: 'user', content: prompt }],
                     max_tokens: 20
                 })
@@ -94,13 +113,20 @@ User message: "${userMessage.slice(0, 200)}"`
 
         // Clean up the title and enforce 3 words
         title = title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
+
+        // Final sanity check before enforcing
+        if (!title && settings.openRouterApiKey) {
+            // Try OpenRouter fallback if primary failed silently empty
+            throw new Error('Empty title from primary provider')
+        }
+
         title = enforceThreeWords(title)
         if (title.length < 2) throw new Error('Generated title too short')
         return title
     } catch (error) {
         console.error('Primary title generation failed:', error)
 
-        // Fallback to free OpenRouter model (if we have a key and didn't try it already)
+        // Fallback to free OpenRouter model
         if (settings.openRouterApiKey && !settings.titleModel?.includes('openrouter')) {
             try {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -108,7 +134,7 @@ User message: "${userMessage.slice(0, 200)}"`
                     headers: {
                         "Authorization": `Bearer ${settings.openRouterApiKey}`,
                         "Content-Type": "application/json",
-                        "HTTP-Referer": "https://zura.ai", // Required for OpenRouter free tier
+                        "HTTP-Referer": "https://zura.ai",
                         "X-Title": "Zura"
                     },
                     body: JSON.stringify({
@@ -128,7 +154,7 @@ User message: "${userMessage.slice(0, 200)}"`
             }
         }
 
-        // Final fallback to truncated message (try to get 3 words)
+        // Final fallback to truncated message
         const words = userMessage.trim().split(/\s+/).slice(0, 3)
         return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
     }

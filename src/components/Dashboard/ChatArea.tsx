@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck } from 'lucide-react'
+import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -13,14 +13,16 @@ import { generateGroqCompletion } from '../../services/groq'
 import { generateChatTitle } from '../../services/titleGenerator'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
 import ModelSelector from './ModelSelector'
+import ThinkingBlock from '../ThinkingBlock'
+import { THINKING_SYSTEM_PROMPT } from '../../contexts/SettingsContext'
 
 import BlurText from '../BlurText'
 
 import GradientText from '../GradientText'
 
 export default function ChatArea() {
-    const { sessions, currentSessionId, addMessageToSession, createSession, updateSessionTitle } = useChatHistory()
-    const { settings } = useSettings()
+    const { sessions, currentSessionId, addMessageToSession, createSession, updateSessionTitle, markMessageAsAnimated } = useChatHistory()
+    const { settings, updateSettings } = useSettings()
 
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
@@ -49,6 +51,82 @@ export default function ChatArea() {
         }
     }, [input])
 
+    const parseThinkingContent = (rawContent: string): { thinking: string | undefined; answer: string } => {
+        // First, check for XML-style <think>...</think> tags (used by DeepSeek, etc.)
+        const thinkTagMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/i)
+        if (thinkTagMatch) {
+            const thinkingContent = thinkTagMatch[1].trim()
+            const answerContent = rawContent.replace(/<think>[\s\S]*?<\/think>/i, '').trim()
+            return {
+                thinking: thinkingContent || undefined,
+                answer: answerContent || rawContent
+            }
+        }
+
+        // Check for "Thinking..." section anywhere in the response
+        // Pattern: captures content from "Thinking..." to "Final Answer:" or end of content
+        const thinkingSectionMatch = rawContent.match(/(?:^|\n|---\s*\n?)(\*?\*?Thinking\.\.\.?\*?\*?)\s*([\s\S]*?)(?=\*?\*?Final\s*Answer:?\*?\*?|$)/i)
+        const finalAnswerMatch = rawContent.match(/\*?\*?Final\s*Answer:?\*?\*?\s*([\s\S]*?)$/i)
+
+        if (thinkingSectionMatch) {
+            // Extract thinking content (everything after "Thinking..." marker)
+            let thinkingContent = thinkingSectionMatch[2].trim()
+
+            // Clean up thinking content
+            thinkingContent = thinkingContent
+                .replace(/^---\s*/gm, '')
+                .replace(/---\s*$/gm, '')
+                .trim()
+
+            // Get the answer - either content after "Final Answer:" or strip thinking section from original
+            let answerContent: string
+            if (finalAnswerMatch) {
+                answerContent = finalAnswerMatch[1].trim()
+            } else {
+                // No Final Answer marker - remove the thinking section from response
+                answerContent = rawContent
+                    .replace(/(?:^|\n|---\s*\n?)(\*?\*?Thinking\.\.\.?\*?\*?)\s*[\s\S]*?(?=\n\n[A-Z]|$)/i, '')
+                    .replace(/^---\s*/gm, '')
+                    .trim()
+            }
+
+            // If answer is empty or same as raw, use raw but cleaned
+            if (!answerContent || answerContent === rawContent) {
+                // Try to extract just the structured content after thinking
+                const structuredMatch = rawContent.match(/(?:Final\s*Answer:?\s*)?((?:\d+\.\s+\*\*|Requirements|Must:|Should:|Could:)[\s\S]*)/i)
+                if (structuredMatch) {
+                    answerContent = structuredMatch[1].trim()
+                }
+            }
+
+            return {
+                thinking: thinkingContent || undefined,
+                answer: answerContent || rawContent
+            }
+        }
+
+        // Legacy: Try "Final Answer" pattern without Thinking section
+        if (finalAnswerMatch && finalAnswerMatch.index !== undefined) {
+            const thinkingPart = rawContent.substring(0, finalAnswerMatch.index).trim()
+            const answerPart = finalAnswerMatch[1].trim()
+
+            const cleanThinking = thinkingPart
+                .replace(/^---\s*/gm, '')
+                .replace(/---\s*$/gm, '')
+                .replace(/\*\*Thinking\.\.\.?\*\*/gi, '')
+                .replace(/^Thinking\.\.\.?\s*/gim, '')
+                .trim()
+
+            return {
+                thinking: cleanThinking || undefined,
+                answer: answerPart || rawContent
+            }
+        }
+
+        // No thinking format detected
+        return { thinking: undefined, answer: rawContent }
+    }
+
     const handleSendMessage = async () => {
         if (!input.trim() || isLoading) return
         const userMessageContent = input
@@ -71,7 +149,12 @@ export default function ChatArea() {
         try {
             let responseContent = ""
             const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }))
-            const optimizedHistory = buildOptimizedContext(conversationHistory, userMessageContent, settings.systemPrompt, settings.aiModel)
+
+            const effectiveSystemPrompt = settings.thinkingModeEnabled
+                ? `${settings.systemPrompt}\n\n${THINKING_SYSTEM_PROMPT}`
+                : settings.systemPrompt
+
+            const optimizedHistory = buildOptimizedContext(conversationHistory, userMessageContent, effectiveSystemPrompt, settings.aiModel)
 
             if (settings.modelProvider === 'ollama') {
                 const res = await generateOllamaCompletion(settings.ollamaUrl, settings.aiModel, optimizedHistory, { temperature: settings.temperature })
@@ -128,12 +211,23 @@ export default function ChatArea() {
             const endTime = performance.now()
             const latency = Math.round(endTime - startTime)
 
+            let thinking: string | undefined = undefined
+            let answer = responseContent
+
+            if (settings.thinkingModeEnabled) {
+                const parsed = parseThinkingContent(responseContent)
+                thinking = parsed.thinking || '(AI processed the query)'  // Fallback if no thinking format detected
+                answer = parsed.answer
+            }
+
             addMessageToSession(targetSessionId!, {
                 role: 'assistant',
-                content: responseContent,
+                content: answer,
                 model,
                 latency,
-                usage
+                usage,
+                thinking: settings.thinkingModeEnabled ? thinking : undefined,
+                thinkingDuration: settings.thinkingModeEnabled ? latency : undefined
             })
             setIsLoading(false)
 
@@ -280,8 +374,51 @@ export default function ChatArea() {
 
                             {/* Bottom Controls inside input */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.3s' }}>
-                                    <ModelSelector />
+                                <div className="animate-in-control" style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: '12px',
+                                    padding: '2px',
+                                    animationDelay: '0.3s'
+                                }}>
+                                    <ModelSelector minimal={true} />
+
+                                    {/* Divider */}
+                                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                                    <button
+                                        onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
+                                        title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
+                                        style={{
+                                            background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '6px 8px',
+                                            color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                            height: '100%'
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (!settings.thinkingModeEnabled) {
+                                                e.currentTarget.style.color = '#ccc'
+                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (!settings.thinkingModeEnabled) {
+                                                e.currentTarget.style.color = '#666'
+                                                e.currentTarget.style.background = 'transparent'
+                                            }
+                                        }}
+                                    >
+                                        <Brain size={16} />
+                                    </button>
                                 </div>
                                 <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
@@ -358,14 +495,19 @@ export default function ChatArea() {
                         <MessageBubble
                             key={msg.id}
                             message={msg}
-                            animate={idx === messages.length - 1 && msg.role === 'assistant' && Date.now() - msg.timestamp < 60000} // Only animate recent messages (< 1 min old)
+                            animate={!msg.hasAnimated && idx === messages.length - 1 && msg.role === 'assistant' && Date.now() - msg.timestamp < 60000} // Only animate if not already animated and recent
+                            onAnimationComplete={() => markMessageAsAnimated(currentSessionId!, msg.id)}
                         />
                     ))}
                     {isLoading && (
                         <div style={{ marginBottom: '24px' }}>
-                            <div className="typing-indicator">
-                                <span></span><span></span><span></span>
-                            </div>
+                            {settings.thinkingModeEnabled ? (
+                                <ThinkingBlock thinking="" isThinking={true} />
+                            ) : (
+                                <div className="typing-indicator">
+                                    <span></span><span></span><span></span>
+                                </div>
+                            )}
                         </div>
                     )}
                     {/* Spacer to push content up when waiting for AI response */}
@@ -423,7 +565,7 @@ export default function ChatArea() {
 
 
 // Component to highlight first word in gold
-function MessageBubble({ message, animate = false }: { message: any, animate?: boolean }) {
+function MessageBubble({ message, animate = false, onAnimationComplete }: { message: any, animate?: boolean, onAnimationComplete?: () => void }) {
     const [copied, setCopied] = useState(false)
     const [displayedContent, setDisplayedContent] = useState(animate ? '' : message.content)
     const isUser = message.role === 'user'
@@ -443,9 +585,10 @@ function MessageBubble({ message, animate = false }: { message: any, animate?: b
             if (currentIndex >= message.content.length) {
                 setDisplayedContent(message.content)
                 clearInterval(interval)
+                if (onAnimationComplete) onAnimationComplete()
                 return
             }
-            setDisplayedContent(prev => message.content.slice(0, prev.length + 3))
+            setDisplayedContent((prev: string) => message.content.slice(0, prev.length + 3))
             currentIndex += 3
         }, 10)
 
@@ -506,6 +649,11 @@ function MessageBubble({ message, animate = false }: { message: any, animate?: b
             onKeyDown={handleKeyDown}
             ref={messageRef}
         >
+            {/* Thinking Block */}
+            {message.thinking && (
+                <ThinkingBlock thinking={message.thinking} thinkingDuration={message.thinkingDuration} />
+            )}
+
             {/* Message content */}
             <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
                 <ReactMarkdown
@@ -756,6 +904,7 @@ function MessageBubble({ message, animate = false }: { message: any, animate?: b
 
 function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }: any) {
     const [isFocused, setIsFocused] = React.useState(false)
+    const { settings, updateSettings } = useSettings()
 
     return (
         <div style={{
@@ -801,8 +950,51 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
 
             {/* Bottom row - model selector and send */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ModelSelector />
+                {/* Grouped pill container for model + thinking toggle */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '12px',
+                    padding: '2px'
+                }}>
+                    <ModelSelector minimal={true} />
+
+                    {/* Divider */}
+                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                    <button
+                        onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
+                        title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
+                        style={{
+                            background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '6px 8px',
+                            color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                            height: '100%'
+                        }}
+                        onMouseEnter={e => {
+                            if (!settings.thinkingModeEnabled) {
+                                e.currentTarget.style.color = '#ccc'
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                            }
+                        }}
+                        onMouseLeave={e => {
+                            if (!settings.thinkingModeEnabled) {
+                                e.currentTarget.style.color = '#666'
+                                e.currentTarget.style.background = 'transparent'
+                            }
+                        }}
+                    >
+                        <Brain size={16} />
+                    </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button

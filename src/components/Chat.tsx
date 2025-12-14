@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettings, THINKING_SYSTEM_PROMPT } from '../contexts/SettingsContext'
 import { checkOllamaStatus, generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import ThinkingBlock from './ThinkingBlock'
 import './Chat.css'
 
 interface Message {
@@ -13,6 +14,7 @@ interface Message {
     role: 'user' | 'assistant'
     content: string
     image?: string
+    thinking?: string
 }
 
 export default function Chat() {
@@ -76,6 +78,25 @@ export default function Chat() {
         }
     }
 
+    // Parse thinking content from response using "**Final Answer:**" delimiter
+    const parseThinkingContent = (content: string): { thinking: string | undefined; answer: string } => {
+        const finalAnswerMatch = content.match(/\*\*Final Answer:\*\*/i)
+        if (finalAnswerMatch && finalAnswerMatch.index !== undefined) {
+            const thinkingPart = content.substring(0, finalAnswerMatch.index).trim()
+            const answerPart = content.substring(finalAnswerMatch.index + finalAnswerMatch[0].length).trim()
+            const cleanThinking = thinkingPart
+                .replace(/^---\s*/m, '')
+                .replace(/---\s*$/m, '')
+                .replace(/\*\*Thinking\.\.\.\*\*/gi, '')
+                .trim()
+            return {
+                thinking: cleanThinking || undefined,
+                answer: answerPart || content
+            }
+        }
+        return { thinking: undefined, answer: content }
+    }
+
     const callPerplexity = async (userPrompt: string, image?: string) => {
         if (!settings.perplexityApiKey) {
             throw new Error("Please configure your Perplexity API Key in Settings.")
@@ -83,20 +104,17 @@ export default function Chat() {
 
         try {
             const messagesPayload = []
-            if (settings.systemPrompt) {
-                messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+
+            // Use thinking system prompt when enabled
+            const systemPromptToUse = settings.thinkingModeEnabled
+                ? THINKING_SYSTEM_PROMPT
+                : settings.systemPrompt
+
+            if (systemPromptToUse) {
+                messagesPayload.push({ role: 'system', content: systemPromptToUse })
             }
 
-            // Perplexity currently doesn't support image input in the same standard way for all models
-            // but we'll stick to text for now to be safe, or just append image if it was supported.
-            // For this implementation, we will append a note if an image was attached but not sent?
-            // Or just send text.
             messagesPayload.push({ role: 'user', content: userPrompt })
-
-            if (image) {
-                // Determine if we should warn the user?
-                // For now, let's just proceed with text.
-            }
 
             const response = await generatePerplexityCompletion(
                 settings.perplexityApiKey,
@@ -105,10 +123,18 @@ export default function Chat() {
                 { temperature: settings.temperature, max_tokens: settings.maxTokens }
             )
 
+            const rawContent = response.choices[0].message.content
+
+            // Parse thinking content if thinking mode is enabled
+            const { thinking, answer } = settings.thinkingModeEnabled
+                ? parseThinkingContent(rawContent)
+                : { thinking: undefined, answer: rawContent }
+
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: response.choices[0].message.content
+                content: answer,
+                thinking: thinking
             }
             setMessages(prev => [...prev, aiMessage])
 
@@ -120,13 +146,18 @@ export default function Chat() {
     const callOllama = async (userPrompt: string, image?: string) => {
         try {
             const messagesPayload = []
-            if (settings.systemPrompt) {
-                messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+
+            // Use thinking system prompt when enabled
+            const systemPromptToUse = settings.thinkingModeEnabled
+                ? THINKING_SYSTEM_PROMPT
+                : settings.systemPrompt
+
+            if (systemPromptToUse) {
+                messagesPayload.push({ role: 'system', content: systemPromptToUse })
             }
 
             const userMessage: any = { role: 'user', content: userPrompt }
             if (image) {
-                // Extract base64 from data URL if present
                 const base64Image = image.includes(',') ? image.split(',')[1] : image
                 if (base64Image) {
                     userMessage.images = [base64Image]
@@ -141,10 +172,18 @@ export default function Chat() {
                 { temperature: settings.temperature }
             )
 
+            const rawContent = response.message.content
+
+            // Parse thinking content if thinking mode is enabled
+            const { thinking, answer } = settings.thinkingModeEnabled
+                ? parseThinkingContent(rawContent)
+                : { thinking: undefined, answer: rawContent }
+
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: response.message.content
+                content: answer,
+                thinking: thinking
             }
             setMessages(prev => [...prev, aiMessage])
 
@@ -178,8 +217,13 @@ export default function Chat() {
             ]
         }
 
-        if (settings.systemPrompt) {
-            messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
+        // Use thinking system prompt when enabled
+        const systemPromptToUse = settings.thinkingModeEnabled
+            ? THINKING_SYSTEM_PROMPT
+            : settings.systemPrompt
+
+        if (systemPromptToUse) {
+            messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
         }
 
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -203,12 +247,18 @@ export default function Chat() {
         }
 
         const data = await response.json()
-        const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+        const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+
+        // Parse thinking content if thinking mode is enabled
+        const { thinking, answer } = settings.thinkingModeEnabled
+            ? parseThinkingContent(rawContent)
+            : { thinking: undefined, answer: rawContent }
 
         const aiMessage: Message = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: aiContent
+            content: answer,
+            thinking: thinking
         }
         setMessages(prev => [...prev, aiMessage])
     }
@@ -338,6 +388,9 @@ export default function Chat() {
                                     alt="Screenshot"
                                     style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '8px', display: 'block' }}
                                 />
+                            )}
+                            {msg.role === 'assistant' && msg.thinking && (
+                                <ThinkingBlock thinking={msg.thinking} />
                             )}
                             {msg.content && (
                                 <div className="markdown-body">

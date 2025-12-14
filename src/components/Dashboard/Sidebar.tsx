@@ -148,11 +148,11 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 )}
 
                 <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '2px' }}>
-                    {filteredSessions.map(session => (
+                    {filteredSessions.map((session, index) => (
                         <div
                             key={session.id}
                             onClick={() => switchSession(session.id)}
-                            className="session-item"
+                            className="session-item animate-sidebar-item"
                             title={isCollapsed ? session.title : ''}
                             style={{
                                 display: 'flex',
@@ -165,7 +165,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                 color: currentSessionId === session.id ? '#fff' : '#b4b4b4',
                                 backgroundColor: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
                                 transition: 'all 0.15s ease',
-                                justifyContent: isCollapsed ? 'center' : 'flex-start'
+                                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                                animationDelay: `${index * 0.05}s`
                             }}
                         >
                             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block', minWidth: 0 }}>{session.title}</span>
@@ -403,15 +404,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
                     { id: 'connectors', label: 'Connectors', icon: <Link size={18} /> },
                     { id: 'memories', label: 'Memories', icon: <Brain size={18} /> }
-                ].map(item => (
+                ].map((item, index) => (
                     <button
                         key={item.id}
                         onClick={() => onNavigateSettings(item.id)}
-                        className={`nav-item ${activeSettingsSection === item.id ? 'active' : ''}`}
+                        className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                         style={{
                             padding: '10px 12px',
                             fontSize: '0.9rem',
-                            justifyContent: isCollapsed ? 'center' : 'flex-start'
+                            justifyContent: isCollapsed ? 'center' : 'flex-start',
+                            animationDelay: `${index * 0.05}s`
                         }}
                         title={isCollapsed ? item.label : ''}
                     >
@@ -500,6 +502,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: #888; background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
                 .nav-item:hover { color: #e0e0e0; background: rgba(255,255,255,0.03); }
                 .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
+
+                 @keyframes blur-in-up {
+                    0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
+                    100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+                }
+                .animate-sidebar-item {
+                    animation: blur-in-up 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                }
             `}</style>
         </div>
     )

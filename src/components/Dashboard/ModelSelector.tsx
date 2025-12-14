@@ -8,7 +8,7 @@ interface ModelWithProvider {
     provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
 }
 
-export default function ModelSelector() {
+export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     const { settings, updateSettings } = useSettings()
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
@@ -273,23 +273,32 @@ export default function ModelSelector() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    background: minimal ? 'transparent' : 'rgba(255,255,255,0.05)',
+                    border: minimal ? 'none' : '1px solid rgba(255,255,255,0.1)',
                     fontSize: '0.85rem',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    padding: '6px 12px',
-                    borderRadius: '12px',
+                    padding: minimal ? '6px 8px' : '6px 12px',
+                    borderRadius: minimal ? '8px' : '12px',
                     transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                    color: '#e0e0e0'
+                    color: '#e0e0e0',
+                    height: '100%'
                 }}
                 onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                    if (!minimal) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
+                    } else {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                    }
                 }}
                 onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                    if (!minimal) {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                    } else {
+                        e.currentTarget.style.background = 'transparent'
+                    }
                 }}
             >
                 {/* Current Model Icon */}

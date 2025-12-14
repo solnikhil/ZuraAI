@@ -10,6 +10,9 @@ export interface Message {
     tokenCount?: number
     model?: string
     latency?: number
+    thinking?: string
+    thinkingDuration?: number
+    hasAnimated?: boolean
     usage?: {
         inputTokens: number
         outputTokens: number
@@ -38,6 +41,7 @@ interface ChatHistoryContextType {
     updateSessionTitle: (id: string, title: string) => void
     refreshSessions: () => Promise<void>
     clearCurrentSession: () => void
+    markMessageAsAnimated: (sessionId: string, messageId: string) => void
 }
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
@@ -202,6 +206,21 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setCurrentSessionId(null)
     }
 
+    const markMessageAsAnimated = (sessionId: string, messageId: string) => {
+        setSessions(prev => prev.map(session => {
+            if (session.id === sessionId) {
+                return {
+                    ...session,
+                    messages: session.messages.map(msg =>
+                        msg.id === messageId ? { ...msg, hasAnimated: true } : msg
+                    ),
+                    updatedAt: Date.now()
+                }
+            }
+            return session
+        }))
+    }
+
     return (
         <ChatHistoryContext.Provider value={{
             sessions,
@@ -214,7 +233,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             clearAllSessions,
             updateSessionTitle,
             refreshSessions,
-            clearCurrentSession
+            clearCurrentSession,
+            markMessageAsAnimated
         }}>
             {children}
         </ChatHistoryContext.Provider>

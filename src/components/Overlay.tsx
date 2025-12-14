@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useSettings } from '../contexts/SettingsContext'
+import { useSettings, THINKING_SYSTEM_PROMPT } from '../contexts/SettingsContext'
 import './Overlay.css'
 import ShinyText from './ShinyText'
 import AgentBar from './AgentBar'
+import ThinkingBlock from './ThinkingBlock'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -15,7 +16,7 @@ interface Message {
     role: 'user' | 'assistant'
     content: string
     image?: string
-    isThinking?: boolean
+    thinking?: string
     model?: string
     latency?: number
     usage?: {
@@ -153,6 +154,28 @@ export default function Overlay() {
         setStreamingContent('')
     }
 
+    // Parse thinking content from response using "**Final Answer:**" delimiter
+    const parseThinkingContent = (content: string): { thinking: string | undefined; answer: string } => {
+        // Check for Final Answer delimiter
+        const finalAnswerMatch = content.match(/\*\*Final Answer:\*\*/i)
+        if (finalAnswerMatch && finalAnswerMatch.index !== undefined) {
+            const thinkingPart = content.substring(0, finalAnswerMatch.index).trim()
+            const answerPart = content.substring(finalAnswerMatch.index + finalAnswerMatch[0].length).trim()
+            // Clean up thinking part - remove "---" and "**Thinking...**" markers
+            const cleanThinking = thinkingPart
+                .replace(/^---\s*/m, '')
+                .replace(/---\s*$/m, '')
+                .replace(/\*\*Thinking\.\.\.\*\*/gi, '')
+                .trim()
+            return {
+                thinking: cleanThinking || undefined,
+                answer: answerPart || content
+            }
+        }
+        // No thinking delimiter found, return content as-is
+        return { thinking: undefined, answer: content }
+    }
+
     const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
 
@@ -194,8 +217,14 @@ export default function Overlay() {
 
     const callOllama = async (userPrompt: string, image?: string) => {
         const messagesPayload = []
-        if (settings.systemPrompt) {
-            messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+
+        // Use thinking system prompt when enabled
+        const systemPromptToUse = settings.thinkingModeEnabled
+            ? THINKING_SYSTEM_PROMPT
+            : settings.systemPrompt
+
+        if (systemPromptToUse) {
+            messagesPayload.push({ role: 'system', content: systemPromptToUse })
         }
 
         const userMessage: any = { role: 'user', content: userPrompt }
@@ -216,16 +245,22 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
-        const content = response.message.content
+        const rawContent = response.message.content
+
+        // Parse thinking content if thinking mode is enabled
+        const { thinking, answer } = settings.thinkingModeEnabled
+            ? parseThinkingContent(rawContent)
+            : { thinking: undefined, answer: rawContent }
 
         // Show typewriter effect
         setIsLoading(false)
-        await typewriterEffect(content)
+        await typewriterEffect(answer)
 
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: content,
+            content: answer,
+            thinking: thinking,
             model: `ollama/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
@@ -244,8 +279,14 @@ export default function Overlay() {
         }
 
         const messagesPayload = []
-        if (settings.systemPrompt) {
-            messagesPayload.push({ role: 'system', content: settings.systemPrompt })
+
+        // Use thinking system prompt when enabled
+        const systemPromptToUse = settings.thinkingModeEnabled
+            ? THINKING_SYSTEM_PROMPT
+            : settings.systemPrompt
+
+        if (systemPromptToUse) {
+            messagesPayload.push({ role: 'system', content: systemPromptToUse })
         }
 
         // Perplexity doesn't support images, so just include the text
@@ -260,16 +301,22 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
-        const content = response.choices[0].message.content
+        const rawContent = response.choices[0].message.content
+
+        // Parse thinking content if thinking mode is enabled
+        const { thinking, answer } = settings.thinkingModeEnabled
+            ? parseThinkingContent(rawContent)
+            : { thinking: undefined, answer: rawContent }
 
         // Show typewriter effect
         setIsLoading(false)
-        await typewriterEffect(content)
+        await typewriterEffect(answer)
 
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: content,
+            content: answer,
+            thinking: thinking,
             model: `perplexity/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
@@ -307,8 +354,13 @@ export default function Overlay() {
             ]
         }
 
-        if (settings.systemPrompt) {
-            messagesPayload.unshift({ "role": "system", "content": settings.systemPrompt })
+        // Use thinking system prompt when enabled, otherwise use regular system prompt
+        const systemPromptToUse = settings.thinkingModeEnabled
+            ? THINKING_SYSTEM_PROMPT
+            : settings.systemPrompt
+
+        if (systemPromptToUse) {
+            messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
         }
 
         const startTime = performance.now()
@@ -332,16 +384,22 @@ export default function Overlay() {
 
         const data = await response.json()
         const endTime = performance.now()
-        const aiContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+        const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
-        // Show typewriter effect
+        // Parse thinking content if thinking mode is enabled
+        const { thinking, answer } = settings.thinkingModeEnabled
+            ? parseThinkingContent(rawContent)
+            : { thinking: undefined, answer: rawContent }
+
+        // Show typewriter effect for the answer only
         setIsLoading(false)
-        await typewriterEffect(aiContent)
+        await typewriterEffect(answer)
 
         const aiMessage: Message = {
             id: (Date.now() + 1).toString(),
             role: 'assistant',
-            content: aiContent,
+            content: answer,
+            thinking: thinking,
             model: `openrouter/${settings.aiModel}`,
             latency: Math.round(endTime - startTime),
             usage: {
@@ -492,6 +550,9 @@ export default function Overlay() {
                                             </svg>
                                             <span>Image Attached</span>
                                         </div>
+                                    )}
+                                    {msg.role === 'assistant' && msg.thinking && (
+                                        <ThinkingBlock thinking={msg.thinking} />
                                     )}
                                     <div className="text markdown-body">
                                         <ReactMarkdown

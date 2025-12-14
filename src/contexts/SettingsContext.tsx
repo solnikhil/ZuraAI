@@ -31,7 +31,27 @@ export interface Settings {
     quickPrompts: string[]
     // Title generation model
     titleModel: string
+    // Thinking mode
+    thinkingModeEnabled: boolean
 }
+
+// Thinking mode system prompt - used when thinking mode is enabled
+export const THINKING_SYSTEM_PROMPT = `When Thinking Mode is enabled, structure your response as follows:
+
+**Thinking...**
+- Goal: [1 sentence - what you're solving]
+- Key facts: [2-4 bullet points of relevant information]
+- Approach: [2-4 bullet points of your plan]
+- Considerations: [1-2 bullet points of edge cases or uncertainties]
+
+**Final Answer:**
+[Your actual answer to the user goes here]
+
+Rules:
+1. Keep the Thinking section concise (under 100 words)
+2. The Thinking section should be high-level reasoning, not a detailed transcript
+3. Always include both sections - Thinking first, then Final Answer
+4. The Final Answer should be complete and standalone`
 
 const defaultSettings: Settings = {
     theme: 'dark',
@@ -211,7 +231,8 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         'Help me debug an error',
         'Write a summary of...',
         'Brainstorm ideas for...'
-    ]
+    ],
+    thinkingModeEnabled: false
 }
 
 interface SettingsContextType {
