@@ -209,7 +209,7 @@ export default function ChatArea() {
                             font-size: 1.2rem;
                             color: #666;
                             font-weight: 400;
-                            letter-spacing: -0.01em;
+                            line-height: 1.6;
                             pointer-events: none;
                         }
                         @keyframes blur-in-up {
@@ -217,6 +217,9 @@ export default function ChatArea() {
                             100% { opacity: 1; transform: translateY(0); filter: blur(0); }
                         }
                         .animate-in-control {
+                            animation: blur-in-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+                        }
+                        .animate-in-placeholder {
                             animation: blur-in-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
                         }
                     `}</style>
@@ -243,14 +246,9 @@ export default function ChatArea() {
                             {/* Animated Placeholder */}
                             {!input && (
                                 <div style={{ position: 'absolute', top: '24px', left: '24px', pointerEvents: 'none', zIndex: 10 }}>
-                                    <BlurText
-                                        text="Ask a question..."
-                                        delay={200}
-                                        animateBy="words"
-                                        direction="top"
-                                        stepDuration={1}
-                                        className="blur-text-placeholder"
-                                    />
+                                    <div className="blur-text-placeholder animate-in-placeholder">
+                                        Ask a question...
+                                    </div>
                                 </div>
                             )}
                             <textarea
