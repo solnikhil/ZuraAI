@@ -1269,7 +1269,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                             <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
                                 <div style={{
                                     width: 64, height: 64, borderRadius: 18,
-                                    background: 'linear-gradient(135deg, rgba(255,200,120,0.15), rgba(255,150,80,0.1))',
+                                    background: 'linear-gradient(135deg, rgba(255,228,196,0.15), rgba(255,150,80,0.1))',
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
@@ -1277,73 +1277,104 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     <ListTodo size={32} color="#FFE4C4" />
                                 </div>
                                 <div>
-                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #FFE4C4, #ff9966)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Todo List</h2>
+                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #fff, #aaa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Todo List</h2>
                                     <div className="page-subtitle" style={{ fontSize: '1rem', marginTop: 4 }}>Keep track of your tasks</div>
                                 </div>
                             </div>
 
-                            {/* Add Todo Input */}
-                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: 20, marginBottom: 24 }}>
-                                <div style={{ display: 'flex', gap: 12 }}>
-                                    <input
-                                        type="text"
-                                        className="setting-input-scira"
-                                        placeholder="Add a new todo..."
-                                        value={newModelCode}
-                                        onChange={e => setNewModelCode(e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter' && newModelCode.trim()) {
-                                                const newTodo: TodoItem = {
-                                                    id: Date.now().toString(),
-                                                    text: newModelCode.trim(),
-                                                    completed: false,
-                                                    createdAt: Date.now()
-                                                }
-                                                handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
-                                                setNewModelCode('')
-                                            }
-                                        }}
-                                        style={{ flex: 1 }}
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            if (newModelCode.trim()) {
-                                                const newTodo: TodoItem = {
-                                                    id: Date.now().toString(),
-                                                    text: newModelCode.trim(),
-                                                    completed: false,
-                                                    createdAt: Date.now()
-                                                }
-                                                handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
-                                                setNewModelCode('')
-                                            }
-                                        }}
-                                        style={{
-                                            padding: '12px 20px',
-                                            background: 'linear-gradient(135deg, #FFE4C4, #ff9966)',
-                                            border: 'none',
-                                            borderRadius: 10,
-                                            color: '#000',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 8
-                                        }}
-                                    >
-                                        <Plus size={18} />
-                                        Add
-                                    </button>
+                            {/* Todo Card */}
+                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
+                                {/* Header */}
+                                <div style={{
+                                    padding: '20px 24px',
+                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                    background: 'linear-gradient(to right, rgba(255,228,196,0.05), transparent)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FFE4C4' }} />
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Your Tasks</h3>
+                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Add, complete, and manage your todos</div>
+                                        </div>
+                                    </div>
+                                    {pendingSettings.todos && pendingSettings.todos.length > 0 && (
+                                        <div style={{ padding: '6px 12px', background: 'rgba(255,228,196,0.1)', borderRadius: 20, color: '#FFE4C4', fontSize: '0.85rem', fontWeight: 500 }}>
+                                            {pendingSettings.todos.filter((t: TodoItem) => !t.completed).length} Active
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
 
-                            {/* Todo List */}
-                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, overflow: 'hidden' }}>
+                                {/* Add Todo Input */}
+                                <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                                    <div style={{ display: 'flex', gap: 12 }}>
+                                        <input
+                                            type="text"
+                                            className="setting-input-scira"
+                                            placeholder="What needs to be done?"
+                                            value={newModelCode}
+                                            onChange={e => setNewModelCode(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter' && newModelCode.trim()) {
+                                                    const newTodo: TodoItem = {
+                                                        id: Date.now().toString(),
+                                                        text: newModelCode.trim(),
+                                                        completed: false,
+                                                        createdAt: Date.now()
+                                                    }
+                                                    handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
+                                                    setNewModelCode('')
+                                                }
+                                            }}
+                                            style={{ flex: 1 }}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newModelCode.trim()) {
+                                                    const newTodo: TodoItem = {
+                                                        id: Date.now().toString(),
+                                                        text: newModelCode.trim(),
+                                                        completed: false,
+                                                        createdAt: Date.now()
+                                                    }
+                                                    handleChange({ todos: [...(pendingSettings.todos || []), newTodo] })
+                                                    setNewModelCode('')
+                                                }
+                                            }}
+                                            style={{
+                                                padding: '12px 20px',
+                                                background: 'rgba(255,228,196,0.15)',
+                                                border: '1px solid rgba(255,228,196,0.3)',
+                                                borderRadius: 12,
+                                                color: '#FFE4C4',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.background = 'rgba(255,228,196,0.25)'
+                                                e.currentTarget.style.transform = 'translateY(-1px)'
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.background = 'rgba(255,228,196,0.15)'
+                                                e.currentTarget.style.transform = 'translateY(0)'
+                                            }}
+                                        >
+                                            <Plus size={18} />
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Todo List */}
                                 {(!pendingSettings.todos || pendingSettings.todos.length === 0) ? (
-                                    <div style={{ padding: 40, textAlign: 'center', color: '#666' }}>
+                                    <div style={{ padding: 48, textAlign: 'center', color: '#555' }}>
                                         <ListTodo size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
-                                        <div style={{ fontSize: '1.1rem', marginBottom: 8 }}>No todos yet</div>
-                                        <div style={{ fontSize: '0.9rem' }}>Add your first todo above!</div>
+                                        <div style={{ fontSize: '1rem', marginBottom: 8, color: '#888' }}>No todos yet</div>
+                                        <div style={{ fontSize: '0.85rem', color: '#666' }}>Add your first task above to get started</div>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1356,9 +1387,10 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: 16,
-                                                    padding: '16px 20px',
-                                                    borderBottom: index < pendingSettings.todos.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                                                    background: todo.completed ? 'rgba(255,255,255,0.02)' : 'transparent'
+                                                    padding: '16px 24px',
+                                                    borderBottom: index < pendingSettings.todos.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                                    background: todo.completed ? 'rgba(255,255,255,0.02)' : 'transparent',
+                                                    transition: 'all 0.2s'
                                                 }}
                                             >
                                                 <button
@@ -1368,18 +1400,25 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                         )
                                                         handleChange({ todos: updated })
                                                     }}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                                    style={{
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        padding: 4,
+                                                        borderRadius: 6,
+                                                        transition: 'all 0.2s'
+                                                    }}
                                                 >
                                                     {todo.completed ? (
-                                                        <CheckSquare size={22} color="#FFE4C4" />
+                                                        <CheckSquare size={20} color="#FFE4C4" />
                                                     ) : (
-                                                        <Square size={22} color="#666" />
+                                                        <Square size={20} color="#555" />
                                                     )}
                                                 </button>
                                                 <span style={{
                                                     flex: 1,
-                                                    fontSize: '1rem',
-                                                    color: todo.completed ? '#666' : '#e0e0e0',
+                                                    fontSize: '0.95rem',
+                                                    color: todo.completed ? '#555' : '#e0e0e0',
                                                     textDecoration: todo.completed ? 'line-through' : 'none',
                                                     transition: 'all 0.2s'
                                                 }}>
@@ -1396,31 +1435,44 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                         cursor: 'pointer',
                                                         padding: 8,
                                                         borderRadius: 8,
-                                                        color: '#666',
+                                                        color: '#444',
                                                         transition: 'all 0.2s'
                                                     }}
-                                                    onMouseEnter={e => e.currentTarget.style.color = '#ff6b6b'}
-                                                    onMouseLeave={e => e.currentTarget.style.color = '#666'}
+                                                    onMouseEnter={e => {
+                                                        e.currentTarget.style.color = '#ff6b6b'
+                                                        e.currentTarget.style.background = 'rgba(255,107,107,0.1)'
+                                                    }}
+                                                    onMouseLeave={e => {
+                                                        e.currentTarget.style.color = '#444'
+                                                        e.currentTarget.style.background = 'none'
+                                                    }}
                                                 >
-                                                    <Trash2 size={18} />
+                                                    <Trash2 size={16} />
                                                 </button>
                                             </motion.div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
 
-                            {/* Stats */}
-                            {pendingSettings.todos && pendingSettings.todos.length > 0 && (
-                                <div style={{ marginTop: 16, display: 'flex', gap: 16, justifyContent: 'center' }}>
-                                    <div style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, fontSize: '0.85rem', color: '#888' }}>
-                                        {pendingSettings.todos.filter((t: TodoItem) => !t.completed).length} remaining
+                                {/* Footer Stats */}
+                                {pendingSettings.todos && pendingSettings.todos.length > 0 && (
+                                    <div style={{
+                                        padding: '16px 24px',
+                                        borderTop: '1px solid rgba(255,255,255,0.06)',
+                                        display: 'flex',
+                                        gap: 16,
+                                        justifyContent: 'flex-start',
+                                        background: 'rgba(255,255,255,0.02)'
+                                    }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                            <span style={{ color: '#888', fontWeight: 500 }}>{pendingSettings.todos.filter((t: TodoItem) => !t.completed).length}</span> remaining
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                            <span style={{ color: '#FFE4C4', fontWeight: 500 }}>{pendingSettings.todos.filter((t: TodoItem) => t.completed).length}</span> completed
+                                        </div>
                                     </div>
-                                    <div style={{ padding: '8px 16px', background: 'rgba(255,228,196,0.1)', borderRadius: 20, fontSize: '0.85rem', color: '#FFE4C4' }}>
-                                        {pendingSettings.todos.filter((t: TodoItem) => t.completed).length} completed
-                                    </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     )}
 

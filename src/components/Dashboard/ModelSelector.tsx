@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
 
@@ -22,6 +23,19 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 320 })
+
+    // Update position when opening
+    useEffect(() => {
+        if (isOpen && dropdownRef.current) {
+            const rect = dropdownRef.current.getBoundingClientRect()
+            setDropdownPos({
+                top: rect.top - 12, // Slight offset
+                left: rect.left,
+                width: 320
+            })
+        }
+    }, [isOpen])
 
     // Get ALL models from ALL providers
     const getAllModels = (): ModelWithProvider[] => {
@@ -315,25 +329,28 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
 
-            {/* Rich Popover */}
-            {isOpen && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: 'calc(100% + 12px)',
-                    left: '-12px',
-                    width: '320px',
-                    backgroundColor: '#111',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '20px',
-                    boxShadow: '0 -10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '16px',
-                    animation: 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    backdropFilter: 'blur(20px)',
-                    zIndex: 1000
-                }}>
+            {/* Rich Popover using Portal */}
+            {isOpen && ReactDOM.createPortal(
+                <div
+                    style={{
+                        position: 'fixed',
+                        top: dropdownPos.top,
+                        left: dropdownPos.left,
+                        transform: 'translateY(-100%)', // Anchor to bottom of previous position effectively
+                        width: '320px',
+                        backgroundColor: '#111',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        animation: 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        backdropFilter: 'blur(20px)',
+                        zIndex: 99999 // High z-index to sit on top of everything
+                    }}
+                >
                     {/* Search Header */}
                     <div style={{ position: 'relative' }}>
                         <Search size={14} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -368,7 +385,10 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                             <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>
                         )}
                     </div>
-                </div>
+
+                    {/* Backdrop for outside click (optional, but handling via global click is fine too) */}
+                </div>,
+                document.body
             )}
 
             <style>{`

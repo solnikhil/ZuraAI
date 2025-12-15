@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain } from 'lucide-react'
+import StarBorder from '../StarBorder'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -907,139 +908,146 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef }
     const { settings, updateSettings } = useSettings()
 
     return (
-        <div style={{
-            background: 'linear-gradient(145deg, #161412, #101010)',
-            borderRadius: '24px',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            border: isFocused
-                ? '1px solid rgba(255, 202, 40, 0.3)'
-                : '1px solid rgba(255, 202, 40, 0.05)',
-            boxShadow: isFocused
-                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 20px rgba(255, 202, 40, 0.1)'
-                : '0 4px 20px rgba(0,0,0,0.2)',
-            transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
-        }}>
-            <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder="Ask a question..."
-                disabled={isLoading}
-                rows={1}
-                style={{
-                    width: '100%',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: '#fff',
-                    resize: 'none',
-                    outline: 'none',
-                    fontSize: '0.95rem',
-                    fontWeight: 400,
-                    fontFamily: 'inherit',
-                    lineHeight: '1.6',
-                    minHeight: '32px',
-                    maxHeight: '200px'
-                }}
-            />
+        <StarBorder
+            as="div"
+            className="input-bar-container"
+            color={isFocused ? "cyan" : "#444"}
+            speed="10s"
+            style={{
+                borderRadius: '24px',
+                padding: '1px', // Thinner border width
+                transition: 'all 0.3s ease'
+            }}
+        >
+            <div style={{
+                background: 'linear-gradient(145deg, #161412, #101010)',
+                borderRadius: '22px', // Slightly less than outer
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                height: '100%',
+                width: '100%'
+            }}>
+                <textarea
+                    ref={textareaRef}
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    placeholder="Ask a question..."
+                    disabled={isLoading}
+                    rows={1}
+                    style={{
+                        width: '100%',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        color: '#fff',
+                        resize: 'none',
+                        outline: 'none',
+                        fontSize: '0.95rem',
+                        fontWeight: 400,
+                        fontFamily: 'inherit',
+                        lineHeight: '1.6',
+                        minHeight: '32px',
+                        maxHeight: '200px'
+                    }}
+                />
 
-            {/* Bottom row - model selector and send */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                {/* Grouped pill container for model + thinking toggle */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: '12px',
-                    padding: '2px'
-                }}>
-                    <ModelSelector minimal={true} />
+                {/* Bottom row - model selector and send */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    {/* Grouped pill container for model + thinking toggle */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: '12px',
+                        padding: '2px'
+                    }}>
+                        <ModelSelector minimal={true} />
 
-                    {/* Divider */}
-                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+                        {/* Divider */}
+                        <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
-                    <button
-                        onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
-                        title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
-                        style={{
-                            background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '6px 8px',
-                            color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                            height: '100%'
-                        }}
-                        onMouseEnter={e => {
-                            if (!settings.thinkingModeEnabled) {
-                                e.currentTarget.style.color = '#ccc'
+                        <button
+                            onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
+                            title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
+                            style={{
+                                background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '6px 8px',
+                                color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                height: '100%'
+                            }}
+                            onMouseEnter={e => {
+                                if (!settings.thinkingModeEnabled) {
+                                    e.currentTarget.style.color = '#ccc'
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                }
+                            }}
+                            onMouseLeave={e => {
+                                if (!settings.thinkingModeEnabled) {
+                                    e.currentTarget.style.color = '#666'
+                                    e.currentTarget.style.background = 'transparent'
+                                }
+                            }}
+                        >
+                            <Brain size={16} />
+                        </button>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                            style={{
+                                background: 'rgba(255,255,255,0.05)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '10px',
+                                color: '#aaa',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                                e.currentTarget.style.color = '#fff'
+                            }}
+                            onMouseLeave={e => {
                                 e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                            }
-                        }}
-                        onMouseLeave={e => {
-                            if (!settings.thinkingModeEnabled) {
-                                e.currentTarget.style.color = '#666'
-                                e.currentTarget.style.background = 'transparent'
-                            }
-                        }}
-                    >
-                        <Brain size={16} />
-                    </button>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        style={{
-                            background: 'rgba(255,255,255,0.05)',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '10px',
-                            color: '#aaa',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                            e.currentTarget.style.color = '#fff'
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                            e.currentTarget.style.color = '#aaa'
-                        }}
-                    >
-                        <Paperclip size={18} />
-                    </button>
-                    <button
-                        onClick={onSend}
-                        disabled={isLoading || !input.trim()}
-                        style={{
-                            background: input.trim() && !isLoading ? '#FFCA28' : 'rgba(255,255,255,0.05)',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '10px 14px',
-                            color: input.trim() && !isLoading ? '#000' : '#444',
-                            cursor: input.trim() && !isLoading ? 'pointer' : 'default',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                            transform: input.trim() && !isLoading ? 'scale(1)' : 'scale(0.95)'
-                        }}
-                    >
-                        <Send size={18} />
-                    </button>
+                                e.currentTarget.style.color = '#aaa'
+                            }}
+                        >
+                            <Paperclip size={18} />
+                        </button>
+                        <button
+                            onClick={onSend}
+                            disabled={isLoading || !input.trim()}
+                            style={{
+                                background: input.trim() && !isLoading ? '#FFCA28' : 'rgba(255,255,255,0.05)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '10px 14px',
+                                color: input.trim() && !isLoading ? '#000' : '#444',
+                                cursor: input.trim() && !isLoading ? 'pointer' : 'default',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                transform: input.trim() && !isLoading ? 'scale(1)' : 'scale(0.95)'
+                            }}
+                        >
+                            <Send size={18} />
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </StarBorder>
     )
 }
 
