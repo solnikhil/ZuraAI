@@ -26,16 +26,20 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 320 })
 
     // Update position when opening
-    useEffect(() => {
-        if (isOpen && dropdownRef.current) {
+    // Toggle handler to calculate position immediately
+    const toggleOpen = () => {
+        if (!isOpen && dropdownRef.current) {
             const rect = dropdownRef.current.getBoundingClientRect()
             setDropdownPos({
-                top: rect.top - 12, // Slight offset
+                top: rect.top - 12,
                 left: rect.left,
                 width: 320
             })
+            setIsOpen(true)
+        } else {
+            setIsOpen(false)
         }
-    }, [isOpen])
+    }
 
     // Get ALL models from ALL providers
     const getAllModels = (): ModelWithProvider[] => {
@@ -282,7 +286,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         <div style={{ position: 'relative', zIndex: 100 }} ref={dropdownRef}>
             {/* Trigger Button */}
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={toggleOpen}
                 style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -393,8 +397,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
 
             <style>{`
                 @keyframes dropdown-slide-up {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
+                    from { opacity: 0; transform: translateY(calc(-100% + 10px)); }
+                    to { opacity: 1; transform: translateY(-100%); }
                 }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
