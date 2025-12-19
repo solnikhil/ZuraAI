@@ -8,7 +8,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useChatHistory, Message } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion, streamOllamaCompletion } from '../../services/ollama'
-import { generatePerplexityCompletion, streamPerplexityCompletion } from '../../services/perplexity'
+import { generatePerplexityCompletion, streamPerplexityCompletion, cleanSonarResponse } from '../../services/perplexity'
 import { generateGeminiCompletion, streamGeminiCompletion } from '../../services/gemini'
 import { generateGroqCompletion, streamGroqCompletion } from '../../services/groq'
 import { streamOpenRouterCompletion } from '../../services/openrouter'
@@ -28,7 +28,7 @@ import ToolApprovalDialog from '../ToolApprovalDialog'
 import { ToolCallResult } from '../../tools/executor'
 
 export default function ChatArea() {
-    const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, markMessageAsAnimated, deleteSession, clearAllSessions } = useChatHistory()
+    const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, deleteSession, clearAllSessions } = useChatHistory()
     const { settings, updateSettings } = useSettings()
     const { showToast } = useToast()
     const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState, handleApprovalResponse } = useToolCalling()
@@ -221,89 +221,252 @@ export default function ChatArea() {
                 const tools = canUseTools ? getToolsForRequest() : null
                 const ollamaTools = tools && Array.isArray(tools) ? tools : undefined
 
+                // Create streaming message immediately
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `ollama/${settings.aiModel}`
+                })
+
                 // #region agent log
                 { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:initialRequest', message: 'Making initial Ollama request', data: { hasTools: !!ollamaTools, toolsCount: ollamaTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                 // #endregion
 
-                const res = await generateOllamaCompletion(
-                    settings.ollamaUrl,
-                    settings.aiModel,
-                    optimizedHistory,
-                    {
-                        temperature: settings.temperature,
-                        tools: ollamaTools
+                // Stream the response
+                let accumulatedContent = ''
+                let lastUpdateTime = Date.now()
+                const UPDATE_INTERVAL = 50 // ms
+                let finalUsage: any = {}
+                let hasToolCalls = false
+                let finalMessage: any = null
+                let isDone = false
+
+                try {
+                    for await (const chunk of streamOllamaCompletion(
+                        settings.ollamaUrl,
+                        settings.aiModel,
+                        optimizedHistory,
+                        {
+                            temperature: settings.temperature,
+                            tools: ollamaTools
+                        }
+                    )) {
+                        // Ollama chunks contain incremental content deltas
+                        if (chunk.message?.content) {
+                            accumulatedContent += chunk.message.content // Accumulate deltas
+                        }
+
+                        // Track final message for tool calls
+                        if (chunk.message) {
+                            finalMessage = chunk.message
+                            if ((chunk.message as any)?.tool_calls && Array.isArray((chunk.message as any).tool_calls)) {
+                                hasToolCalls = true
+                            }
+                        }
+
+                        // Extract usage stats from final chunk
+                        if (chunk.done) {
+                            isDone = true
+                            finalUsage = {
+                                inputTokens: chunk.prompt_eval_count || 0,
+                                outputTokens: chunk.eval_count || 0,
+                                totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+                            }
+                        }
+
+                        // Debounced update
+                        const now = Date.now()
+                        if (now - lastUpdateTime >= UPDATE_INTERVAL && !isDone) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            lastUpdateTime = now
+                        }
                     }
-                )
 
-                // Check for tool calls (Ollama returns tool_calls in message if present)
-                if (canUseTools && (res.message as any)?.tool_calls && Array.isArray((res.message as any).tool_calls) && (res.message as any).tool_calls.length > 0) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: (res.message as any)?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
 
-                    // Process tool calls with error handling
-                    let toolResult
-                    try {
-                        toolResult = await handleToolCalls({ choices: [{ message: res.message }] })
-                    } catch (toolError: any) {
+                    // Check for tool calls
+                    if (canUseTools && hasToolCalls && finalMessage && (finalMessage as any)?.tool_calls && Array.isArray((finalMessage as any).tool_calls) && (finalMessage as any).tool_calls.length > 0) {
                         // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: (finalMessage as any)?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                         // #endregion
 
-                        console.error('Tool calls processing error:', toolError)
-                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                    }
+                        // Process tool calls with error handling
+                        let toolResult
+                        try {
+                            toolResult = await handleToolCalls({ choices: [{ message: finalMessage }] })
+                        } catch (toolError: any) {
+                            // #region agent log
+                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                            // #endregion
 
-                    if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Single follow-up call with tool results
-                        const followUpRes = await generateOllamaCompletion(
-                            settings.ollamaUrl,
-                            settings.aiModel,
-                            [
-                                ...optimizedHistory,
-                                res.message,
-                                ...toolResult.formattedResults
-                            ],
-                            {
-                                temperature: settings.temperature,
-                                tools: ollamaTools
+                            console.error('Tool calls processing error:', toolError)
+                            showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                            toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                        }
+
+                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                            // Stream follow-up response
+                            let followUpContent = ''
+                            let followUpLastUpdate = Date.now()
+                            let followUpUsage: any = {}
+
+                            for await (const chunk of streamOllamaCompletion(
+                                settings.ollamaUrl,
+                                settings.aiModel,
+                                [
+                                    ...optimizedHistory,
+                                    finalMessage,
+                                    ...toolResult.formattedResults
+                                ],
+                                {
+                                    temperature: settings.temperature,
+                                    tools: ollamaTools
+                                }
+                            )) {
+                                if (chunk.message?.content) {
+                                    followUpContent += chunk.message.content // Accumulate deltas
+                                }
+                                if (chunk.done) {
+                                    followUpUsage = {
+                                        inputTokens: chunk.prompt_eval_count || 0,
+                                        outputTokens: chunk.eval_count || 0,
+                                        totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+                                    }
+                                }
+
+                                const now = Date.now()
+                                if (now - followUpLastUpdate >= UPDATE_INTERVAL && !chunk.done) {
+                                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
+                                    followUpLastUpdate = now
+                                }
                             }
-                        )
 
-                        responseContent = followUpRes.message?.content || "Error: No response"
-                        usage = {
-                            inputTokens: (res.prompt_eval_count || 0) + (followUpRes.prompt_eval_count || 0),
-                            outputTokens: (res.eval_count || 0) + (followUpRes.eval_count || 0),
-                            totalTokens: ((res.prompt_eval_count || 0) + (res.eval_count || 0)) + ((followUpRes.prompt_eval_count || 0) + (followUpRes.eval_count || 0))
+                            accumulatedContent += followUpContent
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                            usage = {
+                                inputTokens: (finalUsage.inputTokens || 0) + (followUpUsage.inputTokens || 0),
+                                outputTokens: (finalUsage.outputTokens || 0) + (followUpUsage.outputTokens || 0),
+                                totalTokens: (finalUsage.totalTokens || 0) + (followUpUsage.totalTokens || 0)
+                            }
+                        } else {
+                            usage = finalUsage
                         }
                     } else {
-                        responseContent = res.message?.content || "Error: No response"
-                        usage = {
-                            inputTokens: res.prompt_eval_count || 0,
-                            outputTokens: res.eval_count || 0,
-                            totalTokens: (res.prompt_eval_count || 0) + (res.eval_count || 0)
+                        usage = finalUsage
+                    }
+
+                    // Finalize the streaming message with all metadata
+                    const endTimeOllama = performance.now()
+                    const latencyOllama = Math.round(endTimeOllama - startTime)
+                    const toolResultsForOllama = toolState.toolResults.length > 0
+                        ? toolState.toolResults.map(tr => ({
+                            toolCall: {
+                                id: tr.toolCall.id,
+                                name: tr.toolCall.name,
+                                arguments: tr.toolCall.arguments
+                            },
+                            result: {
+                                success: tr.result.success,
+                                data: tr.result.data,
+                                error: tr.result.error,
+                                executionTime: tr.result.executionTime
+                            }
+                        }))
+                        : undefined
+
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: accumulatedContent,
+                        model: `ollama/${settings.aiModel}`,
+                        latency: latencyOllama,
+                        usage,
+                        toolResults: toolResultsForOllama
+                    })
+
+                    model = `ollama/${settings.aiModel}`
+                    responseContent = accumulatedContent
+                } catch (streamError: any) {
+                    // If streaming fails, update message with error
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                        content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
+                    })
+                    throw streamError
+                }
+            } else if (settings.modelProvider === 'perplexity') {
+                // Create streaming message immediately
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `perplexity/${settings.aiModel}`
+                })
+
+                // Stream the response
+                let accumulatedContent = ''
+                let lastUpdateTime = Date.now()
+                const UPDATE_INTERVAL = 50 // ms
+                let finalUsage: any = {}
+
+                try {
+                    for await (const chunk of streamPerplexityCompletion(
+                        settings.perplexityApiKey,
+                        settings.aiModel,
+                        optimizedHistory,
+                        {
+                            temperature: settings.temperature,
+                            max_tokens: settings.maxTokens
+                        }
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
+
+                        // Extract usage stats
+                        if (chunk.usage) {
+                            finalUsage = chunk.usage
+                        }
+
+                        // Debounced update
+                        const now = Date.now()
+                        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            lastUpdateTime = now
                         }
                     }
-                } else {
-                    responseContent = res.message?.content || "Error: No response"
-                    usage = {
-                        inputTokens: res.prompt_eval_count || 0,
-                        outputTokens: res.eval_count || 0,
-                        totalTokens: (res.prompt_eval_count || 0) + (res.eval_count || 0)
-                    }
-                }
 
-                model = `ollama/${settings.aiModel}`
-            } else if (settings.modelProvider === 'perplexity') {
-                const res = await generatePerplexityCompletion(settings.perplexityApiKey, settings.aiModel, optimizedHistory)
-                responseContent = res.choices[0].message.content
-                usage = {
-                    inputTokens: res.usage?.prompt_tokens || 0,
-                    outputTokens: res.usage?.completion_tokens || 0,
-                    totalTokens: res.usage?.total_tokens || 0
+                    // Apply citation cleaning after streaming completes
+                    // Note: Perplexity citations would need to be extracted from final chunk if available
+                    // For now, clean the content (citations may not be available in streaming)
+                    const cleanedContent = cleanSonarResponse(accumulatedContent)
+
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: cleanedContent })
+
+                    usage = {
+                        inputTokens: finalUsage.prompt_tokens || 0,
+                        outputTokens: finalUsage.completion_tokens || 0,
+                        totalTokens: finalUsage.total_tokens || 0
+                    }
+
+                    // Finalize the streaming message with all metadata
+                    const endTimePerplexity = performance.now()
+                    const latencyPerplexity = Math.round(endTimePerplexity - startTime)
+
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: cleanedContent,
+                        model: `perplexity/${settings.aiModel}`,
+                        latency: latencyPerplexity,
+                        usage
+                    })
+
+                    model = `perplexity/${settings.aiModel}`
+                    responseContent = cleanedContent
+                } catch (streamError: any) {
+                    // If streaming fails, update message with error
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                        content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
+                    })
+                    throw streamError
                 }
-                model = `perplexity/${settings.aiModel}`
             } else if (settings.modelProvider === 'gemini') {
                 // Get tools if enabled (returns GeminiTools object for Gemini provider)
                 const tools = canUseTools ? getToolsForRequest() : null
@@ -406,13 +569,13 @@ export default function ChatArea() {
                     // Check for function calls using accumulated response
                     if (canUseTools && hasGeminiFunctionCalls(accumulatedResponse)) {
                     // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:beforeToolCalls', message: 'About to process tool calls', data: { hasFunctionCalls: hasGeminiFunctionCalls(res) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:beforeToolCalls', message: 'About to process tool calls', data: { hasFunctionCalls: hasGeminiFunctionCalls(accumulatedResponse) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                     // #endregion
 
                     // Process tool calls with error handling
                     let toolResult
                     try {
-                        toolResult = await handleToolCalls(res)
+                        toolResult = await handleToolCalls(accumulatedResponse)
                     } catch (toolError: any) {
                         // #region agent log
                         { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
@@ -454,7 +617,7 @@ export default function ChatArea() {
                         )) {
                             const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
                             if (chunkText) {
-                                followUpContent = chunkText
+                                followUpContent = chunkText // Gemini gives full accumulated text
                             }
                             if (chunk.usageMetadata) {
                                 followUpUsage = chunk.usageMetadata
@@ -532,83 +695,219 @@ export default function ChatArea() {
                 const tools = canUseTools ? getToolsForRequest() : null
                 const groqTools = tools && Array.isArray(tools) ? tools : undefined
 
+                // Create streaming message immediately
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `groq/${settings.aiModel}`
+                })
+
                 // #region agent log
                 { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:initialRequest', message: 'Making initial Groq request', data: { hasTools: !!groqTools, toolsCount: groqTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                 // #endregion
 
-                const res = await generateGroqCompletion(
-                    settings.groqApiKey,
-                    settings.aiModel,
-                    optimizedHistory,
-                    {
-                        temperature: settings.temperature,
-                        max_tokens: settings.maxTokens,
-                        tools: groqTools
+                // Stream the response
+                let accumulatedContent = ''
+                let lastUpdateTime = Date.now()
+                const UPDATE_INTERVAL = 50 // ms
+                let finalUsage: any = {}
+                let hasToolCalls = false
+                let toolCallsAccumulator: any[] = []
+                let finishReason: string | null = null
+
+                try {
+                    for await (const chunk of streamGroqCompletion(
+                        settings.groqApiKey,
+                        settings.aiModel,
+                        optimizedHistory,
+                        {
+                            temperature: settings.temperature,
+                            max_tokens: settings.maxTokens,
+                            tools: groqTools
+                        }
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
+
+                        // Check for tool calls in delta
+                        if (chunk.choices?.[0]?.delta?.tool_calls) {
+                            hasToolCalls = true
+                            const deltaToolCalls = chunk.choices[0].delta.tool_calls
+                            if (deltaToolCalls) {
+                                deltaToolCalls.forEach((tc: any) => {
+                                    const index = tc.index ?? 0
+                                    if (!toolCallsAccumulator[index]) {
+                                        toolCallsAccumulator[index] = {
+                                            id: tc.id || '',
+                                            type: tc.type || 'function',
+                                            function: { name: '', arguments: '' }
+                                        }
+                                    }
+                                    if (tc.function?.name) {
+                                        toolCallsAccumulator[index].function.name += tc.function.name
+                                    }
+                                    if (tc.function?.arguments) {
+                                        toolCallsAccumulator[index].function.arguments += tc.function.arguments
+                                    }
+                                })
+                            }
+                        }
+
+                        // Track finish reason
+                        if (chunk.choices?.[0]?.finish_reason) {
+                            finishReason = chunk.choices[0].finish_reason
+                            if (finishReason === 'tool_calls') {
+                                hasToolCalls = true
+                            }
+                        }
+
+                        // Extract usage stats
+                        if (chunk.usage) {
+                            finalUsage = chunk.usage
+                        }
+
+                        // Debounced update
+                        const now = Date.now()
+                        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            lastUpdateTime = now
+                        }
                     }
-                )
 
-                // Check for tool calls
-                if (canUseTools && res.choices?.[0]?.message?.tool_calls) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: res.choices?.[0]?.message?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
 
-                    // Process tool calls with error handling
-                    let toolResult
-                    try {
-                        toolResult = await handleToolCalls(res)
-                    } catch (toolError: any) {
+                    // Handle tool calls if detected
+                    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc && tc.id).length > 0) {
+                        // Reconstruct message with tool calls
+                        const reconstructedMessage = {
+                            role: 'assistant',
+                            content: accumulatedContent,
+                            tool_calls: toolCallsAccumulator.filter(tc => tc.id).map(tc => ({
+                                id: tc.id,
+                                type: tc.type || 'function',
+                                function: {
+                                    name: tc.function.name,
+                                    arguments: tc.function.arguments
+                                }
+                            }))
+                        }
+                        const mockData = {
+                            choices: [{
+                                message: reconstructedMessage
+                            }]
+                        }
+
                         // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name, stack: toolError?.stack?.substring(0, 500) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                         // #endregion
 
-                        console.error('Tool calls processing error:', toolError)
-                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                        // Continue with response content even if tools failed
-                        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                    }
+                        // Process tool calls with error handling
+                        let toolResult
+                        try {
+                            toolResult = await handleToolCalls(mockData)
+                        } catch (toolError: any) {
+                            // #region agent log
+                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                            // #endregion
 
-                    if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Single follow-up call with tool results
-                        const followUpRes = await generateGroqCompletion(
-                            settings.groqApiKey,
-                            settings.aiModel,
-                            [
-                                ...optimizedHistory,
-                                res.choices[0].message,
-                                ...toolResult.formattedResults
-                            ],
-                            {
-                                temperature: settings.temperature,
-                                max_tokens: settings.maxTokens,
-                                tools: groqTools
+                            console.error('Tool calls processing error:', toolError)
+                            showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                            toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                        }
+
+                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                            // Stream follow-up response
+                            let followUpContent = ''
+                            let followUpLastUpdate = Date.now()
+                            let followUpUsage: any = {}
+
+                            for await (const chunk of streamGroqCompletion(
+                                settings.groqApiKey,
+                                settings.aiModel,
+                                [
+                                    ...optimizedHistory,
+                                    reconstructedMessage,
+                                    ...toolResult.formattedResults
+                                ],
+                                {
+                                    temperature: settings.temperature,
+                                    max_tokens: settings.maxTokens,
+                                    tools: groqTools
+                                }
+                            )) {
+                                const delta = chunk.choices?.[0]?.delta?.content || ''
+                                followUpContent += delta
+                                if (chunk.usage) {
+                                    followUpUsage = chunk.usage
+                                }
+
+                                const now = Date.now()
+                                if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
+                                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
+                                    followUpLastUpdate = now
+                                }
                             }
-                        )
 
-                        responseContent = followUpRes.choices?.[0]?.message?.content || "Error: No response"
-                        usage = {
-                            inputTokens: (res.usage?.prompt_tokens || 0) + (followUpRes.usage?.prompt_tokens || 0),
-                            outputTokens: (res.usage?.completion_tokens || 0) + (followUpRes.usage?.completion_tokens || 0),
-                            totalTokens: (res.usage?.total_tokens || 0) + (followUpRes.usage?.total_tokens || 0)
+                            accumulatedContent += followUpContent
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                            usage = {
+                                inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
+                                outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
+                                totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0)
+                            }
+                        } else {
+                            usage = {
+                                inputTokens: finalUsage.prompt_tokens || 0,
+                                outputTokens: finalUsage.completion_tokens || 0,
+                                totalTokens: finalUsage.total_tokens || 0
+                            }
                         }
                     } else {
-                        responseContent = res.choices?.[0]?.message?.content || "Error: No response"
                         usage = {
-                            inputTokens: res.usage?.prompt_tokens || 0,
-                            outputTokens: res.usage?.completion_tokens || 0,
-                            totalTokens: res.usage?.total_tokens || 0
+                            inputTokens: finalUsage.prompt_tokens || 0,
+                            outputTokens: finalUsage.completion_tokens || 0,
+                            totalTokens: finalUsage.total_tokens || 0
                         }
                     }
-                } else {
-                    responseContent = res.choices?.[0]?.message?.content || "Error: No response"
-                    usage = {
-                        inputTokens: res.usage?.prompt_tokens || 0,
-                        outputTokens: res.usage?.completion_tokens || 0,
-                        totalTokens: res.usage?.total_tokens || 0
-                    }
-                }
 
-                model = `groq/${settings.aiModel}`
+                    // Finalize the streaming message with all metadata
+                    const endTimeGroq = performance.now()
+                    const latencyGroq = Math.round(endTimeGroq - startTime)
+                    const toolResultsForGroq = toolState.toolResults.length > 0
+                        ? toolState.toolResults.map(tr => ({
+                            toolCall: {
+                                id: tr.toolCall.id,
+                                name: tr.toolCall.name,
+                                arguments: tr.toolCall.arguments
+                            },
+                            result: {
+                                success: tr.result.success,
+                                data: tr.result.data,
+                                error: tr.result.error,
+                                executionTime: tr.result.executionTime
+                            }
+                        }))
+                        : undefined
+
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: accumulatedContent,
+                        model: `groq/${settings.aiModel}`,
+                        latency: latencyGroq,
+                        usage,
+                        toolResults: toolResultsForGroq
+                    })
+
+                    model = `groq/${settings.aiModel}`
+                    responseContent = accumulatedContent
+                } catch (streamError: any) {
+                    // If streaming fails, update message with error
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                        content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
+                    })
+                    throw streamError
+                }
             } else {
                 // OpenRouter - supports function calling and vision
                 // Prepare messages with images if any
@@ -872,12 +1171,14 @@ export default function ChatArea() {
                 }))
                 : undefined
 
-            // For providers that don't use streaming yet, create message normally
-            // (OpenRouter handles its own message finalization in its block)
-            if (settings.modelProvider !== 'openrouter') {
+            // All providers now handle their own message creation and finalization via streaming
+            // This code should only run if responseContent was set but no message was created
+            // (which shouldn't happen with current implementation, but kept as fallback)
+            if (!responseContent && settings.modelProvider) {
+                // Fallback: create message if somehow we have content but no message was created
                 addMessageToSession(targetSessionId!, {
                     role: 'assistant',
-                    content: responseContent,
+                    content: responseContent || 'No response received',
                     model,
                     latency,
                     usage,
@@ -1138,8 +1439,6 @@ export default function ChatArea() {
                         <React.Fragment key={msg.id}>
                             <MessageBubble
                                 message={msg}
-                                animate={!msg.hasAnimated && idx === messages.length - 1 && msg.role === 'assistant' && Date.now() - msg.timestamp < 60000} // Only animate if not already animated and recent
-                                onAnimationComplete={() => markMessageAsAnimated(currentSessionId!, msg.id)}
                             />
                             {/* Show tool results after last assistant message */}
                             {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
@@ -1480,7 +1779,7 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
 }
 
 // Component to highlight first word in gold
-function MessageBubble({ message, animate = false, onAnimationComplete }: { message: any, animate?: boolean, onAnimationComplete?: () => void }) {
+function MessageBubble({ message }: { message: any }) {
     const { settings } = useSettings()
     const [copied, setCopied] = useState(false)
     const [showToolModal, setShowToolModal] = useState(false)
@@ -1488,33 +1787,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
     const [isHoveringInfo, setIsHoveringInfo] = useState(false)
     const infoTriggerRef = useRef<HTMLDivElement>(null)
     const processedContent = convertUrlsToMarkdownLinks(message.content)
-    const [displayedContent, setDisplayedContent] = useState(animate ? '' : processedContent)
     const isUser = message.role === 'user'
-
-    useEffect(() => {
-        if (!animate) {
-            setDisplayedContent(processedContent)
-            return
-        }
-
-        // If content is already fully displayed (e.g. from props update), don't restart
-        if (displayedContent === processedContent) return
-
-        let currentIndex = 0
-        // Speed up animation: 2 chars every 10ms
-        const interval = setInterval(() => {
-            if (currentIndex >= processedContent.length) {
-                setDisplayedContent(processedContent)
-                clearInterval(interval)
-                if (onAnimationComplete) onAnimationComplete()
-                return
-            }
-            setDisplayedContent((prev: string) => processedContent.slice(0, prev.length + 3))
-            currentIndex += 3
-        }, 10)
-
-        return () => clearInterval(interval)
-    }, [processedContent, animate])
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content)
@@ -1806,7 +2079,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                     }}
                 >
 
-                    {displayedContent + (animate && displayedContent !== processedContent ? ' ▍' : '')}
+                    {processedContent}
                 </ReactMarkdown>
             </div>
 
