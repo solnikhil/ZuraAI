@@ -40,20 +40,41 @@ export default function ChatArea() {
     const [attachedFiles, setAttachedFiles] = useState<Array<{ id: string; name: string; type: string; size: number; data: string; mimeType: string }>>([])
     const fileInputRef = useRef<HTMLInputElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const messagesContainerRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
 
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const scrollToBottom = (immediate = false) => {
+        if (messagesContainerRef.current) {
+            // Direct scroll of the container for better control
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+        } else if (messagesEndRef.current) {
+            // Fallback to scrollIntoView if container ref not available
+            messagesEndRef.current.scrollIntoView({ behavior: immediate ? 'auto' : 'smooth' })
+        }
     }
 
-    // Auto-scroll to bottom when messages change or loading starts
+    // Auto-scroll to bottom when messages change, loading starts, or last message content changes
     useEffect(() => {
-        scrollToBottom()
+        if (isLoading) {
+            // During streaming/loading, use immediate scroll to keep up with rapid updates
+            scrollToBottom(true)
+        } else {
+            // After loading completes, use smooth scroll
+            scrollToBottom(false)
+        }
     }, [messages, isLoading])
+
+    // Also scroll when the last message content changes (for streaming updates)
+    useEffect(() => {
+        if (messages.length > 0 && isLoading) {
+            const lastMessage = messages[messages.length - 1]
+            // Trigger scroll when content updates during streaming
+            scrollToBottom(true)
+        }
+    }, [messages.length > 0 ? messages[messages.length - 1]?.content : '', isLoading])
 
     // Auto-resize textarea
     useEffect(() => {
@@ -1433,7 +1454,7 @@ export default function ChatArea() {
             </div>
 
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+            <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {messages.map((msg, idx) => (
                         <React.Fragment key={msg.id}>
