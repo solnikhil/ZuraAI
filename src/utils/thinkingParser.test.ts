@@ -57,7 +57,7 @@ const plainContentArb = safeContentArb.map(content => ({
 
 describe('Thinking Content Parsing', () => {
     /**
-     * **Feature: agent-mode, Property 8: Thinking content is parsed correctly**
+     * Thinking content is parsed correctly
      * **Validates: Requirements 6.1**
      * 
      * For any AI response containing thinking markers (e.g., <think>, **Thinking...**),

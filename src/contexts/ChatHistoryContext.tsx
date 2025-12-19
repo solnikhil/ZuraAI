@@ -42,6 +42,10 @@ export interface Message {
         inputTokens: number
         outputTokens: number
         totalTokens: number
+        tps?: number // Tokens per second
+        ttft?: number // Time to first token (ms)
+        cachedInputTokens?: number
+        cachedOutputTokens?: number
     }
 }
 
@@ -60,7 +64,8 @@ interface ChatHistoryContextType {
     isLoading: boolean
     createSession: (firstMessage?: string) => string
     switchSession: (id: string) => void
-    addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => void
+    addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
+    updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
     deleteSession: (id: string) => void
     clearAllSessions: () => void
     updateSessionTitle: (id: string, title: string) => void
@@ -185,7 +190,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         }
     }
 
-    const addMessageToSession = (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => {
+    const addMessageToSession = (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
         const newMessage: Message = {
             ...message,
             id: uuidv4(),
@@ -204,6 +209,23 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                     ...session,
                     title: newTitle,
                     messages: [...session.messages, newMessage],
+                    updatedAt: Date.now()
+                }
+            }
+            return session
+        }))
+        
+        return newMessage.id
+    }
+
+    const updateStreamingMessage = (sessionId: string, messageId: string, updates: Partial<Message>) => {
+        setSessions(prev => prev.map(session => {
+            if (session.id === sessionId) {
+                return {
+                    ...session,
+                    messages: session.messages.map(msg =>
+                        msg.id === messageId ? { ...msg, ...updates } : msg
+                    ),
                     updatedAt: Date.now()
                 }
             }
@@ -254,6 +276,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             createSession,
             switchSession,
             addMessageToSession,
+            updateStreamingMessage,
             deleteSession,
             clearAllSessions,
             updateSessionTitle,

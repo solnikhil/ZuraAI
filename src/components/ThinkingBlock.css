@@ -1,9 +1,12 @@
 /* ==== THINKING BLOCK - ChatGPT Style ==== */
+
 .thinking-block {
     margin-bottom: 12px;
 }
 
+
 /* ==== THINKING HEADER ==== */
+
 .thinking-header {
     display: inline-flex;
     align-items: center;
@@ -22,14 +25,16 @@
     gap: 6px;
     font-size: 14px;
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .thinking-text {
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
 }
 
+
 /* ==== THINKING DOT (LOADING STATE) ==== */
+
 .thinking-dot {
     width: 6px;
     height: 6px;
@@ -39,22 +44,22 @@
 }
 
 @keyframes thinkingPulse {
-
     0%,
     100% {
         opacity: 0.3;
         transform: scale(0.8);
     }
-
     50% {
         opacity: 1;
         transform: scale(1.2);
     }
 }
 
+
 /* ==== CHEVRON ICON ==== */
+
 .thinking-chevron {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.65);
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -62,7 +67,9 @@
     transform: rotate(90deg);
 }
 
+
 /* ==== THINKING CONTENT ==== */
+
 .thinking-content {
     padding: 8px 0 12px 0;
     font-size: 14px;
@@ -81,14 +88,15 @@
         opacity: 0;
         transform: translateY(-4px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
+
 /* ==== THINKING CONTENT MARKDOWN ==== */
+
 .thinking-content p {
     margin: 0 0 8px 0;
 }

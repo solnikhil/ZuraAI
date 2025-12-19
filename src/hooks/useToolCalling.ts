@@ -1,5 +1,5 @@
 // Hook for handling tool calling in chat flows
-// **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings**
+// Sensitive tools require approval based on settings
 // **Validates: Requirements 4.3**
 
 import { useState, useCallback, useRef } from 'react'
@@ -42,11 +42,9 @@ export function useToolCalling() {
 
     /**
      * Check if tools are enabled and supported for current provider/model
-     * Agent mode always enables tools regardless of toolsEnabled setting
      */
     const canUseTools = (): boolean => {
         // Use shouldEnableTools to check if tools should be enabled
-        // This respects agent mode override (agent mode always enables tools)
         if (!shouldEnableTools(settings)) {
             return false
         }
@@ -75,7 +73,7 @@ export function useToolCalling() {
 
     /**
      * Check if a tool requires approval based on toolApprovalMode setting
-     * **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings**
+     * Sensitive tools require approval based on settings
      * **Validates: Requirements 4.3**
      */
     const shouldRequireApproval = useCallback((toolCall: ToolCall): boolean => {

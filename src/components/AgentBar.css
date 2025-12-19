@@ -1,4 +1,5 @@
 /* ==== CONTAINER ==== */
+
 .agent-bar-container {
     position: fixed;
     bottom: 40px;
@@ -8,10 +9,7 @@
     pointer-events: auto;
     will-change: transform, opacity, max-width;
     /* Spring animation */
-    transition: max-width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-        transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-        opacity 0.2s ease-out,
-        bottom 0.25s ease-out;
+    transition: max-width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out, bottom 0.25s ease-out;
 }
 
 .agent-bar-container.hidden {
@@ -20,14 +18,18 @@
     pointer-events: none;
 }
 
+
 /* COLLAPSED STATE */
+
 .agent-bar-container.collapsed {
     width: auto;
     min-width: 320px;
     max-width: 400px;
 }
 
+
 /* EXPANDED STATE */
+
 .agent-bar-container.expanded {
     width: 100%;
     max-width: 620px;
@@ -37,7 +39,9 @@
     bottom: 20px;
 }
 
+
 /* ==== BAR ==== */
+
 .agent-bar {
     background: rgba(18, 18, 20, 0.85);
     backdrop-filter: blur(20px);
@@ -58,7 +62,9 @@
     border-top: none;
 }
 
+
 /* ==== LOGO ICON ==== */
+
 .agent-icon {
     display: flex;
     align-items: center;
@@ -83,11 +89,13 @@
     transform: scale(1.12);
 }
 
+
 /* ==== ACTION BUTTONS ==== */
+
 .action-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     padding: 6px;
     border-radius: 8px;
@@ -103,7 +111,9 @@
     color: rgba(255, 255, 255, 0.9);
 }
 
+
 /* ==== INPUT ==== */
+
 .agent-form {
     flex: 1;
     display: flex;
@@ -124,7 +134,9 @@
     color: rgba(255, 255, 255, 0.35);
 }
 
+
 /* ==== CONTROLS (Expanded) ==== */
+
 .agent-controls {
     display: flex;
     align-items: center;
@@ -149,13 +161,15 @@
     pointer-events: none;
 }
 
+
 /* ==== MODEL SWITCHER ==== */
+
 .model-switcher {
     position: relative;
     display: flex;
     align-items: center;
     gap: 5px;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.75);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -177,7 +191,9 @@
     white-space: nowrap;
 }
 
+
 /* ==== DROPDOWN ==== */
+
 .model-dropdown {
     position: absolute;
     bottom: 100%;
@@ -199,7 +215,6 @@
         opacity: 0;
         transform: translateY(10px) scale(0.95);
     }
-
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -209,7 +224,7 @@
 .model-section-label {
     padding: 6px 10px;
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.65);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -240,7 +255,6 @@
         opacity: 0;
         transform: translateY(-8px) scale(0.95);
     }
-
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -260,7 +274,9 @@
     font-size: 12px;
 }
 
+
 /* ==== SUBMIT BUTTON ==== */
+
 .submit-btn {
     width: 28px;
     height: 28px;
@@ -293,7 +309,9 @@
     height: 26px;
 }
 
+
 /* ==== THINKING TOGGLE ==== */
+
 .thinking-toggle {
     width: 28px;
     height: 28px;
@@ -303,7 +321,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     flex-shrink: 0;
@@ -327,7 +345,9 @@
     background: rgba(255, 140, 105, 0.2);
 }
 
+
 /* ==== SCREENSHOT PREVIEW ==== */
+
 .screenshot-preview {
     position: relative;
     display: flex;
@@ -345,7 +365,6 @@
         opacity: 0;
         transform: translateX(10px) scale(0.95);
     }
-
     to {
         opacity: 1;
         transform: translateX(0) scale(1);

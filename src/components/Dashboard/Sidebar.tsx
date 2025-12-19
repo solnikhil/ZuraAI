@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, Link, Brain, ArrowLeft, Github, Star, ListTodo, Command, Sparkles, Bot } from 'lucide-react'
+import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X } from 'lucide-react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 
@@ -46,7 +46,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 flexDirection: 'column',
                 gap: '12px'
             }}>
-                {/* Top Actions Row */}
+                {/* Top Actions Row - Library and Retract Button */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -65,7 +65,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#666',
+                            color: '#999999',
                             cursor: 'pointer',
                             padding: '6px',
                             borderRadius: '6px',
@@ -80,7 +80,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.backgroundColor = 'transparent'
-                            e.currentTarget.style.color = '#666'
+                            e.currentTarget.style.color = '#999999'
                         }}
                     >
                         <PanelLeft size={20} />
@@ -90,43 +90,79 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 {/* New Chat Button */}
                 <button
                     onClick={() => clearCurrentSession()}
-                    title="New Chat"
+                    title="New chat"
                     style={{
                         width: '100%',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: isCollapsed ? '0' : '8px',
-                        padding: '12px',
+                        gap: isCollapsed ? '0' : '12px',
+                        padding: isCollapsed ? '10px' : '12px',
                         cursor: 'pointer',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        background: 'rgba(255,255,255,0.06)',
-                        color: '#fff',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#999999',
                         fontSize: '0.9rem',
                         fontWeight: 500,
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        justifyContent: isCollapsed ? 'center' : 'flex-start'
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
+                        e.currentTarget.style.color = '#fff'
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                        e.currentTarget.style.color = '#999999'
                     }}
                 >
-                    <Plus size={20} />
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>New Chat</span>}
+                    <FileEdit size={20} strokeWidth={2} />
+                    {!isCollapsed && <span>New chat</span>}
                 </button>
 
-                {/* Search */}
-                {isCollapsed ? (
-                    <button onClick={() => setIsCollapsed(false)} style={{ width: '100%', padding: '10px', background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', borderRadius: '10px', marginBottom: '10px' }}>
-                        <Search size={20} />
-                    </button>
-                ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '10px' }}>
-                        <Search size={14} color="#666" style={{ marginRight: '10px', flexShrink: 0 }} />
+                {/* Search Input - Show when not collapsed */}
+                {!isCollapsed && (
+                    <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        backgroundColor: 'rgba(255,255,255,0.04)', 
+                        borderRadius: '8px', 
+                        padding: '8px 12px', 
+                        border: '1px solid rgba(255,255,255,0.06)', 
+                        marginTop: '4px'
+                    }}>
+                        <Search size={16} color="#b0b0b0" style={{ marginRight: '10px', flexShrink: 0 }} />
                         <input
                             type="text"
-                            placeholder="Search..."
+                            placeholder="Search chats"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '0.85rem', width: '100%', outline: 'none' }}
+                            style={{ 
+                                background: 'transparent', 
+                                border: 'none', 
+                                color: '#fff', 
+                                fontSize: '0.9rem', 
+                                width: '100%', 
+                                outline: 'none' 
+                            }}
                         />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#b0b0b0',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -141,13 +177,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 gap: '2px'
             }}>
                 {!isCollapsed && filteredSessions.length > 0 && (
-                    <div onClick={() => setIsListExpanded(!isListExpanded)} style={{ fontSize: '0.85rem', color: '#888', padding: '8px 4px', marginTop: '4px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+                    <div onClick={() => setIsListExpanded(!isListExpanded)} style={{ fontSize: '0.85rem', color: '#b0b0b0', padding: '8px 4px', marginTop: '4px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
                         <ChevronDown size={14} style={{ transition: 'transform 0.2s', transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                         <span>Your chats</span>
                     </div>
                 )}
 
-                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '2px' }}>
+                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '6px' }}>
                     {filteredSessions.map((session, index) => (
                         <div
                             key={session.id}
@@ -182,7 +218,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                         flexShrink: 0
                                     }}
                                 >
-                                    <Trash2 size={13} color="#888" />
+                                    <Trash2 size={13} color="#b0b0b0" />
                                 </div>
                             )}
                         </div>
@@ -190,18 +226,42 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 </div>
             </div>
 
-            {/* Footer (Model Select + Settings Btn) */}
+            {/* Footer - Settings Button */}
             <div style={{
+                marginTop: 'auto',
                 borderTop: '1px solid rgba(255,255,255,0.06)',
                 padding: isCollapsed ? '12px 0' : '12px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: isCollapsed ? 'center' : 'stretch'
             }}>
-
-
-                <button onClick={onOpenSettings} title="Settings" style={{ width: isCollapsed ? '40px' : '100%', padding: isCollapsed ? '0' : '10px 12px', cursor: 'pointer', borderRadius: '10px', border: 'none', background: 'transparent', color: '#aaa', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '10px' }}>
-                    <SettingsIcon size={20} />
+                <button 
+                    onClick={onOpenSettings} 
+                    title="Settings" 
+                    style={{ 
+                        width: isCollapsed ? '40px' : '100%', 
+                        padding: isCollapsed ? '10px' : '12px', 
+                        cursor: 'pointer', 
+                        borderRadius: '8px', 
+                        border: 'none', 
+                        background: 'transparent', 
+                        color: '#fff', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: isCollapsed ? 'center' : 'flex-start', 
+                        gap: '12px',
+                        fontSize: '0.9rem',
+                        fontWeight: 500,
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                >
+                    <SettingsIcon size={20} strokeWidth={2} />
                     {!isCollapsed && <span>Settings</span>}
                 </button>
             </div>
@@ -223,60 +283,62 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             transition: 'all 0.3s ease',
             pointerEvents: view === 'settings' ? 'all' : 'none',
             padding: '20px 16px',
-            backgroundColor: '#1B1913' // Ensure BG covers chat list
-
+            backgroundColor: '#1B1913', // Ensure BG covers chat list
+            boxSizing: 'border-box'
         }}>
 
 
-            {/* Header */}
-            <div style={{
-                padding: '0 0 16px 0',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: isCollapsed ? 'center' : 'space-between',
-                marginBottom: '8px'
-            }}>
-                {!isCollapsed && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
-                        <SettingsIcon size={18} />
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Settings</span>
-                    </div>
-                )}
-                <button
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#666',
-                        cursor: 'pointer',
-                        padding: '6px',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
-                        e.currentTarget.style.color = '#fff'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                        e.currentTarget.style.color = '#666'
-                    }}
-                >
-                    <PanelLeft size={20} />
-                </button>
-            </div>
+            {/* Content Area - grows to push footer down */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {/* Header */}
+                <div style={{
+                    padding: '0 0 16px 0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: isCollapsed ? 'center' : 'space-between',
+                    marginBottom: '8px'
+                }}>
+                    {!isCollapsed && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
+                            <SettingsIcon size={18} />
+                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Settings</span>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => setIsCollapsed(!isCollapsed)}
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#999999',
+                            cursor: 'pointer',
+                            padding: '6px',
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
+                            e.currentTarget.style.color = '#fff'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                            e.currentTarget.style.color = '#666'
+                        }}
+                    >
+                        <PanelLeft size={20} />
+                    </button>
+                </div>
 
-            {/* GitHub Card - Compact vs Full */}
+                {/* GitHub Card - Compact vs Full */}
             {isCollapsed ? (
                 <div
                     onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
                     style={{
                         padding: '12px',
                         marginBottom: '16px',
-                        background: 'rgba(27, 25, 19, 0.6)',
+                        background: 'rgba(35, 28, 20, 0.7)',
                         border: '1px solid rgba(255,255,255,0.06)',
                         borderRadius: '12px',
                         cursor: 'pointer',
@@ -291,13 +353,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
                         e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.background = 'rgba(27, 25, 19, 0.8)';
+                        e.currentTarget.style.background = 'rgba(40, 32, 22, 0.85)';
                     }}
                     onMouseLeave={e => {
                         e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.background = 'rgba(20, 18, 11, 0.6)';
+                        e.currentTarget.style.background = 'rgba(35, 28, 20, 0.7)';
                     }}
                 >
                     <Github size={20} color="#fff" />
@@ -308,7 +370,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     style={{
                         padding: '16px',
                         marginBottom: '16px',
-                        background: 'rgba(27, 25, 19, 0.6)',
+                        background: 'rgba(35, 28, 20, 0.7)',
                         border: '1px solid rgba(255,255,255,0.06)',
                         borderRadius: '16px',
                         cursor: 'pointer',
@@ -321,7 +383,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         e.currentTarget.style.transform = 'translateY(-2px)';
                         e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-                        e.currentTarget.style.background = 'rgba(27, 25, 19, 0.8)';
+                        e.currentTarget.style.background = 'rgba(40, 32, 22, 0.85)';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
                             badge.style.background = 'rgba(255, 215, 0, 0.15)';
@@ -332,11 +394,11 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                        e.currentTarget.style.background = 'rgba(20, 18, 11, 0.6)';
+                        e.currentTarget.style.background = 'rgba(35, 28, 20, 0.7)';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
                             badge.style.background = 'rgba(255,255,255,0.05)';
-                            badge.style.color = '#ccc';
+                            badge.style.color = '#e0e0e0';
                         }
                     }}
                 >
@@ -356,7 +418,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
 
                             <div className="github-star-badge" style={{
                                 fontSize: '0.8rem',
-                                color: '#ccc',
+                                color: '#e0e0e0',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
@@ -375,71 +437,73 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 </div>
             )}
 
-            {/* Navigation */}
-            <div className="nav-menu" style={{ background: 'transparent', border: 'none', padding: 0 }}>
-                {[
-                    { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
-                    { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
-                    { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
-                    { id: 'shortcuts', label: 'Shortcuts', icon: <Command size={18} /> },
-                    { id: 'tools', label: 'Tools', icon: <Sparkles size={18} /> },
-                    { id: 'agent', label: 'Agent', icon: <Bot size={18} /> },
-                    { id: 'connectors', label: 'Connectors', icon: <Link size={18} /> },
-                    { id: 'memories', label: 'Memories', icon: <Brain size={18} /> },
-                    { id: 'todos', label: 'Todos', icon: <ListTodo size={18} /> }
-                ].map((item, index) => (
-                    <button
-                        key={item.id}
-                        onClick={() => onNavigateSettings(item.id)}
-                        className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
-                        style={{
-                            padding: '10px 12px',
-                            fontSize: '0.9rem',
-                            justifyContent: isCollapsed ? 'center' : 'flex-start',
-                            animationDelay: `${index * 0.05}s`
-                        }}
-                        title={isCollapsed ? item.label : ''}
-                    >
-                        {item.icon}
-                        {!isCollapsed && item.label}
-                    </button>
-                ))}
+                {/* Navigation */}
+                <div className="nav-menu" style={{ 
+                    background: 'transparent', 
+                    border: 'none', 
+                    padding: 0
+                }}>
+                    {[
+                        { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
+                        { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
+                        { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
+                        { id: 'tools', label: 'Tools', icon: <Sparkles size={18} /> }
+                    ].map((item, index) => (
+                        <button
+                            key={item.id}
+                            onClick={() => onNavigateSettings(item.id)}
+                            className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
+                            style={{
+                                padding: '10px 12px',
+                                fontSize: '0.9rem',
+                                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                                animationDelay: `${index * 0.05}s`
+                            }}
+                            title={isCollapsed ? item.label : ''}
+                        >
+                            {item.icon}
+                            {!isCollapsed && item.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-
-            {/* Bottom Actions - Back to Chat */}
+            {/* Footer - Back to Chat Button */}
             <div style={{
                 marginTop: 'auto',
-                paddingTop: '16px',
-                borderTop: '1px solid rgba(255,255,255,0.06)'
+                borderTop: '1px solid rgba(255,255,255,0.06)',
+                padding: isCollapsed ? '12px 0' : '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: isCollapsed ? 'center' : 'stretch'
             }}>
                 <button
                     onClick={onCloseSettings}
                     style={{
-                        width: '100%',
-                        padding: '10px 12px',
+                        width: isCollapsed ? '40px' : '100%',
+                        padding: isCollapsed ? '10px' : '12px',
                         cursor: 'pointer',
-                        borderRadius: '10px',
+                        borderRadius: '8px',
                         border: 'none',
                         background: 'transparent',
-                        color: '#aaa',
+                        color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: isCollapsed ? 'center' : 'flex-start',
-                        gap: '10px',
-                        transition: 'all 0.2s'
+                        gap: '12px',
+                        fontSize: '0.9rem',
+                        fontWeight: 500,
+                        transition: 'all 0.2s ease'
                     }}
                     onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                        e.currentTarget.style.color = '#fff'
+                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
                     }}
                     onMouseLeave={e => {
-                        e.currentTarget.style.background = 'transparent'
-                        e.currentTarget.style.color = '#aaa'
+                        e.currentTarget.style.backgroundColor = 'transparent'
                     }}
                     title={isCollapsed ? "Back to Chat" : ""}
                 >
-                    <ArrowLeft size={20} />
+                    <ArrowLeft size={20} strokeWidth={2} />
                     {!isCollapsed && <span>Back to Chat</span>}
                 </button>
             </div>
@@ -479,10 +543,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 .toggle-switch.active .toggle-thumb { transform: translateX(14px); }
                 .toggle-switch.active { background: #fff; }
                 
-                .btn-signout { width: 100%; padding: 10px; border: 1px solid #333; background: transparent; border-radius: 12px; color: #ccc; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
-                .btn-signout:hover { background: #1a1a1a; color: #fff; border-color: #444; }
+                .btn-signout { width: 100%; padding: 10px; border: 1px solid #333; background: transparent; border-radius: 12px; color: #e0e0e0; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+                .btn-signout:hover { background: #1a1a1a; color: #fff; border-color: #777777; }
                 
-                .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: #888; background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
+                .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: #b0b0b0; background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
                 .nav-item:hover { color: #e0e0e0; background: rgba(255,255,255,0.03); }
                 .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
 

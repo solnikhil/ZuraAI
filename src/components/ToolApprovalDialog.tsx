@@ -1,5 +1,5 @@
 // Tool Approval Dialog - Shows when a sensitive tool needs user confirmation
-// **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings**
+// Sensitive tools require approval based on settings
 // **Validates: Requirements 4.3**
 
 import React from 'react'

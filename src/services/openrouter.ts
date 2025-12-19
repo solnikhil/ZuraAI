@@ -6,6 +6,15 @@ export interface OpenRouterStreamChunk {
         delta?: {
             content?: string
             role?: string
+            tool_calls?: Array<{
+                index?: number
+                id?: string
+                type?: 'function'
+                function?: {
+                    name?: string
+                    arguments?: string
+                }
+            }>
         }
         finish_reason?: string | null
     }>
@@ -13,6 +22,8 @@ export interface OpenRouterStreamChunk {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        prompt_cache_tokens?: number
+        completion_cache_tokens?: number
     }
 }
 

@@ -12,9 +12,9 @@
     --bg-card: #1B1913;
     --bg-hover: rgba(255, 255, 255, 0.05);
     --text-primary: #ffffff;
-    --text-secondary: #e0e0e0;
-    --text-tertiary: #888888;
-    --text-muted: #666666;
+    --text-secondary: #f0f0f0;
+    --text-tertiary: #b0b0b0;
+    --text-muted: #999999;
     --border-color: rgba(255, 255, 255, 0.06);
     --border-hover: rgba(255, 255, 255, 0.1);
     --accent-primary: #8b5cf6;

@@ -236,7 +236,7 @@
 .markdown-body blockquote {
     margin: 1em 0;
     padding: 0 1em;
-    color: rgba(255, 255, 255, 0.65);
+    color: rgba(255, 255, 255, 0.8);
     border-left: 3px solid rgba(255, 140, 105, 0.5);
 }
 

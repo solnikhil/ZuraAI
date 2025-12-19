@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { useSettings, THINKING_SYSTEM_PROMPT } from '../contexts/SettingsContext'
+﻿import React, { useState, useEffect, useRef } from 'react'
+import { useSettings } from '../contexts/SettingsContext'
 import './Overlay.css'
 import ShinyText from './ShinyText'
 import AgentBar from './AgentBar'
@@ -159,27 +159,7 @@ export default function Overlay() {
         setStreamingContent('')
     }
 
-    // Parse thinking content from response using "**Final Answer:**" delimiter
-    const parseThinkingContent = (content: string): { thinking: string | undefined; answer: string } => {
-        // Check for Final Answer delimiter
-        const finalAnswerMatch = content.match(/\*\*Final Answer:\*\*/i)
-        if (finalAnswerMatch && finalAnswerMatch.index !== undefined) {
-            const thinkingPart = content.substring(0, finalAnswerMatch.index).trim()
-            const answerPart = content.substring(finalAnswerMatch.index + finalAnswerMatch[0].length).trim()
-            // Clean up thinking part - remove "---" and "**Thinking...**" markers
-            const cleanThinking = thinkingPart
-                .replace(/^---\s*/m, '')
-                .replace(/---\s*$/m, '')
-                .replace(/\*\*Thinking\.\.\.\*\*/gi, '')
-                .trim()
-            return {
-                thinking: cleanThinking || undefined,
-                answer: answerPart || content
-            }
-        }
-        // No thinking delimiter found, return content as-is
-        return { thinking: undefined, answer: content }
-    }
+
 
     const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
@@ -231,9 +211,7 @@ export default function Overlay() {
         const messagesPayload = []
 
         // Use thinking system prompt when enabled
-        const systemPromptToUse = settings.thinkingModeEnabled
-            ? THINKING_SYSTEM_PROMPT
-            : settings.systemPrompt
+        const systemPromptToUse = settings.systemPrompt
 
         if (systemPromptToUse) {
             messagesPayload.push({ role: 'system', content: systemPromptToUse })
@@ -260,9 +238,8 @@ export default function Overlay() {
         const rawContent = response.message.content
 
         // Parse thinking content if thinking mode is enabled
-        const { thinking, answer } = settings.thinkingModeEnabled
-            ? parseThinkingContent(rawContent)
-            : { thinking: undefined, answer: rawContent }
+        const thinking = undefined
+        const answer = rawContent
 
         // Show typewriter effect
         setIsLoading(false)
@@ -296,9 +273,7 @@ export default function Overlay() {
         const messagesPayload: { role: string; content: string }[] = []
         
         // Use thinking system prompt when enabled, otherwise use regular system prompt
-        const systemPromptToUse = settings.thinkingModeEnabled
-            ? THINKING_SYSTEM_PROMPT
-            : settings.systemPrompt
+        const systemPromptToUse = settings.systemPrompt
 
         if (systemPromptToUse) {
             messagesPayload.push({ role: 'system', content: systemPromptToUse })
@@ -366,9 +341,8 @@ export default function Overlay() {
         }
 
         // Parse thinking content if thinking mode is enabled
-        const { thinking, answer } = settings.thinkingModeEnabled
-            ? parseThinkingContent(rawContent)
-            : { thinking: undefined, answer: rawContent }
+        const thinking = undefined
+        const answer = rawContent
 
         // Show typewriter effect for the answer only
         setIsLoading(false)
@@ -399,9 +373,7 @@ export default function Overlay() {
         const messagesPayload = []
 
         // Use thinking system prompt when enabled
-        const systemPromptToUse = settings.thinkingModeEnabled
-            ? THINKING_SYSTEM_PROMPT
-            : settings.systemPrompt
+        const systemPromptToUse = settings.systemPrompt
 
         if (systemPromptToUse) {
             messagesPayload.push({ role: 'system', content: systemPromptToUse })
@@ -422,9 +394,8 @@ export default function Overlay() {
         const rawContent = response.choices[0].message.content
 
         // Parse thinking content if thinking mode is enabled
-        const { thinking, answer } = settings.thinkingModeEnabled
-            ? parseThinkingContent(rawContent)
-            : { thinking: undefined, answer: rawContent }
+        const thinking = undefined
+        const answer = rawContent
 
         // Show typewriter effect
         setIsLoading(false)
@@ -473,9 +444,7 @@ export default function Overlay() {
         }
 
         // Use thinking system prompt when enabled, otherwise use regular system prompt
-        const systemPromptToUse = settings.thinkingModeEnabled
-            ? THINKING_SYSTEM_PROMPT
-            : settings.systemPrompt
+        const systemPromptToUse = settings.systemPrompt
 
         if (systemPromptToUse) {
             messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
@@ -556,9 +525,8 @@ export default function Overlay() {
         }
 
         // Parse thinking content if thinking mode is enabled
-        const { thinking, answer } = settings.thinkingModeEnabled
-            ? parseThinkingContent(rawContent)
-            : { thinking: undefined, answer: rawContent }
+        const thinking = undefined
+        const answer = rawContent
 
         // Show typewriter effect for the answer only
         setIsLoading(false)
@@ -845,7 +813,7 @@ export default function Overlay() {
                     <div className="image-viewer-content">
                         <img src={viewingImage} alt="Full view" />
                     </div>
-                    <div style={{ position: 'absolute', bottom: '30px', color: 'rgba(255,255,255,0.5)', fontSize: '14px' }}>
+                    <div style={{ position: 'absolute', bottom: '30px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>
                         Click anywhere to close
                     </div>
                 </div>
@@ -853,3 +821,7 @@ export default function Overlay() {
         </div>
     )
 }
+
+
+
+

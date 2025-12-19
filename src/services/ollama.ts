@@ -51,6 +51,102 @@ export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> 
     }
 }
 
+export interface OllamaStreamChunk {
+    model: string
+    created_at: string
+    message?: {
+        role: string
+        content: string
+        tool_calls?: Array<{
+            id?: string
+            type?: 'function'
+            function?: {
+                name?: string
+                arguments?: string
+            }
+        }>
+    }
+    done: boolean
+    total_duration?: number
+    load_duration?: number
+    prompt_eval_count?: number
+    prompt_eval_duration?: number
+    eval_count?: number
+    eval_duration?: number
+}
+
+export async function* streamOllamaCompletion(
+    baseUrl: string,
+    model: string,
+    messages: any[],
+    options?: {
+        temperature?: number
+        num_ctx?: number
+        tools?: any[]
+        onChunk?: (chunk: OllamaStreamChunk) => void
+    }
+): AsyncGenerator<OllamaStreamChunk, void, unknown> {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
+            tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
+            options: {
+                temperature: options?.temperature,
+                num_ctx: options?.num_ctx
+            }
+        }),
+    })
+
+    if (!response.ok) {
+        throw new Error(`Ollama API Error: ${response.statusText}`)
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+        throw new Error("Failed to get response reader")
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.trim() === '') continue
+                try {
+                    const chunk: OllamaStreamChunk = JSON.parse(line)
+                    if (options?.onChunk) {
+                        options.onChunk(chunk)
+                    }
+                    yield chunk
+                    if (chunk.done) {
+                        return
+                    }
+                } catch (e) {
+                    // Skip invalid JSON
+                    console.warn('Failed to parse Ollama chunk:', line)
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock()
+    }
+}
+
 export const generateOllamaCompletion = async (
     baseUrl: string,
     model: string,

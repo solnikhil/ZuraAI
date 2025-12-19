@@ -59,7 +59,7 @@
 
 .profile-email {
     font-size: 0.8rem;
-    color: #666;
+    color: #b0b0b0;
     margin-bottom: 24px;
 }
 
@@ -74,35 +74,72 @@
 
 .label-small {
     font-size: 0.8rem;
-    color: #888;
+    color: #b0b0b0;
 }
 
 .toggle-switch {
-    width: 32px;
-    height: 18px;
-    background: #333;
-    border-radius: 9px;
+    width: 48px !important;
+    height: 26px !important;
+    background: #1B1913 !important;
+    border-radius: 13px !important;
     position: relative;
     cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.toggle-switch:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.toggle-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.toggle-slider,
 .toggle-thumb {
-    width: 14px;
-    height: 14px;
+    width: 20px !important;
+    height: 20px !important;
     background: #fff;
     border-radius: 50%;
     position: absolute;
-    top: 2px;
-    left: 2px;
-    transition: transform 0.2s;
+    top: 50% !important;
+    left: 3px;
+    transform: translateY(-50%);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    display: block;
 }
 
+.toggle-switch input:checked+.toggle-slider,
+.toggle-switch input:checked~.toggle-slider,
+.toggle-switch.active .toggle-slider,
 .toggle-switch.active .toggle-thumb {
-    transform: translateX(14px);
+    transform: translateX(22px) translateY(-50%) !important;
+    box-shadow: 0 2px 8px rgba(255, 228, 196, 0.5), 0 0 12px rgba(255, 228, 196, 0.3);
 }
 
+.toggle-switch:has(input:checked),
 .toggle-switch.active {
-    background: #fff;
+    background: linear-gradient(135deg, #FFE4C4 0%, #d4b89a 100%) !important;
+    border-color: rgba(255, 228, 196, 0.4);
+    box-shadow: 0 0 0 2px rgba(255, 228, 196, 0.1), inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-switch:has(input:checked):hover {
+    background: linear-gradient(135deg, #ffe8d0 0%, #e0c4a8 100%) !important;
+    border-color: rgba(255, 228, 196, 0.5);
 }
 
 .btn-signout {
@@ -111,7 +148,7 @@
     border: 1px solid #333;
     background: transparent;
     border-radius: 12px;
-    color: #ccc;
+    color: #e0e0e0;
     font-size: 0.9rem;
     cursor: pointer;
     display: flex;
@@ -146,7 +183,7 @@
     gap: 12px;
     padding: 12px 16px;
     border-radius: 16px;
-    color: #888;
+    color: #b0b0b0;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -191,7 +228,7 @@
 }
 
 .page-subtitle {
-    color: #666;
+    color: #b0b0b0;
     font-size: 0.9rem;
 }
 
@@ -221,7 +258,7 @@
 
 .stat-label {
     font-size: 0.85rem;
-    color: #888;
+    color: #b0b0b0;
 }
 
 .stat-value {
@@ -234,7 +271,7 @@
 
 .stat-subtext {
     font-size: 0.75rem;
-    color: #555;
+    color: #888888;
 }
 
 
@@ -261,7 +298,7 @@
     justify-content: space-between;
     font-size: 0.85rem;
     font-weight: 500;
-    color: #ccc;
+    color: #e0e0e0;
 }
 
 .limit-bar-bg {
@@ -289,7 +326,7 @@
     display: flex;
     justify-content: space-between;
     font-size: 0.75rem;
-    color: #555;
+    color: #888888;
 }
 
 
@@ -312,7 +349,7 @@
 }
 
 .upgrade-desc {
-    color: #666;
+    color: #999999;
     font-size: 0.85rem;
     margin-bottom: 20px;
 }
@@ -368,7 +405,7 @@
     background: rgba(255, 255, 255, 0.06);
     border: none;
     border-radius: 6px;
-    color: #666;
+    color: #999999;
     font-size: 0.75rem;
     cursor: pointer;
 }
@@ -489,7 +526,7 @@ select.setting-input-scira option {
 .setting-input-scira optgroup,
 select.setting-input-scira optgroup {
     background: #1B1913;
-    color: #888;
+    color: #b0b0b0;
     font-weight: 600;
     padding: 8px;
 }
@@ -519,7 +556,7 @@ select.setting-input-scira optgroup {
     padding: 10px 12px;
     background: transparent;
     border: none;
-    color: #888;
+    color: #b0b0b0;
     cursor: pointer;
     font-size: 0.9rem;
     margin-bottom: 20px;
@@ -569,7 +606,7 @@ select.setting-input-scira optgroup {
 
 .profile-info-role {
     font-size: 0.8rem;
-    color: #888;
+    color: #b0b0b0;
 }
 
 .profile-privacy-toggle {
@@ -583,7 +620,7 @@ select.setting-input-scira optgroup {
 
 .profile-privacy-label {
     font-size: 0.85rem;
-    color: #888;
+    color: #b0b0b0;
 }
 
 .profile-privacy-switch {
@@ -611,7 +648,7 @@ select.setting-input-scira optgroup {
     background: transparent;
     border: none;
     border-radius: 10px;
-    color: #888;
+    color: #b0b0b0;
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 500;
@@ -672,7 +709,7 @@ select.setting-input-scira optgroup {
 }
 
 .settings-page-desc {
-    color: #888;
+    color: #b0b0b0;
     margin-bottom: 40px;
     font-size: 0.95rem;
 }
@@ -689,7 +726,7 @@ select.setting-input-scira optgroup {
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #666;
+    color: #999999;
     margin-bottom: 16px;
     font-weight: 600;
 }
@@ -743,7 +780,7 @@ select.setting-input-scira optgroup {
 
 .item-desc {
     font-size: 0.8rem;
-    color: #888;
+    color: #b0b0b0;
 }
 
 
@@ -816,7 +853,7 @@ select.setting-input-scira optgroup {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    color: #ccc;
+    color: #e0e0e0;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
@@ -841,7 +878,7 @@ select.setting-input-scira optgroup {
     padding: 8px;
     background: transparent;
     border: none;
-    color: #666;
+    color: #999999;
     cursor: pointer;
     border-radius: 6px;
     display: flex;
@@ -914,7 +951,7 @@ select.setting-input-scira optgroup {
 
 .model-info-code {
     font-size: 0.75rem;
-    color: #666;
+    color: #999999;
     margin-top: 2px;
 }
 
@@ -930,7 +967,7 @@ select.setting-input-scira optgroup {
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.85rem;
-    color: #aaa;
+    color: #cccccc;
 }
 
 
@@ -954,13 +991,13 @@ select.setting-input-scira optgroup {
 
 .about-subtitle {
     font-size: 1.1rem;
-    color: #888;
+    color: #b0b0b0;
     margin-bottom: 24px;
 }
 
 .about-meta {
     font-size: 0.9rem;
-    color: #555;
+    color: #888888;
     line-height: 1.6;
 }
 
@@ -997,7 +1034,7 @@ select.setting-input-scira optgroup {
 }
 
 .save-text {
-    color: #ccc;
+    color: #e0e0e0;
     font-size: 0.9rem;
 }
 
@@ -1074,7 +1111,7 @@ select.setting-input-scira option {
 
 select.setting-input-scira optgroup {
     background: #1B1913;
-    color: #888;
+    color: #b0b0b0;
     font-weight: 600;
     padding: 8px 12px;
 }

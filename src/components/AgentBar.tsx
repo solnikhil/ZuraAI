@@ -348,19 +348,6 @@ export default function AgentBar({ onPromptSubmit, isSelectionMode, screenshot, 
                             </div>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        className={`thinking-toggle ${settings.thinkingModeEnabled ? 'active' : ''}`}
-                        onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
-                        title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2a8 8 0 0 1 8 8c0 2.5-1.2 4.8-3 6.3V18a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2v-1.7C5.2 14.8 4 12.5 4 10a8 8 0 0 1 8-8z" />
-                            <path d="M9 22h6" />
-                            <path d="M12 6v4" />
-                            <path d="M10 8h4" />
-                        </svg>
-                    </button>
                     <button type="submit" className="submit-btn" onClick={handleSubmit} disabled={!prompt.trim()}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="12" y1="19" x2="12" y2="5"></line>

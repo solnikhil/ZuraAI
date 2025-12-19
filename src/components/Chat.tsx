@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { useSettings, THINKING_SYSTEM_PROMPT } from '../contexts/SettingsContext'
+﻿import React, { useState, useRef, useEffect } from 'react'
+import { useSettings } from '../contexts/SettingsContext'
 import { checkOllamaStatus, generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
 import ReactMarkdown from 'react-markdown'
@@ -106,9 +106,7 @@ export default function Chat() {
             const messagesPayload = []
 
             // Use thinking system prompt when enabled
-            const systemPromptToUse = settings.thinkingModeEnabled
-                ? THINKING_SYSTEM_PROMPT
-                : settings.systemPrompt
+            const systemPromptToUse = settings.systemPrompt
 
             if (systemPromptToUse) {
                 messagesPayload.push({ role: 'system', content: systemPromptToUse })
@@ -126,14 +124,13 @@ export default function Chat() {
             const rawContent = response.choices[0].message.content
 
             // Parse thinking content if thinking mode is enabled
-            const { thinking, answer } = settings.thinkingModeEnabled
-                ? parseThinkingContent(rawContent)
-                : { thinking: undefined, answer: rawContent }
+            const thinking = undefined
+            const content = response.choices[0].message.content
 
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: answer,
+                content: content,
                 thinking: thinking
             }
             setMessages(prev => [...prev, aiMessage])
@@ -148,9 +145,7 @@ export default function Chat() {
             const messagesPayload = []
 
             // Use thinking system prompt when enabled
-            const systemPromptToUse = settings.thinkingModeEnabled
-                ? THINKING_SYSTEM_PROMPT
-                : settings.systemPrompt
+            const systemPromptToUse = settings.systemPrompt
 
             if (systemPromptToUse) {
                 messagesPayload.push({ role: 'system', content: systemPromptToUse })
@@ -175,14 +170,13 @@ export default function Chat() {
             const rawContent = response.message.content
 
             // Parse thinking content if thinking mode is enabled
-            const { thinking, answer } = settings.thinkingModeEnabled
-                ? parseThinkingContent(rawContent)
-                : { thinking: undefined, answer: rawContent }
+            const thinking = undefined
+            const answer = response.message.content
 
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: answer,
+                content: content,
                 thinking: thinking
             }
             setMessages(prev => [...prev, aiMessage])
@@ -218,9 +212,7 @@ export default function Chat() {
         }
 
         // Use thinking system prompt when enabled
-        const systemPromptToUse = settings.thinkingModeEnabled
-            ? THINKING_SYSTEM_PROMPT
-            : settings.systemPrompt
+        const systemPromptToUse = settings.systemPrompt
 
         if (systemPromptToUse) {
             messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
@@ -250,14 +242,13 @@ export default function Chat() {
         const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
         // Parse thinking content if thinking mode is enabled
-        const { thinking, answer } = settings.thinkingModeEnabled
-            ? parseThinkingContent(rawContent)
-            : { thinking: undefined, answer: rawContent }
+        const thinking = undefined
+        const content = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
         const aiMessage: Message = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: answer,
+            content: content,
             thinking: thinking
         }
         setMessages(prev => [...prev, aiMessage])
@@ -375,7 +366,7 @@ export default function Chat() {
                     }}
                     title="Settings"
                 >
-                    ⚙️
+                    ??
                 </button>
             </div>
             <div className="messages-list">

@@ -6,7 +6,7 @@ import { toolDefinitions, getToolByName } from '../tools/definitions'
  * Helper function to check if a tool requires approval based on toolApprovalMode
  * This mirrors the logic in useToolCalling.shouldRequireApproval
  * 
- * **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings**
+ * Sensitive tools require approval based on settings
  * **Validates: Requirements 4.3**
  */
 function shouldRequireApproval(
@@ -59,7 +59,7 @@ const nonSensitiveToolNameArb = nonSensitiveTools.length > 0
 
 describe('Tool Approval Flow', () => {
     /**
-     * **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings**
+     * Sensitive tools require approval based on settings
      * **Validates: Requirements 4.3**
      * 
      * For any tool with requiresApproval: true, when toolApprovalMode is 'sensitive' or 'always',

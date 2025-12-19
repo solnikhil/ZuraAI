@@ -1,5 +1,9 @@
 /* Tool Approval Dialog Styles */
-/* **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings** */
+
+
+/* Sensitive tools require approval based on settings */
+
+
 /* **Validates: Requirements 4.3** */
 
 .tool-approval-overlay {
@@ -90,7 +94,7 @@
 }
 
 .tool-approval-details .label {
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.7);
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;

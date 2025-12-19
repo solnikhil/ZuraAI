@@ -1,21 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot, Square } from 'lucide-react'
+import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot, Square, Zap, TrendingUp, Database } from 'lucide-react'
 import StarBorder from '../StarBorder'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useChatHistory, Message } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
-import { generateOllamaCompletion } from '../../services/ollama'
-import { generatePerplexityCompletion } from '../../services/perplexity'
-import { generateGeminiCompletion } from '../../services/gemini'
-import { generateGroqCompletion } from '../../services/groq'
+import { generateOllamaCompletion, streamOllamaCompletion } from '../../services/ollama'
+import { generatePerplexityCompletion, streamPerplexityCompletion } from '../../services/perplexity'
+import { generateGeminiCompletion, streamGeminiCompletion } from '../../services/gemini'
+import { generateGroqCompletion, streamGroqCompletion } from '../../services/groq'
+import { streamOpenRouterCompletion } from '../../services/openrouter'
 import { generateChatTitle } from '../../services/titleGenerator'
 import { buildOptimizedContext } from '../../utils/tokenUtils'
 import ModelSelector from './ModelSelector'
-import ThinkingBlock from '../ThinkingBlock'
-import { THINKING_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT } from '../../contexts/SettingsContext'
 import { getEffectiveSystemPrompt } from '../../utils/promptSelection'
 import { exportChatToMarkdown, exportChatToText, downloadFile } from '../../utils/chatExport'
 import { useToast } from '../Toast'
@@ -25,22 +24,11 @@ import { hasGeminiFunctionCalls, formatToolResultsForGemini } from '../../tools/
 import { buildMessagesWithToolResults } from '../../tools/toolManager'
 import BlurText from '../BlurText'
 import GradientText from '../GradientText'
-import AgentCursor, { AgentCursorState } from '../AgentCursor'
-import AgentToolExecution, { AgentToolExecutionProps } from '../AgentToolExecution'
 import ToolApprovalDialog from '../ToolApprovalDialog'
-import {
-    shouldContinueAgentLoop,
-    extractResponseContent,
-    buildToolResultMessage,
-    accumulateToolResults,
-    hasToolErrors,
-    getToolErrors,
-    DEFAULT_AGENT_LOOP_CONFIG
-} from '../../utils/agentLoop'
 import { ToolCallResult } from '../../tools/executor'
 
 export default function ChatArea() {
-    const { sessions, currentSessionId, addMessageToSession, createSession, updateSessionTitle, markMessageAsAnimated, deleteSession, clearAllSessions } = useChatHistory()
+    const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, markMessageAsAnimated, deleteSession, clearAllSessions } = useChatHistory()
     const { settings, updateSettings } = useSettings()
     const { showToast } = useToast()
     const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState, handleApprovalResponse } = useToolCalling()
@@ -50,9 +38,6 @@ export default function ChatArea() {
     const [isInputFocused, setIsInputFocused] = useState(false)
     const [isTitleAnimated, setIsTitleAnimated] = useState(false)
     const [attachedFiles, setAttachedFiles] = useState<Array<{ id: string; name: string; type: string; size: number; data: string; mimeType: string }>>([])
-    const [agentStartTime, setAgentStartTime] = useState<number | undefined>(undefined)
-    const [agentLoopIteration, setAgentLoopIteration] = useState(0)
-    const agentShouldStopRef = useRef(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -60,17 +45,6 @@ export default function ChatArea() {
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
 
-    // Derive agent cursor state from existing state
-    const getAgentCursorState = (): AgentCursorState => {
-        if (!settings.agentModeEnabled || !isLoading) return 'idle'
-        if (toolState.isProcessingTools || toolState.activeToolCalls.length > 0) return 'executing'
-        return 'thinking'
-    }
-
-    const agentCursorState = getAgentCursorState()
-    const currentToolName = toolState.activeToolCalls.length > 0
-        ? toolState.activeToolCalls[0].name
-        : undefined
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -89,128 +63,6 @@ export default function ChatArea() {
         }
     }, [input])
 
-    const parseThinkingContent = (rawContent: string): { thinking: string | undefined; answer: string } => {
-        if (!rawContent || !rawContent.trim()) {
-            return { thinking: undefined, answer: rawContent }
-        }
-
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:parseThinkingContent', message: 'Parsing thinking content', data: { contentLength: rawContent.length, contentPreview: rawContent.substring(0, 200), hasThinkingTag: rawContent.includes('<think>') || rawContent.includes('<think>'), hasThinkingMarker: rawContent.toLowerCase().includes('thinking'), hasFinalAnswer: rawContent.toLowerCase().includes('final answer') }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-fix', hypothesisId: 'B' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
-        // Pattern 1: XML-style tags <think>...</think> or <think>...</think>
-        const xmlTagMatch = rawContent.match(/<(?:think|redacted_reasoning)>([\s\S]*?)<\/(?:think|redacted_reasoning)>/i)
-        if (xmlTagMatch) {
-            const thinkingContent = xmlTagMatch[1].trim()
-            const answerContent = rawContent.replace(/<(?:think|redacted_reasoning)>[\s\S]*?<\/(?:think|redacted_reasoning)>/i, '').trim()
-
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:parseThinkingContent:xml', message: 'Found XML thinking tags', data: { thinkingLength: thinkingContent.length, answerLength: answerContent.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-fix', hypothesisId: 'B' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
-
-            return {
-                thinking: thinkingContent || undefined,
-                answer: answerContent || rawContent
-            }
-        }
-
-        // Pattern 2: "**Thinking...**" followed by content, then "**Final Answer:**"
-        // More flexible regex that handles various markdown formats
-        const thinkingMarkerRegex = /(\*\*)?Thinking\.\.\.?(\*\*)?/i
-        const finalAnswerRegex = /(\*\*)?Final\s+Answer:?(\*\*)?/i
-
-        const thinkingIndex = rawContent.search(thinkingMarkerRegex)
-        const finalAnswerIndex = rawContent.search(finalAnswerRegex)
-
-        if (thinkingIndex !== -1) {
-            // Extract thinking content (from after "Thinking..." marker to "Final Answer:" or end)
-            const thinkingStart = rawContent.indexOf(rawContent.match(thinkingMarkerRegex)?.[0] || 'Thinking', thinkingIndex) + (rawContent.match(thinkingMarkerRegex)?.[0]?.length || 0)
-            const thinkingEnd = finalAnswerIndex !== -1 ? finalAnswerIndex : rawContent.length
-
-            let thinkingContent = rawContent.substring(thinkingStart, thinkingEnd).trim()
-
-            // Clean up thinking content
-            thinkingContent = thinkingContent
-                .replace(/^[-=]{3,}\s*/gm, '') // Remove separator lines
-                .replace(/[-=]{3,}\s*$/gm, '')
-                .replace(/^\*\*Thinking\.\.\.?\*\*\s*/i, '')
-                .replace(/^Thinking\.\.\.?\s*/i, '')
-                .trim()
-
-            // Extract answer content
-            let answerContent: string
-            if (finalAnswerIndex !== -1) {
-                const finalAnswerMatch = rawContent.match(finalAnswerRegex)
-                const answerStart = finalAnswerIndex + (finalAnswerMatch?.[0]?.length || 0)
-                answerContent = rawContent.substring(answerStart).trim()
-            } else {
-                // No Final Answer marker - try to find where thinking ends naturally
-                // Look for double newline or significant content change
-                const afterThinking = rawContent.substring(thinkingEnd)
-                const naturalBreak = afterThinking.search(/\n\n+[A-Z]|\n\n+\d+\.|\n\n+\*\*/)
-                answerContent = naturalBreak !== -1
-                    ? afterThinking.substring(naturalBreak).replace(/^\n+/, '').trim()
-                    : afterThinking.trim()
-
-                // If still empty or same as raw, use raw content but remove thinking section
-                if (!answerContent || answerContent === rawContent) {
-                    answerContent = rawContent.replace(
-                        new RegExp(`.*?${thinkingMarkerRegex.source}[\\s\\S]*?(?=\\n\\n|$)`, 'i'),
-                        ''
-                    ).trim()
-                }
-            }
-
-            // Ensure we have valid content
-            if (!answerContent || answerContent === rawContent) {
-                answerContent = rawContent.replace(
-                    new RegExp(`.*?${thinkingMarkerRegex.source}[\\s\\S]*?(?=\\n\\n|$)`, 'i'),
-                    ''
-                ).trim() || rawContent
-            }
-
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:parseThinkingContent:markdown', message: 'Found markdown thinking format', data: { thinkingLength: thinkingContent.length, answerLength: answerContent.length, hasFinalAnswer: finalAnswerIndex !== -1 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-fix', hypothesisId: 'B' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
-
-            return {
-                thinking: thinkingContent || undefined,
-                answer: answerContent || rawContent
-            }
-        }
-
-        // Pattern 3: Just "Final Answer:" without explicit thinking marker
-        // Treat everything before as thinking
-        if (finalAnswerIndex !== -1) {
-            const finalAnswerMatch = rawContent.match(finalAnswerRegex)
-            const answerStart = finalAnswerIndex + (finalAnswerMatch?.[0]?.length || 0)
-            const thinkingPart = rawContent.substring(0, finalAnswerIndex).trim()
-            const answerPart = rawContent.substring(answerStart).trim()
-
-            const cleanThinking = thinkingPart
-                .replace(/^[-=]{3,}\s*/gm, '')
-                .replace(/[-=]{3,}\s*$/gm, '')
-                .replace(/\*\*Thinking\.\.\.?\*\*/gi, '')
-                .replace(/^Thinking\.\.\.?\s*/gim, '')
-                .trim()
-
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:parseThinkingContent:finalAnswerOnly', message: 'Found Final Answer without thinking marker', data: { thinkingLength: cleanThinking.length, answerLength: answerPart.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-fix', hypothesisId: 'B' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
-
-            return {
-                thinking: cleanThinking || undefined,
-                answer: answerPart || rawContent
-            }
-        }
-
-        // No thinking format detected
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:parseThinkingContent:none', message: 'No thinking format detected', data: { contentLength: rawContent.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-fix', hypothesisId: 'B' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
-        return { thinking: undefined, answer: rawContent }
-    }
 
     const processFiles = async (files: FileList | File[]) => {
         const fileArray = Array.from(files)
@@ -307,9 +159,6 @@ export default function ChatArea() {
         // Clear tool state at start of new message
         clearToolState()
 
-        // Reset agent loop state
-        agentShouldStopRef.current = false
-        setAgentLoopIteration(0)
 
         const userMessageContent = input
         const filesToSend = [...attachedFiles]
@@ -318,9 +167,6 @@ export default function ChatArea() {
         setIsLoading(true)
 
         // Track agent execution start time for duration display
-        if (settings.agentModeEnabled) {
-            setAgentStartTime(Date.now())
-        }
 
         let targetSessionId = currentSessionId
         let isNewSession = false
@@ -347,7 +193,7 @@ export default function ChatArea() {
         }
 
         const startTime = performance.now()
-        let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+        let usage: NonNullable<Message['usage']> = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
         let model = settings.aiModel
 
         try {
@@ -410,98 +256,26 @@ export default function ChatArea() {
                     }
 
                     if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Agent loop: continue while AI returns tool calls
-                        let currentMessages = [
-                            ...optimizedHistory,
-                            res.message,
-                            ...toolResult.formattedResults
-                        ]
-                        let allToolResults: ToolCallResult[] = [...toolResult.toolResults]
-                        let iteration = 1
-                        let currentRes = res
-
-                        // Agent loop - continue while there are tool calls and we haven't hit max iterations
-                        while (settings.agentModeEnabled && iteration < DEFAULT_AGENT_LOOP_CONFIG.maxIterations && !agentShouldStopRef.current) {
-                            setAgentLoopIteration(iteration)
-
-                            const loopRes = await generateOllamaCompletion(
-                                settings.ollamaUrl,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    tools: ollamaTools
-                                }
-                            )
-
-                            // Accumulate usage
-                            usage = {
-                                inputTokens: usage.inputTokens + (loopRes.prompt_eval_count || 0),
-                                outputTokens: usage.outputTokens + (loopRes.eval_count || 0),
-                                totalTokens: usage.totalTokens + ((loopRes.prompt_eval_count || 0) + (loopRes.eval_count || 0))
+                        // Single follow-up call with tool results
+                        const followUpRes = await generateOllamaCompletion(
+                            settings.ollamaUrl,
+                            settings.aiModel,
+                            [
+                                ...optimizedHistory,
+                                res.message,
+                                ...toolResult.formattedResults
+                            ],
+                            {
+                                temperature: settings.temperature,
+                                tools: ollamaTools
                             }
+                        )
 
-                            // Check if there are more tool calls
-                            if ((loopRes.message as any)?.tool_calls && Array.isArray((loopRes.message as any).tool_calls) && (loopRes.message as any).tool_calls.length > 0) {
-                                // Process tool calls
-                                let loopToolResult
-                                try {
-                                    loopToolResult = await handleToolCalls({ choices: [{ message: loopRes.message }] })
-                                } catch (toolError: any) {
-                                    console.error('Tool calls processing error in loop:', toolError)
-                                    showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                                    loopToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                                }
-
-                                if (loopToolResult.needsFollowUp && loopToolResult.formattedResults.length > 0) {
-                                    // Accumulate tool results
-                                    allToolResults = accumulateToolResults(allToolResults, loopToolResult.toolResults)
-
-                                    // Build next iteration messages
-                                    currentMessages = [
-                                        ...currentMessages,
-                                        loopRes.message,
-                                        ...loopToolResult.formattedResults
-                                    ]
-                                    currentRes = loopRes
-                                    iteration++
-                                } else {
-                                    // No more follow-up needed
-                                    responseContent = loopRes.message?.content || "Error: No response"
-                                    break
-                                }
-                            } else {
-                                // No more tool calls - we have the final response
-                                responseContent = loopRes.message?.content || "Error: No response"
-                                break
-                            }
-                        }
-
-                        // If we exited the loop without setting responseContent (non-agent mode or first iteration)
-                        if (!responseContent) {
-                            const followUpRes = await generateOllamaCompletion(
-                                settings.ollamaUrl,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    tools: ollamaTools
-                                }
-                            )
-
-                            responseContent = followUpRes.message?.content || "Error: No response"
-                            usage = {
-                                inputTokens: usage.inputTokens + (followUpRes.prompt_eval_count || 0),
-                                outputTokens: usage.outputTokens + (followUpRes.eval_count || 0),
-                                totalTokens: usage.totalTokens + ((followUpRes.prompt_eval_count || 0) + (followUpRes.eval_count || 0))
-                            }
-                        }
-
-                        // Add initial usage
+                        responseContent = followUpRes.message?.content || "Error: No response"
                         usage = {
-                            inputTokens: usage.inputTokens + (res.prompt_eval_count || 0),
-                            outputTokens: usage.outputTokens + (res.eval_count || 0),
-                            totalTokens: usage.totalTokens + ((res.prompt_eval_count || 0) + (res.eval_count || 0))
+                            inputTokens: (res.prompt_eval_count || 0) + (followUpRes.prompt_eval_count || 0),
+                            outputTokens: (res.eval_count || 0) + (followUpRes.eval_count || 0),
+                            totalTokens: ((res.prompt_eval_count || 0) + (res.eval_count || 0)) + ((followUpRes.prompt_eval_count || 0) + (followUpRes.eval_count || 0))
                         }
                     } else {
                         responseContent = res.message?.content || "Error: No response"
@@ -561,23 +335,76 @@ export default function ChatArea() {
                     }
                 }
 
+                // Create streaming message immediately
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `gemini/${settings.aiModel}`
+                })
+
                 // #region agent log
                 { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:initialRequest', message: 'Making initial Gemini request', data: { hasTools: !!geminiTools, functionsCount: geminiTools?.function_declarations?.length || 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                 // #endregion
 
-                const res = await generateGeminiCompletion(
-                    settings.geminiApiKey,
-                    settings.aiModel,
-                    geminiMessages,
-                    {
-                        temperature: settings.temperature,
-                        maxOutputTokens: settings.maxTokens,
-                        tools: geminiTools
-                    }
-                )
+                // Stream the response
+                let accumulatedContent = ''
+                let lastUpdateTime = Date.now()
+                const UPDATE_INTERVAL = 50 // ms
+                let finalUsage: any = {}
+                let hasFunctionCalls = false
+                let accumulatedResponse: any = null
 
-                // Check for function calls
-                if (canUseTools && hasGeminiFunctionCalls(res)) {
+                try {
+                    for await (const chunk of streamGeminiCompletion(
+                        settings.geminiApiKey,
+                        settings.aiModel,
+                        geminiMessages,
+                        {
+                            temperature: settings.temperature,
+                            maxOutputTokens: settings.maxTokens,
+                            tools: geminiTools
+                        }
+                    )) {
+                        // Accumulate response for function call detection
+                        if (!accumulatedResponse) {
+                            accumulatedResponse = { candidates: [{}] }
+                        }
+
+                        // Extract content from chunk (Gemini accumulates text across chunks)
+                        const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                        if (chunkText) {
+                            accumulatedContent = chunkText // Gemini gives us the full accumulated text
+                        }
+
+                        // Check for function calls
+                        if (chunk.candidates?.[0]?.content?.parts) {
+                            accumulatedResponse.candidates[0].content = {
+                                parts: chunk.candidates[0].content.parts,
+                                role: 'model'
+                            }
+                            // Check if any part is a function call
+                            const parts = chunk.candidates[0].content.parts
+                            hasFunctionCalls = parts.some((p: any) => p.functionCall)
+                        }
+
+                        // Extract usage stats
+                        if (chunk.usageMetadata) {
+                            finalUsage = chunk.usageMetadata
+                        }
+
+                        // Debounced update
+                        const now = Date.now()
+                        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            lastUpdateTime = now
+                        }
+                    }
+
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                    // Check for function calls using accumulated response
+                    if (canUseTools && hasGeminiFunctionCalls(accumulatedResponse)) {
                     // #region agent log
                     { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:beforeToolCalls', message: 'About to process tool calls', data: { hasFunctionCalls: hasGeminiFunctionCalls(res) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                     // #endregion
@@ -597,127 +424,109 @@ export default function ChatArea() {
                     }
 
                     if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Agent loop: continue while AI returns tool calls
-                        let currentMessages: any[] = [
-                            ...optimizedHistory,
+                        // Stream follow-up response with tool results
+                        const assistantContent = accumulatedContent
+                        const followUpMessages: any[] = [
+                            ...geminiMessages,
                             {
                                 role: 'assistant',
-                                content: res.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join(' ') || ''
+                                content: assistantContent || ''
                             },
                             {
                                 role: 'function',
                                 parts: toolResult.formattedResults
                             }
                         ]
-                        let allToolResults: ToolCallResult[] = [...toolResult.toolResults]
-                        let iteration = 1
+                        
+                        let followUpContent = ''
+                        let followUpLastUpdate = Date.now()
+                        let followUpUsage: any = {}
+
+                        for await (const chunk of streamGeminiCompletion(
+                            settings.geminiApiKey,
+                            settings.aiModel,
+                            followUpMessages as any,
+                            {
+                                temperature: settings.temperature,
+                                maxOutputTokens: settings.maxTokens,
+                                tools: geminiTools
+                            }
+                        )) {
+                            const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                            if (chunkText) {
+                                followUpContent = chunkText
+                            }
+                            if (chunk.usageMetadata) {
+                                followUpUsage = chunk.usageMetadata
+                            }
+
+                            const now = Date.now()
+                            if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
+                                followUpLastUpdate = now
+                            }
+                        }
+
+                        // Final update with follow-up content
+                        accumulatedContent += followUpContent
+                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
                         usage = {
-                            inputTokens: res.usageMetadata?.promptTokenCount || 0,
-                            outputTokens: res.usageMetadata?.candidatesTokenCount || 0,
-                            totalTokens: res.usageMetadata?.totalTokenCount || 0
-                        }
-
-                        // Agent loop - continue while there are tool calls and we haven't hit max iterations
-                        while (settings.agentModeEnabled && iteration < DEFAULT_AGENT_LOOP_CONFIG.maxIterations && !agentShouldStopRef.current) {
-                            setAgentLoopIteration(iteration)
-
-                            const loopRes = await generateGeminiCompletion(
-                                settings.geminiApiKey,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    maxOutputTokens: settings.maxTokens,
-                                    tools: geminiTools
-                                }
-                            )
-
-                            // Accumulate usage
-                            usage = {
-                                inputTokens: usage.inputTokens + (loopRes.usageMetadata?.promptTokenCount || 0),
-                                outputTokens: usage.outputTokens + (loopRes.usageMetadata?.candidatesTokenCount || 0),
-                                totalTokens: usage.totalTokens + (loopRes.usageMetadata?.totalTokenCount || 0)
-                            }
-
-                            // Check if there are more function calls
-                            if (hasGeminiFunctionCalls(loopRes)) {
-                                // Process tool calls
-                                let loopToolResult
-                                try {
-                                    loopToolResult = await handleToolCalls(loopRes)
-                                } catch (toolError: any) {
-                                    console.error('Tool calls processing error in loop:', toolError)
-                                    showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                                    loopToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                                }
-
-                                if (loopToolResult.needsFollowUp && loopToolResult.formattedResults.length > 0) {
-                                    // Accumulate tool results
-                                    allToolResults = accumulateToolResults(allToolResults, loopToolResult.toolResults)
-
-                                    // Build next iteration messages
-                                    currentMessages = [
-                                        ...currentMessages,
-                                        {
-                                            role: 'assistant',
-                                            content: loopRes.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join(' ') || ''
-                                        },
-                                        {
-                                            role: 'function',
-                                            parts: loopToolResult.formattedResults
-                                        }
-                                    ]
-                                    iteration++
-                                } else {
-                                    // No more follow-up needed
-                                    responseContent = loopRes.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
-                                    break
-                                }
-                            } else {
-                                // No more function calls - we have the final response
-                                responseContent = loopRes.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
-                                break
-                            }
-                        }
-
-                        // If we exited the loop without setting responseContent (non-agent mode or first iteration)
-                        if (!responseContent) {
-                            const followUpRes = await generateGeminiCompletion(
-                                settings.geminiApiKey,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    maxOutputTokens: settings.maxTokens,
-                                    tools: geminiTools
-                                }
-                            )
-
-                            responseContent = followUpRes.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
-                            usage = {
-                                inputTokens: usage.inputTokens + (followUpRes.usageMetadata?.promptTokenCount || 0),
-                                outputTokens: usage.outputTokens + (followUpRes.usageMetadata?.candidatesTokenCount || 0),
-                                totalTokens: usage.totalTokens + (followUpRes.usageMetadata?.totalTokenCount || 0)
-                            }
+                            inputTokens: (finalUsage.promptTokenCount || 0) + (followUpUsage.promptTokenCount || 0),
+                            outputTokens: (finalUsage.candidatesTokenCount || 0) + (followUpUsage.candidatesTokenCount || 0),
+                            totalTokens: (finalUsage.totalTokenCount || 0) + (followUpUsage.totalTokenCount || 0)
                         }
                     } else {
-                        responseContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
                         usage = {
-                            inputTokens: res.usageMetadata?.promptTokenCount || 0,
-                            outputTokens: res.usageMetadata?.candidatesTokenCount || 0,
-                            totalTokens: res.usageMetadata?.totalTokenCount || 0
+                            inputTokens: finalUsage.promptTokenCount || 0,
+                            outputTokens: finalUsage.candidatesTokenCount || 0,
+                            totalTokens: finalUsage.totalTokenCount || 0
                         }
                     }
                 } else {
-                    responseContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Error: No response"
                     usage = {
-                        inputTokens: res.usageMetadata?.promptTokenCount || 0,
-                        outputTokens: res.usageMetadata?.candidatesTokenCount || 0,
-                        totalTokens: res.usageMetadata?.totalTokenCount || 0
+                        inputTokens: finalUsage.promptTokenCount || 0,
+                        outputTokens: finalUsage.candidatesTokenCount || 0,
+                        totalTokens: finalUsage.totalTokenCount || 0
                     }
                 }
 
+                // Finalize the streaming message with all metadata
+                const endTimeGemini = performance.now()
+                const latencyGemini = Math.round(endTimeGemini - startTime)
+                const toolResultsForGemini = toolState.toolResults.length > 0
+                    ? toolState.toolResults.map(tr => ({
+                        toolCall: {
+                            id: tr.toolCall.id,
+                            name: tr.toolCall.name,
+                            arguments: tr.toolCall.arguments
+                        },
+                        result: {
+                            success: tr.result.success,
+                            data: tr.result.data,
+                            error: tr.result.error,
+                            executionTime: tr.result.executionTime
+                        }
+                    }))
+                    : undefined
+
+                updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                    content: accumulatedContent,
+                    model: `gemini/${settings.aiModel}`,
+                    latency: latencyGemini,
+                    usage,
+                    toolResults: toolResultsForGemini
+                })
+
                 model = `gemini/${settings.aiModel}`
+                responseContent = accumulatedContent
+            } catch (streamError: any) {
+                // If streaming fails, update message with error
+                updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                    content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
+                })
+                throw streamError
+            }
             } else if (settings.modelProvider === 'groq') {
                 // Get tools if enabled (Groq uses OpenAI-compatible format)
                 const tools = canUseTools ? getToolsForRequest() : null
@@ -760,96 +569,27 @@ export default function ChatArea() {
                     }
 
                     if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Agent loop: continue while AI returns tool calls
-                        let currentMessages = [
-                            ...optimizedHistory,
-                            res.choices[0].message,
-                            ...toolResult.formattedResults
-                        ]
-                        let allToolResults: ToolCallResult[] = [...toolResult.toolResults]
-                        let iteration = 1
+                        // Single follow-up call with tool results
+                        const followUpRes = await generateGroqCompletion(
+                            settings.groqApiKey,
+                            settings.aiModel,
+                            [
+                                ...optimizedHistory,
+                                res.choices[0].message,
+                                ...toolResult.formattedResults
+                            ],
+                            {
+                                temperature: settings.temperature,
+                                max_tokens: settings.maxTokens,
+                                tools: groqTools
+                            }
+                        )
+
+                        responseContent = followUpRes.choices?.[0]?.message?.content || "Error: No response"
                         usage = {
-                            inputTokens: res.usage?.prompt_tokens || 0,
-                            outputTokens: res.usage?.completion_tokens || 0,
-                            totalTokens: res.usage?.total_tokens || 0
-                        }
-
-                        // Agent loop - continue while there are tool calls and we haven't hit max iterations
-                        while (settings.agentModeEnabled && iteration < DEFAULT_AGENT_LOOP_CONFIG.maxIterations && !agentShouldStopRef.current) {
-                            setAgentLoopIteration(iteration)
-
-                            const loopRes = await generateGroqCompletion(
-                                settings.groqApiKey,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    max_tokens: settings.maxTokens,
-                                    tools: groqTools
-                                }
-                            )
-
-                            // Accumulate usage
-                            usage = {
-                                inputTokens: usage.inputTokens + (loopRes.usage?.prompt_tokens || 0),
-                                outputTokens: usage.outputTokens + (loopRes.usage?.completion_tokens || 0),
-                                totalTokens: usage.totalTokens + (loopRes.usage?.total_tokens || 0)
-                            }
-
-                            // Check if there are more tool calls
-                            if (loopRes.choices?.[0]?.message?.tool_calls && loopRes.choices[0].message.tool_calls.length > 0) {
-                                // Process tool calls
-                                let loopToolResult
-                                try {
-                                    loopToolResult = await handleToolCalls(loopRes)
-                                } catch (toolError: any) {
-                                    console.error('Tool calls processing error in loop:', toolError)
-                                    showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                                    loopToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                                }
-
-                                if (loopToolResult.needsFollowUp && loopToolResult.formattedResults.length > 0) {
-                                    // Accumulate tool results
-                                    allToolResults = accumulateToolResults(allToolResults, loopToolResult.toolResults)
-
-                                    // Build next iteration messages
-                                    currentMessages = [
-                                        ...currentMessages,
-                                        loopRes.choices[0].message,
-                                        ...loopToolResult.formattedResults
-                                    ]
-                                    iteration++
-                                } else {
-                                    // No more follow-up needed
-                                    responseContent = loopRes.choices?.[0]?.message?.content || "Error: No response"
-                                    break
-                                }
-                            } else {
-                                // No more tool calls - we have the final response
-                                responseContent = loopRes.choices?.[0]?.message?.content || "Error: No response"
-                                break
-                            }
-                        }
-
-                        // If we exited the loop without setting responseContent (non-agent mode or first iteration)
-                        if (!responseContent) {
-                            const followUpRes = await generateGroqCompletion(
-                                settings.groqApiKey,
-                                settings.aiModel,
-                                currentMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    max_tokens: settings.maxTokens,
-                                    tools: groqTools
-                                }
-                            )
-
-                            responseContent = followUpRes.choices?.[0]?.message?.content || "Error: No response"
-                            usage = {
-                                inputTokens: usage.inputTokens + (followUpRes.usage?.prompt_tokens || 0),
-                                outputTokens: usage.outputTokens + (followUpRes.usage?.completion_tokens || 0),
-                                totalTokens: usage.totalTokens + (followUpRes.usage?.total_tokens || 0)
-                            }
+                            inputTokens: (res.usage?.prompt_tokens || 0) + (followUpRes.usage?.prompt_tokens || 0),
+                            outputTokens: (res.usage?.completion_tokens || 0) + (followUpRes.usage?.completion_tokens || 0),
+                            totalTokens: (res.usage?.total_tokens || 0) + (followUpRes.usage?.total_tokens || 0)
                         }
                     } else {
                         responseContent = res.choices?.[0]?.message?.content || "Error: No response"
@@ -887,200 +627,233 @@ export default function ChatArea() {
                     }
                 }
 
-                const requestBody: any = {
-                    model: settings.aiModel,
-                    messages: openRouterMessages
-                }
-
                 // Add tools if enabled and supported
                 const tools = getToolsForRequest()
+                
+                // Create streaming message immediately
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `openrouter/${settings.aiModel}`
+                })
 
                 // #region agent log
                 { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:initialRequest', message: 'Making initial OpenRouter request', data: { hasTools: !!tools, toolsCount: Array.isArray(tools) ? tools.length : 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                 // #endregion
 
-                if (tools && Array.isArray(tools) && tools.length > 0) {
-                    requestBody.tools = tools
-                    requestBody.tool_choice = 'auto'  // Let AI decide when to use tools
-                }
+                // Stream the response
+                let accumulatedContent = ''
+                let lastUpdateTime = Date.now()
+                const UPDATE_INTERVAL = 50 // ms
+                let finalUsage: any = {}
+                let hasToolCalls = false
+                let toolCallsAccumulator: any[] = []
+                let finishReason: string | null = null
 
-                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${settings.openRouterApiKey}`, "Content-Type": "application/json" },
-                    body: JSON.stringify(requestBody)
-                })
+                try {
+                    for await (const chunk of streamOpenRouterCompletion(
+                        settings.openRouterApiKey,
+                        settings.aiModel,
+                        openRouterMessages,
+                        {
+                            temperature: settings.temperature,
+                            maxTokens: settings.maxTokens,
+                            tools: tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
+                        }
+                    )) {
+                        // Extract content delta
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
 
-                if (!res.ok) {
-                    if (res.status === 429) {
-                        throw new Error('Rate limit exceeded. Please slow down and try again.')
-                    } else if (res.status === 401 || res.status === 403) {
-                        throw new Error('Invalid API key. Please check your API key in Settings.')
-                    } else {
-                        const errorData = await res.json().catch(() => ({}))
-                        throw new Error(errorData.error?.message || `API Error: ${res.status}`)
+                        // Check for tool calls in delta
+                        if (chunk.choices?.[0]?.delta?.tool_calls) {
+                            hasToolCalls = true
+                            const deltaToolCalls = chunk.choices[0].delta.tool_calls
+                            if (deltaToolCalls) {
+                                deltaToolCalls.forEach((tc: any, idx: number) => {
+                                    if (!toolCallsAccumulator[tc.index ?? idx]) {
+                                        toolCallsAccumulator[tc.index ?? idx] = {
+                                            id: tc.id || '',
+                                            type: tc.type || 'function',
+                                            function: { name: '', arguments: '' }
+                                        }
+                                    }
+                                    if (tc.function?.name) {
+                                        toolCallsAccumulator[tc.index ?? idx].function.name += tc.function.name
+                                    }
+                                    if (tc.function?.arguments) {
+                                        toolCallsAccumulator[tc.index ?? idx].function.arguments += tc.function.arguments
+                                    }
+                                })
+                            }
+                        }
+
+                        // Extract usage stats from final chunk
+                        if (chunk.usage) {
+                            finalUsage = chunk.usage
+                        }
+
+                        // Debounced update
+                        const now = Date.now()
+                        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            lastUpdateTime = now
+                        }
                     }
-                }
 
-                const data = await res.json()
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
 
-                // Check for tool calls
-                if (canUseTools && data.choices?.[0]?.message?.tool_calls) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: data.choices?.[0]?.message?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
+                    // Handle tool calls if detected (need to reconstruct message format)
+                    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc && tc.id).length > 0) {
+                        // Reconstruct message with tool calls for handleToolCalls
+                        const reconstructedMessage = {
+                            role: 'assistant',
+                            content: accumulatedContent,
+                            tool_calls: toolCallsAccumulator.filter(tc => tc.id).map(tc => ({
+                                id: tc.id,
+                                type: tc.type || 'function',
+                                function: {
+                                    name: tc.function.name,
+                                    arguments: tc.function.arguments
+                                }
+                            }))
+                        }
+                        const mockData = {
+                            choices: [{
+                                message: reconstructedMessage
+                            }]
+                        }
 
-                    // Process tool calls with error handling
-                    let toolResult
-                    try {
-                        toolResult = await handleToolCalls(data)
-                    } catch (toolError: any) {
                         // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
                         // #endregion
 
-                        console.error('Tool calls processing error:', toolError)
-                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                    }
+                        // Process tool calls with error handling
+                        let toolResult
+                        try {
+                            toolResult = await handleToolCalls(mockData)
+                        } catch (toolError: any) {
+                            // #region agent log
+                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+                            // #endregion
 
-                    if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Agent loop: continue while AI returns tool calls
-                        let currentMessages = [
-                            ...optimizedHistory,
-                            data.choices[0].message,
-                            ...toolResult.formattedResults
-                        ]
-                        let allToolResults: ToolCallResult[] = [...toolResult.toolResults]
-                        let iteration = 1
-                        usage = {
-                            inputTokens: data.usage?.prompt_tokens || 0,
-                            outputTokens: data.usage?.completion_tokens || 0,
-                            totalTokens: data.usage?.total_tokens || 0
+                            console.error('Tool calls processing error:', toolError)
+                            showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                            toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
                         }
 
-                        const openRouterTools = getToolsForRequest()
+                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                            // Stream follow-up response with tool results
+                            const openRouterTools = getToolsForRequest()
+                            let followUpContent = ''
+                            let followUpLastUpdate = Date.now()
+                            let followUpUsage: any = {}
 
-                        // Agent loop - continue while there are tool calls and we haven't hit max iterations
-                        while (settings.agentModeEnabled && iteration < DEFAULT_AGENT_LOOP_CONFIG.maxIterations && !agentShouldStopRef.current) {
-                            setAgentLoopIteration(iteration)
-
-                            const loopBody: any = {
-                                model: settings.aiModel,
-                                messages: currentMessages
-                            }
-
-                            if (openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0) {
-                                loopBody.tools = openRouterTools
-                                loopBody.tool_choice = 'auto'
-                            }
-
-                            const loopRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                                method: "POST",
-                                headers: { "Authorization": `Bearer ${settings.openRouterApiKey}`, "Content-Type": "application/json" },
-                                body: JSON.stringify(loopBody)
-                            })
-
-                            if (!loopRes.ok) {
-                                throw new Error(`Agent loop API Error: ${loopRes.status}`)
-                            }
-
-                            const loopData = await loopRes.json()
-
-                            // Accumulate usage
-                            usage = {
-                                inputTokens: usage.inputTokens + (loopData.usage?.prompt_tokens || 0),
-                                outputTokens: usage.outputTokens + (loopData.usage?.completion_tokens || 0),
-                                totalTokens: usage.totalTokens + (loopData.usage?.total_tokens || 0)
-                            }
-
-                            // Check if there are more tool calls
-                            if (loopData.choices?.[0]?.message?.tool_calls && loopData.choices[0].message.tool_calls.length > 0) {
-                                // Process tool calls
-                                let loopToolResult
-                                try {
-                                    loopToolResult = await handleToolCalls(loopData)
-                                } catch (toolError: any) {
-                                    console.error('Tool calls processing error in loop:', toolError)
-                                    showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                                    loopToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                            for await (const chunk of streamOpenRouterCompletion(
+                                settings.openRouterApiKey,
+                                settings.aiModel,
+                                [
+                                    ...optimizedHistory,
+                                    reconstructedMessage,
+                                    ...toolResult.formattedResults
+                                ],
+                                {
+                                    temperature: settings.temperature,
+                                    maxTokens: settings.maxTokens,
+                                    tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined
+                                }
+                            )) {
+                                const delta = chunk.choices?.[0]?.delta?.content || ''
+                                followUpContent += delta
+                                if (chunk.usage) {
+                                    followUpUsage = chunk.usage
                                 }
 
-                                if (loopToolResult.needsFollowUp && loopToolResult.formattedResults.length > 0) {
-                                    // Accumulate tool results
-                                    allToolResults = accumulateToolResults(allToolResults, loopToolResult.toolResults)
-
-                                    // Build next iteration messages
-                                    currentMessages = [
-                                        ...currentMessages,
-                                        loopData.choices[0].message,
-                                        ...loopToolResult.formattedResults
-                                    ]
-                                    iteration++
-                                } else {
-                                    // No more follow-up needed
-                                    responseContent = loopData.choices?.[0]?.message?.content || "Error: No response"
-                                    break
+                                const now = Date.now()
+                                if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
+                                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
+                                    followUpLastUpdate = now
                                 }
-                            } else {
-                                // No more tool calls - we have the final response
-                                responseContent = loopData.choices?.[0]?.message?.content || "Error: No response"
-                                break
-                            }
-                        }
-
-                        // If we exited the loop without setting responseContent (non-agent mode or first iteration)
-                        if (!responseContent) {
-                            const followUpBody: any = {
-                                model: settings.aiModel,
-                                messages: currentMessages
                             }
 
-                            if (openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0) {
-                                followUpBody.tools = openRouterTools
-                            }
+                            // Final update with follow-up content
+                            accumulatedContent += followUpContent
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
 
-                            const followUpRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                                method: "POST",
-                                headers: { "Authorization": `Bearer ${settings.openRouterApiKey}`, "Content-Type": "application/json" },
-                                body: JSON.stringify(followUpBody)
-                            })
-
-                            if (!followUpRes.ok) {
-                                throw new Error(`Follow-up API Error: ${followUpRes.status}`)
-                            }
-
-                            const followUpData = await followUpRes.json()
-                            responseContent = followUpData.choices?.[0]?.message?.content || "Error: No response"
+                            // Combine usage stats
                             usage = {
-                                inputTokens: usage.inputTokens + (followUpData.usage?.prompt_tokens || 0),
-                                outputTokens: usage.outputTokens + (followUpData.usage?.completion_tokens || 0),
-                                totalTokens: usage.totalTokens + (followUpData.usage?.total_tokens || 0)
+                                inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
+                                outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
+                                totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0),
+                                cachedInputTokens: ((finalUsage.prompt_cache_tokens || 0) + (followUpUsage.prompt_cache_tokens || 0)) || undefined,
+                                cachedOutputTokens: ((finalUsage.completion_cache_tokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
+                            }
+                        } else {
+                            // No follow-up needed, finalize with existing content
+                            const cachedInputTokens = finalUsage.prompt_cache_tokens || 0
+                            const cachedOutputTokens = finalUsage.completion_cache_tokens || 0
+                            usage = {
+                                inputTokens: finalUsage.prompt_tokens || 0,
+                                outputTokens: finalUsage.completion_tokens || 0,
+                                totalTokens: finalUsage.total_tokens || 0,
+                                cachedInputTokens: cachedInputTokens > 0 ? cachedInputTokens : undefined,
+                                cachedOutputTokens: cachedOutputTokens > 0 ? cachedOutputTokens : undefined
                             }
                         }
                     } else {
-                        responseContent = data.choices?.[0]?.message?.content || "Error: No response"
+                        // No tool calls, finalize message
+                        const cachedInputTokens = finalUsage.prompt_cache_tokens || 0
+                        const cachedOutputTokens = finalUsage.completion_cache_tokens || 0
                         usage = {
-                            inputTokens: data.usage?.prompt_tokens || 0,
-                            outputTokens: data.usage?.completion_tokens || 0,
-                            totalTokens: data.usage?.total_tokens || 0
+                            inputTokens: finalUsage.prompt_tokens || 0,
+                            outputTokens: finalUsage.completion_tokens || 0,
+                            totalTokens: finalUsage.total_tokens || 0,
+                            cachedInputTokens: cachedInputTokens > 0 ? cachedInputTokens : undefined,
+                            cachedOutputTokens: cachedOutputTokens > 0 ? cachedOutputTokens : undefined
                         }
                     }
-                } else {
-                    responseContent = data.choices?.[0]?.message?.content || "Error: No response"
-                    usage = {
-                        inputTokens: data.usage?.prompt_tokens || 0,
-                        outputTokens: data.usage?.completion_tokens || 0,
-                        totalTokens: data.usage?.total_tokens || 0
-                    }
+                } catch (streamError: any) {
+                    // If streaming fails, update message with error
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                        content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
+                    })
+                    throw streamError
                 }
 
                 model = `openrouter/${settings.aiModel}`
+                responseContent = accumulatedContent
+                
+                // Finalize the streaming message with all metadata
+                const endTimeOpenRouter = performance.now()
+                const latencyOpenRouter = Math.round(endTimeOpenRouter - startTime)
+                const toolResultsForOpenRouter = toolState.toolResults.length > 0
+                    ? toolState.toolResults.map(tr => ({
+                        toolCall: {
+                            id: tr.toolCall.id,
+                            name: tr.toolCall.name,
+                            arguments: tr.toolCall.arguments
+                        },
+                        result: {
+                            success: tr.result.success,
+                            data: tr.result.data,
+                            error: tr.result.error,
+                            executionTime: tr.result.executionTime
+                        }
+                    }))
+                    : undefined
+                
+                updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                    content: responseContent,
+                    model,
+                    latency: latencyOpenRouter,
+                    usage,
+                    toolResults: toolResultsForOpenRouter
+                })
             }
 
             const endTime = performance.now()
             const latency = Math.round(endTime - startTime)
-
-            let thinking: string | undefined = undefined
 
             // Store tool results in the message if any were used
             const toolResultsForMessage = toolState.toolResults.length > 0
@@ -1098,47 +871,20 @@ export default function ChatArea() {
                     }
                 }))
                 : undefined
-            let answer = responseContent
 
-            if (settings.thinkingModeEnabled) {
-                const parsed = parseThinkingContent(responseContent)
-
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:thinkingMode:parsed', message: 'Parsed thinking content', data: { hasThinking: !!parsed.thinking, thinkingLength: parsed.thinking?.length || 0, answerLength: parsed.answer.length, rawLength: responseContent.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'thinking-mode-always', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
-                // If thinking mode is enabled, we MUST always have thinking content
-                if (parsed.thinking) {
-                    // Thinking was detected - use it
-                    thinking = parsed.thinking
-                    answer = parsed.answer
-                } else {
-                    // No thinking detected - generate a thinking block from the response
-                    // Split response into thinking (first part) and answer (rest)
-                    const responseLines = responseContent.split('\n')
-                    const firstParagraph = responseLines.slice(0, Math.min(3, responseLines.length)).join('\n')
-                    const restOfResponse = responseLines.slice(Math.min(3, responseLines.length)).join('\n').trim()
-
-                    // Generate thinking content
-                    thinking = `- Goal: Understanding and addressing the user's request\n- Approach: Analyzing the query and formulating a comprehensive response\n- Key considerations: Ensuring accuracy and helpfulness\n\n${firstParagraph.substring(0, 150)}${firstParagraph.length > 150 ? '...' : ''}`
-
-                    // Use the full response as answer, or the rest if we split it
-                    answer = restOfResponse || responseContent
-                }
+            // For providers that don't use streaming yet, create message normally
+            // (OpenRouter handles its own message finalization in its block)
+            if (settings.modelProvider !== 'openrouter') {
+                addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: responseContent,
+                    model,
+                    latency,
+                    usage,
+                    toolResults: toolResultsForMessage
+                })
             }
-
-            addMessageToSession(targetSessionId!, {
-                role: 'assistant',
-                content: answer,
-                model,
-                latency,
-                usage,
-                thinking: thinking,  // Only set if actual thinking content was detected
-                thinkingDuration: thinking ? latency : undefined,  // Only set duration if thinking exists
-                toolResults: toolResultsForMessage
-            })
             setIsLoading(false)
-            setAgentStartTime(undefined)
             // Clear tool state after message is added
             clearToolState()
 
@@ -1152,7 +898,6 @@ export default function ChatArea() {
             }
         } catch (error: any) {
             setIsLoading(false)
-            setAgentStartTime(undefined)
             let errorMsg = 'An unexpected error occurred.'
 
             // Handle rate limiting
@@ -1183,31 +928,6 @@ export default function ChatArea() {
         }
     }
 
-    // Stop/Cancel agent execution
-    const handleStopAgent = () => {
-        // Set the stop flag to halt the agent loop
-        agentShouldStopRef.current = true
-
-        // Clear loading state
-        setIsLoading(false)
-        setAgentStartTime(undefined)
-        setAgentLoopIteration(0)
-
-        // Clear any pending tool executions
-        clearToolState()
-
-        // Report current state to user via chat message
-        if (currentSessionId) {
-            const iterationInfo = agentLoopIteration > 0 ? ` after ${agentLoopIteration} iteration${agentLoopIteration > 1 ? 's' : ''}` : ''
-            addMessageToSession(currentSessionId, {
-                role: 'assistant',
-                content: `⏹️ Agent execution stopped by user${iterationInfo}. You can provide new instructions to continue.`
-            })
-        }
-
-        // Show toast notification to user
-        showToast('Agent execution stopped', 'info')
-    }
 
     // Empty State
     if (!currentSession || messages.length === 0) {
@@ -1236,7 +956,7 @@ export default function ChatArea() {
                     {/* Title */}
                     {/* Title - Gradient Zura */}
                     <GradientText
-                        colors={['#ffffff', '#888888', '#ffffff', '#888888', '#ffffff']}
+                        colors={['#FFE4C4', '#d4b89a', '#FFE4C4', '#d4b89a', '#FFE4C4']}
                         animationSpeed={12}
                         showBorder={false}
                         className="blur-text-title"
@@ -1341,87 +1061,10 @@ export default function ChatArea() {
                                 }}>
                                     <ModelSelector minimal={true} />
 
-                                    {/* Divider */}
-                                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-
-                                    <button
-                                        onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
-                                        title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
-                                        style={{
-                                            background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            padding: '6px 8px',
-                                            color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                            height: '100%'
-                                        }}
-                                        onMouseEnter={e => {
-                                            if (!settings.thinkingModeEnabled) {
-                                                e.currentTarget.style.color = '#ccc'
-                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                            }
-                                        }}
-                                        onMouseLeave={e => {
-                                            if (!settings.thinkingModeEnabled) {
-                                                e.currentTarget.style.color = '#666'
-                                                e.currentTarget.style.background = 'transparent'
-                                            }
-                                        }}
-                                    >
-                                        <Brain size={16} />
-                                    </button>
-
-                                    {/* Divider */}
-                                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-
-                                    {/* Agent Mode Button */}
-                                    <button
-                                        onClick={() => updateSettings({ agentModeEnabled: !settings.agentModeEnabled })}
-                                        title={
-                                            settings.agentModeEnabled
-                                                ? "Agent Mode On - Ready for autonomous task execution. Click to disable."
-                                                : "Agent Mode Off - Click to enable autonomous task execution"
-                                        }
-                                        style={{
-                                            background: settings.agentModeEnabled
-                                                ? 'rgba(59, 130, 246, 0.15)'
-                                                : 'transparent',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            padding: '6px 8px',
-                                            color: settings.agentModeEnabled ? '#3b82f6' : '#666',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                            height: '100%',
-                                            minWidth: '32px'
-                                        }}
-                                        onMouseEnter={e => {
-                                            if (!settings.agentModeEnabled) {
-                                                e.currentTarget.style.color = '#3b82f6'
-                                                e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
-                                            }
-                                        }}
-                                        onMouseLeave={e => {
-                                            if (!settings.agentModeEnabled) {
-                                                e.currentTarget.style.color = '#666'
-                                                e.currentTarget.style.background = 'transparent'
-                                            }
-                                        }}
-                                    >
-                                        <Bot size={16} />
-                                    </button>
                                 </div>
                                 <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
-                                        background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '10px', color: '#aaa', cursor: 'pointer',
+                                        background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '10px', color: '#cccccc', cursor: 'pointer',
                                         transition: 'all 0.2s'
                                     }}
                                         onMouseEnter={e => {
@@ -1458,6 +1101,7 @@ export default function ChatArea() {
                             </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         )
@@ -1481,7 +1125,7 @@ export default function ChatArea() {
                 borderBottom: '1px solid rgba(255,255,255,0.05)'
             }}>
                 <Sparkles size={20} color="#888" />
-                <span style={{ color: '#ccc', fontSize: '0.95rem', fontWeight: 500 }}>
+                <span style={{ color: '#e0e0e0', fontSize: '0.95rem', fontWeight: 500 }}>
                     {currentSession?.title || 'New Conversation'}
                 </span>
                 <ChevronDown size={14} color="#666" />
@@ -1497,60 +1141,30 @@ export default function ChatArea() {
                                 animate={!msg.hasAnimated && idx === messages.length - 1 && msg.role === 'assistant' && Date.now() - msg.timestamp < 60000} // Only animate if not already animated and recent
                                 onAnimationComplete={() => markMessageAsAnimated(currentSessionId!, msg.id)}
                             />
-                            {/* Show tool results after last assistant message - use AgentToolExecution in agent mode */}
+                            {/* Show tool results after last assistant message */}
                             {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
                                 <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                                    {settings.agentModeEnabled ? (
-                                        // Agent mode: use new AgentToolExecution component
-                                        toolState.toolResults.map((result, i) => (
-                                            <AgentToolExecution
-                                                key={i}
-                                                toolName={result.toolCall.name}
-                                                args={result.toolCall.arguments}
-                                                status={result.result.success ? 'success' : 'error'}
-                                                result={result.result.success ? result.result.data : undefined}
-                                                error={result.result.success ? undefined : result.result.error}
-                                                duration={result.result.executionTime}
-                                            />
-                                        ))
-                                    ) : (
-                                        // Standard mode: use existing ToolResultDisplay
-                                        toolState.toolResults.map((result, i) => (
-                                            <ToolResultDisplay
-                                                key={i}
-                                                toolName={result.toolCall.name}
-                                                result={result.result.success ? result.result.data : undefined}
-                                                error={result.result.success ? undefined : result.result.error}
-                                            />
-                                        ))
-                                    )}
+                                    {toolState.toolResults.map((result, i) => (
+                                        <ToolResultDisplay
+                                            key={i}
+                                            toolName={result.toolCall.name}
+                                            result={result.result.success ? result.result.data : undefined}
+                                            error={result.result.success ? undefined : result.result.error}
+                                        />
+                                    ))}
                                 </div>
                             )}
                             {/* Show stored tool results from message history */}
                             {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
                                 <div style={{ marginTop: '8px', marginBottom: '12px' }}>
-                                    {settings.agentModeEnabled ? (
-                                        msg.toolResults.map((result, i) => (
-                                            <AgentToolExecution
-                                                key={`stored-${i}`}
-                                                toolName={result.toolCall.name}
-                                                args={result.toolCall.arguments}
-                                                status={result.result.success ? 'success' : 'error'}
-                                                result={result.result.success ? result.result.data : undefined}
-                                                error={result.result.success ? undefined : result.result.error}
-                                                duration={result.result.executionTime}
-                                            />
-                                        ))
-                                    ) : (
-                                        msg.toolResults.map((result, i) => (
-                                            <ToolResultDisplay
-                                                key={`stored-${i}`}
-                                                toolName={result.toolCall.name}
-                                                result={result.result.success ? result.result.data : undefined}
-                                                error={result.result.success ? undefined : result.result.error}
-                                            />
-                                        ))
-                                    )}
+                                    {msg.toolResults.map((result, i) => (
+                                        <ToolResultDisplay
+                                            key={`stored-${i}`}
+                                            toolName={result.toolCall.name}
+                                            result={result.result.success ? result.result.data : undefined}
+                                            error={result.result.success ? undefined : result.result.error}
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </React.Fragment>
@@ -1558,30 +1172,18 @@ export default function ChatArea() {
                     {/* Show active tool calls */}
                     {toolState.activeToolCalls.map((toolCall, i) => (
                         <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
-                            {settings.agentModeEnabled ? (
-                                <AgentToolExecution
-                                    toolName={toolCall.name}
-                                    args={toolCall.arguments}
-                                    status="executing"
-                                />
-                            ) : (
-                                <ToolCallIndicator
-                                    toolName={toolCall.name}
-                                    status="executing"
-                                    arguments={toolCall.arguments}
-                                />
-                            )}
+                            <ToolCallIndicator
+                                toolName={toolCall.name}
+                                status="executing"
+                                arguments={toolCall.arguments}
+                            />
                         </div>
                     ))}
                     {isLoading && (
                         <div style={{ marginBottom: '24px' }}>
-                            {settings.thinkingModeEnabled ? (
-                                <ThinkingBlock thinking="Analyzing your request..." isThinking={true} />
-                            ) : (
-                                <div className="typing-indicator">
-                                    <span></span><span></span><span></span>
-                                </div>
-                            )}
+                            <div className="typing-indicator">
+                                <span></span><span></span><span></span>
+                            </div>
                         </div>
                     )}
                     {/* Spacer to push content up when waiting for AI response */}
@@ -1606,8 +1208,6 @@ export default function ChatArea() {
                     onRemoveFile={removeFile}
                     fileInputRef={fileInputRef}
                     onPaste={handlePaste}
-                    onStop={handleStopAgent}
-                    agentModeEnabled={settings.agentModeEnabled}
                 />
             </div>
 
@@ -1649,16 +1249,9 @@ export default function ChatArea() {
                 }
             `}</style>
 
-            {/* Agent Cursor - floating indicator when agent mode is active */}
-            <AgentCursor
-                isActive={settings.agentModeEnabled && isLoading}
-                state={agentCursorState}
-                toolName={currentToolName}
-                startTime={agentStartTime}
-            />
 
             {/* Tool Approval Dialog - shown when a sensitive tool needs user confirmation */}
-            {/* **Feature: agent-mode, Property 7: Sensitive tools require approval based on settings** */}
+            {/* Sensitive tools require approval based on settings */}
             {/* **Validates: Requirements 4.3** */}
             {toolState.pendingApproval && (
                 <ToolApprovalDialog
@@ -1781,7 +1374,7 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
                         style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#888',
+                            color: '#b0b0b0',
                             cursor: 'pointer',
                             padding: '4px',
                             display: 'flex',
@@ -1819,14 +1412,14 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
                                     {result.toolCall.name.replace(/_/g, ' ')}
                                 </span>
                                 {result.result.executionTime && (
-                                    <span style={{ color: '#888', fontSize: '0.85rem', marginLeft: 'auto' }}>
+                                    <span style={{ color: '#b0b0b0', fontSize: '0.85rem', marginLeft: 'auto' }}>
                                         {result.result.executionTime}ms
                                     </span>
                                 )}
                             </div>
 
                             <div style={{ marginBottom: '12px' }}>
-                                <div style={{ color: '#888', fontSize: '0.85rem', marginBottom: '4px' }}>
+                                <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
                                     Arguments:
                                 </div>
                                 <pre style={{
@@ -1844,7 +1437,7 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
 
                             {result.result.success ? (
                                 <div>
-                                    <div style={{ color: '#888', fontSize: '0.85rem', marginBottom: '4px' }}>
+                                    <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
                                         Result:
                                     </div>
                                     <pre style={{
@@ -1863,7 +1456,7 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
                                 </div>
                             ) : (
                                 <div>
-                                    <div style={{ color: '#888', fontSize: '0.85rem', marginBottom: '4px' }}>
+                                    <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
                                         Error:
                                     </div>
                                     <div style={{
@@ -1891,6 +1484,9 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
     const { settings } = useSettings()
     const [copied, setCopied] = useState(false)
     const [showToolModal, setShowToolModal] = useState(false)
+    const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
+    const [isHoveringInfo, setIsHoveringInfo] = useState(false)
+    const infoTriggerRef = useRef<HTMLDivElement>(null)
     const processedContent = convertUrlsToMarkdownLinks(message.content)
     const [displayedContent, setDisplayedContent] = useState(animate ? '' : processedContent)
     const isUser = message.role === 'user'
@@ -1925,6 +1521,63 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
+
+    const updatePopoverPosition = () => {
+        if (infoTriggerRef.current) {
+            const rect = infoTriggerRef.current.getBoundingClientRect()
+            const viewportHeight = window.innerHeight
+            const viewportWidth = window.innerWidth
+            const popoverHeight = 400 // Approximate max height
+            const popoverWidth = message.toolResults && message.toolResults.length > 0 ? 400 : 280
+            const padding = 20 // Minimum padding from viewport edges
+            
+            // Calculate available space above and below
+            const spaceAbove = rect.top
+            const spaceBelow = viewportHeight - rect.bottom
+            
+            // Determine if we should show above or below
+            // Show above if there's enough space, otherwise show below
+            const showAbove = spaceAbove >= popoverHeight + padding || spaceBelow < popoverHeight + padding
+            
+            // Calculate left position to prevent overflow
+            let left = rect.left
+            if (left + popoverWidth > viewportWidth - padding) {
+                left = viewportWidth - popoverWidth - padding
+            }
+            if (left < padding) {
+                left = padding
+            }
+            
+            setPopoverPosition({
+                top: rect.top,
+                left,
+                showAbove
+            })
+        }
+    }
+
+    const handleInfoMouseEnter = () => {
+        setIsHoveringInfo(true)
+        updatePopoverPosition()
+    }
+
+    const handleInfoMouseLeave = () => {
+        setIsHoveringInfo(false)
+        setPopoverPosition(null)
+    }
+
+    // Update position on scroll/resize when hovering
+    useEffect(() => {
+        if (isHoveringInfo) {
+            const handleUpdate = () => updatePopoverPosition()
+            window.addEventListener('scroll', handleUpdate, true)
+            window.addEventListener('resize', handleUpdate)
+            return () => {
+                window.removeEventListener('scroll', handleUpdate, true)
+                window.removeEventListener('resize', handleUpdate)
+            }
+        }
+    }, [isHoveringInfo])
 
     if (isUser) {
         // User message - right aligned dark pill
@@ -1974,7 +1627,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                     <div style={{
                                         padding: '6px 8px 0',
                                         fontSize: '0.75rem',
-                                        color: '#888',
+                                        color: '#b0b0b0',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
@@ -2002,7 +1655,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                             <span style={{ color: '#e0e0e0', fontSize: '0.85rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {file.name}
                                             </span>
-                                            <span style={{ color: '#888', fontSize: '0.75rem' }}>
+                                            <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
                                                 {(file.size / 1024).toFixed(1)} KB
                                             </span>
                                         </>
@@ -2012,7 +1665,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                             <span style={{ color: '#e0e0e0', fontSize: '0.85rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                 {file.name}
                                             </span>
-                                            <span style={{ color: '#888', fontSize: '0.75rem' }}>
+                                            <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
                                                 {(file.size / 1024).toFixed(1)} KB
                                             </span>
                                         </>
@@ -2066,10 +1719,6 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
             onKeyDown={handleKeyDown}
             ref={messageRef}
         >
-            {/* Thinking Block - only show if thinking mode is enabled and thinking content exists */}
-            {settings.thinkingModeEnabled && message.thinking && (
-                <ThinkingBlock thinking={message.thinking} thinkingDuration={message.thinkingDuration} />
-            )}
 
             {/* Message content */}
             <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
@@ -2089,12 +1738,12 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                         borderTopLeftRadius: '8px',
                                         borderTopRightRadius: '8px',
                                         fontSize: '0.75rem',
-                                        color: '#888'
+                                        color: '#b0b0b0'
                                     }}>
                                         <span>{match[1]}</span>
                                         <button
                                             onClick={() => navigator.clipboard.writeText(String(children))}
-                                            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.75rem' }}
+                                            style={{ background: 'none', border: 'none', color: '#b0b0b0', cursor: 'pointer', fontSize: '0.75rem' }}
                                         >
                                             Copy
                                         </button>
@@ -2162,7 +1811,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
             </div>
 
             {/* Action Bar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
                 {/* Tools Button - Show if tools were used */}
                 {message.toolResults && message.toolResults.length > 0 && (
                     <button
@@ -2221,31 +1870,68 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
 
                 {/* Info Tooltip */}
                 {(message.usage || message.toolResults) && (
-                    <div style={{ position: 'relative' }} className="info-trigger">
-                        <Info
-                            size={14}
-                            style={{ cursor: 'pointer', color: '#666' }}
-                            className="info-icon"
-                        />
+                    <>
+                        <div 
+                            ref={infoTriggerRef}
+                            style={{ 
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px',
+                                flexShrink: 0,
+                                overflow: 'visible',
+                                minWidth: '22px',
+                                minHeight: '22px'
+                            }} 
+                            className="info-trigger"
+                            onMouseEnter={handleInfoMouseEnter}
+                            onMouseLeave={handleInfoMouseLeave}
+                        >
+                            <Info
+                                size={14}
+                                style={{ 
+                                    cursor: 'pointer', 
+                                    color: '#666', 
+                                    flexShrink: 0,
+                                    display: 'block',
+                                    width: '14px',
+                                    height: '14px'
+                                }}
+                                className="info-icon"
+                            />
+                        </div>
 
-                        <div className="info-popover" style={{
-                            position: 'absolute',
-                            bottom: '100%', // Changed from top: 24px to bottom: 100%
-                            left: '0',
-                            marginBottom: '10px', // Add spacing
-                            backgroundColor: '#1a1a1a',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '12px',
-                            padding: '16px',
-                            width: message.toolResults && message.toolResults.length > 0 ? '400px' : '280px',
-                            zIndex: 100,
-                            boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
-                            display: 'none', // Controlled by CSS hover
-                            flexDirection: 'column',
-                            gap: '12px',
-                            maxHeight: '80vh',
-                            overflowY: 'auto'
-                        }}>
+                        {isHoveringInfo && popoverPosition && (
+                            <div 
+                                className="info-popover" 
+                                style={{
+                                    position: 'fixed',
+                                    top: popoverPosition.showAbove 
+                                        ? `${popoverPosition.top}px` 
+                                        : `${popoverPosition.top + 22}px`, // Position below (22px = icon height + padding)
+                                    left: `${popoverPosition.left}px`,
+                                    transform: popoverPosition.showAbove 
+                                        ? 'translateY(calc(-100% - 10px))' 
+                                        : 'none',
+                                    marginTop: popoverPosition.showAbove ? '0' : '10px',
+                                    backgroundColor: '#1a1a1a',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '12px',
+                                    padding: '16px',
+                                    width: message.toolResults && message.toolResults.length > 0 ? '400px' : '280px',
+                                    zIndex: 10000,
+                                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '12px',
+                                    maxHeight: '80vh',
+                                    overflowY: 'auto',
+                                    pointerEvents: 'auto'
+                                }}
+                                onMouseEnter={() => setIsHoveringInfo(true)}
+                                onMouseLeave={() => setIsHoveringInfo(false)}
+                            >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                 <Info size={16} color="#e0e0e0" />
                                 <span style={{ fontWeight: 600, color: '#e0e0e0', fontSize: '0.9rem' }}>Response Info</span>
@@ -2253,7 +1939,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
 
                             {/* Model */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Model</span>
+                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Model</span>
                                 <div style={{
                                     background: '#ffe4c4', // Peach/Beige color like screenshot
                                     color: '#5c4033',
@@ -2270,18 +1956,68 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                 </div>
                             </div>
 
-                            {/* Generation Time */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Generation Time</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#e0e0e0', fontSize: '0.85rem' }}>
-                                    <Clock size={14} />
-                                    <span>{(message.latency ? message.latency / 1000 : 0).toFixed(2)}s</span>
+                            {/* Performance Metrics */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Performance</span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div style={{
+                                        background: '#252525',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Clock size={12} color="#888" />
+                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>TTFT</span>
+                                        </div>
+                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {message.usage?.ttft ? `${message.usage.ttft.toFixed(0)}ms` : '—'}
+                                        </span>
+                                    </div>
+                                    <div style={{
+                                        background: '#252525',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        flex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Zap size={12} color="#888" />
+                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>TPS</span>
+                                        </div>
+                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {message.usage?.tps ? message.usage.tps.toFixed(1) : '—'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div style={{
+                                    background: '#252525',
+                                    padding: '8px 12px',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Clock size={14} color="#888" />
+                                        <span style={{ color: '#e0e0e0', fontSize: '0.85rem' }}>Generation Time</span>
+                                    </div>
+                                    <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
+                                        {(message.latency ? message.latency / 1000 : 0).toFixed(2)}s
+                                    </span>
                                 </div>
                             </div>
 
                             {/* Token Usage */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <span style={{ color: '#888', fontSize: '0.85rem' }}>Token Usage</span>
+                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Token Usage</span>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     <div style={{
                                         background: '#252525',
@@ -2295,7 +2031,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <ArrowDown size={12} color="#888" />
-                                            <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Input</span>
+                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Input</span>
                                         </div>
                                         <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
                                             {message.usage?.inputTokens.toLocaleString()}
@@ -2313,7 +2049,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <ArrowUp size={12} color="#888" />
-                                            <span style={{ color: '#aaa', fontSize: '0.8rem' }}>Output</span>
+                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Output</span>
                                         </div>
                                         <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
                                             {message.usage?.outputTokens.toLocaleString()}
@@ -2337,6 +2073,52 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                     </span>
                                 </div>
                             </div>
+
+                            {/* Cache Information */}
+                            {((message.usage?.cachedInputTokens && message.usage.cachedInputTokens > 0) || 
+                              (message.usage?.cachedOutputTokens && message.usage.cachedOutputTokens > 0)) && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Cache Tokens</span>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <div style={{
+                                            background: '#252525',
+                                            padding: '6px 10px',
+                                            borderRadius: '8px',
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            justifyContent: 'space-between'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Database size={12} color="#4ade80" />
+                                                <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Input</span>
+                                            </div>
+                                            <span style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.85rem' }}>
+                                                {message.usage.cachedInputTokens?.toLocaleString() || '0'}
+                                            </span>
+                                        </div>
+                                        <div style={{
+                                            background: '#252525',
+                                            padding: '6px 10px',
+                                            borderRadius: '8px',
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            justifyContent: 'space-between'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Database size={12} color="#4ade80" />
+                                                <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Output</span>
+                                            </div>
+                                            <span style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.85rem' }}>
+                                                {message.usage.cachedOutputTokens?.toLocaleString() || '0'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Tools Used Section */}
                             {message.toolResults && message.toolResults.length > 0 && (
@@ -2386,7 +2168,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                                         {result.toolCall.name.replace(/_/g, ' ')}
                                                     </span>
                                                     {result.result.executionTime && (
-                                                        <span style={{ color: '#888', fontSize: '0.75rem' }}>
+                                                        <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
                                                             {result.result.executionTime}ms
                                                         </span>
                                                     )}
@@ -2394,11 +2176,11 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
 
                                                 {result.toolCall.arguments && Object.keys(result.toolCall.arguments).length > 0 && (
                                                     <div style={{ marginBottom: '6px' }}>
-                                                        <div style={{ color: '#888', fontSize: '0.75rem', marginBottom: '2px' }}>
+                                                        <div style={{ color: '#b0b0b0', fontSize: '0.75rem', marginBottom: '2px' }}>
                                                             Args:
                                                         </div>
                                                         <div style={{
-                                                            color: '#aaa',
+                                                            color: '#cccccc',
                                                             fontSize: '0.75rem',
                                                             fontFamily: 'monospace',
                                                             overflow: 'hidden',
@@ -2426,16 +2208,26 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
                                 </div>
                             )}
                         </div>
-                    </div>
+                        )}
+                    </>
                 )}
             </div>
 
             <style>{`
-                .info-trigger:hover .info-popover {
-                    display: flex !important;
+                .info-trigger {
+                    overflow: visible !important;
                 }
                 .info-trigger:hover .info-icon {
                     color: #fff !important;
+                }
+                .info-icon {
+                    overflow: visible !important;
+                    display: block !important;
+                    flex-shrink: 0 !important;
+                }
+                .info-popover {
+                    z-index: 10000 !important;
+                    pointer-events: auto !important;
                 }
             `}</style>
 
@@ -2450,7 +2242,7 @@ function MessageBubble({ message, animate = false, onAnimationComplete }: { mess
     )
 }
 
-function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, attachedFiles, onFileSelect, onRemoveFile, fileInputRef, onPaste, onStop, agentModeEnabled }: any) {
+function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, attachedFiles, onFileSelect, onRemoveFile, fileInputRef, onPaste }: any) {
     const [isFocused, setIsFocused] = React.useState(false)
     const [isDragging, setIsDragging] = React.useState(false)
     const [showImageModal, setShowImageModal] = React.useState(false)
@@ -2542,7 +2334,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
 
                     {/* Bottom row - model selector and send */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        {/* Grouped pill container for model + thinking toggle + images */}
+                        {/* Grouped pill container for model + images */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -2554,87 +2346,6 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                         }}>
                             <ModelSelector minimal={true} />
 
-                            {/* Divider */}
-                            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-
-                            <button
-                                onClick={() => updateSettings({ thinkingModeEnabled: !settings.thinkingModeEnabled })}
-                                title={settings.thinkingModeEnabled ? "Thinking Mode On" : "Thinking Mode Off"}
-                                style={{
-                                    background: settings.thinkingModeEnabled ? 'rgba(255, 140, 105, 0.15)' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '6px 8px',
-                                    color: settings.thinkingModeEnabled ? '#FF8C69' : '#666',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                    height: '100%'
-                                }}
-                                onMouseEnter={e => {
-                                    if (!settings.thinkingModeEnabled) {
-                                        e.currentTarget.style.color = '#ccc'
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                    }
-                                }}
-                                onMouseLeave={e => {
-                                    if (!settings.thinkingModeEnabled) {
-                                        e.currentTarget.style.color = '#666'
-                                        e.currentTarget.style.background = 'transparent'
-                                    }
-                                }}
-                            >
-                                <Brain size={16} />
-                            </button>
-
-                            {/* Divider */}
-                            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
-
-                            <button
-                                onClick={() => updateSettings({ agentModeEnabled: !settings.agentModeEnabled })}
-                                title={
-                                    settings.agentModeEnabled
-                                        ? isLoading
-                                            ? "Agent Mode Active - Executing autonomous task..."
-                                            : "Agent Mode On - Ready for autonomous task execution. Click to disable."
-                                        : "Agent Mode Off - Click to enable autonomous task execution"
-                                }
-                                style={{
-                                    background: settings.agentModeEnabled
-                                        ? isLoading
-                                            ? 'rgba(59, 130, 246, 0.25)'
-                                            : 'rgba(59, 130, 246, 0.15)'
-                                        : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '6px 8px',
-                                    color: settings.agentModeEnabled ? '#3b82f6' : '#666',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                    height: '100%',
-                                    minWidth: '32px',
-                                    animation: settings.agentModeEnabled && isLoading ? 'agent-pulse 1.5s ease-in-out infinite' : 'none'
-                                }}
-                                onMouseEnter={e => {
-                                    if (!settings.agentModeEnabled) {
-                                        e.currentTarget.style.color = '#3b82f6'
-                                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
-                                    }
-                                }}
-                                onMouseLeave={e => {
-                                    if (!settings.agentModeEnabled) {
-                                        e.currentTarget.style.color = '#666'
-                                        e.currentTarget.style.background = 'transparent'
-                                    }
-                                }}
-                            >
-                                <Bot size={16} />
-                            </button>
 
                             {/* Images button - show if images are attached */}
                             {imageFiles.length > 0 && (
@@ -2710,7 +2421,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                     border: 'none',
                                     borderRadius: '8px',
                                     padding: '10px',
-                                    color: '#aaa',
+                                    color: '#cccccc',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     position: 'relative'
@@ -2727,41 +2438,8 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                             >
                                 <Paperclip size={18} />
                             </button>
-                            {/* Stop button - shown when loading in agent mode */}
-                            {isLoading && agentModeEnabled && onStop && (
-                                <button
-                                    onClick={onStop}
-                                    style={{
-                                        background: 'rgba(239, 68, 68, 0.15)',
-                                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                                        borderRadius: '8px',
-                                        padding: '10px 14px',
-                                        color: '#ef4444',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                        fontWeight: 500,
-                                        fontSize: '0.85rem'
-                                    }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)'
-                                        e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)'
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'
-                                        e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)'
-                                    }}
-                                    title="Stop agent execution"
-                                >
-                                    <Square size={14} fill="#ef4444" />
-                                    Stop
-                                </button>
-                            )}
-                            {/* Send button - hidden when loading in agent mode (stop button shown instead) */}
-                            {!(isLoading && agentModeEnabled) && (
+                            {/* Send button */}
+                            {!isLoading && (
                                 <button
                                     onClick={onSend}
                                     disabled={isLoading || (!input.trim() && (!attachedFiles || attachedFiles.length === 0))}
@@ -2829,7 +2507,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                 right: '12px',
                                 background: 'none',
                                 border: 'none',
-                                color: '#888',
+                                color: '#b0b0b0',
                                 cursor: 'pointer',
                                 padding: '8px',
                                 borderRadius: '50%',
@@ -2898,7 +2576,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                         </div>
                                         <div style={{
                                             fontSize: '0.75rem',
-                                            color: '#888'
+                                            color: '#b0b0b0'
                                         }}>
                                             {(file.size / 1024).toFixed(1)} KB
                                         </div>

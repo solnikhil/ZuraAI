@@ -139,7 +139,7 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
             <div key={provider} style={{ marginBottom: '12px' }}>
                 <div style={{ 
                     fontSize: '0.75rem', 
-                    color: '#888', 
+                    color: '#b0b0b0', 
                     fontWeight: 600, 
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
@@ -265,7 +265,7 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         {renderGroup('Ollama', groupedModels.Ollama)}
 
                         {filteredModels.length === 0 && (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#999999' }}>No models found</div>
                         )}
                     </div>
                 </div>,
@@ -310,6 +310,13 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [editCode, setEditCode] = useState('')
     const [editName, setEditName] = useState('')
+    const [collapsedModelGroups, setCollapsedModelGroups] = useState<Record<string, boolean>>({
+        openrouter: false,
+        perplexity: false,
+        gemini: false,
+        groq: false,
+        ollama: false
+    })
 
     // Activity Graph State
     const [graphRange, setGraphRange] = useState<'7d' | '30d' | '12m'>('7d')
@@ -619,6 +626,71 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         }
     }
 
+    // Helper to get model attributes (icon, color)
+    const getModelAttributes = (model: ModelOption, provider: string) => {
+        const code = model.code.toLowerCase()
+        const name = model.displayName.toLowerCase()
+        let icon = <MessageSquare size={16} />
+        let color = '#b0b0b0'
+
+        if (code.includes('gemini') || name.includes('gemini')) {
+            icon = <Sparkles size={16} />
+            color = '#4dabf7'
+        } else if (code.includes('claude') || name.includes('claude')) {
+            icon = <Box size={16} />
+            color = '#da7756'
+        } else if (code.includes('gpt') || name.includes('gpt') || code.includes('openai')) {
+            icon = <Cpu size={16} />
+            color = '#10a37f'
+        } else if (code.includes('mistral') || name.includes('mistral')) {
+            icon = <Zap size={16} />
+            color = '#fcc419'
+        } else if (code.includes('llama') || name.includes('llama')) {
+            icon = <Brain size={16} />
+            color = '#339af0'
+        }
+
+        return { icon, color }
+    }
+
+    // Remove emojis from text
+    const removeEmojis = (text: string): string => {
+        return text.replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+                   .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+                   .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+                   .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+                   .replace(/[\u{2600}-\u{26FF}]/gu, '')
+                   .replace(/[\u{2700}-\u{27BF}]/gu, '')
+                   .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+                   .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+                   .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
+                   .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
+                   .trim()
+    }
+
+    // Provider logo component
+    const ProviderLogo = ({ provider, size = 14 }: { provider: string, size?: number }) => {
+        const [imgError, setImgError] = useState(false)
+        if (!imgError) {
+            return (
+                <img
+                    src={`/provider-logos/${provider.toLowerCase()}.png`}
+                    alt={provider}
+                    onError={() => setImgError(true)}
+                    style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain' }}
+                />
+            )
+        }
+        return null
+    }
+
+    const toggleModelGroup = (provider: string) => {
+        setCollapsedModelGroups(prev => ({
+            ...prev,
+            [provider]: !prev[provider]
+        }))
+    }
+
     const resetSystemPrompt = () => {
         // Reset to default system prompt
         handleChange({
@@ -893,21 +965,42 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'visible', minWidth: 0 }}>
                                                     {/* Y-Axis - aligned with graph padding */}
                                                     <div style={{
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        justifyContent: 'space-between',
-                                                        paddingTop: paddingY,
-                                                        paddingBottom: paddingY,
+                                                        position: 'relative',
                                                         paddingRight: Math.max(8, Math.min(10, width * 0.009)),
                                                         height: '100%',
-                                                        color: '#666',
+                                                        color: '#999999',
                                                         fontSize: 'clamp(0.65rem, 0.7vw, 0.75rem)',
                                                         width: Math.max(35, Math.min(50, width * 0.045)),
                                                         textAlign: 'right',
                                                         boxSizing: 'border-box',
                                                         flexShrink: 0
                                                     }}>
-                                                        {yLabels.map((v, i) => <div key={i}>{v}</div>)}
+                                                        {yLabels.map((v, i) => {
+                                                            // Calculate the exact Y position to match the grid line
+                                                            // Grid line formula: height - paddingY - (i / 4) * (height - 2 * paddingY)
+                                                            // This gives us the SVG Y coordinate
+                                                            const graphHeight = height - 2 * paddingY
+                                                            const svgY = height - paddingY - (i / 4) * graphHeight
+                                                            // Convert SVG Y coordinate (0 at top, height at bottom) to percentage
+                                                            // Since the container matches the SVG height, we can use percentage directly
+                                                            const labelYPercent = (svgY / height) * 100
+                                                            
+                                                            return (
+                                                                <div 
+                                                                    key={i}
+                                                                    style={{
+                                                                        position: 'absolute',
+                                                                        top: `${labelYPercent}%`,
+                                                                        right: 0,
+                                                                        transform: 'translateY(-50%)',
+                                                                        lineHeight: 1,
+                                                                        whiteSpace: 'nowrap'
+                                                                    }}
+                                                                >
+                                                                    {v}
+                                                                </div>
+                                                            )
+                                                        })}
                                                     </div>
 
                                                     <div style={{ flex: 1, position: 'relative', overflow: 'visible', minWidth: 0, minHeight: 200, maxHeight: 400 }}>
@@ -1197,7 +1290,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                     paddingLeft: paddingX, 
                                                     paddingRight: paddingX, 
                                                     marginTop: 12, 
-                                                    color: '#666', 
+                                                    color: '#999999', 
                                                     fontSize: `clamp(0.65rem, ${xAxisFontSize}px, 0.75rem)`,
                                                     minWidth: 0,
                                                     overflow: 'hidden'
@@ -1360,52 +1453,9 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         perplexityModels={pendingSettings.perplexityModels || []}
                                         ollamaModels={pendingSettings.ollamaModels || []}
                                     />
-                                    <div style={{ color: '#666', fontSize: '0.8rem', marginTop: 8 }}>
+                                    <div style={{ color: '#999999', fontSize: '0.8rem', marginTop: 8 }}>
                                         Recommended: Fast models like Gemini 2.0 Flash or Groq Llama 3.1 8B
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ========== CONNECTORS SECTION ========== */}
-                    {activeSection === 'connectors' && (
-                        <div style={{ padding: '40px' }}>
-                            <div className="page-header">
-                                <h2 className="page-title">Connectors</h2>
-                                <div className="page-subtitle">Manage external service connections</div>
-                            </div>
-
-                            <div className="settings-section-card">
-                                <h3 className="section-head">Ollama (Local Models)</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#1B1913', borderRadius: 8 }}>
-                                        <div>
-                                            <div style={{ color: '#fff', fontWeight: 500 }}>Status</div>
-                                            <div style={{ color: '#666', fontSize: '0.85rem' }}>{pendingSettings.ollamaUrl}</div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <span style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: 20, background: isOllamaConnected ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: isOllamaConnected ? '#22c55e' : '#ef4444' }}>
-                                                {isOllamaConnected ? 'Connected' : 'Disconnected'}
-                                            </span>
-                                            <button onClick={checkOllama} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 6, cursor: 'pointer' }}>
-                                                <RefreshCw size={14} className={isCheckingOllama ? 'spin' : ''} />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {isOllamaConnected && pendingSettings.ollamaModels.length > 0 && (
-                                        <div style={{ padding: 16, background: '#1B1913', borderRadius: 8 }}>
-                                            <div style={{ color: '#888', fontSize: '0.8rem', marginBottom: 12 }}>Available Models</div>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                                {pendingSettings.ollamaModels.map((m: any) => (
-                                                    <span key={m.code} style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, fontSize: '0.8rem', color: '#ccc' }}>
-                                                        {m.displayName}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1440,11 +1490,10 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                         <h3 className="section-head" style={{ marginBottom: '16px' }}>Web Search API</h3>
                                         <div className="section-desc" style={{ marginBottom: '12px' }}>
-                                            Configure Tavily API for enhanced web search. Get your free API key at{' '}
+                                            Get your Tavily key at{' '}
                                             <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>
                                                 tavily.com
                                             </a>
-                                            {' '}(1000 searches/month free)
                                         </div>
                                         <input
                                             type="password"
@@ -1466,28 +1515,77 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         Control when tools require user approval before execution
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {(['always', 'sensitive', 'never'] as const).map((mode) => (
-                                            <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', background: (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode ? 'rgba(255,255,255,0.05)' : 'transparent', transition: 'background 0.2s' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="toolApprovalMode"
-                                                    value={mode}
-                                                    checked={(pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode}
-                                                    onChange={() => handleChange({ toolApprovalMode: mode })}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                                <div>
-                                                    <div style={{ fontWeight: 500, color: '#e0e0e0' }}>
-                                                        {mode === 'always' ? 'Always Ask' : mode === 'sensitive' ? 'Sensitive Only' : 'Never Ask'}
+                                        {(['always', 'sensitive', 'never'] as const).map((mode) => {
+                                            const isSelected = (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode
+                                            return (
+                                                <label 
+                                                    key={mode} 
+                                                    style={{ 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        gap: '12px', 
+                                                        cursor: 'pointer', 
+                                                        padding: '12px', 
+                                                        borderRadius: '8px', 
+                                                        background: isSelected ? 'rgba(255, 228, 196, 0.08)' : 'rgba(255,255,255,0.02)',
+                                                        border: `1px solid ${isSelected ? 'rgba(255, 228, 196, 0.2)' : 'rgba(255,255,255,0.06)'}`,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        if (!isSelected) {
+                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                                                        }
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        if (!isSelected) {
+                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                                                        }
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        borderRadius: '50%',
+                                                        border: `2px solid ${isSelected ? '#FFE4C4' : 'rgba(255,255,255,0.3)'}`,
+                                                        background: isSelected ? '#FFE4C4' : 'transparent',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        position: 'relative',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {isSelected && (
+                                                            <div style={{
+                                                                width: '10px',
+                                                                height: '10px',
+                                                                borderRadius: '50%',
+                                                                background: '#14120B'
+                                                            }} />
+                                                        )}
                                                     </div>
-                                                    <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '2px' }}>
-                                                        {mode === 'always' && 'Require approval for all tool usage'}
-                                                        {mode === 'sensitive' && 'Require approval only for sensitive tools (clipboard, files)'}
-                                                        {mode === 'never' && 'Auto-execute all tools without approval'}
+                                                    <input
+                                                        type="radio"
+                                                        name="toolApprovalMode"
+                                                        value={mode}
+                                                        checked={isSelected}
+                                                        onChange={() => handleChange({ toolApprovalMode: mode })}
+                                                        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                                                    />
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: 500, color: isSelected ? '#FFE4C4' : '#e0e0e0' }}>
+                                                            {mode === 'always' ? 'Always Ask' : mode === 'sensitive' ? 'Sensitive Only' : 'Never Ask'}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '2px' }}>
+                                                            {mode === 'always' && 'Require approval for all tool usage'}
+                                                            {mode === 'sensitive' && 'Require approval only for sensitive tools (clipboard, files)'}
+                                                            {mode === 'never' && 'Auto-execute all tools without approval'}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </label>
-                                        ))}
+                                                </label>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -1509,595 +1607,277 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                             { name: 'get_datetime', desc: 'Get current date/time', icon: '🕐' },
                                             { name: 'read_clipboard', desc: 'Read clipboard', icon: '📋' },
                                             { name: 'write_clipboard', desc: 'Copy to clipboard', icon: '📋' },
-                                        ].map((tool) => {
-                                            const isEnabled = !pendingSettings.enabledTools || pendingSettings.enabledTools.length === 0 || pendingSettings.enabledTools.includes(tool.name)
-                                            return (
-                                                <div
-                                                    key={tool.name}
-                                                    onClick={() => {
-                                                        const current = pendingSettings.enabledTools ?? settings.enabledTools
-                                                        const newEnabled = isEnabled
-                                                            ? current.filter((t: string) => t !== tool.name)
-                                                            : [...current, tool.name]
-                                                        handleChange({ enabledTools: newEnabled })
-                                                    }}
-                                                    style={{
-                                                        padding: '12px',
-                                                        borderRadius: '8px',
-                                                        border: `1px solid ${isEnabled ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255,255,255,0.1)'}`,
-                                                        background: isEnabled ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255,255,255,0.02)',
-                                                        cursor: 'pointer',
-                                                        transition: 'all 0.2s',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '10px'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.background = isEnabled ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.05)'
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.background = isEnabled ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255,255,255,0.02)'
-                                                    }}
-                                                >
-                                                    <span style={{ fontSize: '1.5rem' }}>{tool.icon}</span>
-                                                    <div style={{ flex: 1 }}>
-                                                        <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
-                                                            {tool.name.replace(/_/g, ' ')}
-                                                        </div>
-                                                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.desc}</div>
+                                        ].map((tool) => (
+                                            <div
+                                                key={tool.name}
+                                                style={{
+                                                    padding: '12px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid rgba(255,255,255,0.06)',
+                                                    background: 'rgba(255,255,255,0.02)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '1.5rem' }}>{tool.icon}</span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
+                                                        {tool.name.replace(/_/g, ' ')}
                                                     </div>
-                                                    <div style={{
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '4px',
-                                                        border: `2px solid ${isEnabled ? '#22c55e' : '#666'}`,
-                                                        background: isEnabled ? '#22c55e' : 'transparent',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}>
-                                                        {isEnabled && <Check size={14} color="#000" />}
-                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.desc}</div>
                                                 </div>
-                                            )
-                                        })}
+                                            </div>
+                                        ))}
                                     </div>
-                                    {(pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0) && (
-                                        <button
-                                            onClick={() => handleChange({ enabledTools: [] })}
-                                            style={{
-                                                marginTop: '16px',
-                                                padding: '8px 16px',
-                                                background: 'transparent',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: '8px',
-                                                color: '#aaa',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            Enable All Tools
-                                        </button>
-                                    )}
                                 </div>
                             )}
-                        </div>
-                    )}
-
-                    {/* ========== MEMORIES SECTION ========== */}
-                    {activeSection === 'memories' && (
-                        <div style={{ padding: '40px' }}>
-                            <div className="page-header">
-                                <h2 className="page-title">Memories</h2>
-                                <div className="page-subtitle">Manage persistent context and memories</div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, flexDirection: 'column', color: '#444' }}>
-                                <Brain size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
-                                <div>Coming Soon</div>
-                                <div style={{ fontSize: '0.85rem', color: '#555', marginTop: 8 }}>Persistent memory feature is under development</div>
-                            </div>
                         </div>
                     )}
 
                     {/* ========== MODELS SECTION ========== */}
                     {activeSection === 'models' && (
                         <div style={{ padding: '40px' }}>
-                            <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                                <div style={{
-                                    width: 64, height: 64, borderRadius: 18,
-                                    background: 'linear-gradient(135deg, rgba(0,188,212,0.1), rgba(168,85,247,0.1))',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
-                                }}>
-                                    <Cpu size={32} color="#fff" />
-                                </div>
-                                <div>
-                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #fff, #aaa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Models</h2>
-                                    <div className="page-subtitle" style={{ fontSize: '1rem', marginTop: 4 }}>Configure your AI model catalog</div>
-                                </div>
-                            </div>
-
-                            {/* OpenRouter Models */}
-                            <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
-                                <div style={{
-                                    padding: '20px 24px',
-                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                    background: 'linear-gradient(to right, rgba(0,188,212,0.05), transparent)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                        <img src="/provider-logos/openrouter.png" alt="OpenRouter" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>OpenRouter</h3>
-                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Cloud models via OpenRouter API</div>
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: '6px 12px', background: 'rgba(0,188,212,0.1)', borderRadius: 20, color: '#00bcd4', fontSize: '0.85rem', fontWeight: 500 }}>
-                                        {(pendingSettings.configuredModels || []).length} Models
-                                    </div>
-                                </div>
-
-                                <div style={{ padding: 24 }}>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>
-                                        {(pendingSettings.configuredModels || []).map((model: any, index: number) => (
-                                            <div key={index} style={{
-                                                padding: 16,
-                                                background: 'rgba(255,255,255,0.03)',
-                                                borderRadius: 12,
-                                                border: '1px solid rgba(255,255,255,0.06)',
-                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                transition: 'all 0.2s',
-                                                flex: '1 1 300px',
-                                                maxWidth: '600px'
-                                            }}
-                                                onMouseEnter={e => {
-                                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                                                }}
-                                                onMouseLeave={e => {
-                                                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                                                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
-                                                }}
-                                            >
-                                                {editingIndex === index ? (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
-                                                        <div style={{ display: 'flex', gap: 8 }}>
-                                                            <input value={editCode} onChange={e => setEditCode(e.target.value)} className="setting-input-scira" style={{ padding: '8px 10px', fontSize: '0.85rem' }} placeholder="Code" />
-                                                            <input value={editName} onChange={e => setEditName(e.target.value)} className="setting-input-scira" style={{ padding: '8px 10px', fontSize: '0.85rem' }} placeholder="Name" />
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: 8 }}>
-                                                            <button onClick={saveEdit} style={{ flex: 1, padding: '6px', background: '#1a3a1a', border: '1px solid #22c55e', color: '#22c55e', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Save</button>
-                                                            <button onClick={() => setEditingIndex(null)} style={{ flex: 1, padding: '6px', background: 'transparent', border: '1px solid #444', color: '#888', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                            <div style={{
-                                                                width: 36, height: 36, borderRadius: 8,
-                                                                background: 'rgba(0,188,212,0.1)',
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                color: '#00bcd4'
-                                                            }}>
-                                                                {model.displayName.toLowerCase().includes('claude') ? <Box size={18} /> :
-                                                                    model.displayName.toLowerCase().includes('gpt') ? <Cpu size={18} /> :
-                                                                        model.displayName.toLowerCase().includes('gemini') ? <Sparkles size={18} /> :
-                                                                            <Zap size={18} />}
-                                                            </div>
-                                                            <div>
-                                                                <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
-                                                                <div style={{ color: '#888', fontSize: '0.75rem', marginTop: 2 }}>{model.code}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: 6 }}>
-                                                            <button onClick={() => startEdit(index)} style={{ padding: 8, background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', borderRadius: 4, transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#ccc' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#666' }}><Edit2 size={16} /></button>
-                                                            <button onClick={() => deleteModel(index)} style={{ padding: 8, background: 'transparent', border: 'none', color: '#666', cursor: 'pointer', borderRadius: 4, transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#ef4444' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#666' }}><Trash2 size={16} /></button>
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        {/* Add New Card */}
-                                    </div>
-                                </div>
-                                {/* Add New Card */}
-                                <div style={{
-                                    padding: '20px 24px',
-                                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                                    background: 'rgba(0,0,0,0.2)',
-                                    display: 'flex', flexDirection: 'column', gap: 16
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, opacity: 0.9 }}>
-                                        <div style={{ padding: 6, borderRadius: '50%', background: 'rgba(0,188,212,0.1)', color: '#00bcd4' }}><Plus size={14} /></div>
-                                        <div style={{ fontSize: '0.9rem', fontWeight: 500, color: '#e0e0e0' }}>Add Custom Model</div>
-                                    </div>
-
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                                        <input
-                                            value={newModelCode}
-                                            onChange={e => setNewModelCode(e.target.value)}
-                                            className="setting-input-scira"
-                                            style={{
-                                                width: '100%',
-                                                padding: '12px 16px',
-                                                fontSize: '0.9rem',
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: 10,
-                                                color: '#fff'
-                                            }}
-                                            placeholder="Model ID (e.g. anthropic/claude-3)"
-                                        />
-                                        <input
-                                            value={newModelName}
-                                            onChange={e => setNewModelName(e.target.value)}
-                                            className="setting-input-scira"
-                                            style={{
-                                                width: '100%',
-                                                padding: '12px 16px',
-                                                fontSize: '0.9rem',
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: 10,
-                                                color: '#fff'
-                                            }}
-                                            placeholder="Display Name (e.g. Claude 3)"
-                                        />
-                                    </div>
-
-                                    <button
-                                        onClick={addModel}
-                                        style={{
-                                            width: '100%',
-                                            padding: '12px',
-                                            background: 'linear-gradient(90deg, #00bcd4, #0097a7)',
-                                            border: 'none',
-                                            borderRadius: 10,
-                                            color: '#fff',
-                                            cursor: 'pointer',
-                                            fontSize: '0.95rem',
-                                            fontWeight: 600,
-                                            opacity: (!newModelCode || !newModelName) ? 0.5 : 1,
-                                            pointerEvents: (!newModelCode || !newModelName) ? 'none' : 'auto',
-                                            transition: 'all 0.2s',
-                                            boxShadow: '0 4px 12px rgba(0,188,212,0.2)'
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                                        onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                                    >
-                                        Add Model to Library
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Perplexity Models */}
-                            {(pendingSettings.perplexityModels || []).length > 0 && (
-                                <div className="settings-section-card" style={{ marginTop: 24, background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
-                                    <div style={{
-                                        padding: '20px 24px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                        background: 'linear-gradient(to right, rgba(168,85,247,0.05), transparent)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <img src="/provider-logos/perplexity.png" alt="Perplexity" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
-                                            <div>
-                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Perplexity</h3>
-                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Online search models</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '6px 12px', background: 'rgba(168,85,247,0.1)', borderRadius: 20, color: '#a855f7', fontSize: '0.85rem', fontWeight: 500 }}>
-                                            {(pendingSettings.perplexityModels || []).length} Models
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                                        {(pendingSettings.perplexityModels || []).map((model: any, index: number) => (
-                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#a855f7' }} />
-                                                <div>
-                                                    <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
-                                                    <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Gemini Models */}
-                            {(pendingSettings.geminiModels || []).length > 0 && (
-                                <div className="settings-section-card" style={{ marginTop: 24, background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
-                                    <div style={{
-                                        padding: '20px 24px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                        background: 'linear-gradient(to right, rgba(77,171,247,0.05), transparent)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <img src="/provider-logos/gemini.png" alt="Gemini" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
-                                            <div>
-                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Gemini</h3>
-                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Google's generative models</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '6px 12px', background: 'rgba(77,171,247,0.1)', borderRadius: 20, color: '#4dabf7', fontSize: '0.85rem', fontWeight: 500 }}>
-                                            {(pendingSettings.geminiModels || []).length} Models
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                                        {(pendingSettings.geminiModels || []).map((model: any, index: number) => (
-                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4dabf7' }} />
-                                                <div>
-                                                    <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
-                                                    <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Groq Models */}
-                            {(pendingSettings.groqModels || []).length > 0 && (
-                                <div className="settings-section-card" style={{ marginTop: 24, background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
-                                    <div style={{
-                                        padding: '20px 24px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                        background: 'linear-gradient(to right, rgba(252,196,25,0.05), transparent)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <img src="/provider-logos/groq.png" alt="Groq" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
-                                            <div>
-                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Groq</h3>
-                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Ultra-fast LPU inference</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '6px 12px', background: 'rgba(252,196,25,0.1)', borderRadius: 20, color: '#fcc419', fontSize: '0.85rem', fontWeight: 500 }}>
-                                            {(pendingSettings.groqModels || []).length} Models
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                                        {(pendingSettings.groqModels || []).map((model: any, index: number) => (
-                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fcc419' }} />
-                                                <div>
-                                                    <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
-                                                    <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Ollama Models */}
-                            {(pendingSettings.ollamaModels || []).length > 0 && (
-                                <div className="settings-section-card" style={{ marginTop: 24, background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
-                                    <div style={{
-                                        padding: '20px 24px',
-                                        borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                        background: 'linear-gradient(to right, rgba(34,197,94,0.05), transparent)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <img src="/provider-logos/ollama.png" alt="Ollama" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'contain' }} />
-                                            <div>
-                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Ollama</h3>
-                                                <div style={{ fontSize: '0.8rem', color: '#666' }}>Local offline models</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ padding: '6px 12px', background: 'rgba(34,197,94,0.1)', borderRadius: 20, color: '#22c55e', fontSize: '0.85rem', fontWeight: 500 }}>
-                                            {(pendingSettings.ollamaModels || []).length} Models
-                                        </div>
-                                    </div>
-                                    <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                                        {(pendingSettings.ollamaModels || []).map((model: any, index: number) => (
-                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-                                                <div>
-                                                    <div style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 500 }}>{model.displayName}</div>
-                                                    <div style={{ color: '#888', fontSize: '0.75rem' }}>{model.code}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ========== KEYBOARD SHORTCUTS SECTION ========== */}
-                    {activeSection === 'shortcuts' && (
-                        <div style={{ padding: '40px', paddingBottom: 100 }}>
                             <div className="page-header">
-                                <h2 className="page-title">Keyboard Shortcuts</h2>
-                                <div className="page-subtitle">Master Zura's keyboard shortcuts for faster workflow</div>
+                                <h2 className="page-title">Models</h2>
+                                <div className="page-subtitle">Configure your AI model catalog</div>
                             </div>
-                            <KeyboardShortcuts />
+
+                            <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                {/* OpenRouter Models */}
+                                {(pendingSettings.configuredModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        {/* Header */}
+                                        <div
+                                            onClick={() => toggleModelGroup('openrouter')}
+                                            style={{
+                                                padding: '16px 20px',
+                                                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                cursor: 'pointer',
+                                                userSelect: 'none'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ProviderLogo provider="openrouter" size={18} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>OpenRouter</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.configuredModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.openrouter ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+
+                                        {/* Model List */}
+                                        {!collapsedModelGroups.openrouter && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.configuredModels || []).map((model: any, index: number) => {
+                                                    const { icon, color } = getModelAttributes(model, 'openrouter')
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '12px',
+                                                                padding: '10px 12px',
+                                                                borderRadius: '8px',
+                                                                marginBottom: '4px',
+                                                                transition: 'all 0.15s'
+                                                            }}
+                                                            onMouseEnter={e => {
+                                                                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                                            }}
+                                                            onMouseLeave={e => {
+                                                                e.currentTarget.style.background = 'transparent'
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
+                                                                {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+                                                            </div>
+                                                            {editingIndex === index ? (
+                                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                                        <input value={editCode} onChange={e => setEditCode(e.target.value)} className="setting-input-scira" style={{ padding: '6px 10px', fontSize: '0.85rem', flex: 1 }} placeholder="Code" />
+                                                                        <input value={editName} onChange={e => setEditName(e.target.value)} className="setting-input-scira" style={{ padding: '6px 10px', fontSize: '0.85rem', flex: 1 }} placeholder="Name" />
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', gap: 8 }}>
+                                                                        <button onClick={saveEdit} style={{ flex: 1, padding: '6px', background: '#1a3a1a', border: '1px solid #22c55e', color: '#22c55e', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Save</button>
+                                                                        <button onClick={() => setEditingIndex(null)} style={{ flex: 1, padding: '6px', background: 'transparent', border: '1px solid #444', color: '#888', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div style={{ flex: 1 }}>
+                                                                        <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
+                                                                        <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', gap: 4 }}>
+                                                                        <button onClick={(e) => { e.stopPropagation(); startEdit(index) }} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e0e0e0' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999999' }}><Edit2 size={14} /></button>
+                                                                        <button onClick={(e) => { e.stopPropagation(); deleteModel(index) }} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#ef4444' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999999' }}><Trash2 size={14} /></button>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Add New Model */}
+                                        {!collapsedModelGroups.openrouter && (
+                                            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                    <Plus size={14} color="#00bcd4" />
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#e0e0e0' }}>Add Custom Model</div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                                                    <input value={newModelCode} onChange={e => setNewModelCode(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Model ID" />
+                                                    <input value={newModelName} onChange={e => setNewModelName(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Display Name" />
+                                                </div>
+                                                <button onClick={addModel} style={{ width: '100%', padding: '8px 12px', background: 'linear-gradient(90deg, #00bcd4, #0097a7)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, opacity: (!newModelCode || !newModelName) ? 0.5 : 1, pointerEvents: (!newModelCode || !newModelName) ? 'none' : 'auto', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>Add Model to Library</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Perplexity Models */}
+                                {(pendingSettings.perplexityModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        <div onClick={() => toggleModelGroup('perplexity')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ProviderLogo provider="perplexity" size={18} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Perplexity</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.perplexityModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.perplexity ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+                                        {!collapsedModelGroups.perplexity && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.perplexityModels || []).map((model: any, index: number) => {
+                                                    const { icon, color } = getModelAttributes(model, 'perplexity')
+                                                    return (
+                                                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', marginBottom: '4px', transition: 'all 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{React.cloneElement(icon as React.ReactElement, { size: 18 })}</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
+                                                                <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Gemini Models */}
+                                {(pendingSettings.geminiModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        <div onClick={() => toggleModelGroup('gemini')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ProviderLogo provider="gemini" size={18} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Gemini</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.geminiModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.gemini ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+                                        {!collapsedModelGroups.gemini && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.geminiModels || []).map((model: any, index: number) => {
+                                                    const { icon, color } = getModelAttributes(model, 'gemini')
+                                                    return (
+                                                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', marginBottom: '4px', transition: 'all 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{React.cloneElement(icon as React.ReactElement, { size: 18 })}</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
+                                                                <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Groq Models */}
+                                {(pendingSettings.groqModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        <div onClick={() => toggleModelGroup('groq')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ProviderLogo provider="groq" size={18} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Groq</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.groqModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.groq ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+                                        {!collapsedModelGroups.groq && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.groqModels || []).map((model: any, index: number) => {
+                                                    const { icon, color } = getModelAttributes(model, 'groq')
+                                                    return (
+                                                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', marginBottom: '4px', transition: 'all 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{React.cloneElement(icon as React.ReactElement, { size: 18 })}</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
+                                                                <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Ollama Models */}
+                                {(pendingSettings.ollamaModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        <div onClick={() => toggleModelGroup('ollama')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <ProviderLogo provider="ollama" size={18} />
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Ollama</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.ollamaModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.ollama ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+                                        {!collapsedModelGroups.ollama && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.ollamaModels || []).map((model: any, index: number) => {
+                                                    const { icon, color } = getModelAttributes(model, 'ollama')
+                                                    return (
+                                                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', marginBottom: '4px', transition: 'all 0.15s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>{React.cloneElement(icon as React.ReactElement, { size: 18 })}</div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
+                                                                <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {/* ========== AGENT SECTION ========== */}
-                    {activeSection === 'agent' && (
-                        <div style={{ padding: '40px', paddingBottom: 100 }}>
-                            <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-                                <div style={{
-                                    width: 64, height: 64, borderRadius: 18,
-                                    background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(147,51,234,0.1))',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
-                                }}>
-                                    <Bot size={32} color="#3b82f6" />
-                                </div>
-                                <div>
-                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #fff, #aaa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Agent Control</h2>
-                                    <div className="page-subtitle" style={{ fontSize: '1rem', marginTop: 4 }}>Windows AI Agent capabilities and status</div>
-                                </div>
-                            </div>
-
-                            {/* Overview Card */}
-                            <div className="settings-section-card" style={{ marginBottom: 24 }}>
-                                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Overview</h3>
-                                <p style={{ margin: 0, color: '#999', lineHeight: 1.6 }}>
-                                    Zura AI Agent transforms your desktop assistant into a full-fledged Windows AI Agent capable of understanding your screen, controlling your computer, and executing complex multi-step tasks autonomously - similar to Comet browser, Claude Computer Use, or Open Interpreter.
-                                </p>
-                            </div>
-
-                            {/* Status Cards */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 24 }}>
-                                {/* Phase 1 */}
-                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                        <MousePointer size={24} color="#22c55e" />
-                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 1: Computer Control</h4>
-                                    </div>
-                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                                        <div style={{ marginBottom: 8 }}>✅ Mouse Control (move, click, drag, scroll)</div>
-                                        <div style={{ marginBottom: 8 }}>✅ Keyboard Control (type, hotkeys, press keys)</div>
-                                        <div>✅ Screen Understanding (capture, OCR)</div>
-                                    </div>
-                                </div>
-
-                                {/* Phase 2 */}
-                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                        <SettingsIcon size={24} color="#22c55e" />
-                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 2: App & System</h4>
-                                    </div>
-                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                                        <div style={{ marginBottom: 8 }}>✅ Application Management (launch, close, windows)</div>
-                                        <div style={{ marginBottom: 8 }}>✅ File Operations (read, write, manage)</div>
-                                        <div>✅ System Operations (commands, processes)</div>
-                                    </div>
-                                </div>
-
-                                {/* Phase 3 */}
-                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                        <Brain size={24} color="#22c55e" />
-                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 3: Intelligence</h4>
-                                    </div>
-                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                                        <div style={{ marginBottom: 8 }}>✅ Task Planning & Execution</div>
-                                        <div style={{ marginBottom: 8 }}>✅ Memory System (short/medium/long-term)</div>
-                                        <div>✅ Visual Understanding (OCR, vision APIs)</div>
-                                    </div>
-                                </div>
-
-                                {/* Phase 4 */}
-                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                        <Shield size={24} color="#22c55e" />
-                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 4: Safety</h4>
-                                    </div>
-                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                                        <div style={{ marginBottom: 8 }}>✅ Action Confirmation</div>
-                                        <div style={{ marginBottom: 8 }}>✅ Audit Logging</div>
-                                        <div>✅ Restricted Paths</div>
-                                    </div>
-                                </div>
-
-                                {/* Phase 5 */}
-                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                        <Workflow size={24} color="#22c55e" />
-                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 5: Advanced</h4>
-                                    </div>
-                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
-                                        <div style={{ marginBottom: 8 }}>✅ Browser Automation (Playwright)</div>
-                                        <div style={{ marginBottom: 8 }}>✅ Workflow Automation</div>
-                                        <div>✅ Integration APIs (email, calendar, messaging)</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Statistics */}
-                            <div className="settings-section-card">
-                                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Implementation Status</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#3b82f6', marginBottom: 4 }}>80+</div>
-                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Tools Implemented</div>
-                                    </div>
-                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#22c55e', marginBottom: 4 }}>5/5</div>
-                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Phases Complete</div>
-                                    </div>
-                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
-                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#f59e0b', marginBottom: 4 }}>Ready</div>
-                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Production Status</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Capabilities */}
-                            <div className="settings-section-card">
-                                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Key Capabilities</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <MousePointer size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Full mouse control</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Keyboard size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Keyboard automation</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Monitor size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Screen capture & OCR</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <FolderOpen size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>File system operations</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Bot size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Multi-step task execution</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Brain size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Memory & context</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Shield size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Safety guardrails</span>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
-                                        <Workflow size={20} color="#3b82f6" />
-                                        <span style={{ color: '#ccc' }}>Browser automation</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Usage Instructions */}
-                            <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.05), rgba(147,51,234,0.05))', border: '1px solid rgba(59,130,246,0.2)' }}>
-                                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>How to Use</h3>
-                                <div style={{ color: '#ccc', lineHeight: 1.8 }}>
-                                    <div style={{ marginBottom: 12 }}>
-                                        <strong style={{ color: '#fff' }}>1. Enable Agent Mode:</strong> Toggle the agent mode button in the chat interface to activate autonomous task execution.
-                                    </div>
-                                    <div style={{ marginBottom: 12 }}>
-                                        <strong style={{ color: '#fff' }}>2. Give High-Level Tasks:</strong> Describe what you want done (e.g., "Open Notepad and type a note", "Organize files in Downloads folder").
-                                    </div>
-                                    <div style={{ marginBottom: 12 }}>
-                                        <strong style={{ color: '#fff' }}>3. Monitor Progress:</strong> Watch as the agent breaks down tasks into steps and executes them autonomously.
-                                    </div>
-                                    <div>
-                                        <strong style={{ color: '#fff' }}>4. Safety First:</strong> The agent will ask for confirmation before performing sensitive operations like file deletion or running commands.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ========== TODOS SECTION ========== */}
-                    {activeSection === 'todos' && (
+                    {/* ========== END OF SECTIONS ========== */}
+                    {false && (
                         <div style={{ padding: '40px', paddingBottom: 100 }}>
                             <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
                                 <div style={{
@@ -2128,7 +1908,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FFE4C4' }} />
                                         <div>
                                             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Your Tasks</h3>
-                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>Add, complete, and manage your todos</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#999999' }}>Add, complete, and manage your todos</div>
                                         </div>
                                     </div>
                                     {pendingSettings.todos && pendingSettings.todos.length > 0 && (
@@ -2204,10 +1984,10 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
                                 {/* Todo List */}
                                 {(!pendingSettings.todos || pendingSettings.todos.length === 0) ? (
-                                    <div style={{ padding: 48, textAlign: 'center', color: '#555' }}>
+                                    <div style={{ padding: 48, textAlign: 'center', color: '#888888' }}>
                                         <ListTodo size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
                                         <div style={{ fontSize: '1rem', marginBottom: 8, color: '#888' }}>No todos yet</div>
-                                        <div style={{ fontSize: '0.85rem', color: '#666' }}>Add your first task above to get started</div>
+                                        <div style={{ fontSize: '0.85rem', color: '#999999' }}>Add your first task above to get started</div>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -2268,7 +2048,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                         cursor: 'pointer',
                                                         padding: 8,
                                                         borderRadius: 8,
-                                                        color: '#444',
+                                                        color: '#777777',
                                                         transition: 'all 0.2s'
                                                     }}
                                                     onMouseEnter={e => {
@@ -2297,10 +2077,10 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         justifyContent: 'flex-start',
                                         background: 'rgba(255,255,255,0.02)'
                                     }}>
-                                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#999999' }}>
                                             <span style={{ color: '#888', fontWeight: 500 }}>{pendingSettings.todos.filter((t: TodoItem) => !t.completed).length}</span> remaining
                                         </div>
-                                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#999999' }}>
                                             <span style={{ color: '#FFE4C4', fontWeight: 500 }}>{pendingSettings.todos.filter((t: TodoItem) => t.completed).length}</span> completed
                                         </div>
                                     </div>
