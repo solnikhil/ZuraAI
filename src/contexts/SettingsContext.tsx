@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
+import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system'
@@ -33,8 +34,15 @@ export interface Settings {
     titleModel: string
     // Thinking mode
     thinkingModeEnabled: boolean
+    // Agent mode
+    agentModeEnabled: boolean
     // Todo items
     todos: TodoItem[]
+    // Tool settings
+    toolsEnabled: boolean
+    tavilyApiKey: string
+    enabledTools: string[]  // Which tools are active (empty = all enabled)
+    toolApprovalMode: 'always' | 'sensitive' | 'never'
 }
 
 // Todo item structure
@@ -46,7 +54,9 @@ export interface TodoItem {
 }
 
 // Thinking mode system prompt - used when thinking mode is enabled
-export const THINKING_SYSTEM_PROMPT = `When Thinking Mode is enabled, structure your response as follows:
+export const THINKING_SYSTEM_PROMPT = `IMPORTANT: You MUST always structure your response with thinking when Thinking Mode is enabled. This is REQUIRED, not optional.
+
+ALWAYS format your response exactly as follows:
 
 **Thinking...**
 - Goal: [1 sentence - what you're solving]
@@ -57,11 +67,100 @@ export const THINKING_SYSTEM_PROMPT = `When Thinking Mode is enabled, structure 
 **Final Answer:**
 [Your actual answer to the user goes here]
 
+You MUST include both the "**Thinking...**" section AND the "**Final Answer:**" section in EVERY response. Do not skip the thinking section, even for simple questions.
+
 Rules:
 1. Keep the Thinking section concise (under 100 words)
 2. The Thinking section should be high-level reasoning, not a detailed transcript
 3. Always include both sections - Thinking first, then Final Answer
 4. The Final Answer should be complete and standalone`
+
+// Agent mode system prompt - used when agent mode is enabled
+// Implements the ReAct (Reasoning + Acting) pattern for autonomous task execution
+export const AGENT_SYSTEM_PROMPT = `You are Zura, an autonomous AI agent capable of executing multi-step tasks on the user's computer. You operate using the ReAct (Reasoning + Acting) pattern.
+
+## Core Behavior
+
+For each user request, follow this cycle until the goal is achieved:
+
+1. **THINK**: Analyze the current situation and plan your next action
+2. **ACT**: Execute a tool to make progress toward the goal
+3. **OBSERVE**: Examine the tool's result
+4. **REPEAT**: Continue the cycle until the task is complete
+
+## Available Tool Categories
+
+### Search Tools
+- \`web_search\`: Search the internet for real-time information
+- \`fetch_url\`: Read content from a specific webpage
+Use when: You need current information, news, documentation, or web content.
+
+### Utility Tools
+- \`get_datetime\`: Get current date and time
+- \`calculator\`: Evaluate mathematical expressions
+Use when: You need time-based information or calculations.
+
+### Computer Control Tools
+- \`move_mouse\`, \`click\`, \`double_click\`, \`drag\`, \`scroll\`: Mouse control
+- \`type_text\`, \`press_key\`, \`hotkey\`, \`hold_key\`: Keyboard control
+- \`capture_screen\`, \`capture_region\`: Take screenshots
+- \`get_screen_text\`, \`get_text_at\`: Read text from screen via OCR
+Use when: You need to interact with the user's desktop, applications, or read screen content.
+
+### Application Management Tools
+- \`launch_app\`, \`close_app\`: Start or stop applications
+- \`focus_window\`, \`minimize_window\`, \`maximize_window\`: Window management
+- \`list_running_apps\`, \`list_windows\`, \`get_active_window\`: Get app/window info
+Use when: You need to open, close, or manage applications and windows.
+
+### File System Tools
+- \`read_file\`, \`write_file\`, \`create_file\`, \`delete_file\`: File operations
+- \`list_directory\`, \`create_directory\`: Directory operations
+- \`copy_file\`, \`move_file\`: File management
+- \`file_exists\`, \`get_file_info\`: File information
+- \`open_file\`, \`open_folder\`: Open with default app
+Use when: You need to read, write, or manage files and folders.
+
+### System Tools
+- \`read_clipboard\`, \`write_clipboard\`: Clipboard access
+- \`run_command\`: Execute shell commands
+- \`get_system_info\`, \`get_running_processes\`, \`kill_process\`: System info
+- \`store_memory\`, \`search_memories\`: Remember information
+- \`create_task_plan\`, \`execute_task_step\`: Task planning
+Use when: You need system information, clipboard access, or to run commands.
+
+## Safety Guidelines
+
+1. **Always explain** what you're about to do before executing sensitive actions
+2. **Request confirmation** for destructive operations (deleting files, killing processes)
+3. **Be cautious** with computer control tools - verify screen state before clicking
+4. **Never execute** commands that could harm the system or user data without explicit approval
+5. **Report errors** clearly and suggest alternatives when actions fail
+
+## Response Format
+
+When working on a task, structure your responses as:
+
+**Thinking...**
+[Brief analysis of current state and next action]
+
+**Action:** [Tool name and purpose]
+[Execute the tool]
+
+**Observation:** [What the tool returned]
+
+**Next Step:** [What you'll do next, or "Task complete" if done]
+
+## Important Rules
+
+1. **Iterate until complete**: Keep working until the goal is achieved or you need user input
+2. **One action at a time**: Execute one tool, observe the result, then decide the next action
+3. **Handle failures gracefully**: If a tool fails, try an alternative approach
+4. **Stay focused**: Only perform actions relevant to the user's request
+5. **Communicate progress**: Keep the user informed of what you're doing
+6. **Ask for clarification**: If the request is ambiguous, ask before proceeding
+
+You have full access to the user's computer through these tools. Use them responsibly to accomplish the user's goals efficiently and safely.`
 
 const defaultSettings: Settings = {
     theme: 'dark',
@@ -243,7 +342,12 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         'Brainstorm ideas for...'
     ],
     thinkingModeEnabled: false,
-    todos: []
+    agentModeEnabled: false,
+    todos: [],
+    toolsEnabled: false,
+    tavilyApiKey: '',
+    enabledTools: [],
+    toolApprovalMode: 'sensitive'
 }
 
 interface SettingsContextType {
@@ -285,6 +389,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         // Initialize todos if missing
         if (!parsed.todos) parsed.todos = []
+        // Initialize tool settings if missing
+        if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
+        if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
+        if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
+        if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
+        // Initialize thinking mode if missing
+        if (parsed.thinkingModeEnabled === undefined) parsed.thinkingModeEnabled = defaultSettings.thinkingModeEnabled
+        // Initialize agent mode if missing
+        if (parsed.agentModeEnabled === undefined) parsed.agentModeEnabled = defaultSettings.agentModeEnabled
 
         return parsed
     })
@@ -298,6 +411,43 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         window.addEventListener('storage', handleStorageChange)
         return () => window.removeEventListener('storage', handleStorageChange)
     }, [])
+
+    // Load API keys from secure storage on startup
+    useEffect(() => {
+        const loadSecureKeys = async () => {
+            try {
+                console.log('[SettingsContext] Loading secure keys...')
+
+                // Migrate existing keys from localStorage if needed
+                await migrateApiKeysFromLocalStorage(settings)
+
+                // Load from secure storage
+                const secureKeys = await loadApiKeysFromSecureStorage()
+
+                // Check if we got any keys
+                const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
+                    secureKeys.geminiApiKey || secureKeys.groqApiKey
+
+                if (hasSecureKeys) {
+                    console.log('[SettingsContext] Loaded secure keys successfully')
+                    // Update settings with secure keys - prefer secure storage values
+                    setSettings(prev => ({
+                        ...prev,
+                        openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
+                        perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
+                        geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
+                        groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
+                    }))
+                } else {
+                    console.log('[SettingsContext] No secure keys found, using localStorage values')
+                }
+            } catch (error) {
+                console.error('[SettingsContext] Failed to load API keys from secure storage:', error)
+                // Keep using localStorage values if secure storage fails
+            }
+        }
+        loadSecureKeys()
+    }, []) // Only run on mount
 
     // Auto-fetch Ollama models on startup
     useEffect(() => {
@@ -322,23 +472,58 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     useEffect(() => {
+        // Save settings to localStorage
+        // We now keep API keys in localStorage as a fallback in case secure storage fails
+        // The secure storage is still the primary storage for keys (encrypted)
+        // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
 
+        // #region agent log
+        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:useEffect:save', message: 'Settings saved to localStorage', data: { aiModel: settings.aiModel, modelProvider: settings.modelProvider, thinkingModeEnabled: settings.thinkingModeEnabled }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+        // #endregion
+
         // Apply theme
-        if (settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        const isDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (isDark) {
             document.documentElement.classList.add('dark')
         } else {
             document.documentElement.classList.remove('dark')
         }
 
-        // Sync with main process
+        // Also listen for system theme changes when theme is set to 'system'
+        if (settings.theme === 'system') {
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+            const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+                if (settings.theme === 'system') {
+                    if (e.matches) {
+                        document.documentElement.classList.add('dark')
+                    } else {
+                        document.documentElement.classList.remove('dark')
+                    }
+                }
+            }
+            mediaQuery.addEventListener('change', handleSystemThemeChange)
+            return () => mediaQuery.removeEventListener('change', handleSystemThemeChange)
+        }
+
+        // Sync with main process (API keys are sent but main process doesn't store them)
         if (window.ipcRenderer) {
             window.ipcRenderer.send('settings-changed', settings)
         }
     }, [settings])
 
     const updateSettings = (newSettings: Partial<Settings>) => {
-        setSettings(prev => ({ ...prev, ...newSettings }))
+        // #region agent log
+        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings', message: 'updateSettings called', data: { newSettings, currentAiModel: settings.aiModel, currentProvider: settings.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+        // #endregion
+
+        setSettings(prev => {
+            const updated = { ...prev, ...newSettings }
+            // #region agent log
+            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings:setSettings', message: 'Settings state updated', data: { updatedAiModel: updated.aiModel, updatedProvider: updated.modelProvider, prevAiModel: prev.aiModel, prevProvider: prev.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
+            // #endregion
+            return updated
+        })
     }
 
     const resetSettings = () => {

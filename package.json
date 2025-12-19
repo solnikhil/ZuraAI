@@ -8,21 +8,33 @@
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "build:dir": "tsc && vite build && electron-builder --dir",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest --run",
+    "test:watch": "vitest"
   },
   "dependencies": {
+    "active-win": "^8.2.1",
+    "better-sqlite3": "^12.5.0",
     "electron-overlay-window": "^4.0.1",
+    "electron-updater": "^6.1.7",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.559.0",
+    "playwright": "^1.57.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.10.1",
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
+    "robotjs": "^0.6.0",
+    "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.0.2",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/react-syntax-highlighter": "^15.5.13",
@@ -30,10 +42,13 @@
     "@vitejs/plugin-react": "^4.0.0",
     "electron": "^25.9.8",
     "electron-builder": "^24.0.0",
+    "fast-check": "^4.4.0",
+    "jsdom": "^27.3.0",
     "typescript": "^5.0.0",
     "vite": "^4.0.0",
     "vite-plugin-electron": "^0.12.0",
-    "vite-plugin-electron-renderer": "^0.14.0"
+    "vite-plugin-electron-renderer": "^0.14.0",
+    "vitest": "^4.0.16"
   },
   "build": {
     "appId": "com.zura.ai",
@@ -41,6 +56,11 @@
     "executableName": "Zura",
     "asar": true,
     "compression": "maximum",
+    "publish": {
+      "provider": "github",
+      "owner": "YOUR_GITHUB_USERNAME",
+      "repo": "ZuraAI"
+    },
     "win": {
       "target": [
         "nsis"
@@ -51,7 +71,8 @@
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "shortcutName": "Zura"
+      "shortcutName": "Zura",
+      "allowToChangeInstallationDirectory": false
     },
     "files": [
       "dist/**/*",

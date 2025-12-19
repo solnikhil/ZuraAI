@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, Link, Brain, ArrowLeft, Github, Star, ListTodo } from 'lucide-react'
+import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, Link, Brain, ArrowLeft, Github, Star, ListTodo, Command, Sparkles, Bot } from 'lucide-react'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 
@@ -223,7 +223,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             transition: 'all 0.3s ease',
             pointerEvents: view === 'settings' ? 'all' : 'none',
             padding: '20px 16px',
-            backgroundColor: '#040812' // Ensure BG covers chat list
+            backgroundColor: '#1B1913' // Ensure BG covers chat list
 
         }}>
 
@@ -275,50 +275,53 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
                     style={{
                         padding: '12px',
-                        marginBottom: '24px',
-                        background: 'linear-gradient(145deg, #1a1a1a, #0a0a0a)',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        borderRadius: '16px',
+                        marginBottom: '16px',
+                        background: 'rgba(27, 25, 19, 0.6)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '12px',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         transition: 'all 0.3s ease',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                     }}
                     title="Star on GitHub"
                     onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.4)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
                         e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.background = 'rgba(27, 25, 19, 0.8)';
                     }}
                     onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
                         e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.background = 'rgba(20, 18, 11, 0.6)';
                     }}
                 >
-                    <Github size={24} color="#fff" />
+                    <Github size={20} color="#fff" />
                 </div>
             ) : (
                 <div
                     onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
                     style={{
-                        padding: '24px',
-                        marginBottom: '24px',
-                        background: 'linear-gradient(145deg, #1a1a1a, #0a0a0a)',
-                        border: '1px solid rgba(255,255,255,0.05)',
-                        borderRadius: '24px',
+                        padding: '16px',
+                        marginBottom: '16px',
+                        background: 'rgba(27, 25, 19, 0.6)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '16px',
                         cursor: 'pointer',
                         position: 'relative',
                         overflow: 'hidden',
-                        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.3)'
+                        transition: 'all 0.3s ease',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
                     }}
                     onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'translateY(-4px)';
-                        e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.5)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
                         e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                        e.currentTarget.style.background = 'rgba(27, 25, 19, 0.8)';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
                             badge.style.background = 'rgba(255, 215, 0, 0.15)';
@@ -327,8 +330,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     }}
                     onMouseLeave={e => {
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                        e.currentTarget.style.background = 'rgba(20, 18, 11, 0.6)';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
                             badge.style.background = 'rgba(255,255,255,0.05)';
@@ -336,59 +340,34 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         }
                     }}
                 >
-                    {/* Subtle Grid Pattern Background */}
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)',
-                        backgroundSize: '20px 20px',
-                        opacity: 0.3,
-                        pointerEvents: 'none'
-                    }} />
-
-                    {/* Glow Effect */}
-                    <div style={{
-                        position: 'absolute',
-                        top: '-50%',
-                        left: '-50%',
-                        width: '200%',
-                        height: '200%',
-                        background: 'radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%)',
-                        transform: 'rotate(45deg)',
-                        pointerEvents: 'none'
-                    }} />
-
-                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                         <div style={{
-                            width: 56, height: 56, borderRadius: '16px',
+                            width: 48, height: 48, borderRadius: '12px',
                             background: 'linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: '#1a1a1a',
-                            boxShadow: '0 8px 16px rgba(0,0,0,0.2)'
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                         }}>
-                            <Github size={32} strokeWidth={2.5} />
+                            <Github size={28} strokeWidth={2.5} />
                         </div>
 
                         <div style={{ textAlign: 'center', width: '100%' }}>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#fff', marginBottom: '8px', letterSpacing: '-0.02em' }}>Zura AI</div>
+                            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff', marginBottom: '6px', letterSpacing: '-0.01em' }}>Zura AI</div>
 
                             <div className="github-star-badge" style={{
-                                fontSize: '0.85rem',
+                                fontSize: '0.8rem',
                                 color: '#ccc',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: 8,
+                                gap: 6,
                                 justifyContent: 'center',
                                 background: 'rgba(255,255,255,0.05)',
-                                padding: '8px 16px',
-                                borderRadius: '12px',
+                                padding: '6px 12px',
+                                borderRadius: '10px',
                                 transition: 'all 0.3s ease',
                                 border: '1px solid rgba(255,255,255,0.05)'
                             }}>
-                                <Star size={14} fill="#FFD700" color="#FFD700" />
+                                <Star size={12} fill="#FFD700" color="#FFD700" />
                                 <span style={{ fontWeight: 500 }}>Star on GitHub</span>
                             </div>
                         </div>
@@ -402,6 +381,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
                     { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
                     { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
+                    { id: 'shortcuts', label: 'Shortcuts', icon: <Command size={18} /> },
+                    { id: 'tools', label: 'Tools', icon: <Sparkles size={18} /> },
+                    { id: 'agent', label: 'Agent', icon: <Bot size={18} /> },
                     { id: 'connectors', label: 'Connectors', icon: <Link size={18} /> },
                     { id: 'memories', label: 'Memories', icon: <Brain size={18} /> },
                     { id: 'todos', label: 'Todos', icon: <ListTodo size={18} /> }
@@ -467,7 +449,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
     return (
         <div style={{
             width: isCollapsed ? '72px' : '280px',
-            background: '#040812',
+            background: '#1B1913',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '24px',
             margin: '16px',
@@ -492,7 +474,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
                 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
                 
-                .toggle-switch { width: 32px; height: 18px; background: #333; border-radius: 9px; position: relative; cursor: pointer; transition: background 0.2s; }
+                .toggle-switch { width: 32px; height: 18px; background: rgba(255,255,255,0.1); border-radius: 9px; position: relative; cursor: pointer; transition: background 0.2s; }
                 .toggle-thumb { width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
                 .toggle-switch.active .toggle-thumb { transform: translateX(14px); }
                 .toggle-switch.active { background: #fff; }

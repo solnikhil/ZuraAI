@@ -6,6 +6,8 @@ import Settings from './components/Settings'
 import DashboardLayout from './components/Dashboard/Layout'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
+import { ToastProvider } from './components/Toast'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Simple wrapper to handle "Chat" legacy route if needed, or redirect
 function LegacyChatWrapper() {
@@ -14,20 +16,24 @@ function LegacyChatWrapper() {
 
 function App() {
     return (
-        <SettingsProvider>
-            <ChatHistoryProvider>
-                <Router>
-                    <Routes>
-                        <Route path="/" element={<DashboardLayout />} />
-                        <Route path="/dashboard" element={<DashboardLayout />} />
-                        <Route path="/overlay" element={<Overlay />} />
-                        <Route path="/settings" element={<Settings />} />
-                        {/* Legacy chat view if accessed directly */}
-                        <Route path="/chat" element={<LegacyChatWrapper />} />
-                    </Routes>
-                </Router>
-            </ChatHistoryProvider>
-        </SettingsProvider>
+        <ErrorBoundary>
+            <ToastProvider>
+                <SettingsProvider>
+                    <ChatHistoryProvider>
+                        <Router>
+                            <Routes>
+                                <Route path="/" element={<DashboardLayout />} />
+                                <Route path="/dashboard" element={<DashboardLayout />} />
+                                <Route path="/overlay" element={<Overlay />} />
+                                <Route path="/settings" element={<Settings />} />
+                                {/* Legacy chat view if accessed directly */}
+                                <Route path="/chat" element={<LegacyChatWrapper />} />
+                            </Routes>
+                        </Router>
+                    </ChatHistoryProvider>
+                </SettingsProvider>
+            </ToastProvider>
+        </ErrorBoundary>
     )
 }
 

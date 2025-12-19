@@ -1,6 +1,11 @@
 import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import * as chatStore from './chatStore'
+import * as secureStorage from './secureStorage'
+
+// Import tool handlers - use dynamic import to avoid circular dependency issues
+let registerToolHandlers: (() => void) | undefined
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -48,7 +53,7 @@ function createMainWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            devTools: false,          // Explicitly disabled as requested
+            devTools: !isProduction,  // Enable DevTools in development
             spellcheck: false,        // Disable spellcheck for performance
         },
         autoHideMenuBar: true,
@@ -147,7 +152,7 @@ function createOverlayWindow() {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
-            devTools: false,          // Explicitly disabled as requested
+            devTools: !isProduction,  // Enable DevTools in development
             spellcheck: false,        // Disable spellcheck for performance
             backgroundThrottling: false,  // Keep overlay responsive when hidden
         },
@@ -198,7 +203,76 @@ app.on('before-quit', () => {
     isQuitting = true
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+    // Register tool handlers for AI function calling
+    try {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:209', message: 'Starting dynamic import', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+        // #endregion
+        const toolsModule = await import('./tools/index')
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:211', message: 'Dynamic import completed', data: { moduleKeys: Object.keys(toolsModule), hasRegisterToolHandlers: 'registerToolHandlers' in toolsModule, registerToolHandlersType: typeof toolsModule.registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+        // #endregion
+        registerToolHandlers = toolsModule.registerToolHandlers
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:213', message: 'After assignment', data: { registerToolHandlersType: typeof registerToolHandlers, isFunction: typeof registerToolHandlers === 'function', isUndefined: registerToolHandlers === undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
+        // #endregion
+        if (registerToolHandlers) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:216', message: 'Before calling registerToolHandlers', data: { registerToolHandlersType: typeof registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
+            // #endregion
+            const result = registerToolHandlers()
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:219', message: 'After calling registerToolHandlers', data: { resultType: typeof result, resultValue: result }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
+            // #endregion
+        } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:221', message: 'registerToolHandlers is falsy', data: { registerToolHandlersValue: registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
+            // #endregion
+        }
+    } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:224', message: 'Error in tool handler registration', data: { errorMessage: error instanceof Error ? error.message : String(error), errorStack: error instanceof Error ? error.stack : undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'F' }) }).catch(() => { });
+        // #endregion
+        console.error('[MAIN] Failed to load tool handlers:', error)
+    }
+
+    // Initialize Tavily API key from settings on startup
+    // This will be updated when settings are synced, but we initialize it here
+    // in case tools are called before the first settings sync
+    (global as any).tavilyApiKey = undefined
+
+    // Set up auto-updater (only in production)
+    if (isProduction) {
+        autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
+            console.error('Auto-update check failed:', err)
+        })
+
+        // Check for updates every 4 hours
+        setInterval(() => {
+            autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
+                console.error('Auto-update check failed:', err)
+            })
+        }, 4 * 60 * 60 * 1000)
+
+        // Handle update events
+        autoUpdater.on('update-available', () => {
+            if (mainWindow) {
+                mainWindow.webContents.send('update-available')
+            }
+        })
+
+        autoUpdater.on('update-downloaded', () => {
+            if (mainWindow) {
+                mainWindow.webContents.send('update-downloaded')
+            }
+        })
+
+        autoUpdater.on('error', (error: Error) => {
+            console.error('Auto-updater error:', error)
+        })
+    }
+
     createTray()
     createMainWindow() // Open main window on start
     createOverlayWindow()
@@ -267,6 +341,10 @@ ipcMain.on('settings-changed', (_event, settings) => {
         settingsToLog.systemPrompt = settingsToLog.systemPrompt.substring(0, 50) + '... (truncated)'
     }
     // console.log('[SETTINGS] Updated:', JSON.stringify(settingsToLog, null, 2))
+
+    // Store Tavily API key globally for tool handlers
+    // Always update (even if empty) to clear stale keys
+    (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
 
     // Only notify if explicitly requested or critical (avoiding spam on every keystroke/sync)
     // new Notification({
@@ -441,3 +519,47 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
 ipcMain.on('open-settings', () => {
     createMainWindow()
 })
+
+// ==================== SECURE STORAGE IPC HANDLERS ====================
+
+ipcMain.handle('secure-storage:get', (_event, key: string) => {
+    return secureStorage.getSecureValue(key as any)
+})
+
+ipcMain.handle('secure-storage:set', (_event, key: string, value: string) => {
+    return secureStorage.setSecureValue(key as any, value)
+})
+
+ipcMain.handle('secure-storage:get-all', () => {
+    return secureStorage.getAllSecureValues()
+})
+
+ipcMain.handle('secure-storage:clear', () => {
+    return secureStorage.clearSecureStorage()
+})
+
+ipcMain.handle('secure-storage:status', () => {
+    return secureStorage.getStorageStatus()
+})
+
+// ==================== AUTO-UPDATER IPC HANDLERS ====================
+
+ipcMain.handle('updater:check-for-updates', () => {
+    if (isProduction) {
+        return autoUpdater.checkForUpdatesAndNotify()
+    }
+    return Promise.resolve(null)
+})
+
+ipcMain.handle('updater:quit-and-install', () => {
+    if (isProduction) {
+        autoUpdater.quitAndInstall(false, true)
+    }
+    return true
+})
+
+ipcMain.handle('updater:get-version', () => {
+    return app.getVersion()
+})
+
+// ===============================================================

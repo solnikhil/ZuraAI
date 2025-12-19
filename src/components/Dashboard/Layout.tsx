@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import Settings from '../Settings'
+import { useSettings } from '../../contexts/SettingsContext'
 
 
 export default function DashboardLayout() {
@@ -9,6 +10,7 @@ export default function DashboardLayout() {
     const [activeSettingsSection, setActiveSettingsSection] = useState('usage')
     const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false)
     const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+    const { settings } = useSettings()
 
     // This callback is passed to Settings to track unsaved changes
     const handleUnsavedChange = useCallback((hasChanges: boolean) => {
@@ -32,7 +34,7 @@ export default function DashboardLayout() {
     }, [hasUnsavedSettings, triggerWarning])
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#121212' }}>
+        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#14120B' }}>
             <Sidebar
                 view={view}
                 onOpenSettings={() => setView('settings')}

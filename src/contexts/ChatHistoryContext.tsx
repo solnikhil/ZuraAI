@@ -1,11 +1,35 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
+export interface ToolCallResult {
+    toolCall: {
+        id: string
+        name: string
+        arguments: Record<string, any>
+    }
+    result: {
+        success: boolean
+        data?: any
+        error?: string
+        executionTime?: number
+    }
+}
+
+export interface FileAttachment {
+    id: string
+    name: string
+    type: string
+    size: number
+    data: string // base64 encoded data
+    mimeType: string
+}
+
 export interface Message {
     id: string
     role: 'user' | 'assistant' | 'system'
     content: string
-    image?: string
+    image?: string // Legacy field for backward compatibility
+    files?: FileAttachment[] // New field for multiple file attachments
     timestamp: number
     tokenCount?: number
     model?: string
@@ -13,6 +37,7 @@ export interface Message {
     thinking?: string
     thinkingDuration?: number
     hasAnimated?: boolean
+    toolResults?: ToolCallResult[]
     usage?: {
         inputTokens: number
         outputTokens: number

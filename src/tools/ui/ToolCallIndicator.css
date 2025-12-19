@@ -1,0 +1,76 @@
+.tool-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #aaa;
+    margin: 8px 0;
+}
+
+.tool-indicator-executing {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #60a5fa;
+}
+
+.tool-indicator-complete {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #4ade80;
+}
+
+.tool-indicator-error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+.tool-indicator-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tool-indicator-text {
+    font-weight: 500;
+}
+
+.tool-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Light theme */
+:root:not(.dark) .tool-indicator {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #666;
+}
+
+:root:not(.dark) .tool-indicator-executing {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+:root:not(.dark) .tool-indicator-complete {
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+}
+
+:root:not(.dark) .tool-indicator-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+

@@ -23,17 +23,49 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
-    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 320 })
+    const portalRef = useRef<HTMLDivElement>(null)
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 320, showAbove: true })
 
     // Update position when opening
     // Toggle handler to calculate position immediately
     const toggleOpen = () => {
         if (!isOpen && dropdownRef.current) {
             const rect = dropdownRef.current.getBoundingClientRect()
+            const viewportHeight = window.innerHeight
+            const viewportWidth = window.innerWidth
+            const dropdownHeight = 488 // Approximate height, will be adjusted after render
+            const dropdownWidth = 320
+            const padding = 16 // Minimum padding from viewport edges
+            
+            // Calculate available space above and below
+            const spaceAbove = rect.top
+            const spaceBelow = viewportHeight - rect.bottom
+            
+            // Determine if we should show above or below
+            const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
+            
+            // Calculate vertical position
+            let top: number
+            if (showAbove) {
+                top = rect.top - 12
+            } else {
+                top = rect.bottom + 12
+            }
+            
+            // Calculate horizontal position (prevent overflow)
+            let left = rect.left
+            if (left + dropdownWidth > viewportWidth - padding) {
+                left = viewportWidth - dropdownWidth - padding
+            }
+            if (left < padding) {
+                left = padding
+            }
+            
             setDropdownPos({
-                top: rect.top - 12,
-                left: rect.left,
-                width: 320
+                top,
+                left,
+                width: dropdownWidth,
+                showAbove
             })
             setIsOpen(true)
         } else {
@@ -152,8 +184,9 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         return { icon, color, badge }
     }
 
-    const currentModel = allModels.find(m => m.code === settings.aiModel)
-    const currentName = currentModel?.displayName || settings.aiModel.split('/').pop()
+    // Find current model - exact match only (both code and provider must match)
+    const currentModel = allModels.find(m => m.code === settings.aiModel && m.provider === settings.modelProvider)
+    const currentName = currentModel?.displayName || settings.aiModel.split('/').pop() || settings.aiModel
 
     // Filter Logic
     const filteredModels = useMemo(() => {
@@ -174,20 +207,106 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }
     }, [filteredModels])
 
+    // Recalculate position when dropdown opens or window resizes/scrolls
+    useEffect(() => {
+        if (!isOpen || !dropdownRef.current || !portalRef.current) return
+
+        const updatePosition = () => {
+            if (!dropdownRef.current || !portalRef.current) return
+            
+            const rect = dropdownRef.current.getBoundingClientRect()
+            const viewportHeight = window.innerHeight
+            const viewportWidth = window.innerWidth
+            const dropdownHeight = portalRef.current.offsetHeight || 488
+            const dropdownWidth = 320
+            const padding = 16
+            
+            // Calculate available space above and below
+            const spaceAbove = rect.top
+            const spaceBelow = viewportHeight - rect.bottom
+            
+            // Determine if we should show above or below
+            const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
+            
+            // Calculate vertical position
+            let top: number
+            if (showAbove) {
+                top = rect.top - 12
+            } else {
+                top = rect.bottom + 12
+            }
+            
+            // Calculate horizontal position (prevent overflow)
+            let left = rect.left
+            if (left + dropdownWidth > viewportWidth - padding) {
+                left = viewportWidth - dropdownWidth - padding
+            }
+            if (left < padding) {
+                left = padding
+            }
+            
+            setDropdownPos({
+                top,
+                left,
+                width: dropdownWidth,
+                showAbove
+            })
+        }
+
+        // Initial position update after render
+        const timeoutId = setTimeout(updatePosition, 0)
+        
+        // Update on scroll/resize
+        window.addEventListener('scroll', updatePosition, true)
+        window.addEventListener('resize', updatePosition)
+        
+        return () => {
+            clearTimeout(timeoutId)
+            window.removeEventListener('scroll', updatePosition, true)
+            window.removeEventListener('resize', updatePosition)
+        }
+    }, [isOpen])
+
     // Close on outside click
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            const target = event.target as Node
+            // Check if click is outside both the trigger and the portal dropdown
+            if (dropdownRef.current && !dropdownRef.current.contains(target) &&
+                portalRef.current && !portalRef.current.contains(target)) {
                 setIsOpen(false)
             }
         }
-        document.addEventListener('mousedown', handleClickOutside)
-        return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+        // Use a small delay to allow click events to fire first
+        const timeoutId = setTimeout(() => {
+            document.addEventListener('mousedown', handleClickOutside)
+        }, 0)
+        return () => {
+            clearTimeout(timeoutId)
+            document.removeEventListener('mousedown', handleClickOutside)
+        }
+    }, [isOpen])
 
-    const handleSelect = (model: ModelWithProvider) => {
-        updateSettings({ aiModel: model.code, modelProvider: model.provider })
+    const handleSelect = (model: ModelWithProvider, e?: React.MouseEvent) => {
+        // Prevent event propagation to avoid closing dropdown before update
+        if (e) {
+            e.stopPropagation()
+            e.preventDefault()
+        }
+        
+        // #region agent log
+        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/components/Dashboard/ModelSelector.tsx:handleSelect',message:'Model selection triggered',data:{selectedModel:model.code,selectedProvider:model.provider,currentModel:settings.aiModel,currentProvider:settings.modelProvider},timestamp:Date.now(),sessionId:'debug-session',runId:'model-switcher-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
+        // #endregion
+        
+        // Close dropdown first to prevent race conditions
         setIsOpen(false)
+        
+        // Update settings
+        updateSettings({ aiModel: model.code, modelProvider: model.provider })
+        
+        // #region agent log
+        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/components/Dashboard/ModelSelector.tsx:handleSelect:after',message:'updateSettings called',data:{selectedModel:model.code,selectedProvider:model.provider},timestamp:Date.now(),sessionId:'debug-session',runId:'model-switcher-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
+        // #endregion
     }
 
     const toggleGroup = (provider: string) => {
@@ -208,7 +327,11 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         return (
             <div style={{ marginBottom: '8px' }}>
                 <div
-                    onClick={() => toggleGroup(provider)}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        toggleGroup(provider)
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -237,11 +360,13 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {models.map(model => {
                             const { icon: attrIcon, color, badge } = getModelAttributes(model)
-                            const isActive = settings.aiModel === model.code
+                            // Check if this model is active - exact match only
+                            const isActive = settings.aiModel === model.code && settings.modelProvider === model.provider
                             return (
                                 <div
                                     key={model.code}
-                                    onClick={() => handleSelect(model)}
+                                    onClick={(e) => handleSelect(model, e)}
+                                    onMouseDown={(e) => e.stopPropagation()} // Prevent dropdown from closing
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -336,13 +461,18 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             {/* Rich Popover using Portal */}
             {isOpen && ReactDOM.createPortal(
                 <div
+                    ref={portalRef}
+                    onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
                     style={{
                         position: 'fixed',
                         top: dropdownPos.top,
                         left: dropdownPos.left,
-                        transform: 'translateY(-100%)', // Anchor to bottom of previous position effectively
+                        transform: dropdownPos.showAbove ? 'translateY(-100%)' : 'translateY(0)',
                         width: '320px',
-                        backgroundColor: '#111',
+                        maxHeight: dropdownPos.showAbove 
+                            ? `${Math.max(200, Math.min(dropdownPos.top - 16, 488))}px`
+                            : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, 488))}px`,
+                        backgroundColor: '#1B1913',
                         border: '1px solid rgba(255,255,255,0.1)',
                         borderRadius: '20px',
                         boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
@@ -350,9 +480,12 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '16px',
-                        animation: 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        animation: dropdownPos.showAbove 
+                            ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                            : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                         backdropFilter: 'blur(20px)',
-                        zIndex: 99999 // High z-index to sit on top of everything
+                        zIndex: 99999, // High z-index to sit on top of everything
+                        overflow: 'hidden'
                     }}
                 >
                     {/* Search Header */}
@@ -399,6 +532,10 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 @keyframes dropdown-slide-up {
                     from { opacity: 0; transform: translateY(calc(-100% + 10px)); }
                     to { opacity: 1; transform: translateY(-100%); }
+                }
+                @keyframes dropdown-slide-down {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }

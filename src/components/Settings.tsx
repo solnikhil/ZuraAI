@@ -1,15 +1,292 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { useSettings, TodoItem } from '../contexts/SettingsContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
-import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo } from 'lucide-react'
+import { loadApiKeysFromSecureStorage, saveApiKeyToSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
+import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search } from 'lucide-react'
 import { motion } from 'framer-motion'
+import KeyboardShortcuts from './KeyboardShortcuts'
 import './Settings.css'
 
 interface SettingsProps {
     activeSection?: string
     onUnsavedChange?: (hasChanges: boolean) => void
     showWarning?: boolean
+}
+
+interface ModelOption {
+    code: string
+    displayName: string
+    provider?: string
+}
+
+interface CustomModelSelectProps {
+    value: string
+    onChange: (value: string) => void
+    geminiModels: ModelOption[]
+    groqModels: ModelOption[]
+    openRouterModels: ModelOption[]
+    perplexityModels: ModelOption[]
+    ollamaModels: ModelOption[]
+}
+
+function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRouterModels, perplexityModels, ollamaModels }: CustomModelSelectProps) {
+    const [isOpen, setIsOpen] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const dropdownRef = useRef<HTMLDivElement>(null)
+    const portalRef = useRef<HTMLDivElement>(null)
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 415, showAbove: false })
+
+    // Get all models grouped by provider
+    const allModels = [
+        ...geminiModels.map(m => ({ ...m, provider: 'Gemini' })),
+        ...groqModels.map(m => ({ ...m, provider: 'Groq' })),
+        ...openRouterModels.map(m => ({ ...m, provider: 'OpenRouter' })),
+        ...perplexityModels.map(m => ({ ...m, provider: 'Perplexity' })),
+        ...ollamaModels.map(m => ({ ...m, provider: 'Ollama' }))
+    ]
+
+    // Find selected model
+    const selectedModel = allModels.find(m => m.code === value)
+
+    // Filter models based on search
+    const filteredModels = useMemo(() => {
+        if (!searchQuery) return allModels
+        const query = searchQuery.toLowerCase()
+        return allModels.filter(m => 
+            m.displayName.toLowerCase().includes(query) || 
+            m.code.toLowerCase().includes(query) ||
+            m.provider.toLowerCase().includes(query)
+        )
+    }, [searchQuery, allModels])
+
+    // Group filtered models by provider
+    const groupedModels = useMemo(() => {
+        const groups: Record<string, any[]> = {
+            Gemini: [],
+            Groq: [],
+            OpenRouter: [],
+            Perplexity: [],
+            Ollama: []
+        }
+        filteredModels.forEach(m => {
+            if (groups[m.provider]) {
+                groups[m.provider].push(m)
+            }
+        })
+        return groups
+    }, [filteredModels])
+
+    // Toggle dropdown
+    const toggleOpen = () => {
+        if (!isOpen && dropdownRef.current) {
+            const rect = dropdownRef.current.getBoundingClientRect()
+            const viewportHeight = window.innerHeight
+            const viewportWidth = window.innerWidth
+            const dropdownHeight = 400
+            const dropdownWidth = 415
+            const padding = 16
+
+            const spaceAbove = rect.top
+            const spaceBelow = viewportHeight - rect.bottom
+            const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
+
+            let top = showAbove ? rect.top - 12 : rect.bottom + 12
+            let left = rect.left
+            if (left + dropdownWidth > viewportWidth - padding) {
+                left = viewportWidth - dropdownWidth - padding
+            }
+            if (left < padding) {
+                left = padding
+            }
+
+            setDropdownPos({ top, left, width: dropdownWidth, showAbove })
+            setIsOpen(true)
+        } else {
+            setIsOpen(false)
+            setSearchQuery('')
+        }
+    }
+
+    // Handle selection
+    const handleSelect = (model: any) => {
+        onChange(model.code)
+        setIsOpen(false)
+        setSearchQuery('')
+    }
+
+    // Close on outside click
+    useEffect(() => {
+        if (!isOpen) return
+
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+                portalRef.current && !portalRef.current.contains(e.target as Node)) {
+                setIsOpen(false)
+                setSearchQuery('')
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [isOpen])
+
+    // Render group
+    const renderGroup = (provider: string, models: any[]) => {
+        if (models.length === 0) return null
+        return (
+            <div key={provider} style={{ marginBottom: '12px' }}>
+                <div style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#888', 
+                    fontWeight: 600, 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginBottom: '8px',
+                    padding: '0 4px'
+                }}>
+                    {provider}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {models.map(model => {
+                        const isActive = model.code === value
+                        return (
+                            <div
+                                key={model.code}
+                                onClick={() => handleSelect(model)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '10px 12px',
+                                    borderRadius: '12px',
+                                    background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={e => {
+                                    if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                }}
+                                onMouseLeave={e => {
+                                    if (!isActive) e.currentTarget.style.background = 'transparent'
+                                }}
+                            >
+                                <span style={{ color: '#ddd', fontSize: '0.9rem' }}>{model.displayName}</span>
+                                {isActive && <Check size={14} color="#fff" />}
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div style={{ position: 'relative', zIndex: 100 }} ref={dropdownRef}>
+            {/* Trigger Button */}
+            <button
+                type="button"
+                onClick={toggleOpen}
+                className="setting-input-scira"
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    textAlign: 'left'
+                }}
+            >
+                <span style={{ color: '#fff' }}>{selectedModel?.displayName || 'Select a model...'}</span>
+                <ChevronDown size={16} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+
+            {/* Dropdown Portal */}
+            {isOpen && ReactDOM.createPortal(
+                <div
+                    ref={portalRef}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    style={{
+                        position: 'fixed',
+                        top: dropdownPos.top,
+                        left: dropdownPos.left,
+                        transform: dropdownPos.showAbove ? 'translateY(-100%)' : 'translateY(0)',
+                        width: `${dropdownPos.width}px`,
+                        maxHeight: dropdownPos.showAbove 
+                            ? `${Math.max(200, Math.min(dropdownPos.top - 16, 400))}px`
+                            : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, 400))}px`,
+                        backgroundColor: '#1B1913',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '20px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
+                        padding: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '16px',
+                        animation: dropdownPos.showAbove 
+                            ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                            : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                        backdropFilter: 'blur(20px)',
+                        zIndex: 99999,
+                        overflow: 'hidden'
+                    }}
+                >
+                    {/* Search Header */}
+                    <div style={{ position: 'relative' }}>
+                        <Search size={14} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Search models..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{
+                                width: '100%',
+                                background: 'rgba(255,255,255,0.05)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '12px',
+                                padding: '10px 12px 10px 36px',
+                                color: '#fff',
+                                fontSize: '0.9rem',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+
+                    {/* Content Section */}
+                    <div className="custom-scrollbar" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                        {renderGroup('Gemini', groupedModels.Gemini)}
+                        {renderGroup('Groq', groupedModels.Groq)}
+                        {renderGroup('OpenRouter', groupedModels.OpenRouter)}
+                        {renderGroup('Perplexity', groupedModels.Perplexity)}
+                        {renderGroup('Ollama', groupedModels.Ollama)}
+
+                        {filteredModels.length === 0 && (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No models found</div>
+                        )}
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            <style>{`
+                @keyframes dropdown-slide-up {
+                    from { opacity: 0; transform: translateY(calc(-100% + 10px)); }
+                    to { opacity: 1; transform: translateY(-100%); }
+                }
+                @keyframes dropdown-slide-down {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            `}</style>
+        </div>
+    )
 }
 
 export default function Settings({ activeSection = 'usage', onUnsavedChange, showWarning = false }: SettingsProps) {
@@ -38,6 +315,9 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     const [graphRange, setGraphRange] = useState<'7d' | '30d' | '12m'>('7d')
     const [hoverX, setHoverX] = useState<number | null>(null) // 0-1 percentage across graph
     const [mousePos, setMousePos] = useState<{ x: number, y: number } | null>(null) // Raw pixel position in container
+    const pathRef = useRef<SVGPathElement | null>(null)
+    const graphContainerRef = useRef<HTMLDivElement | null>(null)
+    const [graphDimensions, setGraphDimensions] = useState({ width: 1100, height: 320 })
 
     const usageStats = useMemo(() => {
         const now = Date.now()
@@ -165,14 +445,117 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
 
 
     useEffect(() => {
-        setPendingSettings(settings)
-    }, [settings])
+        // Only sync if settings actually changed (not just reference change)
+        // Use deep comparison to avoid unnecessary updates that trigger false change detection
+        const settingsStr = JSON.stringify(settings)
+        const pendingStr = JSON.stringify(pendingSettings)
+        const settingsChanged = settingsStr !== pendingStr
+        if (settingsChanged) {
+            setPendingSettings(settings)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [settings]) // Only depend on settings, not pendingSettings to avoid loops
+
+    // Update graph dimensions on resize
+    useEffect(() => {
+        const updateDimensions = () => {
+            if (graphContainerRef.current) {
+                const rect = graphContainerRef.current.getBoundingClientRect()
+                // Use container width but maintain aspect ratio for height
+                const containerWidth = Math.max(400, rect.width - 60) // Account for Y-axis labels and padding
+                const aspectRatio = 1100 / 320 // Original aspect ratio
+                const calculatedHeight = Math.max(180, Math.min(containerWidth / aspectRatio, 400))
+                setGraphDimensions({ 
+                    width: containerWidth, 
+                    height: calculatedHeight 
+                })
+            }
+        }
+
+        // Initial update
+        const timeoutId = setTimeout(updateDimensions, 100)
+        
+        // Use ResizeObserver for better performance
+        let resizeObserver: ResizeObserver | null = null
+        if (graphContainerRef.current && 'ResizeObserver' in window) {
+            resizeObserver = new ResizeObserver(updateDimensions)
+            resizeObserver.observe(graphContainerRef.current)
+        }
+        
+        // Fallback to window resize
+        window.addEventListener('resize', updateDimensions)
+        
+        return () => {
+            clearTimeout(timeoutId)
+            if (resizeObserver) {
+                resizeObserver.disconnect()
+            }
+            window.removeEventListener('resize', updateDimensions)
+        }
+    }, [graphRange, activeSection])
+
+    // Load API keys from secure storage on mount and migrate if needed
+    // REMOVED: This effect was causing false change detection
+    // The SettingsContext already loads secure keys, so we don't need to duplicate this here
+    // The settings prop will already have the secure keys loaded when component mounts
 
     const handleChange = (changes: Partial<typeof settings>) => {
         setPendingSettings(prev => ({ ...prev, ...changes }))
     }
 
-    const saveChanges = () => updateSettings(pendingSettings)
+    const saveChanges = async () => {
+        // Save API keys to secure storage first
+        let allSaved = true
+        const savedKeys: string[] = []
+        const failedKeys: string[] = []
+
+        try {
+            if (pendingSettings.openRouterApiKey !== settings.openRouterApiKey) {
+                const success = await saveApiKeyToSecureStorage('openRouterApiKey', pendingSettings.openRouterApiKey)
+                if (success) savedKeys.push('openRouterApiKey')
+                else failedKeys.push('openRouterApiKey')
+                allSaved = allSaved && success
+            }
+            if (pendingSettings.perplexityApiKey !== settings.perplexityApiKey) {
+                const success = await saveApiKeyToSecureStorage('perplexityApiKey', pendingSettings.perplexityApiKey)
+                if (success) savedKeys.push('perplexityApiKey')
+                else failedKeys.push('perplexityApiKey')
+                allSaved = allSaved && success
+            }
+            if (pendingSettings.geminiApiKey !== settings.geminiApiKey) {
+                const success = await saveApiKeyToSecureStorage('geminiApiKey', pendingSettings.geminiApiKey)
+                if (success) savedKeys.push('geminiApiKey')
+                else failedKeys.push('geminiApiKey')
+                allSaved = allSaved && success
+            }
+            if (pendingSettings.groqApiKey !== settings.groqApiKey) {
+                const success = await saveApiKeyToSecureStorage('groqApiKey', pendingSettings.groqApiKey)
+                if (success) savedKeys.push('groqApiKey')
+                else failedKeys.push('groqApiKey')
+                allSaved = allSaved && success
+            }
+
+            if (savedKeys.length > 0) {
+                console.log('[Settings] Saved API keys to secure storage:', savedKeys.join(', '))
+            }
+            if (failedKeys.length > 0) {
+                console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
+            }
+        } catch (error) {
+            console.error('[Settings] Failed to save API keys to secure storage:', error)
+            allSaved = false
+        }
+
+        // Update settings - keep the API keys in the settings object so UI shows them
+        // The keys are stored in secure storage but we keep them in memory for the session
+        // We don't clear them from localStorage anymore since we want them available immediately
+        updateSettings(pendingSettings)
+
+        if (!allSaved && failedKeys.length > 0) {
+            // Could show a toast/alert here if needed
+            console.warn('[Settings] Some API keys may not have been saved to secure storage')
+        }
+    }
     const cancelChanges = () => setPendingSettings(settings)
     const hasChanges = JSON.stringify(pendingSettings) !== JSON.stringify(settings)
 
@@ -282,7 +665,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
 
     return (
-        <div className="settings-container" style={{ borderRadius: 24, margin: '16px 16px 16px 0', border: '1px solid rgba(255,255,255,0.06)', background: '#0a0a0a', overflow: 'hidden', position: 'relative', height: 'calc(100vh - 32px)' }}>
+        <div className="settings-container" style={{ borderRadius: 24, margin: '16px 16px 16px 0', border: '1px solid rgba(255,255,255,0.06)', background: '#14120B', overflow: 'hidden', position: 'relative', height: 'calc(100vh - 32px)' }}>
             <div className="settings-main-col" style={{ padding: '0', overflowY: 'auto', height: '100%', paddingBottom: hasChanges ? 80 : 0, maxWidth: '100%' }}>
                 <div style={{ width: '100%', maxWidth: '100%', margin: '0 auto', padding: '0 24px', transition: 'max-width 0.3s ease' }}>
 
@@ -394,7 +777,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <span className="stat-label" style={{ fontSize: '1rem', fontWeight: 600, color: '#e0e0e0' }}>Activity</span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 0, background: '#1a1a1a', padding: 2, borderRadius: 8, border: '1px solid #333' }}>
+                                    <div style={{ display: 'flex', gap: 0, background: '#1B1913', padding: 2, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
                                         {['7d', '30d', '12m'].map((range) => (
                                             <button
                                                 key={range}
@@ -417,19 +800,23 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     </div>
                                 </div>
 
-                                <div style={{
-                                    minHeight: 380,
-                                    width: '100%',
-                                    position: 'relative',
-                                    background: 'linear-gradient(180deg, rgba(255,228,196,0.04) 0%, rgba(0,0,0,0) 100%), linear-gradient(180deg, #0d0d10 0%, #090909 100%)',
-                                    border: '1px solid #1f1f1f',
-                                    borderRadius: 18,
-                                    padding: 18,
-                                    paddingTop: 36,
-                                    boxSizing: 'border-box',
-                                    overflow: 'hidden',
-                                    boxShadow: '0 24px 64px rgba(0,0,0,0.4)'
-                                }}>
+                                <div 
+                                    ref={graphContainerRef}
+                                    style={{
+                                        minHeight: 380,
+                                        width: '100%',
+                                        position: 'relative',
+                                        background: 'linear-gradient(180deg, rgba(255,228,196,0.04) 0%, rgba(0,0,0,0) 100%), linear-gradient(180deg, #1B1913 0%, #14120B 100%)',
+                                        border: '1px solid rgba(255,255,255,0.06)',
+                                        borderRadius: 18,
+                                        padding: 'clamp(12px, 1.5vw, 18px)',
+                                        paddingTop: 'clamp(24px, 2.5vw, 36px)',
+                                        boxSizing: 'border-box',
+                                        overflow: 'visible',
+                                        boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+                                        minWidth: 0 // Allow flex shrinking
+                                    }}
+                                >
                                     {(() => {
                                         const data = usageStats.activityData
                                         const rawValues = data.map(d => d.value)
@@ -437,10 +824,11 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         // Use raw values directly - no smoothing needed for accurate representation
                                         const maxValue = Math.max(...rawValues, 1)
                                         const max = maxValue * 1.15
-                                        const width = 1100
-                                        const height = 320
-                                        const paddingX = 28
-                                        const paddingY = 22
+                                        const width = graphDimensions.width
+                                        const height = graphDimensions.height
+                                        // Responsive padding based on width
+                                        const paddingX = Math.max(20, Math.min(28, width * 0.025))
+                                        const paddingY = Math.max(18, Math.min(22, height * 0.07))
 
                                         // Direct coordinate calculation from data points
                                         const getCoords = (val: number, idx: number) => {
@@ -496,11 +884,13 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
                                         // Y Axis Labels - use nice rounded numbers (reversed so max at top, 0 at bottom)
                                         const yLabels = [Math.round(max), Math.round(max * 0.75), Math.round(max * 0.5), Math.round(max * 0.25), 0]
-                                        const xLabelInterval = graphRange === '30d' ? 3 : 1
+                                        const xLabelInterval = graphRange === '30d' ? 3 : graphRange === '12m' ? 2 : 1
+                                        // Responsive font size for X-axis labels
+                                        const xAxisFontSize = Math.max(10, Math.min(12, width * 0.011))
 
                                         return (
-                                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                                <div style={{ flex: 1, display: 'flex', position: 'relative' }}>
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'visible', minWidth: 0 }}>
+                                                <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'visible', minWidth: 0 }}>
                                                     {/* Y-Axis - aligned with graph padding */}
                                                     <div style={{
                                                         display: 'flex',
@@ -508,19 +898,30 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                         justifyContent: 'space-between',
                                                         paddingTop: paddingY,
                                                         paddingBottom: paddingY,
-                                                        paddingRight: 10,
+                                                        paddingRight: Math.max(8, Math.min(10, width * 0.009)),
                                                         height: '100%',
                                                         color: '#666',
-                                                        fontSize: '0.75rem',
-                                                        width: 50,
+                                                        fontSize: 'clamp(0.65rem, 0.7vw, 0.75rem)',
+                                                        width: Math.max(35, Math.min(50, width * 0.045)),
                                                         textAlign: 'right',
-                                                        boxSizing: 'border-box'
+                                                        boxSizing: 'border-box',
+                                                        flexShrink: 0
                                                     }}>
                                                         {yLabels.map((v, i) => <div key={i}>{v}</div>)}
                                                     </div>
 
-                                                    <div style={{ flex: 1, position: 'relative' }}>
-                                                        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                                                    <div style={{ flex: 1, position: 'relative', overflow: 'visible', minWidth: 0, minHeight: 200, maxHeight: 400 }}>
+                                                        <svg 
+                                                            viewBox={`0 0 ${width} ${height}`} 
+                                                            preserveAspectRatio="xMidYMid meet" 
+                                                            style={{ width: '100%', height: '100%', overflow: 'visible', minWidth: 0, display: 'block', maxHeight: '100%' }}
+                                                            ref={(svgEl) => {
+                                                                if (svgEl && hoverX !== null && data.length > 0) {
+                                                                    // Store SVG ref for path point calculation
+                                                                    (svgEl as any).__pathRef = lineD
+                                                                }
+                                                            }}
+                                                        >
                                                             <defs>
                                                                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                                                                     <stop offset="0%" stopColor="#FFE4C4" stopOpacity="0.4" />
@@ -571,6 +972,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                 transition={{ duration: 0.4, ease: "easeInOut" }}
                                                             />
                                                             <motion.path
+                                                                ref={pathRef}
                                                                 d={lineD}
                                                                 fill="none"
                                                                 stroke="#FFE4C4"
@@ -592,18 +994,93 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                     const indexCeil = Math.min(data.length - 1, Math.ceil(continuousIndex))
                                                                     const t = continuousIndex - indexFloor
 
-                                                                    // Interpolate value between adjacent data points
-                                                                    const v1 = rawValues[indexFloor] || 0
-                                                                    const v2 = rawValues[indexCeil] || 0
-                                                                    const interpolatedValue = v1 * (1 - t) + v2 * t
-
                                                                     // Get display value (nearest data point)
                                                                     const nearestIndex = Math.round(continuousIndex)
                                                                     const nearestData = data[nearestIndex]
 
                                                                     // Calculate pixel positions
                                                                     const cursorX = paddingX + hoverX * (width - 2 * paddingX)
-                                                                    const cursorY = height - paddingY - (interpolatedValue / max) * (height - 2 * paddingY)
+                                                                    
+                                                                    // Calculate actual Y position on the curve path
+                                                                    // Try to use path element's getPointAtLength for accuracy
+                                                                    let cursorY = height - paddingY
+                                                                    
+                                                                    if (pathRef.current && lineD) {
+                                                                        try {
+                                                                            const pathLength = pathRef.current.getTotalLength()
+                                                                            // Estimate the length along path that corresponds to cursorX
+                                                                            // Use binary search to find the point with matching X
+                                                                            let minLength = 0
+                                                                            let maxLength = pathLength
+                                                                            let bestPoint = pathRef.current.getPointAtLength(0)
+                                                                            let bestDistance = Math.abs(bestPoint.x - cursorX)
+                                                                            
+                                                                            // Binary search for closest point
+                                                                            for (let i = 0; i < 20; i++) {
+                                                                                const testLength = (minLength + maxLength) / 2
+                                                                                const testPoint = pathRef.current.getPointAtLength(testLength)
+                                                                                const distance = Math.abs(testPoint.x - cursorX)
+                                                                                
+                                                                                if (distance < bestDistance) {
+                                                                                    bestDistance = distance
+                                                                                    bestPoint = testPoint
+                                                                                }
+                                                                                
+                                                                                if (testPoint.x < cursorX) {
+                                                                                    minLength = testLength
+                                                                                } else {
+                                                                                    maxLength = testLength
+                                                                                }
+                                                                            }
+                                                                            
+                                                                            cursorY = bestPoint.y
+                                                                        } catch (e) {
+                                                                            // Fallback to calculation method
+                                                                            const points = rawValues.map((v, i) => getCoords(v, i))
+                                                                            if (data.length === 1) {
+                                                                                cursorY = points[0].y
+                                                                            } else if (data.length === 2) {
+                                                                                cursorY = points[0].y + (points[1].y - points[0].y) * hoverX
+                                                                            } else {
+                                                                                // Find segment and interpolate
+                                                                                for (let i = 0; i < points.length - 1; i++) {
+                                                                                    const p1 = points[i]
+                                                                                    const p2 = points[i + 1]
+                                                                                    if (cursorX >= p1.x && cursorX <= p2.x) {
+                                                                                        const t = (cursorX - p1.x) / (p2.x - p1.x || 0.001)
+                                                                                        cursorY = p1.y + (p2.y - p1.y) * t
+                                                                                        break
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    } else {
+                                                                        // Fallback: use simple interpolation
+                                                                        const points = rawValues.map((v, i) => getCoords(v, i))
+                                                                        if (data.length === 1) {
+                                                                            cursorY = points[0].y
+                                                                        } else if (data.length === 2) {
+                                                                            cursorY = points[0].y + (points[1].y - points[0].y) * hoverX
+                                                                        } else {
+                                                                            // Find segment
+                                                                            for (let i = 0; i < points.length - 1; i++) {
+                                                                                const p1 = points[i]
+                                                                                const p2 = points[i + 1]
+                                                                                if (cursorX >= p1.x && cursorX <= p2.x) {
+                                                                                    const t = (cursorX - p1.x) / (p2.x - p1.x || 0.001)
+                                                                                    cursorY = p1.y + (p2.y - p1.y) * t
+                                                                                    break
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    // Clamp to valid Y range, but allow circle to extend slightly beyond for visibility
+                                                                    const circleRadius = 7
+                                                                    const circleStroke = 3
+                                                                    const totalRadius = circleRadius + circleStroke
+                                                                    // Allow circle to be visible even at edges by using a smaller clamp margin
+                                                                    cursorY = Math.max(paddingY + circleRadius, Math.min(height - paddingY - circleRadius, cursorY))
 
                                                                     return (
                                                                         <>
@@ -624,11 +1101,12 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                             <motion.circle
                                                                                 r={7}
                                                                                 fill="#FFE4C4"
-                                                                                stroke="#0a0a0a"
+                                                                                stroke="#14120B"
                                                                                 strokeWidth="3"
                                                                                 initial={false}
                                                                                 animate={{ cx: cursorX, cy: cursorY }}
                                                                                 transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                                                                style={{ pointerEvents: 'none' }}
                                                                             />
                                                                         </>
                                                                     )
@@ -703,7 +1181,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                     <div style={{ color: '#FFE4C4', fontSize: '1rem', fontWeight: 700, marginBottom: 2, textAlign: 'center' }}>
                                                                         {nearestData.value}
                                                                     </div>
-                                                                    <div style={{ color: '#888', fontSize: '0.75rem', textAlign: 'center' }}>
+                                                                    <div style={{ color: '#888', fontSize: 'clamp(0.65rem, 0.8vw, 0.75rem)', textAlign: 'center' }}>
                                                                         {nearestData.label}
                                                                     </div>
                                                                 </motion.div>
@@ -713,11 +1191,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 </div>
 
                                                 {/* X-Axis Labels - Show All */}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: paddingX, paddingRight: paddingX, marginTop: 12, color: '#666', fontSize: '0.75rem' }}>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    justifyContent: 'space-between', 
+                                                    paddingLeft: paddingX, 
+                                                    paddingRight: paddingX, 
+                                                    marginTop: 12, 
+                                                    color: '#666', 
+                                                    fontSize: `clamp(0.65rem, ${xAxisFontSize}px, 0.75rem)`,
+                                                    minWidth: 0,
+                                                    overflow: 'hidden'
+                                                }}>
                                                     {data.map((d, i) => {
                                                         const showLabel = graphRange === '30d' ? i % xLabelInterval === 0 || i === data.length - 1 : true
                                                         return (
-                                                            <div key={i} style={{ width: `${100 / data.length}%`, textAlign: 'center', opacity: showLabel ? 0.85 : 0.2 }}>
+                                                            <div 
+                                                                key={i} 
+                                                                style={{ 
+                                                                    width: `${100 / data.length}%`, 
+                                                                    textAlign: 'center', 
+                                                                    opacity: showLabel ? 0.85 : 0.2,
+                                                                    minWidth: 0,
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis',
+                                                                    whiteSpace: 'nowrap'
+                                                                }}
+                                                                title={d.label}
+                                                            >
                                                                 {showLabel ? d.label : ''}
                                                             </div>
                                                         )
@@ -754,7 +1254,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 onChange={e => handleChange({ openRouterApiKey: e.target.value })}
                                                 placeholder="sk-or-..."
                                             />
-                                            <button onClick={() => setShowOpenRouterKey(!showOpenRouterKey)} style={{ padding: '0 12px', background: '#222', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button onClick={() => setShowOpenRouterKey(!showOpenRouterKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
                                                 {showOpenRouterKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -771,7 +1271,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 onChange={e => handleChange({ perplexityApiKey: e.target.value })}
                                                 placeholder="pplx-..."
                                             />
-                                            <button onClick={() => setShowPerplexityKey(!showPerplexityKey)} style={{ padding: '0 12px', background: '#222', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button onClick={() => setShowPerplexityKey(!showPerplexityKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
                                                 {showPerplexityKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -805,7 +1305,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 onChange={e => handleChange({ groqApiKey: e.target.value })}
                                                 placeholder="gsk_..."
                                             />
-                                            <button onClick={() => setShowGroqKey(!showGroqKey)} style={{ padding: '0 12px', background: '#222', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button onClick={() => setShowGroqKey(!showGroqKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
                                                 {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -821,7 +1321,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 onChange={e => handleChange({ ollamaUrl: e.target.value })}
                                                 placeholder="http://localhost:11434"
                                             />
-                                            <button onClick={checkOllama} style={{ padding: '0 16px', background: isOllamaConnected ? '#1a3a1a' : '#222', border: `1px solid ${isOllamaConnected ? '#22c55e' : '#333'}`, color: isOllamaConnected ? '#22c55e' : '#fff', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                            <button onClick={checkOllama} style={{ padding: '0 16px', background: isOllamaConnected ? '#1a3a1a' : 'rgba(255,255,255,0.04)', border: `1px solid ${isOllamaConnected ? '#22c55e' : 'rgba(255,255,255,0.08)'}`, color: isOllamaConnected ? '#22c55e' : '#fff', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                                                 {isCheckingOllama ? '...' : (isOllamaConnected ? '✓ Connected' : 'Check')}
                                             </button>
                                         </div>
@@ -851,40 +1351,15 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                 <h3 className="section-head">Title Generation</h3>
                                 <div style={{ marginBottom: 12 }}>
                                     <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Model for generating chat titles</label>
-                                    <select
-                                        className="setting-input-scira"
+                                    <CustomModelSelect
                                         value={pendingSettings.titleModel}
-                                        onChange={e => handleChange({ titleModel: e.target.value })}
-                                        style={{ padding: '12px 16px', fontSize: '0.9rem', cursor: 'pointer' }}
-                                    >
-                                        <optgroup label="Gemini">
-                                            {(pendingSettings.geminiModels || []).map((m: any) => (
-                                                <option key={m.code} value={m.code}>{m.displayName}</option>
-                                            ))}
-                                        </optgroup>
-                                        <optgroup label="Groq">
-                                            {(pendingSettings.groqModels || []).map((m: any) => (
-                                                <option key={m.code} value={m.code}>{m.displayName}</option>
-                                            ))}
-                                        </optgroup>
-                                        <optgroup label="OpenRouter">
-                                            {(pendingSettings.configuredModels || []).map((m: any) => (
-                                                <option key={m.code} value={m.code}>{m.displayName}</option>
-                                            ))}
-                                        </optgroup>
-                                        <optgroup label="Perplexity">
-                                            {(pendingSettings.perplexityModels || []).map((m: any) => (
-                                                <option key={m.code} value={m.code}>{m.displayName}</option>
-                                            ))}
-                                        </optgroup>
-                                        {(pendingSettings.ollamaModels || []).length > 0 && (
-                                            <optgroup label="Ollama">
-                                                {(pendingSettings.ollamaModels || []).map((m: any) => (
-                                                    <option key={m.code} value={m.code}>{m.displayName}</option>
-                                                ))}
-                                            </optgroup>
-                                        )}
-                                    </select>
+                                        onChange={(value) => handleChange({ titleModel: value })}
+                                        geminiModels={pendingSettings.geminiModels || []}
+                                        groqModels={pendingSettings.groqModels || []}
+                                        openRouterModels={pendingSettings.configuredModels || []}
+                                        perplexityModels={pendingSettings.perplexityModels || []}
+                                        ollamaModels={pendingSettings.ollamaModels || []}
+                                    />
                                     <div style={{ color: '#666', fontSize: '0.8rem', marginTop: 8 }}>
                                         Recommended: Fast models like Gemini 2.0 Flash or Groq Llama 3.1 8B
                                     </div>
@@ -904,7 +1379,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                             <div className="settings-section-card">
                                 <h3 className="section-head">Ollama (Local Models)</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#151515', borderRadius: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: '#1B1913', borderRadius: 8 }}>
                                         <div>
                                             <div style={{ color: '#fff', fontWeight: 500 }}>Status</div>
                                             <div style={{ color: '#666', fontSize: '0.85rem' }}>{pendingSettings.ollamaUrl}</div>
@@ -913,18 +1388,18 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                             <span style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: 20, background: isOllamaConnected ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: isOllamaConnected ? '#22c55e' : '#ef4444' }}>
                                                 {isOllamaConnected ? 'Connected' : 'Disconnected'}
                                             </span>
-                                            <button onClick={checkOllama} style={{ padding: '6px 12px', background: '#222', border: '1px solid #333', color: '#fff', borderRadius: 6, cursor: 'pointer' }}>
+                                            <button onClick={checkOllama} style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', borderRadius: 6, cursor: 'pointer' }}>
                                                 <RefreshCw size={14} className={isCheckingOllama ? 'spin' : ''} />
                                             </button>
                                         </div>
                                     </div>
 
                                     {isOllamaConnected && pendingSettings.ollamaModels.length > 0 && (
-                                        <div style={{ padding: 16, background: '#151515', borderRadius: 8 }}>
+                                        <div style={{ padding: 16, background: '#1B1913', borderRadius: 8 }}>
                                             <div style={{ color: '#888', fontSize: '0.8rem', marginBottom: 12 }}>Available Models</div>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                                 {pendingSettings.ollamaModels.map((m: any) => (
-                                                    <span key={m.code} style={{ padding: '4px 12px', background: '#222', borderRadius: 6, fontSize: '0.8rem', color: '#ccc' }}>
+                                                    <span key={m.code} style={{ padding: '4px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, fontSize: '0.8rem', color: '#ccc' }}>
                                                         {m.displayName}
                                                     </span>
                                                 ))}
@@ -933,6 +1408,179 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     )}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {/* ========== TOOLS SECTION ========== */}
+                    {activeSection === 'tools' && (
+                        <div style={{ padding: '40px' }}>
+                            <div className="page-header">
+                                <h2 className="page-title">AI Tools</h2>
+                                <div className="page-subtitle">Enable and configure AI function calling tools</div>
+                            </div>
+
+                            {/* Tools Toggle */}
+                            <div className="settings-section-card">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                                    <div>
+                                        <h3 className="section-head">Enable Tools</h3>
+                                        <div className="section-desc">Allow AI to use tools like web search, calculator, and more</div>
+                                    </div>
+                                    <label className="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
+                                            onChange={(e) => handleChange({ toolsEnabled: e.target.checked })}
+                                        />
+                                        <span className="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                {pendingSettings.toolsEnabled !== false && (
+                                    <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <h3 className="section-head" style={{ marginBottom: '16px' }}>Web Search API</h3>
+                                        <div className="section-desc" style={{ marginBottom: '12px' }}>
+                                            Configure Tavily API for enhanced web search. Get your free API key at{' '}
+                                            <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>
+                                                tavily.com
+                                            </a>
+                                            {' '}(1000 searches/month free)
+                                        </div>
+                                        <input
+                                            type="password"
+                                            className="setting-input-scira"
+                                            placeholder="tvly-..."
+                                            value={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
+                                            onChange={(e) => handleChange({ tavilyApiKey: e.target.value })}
+                                            style={{ fontFamily: 'monospace' }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Tool Approval Mode */}
+                            {pendingSettings.toolsEnabled !== false && (
+                                <div className="settings-section-card">
+                                    <h3 className="section-head">Tool Approval Mode</h3>
+                                    <div className="section-desc" style={{ marginBottom: '16px' }}>
+                                        Control when tools require user approval before execution
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {(['always', 'sensitive', 'never'] as const).map((mode) => (
+                                            <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', background: (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode ? 'rgba(255,255,255,0.05)' : 'transparent', transition: 'background 0.2s' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="toolApprovalMode"
+                                                    value={mode}
+                                                    checked={(pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode}
+                                                    onChange={() => handleChange({ toolApprovalMode: mode })}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                                <div>
+                                                    <div style={{ fontWeight: 500, color: '#e0e0e0' }}>
+                                                        {mode === 'always' ? 'Always Ask' : mode === 'sensitive' ? 'Sensitive Only' : 'Never Ask'}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '2px' }}>
+                                                        {mode === 'always' && 'Require approval for all tool usage'}
+                                                        {mode === 'sensitive' && 'Require approval only for sensitive tools (clipboard, files)'}
+                                                        {mode === 'never' && 'Auto-execute all tools without approval'}
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Available Tools List */}
+                            {pendingSettings.toolsEnabled !== false && (
+                                <div className="settings-section-card">
+                                    <h3 className="section-head">Available Tools</h3>
+                                    <div className="section-desc" style={{ marginBottom: '16px' }}>
+                                        {pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0
+                                            ? `${pendingSettings.enabledTools.length} tool(s) enabled`
+                                            : 'All tools enabled'}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+                                        {[
+                                            { name: 'web_search', desc: 'Search the internet', icon: '🔍' },
+                                            { name: 'fetch_url', desc: 'Read webpage content', icon: '🌐' },
+                                            { name: 'calculator', desc: 'Evaluate math expressions', icon: '🧮' },
+                                            { name: 'get_datetime', desc: 'Get current date/time', icon: '🕐' },
+                                            { name: 'read_clipboard', desc: 'Read clipboard', icon: '📋' },
+                                            { name: 'write_clipboard', desc: 'Copy to clipboard', icon: '📋' },
+                                        ].map((tool) => {
+                                            const isEnabled = !pendingSettings.enabledTools || pendingSettings.enabledTools.length === 0 || pendingSettings.enabledTools.includes(tool.name)
+                                            return (
+                                                <div
+                                                    key={tool.name}
+                                                    onClick={() => {
+                                                        const current = pendingSettings.enabledTools ?? settings.enabledTools
+                                                        const newEnabled = isEnabled
+                                                            ? current.filter((t: string) => t !== tool.name)
+                                                            : [...current, tool.name]
+                                                        handleChange({ enabledTools: newEnabled })
+                                                    }}
+                                                    style={{
+                                                        padding: '12px',
+                                                        borderRadius: '8px',
+                                                        border: `1px solid ${isEnabled ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255,255,255,0.1)'}`,
+                                                        background: isEnabled ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255,255,255,0.02)',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.background = isEnabled ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.05)'
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.background = isEnabled ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255,255,255,0.02)'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '1.5rem' }}>{tool.icon}</span>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
+                                                            {tool.name.replace(/_/g, ' ')}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.desc}</div>
+                                                    </div>
+                                                    <div style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        borderRadius: '4px',
+                                                        border: `2px solid ${isEnabled ? '#22c55e' : '#666'}`,
+                                                        background: isEnabled ? '#22c55e' : 'transparent',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}>
+                                                        {isEnabled && <Check size={14} color="#000" />}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    {(pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0) && (
+                                        <button
+                                            onClick={() => handleChange({ enabledTools: [] })}
+                                            style={{
+                                                marginTop: '16px',
+                                                padding: '8px 16px',
+                                                background: 'transparent',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                borderRadius: '8px',
+                                                color: '#aaa',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            Enable All Tools
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -972,7 +1620,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                             </div>
 
                             {/* OpenRouter Models */}
-                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
+                            <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
                                 <div style={{
                                     padding: '20px 24px',
                                     borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -1263,6 +1911,191 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                         </div>
                     )}
 
+                    {/* ========== KEYBOARD SHORTCUTS SECTION ========== */}
+                    {activeSection === 'shortcuts' && (
+                        <div style={{ padding: '40px', paddingBottom: 100 }}>
+                            <div className="page-header">
+                                <h2 className="page-title">Keyboard Shortcuts</h2>
+                                <div className="page-subtitle">Master Zura's keyboard shortcuts for faster workflow</div>
+                            </div>
+                            <KeyboardShortcuts />
+                        </div>
+                    )}
+
+                    {/* ========== AGENT SECTION ========== */}
+                    {activeSection === 'agent' && (
+                        <div style={{ padding: '40px', paddingBottom: 100 }}>
+                            <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+                                <div style={{
+                                    width: 64, height: 64, borderRadius: 18,
+                                    background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(147,51,234,0.1))',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+                                }}>
+                                    <Bot size={32} color="#3b82f6" />
+                                </div>
+                                <div>
+                                    <h2 className="page-title" style={{ margin: 0, fontSize: '2rem', background: 'linear-gradient(to right, #fff, #aaa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Agent Control</h2>
+                                    <div className="page-subtitle" style={{ fontSize: '1rem', marginTop: 4 }}>Windows AI Agent capabilities and status</div>
+                                </div>
+                            </div>
+
+                            {/* Overview Card */}
+                            <div className="settings-section-card" style={{ marginBottom: 24 }}>
+                                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Overview</h3>
+                                <p style={{ margin: 0, color: '#999', lineHeight: 1.6 }}>
+                                    Zura AI Agent transforms your desktop assistant into a full-fledged Windows AI Agent capable of understanding your screen, controlling your computer, and executing complex multi-step tasks autonomously - similar to Comet browser, Claude Computer Use, or Open Interpreter.
+                                </p>
+                            </div>
+
+                            {/* Status Cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20, marginBottom: 24 }}>
+                                {/* Phase 1 */}
+                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <MousePointer size={24} color="#22c55e" />
+                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 1: Computer Control</h4>
+                                    </div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                        <div style={{ marginBottom: 8 }}>✅ Mouse Control (move, click, drag, scroll)</div>
+                                        <div style={{ marginBottom: 8 }}>✅ Keyboard Control (type, hotkeys, press keys)</div>
+                                        <div>✅ Screen Understanding (capture, OCR)</div>
+                                    </div>
+                                </div>
+
+                                {/* Phase 2 */}
+                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <SettingsIcon size={24} color="#22c55e" />
+                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 2: App & System</h4>
+                                    </div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                        <div style={{ marginBottom: 8 }}>✅ Application Management (launch, close, windows)</div>
+                                        <div style={{ marginBottom: 8 }}>✅ File Operations (read, write, manage)</div>
+                                        <div>✅ System Operations (commands, processes)</div>
+                                    </div>
+                                </div>
+
+                                {/* Phase 3 */}
+                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <Brain size={24} color="#22c55e" />
+                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 3: Intelligence</h4>
+                                    </div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                        <div style={{ marginBottom: 8 }}>✅ Task Planning & Execution</div>
+                                        <div style={{ marginBottom: 8 }}>✅ Memory System (short/medium/long-term)</div>
+                                        <div>✅ Visual Understanding (OCR, vision APIs)</div>
+                                    </div>
+                                </div>
+
+                                {/* Phase 4 */}
+                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <Shield size={24} color="#22c55e" />
+                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 4: Safety</h4>
+                                    </div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                        <div style={{ marginBottom: 8 }}>✅ Action Confirmation</div>
+                                        <div style={{ marginBottom: 8 }}>✅ Audit Logging</div>
+                                        <div>✅ Restricted Paths</div>
+                                    </div>
+                                </div>
+
+                                {/* Phase 5 */}
+                                <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05))', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <Workflow size={24} color="#22c55e" />
+                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>Phase 5: Advanced</h4>
+                                    </div>
+                                    <div style={{ color: '#999', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                        <div style={{ marginBottom: 8 }}>✅ Browser Automation (Playwright)</div>
+                                        <div style={{ marginBottom: 8 }}>✅ Workflow Automation</div>
+                                        <div>✅ Integration APIs (email, calendar, messaging)</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Statistics */}
+                            <div className="settings-section-card">
+                                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Implementation Status</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#3b82f6', marginBottom: 4 }}>80+</div>
+                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Tools Implemented</div>
+                                    </div>
+                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#22c55e', marginBottom: 4 }}>5/5</div>
+                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Phases Complete</div>
+                                    </div>
+                                    <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                                        <div style={{ fontSize: '2rem', fontWeight: 700, color: '#f59e0b', marginBottom: 4 }}>Ready</div>
+                                        <div style={{ color: '#999', fontSize: '0.9rem' }}>Production Status</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Capabilities */}
+                            <div className="settings-section-card">
+                                <h3 style={{ margin: '0 0 20px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>Key Capabilities</h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <MousePointer size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Full mouse control</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Keyboard size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Keyboard automation</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Monitor size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Screen capture & OCR</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <FolderOpen size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>File system operations</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Bot size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Multi-step task execution</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Brain size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Memory & context</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Shield size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Safety guardrails</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 8 }}>
+                                        <Workflow size={20} color="#3b82f6" />
+                                        <span style={{ color: '#ccc' }}>Browser automation</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Usage Instructions */}
+                            <div className="settings-section-card" style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.05), rgba(147,51,234,0.05))', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 600, color: '#e0e0e0' }}>How to Use</h3>
+                                <div style={{ color: '#ccc', lineHeight: 1.8 }}>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <strong style={{ color: '#fff' }}>1. Enable Agent Mode:</strong> Toggle the agent mode button in the chat interface to activate autonomous task execution.
+                                    </div>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <strong style={{ color: '#fff' }}>2. Give High-Level Tasks:</strong> Describe what you want done (e.g., "Open Notepad and type a note", "Organize files in Downloads folder").
+                                    </div>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <strong style={{ color: '#fff' }}>3. Monitor Progress:</strong> Watch as the agent breaks down tasks into steps and executes them autonomously.
+                                    </div>
+                                    <div>
+                                        <strong style={{ color: '#fff' }}>4. Safety First:</strong> The agent will ask for confirmation before performing sensitive operations like file deletion or running commands.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ========== TODOS SECTION ========== */}
                     {activeSection === 'todos' && (
                         <div style={{ padding: '40px', paddingBottom: 100 }}>
@@ -1283,7 +2116,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                             </div>
 
                             {/* Todo Card */}
-                            <div className="settings-section-card" style={{ background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
+                            <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 0, overflow: 'hidden' }}>
                                 {/* Header */}
                                 <div style={{
                                     padding: '20px 24px',

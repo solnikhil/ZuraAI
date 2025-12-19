@@ -58,6 +58,7 @@ export const generateOllamaCompletion = async (
     options?: {
         temperature?: number
         num_ctx?: number // Context window size
+        tools?: any[]
     }
 ): Promise<OllamaResponse> => {
     const response = await fetch(`${baseUrl}/api/chat`, {
@@ -69,6 +70,8 @@ export const generateOllamaCompletion = async (
             model,
             messages,
             stream: false, // For now, we use non-streaming
+            tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
+            tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
             options: {
                 temperature: options?.temperature,
                 num_ctx: options?.num_ctx

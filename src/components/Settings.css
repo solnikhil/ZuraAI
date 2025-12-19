@@ -1,16 +1,19 @@
 /* ==== SCIRA DESIGN THEME ==== */
+
 .settings-container {
     display: flex;
     min-height: 100vh;
-    background-color: #050505;
-    /* Deep black bg */
+    background-color: #14120B;
+    /* Deep brown-black bg */
     color: #e0e0e0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     padding: 40px;
     gap: 40px;
 }
 
+
 /* ==== LEFT COLUMN (SIDEBAR) ==== */
+
 .settings-sidebar-col {
     width: 280px;
     display: flex;
@@ -19,11 +22,13 @@
     flex-shrink: 0;
 }
 
+
 /* Profile Card */
+
 .profile-card {
-    background: #0F0F0F;
+    background: #1B1913;
     /* Slightly lighter than bg */
-    border: 1px solid #1A1A1A;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 24px;
     padding: 32px 20px;
     display: flex;
@@ -37,7 +42,7 @@
     height: 80px;
     border-radius: 50%;
     /* Scira example had a bw photo, we keep our gradient or use placeholder */
-    background: linear-gradient(135deg, #333 0%, #111 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, #1B1913 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -122,10 +127,12 @@
     border-color: #444;
 }
 
+
 /* Nav Menu */
+
 .nav-menu {
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
+    background: #1B1913;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 24px;
     padding: 8px;
     display: flex;
@@ -161,6 +168,7 @@
 
 
 /* ==== RIGHT COLUMN (CONTENT) ==== */
+
 .settings-main-col {
     flex: 1;
     display: flex;
@@ -187,7 +195,9 @@
     font-size: 0.9rem;
 }
 
+
 /* Usage Stats Row */
+
 .usage-stats-row {
     display: flex;
     gap: 16px;
@@ -195,8 +205,8 @@
 
 .stat-card {
     flex: 1;
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
+    background: #1B1913;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 20px;
     position: relative;
@@ -227,13 +237,15 @@
     color: #555;
 }
 
+
 /* Progress Bars Section */
+
 .limits-section {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
+    background: #1B1913;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 24px;
 }
@@ -255,7 +267,7 @@
 .limit-bar-bg {
     width: 100%;
     height: 6px;
-    background: #222;
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 3px;
     overflow: hidden;
 }
@@ -280,10 +292,12 @@
     color: #555;
 }
 
+
 /* Upgrade Banner */
+
 .upgrade-banner {
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
+    background: #1B1913;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 24px;
 }
@@ -321,17 +335,21 @@
     opacity: 0.9;
 }
 
+
 /* Activity Graph */
+
 .activity-section {
-    background: radial-gradient(circle at 15% 20%, rgba(255, 228, 196, 0.05), transparent 35%), linear-gradient(180deg, #0D0D10 0%, #0A0A0A 100%);
-    border: 1px solid #1A1A1A;
+    background: radial-gradient(circle at 15% 20%, rgba(255, 228, 196, 0.05), transparent 35%), linear-gradient(180deg, #1B1913 0%, #14120B 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
-    padding: 28px;
+    padding: clamp(20px, 2vw, 28px);
     min-height: 420px;
     position: relative;
     display: flex;
     flex-direction: column;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    overflow: visible;
+    min-width: 0;
 }
 
 .activity-header {
@@ -347,7 +365,7 @@
 
 .period-btn {
     padding: 4px 12px;
-    background: #1A1A1A;
+    background: rgba(255, 255, 255, 0.06);
     border: none;
     border-radius: 6px;
     color: #666;
@@ -368,7 +386,9 @@
     position: relative;
 }
 
+
 /* Simple curve simulation for the graph */
+
 .graph-curve {
     position: absolute;
     bottom: 0;
@@ -391,10 +411,12 @@
     border-radius: 100px 0 0 0;
 }
 
+
 /* Generic Section for other tabs */
+
 .settings-section-card {
-    background: #0F0F0F;
-    border: 1px solid #1A1A1A;
+    background: #1B1913;
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 24px;
     margin-bottom: 20px;
@@ -407,27 +429,77 @@
     color: #fff;
 }
 
+
 /* Reuse previous input styles but tweaked for this theme */
+
 .setting-input-scira {
     width: 100%;
-    background: #1A1A1A;
-    border: 1px solid #333;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #fff;
     padding: 12px;
     border-radius: 8px;
     outline: none;
     font-size: 0.9rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
 }
 
 .setting-input-scira:focus {
-    border-color: #666;
+    border-color: rgba(255, 140, 105, 0.4);
+    background-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(255, 140, 105, 0.1);
+}
+
+
+/* Select element specific styling */
+
+.setting-input-scira select,
+select.setting-input-scira {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.setting-input-scira select:focus,
+select.setting-input-scira:focus {
+    border-color: rgba(255, 140, 105, 0.4);
+    background-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(255, 140, 105, 0.1);
+}
+
+
+/* Dropdown options styling */
+
+.setting-input-scira option,
+select.setting-input-scira option {
+    background: #1B1913;
+    color: #fff;
+    padding: 8px;
+}
+
+
+/* Optgroup styling */
+
+.setting-input-scira optgroup,
+select.setting-input-scira optgroup {
+    background: #1B1913;
+    color: #888;
+    font-weight: 600;
+    padding: 8px;
 }
 
 
 /* ==== SIDEBAR ==== */
+
 .settings-sidebar {
     width: 280px;
-    background: rgba(15, 15, 15, 0.6);
+    background: rgba(27, 25, 19, 0.6);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -437,7 +509,9 @@
     flex-shrink: 0;
 }
 
+
 /* Back Button */
+
 .settings-back-btn {
     display: flex;
     align-items: center;
@@ -458,7 +532,9 @@
     background: rgba(255, 255, 255, 0.04);
 }
 
+
 /* Profile Card */
+
 .settings-profile-card {
     background: rgba(255, 255, 255, 0.03);
     border-radius: 16px;
@@ -518,7 +594,9 @@
     cursor: pointer;
 }
 
+
 /* Navigation */
+
 .settings-nav {
     display: flex;
     flex-direction: column;
@@ -552,7 +630,9 @@
     color: #FF8C69;
 }
 
+
 /* Reset Button */
+
 .reset-btn {
     display: flex;
     align-items: center;
@@ -573,7 +653,9 @@
     border-color: rgba(239, 68, 68, 0.3);
 }
 
+
 /* ==== MAIN CONTENT ==== */
+
 .settings-content {
     flex: 1;
     overflow-y: auto;
@@ -595,7 +677,9 @@
     font-size: 0.95rem;
 }
 
+
 /* Sections */
+
 .settings-section {
     margin-bottom: 40px;
     animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -615,14 +699,15 @@
         opacity: 0;
         transform: translateY(10px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
     }
 }
 
+
 /* Cards / Groups */
+
 .settings-card {
     background: rgba(255, 255, 255, 0.02);
     border-radius: 14px;
@@ -661,7 +746,9 @@
     color: #888;
 }
 
+
 /* Inputs */
+
 .setting-input-wrapper {
     display: flex;
     gap: 10px;
@@ -692,7 +779,9 @@
     color: rgba(255, 255, 255, 0.2);
 }
 
+
 /* Range Slider */
+
 .setting-range {
     width: 100%;
     height: 6px;
@@ -719,7 +808,9 @@
     transform: scale(1.1);
 }
 
+
 /* Buttons */
+
 .btn-secondary {
     padding: 10px 16px;
     background: rgba(255, 255, 255, 0.05);
@@ -768,7 +859,9 @@
     color: #ef4444;
 }
 
+
 /* Status Badges */
+
 .status-badge {
     margin-left: auto;
     font-size: 0.7rem;
@@ -789,7 +882,9 @@
     border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+
 /* Models List */
+
 .models-list {
     display: flex;
     flex-direction: column;
@@ -838,7 +933,9 @@
     color: #aaa;
 }
 
+
 /* About Section */
+
 .about-container {
     text-align: center;
     padding: 60px 20px;
@@ -867,7 +964,9 @@
     line-height: 1.6;
 }
 
+
 /* Save Bar */
+
 .save-bar {
     position: fixed;
     bottom: 32px;
@@ -891,7 +990,6 @@
         transform: translateX(-50%) translateY(20px);
         opacity: 0;
     }
-
     to {
         transform: translateX(-50%) translateY(0);
         opacity: 1;
@@ -921,7 +1019,9 @@
     box-shadow: 0 6px 16px rgba(255, 90, 48, 0.4);
 }
 
+
 /* Scrollbar */
+
 .settings-content::-webkit-scrollbar {
     width: 8px;
 }
@@ -937,4 +1037,44 @@
 
 .settings-content::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.12);
+}
+
+
+/* Additional select styling for better browser compatibility */
+
+select.setting-input-scira {
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #fff;
+    padding: 12px 36px 12px 12px;
+    border-radius: 8px;
+    outline: none;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+select.setting-input-scira:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+select.setting-input-scira:focus {
+    border-color: rgba(255, 140, 105, 0.4);
+    background-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(255, 140, 105, 0.1);
+}
+
+select.setting-input-scira option {
+    background: #1B1913;
+    color: #fff;
+    padding: 8px 12px;
+}
+
+select.setting-input-scira optgroup {
+    background: #1B1913;
+    color: #888;
+    font-weight: 600;
+    padding: 8px 12px;
 }

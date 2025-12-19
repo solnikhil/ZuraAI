@@ -1,10 +1,11 @@
 /* ==== CHAT CONTAINER ==== */
+
 .chat-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
     width: 100%;
-    background: linear-gradient(180deg, #141414 0%, #0a0a0a 100%);
+    background: linear-gradient(180deg, #14120B 0%, #14120B 100%);
     color: #e0e0e0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     border-radius: 12px;
@@ -12,7 +13,9 @@
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
+
 /* ==== MESSAGES LIST (CHAT COLUMN) ==== */
+
 .messages-list {
     flex: 1;
     overflow-y: auto;
@@ -28,12 +31,16 @@
     align-self: center;
 }
 
+
 /* First message gets extra top margin */
+
 .messages-list>.message:first-child {
     margin-top: 8px;
 }
 
+
 /* ==== MESSAGE BUBBLE BASE ==== */
+
 .message {
     display: flex;
     max-width: 75%;
@@ -45,7 +52,6 @@
         opacity: 0;
         transform: translateY(10px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
@@ -58,9 +64,12 @@
     font-size: 15px;
     letter-spacing: 0.2px;
     word-wrap: break-word;
+    font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
+
 /* ==== USER BUBBLE ==== */
+
 .message.user {
     align-self: flex-end;
     justify-content: flex-end;
@@ -74,28 +83,30 @@
     max-width: 100%;
 }
 
+
 /* ==== ASSISTANT BUBBLE ==== */
+
 .message.assistant {
     align-self: flex-start;
     justify-content: flex-start;
 }
 
 .message.assistant .message-content {
-    background: rgba(30, 30, 35, 0.85);
+    background: rgba(27, 25, 19, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 20px 20px 20px 6px;
-    box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
     max-width: 100%;
 }
 
+
 /* ==== INPUT AREA (DOCK) ==== */
+
 .input-area {
     padding: 20px 24px 24px 24px;
-    background: rgba(8, 8, 10, 0.95);
+    background: rgba(20, 18, 11, 0.95);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -123,16 +134,16 @@
 .input-area input:focus {
     border-color: rgba(255, 140, 105, 0.4);
     background-color: rgba(255, 255, 255, 0.06);
-    box-shadow:
-        0 0 0 3px rgba(255, 140, 105, 0.1),
-        inset 0 2px 6px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 0 0 3px rgba(255, 140, 105, 0.1), inset 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .input-area input::placeholder {
     color: rgba(255, 255, 255, 0.35);
 }
 
+
 /* ==== CUSTOM SCROLLBAR ==== */
+
 .messages-list::-webkit-scrollbar {
     width: 6px;
 }
@@ -150,10 +161,13 @@
     background: rgba(255, 255, 255, 0.15);
 }
 
+
 /* ==== MARKDOWN STYLES ==== */
+
 .markdown-body {
     font-size: 15px;
     line-height: 1.65;
+    font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
 .markdown-body p {
@@ -203,7 +217,7 @@
     margin: 1em 0;
     border-radius: 10px;
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(20, 18, 11, 0.5);
 }
 
 .markdown-body code {

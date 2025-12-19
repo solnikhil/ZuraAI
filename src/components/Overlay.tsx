@@ -10,6 +10,10 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
+import { generateGeminiCompletion } from '../services/gemini'
+import { useToolCalling } from '../hooks/useToolCalling'
+import { ToolCallIndicator, ToolResultDisplay } from '../tools/ui'
+import { hasGeminiFunctionCalls } from '../tools/adapters/gemini'
 
 interface Message {
     id: string
@@ -28,6 +32,7 @@ interface Message {
 
 export default function Overlay() {
     const { settings } = useSettings()
+    const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState } = useToolCalling()
     const [selection, setSelection] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
     const [isDragging, setIsDragging] = useState(false)
     const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null)
@@ -178,6 +183,9 @@ export default function Overlay() {
 
     const callAI = async (userPrompt: string, image?: string) => {
         setIsLoading(true)
+        
+        // Clear tool state at start of new message
+        clearToolState()
 
         // Add user message immediately
         const userMessage: Message = {
@@ -194,6 +202,8 @@ export default function Overlay() {
                 await callOllama(userPrompt, image)
             } else if (settings.modelProvider === 'perplexity') {
                 await callPerplexity(userPrompt, image)
+            } else if (settings.modelProvider === 'gemini') {
+                await callGemini(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
@@ -212,6 +222,8 @@ export default function Overlay() {
             }
             setMessages(prev => [...prev, errorMessage])
             finishStreaming()
+            // Clear tool state on error
+            clearToolState()
         }
     }
 
@@ -267,6 +279,112 @@ export default function Overlay() {
                 inputTokens: response.prompt_eval_count || 0,
                 outputTokens: response.eval_count || 0,
                 totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0)
+            }
+        }
+        setMessages(prev => [...prev, aiMessage])
+        finishStreaming()
+    }
+
+    const callGemini = async (userPrompt: string, image?: string) => {
+        const apiKey = settings.geminiApiKey
+
+        if (!apiKey) {
+            throw new Error("Please configure your Gemini API Key in Settings.")
+        }
+
+        // Build messages payload
+        const messagesPayload: { role: string; content: string }[] = []
+        
+        // Use thinking system prompt when enabled, otherwise use regular system prompt
+        const systemPromptToUse = settings.thinkingModeEnabled
+            ? THINKING_SYSTEM_PROMPT
+            : settings.systemPrompt
+
+        if (systemPromptToUse) {
+            messagesPayload.push({ role: 'system', content: systemPromptToUse })
+        }
+
+        // Add user message
+        if (image) {
+            // For Gemini with images, we'd need to use a different format
+            // For now, just send text prompt
+            messagesPayload.push({ role: 'user', content: userPrompt })
+        } else {
+            messagesPayload.push({ role: 'user', content: userPrompt })
+        }
+
+        // Get tools if enabled
+        const tools = canUseTools ? getToolsForRequest() : null
+        const geminiTools = tools && typeof tools === 'object' && 'function_declarations' in tools ? tools : undefined
+
+        const startTime = performance.now()
+        const res = await generateGeminiCompletion(
+            apiKey,
+            settings.aiModel,
+            messagesPayload,
+            {
+                temperature: settings.temperature,
+                maxOutputTokens: settings.maxTokens,
+                tools: geminiTools
+            }
+        )
+        const endTime = performance.now()
+
+        let rawContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't get a response."
+
+        // Check for function calls
+        if (canUseTools && hasGeminiFunctionCalls(res)) {
+            const toolResult = await handleToolCalls(res)
+            
+            if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                // Build follow-up messages with tool results
+                const followUpMessages: any[] = [
+                    ...messagesPayload,
+                    {
+                        role: 'assistant',
+                        content: res.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join(' ') || ''
+                    },
+                    {
+                        role: 'function',
+                        parts: toolResult.formattedResults
+                    }
+                ]
+                
+                const followUpRes = await generateGeminiCompletion(
+                    apiKey,
+                    settings.aiModel,
+                    followUpMessages,
+                    {
+                        temperature: settings.temperature,
+                        maxOutputTokens: settings.maxTokens,
+                        tools: geminiTools
+                    }
+                )
+                
+                rawContent = followUpRes.candidates?.[0]?.content?.parts?.[0]?.text || rawContent
+            }
+        }
+
+        // Parse thinking content if thinking mode is enabled
+        const { thinking, answer } = settings.thinkingModeEnabled
+            ? parseThinkingContent(rawContent)
+            : { thinking: undefined, answer: rawContent }
+
+        // Show typewriter effect for the answer only
+        setIsLoading(false)
+        await typewriterEffect(answer)
+
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: answer,
+            thinking: thinking,
+            model: `gemini/${settings.aiModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: res.usageMetadata?.promptTokenCount || 0,
+                outputTokens: res.usageMetadata?.candidatesTokenCount || 0,
+                totalTokens: res.usageMetadata?.totalTokenCount || 0
             }
         }
         setMessages(prev => [...prev, aiMessage])
@@ -363,6 +481,22 @@ export default function Overlay() {
             messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
         }
 
+        // Get tools if enabled
+        const tools = canUseTools ? getToolsForRequest() : null
+
+        const requestBody: any = {
+            model: settings.aiModel,
+            messages: messagesPayload,
+            temperature: settings.temperature,
+            max_tokens: settings.maxTokens
+        }
+
+        // Add tools if enabled
+        if (tools && Array.isArray(tools) && tools.length > 0) {
+            requestBody.tools = tools
+            requestBody.tool_choice = 'auto'
+        }
+
         const startTime = performance.now()
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
@@ -370,12 +504,7 @@ export default function Overlay() {
                 "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                "model": settings.aiModel,
-                "messages": messagesPayload,
-                "temperature": settings.temperature,
-                "max_tokens": settings.maxTokens
-            })
+            body: JSON.stringify(requestBody)
         })
 
         if (!response.ok) {
@@ -384,7 +513,47 @@ export default function Overlay() {
 
         const data = await response.json()
         const endTime = performance.now()
-        const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+        
+        let rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+        
+        // Check for tool calls
+        if (canUseTools && data.choices?.[0]?.message?.tool_calls) {
+            const toolResult = await handleToolCalls(data)
+            
+            if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                // Send tool results back to AI
+                const followUpMessages = [
+                    ...messagesPayload,
+                    data.choices[0].message,
+                    ...toolResult.formattedResults
+                ]
+                
+                const followUpBody: any = {
+                    model: settings.aiModel,
+                    messages: followUpMessages,
+                    temperature: settings.temperature,
+                    max_tokens: settings.maxTokens
+                }
+                
+                if (tools && Array.isArray(tools) && tools.length > 0) {
+                    followUpBody.tools = tools
+                }
+                
+                const followUpRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${apiKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(followUpBody)
+                })
+                
+                if (followUpRes.ok) {
+                    const followUpData = await followUpRes.json()
+                    rawContent = followUpData.choices?.[0]?.message?.content || rawContent
+                }
+            }
+        }
 
         // Parse thinking content if thinking mode is enabled
         const { thinking, answer } = settings.thinkingModeEnabled
