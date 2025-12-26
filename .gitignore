@@ -44,6 +44,8 @@ Desktop.ini
 *.swn
 .settings/
 *.sublime-workspace
+*.kiro/
+*.claude/
 
 # Tools
 .eslintcache
