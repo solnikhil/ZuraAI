@@ -1,25 +1,22 @@
 // Safety Guardrails & Audit Logging
 // Phase 4.1: Safety & User Experience
 
-import * as path from 'path'
-import { app } from 'electron'
 import { ToolResult } from '../types'
+import { getDatabase as getDbConnection, DatabaseInstance } from '../utils/database'
 
-// Use require for better-sqlite3 due to ESM compatibility issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Database = require('better-sqlite3')
+// Database name constant
+const DB_NAME = 'zura_audit'
 
-let auditDb: ReturnType<typeof Database> | null = null
+let initialized = false
 
 /**
- * Initialize audit database
+ * Get audit database with schema initialization
  */
-function getAuditDatabase(): ReturnType<typeof Database> {
-    if (!auditDb) {
-        const dbPath = path.join(app.getPath('userData'), 'zura_audit.db')
-        auditDb = new Database(dbPath)
-        
-        auditDb.exec(`
+function getAuditDatabase(): DatabaseInstance {
+    const db = getDbConnection(DB_NAME)
+    
+    if (!initialized) {
+        db.exec(`
             CREATE TABLE IF NOT EXISTS audit_log (
                 id TEXT PRIMARY KEY,
                 timestamp INTEGER NOT NULL,
@@ -34,8 +31,9 @@ function getAuditDatabase(): ReturnType<typeof Database> {
             CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
             CREATE INDEX IF NOT EXISTS idx_audit_tool ON audit_log(tool_name);
         `)
+        initialized = true
     }
-    return auditDb
+    return db
 }
 
 /**

@@ -165,10 +165,6 @@ export default function ChatArea() {
     }
 
     const handlePaste = async (event: React.ClipboardEvent) => {
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste', message: 'Paste event triggered', data: { itemsCount: event.clipboardData.items.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
         const items = event.clipboardData.items
         const files: File[] = []
 
@@ -177,9 +173,6 @@ export default function ChatArea() {
             if (item.kind === 'file') {
                 const file = item.getAsFile()
                 if (file) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste:fileFound', message: 'Found file in clipboard', data: { fileName: file.name, fileType: file.type, fileSize: file.size }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
                     files.push(file)
                 }
             }
@@ -187,9 +180,6 @@ export default function ChatArea() {
 
         if (files.length > 0) {
             event.preventDefault()
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste:processing', message: 'Processing pasted files', data: { filesCount: files.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
             await processFiles(files)
         }
     }
@@ -273,10 +263,6 @@ export default function ChatArea() {
                     model: `ollama/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:initialRequest', message: 'Making initial Ollama request', data: { hasTools: !!ollamaTools, toolsCount: ollamaTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -332,19 +318,11 @@ export default function ChatArea() {
 
                     // Check for tool calls
                     if (canUseTools && hasToolCalls && finalMessage && (finalMessage as any)?.tool_calls && Array.isArray((finalMessage as any).tool_calls) && (finalMessage as any).tool_calls.length > 0) {
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: (finalMessage as any)?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls({ choices: [{ message: finalMessage }] })
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -550,10 +528,6 @@ export default function ChatArea() {
                     model: `gemini/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:initialRequest', message: 'Making initial Gemini request', data: { hasTools: !!geminiTools, functionsCount: geminiTools?.function_declarations?.length || 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -613,19 +587,11 @@ export default function ChatArea() {
 
                     // Check for function calls using accumulated response
                     if (canUseTools && hasGeminiFunctionCalls(accumulatedResponse)) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:beforeToolCalls', message: 'About to process tool calls', data: { hasFunctionCalls: hasGeminiFunctionCalls(accumulatedResponse) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
-
                     // Process tool calls with error handling
                     let toolResult
                     try {
                         toolResult = await handleToolCalls(accumulatedResponse)
                     } catch (toolError: any) {
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         console.error('Tool calls processing error:', toolError)
                         showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -747,10 +713,6 @@ export default function ChatArea() {
                     model: `groq/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:initialRequest', message: 'Making initial Groq request', data: { hasTools: !!groqTools, toolsCount: groqTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -843,19 +805,11 @@ export default function ChatArea() {
                             }]
                         }
 
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls(mockData)
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -981,10 +935,6 @@ export default function ChatArea() {
                     model: `openrouter/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:initialRequest', message: 'Making initial OpenRouter request', data: { hasTools: !!tools, toolsCount: Array.isArray(tools) ? tools.length : 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -1069,19 +1019,11 @@ export default function ChatArea() {
                             }]
                         }
 
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls(mockData)
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }

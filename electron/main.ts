@@ -35,6 +35,7 @@ let mainWindow: BrowserWindow | null = null
 let currentScreenshot: NativeImage | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let autoUpdateInterval: NodeJS.Timeout | null = null
 
 function createMainWindow() {
     if (mainWindow) {
@@ -201,39 +202,37 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
     isQuitting = true
+    // Clean up global shortcuts to prevent memory leaks
+    globalShortcut.unregisterAll()
+})
+
+// Ensure proper cleanup on will-quit event
+app.on('will-quit', () => {
+    // Unregister all global shortcuts (redundant safety measure)
+    globalShortcut.unregisterAll()
+    
+    // Clean up auto-update interval
+    if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval)
+        autoUpdateInterval = null
+    }
+    
+    // Clean up tray
+    if (tray) {
+        tray.destroy()
+        tray = null
+    }
 })
 
 app.whenReady().then(async () => {
     // Register tool handlers for AI function calling
     try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:209', message: 'Starting dynamic import', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        // #endregion
         const toolsModule = await import('./tools/index')
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:211', message: 'Dynamic import completed', data: { moduleKeys: Object.keys(toolsModule), hasRegisterToolHandlers: 'registerToolHandlers' in toolsModule, registerToolHandlersType: typeof toolsModule.registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        // #endregion
         registerToolHandlers = toolsModule.registerToolHandlers
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:213', message: 'After assignment', data: { registerToolHandlersType: typeof registerToolHandlers, isFunction: typeof registerToolHandlers === 'function', isUndefined: registerToolHandlers === undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-        // #endregion
         if (registerToolHandlers) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:216', message: 'Before calling registerToolHandlers', data: { registerToolHandlersType: typeof registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-            // #endregion
-            const result = registerToolHandlers()
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:219', message: 'After calling registerToolHandlers', data: { resultType: typeof result, resultValue: result }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-            // #endregion
-        } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:221', message: 'registerToolHandlers is falsy', data: { registerToolHandlersValue: registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-            // #endregion
+            registerToolHandlers()
         }
     } catch (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:224', message: 'Error in tool handler registration', data: { errorMessage: error instanceof Error ? error.message : String(error), errorStack: error instanceof Error ? error.stack : undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'F' }) }).catch(() => { });
-        // #endregion
         console.error('[MAIN] Failed to load tool handlers:', error)
     }
 
@@ -249,7 +248,7 @@ app.whenReady().then(async () => {
         })
 
         // Check for updates every 4 hours
-        setInterval(() => {
+        autoUpdateInterval = setInterval(() => {
             autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
                 console.error('Auto-update check failed:', err)
             })

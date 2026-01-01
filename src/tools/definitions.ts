@@ -1,14 +1,23 @@
 // Tool Definitions - JSON Schema format compatible with OpenAI/Gemini function calling
 
+/**
+ * Nested property definition for array items (simplified, description optional)
+ */
+export interface NestedToolProperty {
+    type: 'string' | 'number' | 'boolean' | 'object'
+    description?: string
+    enum?: string[]
+}
+
 export interface ToolParameter {
     type: 'string' | 'number' | 'boolean' | 'object' | 'array'
     description: string
     enum?: string[]
-    default?: any
+    default?: string | number | boolean
     items?: {
         type: 'string' | 'number' | 'boolean' | 'object'
         enum?: string[]
-        properties?: Record<string, any>
+        properties?: Record<string, NestedToolProperty>
     }
 }
 

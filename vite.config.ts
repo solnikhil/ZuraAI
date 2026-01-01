@@ -20,4 +20,17 @@ export default defineConfig({
         ]),
         renderer(),
     ],
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    'react-vendor': ['react', 'react-dom'],
+                    'markdown': ['react-markdown', 'remark-gfm', 'react-syntax-highlighter'],
+                    'ui': ['framer-motion', 'lucide-react'],
+                }
+            }
+        },
+        sourcemap: false,
+        reportCompressedSize: false,
+    }
 })

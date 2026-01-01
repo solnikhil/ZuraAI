@@ -2,6 +2,13 @@
 // Converts tool definitions to Gemini's format
 
 import { ToolDefinition } from '../definitions'
+import {
+    ToolCall,
+    ToolResult,
+    GeminiResponse,
+    GeminiPart,
+    GeminiFunctionResponse
+} from '../types'
 
 /**
  * Gemini function declaration format
@@ -11,7 +18,11 @@ export interface GeminiFunctionDeclaration {
     description: string
     parameters: {
         type: 'object'
-        properties: Record<string, any>
+        properties: Record<string, {
+            type: string
+            description: string
+            enum?: string[]
+        }>
         required: string[]
     }
 }
@@ -52,15 +63,15 @@ export function convertToGeminiFormat(tools: ToolDefinition[]): GeminiTools {
 /**
  * Parse function calls from Gemini response
  */
-export function parseGeminiFunctionCalls(response: any): Array<{ id: string; name: string; arguments: Record<string, any> }> {
+export function parseGeminiFunctionCalls(response: GeminiResponse): ToolCall[] {
     const parts = response.candidates?.[0]?.content?.parts || []
     
     const functionCalls = parts
-        .filter((part: any) => part.functionCall)
-        .map((part: any, index: number) => ({
+        .filter((part: GeminiPart) => part.functionCall)
+        .map((part: GeminiPart, index: number) => ({
             id: `gemini_${Date.now()}_${index}`,
-            name: part.functionCall.name,
-            arguments: part.functionCall.args || {}
+            name: part.functionCall!.name,
+            arguments: part.functionCall!.args || {}
         }))
     
     return functionCalls
@@ -71,8 +82,8 @@ export function parseGeminiFunctionCalls(response: any): Array<{ id: string; nam
  */
 export function formatToolResultsForGemini(
     functionCalls: Array<{ name: string }>,
-    results: Array<{ success: boolean; data?: any; error?: string }>
-): Array<{ functionResponse: { name: string; response: any } }> {
+    results: ToolResult[]
+): GeminiFunctionResponse[] {
     return functionCalls.map((fc, i) => ({
         functionResponse: {
             name: fc.name,
@@ -86,15 +97,8 @@ export function formatToolResultsForGemini(
 /**
  * Check if Gemini response contains function calls
  */
-export function hasGeminiFunctionCalls(response: any): boolean {
+export function hasGeminiFunctionCalls(response: GeminiResponse): boolean {
     const parts = response.candidates?.[0]?.content?.parts || []
-    return parts.some((part: any) => part.functionCall)
-}
-
-/**
- * Get the finish reason from Gemini response
- */
-export function getGeminiFinishReason(response: any): string | undefined {
-    return response.candidates?.[0]?.finishReason
+    return parts.some((part: GeminiPart) => part.functionCall)
 }
 

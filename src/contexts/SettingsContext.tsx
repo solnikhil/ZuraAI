@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 
@@ -359,10 +359,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
 
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:useEffect:save', message: 'Settings saved to localStorage', data: { aiModel: settings.aiModel, modelProvider: settings.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
         // Apply theme
         const isDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
         if (isDark) {
@@ -393,26 +389,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
     }, [settings])
 
-    const updateSettings = (newSettings: Partial<Settings>) => {
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings', message: 'updateSettings called', data: { newSettings, currentAiModel: settings.aiModel, currentProvider: settings.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
+    const updateSettings = useCallback((newSettings: Partial<Settings>) => {
         setSettings(prev => {
             const updated = { ...prev, ...newSettings }
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings:setSettings', message: 'Settings state updated', data: { updatedAiModel: updated.aiModel, updatedProvider: updated.modelProvider, prevAiModel: prev.aiModel, prevProvider: prev.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
             return updated
         })
-    }
+    }, [])
 
-    const resetSettings = () => {
+    const resetSettings = useCallback(() => {
         setSettings(defaultSettings)
-    }
+    }, [])
+
+    const contextValue = useMemo(() => ({
+        settings,
+        updateSettings,
+        resetSettings
+    }), [settings, updateSettings, resetSettings])
 
     return (
-        <SettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+        <SettingsContext.Provider value={contextValue}>
             {children}
         </SettingsContext.Provider>
     )

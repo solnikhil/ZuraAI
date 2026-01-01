@@ -1,24 +1,21 @@
 // Memory & Context System
 // Phase 3.2: Intelligent Agent Capabilities
 
-import * as path from 'path'
-import { app } from 'electron'
 import { ToolResult } from '../types'
+import { getDatabase as getDbConnection, DatabaseInstance } from '../utils/database'
 
-// Use require for better-sqlite3 due to ESM compatibility issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Database = require('better-sqlite3')
+// Database name constant
+const DB_NAME = 'zura_memory'
 
-let db: ReturnType<typeof Database> | null = null
+let initialized = false
 
 /**
- * Initialize memory database
+ * Get memory database with schema initialization
  */
-function getDatabase(): ReturnType<typeof Database> {
-    if (!db) {
-        const dbPath = path.join(app.getPath('userData'), 'zura_memory.db')
-        db = new Database(dbPath)
-        
+function getMemoryDatabase(): DatabaseInstance {
+    const db = getDbConnection(DB_NAME)
+    
+    if (!initialized) {
         // Create tables
         db.exec(`
             CREATE TABLE IF NOT EXISTS memories (
@@ -47,6 +44,7 @@ function getDatabase(): ReturnType<typeof Database> {
             CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
             CREATE INDEX IF NOT EXISTS idx_memories_timestamp ON memories(timestamp);
         `)
+        initialized = true
     }
     return db
 }
@@ -66,7 +64,7 @@ export async function executeStoreMemory(args: { type: 'short' | 'medium' | 'lon
             return { success: false, error: 'type must be "short", "medium", or "long"' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         const id = `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         
         db.prepare(`
@@ -98,7 +96,7 @@ export async function executeSearchMemories(args: { query: string; type?: 'short
             return { success: false, error: 'query must be a string' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         let sql = 'SELECT * FROM memories WHERE content LIKE ?'
         const params: any[] = [`%${query}%`]
         
@@ -148,7 +146,7 @@ export async function executeStorePreference(args: { key: string; value: string 
             return { success: false, error: 'key and value must be strings' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         
         db.prepare(`
             INSERT OR REPLACE INTO preferences (key, value, updated_at)
@@ -178,7 +176,7 @@ export async function executeGetPreference(args: { key: string }): Promise<ToolR
             return { success: false, error: 'key must be a string' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         const pref = db.prepare('SELECT * FROM preferences WHERE key = ?').get(key) as { key: string; value: string; updated_at: number } | undefined
         
         if (!pref) {
@@ -219,7 +217,7 @@ export async function executeStoreTaskSequence(args: { goal: string; steps: Arra
             return { success: false, error: 'goal must be a string and steps must be an array' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         const id = `seq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         
         db.prepare(`
@@ -252,7 +250,7 @@ export async function executeFindSimilarTasks(args: { goal: string; limit?: numb
             return { success: false, error: 'goal must be a string' }
         }
         
-        const db = getDatabase()
+        const db = getMemoryDatabase()
         const sequences = db.prepare(`
             SELECT * FROM task_sequences 
             WHERE goal LIKE ? 

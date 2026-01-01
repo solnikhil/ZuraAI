@@ -84,34 +84,7 @@ export function cleanSonarResponse(content: string, citations?: string[], search
     return cleaned.trim()
 }
 
-/**
- * Build a markdown sources section from citations
- */
-function buildSourcesSection(citations: Map<number, { url: string; title?: string }>): string {
-    if (citations.size === 0) return ''
-    
-    const lines: string[] = ['---', '**Sources:**']
-    
-    citations.forEach((citation, index) => {
-        const domain = extractDomain(citation.url)
-        // Display just the domain name as a clickable link
-        lines.push(`${index}. [${domain}](${citation.url})`)
-    })
-    
-    return lines.join('\n')
-}
 
-/**
- * Extract domain from URL for display
- */
-function extractDomain(url: string): string {
-    try {
-        const urlObj = new URL(url)
-        return urlObj.hostname.replace('www.', '')
-    } catch {
-        return url
-    }
-}
 
 export interface PerplexityStreamChunk {
     id: string

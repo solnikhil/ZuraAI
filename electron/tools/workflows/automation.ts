@@ -1,25 +1,22 @@
 // Workflow Automation Tools
 // Phase 5.2: Advanced Features
 
-import * as path from 'path'
-import { app } from 'electron'
 import { ToolResult } from '../types'
+import { getDatabase as getDbConnection, DatabaseInstance } from '../utils/database'
 
-// Use require for better-sqlite3 due to ESM compatibility issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Database = require('better-sqlite3')
+// Database name constant
+const DB_NAME = 'zura_workflows'
 
-let workflowDb: ReturnType<typeof Database> | null = null
+let initialized = false
 
 /**
- * Initialize workflow database
+ * Get workflow database with schema initialization
  */
-function getWorkflowDatabase(): ReturnType<typeof Database> {
-    if (!workflowDb) {
-        const dbPath = path.join(app.getPath('userData'), 'zura_workflows.db')
-        workflowDb = new Database(dbPath)
-        
-        workflowDb.exec(`
+function getWorkflowDatabase(): DatabaseInstance {
+    const db = getDbConnection(DB_NAME)
+    
+    if (!initialized) {
+        db.exec(`
             CREATE TABLE IF NOT EXISTS workflows (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -44,8 +41,9 @@ function getWorkflowDatabase(): ReturnType<typeof Database> {
             CREATE INDEX IF NOT EXISTS idx_executions_workflow ON workflow_executions(workflow_id);
             CREATE INDEX IF NOT EXISTS idx_executions_status ON workflow_executions(status);
         `)
+        initialized = true
     }
-    return workflowDb
+    return db
 }
 
 /**

@@ -1,0 +1,121 @@
+/* ==== SHARED CSS UTILITIES ==== */
+
+/* Glass/Blur Effect */
+.glass-effect {
+    background: rgba(18, 18, 20, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+/* Subtle Border */
+.border-subtle {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Subtle Background */
+.bg-subtle {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Hover Background */
+.bg-hover:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Standard Border Radius */
+.rounded-sm { border-radius: 8px; }
+.rounded-md { border-radius: 12px; }
+.rounded-lg { border-radius: 14px; }
+
+/* Scrollbar Styling */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Animation Keyframes */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Transition Utilities */
+.transition-fast {
+    transition: all 0.15s ease;
+}
+
+.transition-normal {
+    transition: all 0.2s ease;
+}
+
+.transition-slow {
+    transition: all 0.3s ease;
+}
+
+/* Button Base */
+.btn-base {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #FFCA28;
+    color: #000;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: #FFD54F;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+}

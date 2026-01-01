@@ -311,19 +311,11 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             e.preventDefault()
         }
         
-        // #region agent log
-        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/components/Dashboard/ModelSelector.tsx:handleSelect',message:'Model selection triggered',data:{selectedModel:model.code,selectedProvider:model.provider,currentModel:settings.aiModel,currentProvider:settings.modelProvider},timestamp:Date.now(),sessionId:'debug-session',runId:'model-switcher-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-        // #endregion
-        
         // Close dropdown first to prevent race conditions
         setIsOpen(false)
         
         // Update settings
         updateSettings({ aiModel: model.code, modelProvider: model.provider })
-        
-        // #region agent log
-        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/components/Dashboard/ModelSelector.tsx:handleSelect:after',message:'updateSettings called',data:{selectedModel:model.code,selectedProvider:model.provider},timestamp:Date.now(),sessionId:'debug-session',runId:'model-switcher-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-        // #endregion
     }
 
     const toggleGroup = (provider: string) => {

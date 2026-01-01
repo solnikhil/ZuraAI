@@ -28,9 +28,6 @@ const toolHandlers: Record<string, ToolHandler> = {
  * Call this from main.ts during app initialization
  */
 export function registerToolHandlers(): void {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/tools/index.ts:31', message: 'registerToolHandlers function entry', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'G' }) }).catch(() => { });
-    // #endregion
     // Main tool execution handler
     ipcMain.handle('execute-tool', async (_event, toolName: string, args: any): Promise<ToolResult> => {
         console.log(`[TOOL] Executing: ${toolName}`, args)
@@ -69,9 +66,6 @@ export function registerToolHandlers(): void {
     })
 
     console.log('[TOOLS] Registered handlers:', Object.keys(toolHandlers).join(', '))
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/tools/index.ts:69', message: 'registerToolHandlers function exit', data: { registeredHandlers: Object.keys(toolHandlers) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'H' }) }).catch(() => { });
-    // #endregion
 }
 
 /**

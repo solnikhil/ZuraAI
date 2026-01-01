@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
 export interface ToolCallResult {
@@ -162,7 +162,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         await loadSessions()
     }, [loadSessions])
 
-    const createSession = (firstMessage?: string) => {
+    const createSession = useCallback((firstMessage?: string) => {
         const initialMessages: Message[] = firstMessage ? [{
             id: uuidv4(),
             role: 'user',
@@ -180,15 +180,18 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setSessions(prev => [newSession, ...prev])
         setCurrentSessionId(newSession.id)
         return newSession.id
-    }
+    }, [])
 
-    const switchSession = (id: string) => {
-        if (sessions.find(s => s.id === id)) {
-            setCurrentSessionId(id)
-        }
-    }
+    const switchSession = useCallback((id: string) => {
+        setSessions(prev => {
+            if (prev.find(s => s.id === id)) {
+                setCurrentSessionId(id)
+            }
+            return prev
+        })
+    }, [])
 
-    const addMessageToSession = (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
+    const addMessageToSession = useCallback((sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
         const newMessage: Message = {
             ...message,
             id: uuidv4(),
@@ -214,9 +217,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         }))
         
         return newMessage.id
-    }
+    }, [])
 
-    const updateStreamingMessage = (sessionId: string, messageId: string, updates: Partial<Message>) => {
+    const updateStreamingMessage = useCallback((sessionId: string, messageId: string, updates: Partial<Message>) => {
         setSessions(prev => prev.map(session => {
             if (session.id === sessionId) {
                 return {
@@ -229,43 +232,56 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             }
             return session
         }))
-    }
+    }, [])
 
-    const deleteSession = (id: string) => {
+    const deleteSession = useCallback((id: string) => {
         setSessions(prev => prev.filter(s => s.id !== id))
-        if (currentSessionId === id) {
-            setCurrentSessionId(null)
-        }
-    }
+        setCurrentSessionId(prev => prev === id ? null : prev)
+    }, [])
 
-    const clearAllSessions = () => {
+    const clearAllSessions = useCallback(() => {
         setSessions([])
         setCurrentSessionId(null)
-    }
+    }, [])
 
-    const updateSessionTitle = (id: string, title: string) => {
+    const updateSessionTitle = useCallback((id: string, title: string) => {
         setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
-    }
+    }, [])
 
-    const clearCurrentSession = () => {
+    const clearCurrentSession = useCallback(() => {
         setCurrentSessionId(null)
-    }
+    }, [])
+
+    const contextValue = useMemo(() => ({
+        sessions,
+        currentSessionId,
+        isLoading,
+        createSession,
+        switchSession,
+        addMessageToSession,
+        updateStreamingMessage,
+        deleteSession,
+        clearAllSessions,
+        updateSessionTitle,
+        refreshSessions,
+        clearCurrentSession
+    }), [
+        sessions,
+        currentSessionId,
+        isLoading,
+        createSession,
+        switchSession,
+        addMessageToSession,
+        updateStreamingMessage,
+        deleteSession,
+        clearAllSessions,
+        updateSessionTitle,
+        refreshSessions,
+        clearCurrentSession
+    ])
 
     return (
-        <ChatHistoryContext.Provider value={{
-            sessions,
-            currentSessionId,
-            isLoading,
-            createSession,
-            switchSession,
-            addMessageToSession,
-            updateStreamingMessage,
-            deleteSession,
-            clearAllSessions,
-            updateSessionTitle,
-            refreshSessions,
-            clearCurrentSession
-        }}>
+        <ChatHistoryContext.Provider value={contextValue}>
             {children}
         </ChatHistoryContext.Provider>
     )

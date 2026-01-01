@@ -1,27 +1,23 @@
 // Tool Executor - Executes tools via IPC to main process
 
-export interface ToolResult {
-    success: boolean
-    data?: any
-    error?: string
-    executionTime?: number
-}
+import {
+    ToolResult,
+    ToolCall,
+    ToolCallResult,
+    WebSearchData,
+    UrlFetchData,
+    CalculatorData,
+    DateTimeData,
+    ClipboardData
+} from './types'
 
-export interface ToolCall {
-    id: string
-    name: string
-    arguments: Record<string, any>
-}
-
-export interface ToolCallResult {
-    toolCall: ToolCall
-    result: ToolResult
-}
+// Re-export types for backward compatibility
+export type { ToolResult, ToolCall, ToolCallResult }
 
 /**
  * Execute a single tool call via IPC
  */
-export async function executeTool(toolName: string, args: Record<string, any>): Promise<ToolResult> {
+export async function executeTool(toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
     const startTime = performance.now()
     const TIMEOUT_MS = 30000 // 30 second timeout
     
@@ -49,22 +45,23 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
             ...result,
             executionTime
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         const executionTime = Math.round(performance.now() - startTime)
-        let errorMessage = error.message || 'Unknown error executing tool'
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error executing tool'
+        let formattedMessage = errorMessage
         
         // Provide more user-friendly error messages
-        if (errorMessage.includes('timeout')) {
-            errorMessage = `Tool "${toolName}" took too long to execute. Please try again.`
-        } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-            errorMessage = `Network error while executing "${toolName}". Please check your internet connection.`
-        } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
-            errorMessage = `Authentication error for "${toolName}". Please check your API key in Settings.`
+        if (formattedMessage.includes('timeout')) {
+            formattedMessage = `Tool "${toolName}" took too long to execute. Please try again.`
+        } else if (formattedMessage.includes('network') || formattedMessage.includes('fetch')) {
+            formattedMessage = `Network error while executing "${toolName}". Please check your internet connection.`
+        } else if (formattedMessage.includes('API key') || formattedMessage.includes('authentication')) {
+            formattedMessage = `Authentication error for "${toolName}". Please check your API key in Settings.`
         }
         
         return {
             success: false,
-            error: errorMessage,
+            error: formattedMessage,
             executionTime
         }
     }
@@ -74,32 +71,21 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
  * Execute a tool call object
  */
 export async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
-    // #region agent log
-    {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/tools/executor.ts:executeToolCall',message:'Executing tool call',data:{toolName:toolCall.name,args:toolCall.arguments},timestamp:Date.now(),sessionId:'debug-session',runId:'black-screen-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-    // #endregion
-    
     try {
         const result = await executeTool(toolCall.name, toolCall.arguments)
-        
-        // #region agent log
-        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/tools/executor.ts:executeToolCall:success',message:'Tool call executed successfully',data:{toolName:toolCall.name,success:result.success,hasError:!!result.error},timestamp:Date.now(),sessionId:'debug-session',runId:'black-screen-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-        // #endregion
         
         return {
             toolCall,
             result
         }
-    } catch (error: any) {
-        // #region agent log
-        {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/tools/executor.ts:executeToolCall:error',message:'Tool call execution error',data:{toolName:toolCall.name,errorMessage:error?.message,errorType:error?.constructor?.name,stack:error?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'black-screen-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-        // #endregion
-        
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : `Failed to execute ${toolCall.name}`
         console.error(`Error executing tool ${toolCall.name}:`, error)
         return {
             toolCall,
             result: {
                 success: false,
-                error: error.message || `Failed to execute ${toolCall.name}`
+                error: errorMessage
             }
         }
     }
@@ -137,27 +123,35 @@ export function formatToolResultForDisplay(result: ToolCallResult): string {
     }
     
     switch (toolCall.name) {
-        case 'web_search':
-            const searchData = toolResult.data
-            if (searchData?.results?.length > 0) {
+        case 'web_search': {
+            const searchData = toolResult.data as WebSearchData | undefined
+            if (searchData?.results && searchData.results.length > 0) {
                 return `🔍 Found ${searchData.results.length} results for "${toolCall.arguments.query}"`
             }
             return '🔍 No results found'
+        }
         
-        case 'fetch_url':
-            const urlData = toolResult.data
+        case 'fetch_url': {
+            const urlData = toolResult.data as UrlFetchData | undefined
             const charCount = urlData?.content?.length || 0
             return `🌐 Fetched ${charCount.toLocaleString()} characters from URL`
+        }
         
-        case 'calculator':
-            return `🔢 ${toolCall.arguments.expression} = ${toolResult.data?.result}`
+        case 'calculator': {
+            const calcData = toolResult.data as CalculatorData | undefined
+            return `🔢 ${toolCall.arguments.expression} = ${calcData?.result}`
+        }
         
-        case 'get_datetime':
-            return `🕐 Current time: ${toolResult.data?.formatted || toolResult.data?.datetime}`
+        case 'get_datetime': {
+            const dateData = toolResult.data as DateTimeData | undefined
+            return `🕐 Current time: ${dateData?.formatted || dateData?.datetime}`
+        }
         
-        case 'read_clipboard':
-            const clipLength = toolResult.data?.content?.length || 0
+        case 'read_clipboard': {
+            const clipData = toolResult.data as ClipboardData | undefined
+            const clipLength = clipData?.content?.length || 0
             return `📋 Read ${clipLength} characters from clipboard`
+        }
         
         case 'write_clipboard':
             return `📋 Copied to clipboard`
@@ -165,23 +159,5 @@ export function formatToolResultForDisplay(result: ToolCallResult): string {
         default:
             return `✅ ${toolCall.name} completed`
     }
-}
-
-/**
- * Format tool result for sending back to AI
- */
-export function formatToolResultForAI(result: ToolCallResult): string {
-    const { toolCall, result: toolResult } = result
-    
-    if (!toolResult.success) {
-        return `Tool "${toolCall.name}" failed with error: ${toolResult.error}`
-    }
-    
-    // Return structured data for AI to process
-    return JSON.stringify({
-        tool: toolCall.name,
-        arguments: toolCall.arguments,
-        result: toolResult.data
-    }, null, 2)
 }
 
