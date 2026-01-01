@@ -259,15 +259,6 @@ export const generatePerplexityCompletion = async (
 
         const result: PerplexityResponse = await response.json()
         
-        // DEBUG: Log what the API returns to verify citations
-        console.log('[Perplexity API] Raw response:', {
-            hasCitations: !!result.citations,
-            citationsLength: result.citations?.length || 0,
-            citations: result.citations,
-            hasSearchResults: !!result.search_results,
-            searchResultsLength: result.search_results?.length || 0
-        })
-        
         // Clean the response content and process citations
         if (result.choices && result.choices[0]?.message?.content) {
             result.choices[0].message.content = cleanSonarResponse(

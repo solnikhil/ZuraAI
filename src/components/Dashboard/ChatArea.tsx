@@ -1375,10 +1375,53 @@ export default function ChatArea() {
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     borderRadius: '12px',
                                     padding: '2px',
+                                    gap: '2px',
                                     animationDelay: '0.3s'
                                 }}>
                                     <ModelSelector minimal={true} />
 
+                                    {/* Divider */}
+                                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                                    {/* Web Search Toggle */}
+                                    <button
+                                        onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
+                                        title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
+                                        style={{
+                                            background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '6px 8px',
+                                            color: settings.webSearchEnabled ? '#60a5fa' : '#666',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                            height: '100%'
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (settings.webSearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
+                                                e.currentTarget.style.color = '#93c5fd'
+                                            } else {
+                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                                e.currentTarget.style.color = '#999'
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (settings.webSearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
+                                                e.currentTarget.style.color = '#60a5fa'
+                                            } else {
+                                                e.currentTarget.style.background = 'transparent'
+                                                e.currentTarget.style.color = '#666'
+                                            }
+                                        }}
+                                    >
+                                        <Globe size={16} />
+                                    </button>
                                 </div>
                                 <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
@@ -2624,7 +2667,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
 
                     {/* Bottom row - model selector and send */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        {/* Grouped pill container for model + images */}
+                        {/* Grouped pill container for model + web search + images */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -2635,6 +2678,49 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                             gap: '2px'
                         }}>
                             <ModelSelector minimal={true} />
+
+                            {/* Divider */}
+                            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                            {/* Web Search Toggle */}
+                            <button
+                                onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
+                                title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
+                                style={{
+                                    background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '6px 8px',
+                                    color: settings.webSearchEnabled ? '#60a5fa' : '#666',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px',
+                                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                    height: '100%'
+                                }}
+                                onMouseEnter={e => {
+                                    if (settings.webSearchEnabled) {
+                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
+                                        e.currentTarget.style.color = '#93c5fd'
+                                    } else {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                        e.currentTarget.style.color = '#999'
+                                    }
+                                }}
+                                onMouseLeave={e => {
+                                    if (settings.webSearchEnabled) {
+                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
+                                        e.currentTarget.style.color = '#60a5fa'
+                                    } else {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = '#666'
+                                    }
+                                }}
+                            >
+                                <Globe size={16} />
+                            </button>
 
 
                             {/* Images button - show if images are attached */}

@@ -39,6 +39,7 @@ export interface Settings {
     tavilyApiKey: string
     enabledTools: string[]  // Which tools are active (empty = all enabled)
     toolApprovalMode: 'always' | 'sensitive' | 'never'
+    webSearchEnabled: boolean  // Quick toggle for web search in chat
 }
 
 // Todo item structure
@@ -232,7 +233,8 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
     toolsEnabled: false,
     tavilyApiKey: '',
     enabledTools: [],
-    toolApprovalMode: 'sensitive'
+    toolApprovalMode: 'sensitive',
+    webSearchEnabled: true
 }
 
 interface SettingsContextType {
@@ -279,6 +281,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
+        if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
 
         return parsed
     })

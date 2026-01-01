@@ -14,18 +14,11 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     }
 
     if (!window.secureStorage) {
-        console.warn('[SecureApiKeys] Secure storage not available (not in Electron)')
         return defaults
     }
 
     try {
         const allKeys = await window.secureStorage.getAll()
-        console.log('[SecureApiKeys] Loaded keys:', {
-            openRouterApiKey: allKeys.openRouterApiKey ? '(set)' : '(empty)',
-            perplexityApiKey: allKeys.perplexityApiKey ? '(set)' : '(empty)',
-            geminiApiKey: allKeys.geminiApiKey ? '(set)' : '(empty)',
-            groqApiKey: allKeys.groqApiKey ? '(set)' : '(empty)',
-        })
         return {
             openRouterApiKey: allKeys.openRouterApiKey || '',
             perplexityApiKey: allKeys.perplexityApiKey || '',
@@ -33,7 +26,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             groqApiKey: allKeys.groqApiKey || '',
         }
     } catch (error) {
-        console.error('[SecureApiKeys] Failed to load API keys from secure storage:', error)
+        console.error('[SecureApiKeys] Failed to load:', error)
         return defaults
     }
 }
@@ -43,22 +36,18 @@ export async function saveApiKeyToSecureStorage(
     value: string
 ): Promise<boolean> {
     if (!window.secureStorage) {
-        console.warn('[SecureApiKeys] Secure storage not available (not in Electron)')
         return false
     }
 
     try {
-        const success = await window.secureStorage.set(key, value)
-        console.log(`[SecureApiKeys] Save ${key}:`, success ? 'success' : 'failed')
-        return success
+        return await window.secureStorage.set(key, value)
     } catch (error) {
-        console.error(`[SecureApiKeys] Failed to save ${key} to secure storage:`, error)
+        console.error(`[SecureApiKeys] Failed to save ${key}:`, error)
         return false
     }
 }
 
 export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boolean> {
-    // Migrate API keys from localStorage to secure storage if they exist
     const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey'> = [
         'openRouterApiKey',
         'perplexityApiKey',
@@ -68,11 +57,10 @@ export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boo
 
     const hasMigrated = localStorage.getItem('zura-api-keys-migrated') === 'true'
     if (hasMigrated) {
-        return true // Already migrated
+        return true
     }
 
     if (!window.secureStorage) {
-        console.warn('[SecureApiKeys] Secure storage not available for migration')
         return false
     }
 
@@ -81,25 +69,20 @@ export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boo
         for (const key of keysToMigrate) {
             if (settings[key] && settings[key].trim()) {
                 const success = await window.secureStorage.set(key, settings[key])
-                if (success) {
-                    migratedCount++
-                    console.log(`[SecureApiKeys] Migrated ${key}`)
-                }
+                if (success) migratedCount++
             }
         }
 
         if (migratedCount > 0 || keysToMigrate.every(k => !settings[k] || !settings[k].trim())) {
             localStorage.setItem('zura-api-keys-migrated', 'true')
-            console.log(`[SecureApiKeys] Migration complete, migrated ${migratedCount} keys`)
         }
         return true
     } catch (error) {
-        console.error('[SecureApiKeys] Failed to migrate API keys:', error)
+        console.error('[SecureApiKeys] Migration failed:', error)
         return false
     }
 }
 
-// Diagnostic function to check storage status
 export async function getSecureStorageStatus(): Promise<{
     available: boolean
     encryptionAvailable: boolean
@@ -121,7 +104,6 @@ export async function getSecureStorageStatus(): Promise<{
             lastError: status.lastError,
         }
     } catch (error) {
-        console.error('[SecureApiKeys] Failed to get storage status:', error)
         return {
             available: false,
             encryptionAvailable: false,
@@ -131,5 +113,3 @@ export async function getSecureStorageStatus(): Promise<{
         }
     }
 }
-
-
