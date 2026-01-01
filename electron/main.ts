@@ -49,7 +49,7 @@ function createMainWindow() {
         minWidth: 900,
         minHeight: 600,
         title: 'Zura',
-        icon: path.join(process.env.PUBLIC || '', 'tray-icon.png'),
+        icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -95,8 +95,47 @@ function createMainWindow() {
 }
 
 function createTray() {
-    const iconPath = path.join(process.env.PUBLIC || '', 'tray-icon.png')
-    const icon = nativeImage.createFromPath(iconPath)
+    const iconPath = path.join(process.env.PUBLIC || '', 'icon.png')
+    console.log('[TRAY] Icon path:', iconPath)
+    console.log('[TRAY] PUBLIC env:', process.env.PUBLIC)
+    
+    // Check if file exists
+    const fs = require('fs')
+    if (!fs.existsSync(iconPath)) {
+        console.error('[TRAY] Icon file not found at:', iconPath)
+        // Try alternative path
+        const altPath = path.join(__dirname, '../public/icon.png')
+        console.log('[TRAY] Trying alternative path:', altPath)
+        if (fs.existsSync(altPath)) {
+            console.log('[TRAY] Found icon at alternative path')
+        }
+    } else {
+        console.log('[TRAY] Icon file found!')
+    }
+    
+    let icon = nativeImage.createFromPath(iconPath)
+    
+    // Check if icon loaded properly
+    if (icon.isEmpty()) {
+        console.error('[TRAY] Icon is empty! Trying alternative path...')
+        const altPath = path.join(__dirname, '../public/icon.png')
+        icon = nativeImage.createFromPath(altPath)
+    }
+    
+    console.log('[TRAY] Icon size before resize:', icon.getSize())
+    
+    // Resize icon for tray - Windows uses 16x16 or 32x32, macOS uses 22x22
+    // Using 32x32 for better visibility on high-DPI displays
+    if (process.platform === 'win32') {
+        icon = icon.resize({ width: 32, height: 32 })
+    } else if (process.platform === 'darwin') {
+        icon = icon.resize({ width: 22, height: 22 })
+    } else {
+        icon = icon.resize({ width: 24, height: 24 })
+    }
+    
+    console.log('[TRAY] Icon size after resize:', icon.getSize())
+    
     tray = new Tray(icon)
 
     const contextMenu = Menu.buildFromTemplate([
@@ -521,16 +560,17 @@ ipcMain.on('open-settings', () => {
 
 // ==================== SECURE STORAGE IPC HANDLERS ====================
 
-ipcMain.handle('secure-storage:get', (_event, key: string) => {
-    return secureStorage.getSecureValue(key as any)
+ipcMain.handle('secure-storage:get', async (_event, key: string) => {
+    return secureStorage.getSecureValueAsync(key as any)
 })
 
-ipcMain.handle('secure-storage:set', (_event, key: string, value: string) => {
-    return secureStorage.setSecureValue(key as any, value)
+ipcMain.handle('secure-storage:set', async (_event, key: string, value: string) => {
+    // Use async version to ensure data is written to disk before returning
+    return secureStorage.setSecureValueAsync(key as any, value)
 })
 
-ipcMain.handle('secure-storage:get-all', () => {
-    return secureStorage.getAllSecureValues()
+ipcMain.handle('secure-storage:get-all', async () => {
+    return secureStorage.getAllSecureValuesAsync()
 })
 
 ipcMain.handle('secure-storage:clear', () => {

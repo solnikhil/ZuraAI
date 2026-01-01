@@ -187,18 +187,48 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     }
 }
 
-// Sync write with async background write
+// Sync write - writes synchronously to ensure data is persisted immediately
 function writeSecureData(data: SecureData): boolean {
-    // Update cache immediately
-    cachedData = data
-    cacheTimestamp = Date.now()
-    
-    // Write async in background
-    writeSecureDataAsync(data).catch(err => {
-        console.error('[SecureStorage] Async write failed:', err)
-    })
-    
-    return true
+    try {
+        const dir = path.dirname(STORAGE_FILE)
+        if (!fsSync.existsSync(dir)) {
+            fsSync.mkdirSync(dir, { recursive: true })
+        }
+
+        const encryptionAvailable = isEncryptionAvailable()
+        const toWrite: Record<string, string> = {}
+
+        for (const [key, value] of Object.entries(data)) {
+            if (value && typeof value === 'string') {
+                if (encryptionAvailable) {
+                    try {
+                        toWrite[key] = safeStorage.encryptString(value).toString('base64')
+                    } catch (encryptError) {
+                        console.error(`[SecureStorage] Failed to encrypt ${key}:`, encryptError)
+                        toWrite[key] = value
+                        lastStorageError = `Failed to encrypt ${key}`
+                    }
+                } else {
+                    console.warn(`[SecureStorage] Storing ${key} as plaintext (encryption unavailable)`)
+                    toWrite[key] = value
+                }
+            }
+        }
+
+        // Write synchronously to ensure data is persisted before returning
+        fsSync.writeFileSync(STORAGE_FILE, JSON.stringify(toWrite, null, 2), 'utf-8')
+        
+        // Update cache
+        cachedData = data
+        cacheTimestamp = Date.now()
+        
+        console.log('[SecureStorage] Wrote', Object.keys(toWrite).length, 'keys (sync)')
+        return true
+    } catch (error) {
+        console.error('[SecureStorage] Failed to write secure storage:', error)
+        lastStorageError = String(error)
+        return false
+    }
 }
 
 export function getSecureValue(key: keyof SecureData): string {

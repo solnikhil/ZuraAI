@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot, Square, Zap, TrendingUp, Database } from 'lucide-react'
 import StarBorder from '../StarBorder'
 import ReactMarkdown from 'react-markdown'
@@ -46,6 +46,12 @@ export default function ChatArea() {
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
 
+    // Track the last message count to detect when a NEW message is added
+    const prevMessageCountRef = useRef(messages.length)
+    const lastMessageIdRef = useRef<string | null>(null)
+    const hasScrolledToNewMessageRef = useRef(false)
+    const userScrolledAwayRef = useRef(false)
+
     const scrollToBottom = (immediate = false) => {
         if (messagesContainerRef.current) {
             // Direct scroll of the container for better control
@@ -56,49 +62,73 @@ export default function ChatArea() {
         }
     }
 
-    // Track last message content to detect streaming updates
-    const lastMessageContent = useMemo(() => {
-        return messages.length > 0 ? messages[messages.length - 1]?.content || '' : ''
-    }, [messages])
-
-    // Auto-scroll to bottom when messages change, loading starts, or content updates during streaming
-    useEffect(() => {
-        if (isLoading) {
-            // During streaming/loading, use immediate scroll to keep up with rapid updates
-            scrollToBottom(true)
-        } else {
-            // After loading completes, use smooth scroll
-            scrollToBottom(false)
+    // Scroll to bring the start of a new message into view (at the TOP of viewport)
+    const scrollToNewMessage = () => {
+        if (!messagesContainerRef.current) return
+        const container = messagesContainerRef.current
+        const messageElements = container.querySelectorAll('[data-message-id]')
+        const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement
+        if (lastMessageEl) {
+            // Use scrollIntoView with block: 'start' to position message at TOP of container
+            lastMessageEl.scrollIntoView({ behavior: 'auto', block: 'start' })
+            // Add padding so the message isn't flush against the top (48px breathing room)
+            container.scrollTop = Math.max(0, container.scrollTop - 48)
         }
-    }, [messages, isLoading, lastMessageContent])
+    }
 
-    // Continuous scroll during streaming to ensure we stay at bottom as content updates
-    // Only scrolls if user is already near the bottom (within 100px)
+    // Check if user is near the bottom of the chat
+    const isNearBottom = () => {
+        if (!messagesContainerRef.current) return true
+        const container = messagesContainerRef.current
+        const threshold = 150 // pixels from bottom
+        return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
+    }
+
+    // Track user scroll to detect if they scrolled away
     useEffect(() => {
-        if (!isLoading || !messagesContainerRef.current) return
+        const container = messagesContainerRef.current
+        if (!container) return
 
-        let animationFrameId: number
-        const scrollLoop = () => {
-            if (messagesContainerRef.current && isLoading) {
-                const container = messagesContainerRef.current
-                const scrollBottom = container.scrollHeight - container.clientHeight
-                const currentScroll = container.scrollTop
-                // Only auto-scroll if user is already near the bottom (within 100px)
-                // This allows users to scroll up to read older messages without interruption
-                if (scrollBottom - currentScroll < 100) {
-                    container.scrollTop = container.scrollHeight
-                }
-                animationFrameId = requestAnimationFrame(scrollLoop)
+        const handleScroll = () => {
+            // If user scrolls up during streaming, mark that they scrolled away
+            if (isLoading && !isNearBottom()) {
+                userScrolledAwayRef.current = true
+            } else if (isNearBottom()) {
+                userScrolledAwayRef.current = false
             }
         }
-        animationFrameId = requestAnimationFrame(scrollLoop)
 
-        return () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId)
-            }
-        }
+        container.addEventListener('scroll', handleScroll)
+        return () => container.removeEventListener('scroll', handleScroll)
     }, [isLoading])
+
+    // Handle new message detection and initial scroll
+    useEffect(() => {
+        const currentMessageCount = messages.length
+        const lastMessage = messages[messages.length - 1]
+        const lastMessageId = lastMessage?.id || null
+
+        // Detect if a NEW message was added (not just content update)
+        if (currentMessageCount > prevMessageCountRef.current || lastMessageId !== lastMessageIdRef.current) {
+            // New message added - scroll to bring its START into view
+            hasScrolledToNewMessageRef.current = false
+            userScrolledAwayRef.current = false
+            
+            // Use requestAnimationFrame to ensure DOM is updated
+            requestAnimationFrame(() => {
+                if (!hasScrolledToNewMessageRef.current) {
+                    scrollToNewMessage()
+                    hasScrolledToNewMessageRef.current = true
+                }
+            })
+        }
+
+        prevMessageCountRef.current = currentMessageCount
+        lastMessageIdRef.current = lastMessageId
+    }, [messages.length, messages[messages.length - 1]?.id])
+
+    // REMOVED: Post-streaming scroll to bottom - let content stay where it is
+    // The user can scroll manually if they want to see more content
 
     // Auto-resize textarea
     useEffect(() => {
@@ -1423,7 +1453,7 @@ export default function ChatArea() {
             <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {messages.map((msg, idx) => (
-                        <React.Fragment key={msg.id}>
+                        <div key={msg.id} data-message-id={msg.id}>
                             <MessageBubble
                                 message={msg}
                             />
@@ -1453,7 +1483,7 @@ export default function ChatArea() {
                                     ))}
                                 </div>
                             )}
-                        </React.Fragment>
+                        </div>
                     ))}
                     {/* Show active tool calls */}
                     {toolState.activeToolCalls.map((toolCall, i) => (
