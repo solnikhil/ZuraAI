@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 
@@ -39,6 +39,7 @@ export interface Settings {
     tavilyApiKey: string
     enabledTools: string[]  // Which tools are active (empty = all enabled)
     toolApprovalMode: 'always' | 'sensitive' | 'never'
+    webSearchEnabled: boolean  // Quick toggle for web search in chat
 }
 
 // Todo item structure
@@ -232,7 +233,8 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
     toolsEnabled: false,
     tavilyApiKey: '',
     enabledTools: [],
-    toolApprovalMode: 'sensitive'
+    toolApprovalMode: 'sensitive',
+    webSearchEnabled: true
 }
 
 interface SettingsContextType {
@@ -279,6 +281,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
+        if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
 
         return parsed
     })
@@ -297,8 +300,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const loadSecureKeys = async () => {
             try {
-                console.log('[SettingsContext] Loading secure keys...')
-
                 // Migrate existing keys from localStorage if needed
                 await migrateApiKeysFromLocalStorage(settings)
 
@@ -310,7 +311,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     secureKeys.geminiApiKey || secureKeys.groqApiKey
 
                 if (hasSecureKeys) {
-                    console.log('[SettingsContext] Loaded secure keys successfully')
                     // Update settings with secure keys - prefer secure storage values
                     setSettings(prev => ({
                         ...prev,
@@ -319,12 +319,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                     }))
-                } else {
-                    console.log('[SettingsContext] No secure keys found, using localStorage values')
                 }
             } catch (error) {
                 console.error('[SettingsContext] Failed to load API keys from secure storage:', error)
-                // Keep using localStorage values if secure storage fails
             }
         }
         loadSecureKeys()
@@ -345,9 +342,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         setSettings(prev => ({ ...prev, ollamaModels: formatted }))
                     }
                 }
-            } catch (error) {
-                console.log('Ollama not available on startup')
-            }
+            } catch { /* Ollama not available */ }
         }
         fetchOllamaModels()
     }, [])
@@ -358,10 +353,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // The secure storage is still the primary storage for keys (encrypted)
         // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
-
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:useEffect:save', message: 'Settings saved to localStorage', data: { aiModel: settings.aiModel, modelProvider: settings.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
 
         // Apply theme
         const isDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -393,26 +384,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
     }, [settings])
 
-    const updateSettings = (newSettings: Partial<Settings>) => {
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings', message: 'updateSettings called', data: { newSettings, currentAiModel: settings.aiModel, currentProvider: settings.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
+    const updateSettings = useCallback((newSettings: Partial<Settings>) => {
         setSettings(prev => {
             const updated = { ...prev, ...newSettings }
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/contexts/SettingsContext.tsx:updateSettings:setSettings', message: 'Settings state updated', data: { updatedAiModel: updated.aiModel, updatedProvider: updated.modelProvider, prevAiModel: prev.aiModel, prevProvider: prev.modelProvider }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'model-switcher-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
             return updated
         })
-    }
+    }, [])
 
-    const resetSettings = () => {
+    const resetSettings = useCallback(() => {
         setSettings(defaultSettings)
-    }
+    }, [])
+
+    const contextValue = useMemo(() => ({
+        settings,
+        updateSettings,
+        resetSettings
+    }), [settings, updateSettings, resetSettings])
 
     return (
-        <SettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+        <SettingsContext.Provider value={contextValue}>
             {children}
         </SettingsContext.Provider>
     )

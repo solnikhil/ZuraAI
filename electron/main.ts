@@ -35,6 +35,7 @@ let mainWindow: BrowserWindow | null = null
 let currentScreenshot: NativeImage | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let autoUpdateInterval: NodeJS.Timeout | null = null
 
 function createMainWindow() {
     if (mainWindow) {
@@ -48,7 +49,7 @@ function createMainWindow() {
         minWidth: 900,
         minHeight: 600,
         title: 'Zura',
-        icon: path.join(process.env.PUBLIC || '', 'tray-icon.png'),
+        icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -94,8 +95,26 @@ function createMainWindow() {
 }
 
 function createTray() {
-    const iconPath = path.join(process.env.PUBLIC || '', 'tray-icon.png')
-    const icon = nativeImage.createFromPath(iconPath)
+    const iconPath = path.join(process.env.PUBLIC || '', 'icon.png')
+    const fs = require('fs')
+    
+    let icon = nativeImage.createFromPath(iconPath)
+    
+    // Try alternative path if icon not found
+    if (icon.isEmpty()) {
+        const altPath = path.join(__dirname, '../public/icon.png')
+        icon = nativeImage.createFromPath(altPath)
+    }
+    
+    // Resize icon for tray
+    if (process.platform === 'win32') {
+        icon = icon.resize({ width: 32, height: 32 })
+    } else if (process.platform === 'darwin') {
+        icon = icon.resize({ width: 22, height: 22 })
+    } else {
+        icon = icon.resize({ width: 24, height: 24 })
+    }
+    
     tray = new Tray(icon)
 
     const contextMenu = Menu.buildFromTemplate([
@@ -201,39 +220,37 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
     isQuitting = true
+    // Clean up global shortcuts to prevent memory leaks
+    globalShortcut.unregisterAll()
+})
+
+// Ensure proper cleanup on will-quit event
+app.on('will-quit', () => {
+    // Unregister all global shortcuts (redundant safety measure)
+    globalShortcut.unregisterAll()
+    
+    // Clean up auto-update interval
+    if (autoUpdateInterval) {
+        clearInterval(autoUpdateInterval)
+        autoUpdateInterval = null
+    }
+    
+    // Clean up tray
+    if (tray) {
+        tray.destroy()
+        tray = null
+    }
 })
 
 app.whenReady().then(async () => {
     // Register tool handlers for AI function calling
     try {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:209', message: 'Starting dynamic import', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        // #endregion
         const toolsModule = await import('./tools/index')
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:211', message: 'Dynamic import completed', data: { moduleKeys: Object.keys(toolsModule), hasRegisterToolHandlers: 'registerToolHandlers' in toolsModule, registerToolHandlersType: typeof toolsModule.registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        // #endregion
         registerToolHandlers = toolsModule.registerToolHandlers
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:213', message: 'After assignment', data: { registerToolHandlersType: typeof registerToolHandlers, isFunction: typeof registerToolHandlers === 'function', isUndefined: registerToolHandlers === undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-        // #endregion
         if (registerToolHandlers) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:216', message: 'Before calling registerToolHandlers', data: { registerToolHandlersType: typeof registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-            // #endregion
-            const result = registerToolHandlers()
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:219', message: 'After calling registerToolHandlers', data: { resultType: typeof result, resultValue: result }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-            // #endregion
-        } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:221', message: 'registerToolHandlers is falsy', data: { registerToolHandlersValue: registerToolHandlers }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-            // #endregion
+            registerToolHandlers()
         }
     } catch (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'electron/main.ts:224', message: 'Error in tool handler registration', data: { errorMessage: error instanceof Error ? error.message : String(error), errorStack: error instanceof Error ? error.stack : undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'F' }) }).catch(() => { });
-        // #endregion
         console.error('[MAIN] Failed to load tool handlers:', error)
     }
 
@@ -249,7 +266,7 @@ app.whenReady().then(async () => {
         })
 
         // Check for updates every 4 hours
-        setInterval(() => {
+        autoUpdateInterval = setInterval(() => {
             autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
                 console.error('Auto-update check failed:', err)
             })
@@ -278,7 +295,6 @@ app.whenReady().then(async () => {
     createOverlayWindow()
 
     globalShortcut.register('CommandOrControl+Shift+Z', async () => {
-        console.log('[SHORTCUT] Triggered')
         if (overlayWin) {
             if (overlayWin.isVisible()) {
                 overlayWin.hide()
@@ -286,7 +302,6 @@ app.whenReady().then(async () => {
                 overlayWin.show()
                 overlayWin.focus()
                 overlayWin.setAlwaysOnTop(true)
-                // Reset state
                 overlayWin.webContents.send('reset-overlay')
             }
         }
@@ -294,17 +309,12 @@ app.whenReady().then(async () => {
 
     // Ctrl+Shift+X - Direct screenshot selection mode
     globalShortcut.register('CommandOrControl+Shift+X', async () => {
-        console.log('[SHORTCUT] Screenshot mode triggered')
-
-        // Hide overlay while capturing
         if (overlayWin) {
             overlayWin.hide()
         }
 
-        // Small delay to ensure window is hidden
         await new Promise(resolve => setTimeout(resolve, 50))
 
-        // Capture the screen
         const displaySize = screen.getPrimaryDisplay().size
         const sources = await desktopCapturer.getSources({
             types: ['screen'],
@@ -315,15 +325,12 @@ app.whenReady().then(async () => {
         const primarySource = sources[0]
         if (primarySource) {
             currentScreenshot = primarySource.thumbnail
-            console.log('[CAPTURE] Screenshot captured for selection, size:', currentScreenshot.getSize())
         }
 
-        // Show overlay in selection mode
         if (overlayWin) {
             overlayWin.show()
             overlayWin.focus()
             overlayWin.setAlwaysOnTop(true)
-            // Send direct screenshot selection mode signal
             overlayWin.webContents.send('start-screenshot-selection')
         }
     })
@@ -331,23 +338,9 @@ app.whenReady().then(async () => {
 
 // IPC Handlers
 
-ipcMain.on('log-to-terminal', (_event, message) => {
-    console.log(message)
-})
-
 ipcMain.on('settings-changed', (_event, settings) => {
-    const settingsToLog = { ...settings }
-    if (settingsToLog.systemPrompt && settingsToLog.systemPrompt.length > 50) {
-        settingsToLog.systemPrompt = settingsToLog.systemPrompt.substring(0, 50) + '... (truncated)'
-    }
-    // console.log('[SETTINGS] Updated:', JSON.stringify(settingsToLog, null, 2))
-
-    // Store Tavily API key globally for tool handlers
-    // Always update (even if empty) to clear stale keys
     (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
-
-    // Only notify if explicitly requested or critical (avoiding spam on every keystroke/sync)
-    // new Notification({
+})
     //     title: 'Zura Settings',
     //     body: 'Settings updated successfully'
     // }).show()
@@ -413,12 +406,10 @@ ipcMain.handle('chat-store:get-path', () => {
 // ===============================================================
 
 ipcMain.handle('capture-screen', async () => {
-    console.log('[CAPTURE] Requested')
     if (overlayWin) {
-        overlayWin.hide() // Hide to avoid capturing the overlay itself
+        overlayWin.hide()
     }
 
-    // Small delay to ensure window is hidden
     await new Promise(resolve => setTimeout(resolve, 50))
 
     const displaySize = screen.getPrimaryDisplay().size
@@ -431,7 +422,6 @@ ipcMain.handle('capture-screen', async () => {
     const primarySource = sources[0]
     if (primarySource) {
         currentScreenshot = primarySource.thumbnail
-        console.log('[CAPTURE] Success, size:', currentScreenshot.getSize())
     }
 
     if (overlayWin) {
@@ -444,7 +434,6 @@ ipcMain.handle('capture-screen', async () => {
 
 ipcMain.handle('crop-screenshot', async (_event, selection) => {
     if (!currentScreenshot) {
-        console.error('[ERROR] No screenshot!')
         return null
     }
 
@@ -465,11 +454,7 @@ ipcMain.handle('crop-screenshot', async (_event, selection) => {
 })
 
 ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
-    console.log('[IPC] Prompt:', prompt)
-    console.log('[IPC] Selection:', selection)
-
     if (!currentScreenshot) {
-        console.error('[ERROR] No screenshot!')
         return
     }
 
@@ -482,14 +467,12 @@ ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
         })
 
         const base64Image = `data:image/png;base64,${croppedImage.toPNG().toString('base64')}`
-        console.log('[CROP] Success, base64 length:', base64Image.length)
 
         if (overlayWin) {
             overlayWin.webContents.send('ai-response-start', {
                 prompt,
                 image: base64Image
             })
-            console.log('[IPC] Sent to overlay')
         }
     } catch (error) {
         console.error('[ERROR] Crop failed:', error)
@@ -497,7 +480,6 @@ ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
 })
 
 ipcMain.on('close-overlay', () => {
-    console.log('[IPC] Close requested')
     if (overlayWin) {
         overlayWin.hide()
         currentScreenshot = null
@@ -505,7 +487,6 @@ ipcMain.on('close-overlay', () => {
 })
 
 ipcMain.on('minimize-overlay', () => {
-    console.log('[IPC] Minimize requested')
     if (overlayWin) {
         overlayWin.hide()
     }
@@ -522,16 +503,17 @@ ipcMain.on('open-settings', () => {
 
 // ==================== SECURE STORAGE IPC HANDLERS ====================
 
-ipcMain.handle('secure-storage:get', (_event, key: string) => {
-    return secureStorage.getSecureValue(key as any)
+ipcMain.handle('secure-storage:get', async (_event, key: string) => {
+    return secureStorage.getSecureValueAsync(key as any)
 })
 
-ipcMain.handle('secure-storage:set', (_event, key: string, value: string) => {
-    return secureStorage.setSecureValue(key as any, value)
+ipcMain.handle('secure-storage:set', async (_event, key: string, value: string) => {
+    // Use async version to ensure data is written to disk before returning
+    return secureStorage.setSecureValueAsync(key as any, value)
 })
 
-ipcMain.handle('secure-storage:get-all', () => {
-    return secureStorage.getAllSecureValues()
+ipcMain.handle('secure-storage:get-all', async () => {
+    return secureStorage.getAllSecureValuesAsync()
 })
 
 ipcMain.handle('secure-storage:clear', () => {

@@ -15,19 +15,15 @@
   "dependencies": {
     "active-win": "^8.2.1",
     "better-sqlite3": "^12.5.0",
-    "electron-overlay-window": "^4.0.1",
     "electron-updater": "^6.1.7",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.559.0",
-    "playwright": "^1.57.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.10.1",
     "react-syntax-highlighter": "^16.1.0",
     "remark-gfm": "^4.0.1",
-    "robotjs": "^0.6.0",
-    "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

@@ -4,7 +4,21 @@ import { toolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { parseOpenRouterToolCalls, hasToolCalls, formatToolResultsForOpenRouter } from './adapters/openrouter'
 import { parseGeminiFunctionCalls, hasGeminiFunctionCalls, formatToolResultsForGemini } from './adapters/gemini'
-import { executeToolCalls, formatToolResultForAI, ToolCall, ToolCallResult } from './executor'
+import { executeToolCalls } from './executor'
+import { 
+    ToolCall, 
+    ToolCallResult,
+    OpenRouterResponse,
+    GeminiResponse,
+    OpenRouterToolResultMessage,
+    GeminiFunctionResponse
+} from './types'
+
+// Type for provider API responses
+type ProviderResponse = OpenRouterResponse | GeminiResponse
+
+// Type for formatted tool results
+type FormattedToolResults = OpenRouterToolResultMessage[] | GeminiFunctionResponse[]
 
 /**
  * Coerce tool arguments to correct types based on tool definition schema
@@ -13,7 +27,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
     const toolDef = getToolByName(toolCall.name)
     if (!toolDef) return toolCall
     
-    const coercedArgs: Record<string, any> = {}
+    const coercedArgs: Record<string, unknown> = {}
     
     for (const [key, value] of Object.entries(toolCall.arguments)) {
         const paramDef = toolDef.parameters.properties[key]
@@ -89,14 +103,14 @@ export function getToolsForProvider(config: ToolManagerConfig) {
 /**
  * Parse tool calls from AI response based on provider
  */
-export function parseToolCallsFromResponse(response: any, provider: string): ToolCall[] {
+export function parseToolCallsFromResponse(response: ProviderResponse, provider: string): ToolCall[] {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
-            return parseOpenRouterToolCalls(response)
+            return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'gemini':
-            return parseGeminiFunctionCalls(response)
+            return parseGeminiFunctionCalls(response as GeminiResponse)
         default:
             return []
     }
@@ -105,14 +119,14 @@ export function parseToolCallsFromResponse(response: any, provider: string): Too
 /**
  * Check if response has tool calls based on provider
  */
-export function responseHasToolCalls(response: any, provider: string): boolean {
+export function responseHasToolCalls(response: ProviderResponse, provider: string): boolean {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
-            return hasToolCalls(response)
+            return hasToolCalls(response as OpenRouterResponse)
         case 'gemini':
-            return hasGeminiFunctionCalls(response)
+            return hasGeminiFunctionCalls(response as GeminiResponse)
         default:
             return false
     }
@@ -125,7 +139,7 @@ export function formatResultsForProvider(
     toolCalls: ToolCall[],
     results: ToolCallResult[],
     provider: string
-) {
+): FormattedToolResults {
     const toolResults = results.map(r => r.result)
     
     switch (provider) {
@@ -145,12 +159,12 @@ export function formatResultsForProvider(
  * Returns the results formatted for the provider
  */
 export async function processToolCalls(
-    response: any,
+    response: ProviderResponse,
     config: ToolManagerConfig
 ): Promise<{
     toolCalls: ToolCall[]
     results: ToolCallResult[]
-    formattedResults: any[]
+    formattedResults: FormattedToolResults
 }> {
     const toolCalls = parseToolCallsFromResponse(response, config.provider)
     
@@ -190,18 +204,15 @@ export async function processToolCalls(
             
             // Notify tool complete
             config.onToolComplete?.(result[0])
-        } catch (execError: any) {
-            // #region agent log
-            {(() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/tools/toolManager.ts:processToolCalls:execError',message:'Tool execution error caught',data:{toolName:coercedToolCall.name,errorMessage:execError?.message,errorType:execError?.constructor?.name,stack:execError?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',runId:'black-screen-fix',hypothesisId:'A'})}).catch(()=>{}); } catch {} return null })()}
-            // #endregion
-            
+        } catch (execError: unknown) {
+            const errorMessage = execError instanceof Error ? execError.message : `Failed to execute ${coercedToolCall.name}`
             console.error(`Tool execution error for ${coercedToolCall.name}:`, execError)
             // Add error result instead of crashing
             results.push({
                 toolCall: coercedToolCall,
                 result: {
                     success: false,
-                    error: execError.message || `Failed to execute ${coercedToolCall.name}`
+                    error: errorMessage
                 }
             })
         }
@@ -212,15 +223,29 @@ export async function processToolCalls(
     return { toolCalls, results, formattedResults }
 }
 
+// Message types for different providers
+interface OpenRouterMessage {
+    role: string
+    content?: string | null
+    tool_calls?: unknown[]
+}
+
+interface GeminiMessage {
+    role: string
+    parts: unknown[]
+}
+
+type ProviderMessage = OpenRouterMessage | GeminiMessage
+
 /**
  * Build messages array with tool results for follow-up API call
  */
 export function buildMessagesWithToolResults(
-    originalMessages: any[],
-    assistantMessage: any,
-    toolResults: any[],
+    originalMessages: ProviderMessage[],
+    assistantMessage: ProviderMessage,
+    toolResults: FormattedToolResults,
     provider: string
-): any[] {
+): ProviderMessage[] {
     switch (provider) {
         case 'openrouter':
         case 'groq':
@@ -229,7 +254,7 @@ export function buildMessagesWithToolResults(
                 ...originalMessages,
                 assistantMessage,
                 ...toolResults
-            ]
+            ] as ProviderMessage[]
         
         case 'gemini':
             // Gemini handles this differently - tool results go in content parts

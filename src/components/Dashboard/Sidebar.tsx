@@ -282,17 +282,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             transform: view === 'settings' ? 'translateX(0)' : 'translateX(20px)',
             transition: 'all 0.3s ease',
             pointerEvents: view === 'settings' ? 'all' : 'none',
-            padding: '20px 16px',
             backgroundColor: '#1B1913', // Ensure BG covers chat list
             boxSizing: 'border-box'
         }}>
 
 
             {/* Content Area - grows to push footer down */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '16px 12px 0', overflow: 'hidden' }}>
                 {/* Header */}
                 <div style={{
-                    padding: '0 0 16px 0',
+                    padding: '0 4px 16px 4px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: isCollapsed ? 'center' : 'space-between',

@@ -1,3 +1,5 @@
+import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+
 // OpenRouter API service with streaming support
 
 export interface OpenRouterStreamChunk {
@@ -51,22 +53,32 @@ export interface OpenRouterResponse {
     }
 }
 
+interface OpenRouterRequestBody {
+    model: string
+    messages: ChatMessage[]
+    stream?: boolean
+    temperature?: number
+    max_tokens?: number
+    tools?: ToolDefinition[]
+    tool_choice?: 'auto' | 'none'
+}
+
 export async function generateOpenRouterCompletion(
     apiKey: string,
     model: string,
-    messages: { role: string; content: string | any[] }[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         maxTokens?: number
         stream?: boolean
-        tools?: any[]
+        tools?: ToolDefinition[]
     }
 ): Promise<OpenRouterResponse> {
     if (!apiKey) {
         throw new Error("OpenRouter API Key is missing")
     }
 
-    const requestBody: any = {
+    const requestBody: OpenRouterRequestBody = {
         model,
         messages,
     }
@@ -96,13 +108,8 @@ export async function generateOpenRouterCompletion(
 
     if (!response.ok) {
         const errorText = await response.text()
-        let errorData: any = {}
-        try {
-            errorData = JSON.parse(errorText)
-        } catch {
-            // Not JSON
-        }
-        const errorMessage = errorData.error?.message || errorText || `HTTP ${response.status}: ${response.statusText}`
+        const errorData = parseErrorResponse(errorText)
+        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
         throw new Error(errorMessage)
     }
 
@@ -113,11 +120,11 @@ export async function generateOpenRouterCompletion(
 export async function* streamOpenRouterCompletion(
     apiKey: string,
     model: string,
-    messages: { role: string; content: string | any[] }[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         maxTokens?: number
-        tools?: any[]
+        tools?: ToolDefinition[]
         onChunk?: (chunk: OpenRouterStreamChunk) => void
     }
 ): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
@@ -125,7 +132,7 @@ export async function* streamOpenRouterCompletion(
         throw new Error("OpenRouter API Key is missing")
     }
 
-    const requestBody: any = {
+    const requestBody: OpenRouterRequestBody = {
         model,
         messages,
         stream: true
@@ -153,13 +160,8 @@ export async function* streamOpenRouterCompletion(
 
     if (!response.ok) {
         const errorText = await response.text()
-        let errorData: any = {}
-        try {
-            errorData = JSON.parse(errorText)
-        } catch {
-            // Not JSON
-        }
-        const errorMessage = errorData.error?.message || errorText || `HTTP ${response.status}: ${response.statusText}`
+        const errorData = parseErrorResponse(errorText)
+        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
         throw new Error(errorMessage)
     }
 

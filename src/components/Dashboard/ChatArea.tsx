@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot, Square, Zap, TrendingUp, Database } from 'lucide-react'
 import StarBorder from '../StarBorder'
 import ReactMarkdown from 'react-markdown'
@@ -46,6 +46,12 @@ export default function ChatArea() {
     const currentSession = sessions.find(s => s.id === currentSessionId)
     const messages = currentSession?.messages || []
 
+    // Track the last message count to detect when a NEW message is added
+    const prevMessageCountRef = useRef(messages.length)
+    const lastMessageIdRef = useRef<string | null>(null)
+    const hasScrolledToNewMessageRef = useRef(false)
+    const userScrolledAwayRef = useRef(false)
+
     const scrollToBottom = (immediate = false) => {
         if (messagesContainerRef.current) {
             // Direct scroll of the container for better control
@@ -56,49 +62,73 @@ export default function ChatArea() {
         }
     }
 
-    // Track last message content to detect streaming updates
-    const lastMessageContent = useMemo(() => {
-        return messages.length > 0 ? messages[messages.length - 1]?.content || '' : ''
-    }, [messages])
-
-    // Auto-scroll to bottom when messages change, loading starts, or content updates during streaming
-    useEffect(() => {
-        if (isLoading) {
-            // During streaming/loading, use immediate scroll to keep up with rapid updates
-            scrollToBottom(true)
-        } else {
-            // After loading completes, use smooth scroll
-            scrollToBottom(false)
+    // Scroll to bring the start of a new message into view (at the TOP of viewport)
+    const scrollToNewMessage = () => {
+        if (!messagesContainerRef.current) return
+        const container = messagesContainerRef.current
+        const messageElements = container.querySelectorAll('[data-message-id]')
+        const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement
+        if (lastMessageEl) {
+            // Use scrollIntoView with block: 'start' to position message at TOP of container
+            lastMessageEl.scrollIntoView({ behavior: 'auto', block: 'start' })
+            // Add padding so the message isn't flush against the top (48px breathing room)
+            container.scrollTop = Math.max(0, container.scrollTop - 48)
         }
-    }, [messages, isLoading, lastMessageContent])
+    }
 
-    // Continuous scroll during streaming to ensure we stay at bottom as content updates
-    // Only scrolls if user is already near the bottom (within 100px)
+    // Check if user is near the bottom of the chat
+    const isNearBottom = () => {
+        if (!messagesContainerRef.current) return true
+        const container = messagesContainerRef.current
+        const threshold = 150 // pixels from bottom
+        return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
+    }
+
+    // Track user scroll to detect if they scrolled away
     useEffect(() => {
-        if (!isLoading || !messagesContainerRef.current) return
+        const container = messagesContainerRef.current
+        if (!container) return
 
-        let animationFrameId: number
-        const scrollLoop = () => {
-            if (messagesContainerRef.current && isLoading) {
-                const container = messagesContainerRef.current
-                const scrollBottom = container.scrollHeight - container.clientHeight
-                const currentScroll = container.scrollTop
-                // Only auto-scroll if user is already near the bottom (within 100px)
-                // This allows users to scroll up to read older messages without interruption
-                if (scrollBottom - currentScroll < 100) {
-                    container.scrollTop = container.scrollHeight
-                }
-                animationFrameId = requestAnimationFrame(scrollLoop)
+        const handleScroll = () => {
+            // If user scrolls up during streaming, mark that they scrolled away
+            if (isLoading && !isNearBottom()) {
+                userScrolledAwayRef.current = true
+            } else if (isNearBottom()) {
+                userScrolledAwayRef.current = false
             }
         }
-        animationFrameId = requestAnimationFrame(scrollLoop)
 
-        return () => {
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId)
-            }
-        }
+        container.addEventListener('scroll', handleScroll)
+        return () => container.removeEventListener('scroll', handleScroll)
     }, [isLoading])
+
+    // Handle new message detection and initial scroll
+    useEffect(() => {
+        const currentMessageCount = messages.length
+        const lastMessage = messages[messages.length - 1]
+        const lastMessageId = lastMessage?.id || null
+
+        // Detect if a NEW message was added (not just content update)
+        if (currentMessageCount > prevMessageCountRef.current || lastMessageId !== lastMessageIdRef.current) {
+            // New message added - scroll to bring its START into view
+            hasScrolledToNewMessageRef.current = false
+            userScrolledAwayRef.current = false
+            
+            // Use requestAnimationFrame to ensure DOM is updated
+            requestAnimationFrame(() => {
+                if (!hasScrolledToNewMessageRef.current) {
+                    scrollToNewMessage()
+                    hasScrolledToNewMessageRef.current = true
+                }
+            })
+        }
+
+        prevMessageCountRef.current = currentMessageCount
+        lastMessageIdRef.current = lastMessageId
+    }, [messages.length, messages[messages.length - 1]?.id])
+
+    // REMOVED: Post-streaming scroll to bottom - let content stay where it is
+    // The user can scroll manually if they want to see more content
 
     // Auto-resize textarea
     useEffect(() => {
@@ -165,10 +195,6 @@ export default function ChatArea() {
     }
 
     const handlePaste = async (event: React.ClipboardEvent) => {
-        // #region agent log
-        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste', message: 'Paste event triggered', data: { itemsCount: event.clipboardData.items.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-        // #endregion
-
         const items = event.clipboardData.items
         const files: File[] = []
 
@@ -177,9 +203,6 @@ export default function ChatArea() {
             if (item.kind === 'file') {
                 const file = item.getAsFile()
                 if (file) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste:fileFound', message: 'Found file in clipboard', data: { fileName: file.name, fileType: file.type, fileSize: file.size }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
                     files.push(file)
                 }
             }
@@ -187,9 +210,6 @@ export default function ChatArea() {
 
         if (files.length > 0) {
             event.preventDefault()
-            // #region agent log
-            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:handlePaste:processing', message: 'Processing pasted files', data: { filesCount: files.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'paste-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-            // #endregion
             await processFiles(files)
         }
     }
@@ -273,10 +293,6 @@ export default function ChatArea() {
                     model: `ollama/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:initialRequest', message: 'Making initial Ollama request', data: { hasTools: !!ollamaTools, toolsCount: ollamaTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -332,19 +348,11 @@ export default function ChatArea() {
 
                     // Check for tool calls
                     if (canUseTools && hasToolCalls && finalMessage && (finalMessage as any)?.tool_calls && Array.isArray((finalMessage as any).tool_calls) && (finalMessage as any).tool_calls.length > 0) {
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: (finalMessage as any)?.tool_calls?.length || 0 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls({ choices: [{ message: finalMessage }] })
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:ollama:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -550,10 +558,6 @@ export default function ChatArea() {
                     model: `gemini/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:initialRequest', message: 'Making initial Gemini request', data: { hasTools: !!geminiTools, functionsCount: geminiTools?.function_declarations?.length || 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -613,19 +617,11 @@ export default function ChatArea() {
 
                     // Check for function calls using accumulated response
                     if (canUseTools && hasGeminiFunctionCalls(accumulatedResponse)) {
-                    // #region agent log
-                    { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:beforeToolCalls', message: 'About to process tool calls', data: { hasFunctionCalls: hasGeminiFunctionCalls(accumulatedResponse) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                    // #endregion
-
                     // Process tool calls with error handling
                     let toolResult
                     try {
                         toolResult = await handleToolCalls(accumulatedResponse)
                     } catch (toolError: any) {
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:gemini:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         console.error('Tool calls processing error:', toolError)
                         showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -747,10 +743,6 @@ export default function ChatArea() {
                     model: `groq/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:initialRequest', message: 'Making initial Groq request', data: { hasTools: !!groqTools, toolsCount: groqTools?.length || 0, canUseTools, messageCount: optimizedHistory.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -843,19 +835,11 @@ export default function ChatArea() {
                             }]
                         }
 
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls(mockData)
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:groq:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -981,10 +965,6 @@ export default function ChatArea() {
                     model: `openrouter/${settings.aiModel}`
                 })
 
-                // #region agent log
-                { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:initialRequest', message: 'Making initial OpenRouter request', data: { hasTools: !!tools, toolsCount: Array.isArray(tools) ? tools.length : 0, canUseTools, messageCount: optimizedHistory.length, hasImage: !!firstImage }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'follow-up-tools-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                // #endregion
-
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
@@ -1069,19 +1049,11 @@ export default function ChatArea() {
                             }]
                         }
 
-                        // #region agent log
-                        { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:beforeToolCalls', message: 'About to process tool calls', data: { toolCallsCount: toolCallsAccumulator.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                        // #endregion
-
                         // Process tool calls with error handling
                         let toolResult
                         try {
                             toolResult = await handleToolCalls(mockData)
                         } catch (toolError: any) {
-                            // #region agent log
-                            { (() => { try { fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/components/Dashboard/ChatArea.tsx:openrouter:toolCallsError', message: 'Tool calls processing failed', data: { errorMessage: toolError?.message, errorType: toolError?.constructor?.name }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'black-screen-fix', hypothesisId: 'A' }) }).catch(() => { }); } catch { } return null })() }
-                            // #endregion
-
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -1403,10 +1375,53 @@ export default function ChatArea() {
                                     border: '1px solid rgba(255,255,255,0.08)',
                                     borderRadius: '12px',
                                     padding: '2px',
+                                    gap: '2px',
                                     animationDelay: '0.3s'
                                 }}>
                                     <ModelSelector minimal={true} />
 
+                                    {/* Divider */}
+                                    <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                                    {/* Web Search Toggle */}
+                                    <button
+                                        onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
+                                        title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
+                                        style={{
+                                            background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '6px 8px',
+                                            color: settings.webSearchEnabled ? '#60a5fa' : '#666',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                            height: '100%'
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (settings.webSearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
+                                                e.currentTarget.style.color = '#93c5fd'
+                                            } else {
+                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                                e.currentTarget.style.color = '#999'
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (settings.webSearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
+                                                e.currentTarget.style.color = '#60a5fa'
+                                            } else {
+                                                e.currentTarget.style.background = 'transparent'
+                                                e.currentTarget.style.color = '#666'
+                                            }
+                                        }}
+                                    >
+                                        <Globe size={16} />
+                                    </button>
                                 </div>
                                 <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
@@ -1481,7 +1496,7 @@ export default function ChatArea() {
             <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {messages.map((msg, idx) => (
-                        <React.Fragment key={msg.id}>
+                        <div key={msg.id} data-message-id={msg.id}>
                             <MessageBubble
                                 message={msg}
                             />
@@ -1511,7 +1526,7 @@ export default function ChatArea() {
                                     ))}
                                 </div>
                             )}
-                        </React.Fragment>
+                        </div>
                     ))}
                     {/* Show active tool calls */}
                     {toolState.activeToolCalls.map((toolCall, i) => (
@@ -2652,7 +2667,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
 
                     {/* Bottom row - model selector and send */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        {/* Grouped pill container for model + images */}
+                        {/* Grouped pill container for model + web search + images */}
                         <div style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -2663,6 +2678,49 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                             gap: '2px'
                         }}>
                             <ModelSelector minimal={true} />
+
+                            {/* Divider */}
+                            <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
+
+                            {/* Web Search Toggle */}
+                            <button
+                                onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
+                                title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
+                                style={{
+                                    background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    padding: '6px 8px',
+                                    color: settings.webSearchEnabled ? '#60a5fa' : '#666',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '4px',
+                                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                    height: '100%'
+                                }}
+                                onMouseEnter={e => {
+                                    if (settings.webSearchEnabled) {
+                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
+                                        e.currentTarget.style.color = '#93c5fd'
+                                    } else {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                        e.currentTarget.style.color = '#999'
+                                    }
+                                }}
+                                onMouseLeave={e => {
+                                    if (settings.webSearchEnabled) {
+                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
+                                        e.currentTarget.style.color = '#60a5fa'
+                                    } else {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = '#666'
+                                    }
+                                }}
+                            >
+                                <Globe size={16} />
+                            </button>
 
 
                             {/* Images button - show if images are attached */}

@@ -2,6 +2,13 @@
 // Converts tool definitions to OpenAI-compatible format
 
 import { ToolDefinition } from '../definitions'
+import { 
+    ToolCall,
+    ToolResult,
+    OpenRouterResponse,
+    OpenRouterToolCall,
+    OpenRouterToolResultMessage
+} from '../types'
 
 /**
  * OpenAI/OpenRouter tool format
@@ -13,23 +20,21 @@ export interface OpenAITool {
         description: string
         parameters: {
             type: 'object'
-            properties: Record<string, any>
+            properties: Record<string, {
+                type: string
+                description: string
+                enum?: string[]
+                default?: unknown
+            }>
             required: string[]
         }
     }
 }
 
 /**
- * Tool call from OpenAI response
+ * Tool call from OpenAI response (re-export for backward compatibility)
  */
-export interface OpenAIToolCall {
-    id: string
-    type: 'function'
-    function: {
-        name: string
-        arguments: string  // JSON string
-    }
-}
+export type OpenAIToolCall = OpenRouterToolCall
 
 /**
  * Convert Zura tool definitions to OpenAI/OpenRouter format
@@ -62,15 +67,15 @@ export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[]
 /**
  * Parse tool calls from OpenRouter/OpenAI response
  */
-export function parseOpenRouterToolCalls(response: any): Array<{ id: string; name: string; arguments: Record<string, any> }> {
+export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall[] {
     const message = response.choices?.[0]?.message
     
     if (!message?.tool_calls || message.tool_calls.length === 0) {
         return []
     }
     
-    return message.tool_calls.map((tc: OpenAIToolCall) => {
-        let args: Record<string, any> = {}
+    return message.tool_calls.map((tc: OpenRouterToolCall) => {
+        let args: Record<string, unknown> = {}
         try {
             args = JSON.parse(tc.function.arguments)
         } catch (e) {
@@ -90,8 +95,8 @@ export function parseOpenRouterToolCalls(response: any): Array<{ id: string; nam
  */
 export function formatToolResultsForOpenRouter(
     toolCalls: Array<{ id: string; name: string }>,
-    results: Array<{ success: boolean; data?: any; error?: string }>
-): Array<{ role: 'tool'; tool_call_id: string; content: string }> {
+    results: ToolResult[]
+): OpenRouterToolResultMessage[] {
     return toolCalls.map((tc, i) => ({
         role: 'tool' as const,
         tool_call_id: tc.id,
@@ -104,15 +109,8 @@ export function formatToolResultsForOpenRouter(
 /**
  * Check if response contains tool calls
  */
-export function hasToolCalls(response: any): boolean {
+export function hasToolCalls(response: OpenRouterResponse): boolean {
     const message = response.choices?.[0]?.message
-    return message?.tool_calls && message.tool_calls.length > 0
-}
-
-/**
- * Get the finish reason from response
- */
-export function getFinishReason(response: any): string | undefined {
-    return response.choices?.[0]?.finish_reason
+    return !!(message?.tool_calls && message.tool_calls.length > 0)
 }
 

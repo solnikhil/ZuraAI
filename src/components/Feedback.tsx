@@ -27,35 +27,13 @@ export default function Feedback({ onClose }: FeedbackProps) {
             // Get app version if available
             const version = window.updater ? await window.updater.getVersion() : 'unknown'
             
-            // Create feedback object
-            const feedback = {
-                type: feedbackType,
-                message: message.trim(),
-                email: email.trim() || 'anonymous',
-                version,
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent,
-                platform: navigator.platform
-            }
-
-            // In a real app, you would send this to your backend
-            // For now, we'll log it and show a success message
-            console.log('Feedback submitted:', feedback)
-            
-            // You can integrate with a service like:
-            // - GitHub Issues API
-            // - Your own backend API
-            // - Email service
-            // - Feedback collection service (e.g., Sentry, LogRocket)
-            
-            // Example: Open GitHub issue (requires user to have GitHub account)
+            // Open GitHub issue (user can submit manually)
             const githubIssueUrl = `https://github.com/YOUR_USERNAME/ZuraAI/issues/new?title=${encodeURIComponent(
                 `${feedbackType === 'bug' ? '[Bug]' : feedbackType === 'feature' ? '[Feature Request]' : '[Feedback]'} ${message.substring(0, 50)}`
             )}&body=${encodeURIComponent(
                 `**Type:** ${feedbackType}\n\n**Message:**\n${message}\n\n**Email:** ${email || 'Not provided'}\n\n**Version:** ${version}\n\n**Platform:** ${navigator.platform}`
             )}`
             
-            // Open in browser (user can submit manually)
             window.open(githubIssueUrl, '_blank')
             
             showToast('Thank you for your feedback! Opening GitHub issue page...', 'success')
