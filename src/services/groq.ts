@@ -1,3 +1,5 @@
+import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+
 /**
  * Groq API Service
  * Uses OpenAI-compatible API at https://api.groq.com/openai/v1/chat/completions
@@ -60,14 +62,24 @@ export interface GroqStreamChunk {
     }
 }
 
+interface GroqRequestBody {
+    model: string
+    messages: ChatMessage[]
+    stream?: boolean
+    temperature?: number
+    max_completion_tokens?: number
+    tools?: ToolDefinition[]
+    tool_choice?: 'auto' | 'none'
+}
+
 export async function* streamGroqCompletion(
     apiKey: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         max_tokens?: number
-        tools?: any[]
+        tools?: ToolDefinition[]
         onChunk?: (chunk: GroqStreamChunk) => void
     }
 ): AsyncGenerator<GroqStreamChunk, void, unknown> {
@@ -75,7 +87,7 @@ export async function* streamGroqCompletion(
         throw new Error("Groq API Key is missing")
     }
 
-    const requestBody: any = {
+    const requestBody: GroqRequestBody = {
         model,
         messages,
         stream: true
@@ -103,13 +115,8 @@ export async function* streamGroqCompletion(
 
     if (!response.ok) {
         const errorText = await response.text()
-        let errorData: any = {}
-        try {
-            errorData = JSON.parse(errorText)
-        } catch {
-            // Not JSON
-        }
-        const errorMessage = errorData.error?.message || errorText || `HTTP ${response.status}: ${response.statusText}`
+        const errorData = parseErrorResponse(errorText)
+        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
         throw new Error(errorMessage)
     }
 
@@ -158,11 +165,11 @@ export async function* streamGroqCompletion(
 export const generateGroqCompletion = async (
     apiKey: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         max_tokens?: number
-        tools?: any[]
+        tools?: ToolDefinition[]
     }
 ): Promise<GroqResponse> => {
     if (!apiKey) {
@@ -170,7 +177,7 @@ export const generateGroqCompletion = async (
     }
 
     // Build request body
-    const requestBody: Record<string, any> = {
+    const requestBody: GroqRequestBody = {
         model: model,
         messages: messages
     }
@@ -199,12 +206,7 @@ export const generateGroqCompletion = async (
 
         if (!response.ok) {
             const errorText = await response.text()
-            let errorData: any = {}
-            try {
-                errorData = JSON.parse(errorText)
-            } catch {
-                // Not JSON
-            }
+            const errorData = parseErrorResponse(errorText)
             
             // Handle Groq's tool_use_failed error - try to extract tool calls from failed_generation
             if (errorData.error?.code === 'tool_use_failed' && errorData.error?.failed_generation) {
@@ -283,20 +285,21 @@ export const generateGroqCompletion = async (
                 } as GroqResponse
             }
             
-            const errorMessage = errorData.error?.message || errorData.detail || errorText || `HTTP ${response.status}: ${response.statusText}`
+            const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
             throw new Error(errorMessage)
         }
 
-        const result: any = await response.json()
+        const result = await response.json() as GroqResponse
         
         // Check for Groq-specific error fields in successful response (shouldn't happen but handle it)
-        if ((result as any).error || (result as any).failed_generation) {
-            const errorMsg = (result as any).error?.message || (result as any).failed_generation?.message || 'Failed to call a function. Please adjust your prompt. See \'failed_generation\' for more details.'
+        const resultWithError = result as GroqResponse & { error?: { message?: string }; failed_generation?: { message?: string } }
+        if (resultWithError.error || resultWithError.failed_generation) {
+            const errorMsg = resultWithError.error?.message || resultWithError.failed_generation?.message || 'Failed to call a function. Please adjust your prompt.'
             throw new Error(errorMsg)
         }
         
-        return result as GroqResponse
-    } catch (error: any) {
+        return result
+    } catch (error) {
         throw error
     }
 }

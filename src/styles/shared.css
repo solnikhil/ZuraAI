@@ -119,3 +119,49 @@
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.12);
 }
+
+/* Glass Effect Variants */
+.glass-light {
+    background: rgba(27, 25, 19, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-heavy {
+    background: rgba(20, 18, 11, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+.glass-overlay {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.glass-modal {
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* Message Glass Effect */
+.glass-message {
+    background: rgba(27, 25, 19, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+/* Input Area Glass Effect */
+.glass-input {
+    background: rgba(20, 18, 11, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+/* Overlay Glass Effect */
+.glass-overlay-content {
+    background: rgba(20, 18, 11, 0.92);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+}

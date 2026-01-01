@@ -176,7 +176,7 @@ export default function Chat() {
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: content,
+                content: answer,
                 thinking: thinking
             }
             setMessages(prev => [...prev, aiMessage])

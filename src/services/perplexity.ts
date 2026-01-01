@@ -1,3 +1,4 @@
+import { ChatMessage, parseErrorResponse, extractErrorMessage } from './types'
 
 /**
  * Citation/search result from Perplexity API
@@ -105,10 +106,18 @@ export interface PerplexityStreamChunk {
     }
 }
 
+interface PerplexityRequestBody {
+    model: string
+    messages: ChatMessage[]
+    stream?: boolean
+    temperature?: number
+    max_tokens?: number
+}
+
 export async function* streamPerplexityCompletion(
     apiKey: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         max_tokens?: number
@@ -119,7 +128,7 @@ export async function* streamPerplexityCompletion(
         throw new Error("Perplexity API Key is missing")
     }
 
-    const requestBody: any = {
+    const requestBody: PerplexityRequestBody = {
         model,
         messages,
         stream: true
@@ -143,13 +152,8 @@ export async function* streamPerplexityCompletion(
 
     if (!response.ok) {
         const errorText = await response.text()
-        let errorData: any = {}
-        try {
-            errorData = JSON.parse(errorText)
-        } catch {
-            // Not JSON
-        }
-        const errorMessage = errorData.error?.message || errorData.detail || errorText || `HTTP ${response.status}: ${response.statusText}`
+        const errorData = parseErrorResponse(errorText)
+        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
         throw new Error(errorMessage)
     }
 
@@ -198,7 +202,7 @@ export async function* streamPerplexityCompletion(
 export const generatePerplexityCompletion = async (
     apiKey: string,
     model: string,
-    messages: any[],
+    messages: ChatMessage[],
     options?: {
         temperature?: number
         max_tokens?: number
@@ -209,7 +213,7 @@ export const generatePerplexityCompletion = async (
     }
 
     // Build request body with only defined properties
-    const requestBody: Record<string, any> = {
+    const requestBody: PerplexityRequestBody = {
         model: model,
         messages: messages
     }
@@ -223,7 +227,7 @@ export const generatePerplexityCompletion = async (
     }
 
     try {
-        const makeRequest = async (body: any) => {
+        const makeRequest = async (body: PerplexityRequestBody) => {
             const res = await fetch("https://api.perplexity.ai/chat/completions", {
                 method: "POST",
                 headers: {
@@ -239,7 +243,7 @@ export const generatePerplexityCompletion = async (
 
         // If 400 (Bad Request) or 422 (Unprocessable Entity), try stripping optional parameters
         if (!response.ok && (response.status === 400 || response.status === 422)) {
-            const minimalBody = {
+            const minimalBody: PerplexityRequestBody = {
                 model: model,
                 messages: messages
             }
@@ -248,15 +252,8 @@ export const generatePerplexityCompletion = async (
 
         if (!response.ok) {
             const errorText = await response.text()
-
-            let errorData: any = {}
-            try {
-                errorData = JSON.parse(errorText)
-            } catch {
-                // Not JSON
-            }
-
-            const errorMessage = errorData.error?.message || errorData.detail || errorText || `HTTP ${response.status}: ${response.statusText}`
+            const errorData = parseErrorResponse(errorText)
+            const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
             throw new Error(errorMessage)
         }
 
@@ -281,7 +278,7 @@ export const generatePerplexityCompletion = async (
         }
         
         return result
-    } catch (error: any) {
+    } catch (error) {
         throw error
     }
 }

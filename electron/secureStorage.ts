@@ -3,7 +3,8 @@
 // Falls back to plaintext storage if encryption is unavailable
 
 import { safeStorage } from 'electron'
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
 
@@ -14,6 +15,7 @@ interface SecureData {
     perplexityApiKey?: string
     geminiApiKey?: string
     groqApiKey?: string
+    tavilyApiKey?: string
 }
 
 interface StorageStatus {
@@ -23,6 +25,11 @@ interface StorageStatus {
     keyCount: number
     lastError: string | null
 }
+
+// In-memory cache to reduce disk reads
+let cachedData: SecureData | null = null
+let cacheTimestamp = 0
+const CACHE_TTL = 5000 // 5 second cache for secure data
 
 // Track last error for diagnostics
 let lastStorageError: string | null = null
@@ -39,38 +46,36 @@ function isEncryptionAvailable(): boolean {
     }
 }
 
-function readSecureData(): SecureData {
+// Async read with caching
+async function readSecureDataAsync(): Promise<SecureData> {
+    // Return cached data if fresh
+    if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
+        return cachedData
+    }
+
     try {
-        if (!fs.existsSync(STORAGE_FILE)) {
+        const exists = fsSync.existsSync(STORAGE_FILE)
+        if (!exists) {
             console.log('[SecureStorage] No storage file exists yet')
             return {}
         }
 
-        const data = fs.readFileSync(STORAGE_FILE, 'utf-8')
+        const data = await fs.readFile(STORAGE_FILE, 'utf-8')
         const parsed = JSON.parse(data)
-
-        // Check if encryption is available
         const encryptionAvailable = isEncryptionAvailable()
 
-        // Decrypt all values
         const decrypted: SecureData = {}
         for (const [key, value] of Object.entries(parsed)) {
             if (typeof value === 'string' && value) {
                 try {
                     if (encryptionAvailable) {
-                        // Try to decrypt
                         decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
                     } else {
-                        // No encryption - read as plain text
                         decrypted[key as keyof SecureData] = value
                     }
                 } catch (decryptError) {
-                    // Decryption failed - this might be plaintext data from before encryption was available
-                    // Or data encrypted with a different key (reinstalled OS, etc.)
                     console.warn(`[SecureStorage] Failed to decrypt ${key}, trying as plaintext:`, decryptError)
-
-                    // Check if it looks like a valid API key (not base64 garbage)
-                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.length < 100) {
+                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.length < 100) {
                         decrypted[key as keyof SecureData] = value
                     } else {
                         console.error(`[SecureStorage] ${key} appears corrupted, skipping`)
@@ -80,6 +85,8 @@ function readSecureData(): SecureData {
             }
         }
 
+        cachedData = decrypted
+        cacheTimestamp = Date.now()
         console.log('[SecureStorage] Read', Object.keys(decrypted).length, 'keys')
         return decrypted
     } catch (error) {
@@ -89,11 +96,60 @@ function readSecureData(): SecureData {
     }
 }
 
-function writeSecureData(data: SecureData): boolean {
+// Sync read with caching (for backward compatibility)
+function readSecureData(): SecureData {
+    if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
+        return cachedData
+    }
+
+    try {
+        if (!fsSync.existsSync(STORAGE_FILE)) {
+            console.log('[SecureStorage] No storage file exists yet')
+            return {}
+        }
+
+        const data = fsSync.readFileSync(STORAGE_FILE, 'utf-8')
+        const parsed = JSON.parse(data)
+        const encryptionAvailable = isEncryptionAvailable()
+
+        const decrypted: SecureData = {}
+        for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === 'string' && value) {
+                try {
+                    if (encryptionAvailable) {
+                        decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
+                    } else {
+                        decrypted[key as keyof SecureData] = value
+                    }
+                } catch (decryptError) {
+                    console.warn(`[SecureStorage] Failed to decrypt ${key}, trying as plaintext:`, decryptError)
+                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.length < 100) {
+                        decrypted[key as keyof SecureData] = value
+                    } else {
+                        console.error(`[SecureStorage] ${key} appears corrupted, skipping`)
+                        lastStorageError = `Failed to decrypt ${key}`
+                    }
+                }
+            }
+        }
+
+        cachedData = decrypted
+        cacheTimestamp = Date.now()
+        console.log('[SecureStorage] Read', Object.keys(decrypted).length, 'keys')
+        return decrypted
+    } catch (error) {
+        console.error('[SecureStorage] Failed to read secure storage:', error)
+        lastStorageError = String(error)
+        return {}
+    }
+}
+
+// Async write
+async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
     try {
         const dir = path.dirname(STORAGE_FILE)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
+        if (!fsSync.existsSync(dir)) {
+            await fs.mkdir(dir, { recursive: true })
         }
 
         const encryptionAvailable = isEncryptionAvailable()
@@ -106,19 +162,22 @@ function writeSecureData(data: SecureData): boolean {
                         toWrite[key] = safeStorage.encryptString(value).toString('base64')
                     } catch (encryptError) {
                         console.error(`[SecureStorage] Failed to encrypt ${key}:`, encryptError)
-                        // Fall back to plaintext for this key
                         toWrite[key] = value
                         lastStorageError = `Failed to encrypt ${key}`
                     }
                 } else {
-                    // No encryption available - store plaintext
                     console.warn(`[SecureStorage] Storing ${key} as plaintext (encryption unavailable)`)
                     toWrite[key] = value
                 }
             }
         }
 
-        fs.writeFileSync(STORAGE_FILE, JSON.stringify(toWrite, null, 2), 'utf-8')
+        await fs.writeFile(STORAGE_FILE, JSON.stringify(toWrite, null, 2), 'utf-8')
+        
+        // Update cache
+        cachedData = data
+        cacheTimestamp = Date.now()
+        
         console.log('[SecureStorage] Wrote', Object.keys(toWrite).length, 'keys')
         return true
     } catch (error) {
@@ -126,6 +185,20 @@ function writeSecureData(data: SecureData): boolean {
         lastStorageError = String(error)
         return false
     }
+}
+
+// Sync write with async background write
+function writeSecureData(data: SecureData): boolean {
+    // Update cache immediately
+    cachedData = data
+    cacheTimestamp = Date.now()
+    
+    // Write async in background
+    writeSecureDataAsync(data).catch(err => {
+        console.error('[SecureStorage] Async write failed:', err)
+    })
+    
+    return true
 }
 
 export function getSecureValue(key: keyof SecureData): string {
@@ -152,10 +225,12 @@ export function getAllSecureValues(): SecureData {
 
 export function clearSecureStorage(): boolean {
     try {
-        if (fs.existsSync(STORAGE_FILE)) {
-            fs.unlinkSync(STORAGE_FILE)
+        if (fsSync.existsSync(STORAGE_FILE)) {
+            fsSync.unlinkSync(STORAGE_FILE)
             console.log('[SecureStorage] Cleared storage file')
         }
+        cachedData = null
+        cacheTimestamp = 0
         return true
     } catch (error) {
         console.error('[SecureStorage] Failed to clear secure storage:', error)
@@ -176,10 +251,29 @@ export function getStorageStatus(): StorageStatus {
 
     return {
         encryptionAvailable: isEncryptionAvailable(),
-        storageFileExists: fs.existsSync(STORAGE_FILE),
+        storageFileExists: fsSync.existsSync(STORAGE_FILE),
         storagePath: STORAGE_FILE,
         keyCount,
         lastError: lastStorageError
     }
 }
 
+// Async API for better performance
+export async function getSecureValueAsync(key: keyof SecureData): Promise<string> {
+    const data = await readSecureDataAsync()
+    return data[key] || ''
+}
+
+export async function setSecureValueAsync(key: keyof SecureData, value: string): Promise<boolean> {
+    const data = await readSecureDataAsync()
+    if (value && value.trim()) {
+        data[key] = value.trim()
+    } else {
+        delete data[key]
+    }
+    return writeSecureDataAsync(data)
+}
+
+export async function getAllSecureValuesAsync(): Promise<SecureData> {
+    return readSecureDataAsync()
+}

@@ -1,8 +1,9 @@
 // Chat History Storage using simple JSON file
-// This runs in the main process - no external dependencies needed
+// This runs in the main process - uses async I/O to avoid blocking
 
 import { app } from 'electron'
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 
 export interface Message {
@@ -28,19 +29,32 @@ interface ChatHistoryData {
     version: number
 }
 
+// In-memory cache to reduce disk reads
+let cachedData: ChatHistoryData | null = null
+let cacheTimestamp = 0
+const CACHE_TTL = 1000 // 1 second cache
+
 // Get the storage file path
 function getStorePath(): string {
     const userDataPath = app.getPath('userData')
     return path.join(userDataPath, 'chat-history.json')
 }
 
-// Read data from file
-function readStore(): ChatHistoryData {
+// Read data from file (async)
+async function readStoreAsync(): Promise<ChatHistoryData> {
+    // Return cached data if fresh
+    if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
+        return cachedData
+    }
+
     const filePath = getStorePath()
     try {
-        if (fs.existsSync(filePath)) {
-            const data = fs.readFileSync(filePath, 'utf-8')
-            return JSON.parse(data)
+        const exists = fsSync.existsSync(filePath)
+        if (exists) {
+            const data = await fs.readFile(filePath, 'utf-8')
+            cachedData = JSON.parse(data)
+            cacheTimestamp = Date.now()
+            return cachedData!
         }
     } catch (error) {
         console.error('Failed to read chat history:', error)
@@ -48,18 +62,47 @@ function readStore(): ChatHistoryData {
     return { sessions: [], version: 1 }
 }
 
-// Write data to file
-function writeStore(data: ChatHistoryData): void {
+// Write data to file (async)
+async function writeStoreAsync(data: ChatHistoryData): Promise<void> {
     const filePath = getStorePath()
     try {
         const dir = path.dirname(filePath)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
+        if (!fsSync.existsSync(dir)) {
+            await fs.mkdir(dir, { recursive: true })
         }
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+        // Update cache
+        cachedData = data
+        cacheTimestamp = Date.now()
     } catch (error) {
         console.error('Failed to write chat history:', error)
     }
+}
+
+// Sync versions for backward compatibility (uses cache when possible)
+function readStore(): ChatHistoryData {
+    if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
+        return cachedData
+    }
+    const filePath = getStorePath()
+    try {
+        if (fsSync.existsSync(filePath)) {
+            const data = fsSync.readFileSync(filePath, 'utf-8')
+            cachedData = JSON.parse(data)
+            cacheTimestamp = Date.now()
+            return cachedData!
+        }
+    } catch (error) {
+        console.error('Failed to read chat history:', error)
+    }
+    return { sessions: [], version: 1 }
+}
+
+function writeStore(data: ChatHistoryData): void {
+    // Update cache immediately, write async
+    cachedData = data
+    cacheTimestamp = Date.now()
+    writeStoreAsync(data).catch(err => console.error('Async write failed:', err))
 }
 
 export function getAllSessions(): ChatSession[] {
@@ -126,4 +169,14 @@ export function migrateFromLocalStorage(localStorageData: ChatSession[]): void {
 
 export function getStoreFilePath(): string {
     return getStorePath()
+}
+
+// Async API for better performance
+export async function getAllSessionsAsync(): Promise<ChatSession[]> {
+    const data = await readStoreAsync()
+    return data.sessions
+}
+
+export async function saveAllSessionsAsync(sessions: ChatSession[]): Promise<void> {
+    await writeStoreAsync({ sessions, version: 1 })
 }
