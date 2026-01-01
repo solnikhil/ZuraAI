@@ -120,8 +120,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                             const parsed = JSON.parse(localData)
                             if (parsed && parsed.length > 0) {
                                 await window.ipcRenderer.invoke('chat-store:migrate', parsed)
-                                console.log('Migrated chat history from localStorage to electron-store')
-                                // Clear localStorage after successful migration
                                 localStorage.removeItem('zura-chat-history')
                             }
                         }

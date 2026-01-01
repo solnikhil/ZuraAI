@@ -300,8 +300,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const loadSecureKeys = async () => {
             try {
-                console.log('[SettingsContext] Loading secure keys...')
-
                 // Migrate existing keys from localStorage if needed
                 await migrateApiKeysFromLocalStorage(settings)
 
@@ -313,7 +311,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     secureKeys.geminiApiKey || secureKeys.groqApiKey
 
                 if (hasSecureKeys) {
-                    console.log('[SettingsContext] Loaded secure keys successfully')
                     // Update settings with secure keys - prefer secure storage values
                     setSettings(prev => ({
                         ...prev,
@@ -322,12 +319,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                     }))
-                } else {
-                    console.log('[SettingsContext] No secure keys found, using localStorage values')
                 }
             } catch (error) {
                 console.error('[SettingsContext] Failed to load API keys from secure storage:', error)
-                // Keep using localStorage values if secure storage fails
             }
         }
         loadSecureKeys()
@@ -348,9 +342,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         setSettings(prev => ({ ...prev, ollamaModels: formatted }))
                     }
                 }
-            } catch (error) {
-                console.log('Ollama not available on startup')
-            }
+            } catch { /* Ollama not available */ }
         }
         fetchOllamaModels()
     }, [])

@@ -96,36 +96,17 @@ function createMainWindow() {
 
 function createTray() {
     const iconPath = path.join(process.env.PUBLIC || '', 'icon.png')
-    console.log('[TRAY] Icon path:', iconPath)
-    console.log('[TRAY] PUBLIC env:', process.env.PUBLIC)
-    
-    // Check if file exists
     const fs = require('fs')
-    if (!fs.existsSync(iconPath)) {
-        console.error('[TRAY] Icon file not found at:', iconPath)
-        // Try alternative path
-        const altPath = path.join(__dirname, '../public/icon.png')
-        console.log('[TRAY] Trying alternative path:', altPath)
-        if (fs.existsSync(altPath)) {
-            console.log('[TRAY] Found icon at alternative path')
-        }
-    } else {
-        console.log('[TRAY] Icon file found!')
-    }
     
     let icon = nativeImage.createFromPath(iconPath)
     
-    // Check if icon loaded properly
+    // Try alternative path if icon not found
     if (icon.isEmpty()) {
-        console.error('[TRAY] Icon is empty! Trying alternative path...')
         const altPath = path.join(__dirname, '../public/icon.png')
         icon = nativeImage.createFromPath(altPath)
     }
     
-    console.log('[TRAY] Icon size before resize:', icon.getSize())
-    
-    // Resize icon for tray - Windows uses 16x16 or 32x32, macOS uses 22x22
-    // Using 32x32 for better visibility on high-DPI displays
+    // Resize icon for tray
     if (process.platform === 'win32') {
         icon = icon.resize({ width: 32, height: 32 })
     } else if (process.platform === 'darwin') {
@@ -133,8 +114,6 @@ function createTray() {
     } else {
         icon = icon.resize({ width: 24, height: 24 })
     }
-    
-    console.log('[TRAY] Icon size after resize:', icon.getSize())
     
     tray = new Tray(icon)
 
@@ -316,7 +295,6 @@ app.whenReady().then(async () => {
     createOverlayWindow()
 
     globalShortcut.register('CommandOrControl+Shift+Z', async () => {
-        console.log('[SHORTCUT] Triggered')
         if (overlayWin) {
             if (overlayWin.isVisible()) {
                 overlayWin.hide()
@@ -324,7 +302,6 @@ app.whenReady().then(async () => {
                 overlayWin.show()
                 overlayWin.focus()
                 overlayWin.setAlwaysOnTop(true)
-                // Reset state
                 overlayWin.webContents.send('reset-overlay')
             }
         }
@@ -332,17 +309,12 @@ app.whenReady().then(async () => {
 
     // Ctrl+Shift+X - Direct screenshot selection mode
     globalShortcut.register('CommandOrControl+Shift+X', async () => {
-        console.log('[SHORTCUT] Screenshot mode triggered')
-
-        // Hide overlay while capturing
         if (overlayWin) {
             overlayWin.hide()
         }
 
-        // Small delay to ensure window is hidden
         await new Promise(resolve => setTimeout(resolve, 50))
 
-        // Capture the screen
         const displaySize = screen.getPrimaryDisplay().size
         const sources = await desktopCapturer.getSources({
             types: ['screen'],
@@ -353,15 +325,12 @@ app.whenReady().then(async () => {
         const primarySource = sources[0]
         if (primarySource) {
             currentScreenshot = primarySource.thumbnail
-            console.log('[CAPTURE] Screenshot captured for selection, size:', currentScreenshot.getSize())
         }
 
-        // Show overlay in selection mode
         if (overlayWin) {
             overlayWin.show()
             overlayWin.focus()
             overlayWin.setAlwaysOnTop(true)
-            // Send direct screenshot selection mode signal
             overlayWin.webContents.send('start-screenshot-selection')
         }
     })
@@ -369,23 +338,9 @@ app.whenReady().then(async () => {
 
 // IPC Handlers
 
-ipcMain.on('log-to-terminal', (_event, message) => {
-    console.log(message)
-})
-
 ipcMain.on('settings-changed', (_event, settings) => {
-    const settingsToLog = { ...settings }
-    if (settingsToLog.systemPrompt && settingsToLog.systemPrompt.length > 50) {
-        settingsToLog.systemPrompt = settingsToLog.systemPrompt.substring(0, 50) + '... (truncated)'
-    }
-    // console.log('[SETTINGS] Updated:', JSON.stringify(settingsToLog, null, 2))
-
-    // Store Tavily API key globally for tool handlers
-    // Always update (even if empty) to clear stale keys
     (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
-
-    // Only notify if explicitly requested or critical (avoiding spam on every keystroke/sync)
-    // new Notification({
+})
     //     title: 'Zura Settings',
     //     body: 'Settings updated successfully'
     // }).show()
@@ -451,12 +406,10 @@ ipcMain.handle('chat-store:get-path', () => {
 // ===============================================================
 
 ipcMain.handle('capture-screen', async () => {
-    console.log('[CAPTURE] Requested')
     if (overlayWin) {
-        overlayWin.hide() // Hide to avoid capturing the overlay itself
+        overlayWin.hide()
     }
 
-    // Small delay to ensure window is hidden
     await new Promise(resolve => setTimeout(resolve, 50))
 
     const displaySize = screen.getPrimaryDisplay().size
@@ -469,7 +422,6 @@ ipcMain.handle('capture-screen', async () => {
     const primarySource = sources[0]
     if (primarySource) {
         currentScreenshot = primarySource.thumbnail
-        console.log('[CAPTURE] Success, size:', currentScreenshot.getSize())
     }
 
     if (overlayWin) {
@@ -482,7 +434,6 @@ ipcMain.handle('capture-screen', async () => {
 
 ipcMain.handle('crop-screenshot', async (_event, selection) => {
     if (!currentScreenshot) {
-        console.error('[ERROR] No screenshot!')
         return null
     }
 
@@ -503,11 +454,7 @@ ipcMain.handle('crop-screenshot', async (_event, selection) => {
 })
 
 ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
-    console.log('[IPC] Prompt:', prompt)
-    console.log('[IPC] Selection:', selection)
-
     if (!currentScreenshot) {
-        console.error('[ERROR] No screenshot!')
         return
     }
 
@@ -520,14 +467,12 @@ ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
         })
 
         const base64Image = `data:image/png;base64,${croppedImage.toPNG().toString('base64')}`
-        console.log('[CROP] Success, base64 length:', base64Image.length)
 
         if (overlayWin) {
             overlayWin.webContents.send('ai-response-start', {
                 prompt,
                 image: base64Image
             })
-            console.log('[IPC] Sent to overlay')
         }
     } catch (error) {
         console.error('[ERROR] Crop failed:', error)
@@ -535,7 +480,6 @@ ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
 })
 
 ipcMain.on('close-overlay', () => {
-    console.log('[IPC] Close requested')
     if (overlayWin) {
         overlayWin.hide()
         currentScreenshot = null
@@ -543,7 +487,6 @@ ipcMain.on('close-overlay', () => {
 })
 
 ipcMain.on('minimize-overlay', () => {
-    console.log('[IPC] Minimize requested')
     if (overlayWin) {
         overlayWin.hide()
     }

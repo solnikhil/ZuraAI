@@ -6,7 +6,6 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import ThinkingBlock from './ThinkingBlock'
 import './Chat.css'
 
 interface Message {
@@ -14,7 +13,6 @@ interface Message {
     role: 'user' | 'assistant'
     content: string
     image?: string
-    thinking?: string
 }
 
 export default function Chat() {
@@ -78,25 +76,6 @@ export default function Chat() {
         }
     }
 
-    // Parse thinking content from response using "**Final Answer:**" delimiter
-    const parseThinkingContent = (content: string): { thinking: string | undefined; answer: string } => {
-        const finalAnswerMatch = content.match(/\*\*Final Answer:\*\*/i)
-        if (finalAnswerMatch && finalAnswerMatch.index !== undefined) {
-            const thinkingPart = content.substring(0, finalAnswerMatch.index).trim()
-            const answerPart = content.substring(finalAnswerMatch.index + finalAnswerMatch[0].length).trim()
-            const cleanThinking = thinkingPart
-                .replace(/^---\s*/m, '')
-                .replace(/---\s*$/m, '')
-                .replace(/\*\*Thinking\.\.\.\*\*/gi, '')
-                .trim()
-            return {
-                thinking: cleanThinking || undefined,
-                answer: answerPart || content
-            }
-        }
-        return { thinking: undefined, answer: content }
-    }
-
     const callPerplexity = async (userPrompt: string, image?: string) => {
         if (!settings.perplexityApiKey) {
             throw new Error("Please configure your Perplexity API Key in Settings.")
@@ -121,17 +100,10 @@ export default function Chat() {
                 { temperature: settings.temperature, max_tokens: settings.maxTokens }
             )
 
-            const rawContent = response.choices[0].message.content
-
-            // Parse thinking content if thinking mode is enabled
-            const thinking = undefined
-            const content = response.choices[0].message.content
-
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: content,
-                thinking: thinking
+                content: response.choices[0].message.content
             }
             setMessages(prev => [...prev, aiMessage])
 
@@ -167,17 +139,10 @@ export default function Chat() {
                 { temperature: settings.temperature }
             )
 
-            const rawContent = response.message.content
-
-            // Parse thinking content if thinking mode is enabled
-            const thinking = undefined
-            const answer = response.message.content
-
             const aiMessage: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: answer,
-                thinking: thinking
+                content: response.message.content
             }
             setMessages(prev => [...prev, aiMessage])
 
@@ -239,17 +204,11 @@ export default function Chat() {
         }
 
         const data = await response.json()
-        const rawContent = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
-
-        // Parse thinking content if thinking mode is enabled
-        const thinking = undefined
-        const content = data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
 
         const aiMessage: Message = {
             id: Date.now().toString(),
             role: 'assistant',
-            content: content,
-            thinking: thinking
+            content: data.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
         }
         setMessages(prev => [...prev, aiMessage])
     }
@@ -379,9 +338,6 @@ export default function Chat() {
                                     alt="Screenshot"
                                     style={{ maxWidth: '100%', borderRadius: '8px', marginBottom: '8px', display: 'block' }}
                                 />
-                            )}
-                            {msg.role === 'assistant' && msg.thinking && (
-                                <ThinkingBlock thinking={msg.thinking} />
                             )}
                             {msg.content && (
                                 <div className="markdown-body">

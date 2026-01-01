@@ -1,15 +1,6 @@
 // Tool Executor - Executes tools via IPC to main process
 
-import {
-    ToolResult,
-    ToolCall,
-    ToolCallResult,
-    WebSearchData,
-    UrlFetchData,
-    CalculatorData,
-    DateTimeData,
-    ClipboardData
-} from './types'
+import { ToolResult, ToolCall, ToolCallResult } from './types'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
@@ -110,54 +101,5 @@ export async function executeToolCallsSequential(toolCalls: ToolCall[]): Promise
     }
     
     return results
-}
-
-/**
- * Format tool result for display to user
- */
-export function formatToolResultForDisplay(result: ToolCallResult): string {
-    const { toolCall, result: toolResult } = result
-    
-    if (!toolResult.success) {
-        return `❌ ${toolCall.name} failed: ${toolResult.error}`
-    }
-    
-    switch (toolCall.name) {
-        case 'web_search': {
-            const searchData = toolResult.data as WebSearchData | undefined
-            if (searchData?.results && searchData.results.length > 0) {
-                return `🔍 Found ${searchData.results.length} results for "${toolCall.arguments.query}"`
-            }
-            return '🔍 No results found'
-        }
-        
-        case 'fetch_url': {
-            const urlData = toolResult.data as UrlFetchData | undefined
-            const charCount = urlData?.content?.length || 0
-            return `🌐 Fetched ${charCount.toLocaleString()} characters from URL`
-        }
-        
-        case 'calculator': {
-            const calcData = toolResult.data as CalculatorData | undefined
-            return `🔢 ${toolCall.arguments.expression} = ${calcData?.result}`
-        }
-        
-        case 'get_datetime': {
-            const dateData = toolResult.data as DateTimeData | undefined
-            return `🕐 Current time: ${dateData?.formatted || dateData?.datetime}`
-        }
-        
-        case 'read_clipboard': {
-            const clipData = toolResult.data as ClipboardData | undefined
-            const clipLength = clipData?.content?.length || 0
-            return `📋 Read ${clipLength} characters from clipboard`
-        }
-        
-        case 'write_clipboard':
-            return `📋 Copied to clipboard`
-        
-        default:
-            return `✅ ${toolCall.name} completed`
-    }
 }
 

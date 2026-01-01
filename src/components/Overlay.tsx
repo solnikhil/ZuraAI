@@ -91,13 +91,11 @@ export default function Overlay() {
     // Handle direct screenshot selection mode (Ctrl+Shift+X shortcut)
     useEffect(() => {
         const handleStartScreenshotSelection = () => {
-            console.log('[Overlay] Entering direct screenshot selection mode')
             // Reset any existing state and enter selection mode
             setSelection(null)
             setIsDragging(false)
             setStartPos(null)
             setViewingImage(null)
-            // Enter selection mode directly - screen is already captured
             setIsSelectionMode(true)
         }
 
@@ -550,10 +548,9 @@ export default function Overlay() {
     }
 
     const handlePromptSubmit = (prompt: string) => {
-        console.log("Prompt submitted:", prompt)
         if (screenshot) {
             callAI(prompt, screenshot)
-            setScreenshot(null) // Clear screenshot after sending
+            setScreenshot(null)
         } else {
             callAI(prompt)
         }

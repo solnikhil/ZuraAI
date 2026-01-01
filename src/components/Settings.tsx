@@ -542,9 +542,6 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
                 allSaved = allSaved && success
             }
 
-            if (savedKeys.length > 0) {
-                console.log('[Settings] Saved API keys to secure storage:', savedKeys.join(', '))
-            }
             if (failedKeys.length > 0) {
                 console.warn('[Settings] Failed to save some API keys:', failedKeys.join(', '))
             }

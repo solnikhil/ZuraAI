@@ -139,17 +139,3 @@ export const toolDefinitions: ToolDefinition[] = [
 export function getToolByName(name: string): ToolDefinition | undefined {
     return toolDefinitions.find(t => t.name === name)
 }
-
-/**
- * Get tools by category
- */
-export function getToolsByCategory(category: ToolDefinition['category']): ToolDefinition[] {
-    return toolDefinitions.filter(t => t.category === category)
-}
-
-/**
- * Get tools that require user approval
- */
-export function getSensitiveTools(): ToolDefinition[] {
-    return toolDefinitions.filter(t => t.requiresApproval)
-}

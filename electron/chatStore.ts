@@ -162,7 +162,6 @@ export function migrateFromLocalStorage(localStorageData: ChatSession[]): void {
         const existingSessions = getAllSessions()
         if (existingSessions.length === 0) {
             saveAllSessions(localStorageData)
-            console.log(`Migrated ${localStorageData.length} sessions from localStorage`)
         }
     }
 }
