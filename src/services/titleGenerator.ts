@@ -22,13 +22,13 @@ export const generateChatTitle = async (
     userMessage: string,
     settings: any // Using any to accept the full settings object structure
 ): Promise<string> => {
-    const prompt = `Generate a concise 3-word title for this chat. Format should be descriptive like these examples:
+    const prompt = `Generate a concise 2-3-word title for this chat. Format should be descriptive like these examples:
 - "UI/UX improvement tips"
 - "Real-time systems explained"  
 - "Repo maintenance guide"
 
 IMPORTANT rules:
-1. Return ONLY the 3-word title.
+1. Return ONLY the 2-3-word title.
 2. Do NOT say "Here is the title" or any other conversational text.
 3. Do NOT use quotes.
 4. Do NOT use markdown.

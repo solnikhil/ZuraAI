@@ -17,7 +17,7 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'codex'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
@@ -28,6 +28,10 @@ export interface Settings {
     // Groq settings
     groqApiKey: string
     groqModels: Array<{ code: string; displayName: string }>
+    // Codex settings (uses OAuth, no API key needed)
+    codexModels: Array<{ code: string; displayName: string; description?: string; isDefault?: boolean }>
+    codexSelectedModel: string
+    codexReasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
     // Quick prompts for welcome screen
     quickPrompts: string[]
     // Title generation model
@@ -223,6 +227,18 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
         { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
     ],
+    codexModels: [
+        // Official Codex CLI models - Reference: https://github.com/openai/codex/blob/main/docs/config.md
+        { code: 'gpt-5.1-codex-max-medium', displayName: 'GPT-5.1 Codex Max', description: 'Best for Pro users (default)', isDefault: true },
+        { code: 'gpt-5.1-codex-max-high', displayName: 'GPT-5.1 Codex Max (High)', description: 'Greater reasoning depth' },
+        { code: 'gpt-5.1-codex-max-xhigh', displayName: 'GPT-5.1 Codex Max (XHigh)', description: 'Maximum reasoning' },
+        { code: 'gpt-5.2-medium', displayName: 'GPT-5.2', description: 'Latest model, balanced' },
+        { code: 'gpt-5.2-high', displayName: 'GPT-5.2 (High)', description: 'Latest model, greater reasoning' },
+        { code: 'gpt-5.2-xhigh', displayName: 'GPT-5.2 (XHigh)', description: 'Latest model, maximum reasoning' },
+        { code: 'gpt-5.1-low', displayName: 'GPT-5.1 (Fast)', description: 'Fast responses' },
+    ],
+    codexSelectedModel: 'gpt-5.1-codex-max-medium',
+    codexReasoningEffort: 'medium',
     quickPrompts: [
         'Explain this code to me',
         'Help me debug an error',
@@ -272,6 +288,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize Groq fields if missing
         if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
+        // Initialize Codex fields if missing
+        if (!parsed.codexModels) parsed.codexModels = defaultSettings.codexModels
+        if (!parsed.codexSelectedModel) parsed.codexSelectedModel = defaultSettings.codexSelectedModel
+        // Force migration: Always use GPT-5.2 with reasoning levels (official Codex CLI approach)
+        parsed.codexModels = defaultSettings.codexModels
+        // Migrate old model selections to new format
+        if (!parsed.codexSelectedModel?.startsWith('gpt-5.2-')) {
+            parsed.codexSelectedModel = 'gpt-5.2-medium'
+        }
+        // Initialize codexReasoningEffort if missing or invalid
+        if (!parsed.codexReasoningEffort || !['minimal', 'low', 'medium', 'high', 'xhigh'].includes(parsed.codexReasoningEffort)) {
+            parsed.codexReasoningEffort = defaultSettings.codexReasoningEffort
+        }
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         // Initialize todos if missing

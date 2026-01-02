@@ -6,7 +6,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'codex'
 }
 
 export default function ModelSelector({ minimal }: { minimal?: boolean }) {
@@ -19,7 +19,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         perplexity: false,
         openrouter: false,
         gemini: false,
-        groq: false
+        groq: false,
+        codex: false
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,9 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }
         if (settings.groqModels) {
             settings.groqModels.forEach(m => allModels.push({ ...m, provider: 'groq' }))
+        }
+        if (settings.codexModels) {
+            settings.codexModels.forEach(m => allModels.push({ ...m, provider: 'codex' }))
         }
         return allModels
     }
@@ -220,7 +224,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
             openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
             gemini: filteredModels.filter(m => m.provider === 'gemini'),
-            groq: filteredModels.filter(m => m.provider === 'groq')
+            groq: filteredModels.filter(m => m.provider === 'groq'),
+            codex: filteredModels.filter(m => m.provider === 'codex')
         }
     }, [filteredModels])
 
@@ -526,6 +531,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
                         {renderGroup('gemini', 'Gemini', <Sparkles size={14} />, groupedModels.gemini)}
                         {renderGroup('groq', 'Groq', <Zap size={14} />, groupedModels.groq)}
+                        {renderGroup('codex', 'Codex', <Cpu size={14} />, groupedModels.codex)}
 
                         {filteredModels.length === 0 && (
                             <div style={{ padding: '20px', textAlign: 'center', color: '#999999' }}>No models found</div>

@@ -14,12 +14,13 @@ export type ProviderToolFormat = OpenAITool[] | GeminiTools
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'codex'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
         case 'groq':
-            // Both use OpenAI-compatible format
+        case 'codex':
+            // All use OpenAI-compatible format
             return convertToOpenRouterFormat(tools)
 
         case 'gemini':
@@ -42,7 +43,7 @@ export function convertToolsForProvider(
  * Check if a provider supports function calling
  */
 export function providerSupportsTools(provider: string): boolean {
-    return ['openrouter', 'gemini', 'groq', 'ollama'].includes(provider)
+    return ['openrouter', 'gemini', 'groq', 'ollama', 'codex'].includes(provider)
 }
 
 /**

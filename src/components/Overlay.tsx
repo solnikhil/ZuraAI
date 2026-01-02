@@ -182,6 +182,8 @@ export default function Overlay() {
                 await callPerplexity(userPrompt, image)
             } else if (settings.modelProvider === 'gemini') {
                 await callGemini(userPrompt, image)
+            } else if (settings.modelProvider === 'codex') {
+                await callCodex(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
@@ -541,6 +543,75 @@ export default function Overlay() {
                 inputTokens: data.usage?.prompt_tokens || 0,
                 outputTokens: data.usage?.completion_tokens || 0,
                 totalTokens: data.usage?.total_tokens || 0
+            }
+        }
+        setMessages(prev => [...prev, aiMessage])
+        finishStreaming()
+    }
+
+    const callCodex = async (userPrompt: string, image?: string) => {
+        // Import Codex service dynamically
+        const { generateCodexCompletion, getCodexAuthState } = await import('../services/codex')
+        
+        // Check authentication
+        const authState = await getCodexAuthState()
+        if (!authState.isAuthenticated) {
+            throw new Error("Please sign in with ChatGPT in Settings to use Codex.")
+        }
+
+        let messagesPayload: any[] = []
+
+        if (image) {
+            messagesPayload = [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": userPrompt },
+                        { "type": "image_url", "image_url": { "url": image } }
+                    ]
+                }
+            ]
+        } else {
+            messagesPayload = [
+                { "role": "user", "content": userPrompt }
+            ]
+        }
+
+        // Use system prompt
+        const systemPromptToUse = settings.systemPrompt
+        if (systemPromptToUse) {
+            messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
+        }
+
+        const codexModel = settings.codexSelectedModel || 'gpt-4o'
+        const startTime = performance.now()
+        
+        const response = await generateCodexCompletion(
+            codexModel,
+            messagesPayload,
+            {
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens
+            }
+        )
+        const endTime = performance.now()
+
+        const rawContent = response.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
+
+        // Show typewriter effect
+        setIsLoading(false)
+        await typewriterEffect(rawContent)
+
+        const aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: rawContent,
+            model: `codex/${codexModel}`,
+            latency: Math.round(endTime - startTime),
+            usage: {
+                inputTokens: response.usage?.prompt_tokens || 0,
+                outputTokens: response.usage?.completion_tokens || 0,
+                totalTokens: response.usage?.total_tokens || 0
             }
         }
         setMessages(prev => [...prev, aiMessage])

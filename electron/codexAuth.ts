@@ -1,0 +1,1123 @@
+/**
+ * Codex Authentication Handler
+ * 
+ * Manages OAuth authentication flow for OpenAI Codex CLI integration.
+ * Handles token storage, validation, and API requests.
+ */
+
+import { BrowserWindow, ipcMain, shell, safeStorage, app } from 'electron'
+import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
+import * as path from 'path'
+import * as http from 'http'
+import * as url from 'url'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface CodexTokenData {
+    accessToken: string
+    refreshToken?: string
+    expiresAt: number  // Unix timestamp in milliseconds
+    userEmail: string
+    organization?: string
+}
+
+export interface CodexAuthState {
+    isAuthenticated: boolean
+    userEmail?: string
+    expiresAt?: number
+    error?: string
+}
+
+interface OAuthCallbackData {
+    code?: string
+    error?: string
+    state?: string
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+const CODEX_TOKEN_FILE = path.join(app.getPath('userData'), 'codex-auth.json')
+const OAUTH_REDIRECT_PORT = 1455  // Official Codex CLI port
+const OAUTH_REDIRECT_URI = `http://localhost:${OAUTH_REDIRECT_PORT}/auth/callback`
+
+// OpenAI OAuth endpoints (from official Codex CLI)
+const OPENAI_AUTH_URL = 'https://auth.openai.com/oauth/authorize'
+const OPENAI_TOKEN_URL = 'https://auth.openai.com/oauth/token'
+const OPENAI_USERINFO_URL = 'https://api.openai.com/v1/me'
+const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'  // Official Codex CLI client ID
+const OAUTH_SCOPE = 'openid profile email offline_access'
+
+// API base URL for Codex
+const CODEX_API_BASE = 'https://api.openai.com'
+
+// Store last known rate limit data from API responses
+let lastKnownRateLimits: {
+    limitRequests?: number
+    limitTokens?: number
+    remainingRequests?: number
+    remainingTokens?: number
+    resetRequests?: string
+    resetTokens?: string
+    updatedAt?: number
+} = {}
+
+/**
+ * Extract and store rate limit headers from API response
+ */
+function extractRateLimitHeaders(headers: Headers): void {
+    const limitRequests = headers.get('x-ratelimit-limit-requests')
+    const limitTokens = headers.get('x-ratelimit-limit-tokens')
+    const remainingRequests = headers.get('x-ratelimit-remaining-requests')
+    const remainingTokens = headers.get('x-ratelimit-remaining-tokens')
+    const resetRequests = headers.get('x-ratelimit-reset-requests')
+    const resetTokens = headers.get('x-ratelimit-reset-tokens')
+
+    // Only update if we got any rate limit data
+    if (limitRequests || limitTokens || remainingRequests || remainingTokens) {
+        lastKnownRateLimits = {
+            limitRequests: limitRequests ? parseInt(limitRequests, 10) : lastKnownRateLimits.limitRequests,
+            limitTokens: limitTokens ? parseInt(limitTokens, 10) : lastKnownRateLimits.limitTokens,
+            remainingRequests: remainingRequests ? parseInt(remainingRequests, 10) : lastKnownRateLimits.remainingRequests,
+            remainingTokens: remainingTokens ? parseInt(remainingTokens, 10) : lastKnownRateLimits.remainingTokens,
+            resetRequests: resetRequests || lastKnownRateLimits.resetRequests,
+            resetTokens: resetTokens || lastKnownRateLimits.resetTokens,
+            updatedAt: Date.now()
+        }
+        console.log('[CodexAuth] Rate limit headers captured:', lastKnownRateLimits)
+    }
+}
+
+/**
+ * Get last known rate limits
+ */
+export function getLastKnownRateLimits() {
+    return lastKnownRateLimits
+}
+
+/**
+ * Format model ID into a friendly display name
+ * e.g., 'gpt-4o-mini' -> 'GPT-4o Mini'
+ */
+function formatModelDisplayName(modelId: string): string {
+    // Handle common model name patterns
+    const formatted = modelId
+        .replace(/^gpt-/i, 'GPT-')
+        .replace(/^o(\d)/i, 'O$1')
+        .replace(/-codex/i, ' Codex')
+        .replace(/-mini/i, ' Mini')
+        .replace(/-max/i, ' Max')
+        .replace(/-turbo/i, ' Turbo')
+        .replace(/-preview/i, ' Preview')
+        .replace(/-(\d{4})-(\d{2})-(\d{2})/, ' ($1-$2-$3)')  // Date suffix
+        .replace(/-low$/i, ' (Low)')
+        .replace(/-medium$/i, ' (Medium)')
+        .replace(/-high$/i, ' (High)')
+        .replace(/-xhigh$/i, ' (XHigh)')
+
+    return formatted
+}
+
+// ============================================================================
+// Token Storage
+// ============================================================================
+
+let cachedToken: CodexTokenData | null = null
+let cacheTimestamp = 0
+const CACHE_TTL = 5000  // 5 seconds
+
+/**
+ * Check if encryption is available
+ */
+function isEncryptionAvailable(): boolean {
+    try {
+        return safeStorage.isEncryptionAvailable()
+    } catch {
+        return false
+    }
+}
+
+/**
+ * Store token securely using safeStorage
+ */
+export async function storeToken(token: CodexTokenData): Promise<boolean> {
+    try {
+        const dir = path.dirname(CODEX_TOKEN_FILE)
+        if (!fsSync.existsSync(dir)) {
+            await fs.mkdir(dir, { recursive: true })
+        }
+
+        const tokenJson = JSON.stringify(token)
+        let dataToWrite: string
+
+        if (isEncryptionAvailable()) {
+            // Encrypt the token data
+            const encrypted = safeStorage.encryptString(tokenJson)
+            dataToWrite = JSON.stringify({
+                encrypted: true,
+                data: encrypted.toString('base64')
+            })
+        } else {
+            // Store as-is if encryption not available (development mode)
+            console.warn('[CodexAuth] Encryption not available, storing token without encryption')
+            dataToWrite = JSON.stringify({
+                encrypted: false,
+                data: tokenJson
+            })
+        }
+
+        await fs.writeFile(CODEX_TOKEN_FILE, dataToWrite, 'utf-8')
+
+        // Update cache
+        cachedToken = token
+        cacheTimestamp = Date.now()
+
+        return true
+    } catch (error) {
+        console.error('[CodexAuth] Failed to store token:', error)
+        return false
+    }
+}
+
+/**
+ * Load token from secure storage
+ */
+export async function loadToken(): Promise<CodexTokenData | null> {
+    // Check cache first
+    if (cachedToken && Date.now() - cacheTimestamp < CACHE_TTL) {
+        return cachedToken
+    }
+
+    try {
+        if (!fsSync.existsSync(CODEX_TOKEN_FILE)) {
+            return null
+        }
+
+        const fileContent = await fs.readFile(CODEX_TOKEN_FILE, 'utf-8')
+        const stored = JSON.parse(fileContent)
+
+        let tokenJson: string
+
+        if (stored.encrypted && isEncryptionAvailable()) {
+            // Decrypt the token
+            const encrypted = Buffer.from(stored.data, 'base64')
+            tokenJson = safeStorage.decryptString(encrypted)
+        } else if (!stored.encrypted) {
+            // Not encrypted (development mode)
+            tokenJson = stored.data
+        } else {
+            // Encrypted but encryption not available - can't decrypt
+            console.error('[CodexAuth] Token is encrypted but encryption not available')
+            return null
+        }
+
+        const token: CodexTokenData = JSON.parse(tokenJson)
+
+        // Update cache
+        cachedToken = token
+        cacheTimestamp = Date.now()
+
+        return token
+    } catch (error) {
+        console.error('[CodexAuth] Failed to load token:', error)
+        return null
+    }
+}
+
+/**
+ * Clear stored token (logout)
+ */
+export async function clearToken(): Promise<void> {
+    try {
+        if (fsSync.existsSync(CODEX_TOKEN_FILE)) {
+            await fs.unlink(CODEX_TOKEN_FILE)
+        }
+        cachedToken = null
+        cacheTimestamp = 0
+    } catch (error) {
+        console.error('[CodexAuth] Failed to clear token:', error)
+    }
+}
+
+/**
+ * Get user info from OpenAI API
+ */
+async function getUserInfo(accessToken: string): Promise<{ email?: string; organization?: string }> {
+    try {
+        const response = await fetch(OPENAI_USERINFO_URL, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        })
+
+        if (response.ok) {
+            const data = await response.json()
+            return {
+                email: data.email,
+                organization: data.organization?.id
+            }
+        }
+    } catch (error) {
+        console.warn('[CodexAuth] Failed to get user info:', error)
+    }
+
+    return {}
+}
+
+/**
+ * Refresh access token using refresh token
+ */
+export async function refreshAccessToken(refreshToken: string): Promise<CodexTokenData | null> {
+    try {
+        console.log('[CodexAuth] Refreshing access token...')
+
+        const response = await fetch(OPENAI_TOKEN_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+                client_id: OPENAI_CLIENT_ID,
+            }),
+        })
+
+        if (!response.ok) {
+            const text = await response.text()
+            console.error('[CodexAuth] Token refresh failed:', response.status, text)
+            return null
+        }
+
+        const json = await response.json() as {
+            access_token?: string
+            refresh_token?: string
+            expires_in?: number
+        }
+
+        if (!json?.access_token || !json?.refresh_token || typeof json?.expires_in !== 'number') {
+            console.error('[CodexAuth] Token refresh response missing fields:', json)
+            return null
+        }
+
+        // Get user info with new token
+        const userInfo = await getUserInfo(json.access_token)
+
+        const newToken: CodexTokenData = {
+            accessToken: json.access_token,
+            refreshToken: json.refresh_token,
+            expiresAt: Date.now() + json.expires_in * 1000,
+            userEmail: userInfo.email || 'unknown',
+            organization: userInfo.organization
+        }
+
+        console.log('[CodexAuth] Token refreshed successfully')
+        return newToken
+    } catch (error) {
+        console.error('[CodexAuth] Token refresh error:', error)
+        return null
+    }
+}
+
+
+/**
+ * Validate token by checking expiration and attempting refresh if expired
+ */
+export async function validateToken(token?: CodexTokenData): Promise<boolean> {
+    const tokenToValidate = token || await loadToken()
+
+    if (!tokenToValidate) {
+        return false
+    }
+
+    // Check if token is expired
+    if (tokenToValidate.expiresAt && Date.now() >= tokenToValidate.expiresAt) {
+        console.log('[CodexAuth] Token expired, attempting refresh...')
+
+        // Try to refresh the token
+        if (tokenToValidate.refreshToken) {
+            const newToken = await refreshAccessToken(tokenToValidate.refreshToken)
+            if (newToken) {
+                await storeToken(newToken)
+                return true
+            }
+        }
+
+        console.log('[CodexAuth] Token refresh failed, re-authentication required')
+        return false
+    }
+
+    return true
+}
+
+// ============================================================================
+// OAuth Flow
+// ============================================================================
+
+let oauthServer: http.Server | null = null
+let oauthWindow: BrowserWindow | null = null
+
+/**
+ * Start local server to receive OAuth callback
+ */
+function startOAuthServer(): Promise<OAuthCallbackData> {
+    return new Promise((resolve, reject) => {
+        // #region agent log
+        console.log('[CodexAuth][DEBUG] Starting OAuth callback server on port', OAUTH_REDIRECT_PORT)
+        // #endregion
+
+        oauthServer = http.createServer((req, res) => {
+            // #region agent log
+            console.log('[CodexAuth][DEBUG] Received request:', req.method, req.url)
+            console.log('[CodexAuth][DEBUG] Request headers:', JSON.stringify(req.headers, null, 2))
+            // #endregion
+
+            const parsedUrl = url.parse(req.url || '', true)
+
+            // #region agent log
+            console.log('[CodexAuth][DEBUG] Parsed pathname:', parsedUrl.pathname)
+            console.log('[CodexAuth][DEBUG] Query params:', JSON.stringify(parsedUrl.query, null, 2))
+            // #endregion
+
+            if (parsedUrl.pathname === '/auth/callback') {
+                const code = parsedUrl.query.code as string | undefined
+                const error = parsedUrl.query.error as string | undefined
+                const errorDescription = parsedUrl.query.error_description as string | undefined
+                const state = parsedUrl.query.state as string | undefined
+
+                // #region agent log
+                console.log('[CodexAuth][DEBUG] Callback received - code:', code ? '[PRESENT]' : '[MISSING]')
+                console.log('[CodexAuth][DEBUG] Callback received - error:', error || '[NONE]')
+                console.log('[CodexAuth][DEBUG] Callback received - error_description:', errorDescription || '[NONE]')
+                console.log('[CodexAuth][DEBUG] Callback received - state:', state ? '[PRESENT]' : '[MISSING]')
+                // #endregion
+
+                // Send response to browser
+                res.writeHead(200, { 'Content-Type': 'text/html' })
+                res.end(`
+                    <html>
+                        <body style="font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: white;">
+                            <div style="text-align: center;">
+                                <h1>${error ? '❌ Authentication Failed' : '✅ Authentication Successful'}</h1>
+                                <p>${error ? (errorDescription || error) : 'You can close this window and return to ZuraAI.'}</p>
+                            </div>
+                        </body>
+                    </html>
+                `)
+
+                // Close server and resolve
+                stopOAuthServer()
+
+                if (error) {
+                    reject(new Error(errorDescription || error))
+                } else {
+                    resolve({ code, state })
+                }
+            } else {
+                // #region agent log
+                console.log('[CodexAuth][DEBUG] Non-callback request, returning 404')
+                // #endregion
+                res.writeHead(404)
+                res.end('Not found')
+            }
+        })
+
+        oauthServer.listen(OAUTH_REDIRECT_PORT, () => {
+            // #region agent log
+            console.log(`[CodexAuth][DEBUG] OAuth callback server SUCCESSFULLY listening on port ${OAUTH_REDIRECT_PORT}`)
+            console.log(`[CodexAuth][DEBUG] Waiting for callback at: ${OAUTH_REDIRECT_URI}`)
+            // #endregion
+        })
+
+        oauthServer.on('error', (err: NodeJS.ErrnoException) => {
+            // #region agent log
+            console.error('[CodexAuth][DEBUG] OAuth server error:', err.code, err.message)
+            if (err.code === 'EADDRINUSE') {
+                console.error('[CodexAuth][DEBUG] Port', OAUTH_REDIRECT_PORT, 'is already in use!')
+            }
+            // #endregion
+            reject(err)
+        })
+
+        // Timeout after 5 minutes
+        setTimeout(() => {
+            if (oauthServer) {
+                stopOAuthServer()
+                reject(new Error('OAuth timeout - no callback received'))
+            }
+        }, 5 * 60 * 1000)
+    })
+}
+
+/**
+ * Stop OAuth callback server
+ */
+function stopOAuthServer(): void {
+    if (oauthServer) {
+        oauthServer.close()
+        oauthServer = null
+    }
+    if (oauthWindow && !oauthWindow.isDestroyed()) {
+        oauthWindow.close()
+        oauthWindow = null
+    }
+}
+
+/**
+ * Generate random state for OAuth (matches official Codex CLI)
+ * Uses 32 bytes, base64url encoded without padding
+ */
+function generateState(): string {
+    const crypto = require('crypto')
+    const bytes = crypto.randomBytes(32)
+    // Use base64url encoding without padding (matching Rust's URL_SAFE_NO_PAD)
+    return bytes.toString('base64url')
+}
+
+/**
+ * PKCE (Proof Key for Code Exchange) generation
+ * Required for OpenAI OAuth - matches official Codex CLI implementation
+ */
+interface PKCEPair {
+    verifier: string
+    challenge: string
+}
+
+function generatePKCE(): PKCEPair {
+    const crypto = require('crypto')
+
+    // Generate a random code verifier using 64 bytes (matches Codex CLI)
+    // URL-safe base64 without padding
+    const verifier = crypto.randomBytes(64).toString('base64url')
+
+    // Challenge (S256): BASE64URL-ENCODE(SHA256(verifier)) without padding
+    const hash = crypto.createHash('sha256').update(verifier).digest()
+    const challenge = hash.toString('base64url')
+
+    return { verifier, challenge }
+}
+
+/**
+ * Open OAuth window for ChatGPT login with PKCE
+ * Returns both the authorization code and the PKCE verifier for token exchange
+ */
+export async function openOAuthWindow(): Promise<{ code: string; verifier: string }> {
+    const state = generateState()
+    const pkce = generatePKCE()
+
+    console.log('[CodexAuth] Starting OAuth flow with PKCE...')
+    console.log('[CodexAuth][DEBUG] Generated OAuth state:', state.substring(0, 10) + '...')
+
+    // Build OAuth URL with PKCE and Codex CLI specific parameters
+    const authUrl = new URL(OPENAI_AUTH_URL)
+    authUrl.searchParams.set('response_type', 'code')
+    authUrl.searchParams.set('client_id', OPENAI_CLIENT_ID)
+    authUrl.searchParams.set('redirect_uri', OAUTH_REDIRECT_URI)
+    authUrl.searchParams.set('scope', OAUTH_SCOPE)
+    authUrl.searchParams.set('code_challenge', pkce.challenge)
+    authUrl.searchParams.set('code_challenge_method', 'S256')
+    authUrl.searchParams.set('state', state)
+    // Codex CLI specific parameters
+    authUrl.searchParams.set('id_token_add_organizations', 'true')
+    authUrl.searchParams.set('codex_cli_simplified_flow', 'true')
+    authUrl.searchParams.set('originator', 'codex_cli_rs')
+
+    console.log('[CodexAuth][DEBUG] OAuth URL built:')
+    console.log('[CodexAuth][DEBUG]   - Auth endpoint:', OPENAI_AUTH_URL)
+    console.log('[CodexAuth][DEBUG]   - Client ID:', OPENAI_CLIENT_ID)
+    console.log('[CodexAuth][DEBUG]   - Redirect URI:', OAUTH_REDIRECT_URI)
+    console.log('[CodexAuth][DEBUG]   - Scope:', OAUTH_SCOPE)
+    console.log('[CodexAuth][DEBUG]   - PKCE challenge method: S256')
+    console.log('[CodexAuth][DEBUG]   - Full URL:', authUrl.toString())
+
+    // Start callback server
+    const callbackPromise = startOAuthServer()
+
+    // Open browser for authentication
+    console.log('[CodexAuth] Opening browser for ChatGPT login...')
+    await shell.openExternal(authUrl.toString())
+
+    // Wait for callback
+    console.log('[CodexAuth] Waiting for OAuth callback on port', OAUTH_REDIRECT_PORT, '...')
+    const callbackData = await callbackPromise
+
+    console.log('[CodexAuth][DEBUG] Callback received, verifying state...')
+
+    // Verify state
+    if (callbackData.state !== state) {
+        console.error('[CodexAuth] State mismatch! Expected:', state.substring(0, 10) + '...', 'Got:', callbackData.state?.substring(0, 10) + '...')
+        throw new Error('OAuth state mismatch - possible CSRF attack')
+    }
+
+    if (!callbackData.code) {
+        console.error('[CodexAuth] No authorization code in callback!')
+        throw new Error('No authorization code received')
+    }
+
+    console.log('[CodexAuth] OAuth flow successful, returning auth code and verifier')
+    return { code: callbackData.code, verifier: pkce.verifier }
+}
+
+/**
+ * Exchange authorization code for access token
+ * @param authCode - The authorization code from OAuth callback
+ * @param codeVerifier - The PKCE code verifier used to generate the challenge
+ */
+export async function exchangeCodeForToken(authCode: string, codeVerifier: string): Promise<CodexTokenData> {
+    console.log('[CodexAuth] Exchanging auth code for token...')
+    console.log('[CodexAuth][DEBUG] Token endpoint:', OPENAI_TOKEN_URL)
+
+    const response = await fetch(OPENAI_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: OPENAI_CLIENT_ID,
+            code: authCode,
+            code_verifier: codeVerifier,  // PKCE verifier required
+            redirect_uri: OAUTH_REDIRECT_URI
+        })
+    })
+
+    console.log('[CodexAuth][DEBUG] Token exchange response status:', response.status, response.statusText)
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[CodexAuth] Token exchange failed:', errorText)
+        throw new Error(`Token exchange failed: ${errorText}`)
+    }
+
+    const tokenResponse = await response.json()
+
+    console.log('[CodexAuth] Token exchange successful, getting user info...')
+
+    // Get user info
+    const userInfo = await getUserInfo(tokenResponse.access_token)
+
+    const token: CodexTokenData = {
+        accessToken: tokenResponse.access_token,
+        refreshToken: tokenResponse.refresh_token,
+        expiresAt: Date.now() + (tokenResponse.expires_in || 3600) * 1000,
+        userEmail: userInfo.email || 'unknown',
+        organization: userInfo.organization
+    }
+
+    console.log('[CodexAuth] Token created, email:', token.userEmail, 'expires:', new Date(token.expiresAt).toISOString())
+
+    return token
+}
+
+// ============================================================================
+// API Request Helpers
+// ============================================================================
+
+/**
+ * Make authenticated request to Codex API
+ */
+export async function makeCodexRequest(
+    endpoint: string,
+    method: string,
+    body?: any
+): Promise<Response> {
+    const token = await loadToken()
+
+    if (!token) {
+        throw new Error('Not authenticated')
+    }
+
+    const isValid = await validateToken(token)
+    if (!isValid) {
+        throw new Error('Token expired or invalid')
+    }
+
+    const url = `${CODEX_API_BASE}${endpoint}`
+    const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json'
+    }
+
+    const options: RequestInit = {
+        method,
+        headers
+    }
+
+    if (body) {
+        options.body = JSON.stringify(body)
+    }
+
+    return fetch(url, options)
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Map plan type to human-readable display name
+ */
+function mapPlanTypeToDisplayName(planType: string): string {
+    const normalized = planType.toLowerCase()
+
+    if (normalized.includes('pro')) {
+        return 'ChatGPT Pro'
+    } else if (normalized.includes('plus')) {
+        return 'ChatGPT Plus'
+    } else if (normalized.includes('team')) {
+        return 'ChatGPT Team'
+    } else if (normalized.includes('enterprise')) {
+        return 'Enterprise'
+    } else if (normalized.includes('edu') || normalized.includes('education')) {
+        return 'Education'
+    } else if (normalized === 'chatgpt') {
+        return 'ChatGPT User'
+    } else if (normalized === 'free' || normalized === 'none') {
+        return 'Free'
+    }
+
+    // Return capitalized version if no match
+    return planType.charAt(0).toUpperCase() + planType.slice(1).toLowerCase()
+}
+
+/**
+ * Parse usage limit object from API response
+ */
+function parseUsageLimit(limitData: any): { used: number; total: number; resetAt?: number } | undefined {
+    if (!limitData) return undefined
+
+    // Handle different response structures
+    if (typeof limitData === 'object') {
+        let resetAt: number | undefined = undefined
+        const resetAtValue = limitData.reset_at || limitData.resetAt || limitData.expires_at
+
+        if (resetAtValue !== undefined && resetAtValue !== null) {
+            // Handle Unix timestamp (seconds or milliseconds)
+            if (typeof resetAtValue === 'number') {
+                // If it's a timestamp, assume seconds if < 1e12, otherwise milliseconds
+                resetAt = resetAtValue < 1e12 ? resetAtValue : Math.floor(resetAtValue / 1000)
+            } else if (typeof resetAtValue === 'string') {
+                // Try parsing as number first (Unix timestamp string)
+                const parsed = Number(resetAtValue)
+                if (!isNaN(parsed)) {
+                    resetAt = parsed < 1e12 ? parsed : Math.floor(parsed / 1000)
+                } else {
+                    // Try parsing as ISO date string
+                    const date = new Date(resetAtValue)
+                    if (!isNaN(date.getTime())) {
+                        resetAt = Math.floor(date.getTime() / 1000)
+                    }
+                }
+            }
+        }
+
+        return {
+            used: limitData.used || limitData.current_usage || limitData.usage || 0,
+            total: limitData.total || limitData.limit || limitData.max || 0,
+            resetAt
+        }
+    }
+
+    return undefined
+}
+
+// ============================================================================
+// IPC Handlers
+// ============================================================================
+
+/**
+ * Register all Codex auth IPC handlers
+ */
+export function registerCodexAuthHandlers(): void {
+    // Initiate OAuth flow
+    ipcMain.handle('codex:initiate-auth', async () => {
+        try {
+            console.log('[CodexAuth] Initiating OAuth flow...')
+
+            const { code, verifier } = await openOAuthWindow()
+            console.log('[CodexAuth] Got auth code, exchanging for token with PKCE verifier...')
+
+            const token = await exchangeCodeForToken(code, verifier)
+            console.log('[CodexAuth] Got token, storing...')
+
+            const stored = await storeToken(token)
+            if (!stored) {
+                throw new Error('Failed to store token')
+            }
+
+            console.log('[CodexAuth] Authentication successful')
+            return { success: true }
+        } catch (error: any) {
+            console.error('[CodexAuth] Authentication failed:', error)
+            stopOAuthServer()
+            return { success: false, error: error.message }
+        }
+    })
+
+    // Get current auth state
+    ipcMain.handle('codex:get-auth-state', async (): Promise<CodexAuthState> => {
+        try {
+            const token = await loadToken()
+
+            if (!token) {
+                return { isAuthenticated: false }
+            }
+
+            const isValid = await validateToken(token)
+
+            return {
+                isAuthenticated: isValid,
+                userEmail: token.userEmail,
+                expiresAt: token.expiresAt
+            }
+        } catch (error: any) {
+            console.error('[CodexAuth] Failed to get auth state:', error)
+            return { isAuthenticated: false, error: error.message }
+        }
+    })
+
+    // Logout
+    ipcMain.handle('codex:logout', async () => {
+        try {
+            await clearToken()
+            console.log('[CodexAuth] Logged out successfully')
+        } catch (error: any) {
+            console.error('[CodexAuth] Logout failed:', error)
+            throw error
+        }
+    })
+
+    // Validate token
+    ipcMain.handle('codex:validate-token', async (): Promise<boolean> => {
+        try {
+            return await validateToken()
+        } catch (error) {
+            console.error('[CodexAuth] Token validation failed:', error)
+            return false
+        }
+    })
+
+    // Send API request (for renderer process)
+    ipcMain.handle('codex:send-request', async (_, { endpoint, method, body }) => {
+        try {
+            const response = await makeCodexRequest(endpoint, method, body)
+
+            // Capture rate limit headers from chat completion responses
+            extractRateLimitHeaders(response.headers)
+
+            // Convert response to serializable format
+            const responseData = {
+                ok: response.ok,
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                body: await response.text()
+            }
+
+            return responseData
+        } catch (error: any) {
+            console.error('[CodexAuth] Request failed:', error)
+            throw error
+        }
+    })
+
+    // Fetch available models
+    ipcMain.handle('codex:fetch-models', async () => {
+        try {
+            const token = await loadToken()
+            if (!token) {
+                return { success: false, error: 'Not authenticated', models: [] }
+            }
+
+            console.log('[CodexAuth] Returning official Codex CLI models with reasoning levels')
+
+            // Return official Codex CLI models with reasoning effort levels
+            // Reference: https://github.com/openai/codex/blob/main/docs/config.md
+            const models = [
+                // GPT-5.1 Codex Max (default for Pro)
+                {
+                    code: 'gpt-5.1-codex-max-medium',
+                    displayName: 'GPT-5.1 Codex Max',
+                    description: 'Best for Pro users, balanced reasoning (default)'
+                },
+                {
+                    code: 'gpt-5.1-codex-max-high',
+                    displayName: 'GPT-5.1 Codex Max (High)',
+                    description: 'Greater reasoning depth'
+                },
+                {
+                    code: 'gpt-5.1-codex-max-xhigh',
+                    displayName: 'GPT-5.1 Codex Max (XHigh)',
+                    description: 'Maximum reasoning for hardest tasks'
+                },
+                // GPT-5.2 (latest)
+                {
+                    code: 'gpt-5.2-medium',
+                    displayName: 'GPT-5.2',
+                    description: 'Latest model, balanced reasoning'
+                },
+                {
+                    code: 'gpt-5.2-high',
+                    displayName: 'GPT-5.2 (High)',
+                    description: 'Latest model, greater reasoning'
+                },
+                {
+                    code: 'gpt-5.2-xhigh',
+                    displayName: 'GPT-5.2 (XHigh)',
+                    description: 'Latest model, maximum reasoning'
+                },
+                // GPT-5.1 (faster)
+                {
+                    code: 'gpt-5.1-low',
+                    displayName: 'GPT-5.1 (Fast)',
+                    description: 'Fast responses with light reasoning'
+                }
+            ]
+
+            return { success: true, models }
+        } catch (error: any) {
+            console.error('[CodexAuth] Error fetching models:', error)
+            return { success: false, error: error.message, models: [] }
+        }
+    })
+
+    // Check usage/billing information
+    ipcMain.handle('codex:check-usage', async () => {
+        try {
+            const token = await loadToken()
+            if (!token) {
+                return { success: false, error: 'Not authenticated' }
+            }
+
+            console.log('[CodexAuth] Checking usage...')
+
+            // Fetch user info from /v1/me endpoint
+            const meResponse = await fetch(`${CODEX_API_BASE}/v1/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+
+            // #region agent log - Capture ALL response headers for rate limit analysis
+            console.log('[CodexAuth][DEBUG] /v1/me response status:', meResponse.status)
+            console.log('[CodexAuth][DEBUG] /v1/me ALL response headers:')
+            meResponse.headers.forEach((value, key) => {
+                console.log(`[CodexAuth][DEBUG]   ${key}: ${value}`)
+            })
+            // Extract rate limit headers specifically
+            const rateLimitHeaders = {
+                'x-ratelimit-limit-requests': meResponse.headers.get('x-ratelimit-limit-requests'),
+                'x-ratelimit-limit-tokens': meResponse.headers.get('x-ratelimit-limit-tokens'),
+                'x-ratelimit-remaining-requests': meResponse.headers.get('x-ratelimit-remaining-requests'),
+                'x-ratelimit-remaining-tokens': meResponse.headers.get('x-ratelimit-remaining-tokens'),
+                'x-ratelimit-reset-requests': meResponse.headers.get('x-ratelimit-reset-requests'),
+                'x-ratelimit-reset-tokens': meResponse.headers.get('x-ratelimit-reset-tokens'),
+            }
+            console.log('[CodexAuth][DEBUG] Rate limit headers:', JSON.stringify(rateLimitHeaders, null, 2))
+            // #endregion
+
+            if (!meResponse.ok) {
+                const errorText = await meResponse.text()
+                console.error('[CodexAuth] Failed to fetch user info:', meResponse.status, errorText)
+                return { success: false, error: `Failed to check usage: ${meResponse.status}` }
+            }
+
+            const userData = await meResponse.json()
+
+            // #region agent log - Log COMPLETE raw response to understand actual structure
+            console.log('[CodexAuth][DEBUG] /v1/me FULL RAW response:', JSON.stringify(userData, null, 2))
+            console.log('[CodexAuth][DEBUG] /v1/me response keys (top level):', Object.keys(userData))
+            // Deep inspection of nested objects
+            for (const key of Object.keys(userData)) {
+                const value = userData[key]
+                if (typeof value === 'object' && value !== null) {
+                    console.log(`[CodexAuth][DEBUG] /v1/me nested object "${key}" keys:`, Object.keys(value))
+                    console.log(`[CodexAuth][DEBUG] /v1/me nested object "${key}" value:`, JSON.stringify(value, null, 2))
+                }
+            }
+            // #endregion
+
+            // Log full response for debugging
+            console.log('[CodexAuth] /v1/me response keys:', Object.keys(userData))
+            console.log('[CodexAuth] /v1/me response (sanitized):', JSON.stringify({
+                email: userData.email,
+                plan_type: userData.plan_type,
+                plan: userData.plan,
+                has_usage_limits: !!userData.usage_limits,
+                has_limits: !!userData.limits,
+                has_local: !!userData.local,
+                has_cloud: !!userData.cloud
+            }))
+
+            // Map plan type to human-readable format
+            // Note: /v1/me doesn't return plan_type for ChatGPT subscriptions
+            // We try to infer from available data or default to showing account type
+            let planType = userData.plan_type || userData.plan || 'chatgpt'
+            let planDisplayName = mapPlanTypeToDisplayName(planType)
+
+            // If plan is still showing as 'free' but user has orgs, they likely have a subscription
+            // The /v1/me endpoint doesn't expose ChatGPT subscription tier
+            if (planDisplayName === 'Free' && userData.orgs?.data?.length > 0) {
+                // Check if any org suggests a paid plan
+                const hasPersonalOrg = userData.orgs.data.some((org: any) => org.personal === true)
+                if (hasPersonalOrg) {
+                    planDisplayName = 'ChatGPT User'
+                    planType = 'chatgpt'
+                }
+            }
+
+            // Try to fetch usage limits - Codex/ChatGPT uses different endpoints
+            let limits5Day: { used: number; total: number; resetAt?: number } | undefined
+            let limits7Day: { used: number; total: number; resetAt?: number } | undefined
+
+            // Check if usage info is in /v1/me response first
+            if (userData.usage_limits || userData.limits || userData.local_usage || userData.cloud_usage) {
+                const usageData = userData.usage_limits || userData.limits || userData
+                console.log('[CodexAuth] Usage data found in /v1/me response:', JSON.stringify(usageData).substring(0, 300))
+
+                // Try to parse from /v1/me response
+                limits5Day = parseUsageLimit(usageData.local || usageData.local_usage || usageData['5_day'] || usageData.five_day)
+                limits7Day = parseUsageLimit(usageData.cloud || usageData.cloud_usage || usageData['7_day'] || usageData.seven_day)
+            }
+
+            // If not found in /v1/me, try alternative endpoints
+            if (!limits5Day && !limits7Day) {
+                const endpointsToTry = [
+                    '/v1/usage',
+                    '/dashboard/api/billing/usage',
+                    '/dashboard/api/usage',
+                    '/api/usage'
+                ]
+
+                // #region agent log - Track which endpoints we try and their responses
+                console.log('[CodexAuth][DEBUG] No usage limits found in /v1/me, trying alternative endpoints...')
+                // #endregion
+
+                for (const endpoint of endpointsToTry) {
+                    try {
+                        // #region agent log
+                        console.log(`[CodexAuth][DEBUG] Trying endpoint: ${CODEX_API_BASE}${endpoint}`)
+                        // #endregion
+
+                        const usageResponse = await fetch(`${CODEX_API_BASE}${endpoint}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token.accessToken}`,
+                                'Content-Type': 'application/json'
+                            }
+                        })
+
+                        // #region agent log - Log response status and headers for each endpoint
+                        console.log(`[CodexAuth][DEBUG] ${endpoint} response status:`, usageResponse.status, usageResponse.statusText)
+                        console.log(`[CodexAuth][DEBUG] ${endpoint} response headers:`)
+                        usageResponse.headers.forEach((value, key) => {
+                            console.log(`[CodexAuth][DEBUG]   ${key}: ${value}`)
+                        })
+                        // #endregion
+
+                        if (usageResponse.ok) {
+                            const usageData = await usageResponse.json()
+                            // #region agent log - Log full response from successful endpoint
+                            console.log(`[CodexAuth][DEBUG] ${endpoint} FULL response:`, JSON.stringify(usageData, null, 2))
+                            // #endregion
+                            console.log(`[CodexAuth] Usage data from ${endpoint}:`, JSON.stringify(usageData).substring(0, 300))
+
+                            // Parse usage limits with various field name patterns
+                            if (usageData.local || usageData.cloud) {
+                                limits5Day = parseUsageLimit(usageData.local)
+                                limits7Day = parseUsageLimit(usageData.cloud)
+                            } else if (usageData.usage_limits) {
+                                limits5Day = parseUsageLimit(usageData.usage_limits.local || usageData.usage_limits['5_day'] || usageData.usage_limits.five_day)
+                                limits7Day = parseUsageLimit(usageData.usage_limits.cloud || usageData.usage_limits['7_day'] || usageData.usage_limits.seven_day)
+                            } else if (usageData.limits) {
+                                limits5Day = parseUsageLimit(usageData.limits.local || usageData.limits['5_day'] || usageData.limits.five_day)
+                                limits7Day = parseUsageLimit(usageData.limits.cloud || usageData.limits['7_day'] || usageData.limits.seven_day)
+                            } else if (usageData['5_day'] || usageData['7_day']) {
+                                limits5Day = parseUsageLimit(usageData['5_day'])
+                                limits7Day = parseUsageLimit(usageData['7_day'])
+                            }
+
+                            if (limits5Day || limits7Day) {
+                                // #region agent log
+                                console.log(`[CodexAuth][DEBUG] Successfully parsed limits from ${endpoint}:`, { limits5Day, limits7Day })
+                                // #endregion
+                                break // Found data, stop trying other endpoints
+                            }
+                        } else {
+                            // #region agent log - Log failed endpoint responses
+                            const errorBody = await usageResponse.text()
+                            console.log(`[CodexAuth][DEBUG] ${endpoint} FAILED - status: ${usageResponse.status}, body: ${errorBody.substring(0, 200)}`)
+                            // #endregion
+                        }
+                    } catch (endpointError: any) {
+                        // #region agent log
+                        console.log(`[CodexAuth][DEBUG] ${endpoint} ERROR:`, endpointError.message)
+                        // #endregion
+                        // Continue to next endpoint
+                        continue
+                    }
+                }
+            }
+
+            // Extract relevant usage info
+            const usageInfo = {
+                email: userData.email,
+                name: userData.name,
+                picture: userData.picture,
+                plan: planDisplayName,
+                planType: planType,
+                organization: userData.organization?.name || userData.organization?.id,
+                created: userData.created,
+                groups: userData.groups || [],
+                limits5Day,
+                limits7Day
+            }
+
+            // #region agent log - Log final usage info being returned
+            console.log('[CodexAuth][DEBUG] FINAL usageInfo being returned:', JSON.stringify(usageInfo, null, 2))
+            console.log('[CodexAuth][DEBUG] limits5Day:', limits5Day)
+            console.log('[CodexAuth][DEBUG] limits7Day:', limits7Day)
+            console.log('[CodexAuth][DEBUG] lastKnownRateLimits:', lastKnownRateLimits)
+            // #endregion
+
+            // Include rate limit data from last API call if available
+            const rateLimits = lastKnownRateLimits.updatedAt ? {
+                requests: lastKnownRateLimits.limitRequests && lastKnownRateLimits.remainingRequests !== undefined ? {
+                    used: lastKnownRateLimits.limitRequests - lastKnownRateLimits.remainingRequests,
+                    total: lastKnownRateLimits.limitRequests,
+                    remaining: lastKnownRateLimits.remainingRequests,
+                    resetIn: lastKnownRateLimits.resetRequests
+                } : undefined,
+                tokens: lastKnownRateLimits.limitTokens && lastKnownRateLimits.remainingTokens !== undefined ? {
+                    used: lastKnownRateLimits.limitTokens - lastKnownRateLimits.remainingTokens,
+                    total: lastKnownRateLimits.limitTokens,
+                    remaining: lastKnownRateLimits.remainingTokens,
+                    resetIn: lastKnownRateLimits.resetTokens
+                } : undefined,
+                updatedAt: lastKnownRateLimits.updatedAt
+            } : undefined
+
+            console.log('[CodexAuth] Usage info retrieved for:', usageInfo.email, 'Plan:', planDisplayName)
+            return {
+                success: true,
+                usage: usageInfo,
+                rateLimits,
+                note: !rateLimits ? 'Rate limit data will be available after your first message. OpenAI only provides usage info in API response headers.' : undefined
+            }
+        } catch (error: any) {
+            console.error('[CodexAuth] Error checking usage:', error)
+            return { success: false, error: error.message }
+        }
+    })
+
+    console.log('[CodexAuth] IPC handlers registered')
+}
+
+/**
+ * Cleanup on app quit
+ */
+export function cleanupCodexAuth(): void {
+    stopOAuthServer()
+}

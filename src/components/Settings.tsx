@@ -7,6 +7,7 @@ import { loadApiKeysFromSecureStorage, saveApiKeyToSecureStorage, migrateApiKeys
 import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search } from 'lucide-react'
 import { motion } from 'framer-motion'
 import KeyboardShortcuts from './KeyboardShortcuts'
+import type { CodexUsageInfo } from '../electron.d'
 import './Settings.css'
 
 interface SettingsProps {
@@ -54,8 +55,8 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
     const filteredModels = useMemo(() => {
         if (!searchQuery) return allModels
         const query = searchQuery.toLowerCase()
-        return allModels.filter(m => 
-            m.displayName.toLowerCase().includes(query) || 
+        return allModels.filter(m =>
+            m.displayName.toLowerCase().includes(query) ||
             m.code.toLowerCase().includes(query) ||
             m.provider.toLowerCase().includes(query)
         )
@@ -137,10 +138,10 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
         if (models.length === 0) return null
         return (
             <div key={provider} style={{ marginBottom: '12px' }}>
-                <div style={{ 
-                    fontSize: '0.75rem', 
-                    color: '#b0b0b0', 
-                    fontWeight: 600, 
+                <div style={{
+                    fontSize: '0.75rem',
+                    color: '#b0b0b0',
+                    fontWeight: 600,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     marginBottom: '8px',
@@ -215,7 +216,7 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         left: dropdownPos.left,
                         transform: dropdownPos.showAbove ? 'translateY(-100%)' : 'translateY(0)',
                         width: `${dropdownPos.width}px`,
-                        maxHeight: dropdownPos.showAbove 
+                        maxHeight: dropdownPos.showAbove
                             ? `${Math.max(200, Math.min(dropdownPos.top - 16, 400))}px`
                             : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, 400))}px`,
                         backgroundColor: '#1B1913',
@@ -226,7 +227,7 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '16px',
-                        animation: dropdownPos.showAbove 
+                        animation: dropdownPos.showAbove
                             ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                         backdropFilter: 'blur(20px)',
@@ -288,6 +289,465 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
         </div>
     )
 }
+// Codex Authentication Section Component (simplified - models are hardcoded from official CLI)
+function CodexAuthSection() {
+    const [authState, setAuthState] = useState<{ isAuthenticated: boolean; userEmail?: string; error?: string }>({ isAuthenticated: false })
+    const [isLoading, setIsLoading] = useState(false)
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+    const [usageInfo, setUsageInfo] = useState<CodexUsageInfo | null>(null)
+    const [rateLimits, setRateLimits] = useState<any>(null)
+    const [usageNote, setUsageNote] = useState<string | null>(null)
+    const [isCheckingUsage, setIsCheckingUsage] = useState(false)
+    const [showUsageModal, setShowUsageModal] = useState(false)
+
+    // Check auth state on mount
+    useEffect(() => {
+        const checkAuth = async () => {
+            if (window.codexAuth) {
+                try {
+                    const state = await window.codexAuth.getAuthState()
+                    setAuthState(state)
+                } catch (error) {
+                    console.error('Failed to check Codex auth state:', error)
+                }
+            }
+            setIsCheckingAuth(false)
+        }
+        checkAuth()
+    }, [])
+
+    const handleSignIn = async () => {
+        if (!window.codexAuth) {
+            setAuthState({ isAuthenticated: false, error: 'Codex auth not available' })
+            return
+        }
+
+        setIsLoading(true)
+        try {
+            const result = await window.codexAuth.initiateAuth()
+            if (result.success) {
+                const state = await window.codexAuth.getAuthState()
+                setAuthState(state)
+            } else {
+                setAuthState({ isAuthenticated: false, error: result.error })
+            }
+        } catch (error: any) {
+            setAuthState({ isAuthenticated: false, error: error.message })
+        }
+        setIsLoading(false)
+    }
+
+    const handleSignOut = async () => {
+        if (!window.codexAuth) return
+
+        setIsLoading(true)
+        try {
+            await window.codexAuth.logout()
+            setAuthState({ isAuthenticated: false })
+            setUsageInfo(null)
+        } catch (error: any) {
+            console.error('Logout failed:', error)
+        }
+        setIsLoading(false)
+    }
+
+    const handleCheckUsage = async () => {
+        if (!window.codexAuth) return
+
+        setIsCheckingUsage(true)
+        try {
+            const result = await window.codexAuth.checkUsage()
+            if (result.success && result.usage) {
+                setUsageInfo(result.usage)
+                setRateLimits(result.rateLimits || null)
+                setUsageNote(result.note || null)
+                setShowUsageModal(true)
+            }
+        } catch (error) {
+            console.error('Failed to check usage:', error)
+        }
+        setIsCheckingUsage(false)
+    }
+
+    if (isCheckingAuth) {
+        return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#888' }}>
+                <RefreshCw size={14} className="animate-spin" />
+                <span style={{ fontSize: '0.85rem' }}>Checking authentication...</span>
+            </div>
+        )
+    }
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {authState.isAuthenticated ? (
+                <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            padding: '8px 12px',
+                            background: 'rgba(34, 197, 94, 0.1)',
+                            border: '1px solid rgba(34, 197, 94, 0.3)',
+                            borderRadius: 8,
+                            flex: 1,
+                            minWidth: '200px'
+                        }}>
+                            <Check size={14} style={{ color: '#22c55e' }} />
+                            <span style={{ color: '#22c55e', fontSize: '0.85rem' }}>
+                                Signed in as {authState.userEmail || 'ChatGPT User'}
+                            </span>
+                        </div>
+                        <button
+                            onClick={handleSignOut}
+                            disabled={isLoading}
+                            style={{
+                                padding: '8px 16px',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                color: '#ef4444',
+                                borderRadius: 8,
+                                cursor: isLoading ? 'not-allowed' : 'pointer',
+                                fontSize: '0.85rem'
+                            }}
+                        >
+                            {isLoading ? '...' : 'Sign Out'}
+                        </button>
+                    </div>
+
+                    {/* Check Usage Button */}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                            onClick={handleCheckUsage}
+                            disabled={isCheckingUsage}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '8px 14px',
+                                background: 'rgba(99, 102, 241, 0.1)',
+                                border: '1px solid rgba(99, 102, 241, 0.3)',
+                                color: '#818cf8',
+                                borderRadius: 8,
+                                cursor: isCheckingUsage ? 'not-allowed' : 'pointer',
+                                fontSize: '0.8rem',
+                                opacity: isCheckingUsage ? 0.7 : 1
+                            }}
+                        >
+                            <BarChart size={14} />
+                            {isCheckingUsage ? 'Checking...' : 'Check Usage'}
+                        </button>
+                    </div>
+
+                    {/* Usage Modal */}
+                    {showUsageModal && usageInfo && (() => {
+                        const formatResetTime = (resetAt?: number) => {
+                            if (!resetAt) return null
+                            const resetDate = new Date(resetAt * 1000)
+                            const now = new Date()
+                            const diffMs = resetDate.getTime() - now.getTime()
+                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+                            const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+                            
+                            if (diffDays > 0) {
+                                return `${diffDays}d ${diffHours}h`
+                            } else if (diffHours > 0) {
+                                return `${diffHours}h`
+                            } else {
+                                return 'Soon'
+                            }
+                        }
+
+                        const getPlanColor = (plan?: string) => {
+                            if (!plan) return '#888'
+                            const planLower = plan.toLowerCase()
+                            if (planLower.includes('pro')) return '#10b981'
+                            if (planLower.includes('plus')) return '#3b82f6'
+                            if (planLower.includes('team')) return '#8b5cf6'
+                            if (planLower.includes('enterprise')) return '#f59e0b'
+                            if (planLower.includes('chatgpt')) return '#10a37f' // OpenAI green
+                            return '#888'
+                        }
+
+                        const renderUsageLimit = (label: string, limit?: { used: number; total: number; resetAt?: number }) => {
+                            if (!limit || limit.total === 0) return null
+                            
+                            const percentage = (limit.used / limit.total) * 100
+                            const resetTime = formatResetTime(limit.resetAt)
+                            
+                            return (
+                                <div key={label} style={{ marginTop: 16 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                        <span style={{ color: '#888', fontSize: '0.9rem', fontWeight: 500 }}>{label}</span>
+                                        <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>
+                                            {limit.used.toLocaleString()} / {limit.total.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    <div style={{
+                                        width: '100%',
+                                        height: 8,
+                                        background: 'rgba(255,255,255,0.1)',
+                                        borderRadius: 4,
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            width: `${Math.min(percentage, 100)}%`,
+                                            height: '100%',
+                                            background: percentage >= 90 ? '#ef4444' : percentage >= 75 ? '#f59e0b' : '#10b981',
+                                            transition: 'width 0.3s ease'
+                                        }} />
+                                    </div>
+                                    {resetTime && (
+                                        <div style={{ marginTop: 4, fontSize: '0.75rem', color: '#666' }}>
+                                            Resets in {resetTime}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        }
+
+                        return (
+                            <div style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0,0,0,0.7)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 10000
+                            }} onClick={() => setShowUsageModal(false)}>
+                                <div
+                                    onClick={e => e.stopPropagation()}
+                                    style={{
+                                        background: '#1a1a1a',
+                                        borderRadius: 16,
+                                        padding: 24,
+                                        minWidth: 350,
+                                        maxWidth: 450,
+                                        border: '1px solid rgba(255,255,255,0.1)'
+                                    }}
+                                >
+                                    <h3 style={{ margin: '0 0 20px', color: '#fff', fontSize: '1.2rem', fontWeight: 600 }}>
+                                        Codex Usage Info
+                                    </h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ color: '#888', fontSize: '0.9rem' }}>Email:</span>
+                                            <span style={{ color: '#fff', fontSize: '0.9rem' }}>{usageInfo.email || 'N/A'}</span>
+                                        </div>
+                                        {usageInfo.name && (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span style={{ color: '#888', fontSize: '0.9rem' }}>Name:</span>
+                                                <span style={{ color: '#fff', fontSize: '0.9rem' }}>{usageInfo.name}</span>
+                                            </div>
+                                        )}
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            paddingTop: 12,
+                                            borderTop: '1px solid rgba(255,255,255,0.1)'
+                                        }}>
+                                            <span style={{ color: '#888', fontSize: '0.9rem', fontWeight: 500 }}>Plan:</span>
+                                            <span style={{
+                                                color: getPlanColor(usageInfo.plan),
+                                                fontWeight: 600,
+                                                fontSize: '0.95rem'
+                                            }}>
+                                                {usageInfo.plan || 'Unknown'}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Usage Limits */}
+                                        {usageInfo.limits5Day && renderUsageLimit('5-Day Limit', usageInfo.limits5Day)}
+                                        {usageInfo.limits7Day && renderUsageLimit('7-Day Limit', usageInfo.limits7Day)}
+                                        
+                                        {/* Rate Limits from API responses */}
+                                        {rateLimits && (rateLimits.requests || rateLimits.tokens) && (
+                                            <div style={{ 
+                                                marginTop: 16, 
+                                                paddingTop: 16, 
+                                                borderTop: '1px solid rgba(255,255,255,0.1)' 
+                                            }}>
+                                                <div style={{ 
+                                                    display: 'flex', 
+                                                    alignItems: 'center', 
+                                                    justifyContent: 'space-between',
+                                                    marginBottom: 12 
+                                                }}>
+                                                    <span style={{ color: '#888', fontSize: '0.85rem', fontWeight: 500 }}>
+                                                        API Rate Limits
+                                                    </span>
+                                                    {rateLimits.updatedAt && (
+                                                        <span style={{ color: '#666', fontSize: '0.7rem' }}>
+                                                            Updated {new Date(rateLimits.updatedAt).toLocaleTimeString()}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                
+                                                {rateLimits.requests && (
+                                                    <div style={{ marginBottom: 12 }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                            <span style={{ color: '#888', fontSize: '0.8rem' }}>Requests/min</span>
+                                                            <span style={{ color: '#fff', fontSize: '0.8rem' }}>
+                                                                {rateLimits.requests.remaining?.toLocaleString()} / {rateLimits.requests.total?.toLocaleString()} remaining
+                                                            </span>
+                                                        </div>
+                                                        <div style={{
+                                                            width: '100%',
+                                                            height: 6,
+                                                            background: 'rgba(255,255,255,0.1)',
+                                                            borderRadius: 3,
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            <div style={{
+                                                                width: `${Math.min((rateLimits.requests.remaining / rateLimits.requests.total) * 100, 100)}%`,
+                                                                height: '100%',
+                                                                background: rateLimits.requests.remaining < rateLimits.requests.total * 0.1 ? '#ef4444' : 
+                                                                           rateLimits.requests.remaining < rateLimits.requests.total * 0.25 ? '#f59e0b' : '#10b981',
+                                                                transition: 'width 0.3s ease'
+                                                            }} />
+                                                        </div>
+                                                        {rateLimits.requests.resetIn && (
+                                                            <div style={{ marginTop: 2, fontSize: '0.7rem', color: '#666' }}>
+                                                                Resets in {rateLimits.requests.resetIn}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                
+                                                {rateLimits.tokens && (
+                                                    <div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                                            <span style={{ color: '#888', fontSize: '0.8rem' }}>Tokens/min</span>
+                                                            <span style={{ color: '#fff', fontSize: '0.8rem' }}>
+                                                                {rateLimits.tokens.remaining?.toLocaleString()} / {rateLimits.tokens.total?.toLocaleString()} remaining
+                                                            </span>
+                                                        </div>
+                                                        <div style={{
+                                                            width: '100%',
+                                                            height: 6,
+                                                            background: 'rgba(255,255,255,0.1)',
+                                                            borderRadius: 3,
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            <div style={{
+                                                                width: `${Math.min((rateLimits.tokens.remaining / rateLimits.tokens.total) * 100, 100)}%`,
+                                                                height: '100%',
+                                                                background: rateLimits.tokens.remaining < rateLimits.tokens.total * 0.1 ? '#ef4444' : 
+                                                                           rateLimits.tokens.remaining < rateLimits.tokens.total * 0.25 ? '#f59e0b' : '#10b981',
+                                                                transition: 'width 0.3s ease'
+                                                            }} />
+                                                        </div>
+                                                        {rateLimits.tokens.resetIn && (
+                                                            <div style={{ marginTop: 2, fontSize: '0.7rem', color: '#666' }}>
+                                                                Resets in {rateLimits.tokens.resetIn}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        
+                                        {/* Info message when no usage data available */}
+                                        {!usageInfo.limits5Day && !usageInfo.limits7Day && !rateLimits && (
+                                            <div style={{ 
+                                                marginTop: 12, 
+                                                padding: 12, 
+                                                background: 'rgba(99, 102, 241, 0.1)', 
+                                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                                borderRadius: 8,
+                                                fontSize: '0.8rem',
+                                                color: '#a5b4fc',
+                                                textAlign: 'center'
+                                            }}>
+                                                <div style={{ marginBottom: 6, fontWeight: 500 }}>📊 Rate limit data not yet available</div>
+                                                <div style={{ color: '#888', fontSize: '0.75rem' }}>
+                                                    {usageNote || 'Send a message first to capture rate limit headers from the API response.'}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setShowUsageModal(false)}
+                                        style={{
+                                            width: '100%',
+                                            marginTop: 24,
+                                            padding: '10px',
+                                            background: 'rgba(255,255,255,0.1)',
+                                            border: 'none',
+                                            color: '#fff',
+                                            borderRadius: 8,
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 500,
+                                            transition: 'background 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })()}
+
+                    <div style={{ color: '#666', fontSize: '0.75rem' }}>
+                        Models can be selected in the Models tab. Use "Fetch Models" to get available models.
+                    </div>
+                </>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                            onClick={handleSignIn}
+                            disabled={isLoading}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '10px 20px',
+                                background: 'linear-gradient(135deg, #10a37f 0%, #0d8a6a 100%)',
+                                border: 'none',
+                                color: '#fff',
+                                borderRadius: 8,
+                                cursor: isLoading ? 'not-allowed' : 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: 500,
+                                opacity: isLoading ? 0.7 : 1
+                            }}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <RefreshCw size={16} className="animate-spin" />
+                                    Signing in...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles size={16} />
+                                    Sign in with ChatGPT
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <div style={{ color: '#666', fontSize: '0.75rem' }}>
+                        Use your ChatGPT Plus or Pro subscription for AI chat
+                    </div>
+                    {authState.error && (
+                        <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: 4 }}>
+                            {authState.error}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    )
+}
 
 export default function Settings({ activeSection = 'usage', onUnsavedChange, showWarning = false }: SettingsProps) {
     const { settings, updateSettings, resetSettings } = useSettings()
@@ -315,7 +775,8 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         perplexity: false,
         gemini: false,
         groq: false,
-        ollama: false
+        ollama: false,
+        codex: false
     })
 
     // Activity Graph State
@@ -472,26 +933,26 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
                 const containerWidth = Math.max(400, rect.width - 60) // Account for Y-axis labels and padding
                 const aspectRatio = 1100 / 320 // Original aspect ratio
                 const calculatedHeight = Math.max(180, Math.min(containerWidth / aspectRatio, 400))
-                setGraphDimensions({ 
-                    width: containerWidth, 
-                    height: calculatedHeight 
+                setGraphDimensions({
+                    width: containerWidth,
+                    height: calculatedHeight
                 })
             }
         }
 
         // Initial update
         const timeoutId = setTimeout(updateDimensions, 100)
-        
+
         // Use ResizeObserver for better performance
         let resizeObserver: ResizeObserver | null = null
         if (graphContainerRef.current && 'ResizeObserver' in window) {
             resizeObserver = new ResizeObserver(updateDimensions)
             resizeObserver.observe(graphContainerRef.current)
         }
-        
+
         // Fallback to window resize
         window.addEventListener('resize', updateDimensions)
-        
+
         return () => {
             clearTimeout(timeoutId)
             if (resizeObserver) {
@@ -653,16 +1114,16 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     // Remove emojis from text
     const removeEmojis = (text: string): string => {
         return text.replace(/[\u{1F600}-\u{1F64F}]/gu, '')
-                   .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
-                   .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
-                   .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
-                   .replace(/[\u{2600}-\u{26FF}]/gu, '')
-                   .replace(/[\u{2700}-\u{27BF}]/gu, '')
-                   .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
-                   .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
-                   .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
-                   .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
-                   .trim()
+            .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+            .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+            .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+            .replace(/[\u{2600}-\u{26FF}]/gu, '')
+            .replace(/[\u{2700}-\u{27BF}]/gu, '')
+            .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+            .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+            .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
+            .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
+            .trim()
     }
 
     // Provider logo component
@@ -869,7 +1330,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     </div>
                                 </div>
 
-                                <div 
+                                <div
                                     ref={graphContainerRef}
                                     style={{
                                         minHeight: 380,
@@ -981,9 +1442,9 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                             // Convert SVG Y coordinate (0 at top, height at bottom) to percentage
                                                             // Since the container matches the SVG height, we can use percentage directly
                                                             const labelYPercent = (svgY / height) * 100
-                                                            
+
                                                             return (
-                                                                <div 
+                                                                <div
                                                                     key={i}
                                                                     style={{
                                                                         position: 'absolute',
@@ -1001,9 +1462,9 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                     </div>
 
                                                     <div style={{ flex: 1, position: 'relative', overflow: 'visible', minWidth: 0, minHeight: 200, maxHeight: 400 }}>
-                                                        <svg 
-                                                            viewBox={`0 0 ${width} ${height}`} 
-                                                            preserveAspectRatio="xMidYMid meet" 
+                                                        <svg
+                                                            viewBox={`0 0 ${width} ${height}`}
+                                                            preserveAspectRatio="xMidYMid meet"
                                                             style={{ width: '100%', height: '100%', overflow: 'visible', minWidth: 0, display: 'block', maxHeight: '100%' }}
                                                             ref={(svgEl) => {
                                                                 if (svgEl && hoverX !== null && data.length > 0) {
@@ -1090,11 +1551,11 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
                                                                     // Calculate pixel positions
                                                                     const cursorX = paddingX + hoverX * (width - 2 * paddingX)
-                                                                    
+
                                                                     // Calculate actual Y position on the curve path
                                                                     // Try to use path element's getPointAtLength for accuracy
                                                                     let cursorY = height - paddingY
-                                                                    
+
                                                                     if (pathRef.current && lineD) {
                                                                         try {
                                                                             const pathLength = pathRef.current.getTotalLength()
@@ -1104,25 +1565,25 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                             let maxLength = pathLength
                                                                             let bestPoint = pathRef.current.getPointAtLength(0)
                                                                             let bestDistance = Math.abs(bestPoint.x - cursorX)
-                                                                            
+
                                                                             // Binary search for closest point
                                                                             for (let i = 0; i < 20; i++) {
                                                                                 const testLength = (minLength + maxLength) / 2
                                                                                 const testPoint = pathRef.current.getPointAtLength(testLength)
                                                                                 const distance = Math.abs(testPoint.x - cursorX)
-                                                                                
+
                                                                                 if (distance < bestDistance) {
                                                                                     bestDistance = distance
                                                                                     bestPoint = testPoint
                                                                                 }
-                                                                                
+
                                                                                 if (testPoint.x < cursorX) {
                                                                                     minLength = testLength
                                                                                 } else {
                                                                                     maxLength = testLength
                                                                                 }
                                                                             }
-                                                                            
+
                                                                             cursorY = bestPoint.y
                                                                         } catch (e) {
                                                                             // Fallback to calculation method
@@ -1164,7 +1625,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                             }
                                                                         }
                                                                     }
-                                                                    
+
                                                                     // Clamp to valid Y range, but allow circle to extend slightly beyond for visibility
                                                                     const circleRadius = 7
                                                                     const circleStroke = 3
@@ -1281,13 +1742,13 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 </div>
 
                                                 {/* X-Axis Labels - Show All */}
-                                                <div style={{ 
-                                                    display: 'flex', 
-                                                    justifyContent: 'space-between', 
-                                                    paddingLeft: paddingX, 
-                                                    paddingRight: paddingX, 
-                                                    marginTop: 12, 
-                                                    color: '#999999', 
+                                                <div style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    paddingLeft: paddingX,
+                                                    paddingRight: paddingX,
+                                                    marginTop: 12,
+                                                    color: '#999999',
                                                     fontSize: `clamp(0.65rem, ${xAxisFontSize}px, 0.75rem)`,
                                                     minWidth: 0,
                                                     overflow: 'hidden'
@@ -1295,11 +1756,11 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                     {data.map((d, i) => {
                                                         const showLabel = graphRange === '30d' ? i % xLabelInterval === 0 || i === data.length - 1 : true
                                                         return (
-                                                            <div 
-                                                                key={i} 
-                                                                style={{ 
-                                                                    width: `${100 / data.length}%`, 
-                                                                    textAlign: 'center', 
+                                                            <div
+                                                                key={i}
+                                                                style={{
+                                                                    width: `${100 / data.length}%`,
+                                                                    textAlign: 'center',
                                                                     opacity: showLabel ? 0.85 : 0.2,
                                                                     minWidth: 0,
                                                                     overflow: 'hidden',
@@ -1399,6 +1860,12 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
+                                    </div>
+
+                                    {/* Codex (ChatGPT OAuth) */}
+                                    <div>
+                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Codex (ChatGPT Plus/Pro)</label>
+                                        <CodexAuthSection />
                                     </div>
 
                                     {/* Ollama */}
@@ -1515,15 +1982,15 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                         {(['always', 'sensitive', 'never'] as const).map((mode) => {
                                             const isSelected = (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode
                                             return (
-                                                <label 
-                                                    key={mode} 
-                                                    style={{ 
-                                                        display: 'flex', 
-                                                        alignItems: 'center', 
-                                                        gap: '12px', 
-                                                        cursor: 'pointer', 
-                                                        padding: '12px', 
-                                                        borderRadius: '8px', 
+                                                <label
+                                                    key={mode}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '12px',
+                                                        cursor: 'pointer',
+                                                        padding: '12px',
+                                                        borderRadius: '8px',
                                                         background: isSelected ? 'rgba(255, 228, 196, 0.08)' : 'rgba(255,255,255,0.02)',
                                                         border: `1px solid ${isSelected ? 'rgba(255, 228, 196, 0.2)' : 'rgba(255,255,255,0.06)'}`,
                                                         transition: 'all 0.2s'
@@ -1861,6 +2328,76 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                             <div style={{ flex: 1 }}>
                                                                 <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
                                                                 <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Codex Models */}
+                                {(pendingSettings.codexModels || []).length > 0 && (
+                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                        <div onClick={() => toggleModelGroup('codex')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ width: 18, height: 18, borderRadius: 4, background: 'linear-gradient(135deg, #10a37f, #0d8a6a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Sparkles size={12} color="#fff" />
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Codex (ChatGPT)</div>
+                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.codexModels || []).length} Models</div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.codex ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
+                                        </div>
+                                        {!collapsedModelGroups.codex && (
+                                            <div style={{ padding: '8px' }}>
+                                                {(pendingSettings.codexModels || []).map((model: any, index: number) => {
+                                                    const isSelected = model.code === pendingSettings.codexSelectedModel
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            onClick={() => {
+                                                                console.log('[Settings] Selecting Codex model:', model.code)
+                                                                handleChange({ codexSelectedModel: model.code })
+                                                            }}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '12px',
+                                                                padding: '12px 14px',
+                                                                borderRadius: '8px',
+                                                                marginBottom: '4px',
+                                                                transition: 'all 0.15s',
+                                                                background: isSelected ? 'rgba(16, 163, 127, 0.15)' : 'transparent',
+                                                                border: isSelected ? '1px solid rgba(16, 163, 127, 0.3)' : '1px solid transparent',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#10a37f' : '#888' }}>
+                                                                {isSelected ? <Check size={18} /> : <Cpu size={18} />}
+                                                            </div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    <span style={{ color: isSelected ? '#fff' : '#ddd', fontSize: '0.9rem', fontWeight: 500 }}>{model.displayName}</span>
+                                                                    {model.isDefault && (
+                                                                        <span style={{
+                                                                            fontSize: '0.65rem',
+                                                                            padding: '2px 6px',
+                                                                            borderRadius: 4,
+                                                                            background: 'rgba(16, 163, 127, 0.2)',
+                                                                            color: '#10a37f',
+                                                                            fontWeight: 600
+                                                                        }}>DEFAULT</span>
+                                                                    )}
+                                                                </div>
+                                                                {model.description && (
+                                                                    <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '3px' }}>{model.description}</div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )

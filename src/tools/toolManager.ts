@@ -70,7 +70,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'codex'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     requireApprovalFor?: string[]  // Tools that need user approval

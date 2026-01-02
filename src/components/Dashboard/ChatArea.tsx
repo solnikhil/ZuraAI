@@ -937,6 +937,87 @@ export default function ChatArea() {
                     })
                     throw streamError
                 }
+            } else if (settings.modelProvider === 'codex') {
+                // Codex provider - uses OAuth authentication via ChatGPT
+                const { generateCodexCompletion, streamCodexCompletion, extractCodexUsage } = await import('../../services/codex')
+                
+                // Prepare messages with images if any (Codex supports vision via GPT-4o)
+                let codexMessages = [...optimizedHistory]
+                if (firstImage) {
+                    const lastMessage = codexMessages[codexMessages.length - 1]
+                    if (lastMessage && lastMessage.role === 'user') {
+                        ;(codexMessages[codexMessages.length - 1] as any) = {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: lastMessage.content || userMessageContent },
+                                { type: 'image_url', image_url: { url: firstImage } }
+                            ]
+                        }
+                    }
+                }
+
+                // Create streaming message immediately
+                const codexModel = settings.codexSelectedModel || 'gpt-4o'
+                const streamingMessageId = addMessageToSession(targetSessionId!, {
+                    role: 'assistant',
+                    content: '',
+                    model: `codex/${codexModel}`
+                })
+
+                // Stream the response (note: Codex via IPC doesn't support true streaming, simulated)
+                let accumulatedContent = ''
+                let finalUsage: any = {}
+
+                try {
+                    for await (const chunk of streamCodexCompletion(
+                        codexModel,
+                        codexMessages,
+                        {
+                            temperature: settings.temperature,
+                            maxTokens: settings.maxTokens
+                        }
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
+
+                        // Extract usage stats
+                        if (chunk.usage) {
+                            finalUsage = chunk.usage
+                        }
+
+                        // Update message
+                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                    }
+
+                    // Final update
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                    usage = {
+                        inputTokens: finalUsage.prompt_tokens || 0,
+                        outputTokens: finalUsage.completion_tokens || 0,
+                        totalTokens: finalUsage.total_tokens || 0
+                    }
+
+                    // Finalize the streaming message with all metadata
+                    const endTimeCodex = performance.now()
+                    const latencyCodex = Math.round(endTimeCodex - startTime)
+
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: accumulatedContent,
+                        model: `codex/${codexModel}`,
+                        latency: latencyCodex,
+                        usage
+                    })
+
+                    model = `codex/${codexModel}`
+                    responseContent = accumulatedContent
+                } catch (streamError: any) {
+                    // If streaming fails, update message with error
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { 
+                        content: accumulatedContent || 'Error: ' + (streamError.message || 'Unknown error')
+                    })
+                    throw streamError
+                }
             } else {
                 // OpenRouter - supports function calling and vision
                 // Prepare messages with images if any

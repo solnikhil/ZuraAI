@@ -1,8 +1,9 @@
-import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, Notification, shell } from 'electron'
+import { app, BrowserWindow, globalShortcut, ipcMain, desktopCapturer, screen, NativeImage, Tray, Menu, nativeImage, shell } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import * as chatStore from './chatStore'
 import * as secureStorage from './secureStorage'
+import { registerCodexAuthHandlers, cleanupCodexAuth } from './codexAuth'
 
 // Import tool handlers - use dynamic import to avoid circular dependency issues
 let registerToolHandlers: (() => void) | undefined
@@ -96,7 +97,6 @@ function createMainWindow() {
 
 function createTray() {
     const iconPath = path.join(process.env.PUBLIC || '', 'icon.png')
-    const fs = require('fs')
     
     let icon = nativeImage.createFromPath(iconPath)
     
@@ -240,9 +240,15 @@ app.on('will-quit', () => {
         tray.destroy()
         tray = null
     }
+    
+    // Clean up Codex auth (close OAuth server if running)
+    cleanupCodexAuth()
 })
 
 app.whenReady().then(async () => {
+    // Register Codex authentication handlers
+    registerCodexAuthHandlers()
+
     // Register tool handlers for AI function calling
     try {
         const toolsModule = await import('./tools/index')
@@ -340,10 +346,6 @@ app.whenReady().then(async () => {
 
 ipcMain.on('settings-changed', (_event, settings) => {
     (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
-})
-    //     title: 'Zura Settings',
-    //     body: 'Settings updated successfully'
-    // }).show()
 
     // Handle settings changes that affect the main process
     if (settings.shortcuts?.toggleOverlay) {
