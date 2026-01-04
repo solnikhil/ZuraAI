@@ -17,9 +17,12 @@ import * as url from 'url'
 // ============================================================================
 
 export interface CodexTokenData {
-    accessToken: string
-    refreshToken?: string
-    expiresAt: number  // Unix timestamp in milliseconds
+    accessToken: string      // The access_token for API calls (OAuth access_token OR openai_api_key)
+    openaiApiKey?: string    // API key from token exchange (has api.responses.write scope!)
+    refreshToken?: string    // OAuth refresh token
+    idToken?: string         // OAuth id_token JWT
+    chatgptAccountId?: string // Account ID from id_token claims (required for API calls!)
+    expiresAt: number        // Unix timestamp in milliseconds
     userEmail: string
     organization?: string
 }
@@ -53,7 +56,13 @@ const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'  // Official Codex CLI c
 const OAUTH_SCOPE = 'openid profile email offline_access'
 
 // API base URL for Codex
-const CODEX_API_BASE = 'https://api.openai.com'
+// CRITICAL: ChatGPT OAuth uses a different backend than API key auth!
+// - ChatGPT OAuth: https://chatgpt.com/backend-api/codex
+// - API Key: https://api.openai.com/v1
+const CODEX_API_BASE = 'https://chatgpt.com/backend-api/codex'
+
+// OpenAI API base for user info endpoints (still uses api.openai.com)
+const OPENAI_API_BASE = 'https://api.openai.com'
 
 // Store last known rate limit data from API responses
 let lastKnownRateLimits: {
@@ -99,27 +108,175 @@ export function getLastKnownRateLimits() {
     return lastKnownRateLimits
 }
 
-/**
- * Format model ID into a friendly display name
- * e.g., 'gpt-4o-mini' -> 'GPT-4o Mini'
- */
-function formatModelDisplayName(modelId: string): string {
-    // Handle common model name patterns
-    const formatted = modelId
-        .replace(/^gpt-/i, 'GPT-')
-        .replace(/^o(\d)/i, 'O$1')
-        .replace(/-codex/i, ' Codex')
-        .replace(/-mini/i, ' Mini')
-        .replace(/-max/i, ' Max')
-        .replace(/-turbo/i, ' Turbo')
-        .replace(/-preview/i, ' Preview')
-        .replace(/-(\d{4})-(\d{2})-(\d{2})/, ' ($1-$2-$3)')  // Date suffix
-        .replace(/-low$/i, ' (Low)')
-        .replace(/-medium$/i, ' (Medium)')
-        .replace(/-high$/i, ' (High)')
-        .replace(/-xhigh$/i, ' (XHigh)')
+// ============================================================================
+// Models Cache (for base_instructions)
+// ============================================================================
 
-    return formatted
+interface CachedModelInfo {
+    slug: string
+    base_instructions: string | null
+    display_name: string
+    description: string
+}
+
+let cachedModels: Map<string, CachedModelInfo> = new Map()
+let modelsCacheTimestamp = 0
+const MODELS_CACHE_TTL = 3600000  // 1 hour
+
+/**
+ * Fetch models from the Codex API and cache their base_instructions
+ * This is CRITICAL because the API validates instructions against the server's copy
+ */
+export async function fetchAndCacheModels(): Promise<boolean> {
+    try {
+        const token = await loadToken()
+        if (!token) {
+            console.log('[CodexAuth:Models] No token available, cannot fetch models')
+            return false
+        }
+
+        const headers: Record<string, string> = {
+            'Authorization': `Bearer ${token.accessToken}`,
+            'Content-Type': 'application/json',
+            'originator': 'codex_cli_rs',
+            'User-Agent': 'codex_cli_rs/1.0.0 ZuraAI',
+            'version': '1.0.0'
+        }
+
+        // Add ChatGPT-Account-Id header if available
+        if (token.chatgptAccountId) {
+            headers['ChatGPT-Account-Id'] = token.chatgptAccountId
+        }
+
+        console.log('[CodexAuth:Models] Fetching models from API...')
+        const response = await fetch(`${CODEX_API_BASE}/models?client_version=1.0.0`, {
+            method: 'GET',
+            headers
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[CodexAuth:Models] Failed to fetch models:', response.status, errorText)
+            return false
+        }
+
+        const data = await response.json()
+        const models = data.models || []
+
+        console.log('[CodexAuth:Models] Received', models.length, 'models')
+
+        // Cache each model's base_instructions
+        cachedModels.clear()
+        for (const model of models) {
+            if (model.slug) {
+                cachedModels.set(model.slug, {
+                    slug: model.slug,
+                    base_instructions: model.base_instructions || null,
+                    display_name: model.display_name || model.slug,
+                    description: model.description || ''
+                })
+                console.log(`[CodexAuth:Models] Cached model: ${model.slug}, instructions length: ${model.base_instructions?.length || 0}`)
+            }
+        }
+
+        modelsCacheTimestamp = Date.now()
+        console.log('[CodexAuth:Models] Models cache updated with', cachedModels.size, 'models')
+        return true
+    } catch (error) {
+        console.error('[CodexAuth:Models] Error fetching models:', error)
+        return false
+    }
+}
+
+/**
+ * Get cached base_instructions for a model
+ * Returns null if not cached or cache expired
+ */
+export function getCachedBaseInstructions(modelSlug: string): string | null {
+    // Check if cache is expired
+    if (Date.now() - modelsCacheTimestamp > MODELS_CACHE_TTL) {
+        console.log('[CodexAuth:Models] Cache expired, returning null')
+        return null
+    }
+
+    const model = cachedModels.get(modelSlug)
+    if (model) {
+        console.log(`[CodexAuth:Models] Found cached instructions for ${modelSlug}, length: ${model.base_instructions?.length || 0}`)
+        return model.base_instructions
+    }
+
+    // Try to find by prefix (e.g., gpt-5.2-codex-high -> gpt-5.2-codex)
+    for (const [slug, info] of cachedModels) {
+        if (modelSlug.startsWith(slug) || slug.startsWith(modelSlug)) {
+            console.log(`[CodexAuth:Models] Found cached instructions for ${modelSlug} via prefix match with ${slug}`)
+            return info.base_instructions
+        }
+    }
+
+    console.log(`[CodexAuth:Models] No cached instructions found for ${modelSlug}`)
+    return null
+}
+
+/**
+ * Check if models cache needs refresh
+ */
+export function needsModelsRefresh(): boolean {
+    return cachedModels.size === 0 || Date.now() - modelsCacheTimestamp > MODELS_CACHE_TTL
+}
+
+// ============================================================================
+// JWT Parsing (for extracting chatgpt_account_id from id_token)
+// ============================================================================
+
+interface IdTokenClaims {
+    email?: string
+    'https://api.openai.com/auth'?: {
+        chatgpt_plan_type?: string
+        chatgpt_account_id?: string
+        organization_id?: string
+    }
+}
+
+/**
+ * Parse JWT id_token to extract claims
+ * The chatgpt_account_id is REQUIRED for API calls to /v1/responses
+ */
+function parseIdToken(idToken: string): { email?: string; chatgptAccountId?: string; planType?: string } {
+    try {
+        // JWT format: header.payload.signature
+        const parts = idToken.split('.')
+        if (parts.length !== 3) {
+            console.error('[CodexAuth] Invalid JWT format')
+            return {}
+        }
+
+        // Decode payload (base64url)
+        const payload = parts[1]
+        // Convert base64url to base64
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4)
+        const decoded = Buffer.from(padded, 'base64').toString('utf-8')
+        const claims: IdTokenClaims = JSON.parse(decoded)
+
+        const authClaims = claims['https://api.openai.com/auth']
+        
+        // #region agent log
+        console.log('[CodexAuth][DEBUG] Parsed id_token claims:')
+        console.log('[CodexAuth][DEBUG]   email:', claims.email)
+        console.log('[CodexAuth][DEBUG]   chatgpt_account_id:', authClaims?.chatgpt_account_id)
+        console.log('[CodexAuth][DEBUG]   chatgpt_plan_type:', authClaims?.chatgpt_plan_type)
+        console.log('[CodexAuth][DEBUG]   organization_id:', authClaims?.organization_id)
+        // #endregion
+
+        return {
+            email: claims.email,
+            chatgptAccountId: authClaims?.chatgpt_account_id,
+            planType: authClaims?.chatgpt_plan_type
+        }
+    } catch (error) {
+        console.error('[CodexAuth] Failed to parse id_token:', error)
+        return {}
+    }
 }
 
 // ============================================================================
@@ -269,7 +426,63 @@ async function getUserInfo(accessToken: string): Promise<{ email?: string; organ
 }
 
 /**
+ * Obtain API key via token exchange
+ * This exchanges the id_token for an API key with proper scopes (api.responses.write)
+ * Reference: research-codex/codex/codex-rs/login/src/server.rs obtain_api_key()
+ */
+async function obtainApiKey(idToken: string): Promise<string | null> {
+    try {
+        console.log('[CodexAuth] Attempting token exchange for API key...')
+        
+        const response = await fetch(OPENAI_TOKEN_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+                grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+                client_id: OPENAI_CLIENT_ID,
+                requested_token: 'openai-api-key',
+                subject_token: idToken,
+                subject_token_type: 'urn:ietf:params:oauth:token-type:id_token'
+            })
+        })
+
+        // #region agent log
+        console.log('[CodexAuth][DEBUG] Token exchange response status:', response.status, response.statusText)
+        // #endregion
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.warn('[CodexAuth] API key token exchange failed:', response.status, errorText)
+            console.warn('[CodexAuth] This is expected for accounts without platform onboarding.')
+            console.warn('[CodexAuth] Will fall back to using access_token directly.')
+            return null
+        }
+
+        const exchangeResponse = await response.json() as {
+            access_token?: string
+        }
+
+        if (exchangeResponse.access_token) {
+            console.log('[CodexAuth] Successfully obtained API key via token exchange!')
+            // #region agent log
+            console.log('[CodexAuth][DEBUG] API key prefix:', exchangeResponse.access_token.substring(0, 10) + '...')
+            // #endregion
+            return exchangeResponse.access_token
+        }
+
+        console.warn('[CodexAuth] Token exchange response missing access_token')
+        return null
+    } catch (error) {
+        console.warn('[CodexAuth] Token exchange error:', error)
+        return null
+    }
+}
+
+/**
  * Refresh access token using refresh token
+ * Also re-exchanges for API key with proper scopes
  */
 export async function refreshAccessToken(refreshToken: string): Promise<CodexTokenData | null> {
     try {
@@ -292,6 +505,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<CodexTok
         }
 
         const json = await response.json() as {
+            id_token?: string
             access_token?: string
             refresh_token?: string
             expires_in?: number
@@ -302,18 +516,42 @@ export async function refreshAccessToken(refreshToken: string): Promise<CodexTok
             return null
         }
 
+        console.log('[CodexAuth] Token refresh successful')
+        console.log('[CodexAuth][DEBUG] Refresh got id_token:', !!json.id_token)
+
+        // Parse id_token to extract chatgpt_account_id (CRITICAL for API calls)
+        let chatgptAccountId: string | undefined
+        let parsedEmail: string | undefined
+        if (json.id_token) {
+            const idTokenClaims = parseIdToken(json.id_token)
+            chatgptAccountId = idTokenClaims.chatgptAccountId
+            parsedEmail = idTokenClaims.email
+        }
+
+        // CRITICAL: Re-obtain API key via token exchange after refresh
+        let openaiApiKey: string | null = null
+        if (json.id_token) {
+            openaiApiKey = await obtainApiKey(json.id_token)
+        }
+
         // Get user info with new token
         const userInfo = await getUserInfo(json.access_token)
 
         const newToken: CodexTokenData = {
-            accessToken: json.access_token,
+            // Use openaiApiKey if available (has proper scopes), otherwise fall back to access_token
+            accessToken: openaiApiKey || json.access_token,
+            openaiApiKey: openaiApiKey || undefined,
             refreshToken: json.refresh_token,
+            idToken: json.id_token,
+            chatgptAccountId: chatgptAccountId,
             expiresAt: Date.now() + json.expires_in * 1000,
-            userEmail: userInfo.email || 'unknown',
+            userEmail: parsedEmail || userInfo.email || 'unknown',
             organization: userInfo.organization
         }
 
         console.log('[CodexAuth] Token refreshed successfully')
+        console.log('[CodexAuth]   chatgptAccountId:', newToken.chatgptAccountId || 'MISSING!')
+        console.log('[CodexAuth]   hasOpenaiApiKey:', !!newToken.openaiApiKey)
         return newToken
     } catch (error) {
         console.error('[CodexAuth] Token refresh error:', error)
@@ -591,22 +829,64 @@ export async function exchangeCodeForToken(authCode: string, codeVerifier: strin
         throw new Error(`Token exchange failed: ${errorText}`)
     }
 
-    const tokenResponse = await response.json()
+    const tokenResponse = await response.json() as {
+        id_token?: string
+        access_token?: string
+        refresh_token?: string
+        expires_in?: number
+    }
 
-    console.log('[CodexAuth] Token exchange successful, getting user info...')
+    console.log('[CodexAuth] Initial token exchange successful')
+    console.log('[CodexAuth][DEBUG] Got id_token:', !!tokenResponse.id_token)
+    console.log('[CodexAuth][DEBUG] Got access_token:', !!tokenResponse.access_token)
+    console.log('[CodexAuth][DEBUG] Got refresh_token:', !!tokenResponse.refresh_token)
 
-    // Get user info
-    const userInfo = await getUserInfo(tokenResponse.access_token)
+    // CRITICAL: Parse id_token to extract chatgpt_account_id
+    // This is REQUIRED for API calls - the official Codex CLI sends it as ChatGPT-Account-ID header
+    let chatgptAccountId: string | undefined
+    let parsedEmail: string | undefined
+    if (tokenResponse.id_token) {
+        const idTokenClaims = parseIdToken(tokenResponse.id_token)
+        chatgptAccountId = idTokenClaims.chatgptAccountId
+        parsedEmail = idTokenClaims.email
+        
+        if (!chatgptAccountId) {
+            console.warn('[CodexAuth] WARNING: No chatgpt_account_id in id_token - API calls may fail!')
+            console.warn('[CodexAuth] This usually means you need to complete platform onboarding at platform.openai.com')
+        }
+    } else {
+        console.warn('[CodexAuth] No id_token in response, cannot extract chatgpt_account_id')
+    }
+
+    // CRITICAL: Attempt to obtain API key via token exchange
+    // This is what gives us the api.responses.write scope!
+    // Reference: research-codex/codex/codex-rs/login/src/server.rs line 247-250
+    let openaiApiKey: string | null = null
+    if (tokenResponse.id_token) {
+        openaiApiKey = await obtainApiKey(tokenResponse.id_token)
+    }
+
+    // Get user info using the access_token
+    const userInfo = await getUserInfo(tokenResponse.access_token || '')
 
     const token: CodexTokenData = {
-        accessToken: tokenResponse.access_token,
+        // CRITICAL: Use openaiApiKey if available (has proper scopes), otherwise fall back to access_token
+        // The official Codex CLI prefers openai_api_key when available (auth.rs line 456-460)
+        accessToken: openaiApiKey || tokenResponse.access_token || '',
+        openaiApiKey: openaiApiKey || undefined,
         refreshToken: tokenResponse.refresh_token,
+        idToken: tokenResponse.id_token,
+        chatgptAccountId: chatgptAccountId,  // CRITICAL: Required for API calls!
         expiresAt: Date.now() + (tokenResponse.expires_in || 3600) * 1000,
-        userEmail: userInfo.email || 'unknown',
+        userEmail: parsedEmail || userInfo.email || 'unknown',
         organization: userInfo.organization
     }
 
-    console.log('[CodexAuth] Token created, email:', token.userEmail, 'expires:', new Date(token.expiresAt).toISOString())
+    console.log('[CodexAuth] Token created:')
+    console.log('[CodexAuth]   email:', token.userEmail)
+    console.log('[CodexAuth]   chatgptAccountId:', token.chatgptAccountId || 'MISSING!')
+    console.log('[CodexAuth]   hasOpenaiApiKey:', !!token.openaiApiKey)
+    console.log('[CodexAuth]   expires:', new Date(token.expiresAt).toISOString())
 
     return token
 }
@@ -616,29 +896,116 @@ export async function exchangeCodeForToken(authCode: string, codeVerifier: strin
 // ============================================================================
 
 /**
+ * Select the appropriate authentication token for API requests
+ * 
+ * Token Selection Logic (Requirements 4.2, 4.3):
+ * - Use openaiApiKey when available (has api.responses.write scope)
+ * - Fall back to accessToken otherwise
+ * 
+ * @param token - The CodexTokenData containing available tokens
+ * @returns The token string to use for Authorization header
+ */
+export function selectAuthToken(token: CodexTokenData): string {
+    // Property 6: Token Selection
+    // For any token data with both accessToken and openaiApiKey,
+    // the API request SHALL use openaiApiKey when available,
+    // falling back to accessToken otherwise.
+    // Validates: Requirements 4.2, 4.3
+    
+    if (token.openaiApiKey && token.openaiApiKey.trim() !== '') {
+        return token.openaiApiKey
+    }
+    return token.accessToken
+}
+
+/**
  * Make authenticated request to Codex API
+ * CRITICAL: Includes ChatGPT-Account-ID header required by OpenAI API
+ * 
+ * Headers included (Requirements 3.1, 3.2, 3.3, 3.4):
+ * - Authorization: Bearer {token} (using selectAuthToken for proper token selection)
+ * - ChatGPT-Account-Id: {accountId} (when available)
+ * - originator: codex_cli_rs
+ * - User-Agent: codex_cli_rs/1.0.0 ZuraAI
+ * - version: 1.0.0
  */
 export async function makeCodexRequest(
     endpoint: string,
     method: string,
     body?: any
 ): Promise<Response> {
+    // #region agent log - Entry point
+    console.log('[CodexAuth:makeCodexRequest] ========== FUNCTION ENTRY ==========')
+    console.log('[CodexAuth:makeCodexRequest] endpoint:', endpoint)
+    console.log('[CodexAuth:makeCodexRequest] method:', method)
+    // #endregion
+
     const token = await loadToken()
 
     if (!token) {
+        console.error('[CodexAuth:makeCodexRequest] ERROR: No token found!')
         throw new Error('Not authenticated')
     }
 
+    // Select the appropriate token for authentication (Requirements 4.2, 4.3)
+    const authToken = selectAuthToken(token)
+
+    // #region agent log - Token details
+    console.log('[CodexAuth:makeCodexRequest] Token loaded:')
+    console.log('[CodexAuth:makeCodexRequest]   accessToken prefix:', token.accessToken?.substring(0, 20) + '...')
+    console.log('[CodexAuth:makeCodexRequest]   accessToken length:', token.accessToken?.length)
+    console.log('[CodexAuth:makeCodexRequest]   hasOpenaiApiKey:', !!token.openaiApiKey)
+    console.log('[CodexAuth:makeCodexRequest]   openaiApiKey prefix:', token.openaiApiKey?.substring(0, 20) + '...')
+    console.log('[CodexAuth:makeCodexRequest]   selectedToken:', authToken === token.openaiApiKey ? 'openaiApiKey' : 'accessToken')
+    console.log('[CodexAuth:makeCodexRequest]   chatgptAccountId:', token.chatgptAccountId)
+    console.log('[CodexAuth:makeCodexRequest]   idToken present:', !!token.idToken)
+    console.log('[CodexAuth:makeCodexRequest]   expiresAt:', new Date(token.expiresAt).toISOString())
+    console.log('[CodexAuth:makeCodexRequest]   isExpired:', Date.now() >= token.expiresAt)
+    // #endregion
+
     const isValid = await validateToken(token)
     if (!isValid) {
+        console.error('[CodexAuth:makeCodexRequest] ERROR: Token validation failed!')
         throw new Error('Token expired or invalid')
     }
 
     const url = `${CODEX_API_BASE}${endpoint}`
+    
+    // #region agent log - URL construction
+    console.log('[CodexAuth:makeCodexRequest] Full URL:', url)
+    console.log('[CodexAuth:makeCodexRequest] CODEX_API_BASE:', CODEX_API_BASE)
+    // #endregion
+
+    // Build headers (Requirements 3.1, 3.2, 3.3, 3.4)
     const headers: Record<string, string> = {
-        'Authorization': `Bearer ${token.accessToken}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${authToken}`,  // Requirement 3.1: Use selected token
+        'Content-Type': 'application/json',
+        'originator': 'codex_cli_rs',  // Requirement 3.3: Required by ChatGPT backend API
+        'User-Agent': 'codex_cli_rs/1.0.0 ZuraAI',  // Requirement 3.4: Match Codex CLI format
+        'version': '1.0.0'  // Requirement 3.4: Codex CLI version header
     }
+
+    // CRITICAL: Add ChatGPT-Account-Id header - required for /v1/responses API (Requirement 3.2)
+    // This is how the official Codex CLI authenticates
+    if (token.chatgptAccountId) {
+        headers['ChatGPT-Account-Id'] = token.chatgptAccountId
+        // #region agent log
+        console.log('[CodexAuth:makeCodexRequest] Adding ChatGPT-Account-Id header:', token.chatgptAccountId)
+        // #endregion
+    } else {
+        console.warn('[CodexAuth:makeCodexRequest] WARNING: No chatgptAccountId - API call may fail!')
+    }
+
+    // #region agent log - All headers being sent
+    console.log('[CodexAuth:makeCodexRequest] ========== REQUEST HEADERS ==========')
+    for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() === 'authorization') {
+            console.log(`[CodexAuth:makeCodexRequest]   ${key}: Bearer ${value.substring(7, 27)}...`)
+        } else {
+            console.log(`[CodexAuth:makeCodexRequest]   ${key}: ${value}`)
+        }
+    }
+    // #endregion
 
     const options: RequestInit = {
         method,
@@ -647,9 +1014,44 @@ export async function makeCodexRequest(
 
     if (body) {
         options.body = JSON.stringify(body)
+        // #region agent log - Request body analysis
+        console.log('[CodexAuth:makeCodexRequest] ========== REQUEST BODY ANALYSIS ==========')
+        console.log('[CodexAuth:makeCodexRequest] Body keys:', Object.keys(body))
+        console.log('[CodexAuth:makeCodexRequest] model:', body.model)
+        console.log('[CodexAuth:makeCodexRequest] instructions length:', body.instructions?.length)
+        console.log('[CodexAuth:makeCodexRequest] instructions (first 200 chars):', body.instructions?.substring(0, 200))
+        console.log('[CodexAuth:makeCodexRequest] input count:', body.input?.length)
+        console.log('[CodexAuth:makeCodexRequest] tools:', JSON.stringify(body.tools))
+        console.log('[CodexAuth:makeCodexRequest] tool_choice:', body.tool_choice)
+        console.log('[CodexAuth:makeCodexRequest] parallel_tool_calls:', body.parallel_tool_calls)
+        console.log('[CodexAuth:makeCodexRequest] stream:', body.stream)
+        console.log('[CodexAuth:makeCodexRequest] store:', body.store)
+        console.log('[CodexAuth:makeCodexRequest] include:', JSON.stringify(body.include))
+        console.log('[CodexAuth:makeCodexRequest] reasoning:', JSON.stringify(body.reasoning))
+        console.log('[CodexAuth:makeCodexRequest] HAS temperature?:', 'temperature' in body)
+        console.log('[CodexAuth:makeCodexRequest] HAS max_tokens?:', 'max_tokens' in body)
+        console.log('[CodexAuth:makeCodexRequest] FULL BODY JSON:', JSON.stringify(body, null, 2))
+        // #endregion
     }
 
-    return fetch(url, options)
+    // #region agent log - Making fetch call
+    console.log('[CodexAuth:makeCodexRequest] ========== MAKING FETCH CALL ==========')
+    console.log('[CodexAuth:makeCodexRequest] Calling fetch to:', url)
+    // #endregion
+
+    const response = await fetch(url, options)
+
+    // #region agent log - Response received
+    console.log('[CodexAuth:makeCodexRequest] ========== RESPONSE RECEIVED ==========')
+    console.log('[CodexAuth:makeCodexRequest] Status:', response.status, response.statusText)
+    console.log('[CodexAuth:makeCodexRequest] OK:', response.ok)
+    console.log('[CodexAuth:makeCodexRequest] Response headers:')
+    response.headers.forEach((value, key) => {
+        console.log(`[CodexAuth:makeCodexRequest]   ${key}: ${value}`)
+    })
+    // #endregion
+
+    return response
 }
 
 // ============================================================================
@@ -804,6 +1206,26 @@ export function registerCodexAuthHandlers(): void {
         console.log('[CodexAuth:Request] ========== API REQUEST ==========')
         console.log('[CodexAuth:Request] Endpoint:', endpoint)
         console.log('[CodexAuth:Request] Method:', method)
+        
+        // #region agent log - Detailed input format logging
+        if (body?.input) {
+            console.log('[CodexAuth:Request] Input messages count:', body.input.length)
+            body.input.forEach((item: any, idx: number) => {
+                console.log(`[CodexAuth:Request] Input[${idx}]:`)
+                console.log(`[CodexAuth:Request]   type: ${item.type}`)
+                console.log(`[CodexAuth:Request]   role: ${item.role}`)
+                console.log(`[CodexAuth:Request]   content type: ${Array.isArray(item.content) ? 'array' : typeof item.content}`)
+                if (Array.isArray(item.content)) {
+                    item.content.forEach((c: any, cidx: number) => {
+                        console.log(`[CodexAuth:Request]   content[${cidx}].type: ${c.type}`)
+                    })
+                }
+            })
+        }
+        console.log('[CodexAuth:Request] Instructions length:', body?.instructions?.length || 0)
+        console.log('[CodexAuth:Request] Instructions preview:', body?.instructions?.substring(0, 100))
+        // #endregion
+        
         console.log('[CodexAuth:Request] Body:', JSON.stringify(body, null, 2))
         
         try {
@@ -852,13 +1274,30 @@ export function registerCodexAuthHandlers(): void {
             console.log('[CodexAuth] Returning official Codex CLI models with reasoning levels')
 
             // Return official Codex CLI models with reasoning effort levels
-            // Reference: https://github.com/openai/codex/blob/main/docs/config.md
+            // Reference: research-codex/codex/codex-rs/core/src/models_manager/model_presets.rs
             const models = [
-                // GPT-5.1 Codex Max (default for Pro)
+                // GPT-5.2 Codex (default, latest frontier agentic coding model)
+                {
+                    code: 'gpt-5.2-codex-medium',
+                    displayName: 'GPT-5.2 Codex',
+                    description: 'Latest frontier agentic coding model (default)',
+                    isDefault: true
+                },
+                {
+                    code: 'gpt-5.2-codex-high',
+                    displayName: 'GPT-5.2 Codex (High)',
+                    description: 'Greater reasoning depth for complex problems'
+                },
+                {
+                    code: 'gpt-5.2-codex-xhigh',
+                    displayName: 'GPT-5.2 Codex (XHigh)',
+                    description: 'Extra high reasoning for hardest tasks'
+                },
+                // GPT-5.1 Codex Max (flagship for deep and fast reasoning)
                 {
                     code: 'gpt-5.1-codex-max-medium',
                     displayName: 'GPT-5.1 Codex Max',
-                    description: 'Best for Pro users, balanced reasoning (default)'
+                    description: 'Codex-optimized flagship for deep and fast reasoning'
                 },
                 {
                     code: 'gpt-5.1-codex-max-high',
@@ -870,27 +1309,16 @@ export function registerCodexAuthHandlers(): void {
                     displayName: 'GPT-5.1 Codex Max (XHigh)',
                     description: 'Maximum reasoning for hardest tasks'
                 },
-                // GPT-5.2 (latest)
+                // GPT-5.1 Codex Mini (cheaper, faster, but less capable)
                 {
-                    code: 'gpt-5.2-medium',
-                    displayName: 'GPT-5.2',
-                    description: 'Latest model, balanced reasoning'
+                    code: 'gpt-5.1-codex-mini-medium',
+                    displayName: 'GPT-5.1 Codex Mini',
+                    description: 'Cheaper, faster, but less capable'
                 },
                 {
-                    code: 'gpt-5.2-high',
-                    displayName: 'GPT-5.2 (High)',
-                    description: 'Latest model, greater reasoning'
-                },
-                {
-                    code: 'gpt-5.2-xhigh',
-                    displayName: 'GPT-5.2 (XHigh)',
-                    description: 'Latest model, maximum reasoning'
-                },
-                // GPT-5.1 (faster)
-                {
-                    code: 'gpt-5.1-low',
-                    displayName: 'GPT-5.1 (Fast)',
-                    description: 'Fast responses with light reasoning'
+                    code: 'gpt-5.1-codex-mini-high',
+                    displayName: 'GPT-5.1 Codex Mini (High)',
+                    description: 'Maximizes reasoning for complex problems'
                 }
             ]
 
@@ -911,8 +1339,8 @@ export function registerCodexAuthHandlers(): void {
 
             console.log('[CodexAuth] Checking usage...')
 
-            // Fetch user info from /v1/me endpoint
-            const meResponse = await fetch(`${CODEX_API_BASE}/v1/me`, {
+            // Fetch user info from /v1/me endpoint (uses api.openai.com, not chatgpt.com)
+            const meResponse = await fetch(`${OPENAI_API_BASE}/v1/me`, {
                 headers: {
                     'Authorization': `Bearer ${token.accessToken}`,
                     'Content-Type': 'application/json'
@@ -1017,10 +1445,11 @@ export function registerCodexAuthHandlers(): void {
                 for (const endpoint of endpointsToTry) {
                     try {
                         // #region agent log
-                        console.log(`[CodexAuth][DEBUG] Trying endpoint: ${CODEX_API_BASE}${endpoint}`)
+                        // Use OPENAI_API_BASE for these endpoints (not CODEX_API_BASE)
+                        console.log(`[CodexAuth][DEBUG] Trying endpoint: ${OPENAI_API_BASE}${endpoint}`)
                         // #endregion
 
-                        const usageResponse = await fetch(`${CODEX_API_BASE}${endpoint}`, {
+                        const usageResponse = await fetch(`${OPENAI_API_BASE}${endpoint}`, {
                             headers: {
                                 'Authorization': `Bearer ${token.accessToken}`,
                                 'Content-Type': 'application/json'
@@ -1187,10 +1616,33 @@ export function registerCodexStreamingHandler(): void {
         console.log('[CodexAuth:Stream] Base model:', baseModel, 'Reasoning:', effectiveReasoningEffort)
 
         // Step 4: Build request body
+        // CRITICAL: ChatGPT backend API requires 'instructions' as top-level field
+        // Extract system message and put it in 'instructions', rest goes in 'input'
         console.log('[CodexAuth:Stream] Step 4: Building request body...')
+        
+        // Extract system message for instructions field
+        let instructions = ''
+        const inputMessages: any[] = []
+        
+        for (const msg of messages) {
+            if (msg.role === 'system') {
+                // System message becomes the instructions
+                instructions = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            } else {
+                // Other messages go into input array
+                inputMessages.push(msg)
+            }
+        }
+        
+        // If no system message found, use a default
+        if (!instructions) {
+            instructions = 'You are a helpful assistant.'
+        }
+        
         const requestBody: Record<string, any> = {
             model: baseModel,
-            input: messages,
+            instructions: instructions,  // REQUIRED by ChatGPT backend API
+            input: inputMessages,
             stream: true
         }
 
@@ -1206,15 +1658,36 @@ export function registerCodexStreamingHandler(): void {
         console.log('[CodexAuth:Stream] Request body:', JSON.stringify(requestBody, null, 2))
 
         // Step 5: Make fetch request
-        console.log('[CodexAuth:Stream] Step 5: Making fetch request to', `${CODEX_API_BASE}/v1/responses`)
+        // CRITICAL: For ChatGPT OAuth, the endpoint is /responses (not /v1/responses)
+        // Base URL is https://chatgpt.com/backend-api/codex
+        console.log('[CodexAuth:Stream] Step 5: Making fetch request to', `${CODEX_API_BASE}/responses`)
+        
+        // Select the appropriate token for authentication (Requirements 4.2, 4.3)
+        const authToken = selectAuthToken(token)
+        console.log('[CodexAuth:Stream] Selected token:', authToken === token.openaiApiKey ? 'openaiApiKey' : 'accessToken')
+        
+        // Build headers - CRITICAL: Include ChatGPT-Account-ID (Requirements 3.1, 3.2, 3.3, 3.4)
+        const headers: Record<string, string> = {
+            'Authorization': `Bearer ${authToken}`,  // Requirement 3.1: Use selected token
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+            'originator': 'codex_cli_rs',  // Requirement 3.3
+            'User-Agent': 'codex_cli_rs/1.0.0 ZuraAI',  // Requirement 3.4
+            'version': '1.0.0'  // Requirement 3.4
+        }
+        
+        // Requirement 3.2: Add ChatGPT-Account-Id header when available
+        if (token.chatgptAccountId) {
+            headers['ChatGPT-Account-Id'] = token.chatgptAccountId
+            console.log('[CodexAuth:Stream] Adding ChatGPT-Account-Id:', token.chatgptAccountId)
+        } else {
+            console.warn('[CodexAuth:Stream] WARNING: No chatgptAccountId - request may fail!')
+        }
+        
         try {
-            const response = await fetch(`${CODEX_API_BASE}/v1/responses`, {
+            const response = await fetch(`${CODEX_API_BASE}/responses`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token.accessToken}`,
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream'
-                },
+                headers,
                 body: JSON.stringify(requestBody)
             })
 

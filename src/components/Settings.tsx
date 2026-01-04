@@ -2337,75 +2337,8 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     </div>
                                 )}
 
-                                {/* Codex Models */}
-                                {(pendingSettings.codexModels || []).length > 0 && (
-                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
-                                        <div onClick={() => toggleModelGroup('codex')} style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <div style={{ width: 18, height: 18, borderRadius: 4, background: 'linear-gradient(135deg, #10a37f, #0d8a6a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <Sparkles size={12} color="#fff" />
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>Codex (ChatGPT)</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.codexModels || []).length} Models</div>
-                                                </div>
-                                            </div>
-                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.codex ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
-                                        </div>
-                                        {!collapsedModelGroups.codex && (
-                                            <div style={{ padding: '8px' }}>
-                                                {(pendingSettings.codexModels || []).map((model: any, index: number) => {
-                                                    const isSelected = model.code === pendingSettings.codexSelectedModel
-                                                    return (
-                                                        <div
-                                                            key={index}
-                                                            onClick={() => {
-                                                                console.log('[Settings] Selecting Codex model:', model.code)
-                                                                handleChange({ codexSelectedModel: model.code })
-                                                            }}
-                                                            style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '12px',
-                                                                padding: '12px 14px',
-                                                                borderRadius: '8px',
-                                                                marginBottom: '4px',
-                                                                transition: 'all 0.15s',
-                                                                background: isSelected ? 'rgba(16, 163, 127, 0.15)' : 'transparent',
-                                                                border: isSelected ? '1px solid rgba(16, 163, 127, 0.3)' : '1px solid transparent',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                            onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-                                                            onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: isSelected ? '#10a37f' : '#888' }}>
-                                                                {isSelected ? <Check size={18} /> : <Cpu size={18} />}
-                                                            </div>
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                    <span style={{ color: isSelected ? '#fff' : '#ddd', fontSize: '0.9rem', fontWeight: 500 }}>{model.displayName}</span>
-                                                                    {model.isDefault && (
-                                                                        <span style={{
-                                                                            fontSize: '0.65rem',
-                                                                            padding: '2px 6px',
-                                                                            borderRadius: 4,
-                                                                            background: 'rgba(16, 163, 127, 0.2)',
-                                                                            color: '#10a37f',
-                                                                            fontWeight: 600
-                                                                        }}>DEFAULT</span>
-                                                                    )}
-                                                                </div>
-                                                                {model.description && (
-                                                                    <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '3px' }}>{model.description}</div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
+                                {/* Codex Models - Model selection is done via the Model Switcher in chat, not here */}
+                                {/* Removed per user request - models are selected from the model switcher dropdown */}
                             </div>
                         </div>
                     )}

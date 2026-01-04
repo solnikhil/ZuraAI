@@ -10,6 +10,7 @@ export interface Settings {
     maxTokens: number
     autoHideOverlay: boolean
     overlayTransparency: number
+    loadOverlayOnStartup: boolean
     shortcuts: {
         toggleOverlay: string
     }
@@ -64,6 +65,7 @@ const defaultSettings: Settings = {
     maxTokens: 1000,
     autoHideOverlay: false,
     overlayTransparency: 0.95,
+    loadOverlayOnStartup: false,
     shortcuts: {
         toggleOverlay: 'CommandOrControl+Shift+Z'
     },
@@ -228,16 +230,17 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
     ],
     codexModels: [
-        // Official Codex CLI models - Reference: https://github.com/openai/codex/blob/main/docs/config.md
-        { code: 'gpt-5.1-codex-max-medium', displayName: 'GPT-5.1 Codex Max', description: 'Best for Pro users (default)', isDefault: true },
+        // Official Codex CLI models - Reference: research-codex/codex/codex-rs/core/src/models_manager/model_presets.rs
+        { code: 'gpt-5.2-codex-medium', displayName: 'GPT-5.2 Codex', description: 'Latest frontier agentic coding model (default)', isDefault: true },
+        { code: 'gpt-5.2-codex-high', displayName: 'GPT-5.2 Codex (High)', description: 'Greater reasoning depth' },
+        { code: 'gpt-5.2-codex-xhigh', displayName: 'GPT-5.2 Codex (XHigh)', description: 'Extra high reasoning' },
+        { code: 'gpt-5.1-codex-max-medium', displayName: 'GPT-5.1 Codex Max', description: 'Flagship for deep and fast reasoning' },
         { code: 'gpt-5.1-codex-max-high', displayName: 'GPT-5.1 Codex Max (High)', description: 'Greater reasoning depth' },
         { code: 'gpt-5.1-codex-max-xhigh', displayName: 'GPT-5.1 Codex Max (XHigh)', description: 'Maximum reasoning' },
-        { code: 'gpt-5.2-medium', displayName: 'GPT-5.2', description: 'Latest model, balanced' },
-        { code: 'gpt-5.2-high', displayName: 'GPT-5.2 (High)', description: 'Latest model, greater reasoning' },
-        { code: 'gpt-5.2-xhigh', displayName: 'GPT-5.2 (XHigh)', description: 'Latest model, maximum reasoning' },
-        { code: 'gpt-5.1-low', displayName: 'GPT-5.1 (Fast)', description: 'Fast responses' },
+        { code: 'gpt-5.1-codex-mini-medium', displayName: 'GPT-5.1 Codex Mini', description: 'Cheaper, faster' },
+        { code: 'gpt-5.1-codex-mini-high', displayName: 'GPT-5.1 Codex Mini (High)', description: 'Maximizes reasoning' },
     ],
-    codexSelectedModel: 'gpt-5.1-codex-max-medium',
+    codexSelectedModel: 'gpt-5.2-codex-medium',
     codexReasoningEffort: 'medium',
     quickPrompts: [
         'Explain this code to me',
@@ -291,11 +294,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize Codex fields if missing
         if (!parsed.codexModels) parsed.codexModels = defaultSettings.codexModels
         if (!parsed.codexSelectedModel) parsed.codexSelectedModel = defaultSettings.codexSelectedModel
-        // Force migration: Always use GPT-5.2 with reasoning levels (official Codex CLI approach)
+        // Force migration: Always use latest Codex models (official Codex CLI approach)
         parsed.codexModels = defaultSettings.codexModels
-        // Migrate old model selections to new format
-        if (!parsed.codexSelectedModel?.startsWith('gpt-5.2-')) {
-            parsed.codexSelectedModel = 'gpt-5.2-medium'
+        // Migrate old model selections to new format (gpt-5.2-codex is the new default)
+        if (!parsed.codexSelectedModel?.startsWith('gpt-5.2-codex-') && !parsed.codexSelectedModel?.startsWith('gpt-5.1-codex-')) {
+            parsed.codexSelectedModel = 'gpt-5.2-codex-medium'
         }
         // Initialize codexReasoningEffort if missing or invalid
         if (!parsed.codexReasoningEffort || !['minimal', 'low', 'medium', 'high', 'xhigh'].includes(parsed.codexReasoningEffort)) {
@@ -311,6 +314,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
+        // Initialize loadOverlayOnStartup if missing
+        if (parsed.loadOverlayOnStartup === undefined) parsed.loadOverlayOnStartup = defaultSettings.loadOverlayOnStartup
 
         return parsed
     })

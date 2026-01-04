@@ -957,7 +957,20 @@ export default function ChatArea() {
                 }
 
                 // Create streaming message immediately
-                const codexModel = settings.codexSelectedModel || 'gpt-4o'
+                const codexModel = settings.codexSelectedModel || 'gpt-5.2-codex-medium'
+                
+                // #region agent log - Codex call initiation
+                console.log('[ChatArea:Codex] ========== CODEX CALL INITIATED ==========')
+                console.log('[ChatArea:Codex] codexModel from settings:', settings.codexSelectedModel)
+                console.log('[ChatArea:Codex] codexModel being used:', codexModel)
+                console.log('[ChatArea:Codex] codexMessages count:', codexMessages.length)
+                console.log('[ChatArea:Codex] settings.temperature:', settings.temperature)
+                console.log('[ChatArea:Codex] settings.maxTokens:', settings.maxTokens)
+                codexMessages.forEach((msg, idx) => {
+                    console.log(`[ChatArea:Codex] Message[${idx}]: role=${msg.role}, content type=${typeof msg.content}`)
+                })
+                // #endregion
+                
                 const streamingMessageId = addMessageToSession(targetSessionId!, {
                     role: 'assistant',
                     content: '',
@@ -969,12 +982,18 @@ export default function ChatArea() {
                 let finalUsage: any = {}
 
                 try {
+                    // NOTE: temperature and maxTokens are NOT passed to Codex API
+                    // The official Codex CLI does not support these parameters
+                    // #region agent log
+                    console.log('[ChatArea:Codex] Calling streamCodexCompletion...')
+                    console.log('[ChatArea:Codex] NOTE: temperature and maxTokens are IGNORED by Codex API')
+                    // #endregion
                     for await (const chunk of streamCodexCompletion(
                         codexModel,
                         codexMessages,
                         {
-                            temperature: settings.temperature,
-                            maxTokens: settings.maxTokens
+                            // NOTE: These are passed but will be IGNORED by the Codex service
+                            // The official Codex CLI does not support temperature/maxTokens
                         }
                     )) {
                         const delta = chunk.choices?.[0]?.delta?.content || ''

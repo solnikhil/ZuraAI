@@ -148,7 +148,7 @@ function createTray() {
     tray.setContextMenu(contextMenu)
 }
 
-function createOverlayWindow() {
+function createOverlayWindow(showImmediately = false) {
     if (overlayWin) {
         return
     }
@@ -198,10 +198,14 @@ function createOverlayWindow() {
         overlayWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'overlay' })
     }
 
-    // Don't auto-show overlay on startup anymore
-    // overlayWin.once('ready-to-show', () => {
-    //    overlayWin?.show()
-    // })
+    // Show immediately if requested (e.g., via settings or screenshot shortcut)
+    if (showImmediately) {
+        overlayWin.once('ready-to-show', () => {
+            overlayWin?.show()
+            overlayWin?.focus()
+            overlayWin?.setAlwaysOnTop(true)
+        })
+    }
 
     overlayWin.on('close', (e) => {
         if (!isQuitting) {
@@ -299,9 +303,17 @@ app.whenReady().then(async () => {
 
     createTray()
     createMainWindow() // Open main window on start
-    createOverlayWindow()
 
+    // Overlay is now lazy-loaded - only created when first needed
+    // This saves ~100-200MB RAM when overlay is not being used
+
+    // Global shortcut for overlay toggle - lazy loads overlay if not created
     globalShortcut.register('CommandOrControl+Shift+Z', async () => {
+        // Lazy load overlay if not yet created
+        if (!overlayWin) {
+            createOverlayWindow(true)
+        }
+
         if (overlayWin) {
             if (overlayWin.isVisible()) {
                 overlayWin.hide()
@@ -314,8 +326,13 @@ app.whenReady().then(async () => {
         }
     })
 
-    // Ctrl+Shift+X - Direct screenshot selection mode
+    // Ctrl+Shift+X - Direct screenshot selection mode - lazy loads overlay
     globalShortcut.register('CommandOrControl+Shift+X', async () => {
+        // Lazy load overlay if not yet created
+        if (!overlayWin) {
+            createOverlayWindow(true)
+        }
+
         if (overlayWin) {
             overlayWin.hide()
         }

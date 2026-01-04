@@ -39,13 +39,18 @@ export default function Chat() {
         }
 
         checkStatus()
-        // Check every 10 seconds if Ollama is selected
-        let interval: NodeJS.Timeout
+        // Check every 10 seconds ONLY if Ollama is selected
+        // This prevents unnecessary polling and saves RAM/CPU when using other providers
+        let interval: NodeJS.Timeout | null = null
         if (settings.modelProvider === 'ollama') {
             interval = setInterval(checkStatus, 10000)
         }
 
-        return () => clearInterval(interval)
+        return () => {
+            if (interval) {
+                clearInterval(interval)
+            }
+        }
     }, [settings.modelProvider, settings.ollamaUrl])
 
     useEffect(() => {

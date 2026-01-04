@@ -583,15 +583,23 @@ export default function Overlay() {
             messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
         }
 
-        const codexModel = settings.codexSelectedModel || 'gpt-4o'
+        const codexModel = settings.codexSelectedModel || 'gpt-5.2-codex-medium'
+        
+        // #region agent log - Overlay Codex call
+        console.log('[Overlay:Codex] ========== CODEX CALL INITIATED ==========')
+        console.log('[Overlay:Codex] codexModel:', codexModel)
+        console.log('[Overlay:Codex] messagesPayload count:', messagesPayload.length)
+        // #endregion
+        
         const startTime = performance.now()
         
+        // NOTE: temperature and maxTokens are NOT supported by Codex API
         const response = await generateCodexCompletion(
             codexModel,
             messagesPayload,
             {
-                temperature: settings.temperature,
-                maxTokens: settings.maxTokens
+                // NOTE: These options are IGNORED by the Codex API
+                // The official Codex CLI does not support temperature/maxTokens
             }
         )
         const endTime = performance.now()
