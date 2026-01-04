@@ -801,24 +801,42 @@ export function registerCodexAuthHandlers(): void {
 
     // Send API request (for renderer process)
     ipcMain.handle('codex:send-request', async (_, { endpoint, method, body }) => {
+        console.log('[CodexAuth:Request] ========== API REQUEST ==========')
+        console.log('[CodexAuth:Request] Endpoint:', endpoint)
+        console.log('[CodexAuth:Request] Method:', method)
+        console.log('[CodexAuth:Request] Body:', JSON.stringify(body, null, 2))
+        
         try {
+            console.log('[CodexAuth:Request] Calling makeCodexRequest...')
             const response = await makeCodexRequest(endpoint, method, body)
+
+            console.log('[CodexAuth:Request] Response received:')
+            console.log('[CodexAuth:Request]   Status:', response.status, response.statusText)
+            console.log('[CodexAuth:Request]   OK:', response.ok)
 
             // Capture rate limit headers from chat completion responses
             extractRateLimitHeaders(response.headers)
 
             // Convert response to serializable format
+            const bodyText = await response.text()
+            console.log('[CodexAuth:Request]   Body length:', bodyText.length)
+            console.log('[CodexAuth:Request]   Body preview:', bodyText.substring(0, 500))
+
             const responseData = {
                 ok: response.ok,
                 status: response.status,
                 statusText: response.statusText,
                 headers: Object.fromEntries(response.headers.entries()),
-                body: await response.text()
+                body: bodyText
             }
 
+            console.log('[CodexAuth:Request] ========== REQUEST COMPLETE ==========')
             return responseData
         } catch (error: any) {
-            console.error('[CodexAuth] Request failed:', error)
+            console.error('[CodexAuth:Request] ========== REQUEST ERROR ==========')
+            console.error('[CodexAuth:Request] Error name:', error?.name)
+            console.error('[CodexAuth:Request] Error message:', error?.message)
+            console.error('[CodexAuth:Request] Error stack:', error?.stack)
             throw error
         }
     })
@@ -1113,6 +1131,182 @@ export function registerCodexAuthHandlers(): void {
     })
 
     console.log('[CodexAuth] IPC handlers registered')
+}
+
+/**
+ * Parse model code to extract base model and reasoning effort
+ */
+function parseModelCode(modelCode: string): { baseModel: string; reasoningEffort: string } {
+    const efforts = ['xhigh', 'high', 'medium', 'low']
+    for (const effort of efforts) {
+        if (modelCode.endsWith(`-${effort}`)) {
+            return {
+                baseModel: modelCode.replace(`-${effort}`, ''),
+                reasoningEffort: effort
+            }
+        }
+    }
+    return { baseModel: modelCode, reasoningEffort: 'medium' }
+}
+
+/**
+ * Register streaming handler for Codex chat
+ * This enables true SSE streaming from the Responses API
+ */
+export function registerCodexStreamingHandler(): void {
+    console.log('[CodexAuth:Stream] Registering streaming handler...')
+    
+    ipcMain.handle('codex:stream-chat', async (event, { messages, model, options }) => {
+        console.log('[CodexAuth:Stream] ========== STREAM REQUEST RECEIVED ==========')
+        console.log('[CodexAuth:Stream] Model:', model)
+        console.log('[CodexAuth:Stream] Messages count:', messages?.length)
+        console.log('[CodexAuth:Stream] Options:', JSON.stringify(options, null, 2))
+
+        // Step 1: Load token
+        console.log('[CodexAuth:Stream] Step 1: Loading token...')
+        const token = await loadToken()
+        if (!token) {
+            console.error('[CodexAuth:Stream] ERROR: No token found')
+            throw new Error('Not authenticated')
+        }
+        console.log('[CodexAuth:Stream] Token loaded, email:', token.userEmail)
+
+        // Step 2: Validate token
+        console.log('[CodexAuth:Stream] Step 2: Validating token...')
+        const isValid = await validateToken(token)
+        if (!isValid) {
+            console.error('[CodexAuth:Stream] ERROR: Token invalid or expired')
+            throw new Error('Token expired or invalid')
+        }
+        console.log('[CodexAuth:Stream] Token valid')
+
+        // Step 3: Parse model
+        console.log('[CodexAuth:Stream] Step 3: Parsing model...')
+        const { baseModel, reasoningEffort } = parseModelCode(model)
+        const effectiveReasoningEffort = options?.reasoningEffort || reasoningEffort
+        console.log('[CodexAuth:Stream] Base model:', baseModel, 'Reasoning:', effectiveReasoningEffort)
+
+        // Step 4: Build request body
+        console.log('[CodexAuth:Stream] Step 4: Building request body...')
+        const requestBody: Record<string, any> = {
+            model: baseModel,
+            input: messages,
+            stream: true
+        }
+
+        if (effectiveReasoningEffort && effectiveReasoningEffort !== 'medium') {
+            requestBody.reasoning = { effort: effectiveReasoningEffort }
+            if (options?.reasoningSummary) {
+                requestBody.reasoning.summary = options.reasoningSummary
+            }
+        }
+        if (options?.temperature !== undefined) requestBody.temperature = options.temperature
+        if (options?.maxTokens !== undefined) requestBody.max_output_tokens = options.maxTokens
+
+        console.log('[CodexAuth:Stream] Request body:', JSON.stringify(requestBody, null, 2))
+
+        // Step 5: Make fetch request
+        console.log('[CodexAuth:Stream] Step 5: Making fetch request to', `${CODEX_API_BASE}/v1/responses`)
+        try {
+            const response = await fetch(`${CODEX_API_BASE}/v1/responses`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream'
+                },
+                body: JSON.stringify(requestBody)
+            })
+
+            console.log('[CodexAuth:Stream] Response status:', response.status, response.statusText)
+            console.log('[CodexAuth:Stream] Response headers:')
+            response.headers.forEach((value, key) => {
+                console.log(`[CodexAuth:Stream]   ${key}: ${value}`)
+            })
+
+            if (!response.ok) {
+                const errorText = await response.text()
+                console.error('[CodexAuth:Stream] ERROR: Request failed')
+                console.error('[CodexAuth:Stream] Status:', response.status)
+                console.error('[CodexAuth:Stream] Error body:', errorText)
+                event.sender.send('codex:stream-error', { message: `API error ${response.status}: ${errorText}` })
+                throw new Error(`Stream request failed: ${response.status} - ${errorText}`)
+            }
+
+            extractRateLimitHeaders(response.headers)
+
+            // Step 6: Read stream
+            console.log('[CodexAuth:Stream] Step 6: Reading response stream...')
+            const reader = response.body?.getReader()
+            if (!reader) {
+                console.error('[CodexAuth:Stream] ERROR: No response body reader')
+                throw new Error('No response body reader available')
+            }
+
+            const decoder = new TextDecoder()
+            let buffer = ''
+            let chunkCount = 0
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) {
+                    console.log('[CodexAuth:Stream] Stream ended, total chunks:', chunkCount)
+                    break
+                }
+
+                const text = decoder.decode(value, { stream: true })
+                buffer += text
+                console.log('[CodexAuth:Stream] Received data chunk, buffer length:', buffer.length)
+
+                const lines = buffer.split('\n')
+                buffer = lines.pop() || ''
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim()
+                    if (trimmedLine.startsWith('data: ')) {
+                        const data = trimmedLine.slice(6)
+                        if (data === '[DONE]') {
+                            console.log('[CodexAuth:Stream] Received [DONE] signal')
+                            event.sender.send('codex:stream-done')
+                            return { success: true }
+                        }
+                        try {
+                            const parsed = JSON.parse(data)
+                            chunkCount++
+                            console.log('[CodexAuth:Stream] Parsed chunk #', chunkCount, 'type:', parsed.type)
+                            event.sender.send('codex:stream-chunk', parsed)
+                        } catch (parseError) {
+                            console.warn('[CodexAuth:Stream] Failed to parse SSE chunk:', data.substring(0, 100))
+                        }
+                    }
+                }
+            }
+
+            if (buffer.trim().startsWith('data: ')) {
+                const data = buffer.trim().slice(6)
+                if (data !== '[DONE]') {
+                    try {
+                        const parsed = JSON.parse(data)
+                        event.sender.send('codex:stream-chunk', parsed)
+                    } catch { /* skip */ }
+                }
+            }
+
+            console.log('[CodexAuth:Stream] ========== STREAM COMPLETE ==========')
+            event.sender.send('codex:stream-done')
+            return { success: true }
+
+        } catch (error: any) {
+            console.error('[CodexAuth:Stream] ========== STREAM ERROR ==========')
+            console.error('[CodexAuth:Stream] Error name:', error?.name)
+            console.error('[CodexAuth:Stream] Error message:', error?.message)
+            console.error('[CodexAuth:Stream] Error stack:', error?.stack)
+            event.sender.send('codex:stream-error', { message: error.message })
+            throw error
+        }
+    })
+
+    console.log('[CodexAuth] Streaming handler registered')
 }
 
 /**

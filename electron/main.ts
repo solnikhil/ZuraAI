@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import * as chatStore from './chatStore'
 import * as secureStorage from './secureStorage'
-import { registerCodexAuthHandlers, cleanupCodexAuth } from './codexAuth'
+import { registerCodexAuthHandlers, registerCodexStreamingHandler, cleanupCodexAuth } from './codexAuth'
 
 // Import tool handlers - use dynamic import to avoid circular dependency issues
 let registerToolHandlers: (() => void) | undefined
@@ -248,6 +248,7 @@ app.on('will-quit', () => {
 app.whenReady().then(async () => {
     // Register Codex authentication handlers
     registerCodexAuthHandlers()
+    registerCodexStreamingHandler()
 
     // Register tool handlers for AI function calling
     try {

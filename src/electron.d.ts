@@ -115,6 +115,11 @@ export interface CodexAuthAPI {
     sendRequest: (params: CodexRequestParams) => Promise<CodexRequestResponse>
     fetchModels: () => Promise<CodexModelsResult>
     checkUsage: () => Promise<CodexUsageResult>
+    // True SSE streaming support
+    streamChat: (params: { messages: any[]; model: string; options?: any }) => Promise<{ success: boolean }>
+    onStreamChunk: (callback: (chunk: any) => void) => () => void
+    onStreamDone: (callback: () => void) => () => void
+    onStreamError: (callback: (error: { message: string }) => void) => () => void
 }
 
 declare global {
