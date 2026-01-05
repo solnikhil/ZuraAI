@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, X } from './icons'
 import './Toast.css'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'

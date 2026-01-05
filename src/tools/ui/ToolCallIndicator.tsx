@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Globe, Calculator, Clock, Clipboard, Loader2, Plug } from 'lucide-react'
+import { Search, Globe, Calculator, Clock, Clipboard, Loader2, Plug } from '../../components/icons'
 import { formatToolDisplayName, isMcpToolName } from '../mcpUtils'
 import './ToolCallIndicator.css'
 

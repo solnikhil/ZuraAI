@@ -1,5 +1,9 @@
 import React, { useState } from 'react'
-import { Plus, Search, MessageSquare, Trash2, Settings as SettingsIcon, PanelLeft, LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu, Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X } from 'lucide-react'
+import {
+    Plus, Search, MessageSquare, Trash2, SettingsIcon, PanelLeft,
+    LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
+    Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X
+} from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 

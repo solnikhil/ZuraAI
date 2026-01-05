@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Key, Zap, Image, Command, CheckCircle } from 'lucide-react'
+import { X, ChevronRight, ChevronLeft, Key, Zap, Image, CheckCircle, Command } from './icons'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from './Toast'
 import { saveApiKeyToSecureStorage } from '../utils/secureApiKeys'

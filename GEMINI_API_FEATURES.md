@@ -276,3 +276,4 @@ await generateGeminiCompletion(apiKey, model, messages, {
 - [Gemini API Models](https://ai.google.dev/gemini-api/docs/models)
 - [Gemini API Reference](https://ai.google.dev/api)
 
+

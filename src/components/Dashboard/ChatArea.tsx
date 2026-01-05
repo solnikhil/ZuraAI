@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw, Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video, ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot, Square, Zap, TrendingUp, Database } from 'lucide-react'
+import {
+    Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw,
+    Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown,
+    ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video,
+    ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot,
+    Square, Zap, TrendingUp, Database
+} from '../icons'
 import StarBorder from '../StarBorder'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import LazyMarkdown from '../LazyMarkdown'
 import { useChatHistory, Message } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion, streamOllamaCompletion } from '../../services/ollama'
@@ -662,6 +665,15 @@ export default function ChatArea() {
                 let finishReason: string | null = null
                 let savedToolResults: any = null  // Save tool results to persist in final message
 
+                // Determine if we should force tool use on initial request (mandatory mode)
+                const initialForceToolUse = researchMandatory && researchMaxRounds > 0
+
+                // Build toolChoice for initial request
+                let initialToolChoice: 'auto' | 'required' | { type: 'function'; function: { name: string } } | undefined
+                if (initialForceToolUse) {
+                    initialToolChoice = { type: 'function', function: { name: 'web_search' } }
+                }
+
                 try {
                     for await (const chunk of streamGroqCompletion(
                         settings.groqApiKey,
@@ -670,7 +682,8 @@ export default function ChatArea() {
                         {
                             temperature: settings.temperature,
                             max_tokens: settings.maxTokens,
-                            tools: groqTools
+                            tools: groqTools,
+                            toolChoice: initialToolChoice
                         }
                     )) {
                         const delta = chunk.choices?.[0]?.delta?.content || ''
@@ -771,59 +784,274 @@ export default function ChatArea() {
                         })) || null
 
                         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                            // Stream follow-up response
-                            let followUpContent = ''
-                            let followUpLastUpdate = Date.now()
-                            let followUpUsage: any = {}
+                            // === RESEARCH LOOP ===
+                            // Continue looping until all mandatory searches are done
+                            let researchRound = 1
+                            let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+                            let hasMoreToolCalls = true
+                            let lastAssistantMessage = reconstructedMessage
 
-                            // Count web_search calls from this round to get accurate search count
-                            const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+                            while (hasMoreToolCalls) {
+                                let followUpContent = ''
+                                let followUpLastUpdate = Date.now()
+                                let followUpUsage: any = {}
+                                let followUpToolCalls: any[] = []
+                                let followUpAccumulatedContent = ''
 
-                            // Build follow-up messages with research context (use local variables, not async state)
-                            const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
-                            const followUpMessages: any[] = [
-                                ...optimizedHistory,
-                                reconstructedMessage,
-                                ...toolResult.formattedResults
-                            ]
-                            // Add research context as a user message to explicitly direct the model
-                            if (researchContextMsg) {
-                                followUpMessages.push({
-                                    role: 'user',
-                                    content: researchContextMsg
+                                // Build follow-up messages with research context (use local variables, not async state)
+                                const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
+
+                                // Determine if we should force tool use (mandatory mode with remaining searches)
+                                const remainingSearches = researchMaxRounds - totalSearchCount
+                                const forceToolUse = researchMandatory && remainingSearches > 0
+
+                                // Build toolChoice - use specific function format to force web_search
+                                let toolChoice: 'auto' | 'required' | { type: 'function'; function: { name: string } } | undefined
+                                if (forceToolUse) {
+                                    toolChoice = { type: 'function', function: { name: 'web_search' } }
+                                }
+
+                                // Build follow-up messages
+                                const followUpMessages: any[] = []
+
+                                // Add system prompt with research instructions at the beginning
+                                if (researchContextMsg) {
+                                    followUpMessages.push({
+                                        role: 'system',
+                                        content: researchContextMsg
+                                    })
+                                }
+
+                                // Then add the conversation history
+                                followUpMessages.push(...optimizedHistory)
+                                followUpMessages.push(lastAssistantMessage)
+                                followUpMessages.push(...toolResult.formattedResults)
+
+                                // Stream follow-up response
+                                for await (const chunk of streamGroqCompletion(
+                                    settings.groqApiKey,
+                                    settings.aiModel,
+                                    followUpMessages,
+                                    {
+                                        temperature: settings.temperature,
+                                        max_tokens: settings.maxTokens,
+                                        tools: groqTools,
+                                        toolChoice: toolChoice
+                                    }
+                                )) {
+                                    const delta = chunk.choices?.[0]?.delta?.content || ''
+                                    followUpContent += delta
+
+                                    // Check for tool calls in follow-up
+                                    if (chunk.choices?.[0]?.delta?.tool_calls) {
+                                        const deltaToolCalls = chunk.choices[0].delta.tool_calls
+                                        if (deltaToolCalls) {
+                                            deltaToolCalls.forEach((tc: any, idx: number) => {
+                                                if (!followUpToolCalls[tc.index ?? idx]) {
+                                                    followUpToolCalls[tc.index ?? idx] = {
+                                                        id: tc.id || '',
+                                                        type: tc.type || 'function',
+                                                        function: { name: '', arguments: '' }
+                                                    }
+                                                }
+                                                if (tc.function?.name) {
+                                                    followUpToolCalls[tc.index ?? idx].function.name += tc.function.name
+                                                }
+                                                if (tc.function?.arguments) {
+                                                    followUpToolCalls[tc.index ?? idx].function.arguments += tc.function.arguments
+                                                }
+                                            })
+                                        }
+                                    }
+
+                                    if (chunk.usage) {
+                                        followUpUsage = chunk.usage
+                                    }
+
+                                    const now = Date.now()
+                                    if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
+                                        followUpLastUpdate = now
+                                    }
+                                }
+
+                                // Add follow-up content to accumulated
+                                accumulatedContent += followUpContent
+                                followUpAccumulatedContent = followUpContent
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                                // Combine usage stats
+                                usage = {
+                                    inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
+                                    outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
+                                    totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0)
+                                }
+
+                                // Check if there are more tool calls in the follow-up
+                                if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+                                    // Reconstruct message with tool calls
+                                    const reconstructedFollowUpMessage = {
+                                        role: 'assistant',
+                                        content: followUpAccumulatedContent,
+                                        tool_calls: followUpToolCalls
+                                            .filter((tc: any) => tc.function.name)
+                                            .map((tc: any) => ({
+                                                id: tc.id,
+                                                type: tc.type || 'function',
+                                                function: {
+                                                    name: tc.function.name,
+                                                    arguments: tc.function.arguments
+                                                }
+                                            }))
+                                    }
+
+                                    // Process the new tool calls
+                                    let nextToolResult
+                                    try {
+                                        nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUpMessage }] })
+                                    } catch (toolError: any) {
+                                        console.error('Tool calls processing error:', toolError)
+                                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                                        nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                                    }
+
+                                    // Update search count
+                                    const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+                                    totalSearchCount += newWebSearches
+
+                                    // Save tool results
+                                    const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
+                                        toolCall: {
+                                            id: tr.toolCall.id,
+                                            name: tr.toolCall.name,
+                                            arguments: tr.toolCall.arguments
+                                        },
+                                        result: {
+                                            success: tr.result.success,
+                                            data: tr.result.data,
+                                            error: tr.result.error,
+                                            executionTime: tr.result.executionTime
+                                        }
+                                    })) || []
+
+                                    if (savedToolResults) {
+                                        savedToolResults = [...savedToolResults, ...newSavedResults]
+                                    } else {
+                                        savedToolResults = newSavedResults
+                                    }
+
+                                    // Prepare for next iteration
+                                    lastAssistantMessage = reconstructedFollowUpMessage
+                                    toolResult = nextToolResult
+                                    researchRound++
+
+                                    // Continue loop if there are more searches needed (use local variables, not async state)
+                                    const remainingSearchesAfter = researchMaxRounds - totalSearchCount
+                                    // In mandatory mode, always continue if we haven't completed all searches
+                                    // Otherwise, only continue if the model indicated it needs follow-up
+                                    hasMoreToolCalls = remainingSearchesAfter > 0 && (
+                                        researchMandatory || nextToolResult.needsFollowUp
+                                    )
+
+                                    if (!hasMoreToolCalls) {
+                                        // All searches done or no more follow-up needed
+                                        break
+                                    }
+                                } else {
+                                    // Model responded with text instead of tools
+                                    // Check if we're in mandatory mode and need more searches
+                                    const remainingSearchesAfter = researchMaxRounds - totalSearchCount
+                                    if (researchMandatory && remainingSearchesAfter > 0) {
+                                        // Force another search by adding a directive message
+                                        lastAssistantMessage = {
+                                            role: 'assistant',
+                                            content: followUpAccumulatedContent,
+                                            tool_calls: []
+                                        } as any
+                                        // Create a mock tool result that says "you must search again"
+                                        toolResult = {
+                                            hasTools: true,
+                                            toolResults: [],
+                                            formattedResults: [{
+                                                role: 'system',
+                                                content: `\n\n*** MANDATORY: YOU MUST SEARCH ${remainingSearchesAfter} MORE TIMES ***\n\nYou attempted to respond without completing all ${researchMaxRounds} required searches.\n\nYou MUST use web_search exactly ${remainingSearchesAfter} more time(s) before providing your answer.\n\nDo: Use web_search now with a different query.\nDon't: Provide your answer yet.`
+                                            }],
+                                            needsFollowUp: true
+                                        } as any
+                                        // Continue loop
+                                        researchRound++
+                                        // Don't set hasMoreToolCalls to false - loop again
+                                    } else {
+                                        // Not mandatory mode or searches complete, exit loop
+                                        hasMoreToolCalls = false
+                                    }
+                                }
+                            }
+
+                            // === FINAL ANSWER REQUEST ===
+                            // After all searches complete, make one final request to get the model's comprehensive answer
+                            // Do NOT force tool use - let the model provide its final answer
+                            if (researchMandatory && totalSearchCount >= researchMaxRounds) {
+                                console.log('[RESEARCH LOOP] All searches complete. Requesting final answer...')
+
+                                // Build final answer request messages
+                                const finalAnswerMessages: any[] = []
+
+                                // Add completion message directing the model to answer
+                                finalAnswerMessages.push({
+                                    role: 'system',
+                                    content: `\n\n*** ALL RESEARCH COMPLETE ***\nYou have completed all ${totalSearchCount} required web searches.\n\nYou MUST now provide your FINAL COMPREHENSIVE ANSWER based on all the information gathered.\n\nDo NOT make any more tool calls.\nSynthesize all the search results into a coherent, well-structured response that directly answers the user's question.\nInclude relevant details from the searches and cite sources where appropriate.`
                                 })
-                            }
 
-                            for await (const chunk of streamGroqCompletion(
-                                settings.groqApiKey,
-                                settings.aiModel,
-                                followUpMessages,
-                                {
-                                    temperature: settings.temperature,
-                                    max_tokens: settings.maxTokens,
-                                    tools: groqTools
+                                // Add conversation history
+                                finalAnswerMessages.push(...optimizedHistory)
+                                // Add the last assistant message and tool results
+                                finalAnswerMessages.push(lastAssistantMessage)
+                                finalAnswerMessages.push(...toolResult.formattedResults)
+
+                                // Make final request WITHOUT forcing tool use
+                                let finalAnswerContent = ''
+                                let finalAnswerUsage: any = {}
+
+                                for await (const chunk of streamGroqCompletion(
+                                    settings.groqApiKey,
+                                    settings.aiModel,
+                                    finalAnswerMessages,
+                                    {
+                                        temperature: settings.temperature,
+                                        max_tokens: settings.maxTokens,
+                                        tools: groqTools
+                                        // NO toolChoice - let model decide
+                                    }
+                                )) {
+                                    const delta = chunk.choices?.[0]?.delta?.content || ''
+                                    finalAnswerContent += delta
+
+                                    if (chunk.usage) {
+                                        finalAnswerUsage = chunk.usage
+                                    }
+
+                                    const now = Date.now()
+                                    if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + finalAnswerContent })
+                                        lastUpdateTime = now
+                                    }
                                 }
-                            )) {
-                                const delta = chunk.choices?.[0]?.delta?.content || ''
-                                followUpContent += delta
-                                if (chunk.usage) {
-                                    followUpUsage = chunk.usage
+
+                                // Add final answer to accumulated content
+                                accumulatedContent += finalAnswerContent
+
+                                // Update the streaming message with the final answer
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                                // Combine usage stats
+                                usage = {
+                                    inputTokens: (usage.inputTokens || 0) + (finalAnswerUsage.prompt_tokens || 0),
+                                    outputTokens: (usage.outputTokens || 0) + (finalAnswerUsage.completion_tokens || 0),
+                                    totalTokens: (usage.totalTokens || 0) + (finalAnswerUsage.total_tokens || 0)
                                 }
 
-                                const now = Date.now()
-                                if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
-                                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
-                                    followUpLastUpdate = now
-                                }
-                            }
-
-                            accumulatedContent += followUpContent
-                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
-
-                            usage = {
-                                inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
-                                outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
-                                totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0)
+                                console.log('[RESEARCH LOOP] Final answer generated. Length:', finalAnswerContent.length)
                             }
                         } else {
                             usage = {
@@ -1274,7 +1502,14 @@ export default function ChatArea() {
 
                                 // Determine if we should force tool use (mandatory mode with remaining searches)
                                 const remainingSearches = researchMaxRounds - totalSearchCount
-                                const forceToolUse = researchMandatory && remainingSearches > 0 && researchMaxRounds <= 5
+                                const forceToolUse = researchMandatory && remainingSearches > 0
+
+                                // Build toolChoice - use specific function format to force web_search
+                                let toolChoice: 'auto' | 'required' | { type: 'function'; function: { name: string } } | undefined
+                                if (forceToolUse) {
+                                    // Force the model to call web_search specifically
+                                    toolChoice = { type: 'function', function: { name: 'web_search' } }
+                                }
 
                                 // Stream follow-up response
                                 for await (const chunk of streamOpenRouterCompletion(
@@ -1285,7 +1520,7 @@ export default function ChatArea() {
                                         temperature: settings.temperature,
                                         maxTokens: settings.maxTokens,
                                         tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined,
-                                        toolChoice: forceToolUse ? 'required' : undefined
+                                        toolChoice: toolChoice
                                     }
                                 )) {
                                     const delta = chunk.choices?.[0]?.delta?.content || ''
@@ -1420,7 +1655,7 @@ export default function ChatArea() {
                                     // Check if we're in mandatory mode and need more searches (use local variables, not async state)
                                     const remainingSearches = researchMaxRounds - totalSearchCount
                                     console.log('[RESEARCH LOOP] Remaining searches:', remainingSearches, 'Mandatory:', researchMandatory)
-                                    if (researchMandatory && remainingSearches > 0 && researchMaxRounds <= 5) {
+                                    if (researchMandatory && remainingSearches > 0) {
                                         // Force another search by adding a directive message
                                         lastAssistantMessage = {
                                             role: 'assistant',
@@ -1445,6 +1680,74 @@ export default function ChatArea() {
                                         hasMoreToolCalls = false
                                     }
                                 }
+                            }
+
+                            // === FINAL ANSWER REQUEST ===
+                            // After all searches complete, make one final request to get the model's comprehensive answer
+                            // Do NOT force tool use - let the model provide its final answer
+                            if (researchMandatory && totalSearchCount >= researchMaxRounds) {
+                                console.log('[RESEARCH LOOP] All searches complete. Requesting final answer...')
+
+                                // Build final answer request messages
+                                const finalAnswerMessages: any[] = []
+
+                                // Add completion message directing the model to answer
+                                finalAnswerMessages.push({
+                                    role: 'system',
+                                    content: `\n\n*** ALL RESEARCH COMPLETE ***\nYou have completed all ${totalSearchCount} required web searches.\n\nYou MUST now provide your FINAL COMPREHENSIVE ANSWER based on all the information gathered.\n\nDo NOT make any more tool calls.\nSynthesize all the search results into a coherent, well-structured response that directly answers the user's question.\nInclude relevant details from the searches and cite sources where appropriate.`
+                                })
+
+                                // Add conversation history
+                                finalAnswerMessages.push(...optimizedHistory)
+                                // Add the last assistant message and tool results
+                                finalAnswerMessages.push(lastAssistantMessage)
+                                finalAnswerMessages.push(...toolResult.formattedResults)
+
+                                // Make final request WITHOUT forcing tool use
+                                let finalAnswerContent = ''
+                                let finalAnswerUsage: any = {}
+
+                                for await (const chunk of streamOpenRouterCompletion(
+                                    settings.openRouterApiKey,
+                                    settings.aiModel,
+                                    finalAnswerMessages,
+                                    {
+                                        temperature: settings.temperature,
+                                        maxTokens: settings.maxTokens,
+                                        tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined
+                                        // NO toolChoice - let model decide
+                                    }
+                                )) {
+                                    const delta = chunk.choices?.[0]?.delta?.content || ''
+                                    finalAnswerContent += delta
+
+                                    if (chunk.usage) {
+                                        finalAnswerUsage = chunk.usage
+                                    }
+
+                                    const now = Date.now()
+                                    if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + finalAnswerContent })
+                                        lastUpdateTime = now
+                                    }
+                                }
+
+                                // Add final answer to accumulated content
+                                accumulatedContent += finalAnswerContent
+
+                                // Update the streaming message with the final answer
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                                // Combine usage stats
+                                usage = {
+                                    inputTokens: (usage.inputTokens || 0) + (finalAnswerUsage.prompt_tokens || 0),
+                                    outputTokens: (usage.outputTokens || 0) + (finalAnswerUsage.completion_tokens || 0),
+                                    totalTokens: (usage.totalTokens || 0) + (finalAnswerUsage.total_tokens || 0),
+                                    cachedInputTokens: ((usage.cachedInputTokens || 0) + (finalAnswerUsage.prompt_cache_tokens || 0)) || undefined,
+                                    cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (finalAnswerUsage.completion_cache_tokens || 0)) || undefined
+                                }
+
+                                console.log('[RESEARCH LOOP] Final answer generated. Length:', finalAnswerContent.length)
                             }
                         } else {
                             // No follow-up needed, finalize with existing content
@@ -2435,93 +2738,8 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
 
                 {/* Message content */}
                 <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                        code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || '')
-                            return !inline && match ? (
-                                <div style={{ position: 'relative', margin: '12px 0' }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        padding: '8px 12px',
-                                        backgroundColor: '#1e1e1e',
-                                        borderTopLeftRadius: '8px',
-                                        borderTopRightRadius: '8px',
-                                        fontSize: '0.75rem',
-                                        color: '#b0b0b0'
-                                    }}>
-                                        <span>{match[1]}</span>
-                                        <button
-                                            onClick={() => navigator.clipboard.writeText(String(children))}
-                                            style={{ background: 'none', border: 'none', color: '#b0b0b0', cursor: 'pointer', fontSize: '0.75rem' }}
-                                        >
-                                            Copy
-                                        </button>
-                                    </div>
-                                    <SyntaxHighlighter
-                                        {...props}
-                                        children={String(children).replace(/\n$/, '')}
-                                        style={vscDarkPlus}
-                                        language={match[1]}
-                                        PreTag="div"
-                                        customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}
-                                    />
-                                </div>
-                            ) : (
-                                <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'menubar' }}>
-                                    {children}
-                                </code>
-                            )
-                        },
-                        blockquote: ({ node, ...props }) => (
-                            <blockquote style={{
-                                borderLeft: '4px solid #f59e0b',
-                                background: 'rgba(255,255,255,0.05)',
-                                padding: '12px 16px',
-                                margin: '16px 0',
-                                borderRadius: '0 8px 8px 0',
-                                color: '#d0d0d0'
-                            }} {...props} />
-                        ),
-                        table: ({ node, ...props }) => (
-                            <div style={{ overflowX: 'auto', margin: '16px 0', borderRadius: '8px', border: '1px solid #333' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', background: '#1e1e1e' }} {...props} />
-                            </div>
-                        ),
-                        th: ({ node, ...props }) => (
-                            <th style={{
-                                borderBottom: '1px solid #444',
-                                padding: '12px',
-                                textAlign: 'left',
-                                fontWeight: 600,
-                                color: '#fff',
-                                background: '#252525'
-                            }} {...props} />
-                        ),
-                        td: ({ node, ...props }) => (
-                            <td style={{
-                                borderBottom: '1px solid #333',
-                                padding: '12px',
-                                color: '#ccc'
-                            }} {...props} />
-                        ),
-                        a: ({ node, ...props }) => (
-                            <a style={{ color: '#f59e0b', textDecoration: 'none', borderBottom: '1px dotted #f59e0b', transition: 'all 0.2s' }} target="_blank" rel="noopener noreferrer" {...props} />
-                        ),
-                        ul: ({ node, ...props }) => <ul style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
-                        ol: ({ node, ...props }) => <ol style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
-                        h1: ({ node, ...props }) => <h1 style={{ fontSize: '1.5em', fontWeight: 700, margin: '24px 0 16px', color: '#fff' }} {...props} />,
-                        h2: ({ node, ...props }) => <h2 style={{ fontSize: '1.3em', fontWeight: 600, margin: '20px 0 12px', color: '#f0f0f0' }} {...props} />,
-                        h3: ({ node, ...props }) => <h3 style={{ fontSize: '1.1em', fontWeight: 600, margin: '16px 0 8px', color: '#e0e0e0' }} {...props} />
-                    }}
-                >
-
-                    {processedContent}
-                </ReactMarkdown>
-            </div>
+                    <LazyMarkdown content={processedContent} />
+                </div>
 
             {/* Action Bar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>

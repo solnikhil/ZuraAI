@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Search, Globe, Calculator, Clock, Clipboard, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, Search, Globe, Calculator, Clock, Clipboard, AlertCircle } from '../../components/icons'
 import { formatToolDisplayName } from '../mcpUtils'
 import './ToolResultDisplay.css'
 

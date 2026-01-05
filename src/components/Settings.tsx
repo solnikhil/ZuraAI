@@ -4,7 +4,13 @@ import { useSettings, TodoItem, McpServerConfig } from '../contexts/SettingsCont
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, saveApiKeyToSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
-import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search, Globe, Calculator, Clipboard, Plug } from 'lucide-react'
+import {
+    Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff,
+    RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp,
+    Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot,
+    MousePointer, Keyboard, Monitor, FolderOpen, SettingsIcon, Shield,
+    Workflow, ChevronDown, Search, Globe, Calculator, Clipboard, Plug
+} from './icons'
 import { motion } from 'framer-motion'
 import KeyboardShortcuts from './KeyboardShortcuts'
 import type { CodexUsageInfo } from '../electron.d'

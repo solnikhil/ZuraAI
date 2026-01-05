@@ -1,9 +1,25 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
-import Settings from '../Settings'
 import { useSettings } from '../../contexts/SettingsContext'
 
+// Lazy load Settings component for memory optimization
+// Only loads when user actually opens Settings
+const Settings = lazy(() => import('../Settings').then(m => ({ default: m.default })))
+
+function SettingsLoadingFallback() {
+    return (
+        <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            color: '#999'
+        }}>
+            Loading Settings...
+        </div>
+    )
+}
 
 export default function DashboardLayout() {
     const [view, setView] = useState<'chat' | 'settings'>('chat')
@@ -48,11 +64,13 @@ export default function DashboardLayout() {
             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                 {view === 'settings' ? (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
-                        <Settings
-                            activeSection={activeSettingsSection}
-                            onUnsavedChange={handleUnsavedChange}
-                            showWarning={showUnsavedWarning}
-                        />
+                        <Suspense fallback={<SettingsLoadingFallback />}>
+                            <Settings
+                                activeSection={activeSettingsSection}
+                                onUnsavedChange={handleUnsavedChange}
+                                showWarning={showUnsavedWarning}
+                            />
+                        </Suspense>
                     </div>
                 ) : (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>

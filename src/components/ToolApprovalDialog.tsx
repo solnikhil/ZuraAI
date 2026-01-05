@@ -3,7 +3,7 @@
 // **Validates: Requirements 4.3**
 
 import React from 'react'
-import { ShieldCheck, AlertTriangle, X, Check } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, X, Check } from './icons'
 import { ToolCall } from '../tools/executor'
 import { getToolByName } from '../tools/definitions'
 import { formatToolDisplayName } from '../tools/mcpUtils'

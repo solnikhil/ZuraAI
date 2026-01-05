@@ -69,7 +69,7 @@ interface GroqRequestBody {
     temperature?: number
     max_completion_tokens?: number
     tools?: ToolDefinition[]
-    tool_choice?: 'auto' | 'none'
+    tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
 }
 
 export async function* streamGroqCompletion(
@@ -80,6 +80,7 @@ export async function* streamGroqCompletion(
         temperature?: number
         max_tokens?: number
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: GroqStreamChunk) => void
     }
 ): AsyncGenerator<GroqStreamChunk, void, unknown> {
@@ -101,7 +102,7 @@ export async function* streamGroqCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -170,6 +171,7 @@ export const generateGroqCompletion = async (
         temperature?: number
         max_tokens?: number
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
     }
 ): Promise<GroqResponse> => {
     if (!apiKey) {
@@ -191,7 +193,7 @@ export const generateGroqCompletion = async (
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
     try {
