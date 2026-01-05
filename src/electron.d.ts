@@ -107,6 +107,12 @@ export interface CodexUsageResult {
     note?: string
 }
 
+export interface CodexBaseInstructionsResult {
+    success: boolean
+    error?: string
+    instructions: string | null
+}
+
 export interface CodexAuthAPI {
     initiateAuth: () => Promise<CodexAuthResult>
     getAuthState: () => Promise<CodexAuthState>
@@ -115,6 +121,7 @@ export interface CodexAuthAPI {
     sendRequest: (params: CodexRequestParams) => Promise<CodexRequestResponse>
     fetchModels: () => Promise<CodexModelsResult>
     checkUsage: () => Promise<CodexUsageResult>
+    getBaseInstructions: (modelSlug: string) => Promise<CodexBaseInstructionsResult>
     // True SSE streaming support
     streamChat: (params: { messages: any[]; model: string; options?: any }) => Promise<{ success: boolean }>
     onStreamChunk: (callback: (chunk: any) => void) => () => void

@@ -86,6 +86,17 @@ export const modelsWithToolSupport: Record<string, string[]> = {
  * Check if a specific model supports function calling
  */
 export function modelSupportsTools(provider: string, model: string): boolean {
+    // OpenRouter: Most modern models support tools, be permissive
+    if (provider === 'openrouter') {
+        // Only exclude known models that don't support tools
+        const nonToolModels = ['deepseek', 'qwen', 'yi-']
+        return !nonToolModels.some(excluded => model.toLowerCase().includes(excluded))
+    }
+
+    if (provider === 'codex') {
+        return true
+    }
+
     const supportedModels = modelsWithToolSupport[provider]
     if (!supportedModels) return false
 

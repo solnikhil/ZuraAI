@@ -177,13 +177,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 gap: '2px'
             }}>
                 {!isCollapsed && filteredSessions.length > 0 && (
-                    <div onClick={() => setIsListExpanded(!isListExpanded)} style={{ fontSize: '0.85rem', color: '#b0b0b0', padding: '8px 4px', marginTop: '4px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
+                    <div onClick={() => setIsListExpanded(!isListExpanded)} style={{ fontSize: '0.85rem', color: '#b0b0b0', padding: '12px 4px 8px', marginTop: '8px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
                         <ChevronDown size={14} style={{ transition: 'transform 0.2s', transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
                         <span>Your chats</span>
                     </div>
                 )}
 
-                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '4px' }}>
                     {filteredSessions.map((session, index) => (
                         <div
                             key={session.id}
@@ -194,9 +194,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '10px',
-                                padding: '8px 8px',
+                                padding: '10px 12px',
                                 cursor: 'pointer',
-                                borderRadius: '8px',
+                                borderRadius: '10px',
                                 fontSize: '0.9rem',
                                 color: currentSessionId === session.id ? '#fff' : '#b4b4b4',
                                 backgroundColor: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
@@ -205,6 +205,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                 animationDelay: `${index * 0.05}s`
                             }}
                         >
+                            <MessageSquare size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
                             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block', minWidth: 0 }}>{session.title}</span>
                             {!isCollapsed && (
                                 <div
@@ -212,13 +213,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                     onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
                                     style={{
                                         opacity: 0,
-                                        padding: '4px',
+                                        padding: '6px',
                                         borderRadius: '6px',
                                         visibility: currentSessionId === session.id ? 'visible' : 'hidden',
-                                        flexShrink: 0
+                                        flexShrink: 0,
+                                        transition: 'opacity 0.15s ease'
                                     }}
                                 >
-                                    <Trash2 size={13} color="#b0b0b0" />
+                                    <Trash2 size={14} color="#b0b0b0" />
                                 </div>
                             )}
                         </div>
@@ -532,6 +534,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 .session-item:hover { background-color: rgba(255,255,255,0.06) !important; color: #fff !important; }
                 .session-item:hover .delete-btn { opacity: 1 !important; }
                 .delete-btn:hover { background-color: rgba(255,255,255,0.1) !important; }
+                .delete-btn:hover svg { color: #ef4444 !important; }
                 ::-webkit-scrollbar { width: 4px; }
                 ::-webkit-scrollbar-track { background: transparent; }
                 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }

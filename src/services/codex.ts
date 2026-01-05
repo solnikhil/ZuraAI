@@ -5,7 +5,7 @@
  * Follows the same patterns as other providers (OpenRouter, Gemini, etc.)
  */
 
-import { ChatMessage } from './types'
+import { ChatMessage, StreamingToolCall } from './types'
 
 // ============================================================================
 // Types and Interfaces
@@ -41,6 +41,7 @@ export interface CodexStreamChunk {
         delta?: {
             content?: string
             role?: string
+            tool_calls?: StreamingToolCall[]
         }
         finish_reason?: string | null
     }>
@@ -78,6 +79,7 @@ export interface CodexOptions {
     maxTokens?: number
     stream?: boolean
     reasoningSummary?: 'auto' | 'concise' | 'detailed' | 'none'
+    tools?: any[]
 }
 
 /**
@@ -273,127 +275,15 @@ Your default personality and tone is concise, direct, and friendly. You communic
  * Reference: research-codex/codex/codex-rs/core/models.json (gpt-5.1-codex-max base_instructions)
  * Note: gpt-5.2-codex upgrades to gpt-5.1-codex-max, so we use those instructions
  */
-export const OFFICIAL_CODEX_BASE_INSTRUCTIONS = `You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.
+export const OFFICIAL_CODEX_BASE_INSTRUCTIONS = "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.\n\n## General\n\n- When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)\n\n## Editing constraints\n\n- Default to ASCII when editing or creating files. Only introduce non-ASCII or other Unicode characters when there is a clear justification and the file already uses them.\n- Add succinct code comments that explain what is going on if code is not self-explanatory. You should not add comments like \"Assigns the value to the variable\", but a brief comment might be useful ahead of a complex code block that the user would otherwise have to spend time parsing out. Usage of these comments should be rare.\n- Try to use apply_patch for single file edits, but it is fine to explore other options to make the edit if it does not work well. Do not use apply_patch for changes that are auto-generated (i.e. generating package.json or running a lint or format command like gofmt) or when scripting is more efficient (such as search and replacing a string across a codebase).\n- You may be in a dirty git worktree.\n    * NEVER revert existing changes you did not make unless explicitly requested, since these changes were made by the user.\n    * If asked to make a commit or code edits and there are unrelated changes to your work or changes that you didn't make in those files, don't revert those changes.\n    * If the changes are in files you've touched recently, you should read carefully and understand how you can work with the changes rather than reverting them.\n    * If the changes are in unrelated files, just ignore them and don't revert them.\n- Do not amend a commit unless explicitly requested to do so.\n- While you are working, you might notice unexpected changes that you didn't make. If this happens, STOP IMMEDIATELY and ask the user how they would like to proceed.\n- **NEVER** use destructive commands like `git reset --hard` or `git checkout --` unless specifically requested or approved by the user.\n\n## Plan tool\n\nWhen using the planning tool:\n- Skip using the planning tool for straightforward tasks (roughly the easiest 25%).\n- Do not make single-step plans.\n- When you made a plan, update it after having performed one of the sub-tasks that you shared on the plan.\n\n## Codex CLI harness, sandboxing, and approvals\n\nThe Codex CLI harness supports several different configurations for sandboxing and escalation approvals that the user can choose from.\n\nFilesystem sandboxing defines which files can be read or written. The options for `sandbox_mode` are:\n- **read-only**: The sandbox only permits reading files.\n- **workspace-write**: The sandbox permits reading files, and editing files in `cwd` and `writable_roots`. Editing files in other directories requires approval.\n- **danger-full-access**: No filesystem sandboxing - all commands are permitted.\n\nNetwork sandboxing defines whether network can be accessed without approval. Options for `network_access` are:\n- **restricted**: Requires approval\n- **enabled**: No approval needed\n\nApprovals are your mechanism to get user consent to run shell commands without the sandbox. Possible configuration options for `approval_policy` are\n- **untrusted**: The harness will escalate most commands for user approval, apart from a limited allowlist of safe \"read\" commands.\n- **on-failure**: The harness will allow all commands to run in the sandbox (if enabled), and failures will be escalated to the user for approval to run again without the sandbox.\n- **on-request**: Commands will be run in the sandbox by default, and you can specify in your tool call if you want to escalate a command to run without sandboxing. (Note that this mode is not always available. If it is, you'll see parameters for it in the `shell` command description.)\n- **never**: This is a non-interactive mode where you may NEVER ask the user for approval to run commands. Instead, you must always persist and work around constraints to solve the task for the user. You MUST do your utmost best to finish the task and validate your work before yielding. If this mode is paired with `danger-full-access`, take advantage of it to deliver the best outcome for the user. Further, in this mode, your default testing philosophy is overridden: Even if you don't see local patterns for testing, you may add tests and scripts to validate your work. Just remove them before yielding.\n\nWhen you are running with `approval_policy == on-request`, and sandboxing enabled, here are scenarios where you'll need to request approval:\n- You need to run a command that writes to a directory that requires it (e.g. running tests that write to /var)\n- You need to run a GUI app (e.g., open/xdg-open/osascript) to open browsers or files.\n- You are running sandboxed and need to run a command that requires network access (e.g. installing packages)\n- If you run a command that is important to solving the user's query, but it fails because of sandboxing, rerun the command with approval. ALWAYS proceed to use the `sandbox_permissions` and `justification` parameters - do not message the user before requesting approval for the command.\n- You are about to take a potentially destructive action such as an `rm` or `git reset` that the user did not explicitly ask for\n- (for all of these, you should weigh alternative paths that do not require approval)\n\nWhen `sandbox_mode` is set to read-only, you'll need to request approval for any command that isn't a read.\n\nYou will be told what filesystem sandboxing, network sandboxing, and approval mode are active in a developer or user message. If you are not told about this, assume that you are running with workspace-write, network sandboxing enabled, and approval on-failure.\n\nAlthough they introduce friction to the user because your work is paused until the user responds, you should leverage them when necessary to accomplish important work. If the completing the task requires escalated permissions, Do not let these settings or the sandbox deter you from attempting to accomplish the user's task unless it is set to \"never\", in which case never ask for approvals.\n\nWhen requesting approval to execute a command that will require escalated privileges:\n  - Provide the `sandbox_permissions` parameter with the value `\"require_escalated\"`\n  - Include a short, 1 sentence explanation for why you need escalated permissions in the justification parameter\n\n## Special user requests\n\n- If the user makes a simple request (such as asking for the time) which you can fulfill by running a terminal command (such as `date`), you should do so.\n- If the user asks for a \"review\", default to a code review mindset: prioritise identifying bugs, risks, behavioural regressions, and missing tests. Findings must be the primary focus of the response - keep summaries or overviews brief and only after enumerating the issues. Present findings first (ordered by severity with file/line references), follow with open questions or assumptions, and offer a change-summary only as a secondary detail. If no findings are discovered, state that explicitly and mention any residual risks or testing gaps.\n\n## Frontend tasks\nWhen doing frontend design tasks, avoid collapsing into \"AI slop\" or safe, average-looking layouts.\nAim for interfaces that feel intentional, bold, and a bit surprising.\n- Typography: Use expressive, purposeful fonts and avoid default stacks (Inter, Roboto, Arial, system).\n- Color & Look: Choose a clear visual direction; define CSS variables; avoid purple-on-white defaults. No purple bias or dark mode bias.\n- Motion: Use a few meaningful animations (page-load, staggered reveals) instead of generic micro-motions.\n- Background: Don't rely on flat, single-color backgrounds; use gradients, shapes, or subtle patterns to build atmosphere.\n- Overall: Avoid boilerplate layouts and interchangeable UI patterns. Vary themes, type families, and visual languages across outputs.\n- Ensure the page loads properly on both desktop and mobile\n\nException: If working within an existing website or design system, preserve the established patterns, structure, and visual language.\n\n## Presenting your work and final message\n\nYou are producing plain text that will later be styled by the CLI. Follow these rules exactly. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value.\n\n- Default: be very concise; friendly coding teammate tone.\n- Ask only when needed; suggest ideas; mirror the user's style.\n- For substantial work, summarize clearly; follow final‑answer formatting.\n- Skip heavy formatting for simple confirmations.\n- Don't dump large files you've written; reference paths only.\n- No \"save/copy this file\" - User is on the same machine.\n- Offer logical next steps (tests, commits, build) briefly; add verify steps if you couldn't do something.\n- For code changes:\n  * Lead with a quick explanation of the change, and then give more details on the context covering where and why a change was made. Do not start this explanation with \"summary\", just jump right in.\n  * If there are natural next steps the user may want to take, suggest them at the end of your response. Do not make suggestions if there are no natural next steps.\n  * When suggesting multiple options, use numeric lists for the suggestions so the user can quickly respond with a single number.\n- The user does not command execution outputs. When asked to show the output of a command (e.g. `git show`), relay the important details in your answer or summarize the key lines so the user understands the result.\n\n### Final answer structure and style guidelines\n\n- Plain text; CLI handles styling. Use structure only when it helps scanability.\n- Headers: optional; short Title Case (1-3 words) wrapped in **…**; no blank line before the first bullet; add only if they truly help.\n- Bullets: use - ; merge related points; keep to one line when possible; 4–6 per list ordered by importance; keep phrasing consistent.\n- Monospace: backticks for commands/paths/env vars/code ids and inline examples; use for literal keyword bullets; never combine with **.\n- Code samples or multi-line snippets should be wrapped in fenced code blocks; include an info string as often as possible.\n- Structure: group related bullets; order sections general → specific → supporting; for subsections, start with a bolded keyword bullet, then items; match complexity to the task.\n- Tone: collaborative, concise, factual; present tense, active voice; self‑contained; no \"above/below\"; parallel wording.\n- Don'ts: no nested bullets/hierarchies; no ANSI codes; don't cram unrelated keywords; keep keyword lists short—wrap/reformat if long; avoid naming formatting styles in answers.\n- Adaptation: code explanations → precise, structured with code refs; simple tasks → lead with outcome; big changes → logical walkthrough + rationale + next actions; casual one-offs → plain sentences, no headers/bullets.\n- File References: When referencing files in your response follow the below rules:\n  * Use inline code to make file paths clickable.\n  * Each reference should have a stand alone path. Even if it's the same file.\n  * Accepted: absolute, workspace‑relative, a/ or b/ diff prefixes, or bare filename/suffix.\n  * Optionally include line/column (1‑based): :line[:column] or #Lline[Ccolumn] (column defaults to 1).\n  * Do not use URIs like file://, vscode://, or https://.\n  * Do not provide range of lines\n  * Examples: src/app.ts, src/app.ts:42, b/server/index.js#L10, C:\\repo\\project\\main.rs:12:5\n"
 
-## General
-
-- When searching for text or files, prefer using \`rg\` or \`rg --files\` respectively because \`rg\` is much faster than alternatives like \`grep\`. (If the \`rg\` command is not found, then use alternatives.)
-
-## Editing constraints
-
-- Default to ASCII when editing or creating files. Only introduce non-ASCII or other Unicode characters when there is a clear justification and the file already uses them.
-- Add succinct code comments that explain what is going on if code is not self-explanatory. You should not add comments like "Assigns the value to the variable", but a brief comment might be useful ahead of a complex code block that the user would otherwise have to spend time parsing out. Usage of these comments should be rare.
-- Try to use apply_patch for single file edits, but it is fine to explore other options to make the edit if it does not work well. Do not use apply_patch for changes that are auto-generated (i.e. generating package.json or running a lint or format command like gofmt) or when scripting is more efficient (such as search and replacing a string across a codebase).
-- You may be in a dirty git worktree.
-    * NEVER revert existing changes you did not make unless explicitly requested, since these changes were made by the user.
-    * If asked to make a commit or code edits and there are unrelated changes to your work or changes that you didn't make in those files, don't revert those changes.
-    * If the changes are in files you've touched recently, you should read carefully and understand how you can work with the changes rather than reverting them.
-    * If the changes are in unrelated files, just ignore them and don't revert them.
-- Do not amend a commit unless explicitly requested to do so.
-- While you are working, you might notice unexpected changes that you didn't make. If this happens, STOP IMMEDIATELY and ask the user how they would like to proceed.
-- **NEVER** use destructive commands like \`git reset --hard\` or \`git checkout --\` unless specifically requested or approved by the user.
-
-## Plan tool
-
-When using the planning tool:
-- Skip using the planning tool for straightforward tasks (roughly the easiest 25%).
-- Do not make single-step plans.
-- When you made a plan, update it after having performed one of the sub-tasks that you shared on the plan.
-
-## Codex CLI harness, sandboxing, and approvals
-
-The Codex CLI harness supports several different configurations for sandboxing and escalation approvals that the user can choose from.
-
-Filesystem sandboxing defines which files can be read or written. The options for \`sandbox_mode\` are:
-- **read-only**: The sandbox only permits reading files.
-- **workspace-write**: The sandbox permits reading files, and editing files in \`cwd\` and \`writable_roots\`. Editing files in other directories requires approval.
-- **danger-full-access**: No filesystem sandboxing - all commands are permitted.
-
-Network sandboxing defines whether network can be accessed without approval. Options for \`network_access\` are:
-- **restricted**: Requires approval
-- **enabled**: No approval needed
-
-Approvals are your mechanism to get user consent to run shell commands without the sandbox. Possible configuration options for \`approval_policy\` are
-- **untrusted**: The harness will escalate most commands for user approval, apart from a limited allowlist of safe "read" commands.
-- **on-failure**: The harness will allow all commands to run in the sandbox (if enabled), and failures will be escalated to the user for approval to run again without the sandbox.
-- **on-request**: Commands will be run in the sandbox by default, and you can specify in your tool call if you want to escalate a command to run without sandboxing. (Note that this mode is not always available. If it is, you'll see parameters for it in the \`shell\` command description.)
-- **never**: This is a non-interactive mode where you may NEVER ask the user for approval to run commands. Instead, you must always persist and work around constraints to solve the task for the user. You MUST do your utmost best to finish the task and validate your work before yielding. If this mode is paired with \`danger-full-access\`, take advantage of it to deliver the best outcome for the user. Further, in this mode, your default testing philosophy is overridden: Even if you don't see local patterns for testing, you may add tests and scripts to validate your work. Just remove them before yielding.
-
-When you are running with \`approval_policy == on-request\`, and sandboxing enabled, here are scenarios where you'll need to request approval:
-- You need to run a command that writes to a directory that requires it (e.g. running tests that write to /var)
-- You need to run a GUI app (e.g., open/xdg-open/osascript) to open browsers or files.
-- You are running sandboxed and need to run a command that requires network access (e.g. installing packages)
-- If you run a command that is important to solving the user's query, but it fails because of sandboxing, rerun the command with approval. ALWAYS proceed to use the \`sandbox_permissions\` and \`justification\` parameters - do not message the user before requesting approval for the command.
-- You are about to take a potentially destructive action such as an \`rm\` or \`git reset\` that the user did not explicitly ask for
-- (for all of these, you should weigh alternative paths that do not require approval)
-
-When \`sandbox_mode\` is set to read-only, you'll need to request approval for any command that isn't a read.
-
-You will be told what filesystem sandboxing, network sandboxing, and approval mode are active in a developer or user message. If you are not told about this, assume that you are running with workspace-write, network sandboxing enabled, and approval on-failure.
-
-Although they introduce friction to the user because your work is paused until the user responds, you should leverage them when necessary to accomplish important work. If the completing the task requires escalated permissions, Do not let these settings or the sandbox deter you from attempting to accomplish the user's task unless it is set to "never", in which case never ask for approvals.
-
-When requesting approval to execute a command that will require escalated privileges:
-  - Provide the \`sandbox_permissions\` parameter with the value \`"require_escalated"\`
-  - Include a short, 1 sentence explanation for why you need escalated permissions in the justification parameter
-
-## Special user requests
-
-- If the user makes a simple request (such as asking for the time) which you can fulfill by running a terminal command (such as \`date\`), you should do so.
-- If the user asks for a "review", default to a code review mindset: prioritise identifying bugs, risks, behavioural regressions, and missing tests. Findings must be the primary focus of the response - keep summaries or overviews brief and only after enumerating the issues. Present findings first (ordered by severity with file/line references), follow with open questions or assumptions, and offer a change-summary only as a secondary detail. If no findings are discovered, state that explicitly and mention any residual risks or testing gaps.
-
-## Frontend tasks
-When doing frontend design tasks, avoid collapsing into "AI slop" or safe, average-looking layouts.
-Aim for interfaces that feel intentional, bold, and a bit surprising.
-- Typography: Use expressive, purposeful fonts and avoid default stacks (Inter, Roboto, Arial, system).
-- Color & Look: Choose a clear visual direction; define CSS variables; avoid purple-on-white defaults. No purple bias or dark mode bias.
-- Motion: Use a few meaningful animations (page-load, staggered reveals) instead of generic micro-motions.
-- Background: Don't rely on flat, single-color backgrounds; use gradients, shapes, or subtle patterns to build atmosphere.
-- Overall: Avoid boilerplate layouts and interchangeable UI patterns. Vary themes, type families, and visual languages across outputs.
-- Ensure the page loads properly on both desktop and mobile
-
-Exception: If working within an existing website or design system, preserve the established patterns, structure, and visual language.
-
-## Presenting your work and final message
-
-You are producing plain text that will later be styled by the CLI. Follow these rules exactly. Formatting should make results easy to scan, but not feel mechanical. Use judgment to decide how much structure adds value.
-
-- Default: be very concise; friendly coding teammate tone.
-- Ask only when needed; suggest ideas; mirror the user's style.
-- For substantial work, summarize clearly; follow final-answer formatting.
-- Skip heavy formatting for simple confirmations.
-- Don't dump large files you've written; reference paths only.
-- No "save/copy this file" - User is on the same machine.
-- Offer logical next steps (tests, commits, build) briefly; add verify steps if you couldn't do something.
-- For code changes:
-  * Lead with a quick explanation of the change, and then give more details on the context covering where and why a change was made. Do not start this explanation with "summary", just jump right in.
-  * If there are natural next steps the user may want to take, suggest them at the end of your response. Do not make suggestions if there are no natural next steps.
-  * When suggesting multiple options, use numeric lists for the suggestions so the user can quickly respond with a single number.
-- The user does not command execution outputs. When asked to show the output of a command (e.g. \`git show\`), relay the important details in your answer or summarize the key lines so the user understands the result.
-
-### Final answer structure and style guidelines
-
-- Plain text; CLI handles styling. Use structure only when it helps scanability.
-- Headers: optional; short Title Case (1-3 words) wrapped in **…**; no blank line before the first bullet; add only if they truly help.
-- Bullets: use - ; merge related points; keep to one line when possible; 4–6 per list ordered by importance; keep phrasing consistent.
-- Monospace: backticks for commands/paths/env vars/code ids and inline examples; use for literal keyword bullets; never combine with **.
-- Code samples or multi-line snippets should be wrapped in fenced code blocks; include an info string as often as possible.
-- Structure: group related bullets; order sections general → specific → supporting; for subsections, start with a bolded keyword bullet, then items; match complexity to the task.
-- Tone: collaborative, concise, factual; present tense, active voice; self-contained; no "above/below"; parallel wording.
-- Don'ts: no nested bullets/hierarchies; no ANSI codes; don't cram unrelated keywords; keep keyword lists short—wrap/reformat if long; avoid naming formatting styles in answers.
-- Adaptation: code explanations → precise, structured with code refs; simple tasks → lead with outcome; big changes → logical walkthrough + rationale + next actions; casual one-offs → plain sentences, no headers/bullets.
-- File References: When referencing files in your response follow the below rules:
-  * Use inline code to make file paths clickable.
-  * Each reference should have a stand alone path. Even if it's the same file.
-  * Accepted: absolute, workspace-relative, a/ or b/ diff prefixes, or bare filename/suffix.
-  * Optionally include line/column (1-based): :line[:column] or #Lline[Ccolumn] (column defaults to 1).
-  * Do not use URIs like file://, vscode://, or https://.
-  * Do not provide range of lines
-  * Examples: src/app.ts, src/app.ts:42, b/server/index.js#L10, C:\\repo\\project\\main.rs:12:5
-
-## Personality
-
-Your default personality and tone is concise, direct, and friendly. You communicate efficiently, always keeping the user clearly informed about ongoing actions without unnecessary detail.`
+/**
+ * Return the official Codex base instructions.
+ * Keeps the large template string centralized for reuse.
+ */
+export function getOfficialCodexInstructions(): string {
+    return OFFICIAL_CODEX_BASE_INSTRUCTIONS
+}
 
 /**
  * Extract system messages and prepare them as user instructions
@@ -404,14 +294,22 @@ Your default personality and tone is concise, direct, and friendly. You communic
  * Reference: research-codex/codex/codex-rs/core/src/user_instructions.rs
  * 
  * Requirements:
- * - Always use OFFICIAL_CODEX_BASE_INSTRUCTIONS as the 'instructions' field
+ * - The 'instructions' field must contain official base_instructions from the API
  * - Convert custom system messages to user_instructions format
  * - Prepend user_instructions to the input messages array
+ * 
+ * @param messages - Array of chat messages
+ * @param baseInstructions - Official base_instructions fetched from API (or fallback)
  */
-export function extractInstructionsFromMessages(messages: ChatMessage[]): { instructions: string; inputMessages: ChatMessage[] } {
+export function extractInstructionsFromMessages(messages: ChatMessage[], baseInstructions?: string | null): { instructions: string; inputMessages: ChatMessage[] } {
+    // #region agent log - HYPOTHESIS B
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/services/codex.ts:414',message:'extractInstructionsFromMessages ENTRY',data:{messageCount:messages.length,hasBaseInstructions:!!baseInstructions,baseInstructionsLength:baseInstructions?.length||0,hypothesisId:'B'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
+
     // #region agent log
     console.log('[Codex:extractInstructionsFromMessages] ========== FUNCTION ENTRY ==========')
     console.log('[Codex:extractInstructionsFromMessages] Input messages count:', messages.length)
+    console.log('[Codex:extractInstructionsFromMessages] baseInstructions provided:', !!baseInstructions, 'length:', baseInstructions?.length || 0)
     messages.forEach((msg, idx) => {
         console.log(`[Codex:extractInstructionsFromMessages] Message[${idx}]: role=${msg.role}, content length=${typeof msg.content === 'string' ? msg.content.length : JSON.stringify(msg.content).length}`)
     })
@@ -419,7 +317,7 @@ export function extractInstructionsFromMessages(messages: ChatMessage[]): { inst
 
     const systemMessages: string[] = []
     const inputMessages: ChatMessage[] = []
-    
+
     for (const msg of messages) {
         if (msg.role === 'system') {
             // Extract system message content
@@ -434,11 +332,11 @@ export function extractInstructionsFromMessages(messages: ChatMessage[]): { inst
             } else {
                 systemContent = ''
             }
-            
+
             if (systemContent.trim()) {
                 systemMessages.push(systemContent)
             }
-            
+
             // #region agent log
             console.log('[Codex:extractInstructionsFromMessages] Extracted system message:', systemContent.substring(0, 100))
             // #endregion
@@ -446,15 +344,19 @@ export function extractInstructionsFromMessages(messages: ChatMessage[]): { inst
             inputMessages.push(msg)
         }
     }
-    
-    // CRITICAL: Always use official Codex base instructions
-    // The ChatGPT backend API validates this field!
-    const instructions = OFFICIAL_CODEX_BASE_INSTRUCTIONS
-    
+
+    // Use provided base_instructions from API, or fall back to hardcoded constant
+    // CRITICAL: The API validates this field - must match server's copy exactly!
+    const instructions = baseInstructions || getOfficialCodexInstructions()
+
     // #region agent log
-    console.log('[Codex:extractInstructionsFromMessages] Using OFFICIAL Codex base instructions (API requirement)')
+    console.log('[Codex:extractInstructionsFromMessages] Using instructions source:', baseInstructions ? 'API (dynamic)' : 'FALLBACK (hardcoded)')
     // #endregion
-    
+
+    // #region agent log - HYPOTHESIS B
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/services/codex.ts:458',message:'Instructions selection',data:{source:baseInstructions?'API':'FALLBACK',instructionsLength:instructions.length,instructionsPreview:instructions.substring(0,200),OFFICIAL_LENGTH:OFFICIAL_CODEX_BASE_INSTRUCTIONS.length,hypothesisId:'B'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
+
     // If there are custom system messages, prepend them as a user_instructions message
     // Reference: research-codex/codex/codex-rs/core/src/user_instructions.rs
     if (systemMessages.length > 0) {
@@ -465,16 +367,16 @@ export function extractInstructionsFromMessages(messages: ChatMessage[]): { inst
         }
         // Prepend the user_instructions message to the input
         inputMessages.unshift(userInstructionsMessage)
-        
+
         // #region agent log
         console.log('[Codex:extractInstructionsFromMessages] Converted system messages to user_instructions format')
         console.log('[Codex:extractInstructionsFromMessages] user_instructions content preview:', customInstructions.substring(0, 100))
         // #endregion
     }
-    
+
     // #region agent log
     console.log('[Codex:extractInstructionsFromMessages] ========== OUTPUT ==========')
-    console.log('[Codex:extractInstructionsFromMessages] Instructions: OFFICIAL_CODEX_BASE_INSTRUCTIONS')
+    console.log('[Codex:extractInstructionsFromMessages] Instructions source:', baseInstructions ? 'API' : 'FALLBACK')
     console.log('[Codex:extractInstructionsFromMessages] Instructions length:', instructions.length)
     console.log('[Codex:extractInstructionsFromMessages] Output messages count:', inputMessages.length)
     console.log('[Codex:extractInstructionsFromMessages] System messages converted to user_instructions:', systemMessages.length)
@@ -554,20 +456,21 @@ export const UNSUPPORTED_REQUEST_FIELDS = [
  * @param model - The model code (e.g., 'gpt-5.2-codex-high')
  * @param messages - Array of chat messages
  * @param options - Optional configuration
+ * @param baseInstructions - Official base_instructions fetched from API (optional, falls back to hardcoded)
  * @returns Request body matching ResponsesApiRequest format
  */
 export function buildCodexRequest(
     model: string,
     messages: ChatMessage[],
-    options?: CodexOptions
+    options?: CodexOptions,
+    baseInstructions?: string | null
 ): Record<string, any> {
     // Parse model code to extract base model and reasoning effort
     const { baseModel, reasoningEffort } = parseCodexModelCode(model)
     
     // Extract system messages - they will be converted to user_instructions format
-    // The 'instructions' returned is OFFICIAL_CODEX_BASE_INSTRUCTIONS (required by API)
-    // Custom system prompts are prepended to inputMessages as <user_instructions>
-    const { instructions, inputMessages } = extractInstructionsFromMessages(messages)
+    // Pass baseInstructions from API if available, otherwise falls back to hardcoded constant
+    const { instructions, inputMessages } = extractInstructionsFromMessages(messages, baseInstructions)
     
     // Build request body matching official Codex CLI format
     // CRITICAL: The 'instructions' field is REQUIRED and must contain the official
@@ -577,7 +480,7 @@ export function buildCodexRequest(
         model: baseModel,
         instructions: instructions,  // REQUIRED: Official Codex base instructions
         input: formatMessagesForCodex(inputMessages),
-        tools: [],  // Empty array when no tools
+        tools: Array.isArray(options?.tools) ? options?.tools : [],
         tool_choice: 'auto',
         parallel_tool_calls: false,
         stream: true,  // CRITICAL: Always true for official Codex CLI behavior
@@ -594,6 +497,37 @@ export function buildCodexRequest(
     // by the ChatGPT backend API. The official Codex CLI does not send these.
     
     return requestBody
+}
+
+/**
+ * Fetch base_instructions for a model from the API
+ * This is CRITICAL because the API validates instructions against the server's copy
+ */
+export async function fetchBaseInstructions(modelSlug: string): Promise<string | null> {
+    if (!window.codexAuth) {
+        console.log('[Codex:fetchBaseInstructions] codexAuth not available')
+        return null
+    }
+
+    try {
+        // #region agent log
+        console.log('[Codex:fetchBaseInstructions] Fetching instructions for model:', modelSlug)
+        // #endregion
+        
+        const result = await window.codexAuth.getBaseInstructions(modelSlug)
+        
+        // #region agent log
+        console.log('[Codex:fetchBaseInstructions] Result:', result.success, 'instructions length:', result.instructions?.length || 0)
+        // #endregion
+        
+        if (result.success && result.instructions) {
+            return result.instructions
+        }
+        return null
+    } catch (error) {
+        console.error('[Codex:fetchBaseInstructions] Error:', error)
+        return null
+    }
 }
 
 /**
@@ -1031,9 +965,16 @@ export async function generateCodexCompletion(
     console.log('[Codex:generateCodexCompletion]   reasoningEffort:', reasoningEffort)
     // #endregion
 
+    // CRITICAL: Fetch base_instructions from API for this model
+    // The API validates instructions against the server's copy - must match exactly!
+    const baseInstructions = await fetchBaseInstructions(baseModel)
+    // #region agent log
+    console.log('[Codex:generateCodexCompletion] Fetched base_instructions:', !!baseInstructions, 'length:', baseInstructions?.length || 0)
+    // #endregion
+
     // Build request body using centralized function
     // This ensures all required fields are present and unsupported fields are excluded
-    const requestBody = buildCodexRequest(model, messages, options)
+    const requestBody = buildCodexRequest(model, messages, options, baseInstructions)
 
     // #region agent log - Request body before sending
     console.log('[Codex:generateCodexCompletion] ========== REQUEST BODY ==========')
@@ -1041,6 +982,7 @@ export async function generateCodexCompletion(
     console.log('[Codex:generateCodexCompletion] model:', requestBody.model)
     console.log('[Codex:generateCodexCompletion] instructions length:', requestBody.instructions?.length)
     console.log('[Codex:generateCodexCompletion] instructions preview:', requestBody.instructions?.substring(0, 150))
+    console.log('[Codex:generateCodexCompletion] instructions source:', baseInstructions ? 'API (dynamic)' : 'FALLBACK (hardcoded)')
     console.log('[Codex:generateCodexCompletion] input count:', requestBody.input?.length)
     console.log('[Codex:generateCodexCompletion] input[0]:', JSON.stringify(requestBody.input?.[0], null, 2))
     console.log('[Codex:generateCodexCompletion] tools:', JSON.stringify(requestBody.tools))
@@ -1101,9 +1043,16 @@ export async function* streamCodexCompletion(
     // e.g., 'gpt-5.2-high' -> baseModel: 'gpt-5.2', reasoningEffort: 'high'
     const { baseModel, reasoningEffort } = parseCodexModelCode(model)
 
+    // CRITICAL: Fetch base_instructions from API for this model
+    // The API validates instructions against the server's copy - must match exactly!
+    const baseInstructions = await fetchBaseInstructions(baseModel)
+    // #region agent log
+    console.log('[Codex:streamCodexCompletion] Fetched base_instructions:', !!baseInstructions, 'length:', baseInstructions?.length || 0)
+    // #endregion
+
     // Build request body using centralized function
     // This ensures all required fields are present and unsupported fields are excluded
-    const requestBody = buildCodexRequest(model, messages, options)
+    const requestBody = buildCodexRequest(model, messages, options, baseInstructions)
 
     try {
         // Get response via IPC using Responses API
@@ -1122,6 +1071,7 @@ export async function* streamCodexCompletion(
         console.log('[Codex:streamCodexCompletion] response.statusText:', response?.statusText)
         console.log('[Codex:streamCodexCompletion] response.body length:', response?.body?.length)
         console.log('[Codex:streamCodexCompletion] response.body preview:', response?.body?.substring(0, 500))
+        console.log('[Codex:streamCodexCompletion] instructions source:', baseInstructions ? 'API (dynamic)' : 'FALLBACK (hardcoded)')
         // #endregion
 
         if (!response.ok) {
@@ -1141,26 +1091,181 @@ export async function* streamCodexCompletion(
             throw new Error(parseCodexError(errorData, response.status))
         }
 
-        const fullResponse: CodexResponse = JSON.parse(response.body)
-        const content = fullResponse.choices?.[0]?.message?.content || ''
+        const bodyText = response.body || ''
+        const trimmedBody = bodyText.trim()
 
-        // Simulate streaming by yielding the full content as a single chunk
-        const chunk: CodexStreamChunk = {
-            id: fullResponse.id,
-            choices: [{
-                delta: {
-                    content: content,
-                    role: 'assistant'
-                },
-                finish_reason: fullResponse.choices?.[0]?.finish_reason || 'stop'
-            }],
-            usage: fullResponse.usage
+        // If the backend returned JSON, parse it directly.
+        if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+            const fullResponse: CodexResponse = JSON.parse(trimmedBody)
+            const toolCalls = (fullResponse as any)?.choices?.[0]?.message?.tool_calls
+            if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+                const chunk: CodexStreamChunk = {
+                    id: fullResponse.id,
+                    choices: [{
+                        delta: {
+                            role: 'assistant',
+                            tool_calls: toolCalls
+                        },
+                        finish_reason: 'tool_calls'
+                    }],
+                    usage: fullResponse.usage
+                }
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
+                return
+            }
+            const content = fullResponse.choices?.[0]?.message?.content || ''
+
+            // Simulate streaming by yielding the full content as a single chunk
+            const chunk: CodexStreamChunk = {
+                id: fullResponse.id,
+                choices: [{
+                    delta: {
+                        content: content,
+                        role: 'assistant'
+                    },
+                    finish_reason: fullResponse.choices?.[0]?.finish_reason || 'stop'
+                }],
+                usage: fullResponse.usage
+            }
+
+            if (options?.onChunk) {
+                options.onChunk(chunk)
+            }
+            yield chunk
+            return
         }
 
-        if (options?.onChunk) {
-            options.onChunk(chunk)
+        // Otherwise, parse the SSE payload and simulate streaming.
+        const sseEvents = parseSseEvents(bodyText)
+        let hasDelta = false
+        let sawToolCall = false
+        let lastResponsePayload: any = null
+
+        for (const event of sseEvents) {
+            if (!event.data) continue
+            if (event.data === '[DONE]') break
+
+            let parsed: any = null
+            try {
+                parsed = JSON.parse(event.data)
+            } catch {
+                continue
+            }
+
+            if (parsed?.response) {
+                lastResponsePayload = parsed.response
+            }
+
+            const toolCalls = extractToolCallsFromEvent(parsed)
+            if (toolCalls && toolCalls.length > 0) {
+                sawToolCall = true
+                const chunk: CodexStreamChunk = {
+                    id: parsed?.response?.id || parsed?.id || lastResponsePayload?.id || 'codex',
+                    choices: [{
+                        delta: {
+                            role: 'assistant',
+                            tool_calls: toolCalls
+                        },
+                        finish_reason: null
+                    }],
+                    usage: parsed?.response?.usage || parsed?.usage
+                }
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
+                continue
+            }
+
+            const deltaText = extractDeltaText(parsed)
+            if (deltaText) {
+                hasDelta = true
+                const chunk: CodexStreamChunk = {
+                    id: parsed?.response?.id || parsed?.id || lastResponsePayload?.id || 'codex',
+                    choices: [{
+                        delta: {
+                            content: deltaText,
+                            role: 'assistant'
+                        },
+                        finish_reason: null
+                    }],
+                    usage: parsed?.response?.usage || parsed?.usage
+                }
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
+            }
         }
-        yield chunk
+
+        if (!sawToolCall && lastResponsePayload) {
+            const toolCalls = extractToolCallsFromResponse(lastResponsePayload)
+            if (toolCalls.length > 0) {
+                sawToolCall = true
+                const chunk: CodexStreamChunk = {
+                    id: lastResponsePayload?.id || 'codex',
+                    choices: [{
+                        delta: {
+                            role: 'assistant',
+                            tool_calls: toolCalls
+                        },
+                        finish_reason: null
+                    }],
+                    usage: lastResponsePayload?.usage
+                }
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
+            }
+        }
+
+        if (!hasDelta) {
+            const fallbackText = extractResponseText(lastResponsePayload)
+            if (fallbackText) {
+                const chunk: CodexStreamChunk = {
+                    id: lastResponsePayload?.id || 'codex',
+                    choices: [{
+                        delta: {
+                            content: fallbackText,
+                            role: 'assistant'
+                        },
+                        finish_reason: 'stop'
+                    }],
+                    usage: lastResponsePayload?.usage
+                }
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
+            }
+        }
+
+        if (sawToolCall) {
+            const chunk: CodexStreamChunk = {
+                id: lastResponsePayload?.id || 'codex',
+                choices: [{
+                    delta: {
+                        role: 'assistant'
+                    },
+                    finish_reason: 'tool_calls'
+                }],
+                usage: lastResponsePayload?.usage
+            }
+
+            if (options?.onChunk) {
+                options.onChunk(chunk)
+            }
+            yield chunk
+        }
 
     } catch (error: any) {
         // #region agent log - Detailed error capture
@@ -1177,6 +1282,117 @@ export async function* streamCodexCompletion(
         // #endregion
         throw new Error(parseCodexError(error))
     }
+}
+
+function parseSseEvents(payload: string): Array<{ event?: string; data?: string }> {
+    const events: Array<{ event?: string; data?: string }> = []
+    const blocks = payload.split(/\n\n+/)
+
+    for (const block of blocks) {
+        const lines = block.split(/\r?\n/)
+        let eventName: string | undefined
+        const dataLines: string[] = []
+
+        for (const line of lines) {
+            if (line.startsWith('event:')) {
+                eventName = line.slice(6).trim()
+            } else if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trimStart())
+            }
+        }
+
+        if (dataLines.length > 0) {
+            events.push({ event: eventName, data: dataLines.join('\n') })
+        }
+    }
+
+    return events
+}
+
+function normalizeToolCallFromItem(item: any): StreamingToolCall | null {
+    if (!item || typeof item !== 'object') return null
+    const itemType = item.type || item?.kind
+
+    if (itemType !== 'function_call' && itemType !== 'tool_call') {
+        return null
+    }
+
+    const name = item.name || item.function?.name
+    if (!name) return null
+
+    const callId = item.call_id || item.callId || item.id || ''
+    const rawArgs = item.arguments ?? item.function?.arguments ?? ''
+    const args = typeof rawArgs === 'string' ? rawArgs : JSON.stringify(rawArgs)
+
+    return {
+        id: callId,
+        type: 'function',
+        function: {
+            name,
+            arguments: args
+        }
+    }
+}
+
+function extractToolCallsFromEvent(event: any): StreamingToolCall[] | null {
+    if (!event || typeof event !== 'object') return null
+    const eventType = typeof event.type === 'string' ? event.type : ''
+
+    if (eventType === 'response.output_item.added' || eventType === 'response.output_item.done') {
+        const call = normalizeToolCallFromItem(event.item)
+        return call ? [call] : null
+    }
+
+    return null
+}
+
+function extractToolCallsFromResponse(response: any): StreamingToolCall[] {
+    const toolCalls: StreamingToolCall[] = []
+    const output = response?.output
+    if (!Array.isArray(output)) return toolCalls
+
+    for (const item of output) {
+        const call = normalizeToolCallFromItem(item)
+        if (call) toolCalls.push(call)
+    }
+
+    return toolCalls
+}
+
+function extractDeltaText(event: any): string | null {
+    if (!event) return null
+    const eventType = typeof event.type === 'string' ? event.type : ''
+
+    // Only treat explicit delta events as streamable content.
+    if (eventType.endsWith('.delta')) {
+        if (typeof event.delta === 'string') return event.delta
+        if (typeof event?.output_text?.delta === 'string') return event.output_text.delta
+    }
+
+    return null
+}
+
+function extractResponseText(response: any): string {
+    if (!response) return ''
+    const output = response.output
+    if (Array.isArray(output)) {
+        const parts: string[] = []
+        for (const item of output) {
+            if (item?.type === 'message' && Array.isArray(item.content)) {
+                for (const part of item.content) {
+                    if (part?.type === 'output_text' && typeof part.text === 'string') {
+                        parts.push(part.text)
+                    }
+                }
+            } else if (typeof item?.text === 'string') {
+                parts.push(item.text)
+            }
+        }
+        if (parts.length > 0) return parts.join('')
+    }
+    if (typeof response.output_text === 'string') return response.output_text
+    if (typeof response.text === 'string') return response.text
+    return ''
 }
 
 // ============================================================================
@@ -1197,6 +1413,28 @@ export function formatMessagesForCodex(messages: ChatMessage[]): any[] {
     // #endregion
 
     const formatted = messages.map((msg, idx) => {
+        if (msg.role === 'tool' && msg.tool_call_id) {
+            const toolContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            const isError = typeof msg.content === 'string' && msg.content.trim().toLowerCase().startsWith('error:')
+            const formatted = {
+                type: 'function_call_output',
+                call_id: msg.tool_call_id,
+                output: {
+                    content: toolContent,
+                    success: !isError
+                }
+            }
+
+            // #region agent log
+            console.log(`[Codex:formatMessagesForCodex] Message[${idx}]:`)
+            console.log(`[Codex:formatMessagesForCodex]   original role: ${msg.role}`)
+            console.log(`[Codex:formatMessagesForCodex]   original content type: ${typeof msg.content}`)
+            console.log(`[Codex:formatMessagesForCodex]   formatted: ${JSON.stringify(formatted)}`)
+            // #endregion
+
+            return formatted
+        }
+
         // Build content array in ResponseItem format
         const contentItems: any[] = []
         

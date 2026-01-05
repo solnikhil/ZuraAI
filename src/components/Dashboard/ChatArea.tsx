@@ -24,6 +24,7 @@ import { hasGeminiFunctionCalls, formatToolResultsForGemini } from '../../tools/
 import { buildMessagesWithToolResults } from '../../tools/toolManager'
 import BlurText from '../BlurText'
 import GradientText from '../GradientText'
+import ThinkingBlock from '../ThinkingBlock'
 import ToolApprovalDialog from '../ToolApprovalDialog'
 import { ToolCallResult } from '../../tools/executor'
 
@@ -31,7 +32,7 @@ export default function ChatArea() {
     const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, deleteSession, clearAllSessions } = useChatHistory()
     const { settings, updateSettings } = useSettings()
     const { showToast } = useToast()
-    const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState, handleApprovalResponse } = useToolCalling()
+    const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState, handleApprovalResponse, startResearchMode, getResearchContext } = useToolCalling()
 
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
@@ -273,7 +274,27 @@ export default function ChatArea() {
                 return msg
             })
 
-            const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
+            // Check if user explicitly requested deep research
+            const deepResearchKeywords = /\b(deep research|thorough research|do research|through research)\b/i
+            const userRequestedDeepResearch = deepResearchKeywords.test(userMessageContent)
+
+            // Use local variables for research mode (avoid async React state issues)
+            let researchMaxRounds = 0
+            let researchMandatory = false
+
+            // Start research mode with appropriate search count
+            if (userRequestedDeepResearch && canUseTools) {
+                researchMaxRounds = 3
+                researchMandatory = true
+                startResearchMode(3, true) // Exactly 3 MANDATORY searches for deep research requests
+            } else if (settings.webSearchEnabled && canUseTools) {
+                researchMaxRounds = 5
+                researchMandatory = false
+                startResearchMode(5, false) // Allow up to 5 searches for regular web search
+            }
+
+            // Get effective system prompt with research context
+            const effectiveSystemPrompt = getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds, researchMandatory)
 
             // Get image files from attached files (for models that support vision)
             const imageFiles = filesToSend.filter(f => f.type === 'image')
@@ -301,6 +322,7 @@ export default function ChatArea() {
                 let hasToolCalls = false
                 let finalMessage: any = null
                 let isDone = false
+                let savedToolResults: any = null  // Save tool results to persist in final message
 
                 try {
                     for await (const chunk of streamOllamaCompletion(
@@ -364,14 +386,28 @@ export default function ChatArea() {
                             let followUpLastUpdate = Date.now()
                             let followUpUsage: any = {}
 
+                            // Count web_search calls from this round to get accurate search count
+                            const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+
+                            // Build follow-up messages with research context (use local variables, not async state)
+                            const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
+                            const followUpMessages: any[] = [
+                                ...optimizedHistory,
+                                finalMessage,
+                                ...toolResult.formattedResults
+                            ]
+                            // Add research context as a user message to explicitly direct the model
+                            if (researchContextMsg) {
+                                followUpMessages.push({
+                                    role: 'user',
+                                    content: researchContextMsg
+                                })
+                            }
+
                             for await (const chunk of streamOllamaCompletion(
                                 settings.ollamaUrl,
                                 settings.aiModel,
-                                [
-                                    ...optimizedHistory,
-                                    finalMessage,
-                                    ...toolResult.formattedResults
-                                ],
+                                followUpMessages,
                                 {
                                     temperature: settings.temperature,
                                     tools: ollamaTools
@@ -413,28 +449,12 @@ export default function ChatArea() {
                     // Finalize the streaming message with all metadata
                     const endTimeOllama = performance.now()
                     const latencyOllama = Math.round(endTimeOllama - startTime)
-                    const toolResultsForOllama = toolState.toolResults.length > 0
-                        ? toolState.toolResults.map(tr => ({
-                            toolCall: {
-                                id: tr.toolCall.id,
-                                name: tr.toolCall.name,
-                                arguments: tr.toolCall.arguments
-                            },
-                            result: {
-                                success: tr.result.success,
-                                data: tr.result.data,
-                                error: tr.result.error,
-                                executionTime: tr.result.executionTime
-                            }
-                        }))
-                        : undefined
-
                     updateStreamingMessage(targetSessionId!, streamingMessageId, {
                         content: accumulatedContent,
                         model: `ollama/${settings.aiModel}`,
                         latency: latencyOllama,
                         usage,
-                        toolResults: toolResultsForOllama
+                        toolResults: savedToolResults
                     })
 
                     model = `ollama/${settings.aiModel}`
@@ -561,50 +581,25 @@ export default function ChatArea() {
                 // Stream the response
                 let accumulatedContent = ''
                 let lastUpdateTime = Date.now()
-                const UPDATE_INTERVAL = 50 // ms
+                const UPDATE_INTERVAL = 50
                 let finalUsage: any = {}
-                let hasFunctionCalls = false
-                let accumulatedResponse: any = null
 
                 try {
+                    let chunkCount = 0
                     for await (const chunk of streamGeminiCompletion(
                         settings.geminiApiKey,
                         settings.aiModel,
                         geminiMessages,
-                        {
-                            temperature: settings.temperature,
-                            maxOutputTokens: settings.maxTokens,
-                            tools: geminiTools
-                        }
+                        { temperature: settings.temperature, maxOutputTokens: settings.maxTokens }
                     )) {
-                        // Accumulate response for function call detection
-                        if (!accumulatedResponse) {
-                            accumulatedResponse = { candidates: [{}] }
-                        }
+                        chunkCount++
+                        if (!chunk) continue
 
-                        // Extract content from chunk (Gemini accumulates text across chunks)
                         const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                        if (chunkText) {
-                            accumulatedContent = chunkText // Gemini gives us the full accumulated text
-                        }
+                        if (chunkText) accumulatedContent = chunkText
 
-                        // Check for function calls
-                        if (chunk.candidates?.[0]?.content?.parts) {
-                            accumulatedResponse.candidates[0].content = {
-                                parts: chunk.candidates[0].content.parts,
-                                role: 'model'
-                            }
-                            // Check if any part is a function call
-                            const parts = chunk.candidates[0].content.parts
-                            hasFunctionCalls = parts.some((p: any) => p.functionCall)
-                        }
+                        if (chunk.usageMetadata) finalUsage = chunk.usageMetadata
 
-                        // Extract usage stats
-                        if (chunk.usageMetadata) {
-                            finalUsage = chunk.usageMetadata
-                        }
-
-                        // Debounced update
                         const now = Date.now()
                         if (now - lastUpdateTime >= UPDATE_INTERVAL) {
                             updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
@@ -612,125 +607,39 @@ export default function ChatArea() {
                         }
                     }
 
-                    // Final update
                     updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
 
-                    // Check for function calls using accumulated response
-                    if (canUseTools && hasGeminiFunctionCalls(accumulatedResponse)) {
-                    // Process tool calls with error handling
-                    let toolResult
-                    try {
-                        toolResult = await handleToolCalls(accumulatedResponse)
-                    } catch (toolError: any) {
-                        console.error('Tool calls processing error:', toolError)
-                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
-                        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
-                    }
-
-                    if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                        // Stream follow-up response with tool results
-                        const assistantContent = accumulatedContent
-                        const followUpMessages: any[] = [
-                            ...geminiMessages,
-                            {
-                                role: 'assistant',
-                                content: assistantContent || ''
-                            },
-                            {
-                                role: 'function',
-                                parts: toolResult.formattedResults
-                            }
-                        ]
-                        
-                        let followUpContent = ''
-                        let followUpLastUpdate = Date.now()
-                        let followUpUsage: any = {}
-
-                        for await (const chunk of streamGeminiCompletion(
-                            settings.geminiApiKey,
-                            settings.aiModel,
-                            followUpMessages as any,
-                            {
-                                temperature: settings.temperature,
-                                maxOutputTokens: settings.maxTokens,
-                                tools: geminiTools
-                            }
-                        )) {
-                            const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                            if (chunkText) {
-                                followUpContent = chunkText // Gemini gives full accumulated text
-                            }
-                            if (chunk.usageMetadata) {
-                                followUpUsage = chunk.usageMetadata
-                            }
-
-                            const now = Date.now()
-                            if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
-                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
-                                followUpLastUpdate = now
-                            }
+                    if (!accumulatedContent) {
+                        if (!settings.geminiApiKey?.trim()) {
+                            accumulatedContent = 'Gemini API key is not set. Please add it in Settings > API Keys.'
+                        } else if (chunkCount === 0) {
+                            accumulatedContent = 'No response from Gemini. Check API key and model.'
                         }
-
-                        // Final update with follow-up content
-                        accumulatedContent += followUpContent
-                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
-
-                        usage = {
-                            inputTokens: (finalUsage.promptTokenCount || 0) + (followUpUsage.promptTokenCount || 0),
-                            outputTokens: (finalUsage.candidatesTokenCount || 0) + (followUpUsage.candidatesTokenCount || 0),
-                            totalTokens: (finalUsage.totalTokenCount || 0) + (followUpUsage.totalTokenCount || 0)
-                        }
-                    } else {
-                        usage = {
-                            inputTokens: finalUsage.promptTokenCount || 0,
-                            outputTokens: finalUsage.candidatesTokenCount || 0,
-                            totalTokens: finalUsage.totalTokenCount || 0
+                        if (accumulatedContent) {
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
                         }
                     }
-                } else {
-                    usage = {
-                        inputTokens: finalUsage.promptTokenCount || 0,
-                        outputTokens: finalUsage.candidatesTokenCount || 0,
-                        totalTokens: finalUsage.totalTokenCount || 0
-                    }
+
+                    usage = { inputTokens: finalUsage.promptTokenCount || 0, outputTokens: finalUsage.candidatesTokenCount || 0, totalTokens: finalUsage.totalTokenCount || 0 }
+                } catch (streamError: any) {
+                    const errorMsg = accumulatedContent || 'Error: ' + (streamError.message || 'Unknown error')
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: errorMsg })
+                    throw streamError
                 }
 
-                // Finalize the streaming message with all metadata
+                // Finalize
                 const endTimeGemini = performance.now()
                 const latencyGemini = Math.round(endTimeGemini - startTime)
-                const toolResultsForGemini = toolState.toolResults.length > 0
-                    ? toolState.toolResults.map(tr => ({
-                        toolCall: {
-                            id: tr.toolCall.id,
-                            name: tr.toolCall.name,
-                            arguments: tr.toolCall.arguments
-                        },
-                        result: {
-                            success: tr.result.success,
-                            data: tr.result.data,
-                            error: tr.result.error,
-                            executionTime: tr.result.executionTime
-                        }
-                    }))
-                    : undefined
 
                 updateStreamingMessage(targetSessionId!, streamingMessageId, {
                     content: accumulatedContent,
                     model: `gemini/${settings.aiModel}`,
                     latency: latencyGemini,
-                    usage,
-                    toolResults: toolResultsForGemini
+                    usage
                 })
 
                 model = `gemini/${settings.aiModel}`
                 responseContent = accumulatedContent
-            } catch (streamError: any) {
-                // If streaming fails, update message with error
-                updateStreamingMessage(targetSessionId!, streamingMessageId, { 
-                    content: accumulatedContent || 'Error: Streaming failed. ' + (streamError.message || 'Unknown error')
-                })
-                throw streamError
-            }
             } else if (settings.modelProvider === 'groq') {
                 // Get tools if enabled (Groq uses OpenAI-compatible format)
                 const tools = canUseTools ? getToolsForRequest() : null
@@ -751,6 +660,7 @@ export default function ChatArea() {
                 let hasToolCalls = false
                 let toolCallsAccumulator: any[] = []
                 let finishReason: string | null = null
+                let savedToolResults: any = null  // Save tool results to persist in final message
 
                 try {
                     for await (const chunk of streamGroqCompletion(
@@ -845,20 +755,49 @@ export default function ChatArea() {
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
                         }
 
+                        // Save tool results to persist in final message (use toolResult directly)
+                        savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+                            toolCall: {
+                                id: tr.toolCall.id,
+                                name: tr.toolCall.name,
+                                arguments: tr.toolCall.arguments
+                            },
+                            result: {
+                                success: tr.result.success,
+                                data: tr.result.data,
+                                error: tr.result.error,
+                                executionTime: tr.result.executionTime
+                            }
+                        })) || null
+
                         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
                             // Stream follow-up response
                             let followUpContent = ''
                             let followUpLastUpdate = Date.now()
                             let followUpUsage: any = {}
 
+                            // Count web_search calls from this round to get accurate search count
+                            const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+
+                            // Build follow-up messages with research context (use local variables, not async state)
+                            const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
+                            const followUpMessages: any[] = [
+                                ...optimizedHistory,
+                                reconstructedMessage,
+                                ...toolResult.formattedResults
+                            ]
+                            // Add research context as a user message to explicitly direct the model
+                            if (researchContextMsg) {
+                                followUpMessages.push({
+                                    role: 'user',
+                                    content: researchContextMsg
+                                })
+                            }
+
                             for await (const chunk of streamGroqCompletion(
                                 settings.groqApiKey,
                                 settings.aiModel,
-                                [
-                                    ...optimizedHistory,
-                                    reconstructedMessage,
-                                    ...toolResult.formattedResults
-                                ],
+                                followUpMessages,
                                 {
                                     temperature: settings.temperature,
                                     max_tokens: settings.maxTokens,
@@ -904,28 +843,13 @@ export default function ChatArea() {
                     // Finalize the streaming message with all metadata
                     const endTimeGroq = performance.now()
                     const latencyGroq = Math.round(endTimeGroq - startTime)
-                    const toolResultsForGroq = toolState.toolResults.length > 0
-                        ? toolState.toolResults.map(tr => ({
-                            toolCall: {
-                                id: tr.toolCall.id,
-                                name: tr.toolCall.name,
-                                arguments: tr.toolCall.arguments
-                            },
-                            result: {
-                                success: tr.result.success,
-                                data: tr.result.data,
-                                error: tr.result.error,
-                                executionTime: tr.result.executionTime
-                            }
-                        }))
-                        : undefined
 
                     updateStreamingMessage(targetSessionId!, streamingMessageId, {
                         content: accumulatedContent,
                         model: `groq/${settings.aiModel}`,
                         latency: latencyGroq,
                         usage,
-                        toolResults: toolResultsForGroq
+                        toolResults: savedToolResults
                     })
 
                     model = `groq/${settings.aiModel}`
@@ -979,7 +903,16 @@ export default function ChatArea() {
 
                 // Stream the response (note: Codex via IPC doesn't support true streaming, simulated)
                 let accumulatedContent = ''
+                let displayContent = ''
+                let thinkingContent = ''
                 let finalUsage: any = {}
+                let hasToolCalls = false
+                let toolCallsAccumulator: any[] = []
+                let finishReason: string | null = null
+                let savedToolResults: any = null
+
+                const tools = getToolsForRequest()
+                const codexTools = tools && Array.isArray(tools) ? tools : undefined
 
                 try {
                     // NOTE: temperature and maxTokens are NOT passed to Codex API
@@ -994,10 +927,45 @@ export default function ChatArea() {
                         {
                             // NOTE: These are passed but will be IGNORED by the Codex service
                             // The official Codex CLI does not support temperature/maxTokens
+                            tools: codexTools
                         }
                     )) {
                         const delta = chunk.choices?.[0]?.delta?.content || ''
                         accumulatedContent += delta
+
+                        if (chunk.choices?.[0]?.delta?.tool_calls) {
+                            hasToolCalls = true
+                            const deltaToolCalls = chunk.choices[0].delta.tool_calls
+                            if (deltaToolCalls) {
+                                deltaToolCalls.forEach((tc: any, idx: number) => {
+                                    const index = tc.index ?? idx
+                                    if (!toolCallsAccumulator[index]) {
+                                        toolCallsAccumulator[index] = {
+                                            id: tc.id || '',
+                                            type: tc.type || 'function',
+                                            function: { name: '', arguments: '' }
+                                        }
+                                    }
+                                    if (tc.function?.name) {
+                                        toolCallsAccumulator[index].function.name += tc.function.name
+                                    }
+                                    if (tc.function?.arguments) {
+                                        toolCallsAccumulator[index].function.arguments += tc.function.arguments
+                                    }
+                                })
+                            }
+                        }
+
+                        if (chunk.choices?.[0]?.finish_reason) {
+                            finishReason = chunk.choices[0].finish_reason
+                            if (finishReason === 'tool_calls') {
+                                hasToolCalls = true
+                            }
+                        }
+
+                        const split = splitCodexThinkingText(accumulatedContent)
+                        displayContent = split.content
+                        thinkingContent = split.thinking
 
                         // Extract usage stats
                         if (chunk.usage) {
@@ -1005,16 +973,104 @@ export default function ChatArea() {
                         }
 
                         // Update message
-                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: displayContent, thinking: thinkingContent })
                     }
 
                     // Final update
-                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: displayContent, thinking: thinkingContent })
 
-                    usage = {
-                        inputTokens: finalUsage.prompt_tokens || 0,
-                        outputTokens: finalUsage.completion_tokens || 0,
-                        totalTokens: finalUsage.total_tokens || 0
+                    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc && tc.id).length > 0) {
+                        const reconstructedMessage = {
+                            role: 'assistant',
+                            content: accumulatedContent,
+                            tool_calls: toolCallsAccumulator.filter(tc => tc.id).map((tc: any) => ({
+                                id: tc.id,
+                                type: tc.type || 'function',
+                                function: {
+                                    name: tc.function.name,
+                                    arguments: tc.function.arguments
+                                }
+                            }))
+                        }
+                        const mockData = {
+                            choices: [{
+                                message: reconstructedMessage
+                            }]
+                        }
+
+                        let toolResult
+                        try {
+                            toolResult = await handleToolCalls(mockData)
+                        } catch (toolError: any) {
+                            console.error('Tool calls processing error:', toolError)
+                            showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                            toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                        }
+
+                        savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+                            toolCall: {
+                                id: tr.toolCall.id,
+                                name: tr.toolCall.name,
+                                arguments: tr.toolCall.arguments
+                            },
+                            result: {
+                                success: tr.result.success,
+                                data: tr.result.data,
+                                error: tr.result.error,
+                                executionTime: tr.result.executionTime
+                            }
+                        })) || null
+
+                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                            let followUpContent = ''
+                            let followUpUsage: any = {}
+
+                            for await (const followUpChunk of streamCodexCompletion(
+                                codexModel,
+                                [
+                                    ...codexMessages,
+                                    reconstructedMessage,
+                                    ...toolResult.formattedResults
+                                ],
+                                { tools: codexTools }
+                            )) {
+                                const followUpDelta = followUpChunk.choices?.[0]?.delta?.content || ''
+                                followUpContent += followUpDelta
+                                if (followUpChunk.usage) {
+                                    followUpUsage = followUpChunk.usage
+                                }
+
+                                const merged = accumulatedContent + followUpContent
+                                const followSplit = splitCodexThinkingText(merged)
+                                displayContent = followSplit.content
+                                thinkingContent = followSplit.thinking
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: displayContent, thinking: thinkingContent })
+                            }
+
+                            accumulatedContent += followUpContent
+                            const followSplit = splitCodexThinkingText(accumulatedContent)
+                            displayContent = followSplit.content
+                            thinkingContent = followSplit.thinking
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: displayContent, thinking: thinkingContent })
+
+                            usage = {
+                                inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
+                                outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
+                                totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0)
+                            }
+                        } else {
+                            usage = {
+                                inputTokens: finalUsage.prompt_tokens || 0,
+                                outputTokens: finalUsage.completion_tokens || 0,
+                                totalTokens: finalUsage.total_tokens || 0
+                            }
+                        }
+                    } else {
+                        usage = {
+                            inputTokens: finalUsage.prompt_tokens || 0,
+                            outputTokens: finalUsage.completion_tokens || 0,
+                            totalTokens: finalUsage.total_tokens || 0
+                        }
                     }
 
                     // Finalize the streaming message with all metadata
@@ -1022,18 +1078,21 @@ export default function ChatArea() {
                     const latencyCodex = Math.round(endTimeCodex - startTime)
 
                     updateStreamingMessage(targetSessionId!, streamingMessageId, {
-                        content: accumulatedContent,
+                        content: displayContent,
+                        thinking: thinkingContent,
                         model: `codex/${codexModel}`,
                         latency: latencyCodex,
-                        usage
+                        usage,
+                        toolResults: savedToolResults
                     })
 
                     model = `codex/${codexModel}`
-                    responseContent = accumulatedContent
+                    responseContent = displayContent
                 } catch (streamError: any) {
                     // If streaming fails, update message with error
                     updateStreamingMessage(targetSessionId!, streamingMessageId, { 
-                        content: accumulatedContent || 'Error: ' + (streamError.message || 'Unknown error')
+                        content: displayContent || accumulatedContent || 'Error: ' + (streamError.message || 'Unknown error'),
+                        thinking: thinkingContent
                     })
                     throw streamError
                 }
@@ -1057,7 +1116,7 @@ export default function ChatArea() {
 
                 // Add tools if enabled and supported
                 const tools = getToolsForRequest()
-                
+
                 // Create streaming message immediately
                 const streamingMessageId = addMessageToSession(targetSessionId!, {
                     role: 'assistant',
@@ -1073,6 +1132,7 @@ export default function ChatArea() {
                 let hasToolCalls = false
                 let toolCallsAccumulator: any[] = []
                 let finishReason: string | null = null
+                let savedToolResults: any = null  // Save tool results to persist in final message
 
                 try {
                     for await (const chunk of streamOpenRouterCompletion(
@@ -1159,51 +1219,232 @@ export default function ChatArea() {
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
                         }
 
-                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-                            // Stream follow-up response with tool results
-                            const openRouterTools = getToolsForRequest()
-                            let followUpContent = ''
-                            let followUpLastUpdate = Date.now()
-                            let followUpUsage: any = {}
-
-                            for await (const chunk of streamOpenRouterCompletion(
-                                settings.openRouterApiKey,
-                                settings.aiModel,
-                                [
-                                    ...optimizedHistory,
-                                    reconstructedMessage,
-                                    ...toolResult.formattedResults
-                                ],
-                                {
-                                    temperature: settings.temperature,
-                                    maxTokens: settings.maxTokens,
-                                    tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined
-                                }
-                            )) {
-                                const delta = chunk.choices?.[0]?.delta?.content || ''
-                                followUpContent += delta
-                                if (chunk.usage) {
-                                    followUpUsage = chunk.usage
-                                }
-
-                                const now = Date.now()
-                                if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
-                                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpContent })
-                                    followUpLastUpdate = now
-                                }
+                        // Save tool results to persist in final message (use toolResult directly)
+                        savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+                            toolCall: {
+                                id: tr.toolCall.id,
+                                name: tr.toolCall.name,
+                                arguments: tr.toolCall.arguments
+                            },
+                            result: {
+                                success: tr.result.success,
+                                data: tr.result.data,
+                                error: tr.result.error,
+                                executionTime: tr.result.executionTime
                             }
+                        })) || null
 
-                            // Final update with follow-up content
-                            accumulatedContent += followUpContent
-                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+                            // === RESEARCH LOOP ===
+                            // Continue looping until all mandatory searches are done
+                            let researchRound = 1
+                            let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+                            let hasMoreToolCalls = true
+                            let lastAssistantMessage = reconstructedMessage
 
-                            // Combine usage stats
-                            usage = {
-                                inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
-                                outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
-                                totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0),
-                                cachedInputTokens: ((finalUsage.prompt_cache_tokens || 0) + (followUpUsage.prompt_cache_tokens || 0)) || undefined,
-                                cachedOutputTokens: ((finalUsage.completion_cache_tokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
+                            while (hasMoreToolCalls) {
+                                const openRouterTools = getToolsForRequest()
+                                let followUpContent = ''
+                                let followUpLastUpdate = Date.now()
+                                let followUpUsage: any = {}
+                                let followUpToolCalls: any[] = []
+                                let followUpAccumulatedContent = accumulatedContent
+                                const followUpStartTime = Date.now()
+
+                                // Build follow-up messages with research context (use local variables, not async state)
+                                const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
+                                console.log('[RESEARCH LOOP] Round:', researchRound, 'Searches:', totalSearchCount, 'Max:', researchMaxRounds, 'Mandatory:', researchMandatory)
+                                console.log('[RESEARCH LOOP] Research context:', researchContextMsg)
+
+                                // Build follow-up messages - add system message with research context at the start
+                                const followUpMessages: any[] = []
+
+                                // Add system prompt with research instructions at the beginning
+                                if (researchContextMsg) {
+                                    followUpMessages.push({
+                                        role: 'system',
+                                        content: researchContextMsg
+                                    })
+                                }
+
+                                // Then add the conversation history
+                                followUpMessages.push(...optimizedHistory)
+                                followUpMessages.push(lastAssistantMessage)
+                                followUpMessages.push(...toolResult.formattedResults)
+
+                                // Determine if we should force tool use (mandatory mode with remaining searches)
+                                const remainingSearches = researchMaxRounds - totalSearchCount
+                                const forceToolUse = researchMandatory && remainingSearches > 0 && researchMaxRounds <= 5
+
+                                // Stream follow-up response
+                                for await (const chunk of streamOpenRouterCompletion(
+                                    settings.openRouterApiKey,
+                                    settings.aiModel,
+                                    followUpMessages,
+                                    {
+                                        temperature: settings.temperature,
+                                        maxTokens: settings.maxTokens,
+                                        tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined,
+                                        toolChoice: forceToolUse ? 'required' : undefined
+                                    }
+                                )) {
+                                    const delta = chunk.choices?.[0]?.delta?.content || ''
+                                    followUpContent += delta
+
+                                    // Check for tool calls in follow-up
+                                    if (chunk.choices?.[0]?.delta?.tool_calls) {
+                                        console.log('[RESEARCH LOOP] Tool calls detected in follow-up:', chunk.choices[0].delta.tool_calls)
+                                        const deltaToolCalls = chunk.choices[0].delta.tool_calls
+                                        if (deltaToolCalls) {
+                                            deltaToolCalls.forEach((tc: any, idx: number) => {
+                                                if (!followUpToolCalls[tc.index ?? idx]) {
+                                                    followUpToolCalls[tc.index ?? idx] = {
+                                                        id: tc.id || '',
+                                                        type: tc.type || 'function',
+                                                        function: { name: '', arguments: '' }
+                                                    }
+                                                }
+                                                if (tc.function?.name) {
+                                                    followUpToolCalls[tc.index ?? idx].function.name += tc.function.name
+                                                }
+                                                if (tc.function?.arguments) {
+                                                    followUpToolCalls[tc.index ?? idx].function.arguments += tc.function.arguments
+                                                }
+                                            })
+                                        }
+                                    }
+
+                                    if (chunk.usage) {
+                                        followUpUsage = chunk.usage
+                                    }
+
+                                    const now = Date.now()
+                                    if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpAccumulatedContent + followUpContent })
+                                        followUpLastUpdate = now
+                                    }
+                                }
+
+                                // Add follow-up content to accumulated
+                                accumulatedContent += followUpContent
+                                followUpAccumulatedContent += followUpContent
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+
+                                console.log('[RESEARCH LOOP] Follow-up complete. Content length:', followUpContent.length)
+                                console.log('[RESEARCH LOOP] Tool calls found:', followUpToolCalls.length)
+
+                                // Combine usage stats
+                                usage = {
+                                    inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
+                                    outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
+                                    totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0),
+                                    cachedInputTokens: ((finalUsage.prompt_cache_tokens || 0) + (followUpUsage.prompt_cache_tokens || 0)) || undefined,
+                                    cachedOutputTokens: ((finalUsage.completion_cache_tokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
+                                }
+
+                                // Check if there are more tool calls in the follow-up
+                                if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+                                    // Reconstruct message with tool calls
+                                    const reconstructedFollowUpMessage = {
+                                        role: 'assistant',
+                                        content: followUpAccumulatedContent,
+                                        tool_calls: followUpToolCalls
+                                            .filter((tc: any) => tc.function.name)
+                                            .map((tc: any) => ({
+                                                id: tc.id,
+                                                type: tc.type || 'function',
+                                                function: {
+                                                    name: tc.function.name,
+                                                    arguments: tc.function.arguments
+                                                }
+                                            }))
+                                    }
+
+                                    // Process the new tool calls
+                                    let nextToolResult
+                                    try {
+                                        nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUpMessage }] })
+                                    } catch (toolError: any) {
+                                        console.error('Tool calls processing error:', toolError)
+                                        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+                                        nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                                    }
+
+                                    // Update search count
+                                    const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+                                    totalSearchCount += newWebSearches
+
+                                    // Save tool results
+                                    const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
+                                        toolCall: {
+                                            id: tr.toolCall.id,
+                                            name: tr.toolCall.name,
+                                            arguments: tr.toolCall.arguments
+                                        },
+                                        result: {
+                                            success: tr.result.success,
+                                            data: tr.result.data,
+                                            error: tr.result.error,
+                                            executionTime: tr.result.executionTime
+                                        }
+                                    })) || []
+
+                                    if (savedToolResults) {
+                                        savedToolResults = [...savedToolResults, ...newSavedResults]
+                                    } else {
+                                        savedToolResults = newSavedResults
+                                    }
+
+                                    // Prepare for next iteration
+                                    lastAssistantMessage = reconstructedFollowUpMessage
+                                    toolResult = nextToolResult
+                                    researchRound++
+
+                                    // Continue loop if there are more searches needed (use local variables, not async state)
+                                    const remainingSearches = researchMaxRounds - totalSearchCount
+                                    // In mandatory mode, always continue if we haven't completed all searches
+                                    // Otherwise, only continue if the model indicated it needs follow-up
+                                    hasMoreToolCalls = remainingSearches > 0 && (
+                                        researchMandatory || nextToolResult.needsFollowUp
+                                    )
+
+                                    console.log('[RESEARCH LOOP] After tool processing. Total searches:', totalSearchCount, 'Remaining:', remainingSearches, 'hasMoreToolCalls:', hasMoreToolCalls)
+
+                                    if (!hasMoreToolCalls) {
+                                        // All searches done or no more follow-up needed
+                                        break
+                                    }
+                                } else {
+                                    // Model responded with text instead of tools
+                                    console.log('[RESEARCH LOOP] No tool calls in follow-up, checking mandatory mode...')
+                                    // Check if we're in mandatory mode and need more searches (use local variables, not async state)
+                                    const remainingSearches = researchMaxRounds - totalSearchCount
+                                    console.log('[RESEARCH LOOP] Remaining searches:', remainingSearches, 'Mandatory:', researchMandatory)
+                                    if (researchMandatory && remainingSearches > 0 && researchMaxRounds <= 5) {
+                                        // Force another search by adding a directive message
+                                        lastAssistantMessage = {
+                                            role: 'assistant',
+                                            content: followUpAccumulatedContent,
+                                            tool_calls: [] // Empty tool_calls for type compatibility
+                                        } as any
+                                        // Create a mock tool result that says "you must search again"
+                                        toolResult = {
+                                            hasTools: true,
+                                            toolResults: [],
+                                            formattedResults: [{
+                                                role: 'system',
+                                                content: `\n\n*** MANDATORY: YOU MUST SEARCH ${remainingSearches} MORE TIMES ***\n\nYou attempted to respond without completing all ${researchMaxRounds} required searches.\n\nYou MUST use web_search exactly ${remainingSearches} more time(s) before providing your answer.\n\nDo: Use web_search now with a different query.\nDon't: Provide your answer yet.`
+                                            }],
+                                            needsFollowUp: true
+                                        } as any
+                                        // Continue loop
+                                        researchRound++
+                                        // Don't set hasMoreToolCalls to false - loop again
+                                    } else {
+                                        // Not mandatory mode or searches complete, exit loop
+                                        hasMoreToolCalls = false
+                                    }
+                                }
                             }
                         } else {
                             // No follow-up needed, finalize with existing content
@@ -1239,32 +1480,17 @@ export default function ChatArea() {
 
                 model = `openrouter/${settings.aiModel}`
                 responseContent = accumulatedContent
-                
+
                 // Finalize the streaming message with all metadata
                 const endTimeOpenRouter = performance.now()
                 const latencyOpenRouter = Math.round(endTimeOpenRouter - startTime)
-                const toolResultsForOpenRouter = toolState.toolResults.length > 0
-                    ? toolState.toolResults.map(tr => ({
-                        toolCall: {
-                            id: tr.toolCall.id,
-                            name: tr.toolCall.name,
-                            arguments: tr.toolCall.arguments
-                        },
-                        result: {
-                            success: tr.result.success,
-                            data: tr.result.data,
-                            error: tr.result.error,
-                            executionTime: tr.result.executionTime
-                        }
-                    }))
-                    : undefined
-                
+
                 updateStreamingMessage(targetSessionId!, streamingMessageId, {
                     content: responseContent,
                     model,
                     latency: latencyOpenRouter,
                     usage,
-                    toolResults: toolResultsForOpenRouter
+                    toolResults: savedToolResults
                 })
             }
 
@@ -1597,15 +1823,12 @@ export default function ChatArea() {
                 <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                     {messages.map((msg, idx) => (
                         <div key={msg.id} data-message-id={msg.id}>
-                            <MessageBubble
-                                message={msg}
-                            />
-                            {/* Show tool results after last assistant message */}
-                            {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
-                                <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                                    {toolState.toolResults.map((result, i) => (
+                            {/* Show stored tool results before the message */}
+                            {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+                                <div style={{ marginBottom: '12px' }}>
+                                    {msg.toolResults.map((result, i) => (
                                         <ToolResultDisplay
-                                            key={i}
+                                            key={`stored-${i}`}
                                             toolName={result.toolCall.name}
                                             result={result.result.success ? result.result.data : undefined}
                                             error={result.result.success ? undefined : result.result.error}
@@ -1613,12 +1836,16 @@ export default function ChatArea() {
                                     ))}
                                 </div>
                             )}
-                            {/* Show stored tool results from message history */}
-                            {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-                                <div style={{ marginTop: '8px', marginBottom: '12px' }}>
-                                    {msg.toolResults.map((result, i) => (
+                            <MessageBubble
+                                message={msg}
+                                isStreaming={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                            />
+                            {/* Show active tool results after last assistant message (during streaming) */}
+                            {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
+                                <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+                                    {toolState.toolResults.map((result, i) => (
                                         <ToolResultDisplay
-                                            key={`stored-${i}`}
+                                            key={i}
                                             toolName={result.toolCall.name}
                                             result={result.result.success ? result.result.data : undefined}
                                             error={result.result.success ? undefined : result.result.error}
@@ -1725,6 +1952,47 @@ export default function ChatArea() {
 }
 
 // Component to highlight first word in gold
+
+function splitCodexThinkingText(rawText: string): { thinking: string; content: string } {
+    const text = rawText || ''
+    if (!text) return { thinking: '', content: '' }
+
+    const stripped = text.replace(/^[\s*_]+/, '')
+    if (!/^Preparing\b/i.test(stripped)) {
+        return { thinking: '', content: text }
+    }
+
+    const startIndex = text.indexOf(stripped)
+    let boundary = text.indexOf('\n', startIndex)
+
+    if (boundary === -1) {
+        let i = startIndex + 1
+        while (i < text.length - 1) {
+            const curr = text[i]
+            const next = text[i + 1]
+            if (/[A-Z]/.test(curr) && /[a-z]/.test(next)) {
+                const wordMatch = text.slice(i).match(/^[A-Za-z]+/)
+                const word = wordMatch ? wordMatch[0].toLowerCase() : ''
+                if (word === 'preparing') {
+                    i += word.length || 1
+                    continue
+                }
+                boundary = i
+                break
+            }
+            i += 1
+        }
+    }
+
+    if (boundary === -1) {
+        return { thinking: text.slice(startIndex).trim(), content: '' }
+    }
+
+    return {
+        thinking: text.slice(startIndex, boundary).trim(),
+        content: text.slice(boundary).trimStart()
+    }
+}
 
 
 /**
@@ -1939,7 +2207,7 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
 }
 
 // Component to highlight first word in gold
-function MessageBubble({ message }: { message: any }) {
+function MessageBubble({ message, isStreaming = false }: { message: any; isStreaming?: boolean }) {
     const { settings } = useSettings()
     const [copied, setCopied] = useState(false)
     const [showToolModal, setShowToolModal] = useState(false)
@@ -1948,6 +2216,8 @@ function MessageBubble({ message }: { message: any }) {
     const infoTriggerRef = useRef<HTMLDivElement>(null)
     const processedContent = convertUrlsToMarkdownLinks(message.content)
     const isUser = message.role === 'user'
+    const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
+    const showThinkingSpinner = isStreaming && !hasThinking
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content)
@@ -2145,19 +2415,29 @@ function MessageBubble({ message }: { message: any }) {
         }
     }
 
-    return (
-        <div
-            style={{ marginBottom: '24px' }}
-            tabIndex={0}
-            onKeyDown={handleKeyDown}
-            ref={messageRef}
-        >
+        return (
+            <div
+                style={{ marginBottom: '24px' }}
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
+                ref={messageRef}
+            >
 
-            {/* Message content */}
-            <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-                <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
+                {(hasThinking || showThinkingSpinner) && (
+                    <div style={{ marginBottom: '8px' }}>
+                        <ThinkingBlock
+                            thinking={message.thinking || ''}
+                            isThinking={showThinkingSpinner}
+                            thinkingDuration={message.thinkingDuration}
+                        />
+                    </div>
+                )}
+
+                {/* Message content */}
+                <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
                         code({ node, inline, className, children, ...props }: any) {
                             const match = /language-(\w+)/.exec(className || '')
                             return !inline && match ? (

@@ -1,6 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
+import { setDynamicToolDefinitions, ToolDefinition } from '../tools/definitions'
+
+export interface McpServerConfig {
+    id: string
+    name: string
+    enabled: boolean
+    transport: 'stdio' | 'http'
+    command?: string
+    args?: string
+    cwd?: string
+    env?: string
+    url?: string
+    headers?: string
+    requiresApproval?: boolean
+    timeoutMs?: number
+}
+
+export interface McpServerStatus {
+    id: string
+    name: string
+    enabled: boolean
+    status: 'ready' | 'error' | 'disabled'
+    error?: string
+    toolCount?: number
+}
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system'
@@ -45,6 +70,9 @@ export interface Settings {
     enabledTools: string[]  // Which tools are active (empty = all enabled)
     toolApprovalMode: 'always' | 'sensitive' | 'never'
     webSearchEnabled: boolean  // Quick toggle for web search in chat
+    mcpServers: McpServerConfig[]
+    // Favorite models
+    favoriteModels: string[]
 }
 
 // Todo item structure
@@ -215,11 +243,24 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
     ],
     geminiApiKey: '',
     geminiModels: [
+        // Gemini 3.0 Models (Preview)
         { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        { code: 'gemini-3-pro-image-preview', displayName: 'Gemini 3 Pro Image (Preview)' },
+        { code: 'gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
+        // Gemini 2.5 Models (Stable)
         { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+        { code: 'gemini-2.5-pro-preview-tt', displayName: 'Gemini 2.5 Pro Thinking (Preview)' },
         { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+        { code: 'gemini-2.5-flash-preview-tt', displayName: 'Gemini 2.5 Flash Thinking (Preview)' },
+        { code: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash Image' },
         { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
-        { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+        { code: 'gemini-2.5-flash-native-audio-preview-12-2025', displayName: 'Gemini 2.5 Flash Native Audio (Preview)' },
+        // Gemini 2.0 Models (Latest Stable)
+        { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash (Latest)' },
+        { code: 'gemini-2.0-flash-001', displayName: 'Gemini 2.0 Flash (Stable)' },
+        { code: 'gemini-2.0-flash-exp', displayName: 'Gemini 2.0 Flash (Experimental)' },
+        { code: 'gemini-2.0-flash-preview-image-generation', displayName: 'Gemini 2.0 Flash Image Gen (Preview)' },
+        { code: 'gemini-2.0-flash-lite', displayName: 'Gemini 2.0 Flash Lite' },
     ],
     groqApiKey: '',
     groqModels: [
@@ -249,17 +290,22 @@ No Over-Explaining: Tailor the depth to the user’s apparent skill level. If a 
         'Brainstorm ideas for...'
     ],
     todos: [],
-    toolsEnabled: false,
+    toolsEnabled: true,
     tavilyApiKey: '',
-    enabledTools: [],
-    toolApprovalMode: 'sensitive',
-    webSearchEnabled: true
+    enabledTools: ['web_search', 'get_datetime'],
+    toolApprovalMode: 'never',
+    webSearchEnabled: true,
+    mcpServers: [],
+    favoriteModels: []
 }
 
 interface SettingsContextType {
     settings: Settings
     updateSettings: (newSettings: Partial<Settings>) => void
     resetSettings: () => void
+    mcpTools: ToolDefinition[]
+    mcpServerStatuses: McpServerStatus[]
+    refreshMcpTools: (serversOverride?: McpServerConfig[]) => Promise<void>
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
@@ -314,11 +360,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
+        if (!parsed.mcpServers) parsed.mcpServers = defaultSettings.mcpServers
         // Initialize loadOverlayOnStartup if missing
         if (parsed.loadOverlayOnStartup === undefined) parsed.loadOverlayOnStartup = defaultSettings.loadOverlayOnStartup
+        // Initialize favoriteModels if missing
+        if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
         return parsed
     })
+    const [mcpTools, setMcpTools] = useState<ToolDefinition[]>([])
+    const [mcpServerStatuses, setMcpServerStatuses] = useState<McpServerStatus[]>([])
 
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
@@ -418,6 +469,34 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
     }, [settings])
 
+    const refreshMcpTools = useCallback(async (serversOverride?: McpServerConfig[]) => {
+        if (!window.ipcRenderer) {
+            setMcpTools([])
+            setDynamicToolDefinitions([])
+            setMcpServerStatuses([])
+            return
+        }
+
+        try {
+            const result = await window.ipcRenderer.invoke('mcp:list-tools', serversOverride ?? settings.mcpServers)
+            const tools = Array.isArray(result?.tools) ? result.tools : []
+            const statuses = Array.isArray(result?.servers) ? result.servers : []
+
+            setMcpTools(tools)
+            setDynamicToolDefinitions(tools)
+            setMcpServerStatuses(statuses)
+        } catch (error) {
+            console.error('[SettingsContext] Failed to refresh MCP tools:', error)
+            setMcpTools([])
+            setDynamicToolDefinitions([])
+            setMcpServerStatuses([])
+        }
+    }, [settings.mcpServers])
+
+    useEffect(() => {
+        refreshMcpTools()
+    }, [refreshMcpTools])
+
     const updateSettings = useCallback((newSettings: Partial<Settings>) => {
         setSettings(prev => {
             const updated = { ...prev, ...newSettings }
@@ -432,8 +511,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const contextValue = useMemo(() => ({
         settings,
         updateSettings,
-        resetSettings
-    }), [settings, updateSettings, resetSettings])
+        resetSettings,
+        mcpTools,
+        mcpServerStatuses,
+        refreshMcpTools
+    }), [settings, updateSettings, resetSettings, mcpTools, mcpServerStatuses, refreshMcpTools])
 
     return (
         <SettingsContext.Provider value={contextValue}>

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { useSettings, TodoItem } from '../contexts/SettingsContext'
+import { useSettings, TodoItem, McpServerConfig } from '../contexts/SettingsContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, saveApiKeyToSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
-import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search } from 'lucide-react'
+import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search, Globe, Calculator, Clipboard, Plug } from 'lucide-react'
 import { motion } from 'framer-motion'
 import KeyboardShortcuts from './KeyboardShortcuts'
 import type { CodexUsageInfo } from '../electron.d'
+import { getAllToolDefinitions } from '../tools/definitions'
+import { formatToolDisplayName, isMcpToolName } from '../tools/mcpUtils'
 import './Settings.css'
 
 interface SettingsProps {
@@ -473,15 +475,19 @@ function CodexAuthSection() {
                         const renderUsageLimit = (label: string, limit?: { used: number; total: number; resetAt?: number }) => {
                             if (!limit || limit.total === 0) return null
                             
-                            const percentage = (limit.used / limit.total) * 100
+                            const isPercent = limit.total === 100 && limit.used <= 100
+                            const percentage = isPercent ? limit.used : (limit.used / limit.total) * 100
                             const resetTime = formatResetTime(limit.resetAt)
+                            const usedLabel = isPercent
+                                ? `${Math.round(limit.used)}%`
+                                : `${limit.used.toLocaleString()} / ${limit.total.toLocaleString()}`
                             
                             return (
                                 <div key={label} style={{ marginTop: 16 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                                         <span style={{ color: '#888', fontSize: '0.9rem', fontWeight: 500 }}>{label}</span>
                                         <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>
-                                            {limit.used.toLocaleString()} / {limit.total.toLocaleString()}
+                                            {usedLabel}
                                         </span>
                                     </div>
                                     <div style={{
@@ -563,7 +569,7 @@ function CodexAuthSection() {
                                         </div>
                                         
                                         {/* Usage Limits */}
-                                        {usageInfo.limits5Day && renderUsageLimit('5-Day Limit', usageInfo.limits5Day)}
+                                        {usageInfo.limits5Day && renderUsageLimit('5-Hour Limit', usageInfo.limits5Day)}
                                         {usageInfo.limits7Day && renderUsageLimit('7-Day Limit', usageInfo.limits7Day)}
                                         
                                         {/* Rate Limits from API responses */}
@@ -750,7 +756,7 @@ function CodexAuthSection() {
 }
 
 export default function Settings({ activeSection = 'usage', onUnsavedChange, showWarning = false }: SettingsProps) {
-    const { settings, updateSettings, resetSettings } = useSettings()
+    const { settings, updateSettings, resetSettings, mcpTools, mcpServerStatuses, refreshMcpTools } = useSettings()
     const { sessions } = useChatHistory()
     const [pendingSettings, setPendingSettings] = useState(settings)
 
@@ -971,6 +977,43 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         setPendingSettings(prev => ({ ...prev, ...changes }))
     }
 
+    const createMcpId = () => {
+        if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+            return crypto.randomUUID()
+        }
+        return `mcp_${Date.now()}_${Math.random().toString(16).slice(2)}`
+    }
+
+    const updateMcpServer = (id: string, updates: Partial<McpServerConfig>) => {
+        const servers = (pendingSettings.mcpServers || []).map(server =>
+            server.id === id ? { ...server, ...updates } : server
+        )
+        handleChange({ mcpServers: servers })
+    }
+
+    const addMcpServer = () => {
+        const newServer: McpServerConfig = {
+            id: createMcpId(),
+            name: 'custom',
+            enabled: true,
+            transport: 'stdio',
+            command: '',
+            args: '',
+            cwd: '',
+            env: '',
+            url: '',
+            headers: '',
+            requiresApproval: false,
+            timeoutMs: 30000
+        }
+        handleChange({ mcpServers: [...(pendingSettings.mcpServers || []), newServer] })
+    }
+
+    const removeMcpServer = (id: string) => {
+        const servers = (pendingSettings.mcpServers || []).filter(server => server.id !== id)
+        handleChange({ mcpServers: servers })
+    }
+
     const saveChanges = async () => {
         // Save API keys to secure storage first
         let allSaved = true
@@ -1022,6 +1065,11 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         }
     }
     const cancelChanges = () => setPendingSettings(settings)
+    const allToolDefinitions = getAllToolDefinitions()
+    const mcpToolNames = allToolDefinitions.filter(tool => isMcpToolName(tool.name)).map(tool => tool.name)
+    const enabledToolNames = pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0
+        ? new Set([...pendingSettings.enabledTools, ...mcpToolNames])
+        : new Set(allToolDefinitions.map(tool => tool.name))
     const hasChanges = JSON.stringify(pendingSettings) !== JSON.stringify(settings)
 
     // Notify parent about unsaved changes
@@ -1971,88 +2019,235 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                 )}
                             </div>
 
-                            {/* Tool Approval Mode */}
-                            {pendingSettings.toolsEnabled !== false && (
-                                <div className="settings-section-card">
-                                    <h3 className="section-head">Tool Approval Mode</h3>
-                                    <div className="section-desc" style={{ marginBottom: '16px' }}>
-                                        Control when tools require user approval before execution
+                            {/* MCP Servers */}
+                            <div className="settings-section-card">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
+                                    <div>
+                                        <h3 className="section-head">MCP Servers</h3>
+                                        <div className="section-desc">Connect custom MCP servers and expose their tools to Zura</div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {(['always', 'sensitive', 'never'] as const).map((mode) => {
-                                            const isSelected = (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode
-                                            return (
-                                                <label
-                                                    key={mode}
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '12px',
-                                                        cursor: 'pointer',
-                                                        padding: '12px',
-                                                        borderRadius: '8px',
-                                                        background: isSelected ? 'rgba(255, 228, 196, 0.08)' : 'rgba(255,255,255,0.02)',
-                                                        border: `1px solid ${isSelected ? 'rgba(255, 228, 196, 0.2)' : 'rgba(255,255,255,0.06)'}`,
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        if (!isSelected) {
-                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                                                        }
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        if (!isSelected) {
-                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
-                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
-                                                        }
-                                                    }}
-                                                >
-                                                    <div style={{
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '50%',
-                                                        border: `2px solid ${isSelected ? '#FFE4C4' : 'rgba(255,255,255,0.3)'}`,
-                                                        background: isSelected ? '#FFE4C4' : 'transparent',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        position: 'relative',
-                                                        flexShrink: 0
-                                                    }}>
-                                                        {isSelected && (
-                                                            <div style={{
-                                                                width: '10px',
-                                                                height: '10px',
-                                                                borderRadius: '50%',
-                                                                background: '#14120B'
-                                                            }} />
-                                                        )}
-                                                    </div>
+                                    <button
+                                        onClick={() => refreshMcpTools()}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '6px 12px',
+                                            background: 'transparent',
+                                            border: '1px solid #333',
+                                            borderRadius: 6,
+                                            color: '#888',
+                                            cursor: 'pointer',
+                                            fontSize: '0.8rem'
+                                        }}
+                                    >
+                                        <RefreshCw size={12} /> Refresh
+                                    </button>
+                                </div>
+
+                                {(pendingSettings.mcpServers || []).length === 0 && (
+                                    <div style={{ color: '#888', fontSize: '0.85rem', padding: '12px 0' }}>
+                                        No MCP servers configured yet.
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    {(pendingSettings.mcpServers || []).map((server) => {
+                                        const status = mcpServerStatuses.find(item => item.id === server.id)
+                                        const statusLabel = !server.enabled
+                                            ? 'disabled'
+                                            : status?.status || 'unknown'
+                                        const statusColor = statusLabel === 'ready'
+                                            ? '#22c55e'
+                                            : statusLabel === 'error'
+                                                ? '#ef4444'
+                                                : '#9ca3af'
+
+                                        return (
+                                            <div
+                                                key={server.id}
+                                                style={{
+                                                    padding: 16,
+                                                    borderRadius: 12,
+                                                    border: '1px solid rgba(255,255,255,0.06)',
+                                                    background: 'rgba(255,255,255,0.02)',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: 12
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                                                     <input
-                                                        type="radio"
-                                                        name="toolApprovalMode"
-                                                        value={mode}
-                                                        checked={isSelected}
-                                                        onChange={() => handleChange({ toolApprovalMode: mode })}
-                                                        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
+                                                        className="setting-input-scira"
+                                                        placeholder="Server name"
+                                                        value={server.name}
+                                                        onChange={(e) => updateMcpServer(server.id, { name: e.target.value })}
+                                                        style={{ flex: 1, minWidth: 180 }}
                                                     />
-                                                    <div style={{ flex: 1 }}>
-                                                        <div style={{ fontWeight: 500, color: isSelected ? '#FFE4C4' : '#e0e0e0' }}>
-                                                            {mode === 'always' ? 'Always Ask' : mode === 'sensitive' ? 'Sensitive Only' : 'Never Ask'}
-                                                        </div>
-                                                        <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '2px' }}>
-                                                            {mode === 'always' && 'Require approval for all tool usage'}
-                                                            {mode === 'sensitive' && 'Require approval only for sensitive tools (clipboard, files)'}
-                                                            {mode === 'never' && 'Auto-execute all tools without approval'}
-                                                        </div>
+                                                    <span style={{ fontSize: '0.8rem', color: statusColor }}>
+                                                        {statusLabel}
+                                                    </span>
+                                                    <label className="toggle-switch">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={server.enabled}
+                                                            onChange={(e) => updateMcpServer(server.id, { enabled: e.target.checked })}
+                                                        />
+                                                        <span className="toggle-slider"></span>
+                                                    </label>
+                                                </div>
+
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                                                    <div>
+                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Transport</label>
+                                                        <select
+                                                            className="setting-input-scira"
+                                                            value={server.transport}
+                                                            onChange={(e) => updateMcpServer(server.id, { transport: e.target.value as McpServerConfig['transport'] })}
+                                                        >
+                                                            <option value="stdio">Stdio</option>
+                                                            <option value="http">HTTP</option>
+                                                        </select>
                                                     </div>
-                                                </label>
-                                            )
-                                        })}
+
+                                                    {server.transport === 'stdio' ? (
+                                                        <>
+                                                            <div>
+                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Command</label>
+                                                                <input
+                                                                    className="setting-input-scira"
+                                                                    placeholder="npx"
+                                                                    value={server.command || ''}
+                                                                    onChange={(e) => updateMcpServer(server.id, { command: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Args (space separated)</label>
+                                                                <input
+                                                                    className="setting-input-scira"
+                                                                    placeholder="-y @modelcontextprotocol/server-filesystem"
+                                                                    value={server.args || ''}
+                                                                    onChange={(e) => updateMcpServer(server.id, { args: e.target.value })}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Working Directory</label>
+                                                                <input
+                                                                    className="setting-input-scira"
+                                                                    placeholder="Optional cwd"
+                                                                    value={server.cwd || ''}
+                                                                    onChange={(e) => updateMcpServer(server.id, { cwd: e.target.value })}
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div>
+                                                            <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Server URL</label>
+                                                            <input
+                                                                className="setting-input-scira"
+                                                                placeholder="https://example.com/mcp"
+                                                                value={server.url || ''}
+                                                                onChange={(e) => updateMcpServer(server.id, { url: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {server.transport === 'stdio' && (
+                                                    <div>
+                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Environment (KEY=VALUE per line)</label>
+                                                        <textarea
+                                                            className="setting-input-scira"
+                                                            placeholder="API_KEY=..."
+                                                            value={server.env || ''}
+                                                            onChange={(e) => updateMcpServer(server.id, { env: e.target.value })}
+                                                            style={{ minHeight: 80, resize: 'vertical' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {server.transport === 'http' && (
+                                                    <div>
+                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Headers (Header: Value per line)</label>
+                                                        <textarea
+                                                            className="setting-input-scira"
+                                                            placeholder="Authorization: Bearer ..."
+                                                            value={server.headers || ''}
+                                                            onChange={(e) => updateMcpServer(server.id, { headers: e.target.value })}
+                                                            style={{ minHeight: 80, resize: 'vertical' }}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b0b0b0', fontSize: '0.85rem' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={server.requiresApproval || false}
+                                                            onChange={(e) => updateMcpServer(server.id, { requiresApproval: e.target.checked })}
+                                                        />
+                                                        Require approval for this server
+                                                    </label>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span style={{ color: '#888', fontSize: '0.8rem' }}>Timeout (ms)</span>
+                                                        <input
+                                                            className="setting-input-scira"
+                                                            type="number"
+                                                            min={1000}
+                                                            value={server.timeoutMs || 30000}
+                                                            onChange={(e) => updateMcpServer(server.id, { timeoutMs: Number(e.target.value) })}
+                                                            style={{ width: 110 }}
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeMcpServer(server.id)}
+                                                        style={{
+                                                            padding: '8px 12px',
+                                                            background: 'rgba(239, 68, 68, 0.12)',
+                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                            color: '#f87171',
+                                                            borderRadius: 8,
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.8rem'
+                                                        }}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+
+                                                {status?.error && (
+                                                    <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>
+                                                        {status.error}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+                                    <button
+                                        onClick={addMcpServer}
+                                        style={{
+                                            padding: '10px 16px',
+                                            background: 'rgba(59, 130, 246, 0.15)',
+                                            border: '1px solid rgba(59, 130, 246, 0.35)',
+                                            borderRadius: 10,
+                                            color: '#93c5fd',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8
+                                        }}
+                                    >
+                                        <Plus size={14} /> Add MCP Server
+                                    </button>
+                                    <div style={{ color: '#888', fontSize: '0.8rem' }}>
+                                        {mcpTools.length > 0 ? `${mcpTools.length} MCP tool(s) available` : 'No MCP tools loaded'}
                                     </div>
                                 </div>
-                            )}
+                            </div>
 
                             {/* Available Tools List */}
                             {pendingSettings.toolsEnabled !== false && (
@@ -2060,39 +2255,56 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     <h3 className="section-head">Available Tools</h3>
                                     <div className="section-desc" style={{ marginBottom: '16px' }}>
                                         {pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0
-                                            ? `${pendingSettings.enabledTools.length} tool(s) enabled`
+                                            ? `${enabledToolNames.size} tool(s) enabled`
                                             : 'All tools enabled'}
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                                        {[
-                                            { name: 'web_search', desc: 'Search the internet', icon: '🔍' },
-                                            { name: 'fetch_url', desc: 'Read webpage content', icon: '🌐' },
-                                            { name: 'calculator', desc: 'Evaluate math expressions', icon: '🧮' },
-                                            { name: 'get_datetime', desc: 'Get current date/time', icon: '🕐' },
-                                            { name: 'read_clipboard', desc: 'Read clipboard', icon: '📋' },
-                                            { name: 'write_clipboard', desc: 'Copy to clipboard', icon: '📋' },
-                                        ].map((tool) => (
-                                            <div
-                                                key={tool.name}
-                                                style={{
-                                                    padding: '12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(255,255,255,0.06)',
-                                                    background: 'rgba(255,255,255,0.02)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '10px'
-                                                }}
-                                            >
-                                                <span style={{ fontSize: '1.5rem' }}>{tool.icon}</span>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
-                                                        {tool.name.replace(/_/g, ' ')}
+                                        {allToolDefinitions.map((tool) => {
+                                            const isEnabled = enabledToolNames.has(tool.name)
+                                            const displayName = formatToolDisplayName(tool.name)
+                                            let icon = <Box size={18} />
+
+                                            if (isMcpToolName(tool.name)) {
+                                                icon = <Plug size={18} />
+                                            } else if (tool.name === 'web_search') {
+                                                icon = <Search size={18} />
+                                            } else if (tool.name === 'fetch_url') {
+                                                icon = <Globe size={18} />
+                                            } else if (tool.name === 'calculator') {
+                                                icon = <Calculator size={18} />
+                                            } else if (tool.name === 'get_datetime') {
+                                                icon = <Clock size={18} />
+                                            } else if (tool.name === 'read_clipboard' || tool.name === 'write_clipboard') {
+                                                icon = <Clipboard size={18} />
+                                            }
+
+                                            return (
+                                                <div
+                                                    key={tool.name}
+                                                    style={{
+                                                        padding: '12px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(255,255,255,0.06)',
+                                                        background: 'rgba(255,255,255,0.02)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                        opacity: isEnabled ? 1 : 0.5
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '1.2rem' }}>{icon}</span>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
+                                                            {displayName}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.description}</div>
                                                     </div>
-                                                    <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.desc}</div>
+                                                    {!isEnabled && (
+                                                        <span style={{ fontSize: '0.7rem', color: '#777' }}>Disabled</span>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )}

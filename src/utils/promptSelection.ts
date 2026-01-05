@@ -13,11 +13,13 @@ export function getEffectiveSystemPrompt(settings: Pick<Settings, 'systemPrompt'
 
 /**
  * Determines if tools should be enabled based on settings.
- * 
+ *
  * @param settings - Current application settings
  * @returns Whether tools should be available
  */
-export function shouldEnableTools(settings: Pick<Settings, 'toolsEnabled'>): boolean {
-    // Respect the toolsEnabled setting
-    return settings.toolsEnabled
+export function shouldEnableTools(settings: Pick<Settings, 'toolsEnabled' | 'webSearchEnabled'>): boolean {
+    // Tools are enabled if either:
+    // 1. The general toolsEnabled setting is true
+    // 2. Web search is specifically enabled (allows model to use web_search tool)
+    return settings.toolsEnabled || settings.webSearchEnabled
 }

@@ -6,6 +6,7 @@ import { executeFetchUrl } from './urlFetcher'
 import { executeCalculator } from './calculator'
 import { executeDatetime } from './datetime'
 import { executeReadClipboard, executeWriteClipboard } from './clipboard'
+import { isMcpToolName, mcpManager } from '../mcp'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -28,6 +29,10 @@ const toolHandlers: Record<string, ToolHandler> = {
  */
 export function registerToolHandlers(): void {
     ipcMain.handle('execute-tool', async (_event, toolName: string, args: any): Promise<ToolResult> => {
+        if (isMcpToolName(toolName)) {
+            return mcpManager.callTool(toolName, args)
+        }
+
         const handler = toolHandlers[toolName]
 
         if (!handler) {
@@ -47,7 +52,10 @@ export function registerToolHandlers(): void {
         }
     })
 
-    ipcMain.handle('list-tools', () => Object.keys(toolHandlers))
+    ipcMain.handle('list-tools', async () => {
+        const mcpTools = await mcpManager.listTools()
+        return [...Object.keys(toolHandlers), ...mcpTools.tools.map(tool => tool.name)]
+    })
 }
 
 /**

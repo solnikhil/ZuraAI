@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe } from 'lucide-react'
+import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe, Grid, LayoutGrid, ArrowRight, Expand, ChevronUp } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
 
 interface ModelWithProvider {
@@ -9,10 +9,14 @@ interface ModelWithProvider {
     provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'codex'
 }
 
+type ViewMode = 'favorites' | 'all'
+
 export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     const { settings, updateSettings } = useSettings()
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [viewMode, setViewMode] = useState<ViewMode>('favorites')
+    const [isListExpanded, setIsListExpanded] = useState(false)
     // Collapse states for groups
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
         ollama: false,
@@ -27,25 +31,20 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     const portalRef = useRef<HTMLDivElement>(null)
     const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 320, showAbove: true })
 
-    // Update position when opening
-    // Toggle handler to calculate position immediately
+    // Toggle handler
     const toggleOpen = () => {
         if (!isOpen && dropdownRef.current) {
             const rect = dropdownRef.current.getBoundingClientRect()
             const viewportHeight = window.innerHeight
             const viewportWidth = window.innerWidth
-            const dropdownHeight = 488 // Approximate height, will be adjusted after render
-            const dropdownWidth = 320
-            const padding = 16 // Minimum padding from viewport edges
+            const dropdownHeight = isListExpanded ? 520 : 480
+            const dropdownWidth = isListExpanded ? 640 : 360
+            const padding = 16
             
-            // Calculate available space above and below
             const spaceAbove = rect.top
             const spaceBelow = viewportHeight - rect.bottom
-            
-            // Determine if we should show above or below
             const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
             
-            // Calculate vertical position
             let top: number
             if (showAbove) {
                 top = rect.top - 12
@@ -53,7 +52,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 top = rect.bottom + 12
             }
             
-            // Calculate horizontal position (prevent overflow)
             let left = rect.left
             if (left + dropdownWidth > viewportWidth - padding) {
                 left = viewportWidth - dropdownWidth - padding
@@ -101,10 +99,31 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
 
     const allModels = useMemo(() => getAllModels(), [settings])
 
+    // Get favorite models
+    const favoriteModels = useMemo(() => {
+        const favs = settings.favoriteModels || []
+        
+        if (favs.length === 0) {
+            // No favorites set - show empty state
+            return []
+        }
+        return allModels.filter(m => favs.includes(m.code))
+    }, [allModels, settings.favoriteModels])
+
+    // Toggle favorite
+    const toggleFavorite = (modelCode: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        const currentFavorites = settings.favoriteModels || []
+        const newFavorites = currentFavorites.includes(modelCode)
+            ? currentFavorites.filter(f => f !== modelCode)
+            : [...currentFavorites, modelCode]
+        updateSettings({ favoriteModels: newFavorites })
+    }
+
     // Helper component for Logo with fallback
     const ModelIcon = ({ model, icon, color, size = 24 }: any) => {
         const [imgError, setImgError] = useState(false)
-        const provider = model.provider // Use provider instead of model code
+        const provider = model.provider
 
         if (!imgError) {
             return (
@@ -112,28 +131,27 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                     src={`/provider-logos/${provider}.png`}
                     alt={model.displayName}
                     onError={() => setImgError(true)}
-                    style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain', borderRadius: '4px' }}
+                    style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain', borderRadius: '6px' }}
                 />
             )
         }
 
-        // Fallback to Icon
         return (
             <div style={{
-                padding: size === 24 ? '12px' : '0',
-                borderRadius: '12px',
+                padding: size === 24 ? '10px' : '0',
+                borderRadius: size === 24 ? '10px' : '0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: size === 24 ? `linear-gradient(145deg, ${color}22, transparent)` : 'transparent',
                 color: color
             }}>
-                {React.cloneElement(icon as React.ReactElement, { size: size })}
+                {React.cloneElement(icon as React.ReactElement, { size: size === 24 ? 20 : 14 })}
             </div>
         )
     }
 
-    // Helper for Provider Logo (in headers)
+    // Provider Logo
     const ProviderLogo = ({ provider, size = 14 }: { provider: string, size?: number }) => {
         const [imgError, setImgError] = useState(false)
         if (!imgError) {
@@ -146,26 +164,25 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 />
             )
         }
-        return null // Or a fallback icon
+        return null
     }
 
     // Remove emojis from text
     const removeEmojis = (text: string): string => {
-        // Remove emoji characters using Unicode ranges
-        return text.replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
-                   .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
-                   .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
-                   .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
-                   .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
-                   .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
-                   .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation Selectors
-                   .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols and Pictographs
-                   .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '') // Chess Symbols
-                   .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols and Pictographs Extended-A
+        return text.replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+                   .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+                   .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+                   .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+                   .replace(/[\u{2600}-\u{26FF}]/gu, '')
+                   .replace(/[\u{2700}-\u{27BF}]/gu, '')
+                   .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+                   .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+                   .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
+                   .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
                    .trim()
     }
 
-    // Detect Model Family & Attributes (Recycled from previous step)
+    // Detect Model Family & Attributes
     const getModelAttributes = (model: ModelWithProvider) => {
         const code = model.code.toLowerCase()
         const name = model.displayName.toLowerCase()
@@ -174,7 +191,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         let color = '#b0b0b0'
         let badge = null
 
-        // Icon Logic
         if (code.includes('gemini') || name.includes('gemini')) {
             icon = <Sparkles size={16} />
             color = '#4dabf7'
@@ -192,7 +208,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             color = '#339af0'
         }
 
-        // Badge Logic
         if (name.includes('flash') || name.includes('turbo') || name.includes('instant')) {
             badge = <Zap size={10} color="#fcc419" fill="currentColor" />
         } else if (name.includes('pro') || name.includes('plus') || name.includes('opus')) {
@@ -204,7 +219,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         return { icon, color, badge }
     }
 
-    // Find current model - exact match only (both code and provider must match)
+    // Find current model
     const currentModel = allModels.find(m => m.code === settings.aiModel && m.provider === settings.modelProvider)
     const currentNameRaw = currentModel?.displayName || settings.aiModel.split('/').pop() || settings.aiModel
     const currentName = removeEmojis(currentNameRaw)
@@ -229,7 +244,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }
     }, [filteredModels])
 
-    // Recalculate position when dropdown opens or window resizes/scrolls
+    // Recalculate position
     useEffect(() => {
         if (!isOpen || !dropdownRef.current || !portalRef.current) return
 
@@ -239,18 +254,14 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             const rect = dropdownRef.current.getBoundingClientRect()
             const viewportHeight = window.innerHeight
             const viewportWidth = window.innerWidth
-            const dropdownHeight = portalRef.current.offsetHeight || 488
-            const dropdownWidth = 320
+            const dropdownHeight = isListExpanded ? 520 : 480
+            const dropdownWidth = isListExpanded ? 640 : 360
             const padding = 16
             
-            // Calculate available space above and below
             const spaceAbove = rect.top
             const spaceBelow = viewportHeight - rect.bottom
-            
-            // Determine if we should show above or below
             const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
             
-            // Calculate vertical position
             let top: number
             if (showAbove) {
                 top = rect.top - 12
@@ -258,7 +269,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 top = rect.bottom + 12
             }
             
-            // Calculate horizontal position (prevent overflow)
             let left = rect.left
             if (left + dropdownWidth > viewportWidth - padding) {
                 left = viewportWidth - dropdownWidth - padding
@@ -275,10 +285,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             })
         }
 
-        // Initial position update after render
         const timeoutId = setTimeout(updatePosition, 0)
-        
-        // Update on scroll/resize
         window.addEventListener('scroll', updatePosition, true)
         window.addEventListener('resize', updatePosition)
         
@@ -287,19 +294,17 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             window.removeEventListener('scroll', updatePosition, true)
             window.removeEventListener('resize', updatePosition)
         }
-    }, [isOpen])
+    }, [isOpen, isListExpanded])
 
     // Close on outside click
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             const target = event.target as Node
-            // Check if click is outside both the trigger and the portal dropdown
             if (dropdownRef.current && !dropdownRef.current.contains(target) &&
                 portalRef.current && !portalRef.current.contains(target)) {
                 setIsOpen(false)
             }
         }
-        // Use a small delay to allow click events to fire first
         const timeoutId = setTimeout(() => {
             document.addEventListener('mousedown', handleClickOutside)
         }, 0)
@@ -310,16 +315,11 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     }, [isOpen])
 
     const handleSelect = (model: ModelWithProvider, e?: React.MouseEvent) => {
-        // Prevent event propagation to avoid closing dropdown before update
         if (e) {
             e.stopPropagation()
             e.preventDefault()
         }
-        
-        // Close dropdown first to prevent race conditions
         setIsOpen(false)
-        
-        // Update settings
         updateSettings({ aiModel: model.code, modelProvider: model.provider })
     }
 
@@ -330,10 +330,177 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }))
     }
 
-    const renderGroup = (provider: string, title: string, icon: React.ReactNode, models: ModelWithProvider[]) => {
-        if (models.length === 0 && !searchQuery) return null // Hide empty groups if not searching (if searching, hiding is fine too)
+    // Render model item with favorite star on hover
+    const renderModelItem = (model: ModelWithProvider, isActive: boolean, isCompact: boolean = false) => {
+        const { icon: attrIcon, color, badge } = getModelAttributes(model)
+        const isFavorite = settings.favoriteModels?.includes(model.code) || false
 
-        // If searching and no matches in group, hide it
+        return (
+            <div
+                key={model.code}
+                onClick={(e) => handleSelect(model, e)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`model-item ${isActive ? 'model-item-active' : ''}`}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: isCompact ? '8px 10px' : '12px',
+                    borderRadius: '10px',
+                    background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    cursor: 'pointer',
+                    position: 'relative'
+                }}
+                onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                    // Show star on hover
+                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
+                    if (starBtn) starBtn.style.opacity = '1'
+                }}
+                onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.background = 'transparent'
+                    // Hide star on hover out
+                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
+                    if (starBtn && !isFavorite) starBtn.style.opacity = '0'
+                }}
+            >
+                <ModelIcon
+                    model={model}
+                    icon={attrIcon}
+                    color={color}
+                    size={isCompact ? 20 : 24}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ 
+                        color: '#ddd', 
+                        fontSize: isCompact ? '0.85rem' : '0.9rem', 
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                    }}>
+                        {removeEmojis(model.displayName)}
+                    </div>
+                    {!isCompact && (
+                        <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.provider}</div>
+                    )}
+                </div>
+                {badge}
+                
+                {/* Star button - shows on hover */}
+                <button
+                    className={`star-btn ${isFavorite ? 'favorited' : ''}`}
+                    onClick={(e) => toggleFavorite(model.code, e)}
+                    style={{
+                        opacity: isFavorite ? 1 : 0,
+                        padding: '4px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                    onMouseEnter={e => {
+                        e.stopPropagation()
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                    }}
+                    onMouseLeave={e => {
+                        e.stopPropagation()
+                        e.currentTarget.style.background = 'transparent'
+                    }}
+                >
+                    <Star size={14} fill={isFavorite ? '#FFD700' : 'none'} color={isFavorite ? '#FFD700' : '#666'} />
+                </button>
+
+                {isActive && <Check size={16} color="#fff" />}
+            </div>
+        )
+    }
+
+    // Render compact model item for list view
+    const renderCompactModelItem = (model: ModelWithProvider, isActive: boolean) => {
+        const { color } = getModelAttributes(model)
+        const isFavorite = settings.favoriteModels?.includes(model.code) || false
+
+        return (
+            <div
+                key={model.code}
+                onClick={(e) => handleSelect(model, e)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={`compact-model-item ${isActive ? 'compact-model-item-active' : ''}`}
+                style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+                    cursor: 'pointer',
+                    minWidth: 0,
+                    flexShrink: 0
+                }}
+                onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
+                    if (starBtn) starBtn.style.opacity = '1'
+                }}
+                onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.background = 'transparent'
+                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
+                    if (starBtn && !isFavorite) starBtn.style.opacity = '0'
+                }}
+            >
+                <div style={{ 
+                    width: '8px', 
+                    height: '8px', 
+                    borderRadius: '50%', 
+                    background: color,
+                    flexShrink: 0
+                }} />
+                <span style={{ 
+                    flex: 1, 
+                    fontSize: '0.8rem', 
+                    color: isActive ? '#fff' : '#b0b0b0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                }}>
+                    {removeEmojis(model.displayName)}
+                </span>
+                <button
+                    className={`star-btn ${isFavorite ? 'favorited' : ''}`}
+                    onClick={(e) => toggleFavorite(model.code, e)}
+                    style={{
+                        opacity: isFavorite ? 1 : 0,
+                        padding: '3px',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                    onMouseEnter={e => {
+                        e.stopPropagation()
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
+                    }}
+                    onMouseLeave={e => {
+                        e.stopPropagation()
+                        e.currentTarget.style.background = 'transparent'
+                    }}
+                >
+                    <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} color={isFavorite ? '#FFD700' : '#666'} />
+                </button>
+                {isActive && <Check size={12} color="#fff" />}
+            </div>
+        )
+    }
+
+    const renderGroup = (provider: string, title: string, icon: React.ReactNode, models: ModelWithProvider[]) => {
+        if (models.length === 0 && !searchQuery) return null
         if (models.length === 0) return null
 
         const isCollapsed = collapsedGroups[provider]
@@ -341,6 +508,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         return (
             <div style={{ marginBottom: '8px' }}>
                 <div
+                    className="group-header"
                     onClick={(e) => {
                         e.stopPropagation()
                         toggleGroup(provider)
@@ -371,52 +539,80 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 </div>
 
                 {!isCollapsed && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div className="model-group" style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '8px' }}>
                         {models.map(model => {
-                            const { icon: attrIcon, color, badge } = getModelAttributes(model)
-                            // Check if this model is active - exact match only
                             const isActive = settings.aiModel === model.code && settings.modelProvider === model.provider
-                            return (
-                                <div
-                                    key={model.code}
-                                    onClick={(e) => handleSelect(model, e)}
-                                    onMouseDown={(e) => e.stopPropagation()} // Prevent dropdown from closing
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '12px',
-                                        padding: '10px 12px',
-                                        borderRadius: '12px',
-                                        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s'
-                                    }}
-                                    onMouseEnter={e => {
-                                        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                                    }}
-                                    onMouseLeave={e => {
-                                        if (!isActive) e.currentTarget.style.background = 'transparent'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex' }}>
-                                        <ModelIcon
-                                            model={model}
-                                            icon={attrIcon}
-                                            color={color}
-                                            size={20}
-                                        />
-                                    </div>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span style={{ color: '#ddd', fontSize: '0.9rem' }}>{removeEmojis(model.displayName)}</span>
-                                        {badge}
-                                    </div>
-
-                                    {isActive && <Check size={14} color="#fff" />}
-                                </div>
-                            )
+                            return renderModelItem(model, isActive)
                         })}
                     </div>
                 )}
+            </div>
+        )
+    }
+
+    // Render expanded grid view
+    const renderExpandedView = () => {
+        // Get all models organized by provider
+        const providers = [
+            { key: 'gemini', title: 'Gemini', icon: <Sparkles size={14} />, color: '#4dabf7' },
+            { key: 'openrouter', title: 'OpenRouter', icon: <Cloud size={14} />, color: '#a855f7' },
+            { key: 'perplexity', title: 'Perplexity', icon: <Globe size={14} />, color: '#22c55e' },
+            { key: 'groq', title: 'Groq', icon: <Zap size={14} />, color: '#f97316' },
+            { key: 'ollama', title: 'Ollama', icon: <Database size={14} />, color: '#339af0' },
+            { key: 'codex', title: 'Codex', icon: <Cpu size={14} />, color: '#6366f1' }
+        ]
+
+        return (
+            <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(2, 1fr)', 
+                gap: '12px',
+                paddingRight: '4px'
+            }}>
+                {providers.map(provider => {
+                    const models = groupedModels[provider.key as keyof typeof groupedModels]
+                    if (models.length === 0) return null
+
+                    return (
+                        <div 
+                            key={provider.key}
+                            style={{ 
+                                background: 'rgba(255,255,255,0.02)', 
+                                borderRadius: '12px',
+                                padding: '12px'
+                            }}
+                        >
+                            <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '6px', 
+                                marginBottom: '10px',
+                                color: provider.color,
+                                fontSize: '0.75rem', 
+                                fontWeight: 600
+                            }}>
+                                {provider.icon}
+                                {provider.title}
+                                <span style={{ 
+                                    fontSize: '0.65rem', 
+                                    opacity: 0.6, 
+                                    background: 'rgba(255,255,255,0.05)', 
+                                    padding: '1px 5px', 
+                                    borderRadius: '8px',
+                                    marginLeft: 'auto'
+                                }}>
+                                    {models.length}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                {models.slice(0, 6).map(model => {
+                                    const isActive = settings.aiModel === model.code && settings.modelProvider === provider.key
+                                    return renderModelItem(model, isActive, false)
+                                })}
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
         )
     }
@@ -472,78 +668,200 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
 
-            {/* Rich Popover using Portal */}
+            {/* Model Picker Overlay */}
             {isOpen && ReactDOM.createPortal(
                 <div
                     ref={portalRef}
-                    onMouseDown={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                         position: 'fixed',
                         top: dropdownPos.top,
                         left: dropdownPos.left,
                         transform: dropdownPos.showAbove ? 'translateY(-100%)' : 'translateY(0)',
-                        width: '320px',
+                        width: isListExpanded ? '640px' : '360px',
                         maxHeight: dropdownPos.showAbove 
-                            ? `${Math.max(200, Math.min(dropdownPos.top - 16, 488))}px`
-                            : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, 488))}px`,
+                            ? `${Math.max(200, Math.min(dropdownPos.top - 16, isListExpanded ? 520 : 480))}px`
+                            : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, isListExpanded ? 520 : 480))}px`,
                         backgroundColor: '#1B1913',
                         border: '1px solid rgba(255,255,255,0.1)',
                         borderRadius: '20px',
                         boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
-                        padding: '16px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '16px',
                         animation: dropdownPos.showAbove 
                             ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                         backdropFilter: 'blur(20px)',
-                        zIndex: 99999, // High z-index to sit on top of everything
+                        zIndex: 99999,
                         overflow: 'hidden'
                     }}
                 >
-                    {/* Search Header */}
-                    <div style={{ position: 'relative' }}>
-                        <Search size={14} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                        <input
-                            autoFocus
-                            type="text"
-                            placeholder="Search models..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{
-                                width: '100%',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '12px',
-                                padding: '10px 12px 10px 36px',
-                                color: '#fff',
-                                fontSize: '0.9rem',
-                                outline: 'none'
+                    {/* View Toggle */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '4px',
+                        padding: '6px',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderRadius: '14px',
+                        margin: '12px 16px 0'
+                    }}>
+                        <button
+                            className={`view-tab ${viewMode === 'favorites' ? 'view-tab-active' : ''}`}
+                            onClick={() => {
+                                setViewMode('favorites')
+                                setIsListExpanded(false)
                             }}
-                        />
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: viewMode === 'favorites' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                color: viewMode === 'favorites' ? '#fff' : '#888',
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Star size={14} fill={viewMode === 'favorites' ? '#FFD700' : 'none'} color={viewMode === 'favorites' ? '#FFD700' : '#888'} />
+                            Favorites
+                        </button>
+                        <button
+                            className={`view-tab ${viewMode === 'all' ? 'view-tab-active' : ''}`}
+                            onClick={() => setViewMode('all')}
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: viewMode === 'all' ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                color: viewMode === 'all' ? '#fff' : '#888',
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <LayoutGrid size={14} color={viewMode === 'all' ? '#fff' : '#888'} />
+                            All Models
+                        </button>
                     </div>
 
-                    {/* Content Section */}
-                    <div className="custom-scrollbar" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
-                        {renderGroup('ollama', 'Ollama', <Database size={14} />, groupedModels.ollama)}
-                        {renderGroup('perplexity', 'Perplexity', <Globe size={14} />, groupedModels.perplexity)}
-                        {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
-                        {renderGroup('gemini', 'Gemini', <Sparkles size={14} />, groupedModels.gemini)}
-                        {renderGroup('groq', 'Groq', <Zap size={14} />, groupedModels.groq)}
-                        {renderGroup('codex', 'Codex', <Cpu size={14} />, groupedModels.codex)}
+                    {/* Expand/Collapse Button (only in All Models view) */}
+                    {viewMode === 'all' && (
+                        <button
+                            className="expand-btn"
+                            onClick={() => setIsListExpanded(!isListExpanded)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '6px 12px',
+                                margin: '8px 16px 0',
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '8px',
+                                color: '#888',
+                                fontSize: '0.75rem',
+                                cursor: 'pointer',
+                                alignSelf: 'flex-start'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
+                                e.currentTarget.style.color = '#fff'
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                e.currentTarget.style.color = '#888'
+                            }}
+                        >
+                            {isListExpanded ? <ChevronUp size={12} /> : <Expand size={12} />}
+                            {isListExpanded ? 'Collapse' : 'Expand'}
+                        </button>
+                    )}
 
-                        {filteredModels.length === 0 && (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#999999' }}>No models found</div>
+                    {/* Search - Only show in expanded view */}
+                    {isListExpanded && viewMode === 'all' && (
+                        <div style={{ position: 'relative', padding: '12px 16px 0' }}>
+                            <Search size={14} color="#666" style={{ position: 'absolute', left: '28px', top: '24px', transform: 'translateY(-50%)' }} />
+                            <input
+                                className="search-input"
+                                type="text"
+                                placeholder="Search models..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: '12px',
+                                    padding: '10px 12px 10px 36px',
+                                    color: '#fff',
+                                    fontSize: '0.9rem',
+                                    outline: 'none'
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* Content */}
+                    <div 
+                        className="custom-scrollbar tab-content"
+                        style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}
+                    >
+                        <div style={{ animation: viewMode === 'favorites' ? 'tabSwitchBack 0.2s var(--spring-back)' : 'tabSwitch 0.2s var(--spring-back)' }}>
+                            {viewMode === 'favorites' ? (
+                            // Favorites View
+                            favoriteModels.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {favoriteModels.map(model => {
+                                        const isActive = settings.aiModel === model.code && settings.modelProvider === model.provider
+                                        return renderModelItem(model, isActive)
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                                    <Star size={32} color="#444" style={{ marginBottom: '12px' }} />
+                                    <div style={{ color: '#888', fontSize: '0.9rem', marginBottom: '8px' }}>No favorites yet</div>
+                                    <div style={{ color: '#666', fontSize: '0.8rem' }}>Star models to add them here</div>
+                                </div>
+                            )
+                        ) : (
+                            // All Models View
+                            isListExpanded ? (
+                                // Expanded grid view
+                                renderExpandedView()
+                            ) : (
+                                // Collapsed dropdown view
+                                <>
+                                    {renderGroup('ollama', 'Ollama', <Database size={14} />, groupedModels.ollama)}
+                                    {renderGroup('perplexity', 'Perplexity', <Globe size={14} />, groupedModels.perplexity)}
+                                    {renderGroup('openrouter', 'OpenRouter', <Cloud size={14} />, groupedModels.openrouter)}
+                                    {renderGroup('gemini', 'Gemini', <Sparkles size={14} />, groupedModels.gemini)}
+                                    {renderGroup('groq', 'Groq', <Zap size={14} />, groupedModels.groq)}
+                                    {renderGroup('codex', 'Codex', <Cpu size={14} />, groupedModels.codex)}
+
+                                    {filteredModels.length === 0 && (
+                                        <div style={{ padding: '20px', textAlign: 'center', color: '#999999' }}>No models found</div>
+                                    )}
+                                </>
+                            )
                         )}
+                        </div>
                     </div>
-
-                    {/* Backdrop for outside click (optional, but handling via global click is fine too) */}
                 </div>,
                 document.body
             )}
 
             <style>{`
+                /* Snappy Spring Animations */
                 @keyframes dropdown-slide-up {
                     from { opacity: 0; transform: translateY(calc(-100% + 10px)); }
                     to { opacity: 1; transform: translateY(-100%); }
@@ -552,10 +870,128 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                     from { opacity: 0; transform: translateY(-10px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes scaleIn {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                @keyframes starPop {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.4); }
+                    100% { transform: scale(1); }
+                }
+                @keyframes ripple {
+                    0% { transform: scale(0); opacity: 1; }
+                    100% { transform: scale(2.5); opacity: 0; }
+                }
+                @keyframes tabSwitch {
+                    0% { opacity: 0; transform: translateX(10px); }
+                    100% { opacity: 1; transform: translateX(0); }
+                }
+                @keyframes tabSwitchBack {
+                    0% { opacity: 0; transform: translateX(-10px); }
+                    100% { opacity: 1; transform: translateX(0); }
+                }
+                
+                /* Snappy spring curves */
+                --spring-fast: cubic-bezier(0.25, 0.1, 0.25, 1);
+                --spring-snappy: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                --spring-back: cubic-bezier(0.175, 0.885, 0.32, 1);
+
+                .model-item {
+                    transition: all 0.15s var(--spring-fast);
+                }
+                .model-item:hover {
+                    transform: translateX(4px);
+                }
+                .model-item-active {
+                    background: rgba(255,255,255,0.08) !important;
+                    transform: translateX(6px);
+                }
+                .star-btn {
+                    transition: all 0.15s var(--spring-snappy);
+                }
+                .star-btn:hover {
+                    transform: scale(1.15);
+                }
+                .star-btn.favorited {
+                    animation: starPop 0.25s var(--spring-bounce);
+                }
+                .view-tab {
+                    transition: all 0.15s var(--spring-snappy);
+                    position: relative;
+                }
+                .view-tab::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 50%;
+                    width: 0;
+                    height: 2px;
+                    background: #FFD700;
+                    transition: all 0.2s var(--spring-back);
+                    transform: translateX(-50%);
+                    border-radius: 2px;
+                }
+                .view-tab-active::after {
+                    width: 60%;
+                }
+                .expand-btn {
+                    transition: all 0.15s var(--spring-snappy);
+                }
+                .expand-btn:hover {
+                    transform: scale(1.03);
+                }
+                .expand-btn:active {
+                    transform: scale(0.97);
+                }
+                .group-header {
+                    transition: all 0.15s var(--spring-fast);
+                }
+                .group-header:hover {
+                    transform: translateX(4px);
+                }
+                .model-group {
+                    animation: fadeIn 0.2s var(--spring-back);
+                }
+                .list-view-container {
+                    animation: scaleIn 0.2s var(--spring-back);
+                }
+                .search-input {
+                    transition: all 0.15s var(--spring-fast);
+                }
+                .search-input:focus {
+                    border-color: rgba(255,255,255,0.2) !important;
+                    box-shadow: 0 0 0 3px rgba(255,255,255,0.05);
+                }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; transition: background 0.15s; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                .provider-row {
+                    transition: all 0.15s var(--spring-fast);
+                }
+                .provider-row:hover {
+                    background: rgba(255,255,255,0.04) !important;
+                    transform: translateY(-2px);
+                }
+                .provider-row:active {
+                    transform: translateY(0);
+                }
+                .compact-model-item {
+                    transition: all 0.15s var(--spring-fast);
+                }
+                .compact-model-item:hover {
+                    transform: translateX(3px);
+                }
+                .compact-model-item-active {
+                    background: rgba(255,255,255,0.06) !important;
+                }
             `}</style>
         </div>
     )

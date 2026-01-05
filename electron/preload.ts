@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('codexAuth', {
         ipcRenderer.invoke('codex:send-request', params),
     fetchModels: () => ipcRenderer.invoke('codex:fetch-models'),
     checkUsage: () => ipcRenderer.invoke('codex:check-usage'),
+    getBaseInstructions: (modelSlug: string) => ipcRenderer.invoke('codex:get-base-instructions', modelSlug),
     // True SSE streaming support
     streamChat: (params: { messages: any[]; model: string; options?: any }) =>
         ipcRenderer.invoke('codex:stream-chat', params),

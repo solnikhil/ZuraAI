@@ -305,10 +305,14 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
-        let rawContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't get a response."
+        // Add null checks to prevent errors
+        let rawContent = "Sorry, I couldn't get a response."
+        if (res && res.candidates && res.candidates[0]?.content?.parts?.[0]?.text) {
+            rawContent = res.candidates[0].content.parts[0].text
+        }
 
         // Check for function calls
-        if (canUseTools && hasGeminiFunctionCalls(res)) {
+        if (canUseTools && res && hasGeminiFunctionCalls(res)) {
             const toolResult = await handleToolCalls(res)
             
             if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
@@ -336,7 +340,9 @@ export default function Overlay() {
                     }
                 )
                 
-                rawContent = followUpRes.candidates?.[0]?.content?.parts?.[0]?.text || rawContent
+                if (followUpRes && followUpRes.candidates && followUpRes.candidates[0]?.content?.parts?.[0]?.text) {
+                    rawContent = followUpRes.candidates[0].content.parts[0].text
+                }
             }
         }
 

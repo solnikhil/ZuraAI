@@ -6,6 +6,7 @@ import React from 'react'
 import { ShieldCheck, AlertTriangle, X, Check } from 'lucide-react'
 import { ToolCall } from '../tools/executor'
 import { getToolByName } from '../tools/definitions'
+import { formatToolDisplayName } from '../tools/mcpUtils'
 import './ToolApprovalDialog.css'
 
 export interface ToolApprovalDialogProps {
@@ -25,6 +26,7 @@ export default function ToolApprovalDialog({
 
     const toolDef = getToolByName(toolCall.name)
     const category = toolDef?.category || 'unknown'
+    const displayName = formatToolDisplayName(toolCall.name)
     
     // Determine risk level based on category
     const isHighRisk = ['computer', 'system', 'file'].includes(category)
@@ -61,7 +63,7 @@ export default function ToolApprovalDialog({
                     <div className="tool-approval-details">
                         <div className="tool-name">
                             <span className="label">Tool:</span>
-                            <span className="value">{toolCall.name}</span>
+                            <span className="value">{displayName}</span>
                         </div>
                         
                         {toolDef && (

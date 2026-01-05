@@ -64,10 +64,15 @@ export function convertToGeminiFormat(tools: ToolDefinition[]): GeminiTools {
  * Parse function calls from Gemini response
  */
 export function parseGeminiFunctionCalls(response: GeminiResponse): ToolCall[] {
-    const parts = response.candidates?.[0]?.content?.parts || []
+    // Add null checks to prevent errors
+    if (!response || !response.candidates || !response.candidates[0]) {
+        return []
+    }
+    
+    const parts = response.candidates[0]?.content?.parts || []
     
     const functionCalls = parts
-        .filter((part: GeminiPart) => part.functionCall)
+        .filter((part: GeminiPart) => part && part.functionCall)
         .map((part: GeminiPart, index: number) => ({
             id: `gemini_${Date.now()}_${index}`,
             name: part.functionCall!.name,
@@ -98,7 +103,12 @@ export function formatToolResultsForGemini(
  * Check if Gemini response contains function calls
  */
 export function hasGeminiFunctionCalls(response: GeminiResponse): boolean {
-    const parts = response.candidates?.[0]?.content?.parts || []
-    return parts.some((part: GeminiPart) => part.functionCall)
+    // Add null checks to prevent errors
+    if (!response || !response.candidates || !response.candidates[0]) {
+        return false
+    }
+    
+    const parts = response.candidates[0]?.content?.parts || []
+    return parts.some((part: GeminiPart) => part && part.functionCall)
 }
 

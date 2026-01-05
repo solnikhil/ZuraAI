@@ -11,6 +11,7 @@ import * as fsSync from 'fs'
 import * as path from 'path'
 import * as http from 'http'
 import * as url from 'url'
+import { getOfficialCodexInstructions } from '../src/services/codex'
 
 // ============================================================================
 // Types
@@ -60,6 +61,7 @@ const OAUTH_SCOPE = 'openid profile email offline_access'
 // - ChatGPT OAuth: https://chatgpt.com/backend-api/codex
 // - API Key: https://api.openai.com/v1
 const CODEX_API_BASE = 'https://chatgpt.com/backend-api/codex'
+const CHATGPT_API_BASE = 'https://chatgpt.com/backend-api'
 
 // OpenAI API base for user info endpoints (still uses api.openai.com)
 const OPENAI_API_BASE = 'https://api.openai.com'
@@ -72,6 +74,27 @@ let lastKnownRateLimits: {
     remainingTokens?: number
     resetRequests?: string
     resetTokens?: string
+    updatedAt?: number
+} = {}
+
+let lastKnownCodexUsageLimits: {
+    primary?: {
+        usedPercent?: number
+        resetAt?: number
+        windowMinutes?: number
+        resetAfterSeconds?: number
+    }
+    secondary?: {
+        usedPercent?: number
+        resetAt?: number
+        windowMinutes?: number
+        resetAfterSeconds?: number
+    }
+    credits?: {
+        balance?: number
+        hasCredits?: boolean
+        unlimited?: boolean
+    }
     updatedAt?: number
 } = {}
 
@@ -101,6 +124,62 @@ function extractRateLimitHeaders(headers: Headers): void {
     }
 }
 
+function extractCodexUsageHeaders(headers: Headers): void {
+    const primaryUsedPercent = headers.get('x-codex-primary-used-percent')
+    const primaryResetAt = headers.get('x-codex-primary-reset-at')
+    const primaryResetAfterSeconds = headers.get('x-codex-primary-reset-after-seconds')
+    const primaryWindowMinutes = headers.get('x-codex-primary-window-minutes')
+
+    const secondaryUsedPercent = headers.get('x-codex-secondary-used-percent')
+    const secondaryResetAt = headers.get('x-codex-secondary-reset-at')
+    const secondaryResetAfterSeconds = headers.get('x-codex-secondary-reset-after-seconds')
+    const secondaryWindowMinutes = headers.get('x-codex-secondary-window-minutes')
+
+    const creditsBalance = headers.get('x-codex-credits-balance')
+    const creditsHasCredits = headers.get('x-codex-credits-has-credits')
+    const creditsUnlimited = headers.get('x-codex-credits-unlimited')
+
+    const parseNumber = (value: string | null): number | undefined => {
+        if (!value) return undefined
+        const parsed = Number(value)
+        return Number.isFinite(parsed) ? parsed : undefined
+    }
+
+    const primaryUsed = parseNumber(primaryUsedPercent)
+    const secondaryUsed = parseNumber(secondaryUsedPercent)
+    const hasAnyCodexUsage = primaryUsed !== undefined ||
+        secondaryUsed !== undefined ||
+        primaryResetAt ||
+        secondaryResetAt ||
+        creditsHasCredits ||
+        creditsUnlimited
+
+    if (!hasAnyCodexUsage) return
+
+    lastKnownCodexUsageLimits = {
+        primary: {
+            usedPercent: primaryUsed,
+            resetAt: parseNumber(primaryResetAt),
+            windowMinutes: parseNumber(primaryWindowMinutes),
+            resetAfterSeconds: parseNumber(primaryResetAfterSeconds)
+        },
+        secondary: {
+            usedPercent: secondaryUsed,
+            resetAt: parseNumber(secondaryResetAt),
+            windowMinutes: parseNumber(secondaryWindowMinutes),
+            resetAfterSeconds: parseNumber(secondaryResetAfterSeconds)
+        },
+        credits: {
+            balance: parseNumber(creditsBalance),
+            hasCredits: creditsHasCredits ? creditsHasCredits.toLowerCase() === 'true' : undefined,
+            unlimited: creditsUnlimited ? creditsUnlimited.toLowerCase() === 'true' : undefined
+        },
+        updatedAt: Date.now()
+    }
+
+    console.log('[CodexAuth] Codex usage headers captured:', lastKnownCodexUsageLimits)
+}
+
 /**
  * Get last known rate limits
  */
@@ -123,16 +202,34 @@ let cachedModels: Map<string, CachedModelInfo> = new Map()
 let modelsCacheTimestamp = 0
 const MODELS_CACHE_TTL = 3600000  // 1 hour
 
+// Bundled models.json base_instructions (extracted from research-codex/codex/codex-rs/core/models.json)
+// The official Codex CLI bundles this file and uses it as the source of truth
+const BUNDLED_MODEL_INSTRUCTIONS: Record<string, string> = {
+    // gpt-5.1-codex-max and gpt-5.2-codex share the same base_instructions
+    'gpt-5.1-codex-max': getOfficialCodexInstructions(),
+    'gpt-5.2-codex': getOfficialCodexInstructions(),
+    // gpt-5.1-codex-mini uses the same base instructions as max/codex
+    'gpt-5.1-codex-mini': getOfficialCodexInstructions()
+}
+
 /**
  * Fetch models from the Codex API and cache their base_instructions
- * This is CRITICAL because the API validates instructions against the server's copy
+ * Falls back to bundled instructions if API is not available
  */
 export async function fetchAndCacheModels(): Promise<boolean> {
+    // #region agent log - HYPOTHESIS D
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:171',message:'fetchAndCacheModels ENTRY',data:{hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
+
     try {
         const token = await loadToken()
         if (!token) {
-            console.log('[CodexAuth:Models] No token available, cannot fetch models')
-            return false
+            console.log('[CodexAuth:Models] No token available, using bundled instructions')
+            // #region agent log - HYPOTHESIS D
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:179',message:'No token - using bundled',data:{hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+            // #endregion
+            loadBundledInstructions()
+            return true
         }
 
         const headers: Record<string, string> = {
@@ -156,19 +253,37 @@ export async function fetchAndCacheModels(): Promise<boolean> {
 
         if (!response.ok) {
             const errorText = await response.text()
-            console.error('[CodexAuth:Models] Failed to fetch models:', response.status, errorText)
-            return false
+            console.log('[CodexAuth:Models] API fetch failed:', response.status, '- using bundled instructions ONLY if cache is empty')
+            // #region agent log - HYPOTHESIS D
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:200',message:'API fetch failed',data:{status:response.status,errorText:errorText.substring(0,200),cacheSize:cachedModels.size,hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+            // #endregion
+            // FIX: Only load bundled instructions if cache is completely empty
+            // This prevents overwriting valid cached instructions when /models endpoint fails
+            if (cachedModels.size === 0) {
+                console.log('[CodexAuth:Models] Cache empty, loading bundled instructions')
+                loadBundledInstructions()
+            } else {
+                console.log('[CodexAuth:Models] Keeping existing cached instructions (', cachedModels.size, 'models)')
+            }
+            return true
         }
 
         const data = await response.json()
         const models = data.models || []
 
-        console.log('[CodexAuth:Models] Received', models.length, 'models')
+        console.log('[CodexAuth:Models] Received', models.length, 'models from API')
+
+        // #region agent log - HYPOTHESIS D
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:209',message:'API response received',data:{modelCount:models.length,hasModelsArray:Array.isArray(models),hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
 
         // Cache each model's base_instructions
         cachedModels.clear()
         for (const model of models) {
             if (model.slug) {
+                // #region agent log - HYPOTHESIS D
+                fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:217',message:'Processing model from API',data:{slug:model.slug,hasBaseInstructions:!!model.base_instructions,instructionsLength:model.base_instructions?.length||0,instructionsPreview:model.base_instructions?.substring(0,100)||'null',hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+                // #endregion
                 cachedModels.set(model.slug, {
                     slug: model.slug,
                     base_instructions: model.base_instructions || null,
@@ -181,11 +296,46 @@ export async function fetchAndCacheModels(): Promise<boolean> {
 
         modelsCacheTimestamp = Date.now()
         console.log('[CodexAuth:Models] Models cache updated with', cachedModels.size, 'models')
+        // #region agent log - HYPOTHESIS D
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:228',message:'Cache updated from API',data:{modelCount:cachedModels.size,hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
         return true
     } catch (error) {
-        console.error('[CodexAuth:Models] Error fetching models:', error)
-        return false
+        console.error('[CodexAuth:Models] Error fetching models, using bundled:', error)
+        // #region agent log - HYPOTHESIS D
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:232',message:'Exception fetching models',data:{error:(error as Error).message,hypothesisId:'D'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
+        loadBundledInstructions()
+        return true
     }
+}
+
+/**
+ * Load bundled model instructions (fallback when API is not available)
+ */
+function loadBundledInstructions(): void {
+    // #region agent log - HYPOTHESIS A
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:238',message:'loadBundledInstructions ENTRY',data:{hypothesisId:'A'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
+
+    cachedModels.clear()
+    for (const [slug, instructions] of Object.entries(BUNDLED_MODEL_INSTRUCTIONS)) {
+        cachedModels.set(slug, {
+            slug,
+            base_instructions: instructions,
+            display_name: slug,
+            description: ''
+        })
+        // #region agent log - HYPOTHESIS A
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:246',message:'Bundled instruction loaded',data:{slug,instructionsLength:instructions.length,instructionsPreview:instructions.substring(0,100),hypothesisId:'A'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
+        console.log(`[CodexAuth:Models] Loaded bundled instructions for ${slug}, length: ${instructions.length}`)
+    }
+    modelsCacheTimestamp = Date.now()
+    console.log('[CodexAuth:Models] Loaded', cachedModels.size, 'bundled models')
+    // #region agent log - HYPOTHESIS A
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:252',message:'Bundled instructions loaded',data:{modelCount:cachedModels.size,timestamp:Date.now(),hypothesisId:'A'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
 }
 
 /**
@@ -193,15 +343,34 @@ export async function fetchAndCacheModels(): Promise<boolean> {
  * Returns null if not cached or cache expired
  */
 export function getCachedBaseInstructions(modelSlug: string): string | null {
+    // #region agent log - HYPOTHESIS C
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:257',message:'getCachedBaseInstructions ENTRY',data:{modelSlug,hypothesisId:'C'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
+
     // Check if cache is expired
     if (Date.now() - modelsCacheTimestamp > MODELS_CACHE_TTL) {
-        console.log('[CodexAuth:Models] Cache expired, returning null')
-        return null
+        console.log('[CodexAuth:Models] Cache expired, loading bundled instructions')
+        // #region agent log - HYPOTHESIS A
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:261',message:'Using BUNDLED instructions (cache expired)',data:{timestamp:Date.now(),hypothesisId:'A'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
+        loadBundledInstructions()
+    }
+
+    // If cache is empty, load bundled instructions
+    if (cachedModels.size === 0) {
+        console.log('[CodexAuth:Models] Cache empty, loading bundled instructions')
+        // #region agent log - HYPOTHESIS A
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:267',message:'Using BUNDLED instructions (cache empty)',data:{timestamp:Date.now(),hypothesisId:'A'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
+        loadBundledInstructions()
     }
 
     const model = cachedModels.get(modelSlug)
     if (model) {
         console.log(`[CodexAuth:Models] Found cached instructions for ${modelSlug}, length: ${model.base_instructions?.length || 0}`)
+        // #region agent log - HYPOTHESIS C
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:276',message:'Direct cache match found',data:{modelSlug,instructionsLength:model.base_instructions?.length||0,source:'cached',hypothesisId:'C'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
         return model.base_instructions
     }
 
@@ -209,11 +378,17 @@ export function getCachedBaseInstructions(modelSlug: string): string | null {
     for (const [slug, info] of cachedModels) {
         if (modelSlug.startsWith(slug) || slug.startsWith(modelSlug)) {
             console.log(`[CodexAuth:Models] Found cached instructions for ${modelSlug} via prefix match with ${slug}`)
+            // #region agent log - HYPOTHESIS C
+            fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:284',message:'Prefix match found',data:{modelSlug,matchedSlug:slug,instructionsLength:info.base_instructions?.length||0,source:'prefix-match',hypothesisId:'C'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+            // #endregion
             return info.base_instructions
         }
     }
 
     console.log(`[CodexAuth:Models] No cached instructions found for ${modelSlug}`)
+    // #region agent log - HYPOTHESIS C
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:289',message:'No cached instructions found',data:{modelSlug,source:'none',hypothesisId:'C'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+    // #endregion
     return null
 }
 
@@ -1032,6 +1207,10 @@ export async function makeCodexRequest(
         console.log('[CodexAuth:makeCodexRequest] HAS max_tokens?:', 'max_tokens' in body)
         console.log('[CodexAuth:makeCodexRequest] FULL BODY JSON:', JSON.stringify(body, null, 2))
         // #endregion
+
+        // #region agent log - HYPOTHESIS E
+        fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:1103',message:'Request body ready to send',data:{model:body.model,instructionsLength:body.instructions?.length||0,endpoint:method,url:`${CODEX_API_BASE}${endpoint}`,hypothesisId:'E'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
+        // #endregion
     }
 
     // #region agent log - Making fetch call
@@ -1049,6 +1228,10 @@ export async function makeCodexRequest(
     response.headers.forEach((value, key) => {
         console.log(`[CodexAuth:makeCodexRequest]   ${key}: ${value}`)
     })
+    // #endregion
+
+    // #region agent log - HYPOTHESIS E & ALL
+    fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'electron/codexAuth.ts:1113',message:'API response received',data:{status:response.status,statusText:response.statusText,ok:response.ok,is400Error:response.status===400,url:url,hypothesisId:'E'},timestamp:Date.now(),sessionId:'debug-session'})}).catch(()=>{});
     // #endregion
 
     return response
@@ -1093,7 +1276,8 @@ function parseUsageLimit(limitData: any): { used: number; total: number; resetAt
     // Handle different response structures
     if (typeof limitData === 'object') {
         let resetAt: number | undefined = undefined
-        const resetAtValue = limitData.reset_at || limitData.resetAt || limitData.expires_at
+        const resetAtValue = limitData.reset_at ?? limitData.resetAt ?? limitData.expires_at
+        const usedPercent = limitData.used_percent ?? limitData.usedPercent
 
         if (resetAtValue !== undefined && resetAtValue !== null) {
             // Handle Unix timestamp (seconds or milliseconds)
@@ -1115,14 +1299,61 @@ function parseUsageLimit(limitData: any): { used: number; total: number; resetAt
             }
         }
 
+        const used = limitData.used ?? limitData.current_usage ?? limitData.usage ?? usedPercent ?? 0
+        const total = limitData.total ?? limitData.limit ?? limitData.max ?? (usedPercent !== undefined ? 100 : 0)
+
         return {
-            used: limitData.used || limitData.current_usage || limitData.usage || 0,
-            total: limitData.total || limitData.limit || limitData.max || 0,
+            used,
+            total,
             resetAt
         }
     }
 
     return undefined
+}
+
+async function fetchCodexUsageLimits(token: CodexTokenData): Promise<{
+    limits5Day?: { used: number; total: number; resetAt?: number }
+    limits7Day?: { used: number; total: number; resetAt?: number }
+    planType?: string
+} | null> {
+    if (!token.accessToken || !token.chatgptAccountId) return null
+
+    const url = `${CHATGPT_API_BASE}/api/codex/usage`
+    const headers: Record<string, string> = {
+        'Authorization': `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
+        'originator': 'codex_cli_rs',
+        'User-Agent': 'codex_cli_rs/1.0.0 ZuraAI',
+        'version': '1.0.0',
+        'ChatGPT-Account-Id': token.chatgptAccountId
+    }
+
+    try {
+        const response = await fetch(url, { method: 'GET', headers })
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.log('[CodexAuth] Codex usage endpoint failed:', response.status, response.statusText, errorText.substring(0, 200))
+            return null
+        }
+
+        extractCodexUsageHeaders(response.headers)
+
+        const payload = await response.json()
+        const rateLimit = payload.rate_limit || payload.rateLimit
+        const limits5Day = parseUsageLimit(rateLimit?.primary_window || rateLimit?.primaryWindow)
+        const limits7Day = parseUsageLimit(rateLimit?.secondary_window || rateLimit?.secondaryWindow)
+        const planType = payload.plan_type || payload.planType
+
+        if (!limits5Day && !limits7Day && !planType) {
+            return null
+        }
+
+        return { limits5Day, limits7Day, planType }
+    } catch (error: any) {
+        console.log('[CodexAuth] Codex usage endpoint error:', error?.message || error)
+        return null
+    }
 }
 
 // ============================================================================
@@ -1238,6 +1469,7 @@ export function registerCodexAuthHandlers(): void {
 
             // Capture rate limit headers from chat completion responses
             extractRateLimitHeaders(response.headers)
+            extractCodexUsageHeaders(response.headers)
 
             // Convert response to serializable format
             const bodyText = await response.text()
@@ -1270,6 +1502,10 @@ export function registerCodexAuthHandlers(): void {
             if (!token) {
                 return { success: false, error: 'Not authenticated', models: [] }
             }
+
+            // Fetch and cache models from API (this gets the base_instructions)
+            console.log('[CodexAuth] Fetching models from API to cache base_instructions...')
+            await fetchAndCacheModels()
 
             console.log('[CodexAuth] Returning official Codex CLI models with reasoning levels')
 
@@ -1326,6 +1562,23 @@ export function registerCodexAuthHandlers(): void {
         } catch (error: any) {
             console.error('[CodexAuth] Error fetching models:', error)
             return { success: false, error: error.message, models: [] }
+        }
+    })
+
+    // Get cached base_instructions for a model
+    ipcMain.handle('codex:get-base-instructions', async (_, modelSlug: string) => {
+        try {
+            // Refresh cache if needed
+            if (needsModelsRefresh()) {
+                console.log('[CodexAuth] Models cache needs refresh, fetching...')
+                await fetchAndCacheModels()
+            }
+
+            const instructions = getCachedBaseInstructions(modelSlug)
+            return { success: true, instructions }
+        } catch (error: any) {
+            console.error('[CodexAuth] Error getting base instructions:', error)
+            return { success: false, error: error.message, instructions: null }
         }
     })
 
@@ -1419,6 +1672,14 @@ export function registerCodexAuthHandlers(): void {
             let limits5Day: { used: number; total: number; resetAt?: number } | undefined
             let limits7Day: { used: number; total: number; resetAt?: number } | undefined
 
+            const codexUsage = await fetchCodexUsageLimits(token)
+            if (codexUsage?.planType) {
+                planType = codexUsage.planType
+                planDisplayName = mapPlanTypeToDisplayName(planType)
+            }
+            if (codexUsage?.limits5Day) limits5Day = codexUsage.limits5Day
+            if (codexUsage?.limits7Day) limits7Day = codexUsage.limits7Day
+
             // Check if usage info is in /v1/me response first
             if (userData.usage_limits || userData.limits || userData.local_usage || userData.cloud_usage) {
                 const usageData = userData.usage_limits || userData.limits || userData
@@ -1504,6 +1765,27 @@ export function registerCodexAuthHandlers(): void {
                         // #endregion
                         // Continue to next endpoint
                         continue
+                    }
+                }
+            }
+
+            // Fallback to Codex usage headers (5-hour / 7-day limits)
+            if (!limits5Day && !limits7Day && lastKnownCodexUsageLimits.updatedAt) {
+                const primaryUsed = lastKnownCodexUsageLimits.primary?.usedPercent
+                const secondaryUsed = lastKnownCodexUsageLimits.secondary?.usedPercent
+
+                if (primaryUsed !== undefined) {
+                    limits5Day = {
+                        used: primaryUsed,
+                        total: 100,
+                        resetAt: lastKnownCodexUsageLimits.primary?.resetAt
+                    }
+                }
+                if (secondaryUsed !== undefined) {
+                    limits7Day = {
+                        used: secondaryUsed,
+                        total: 100,
+                        resetAt: lastKnownCodexUsageLimits.secondary?.resetAt
                     }
                 }
             }
@@ -1707,6 +1989,7 @@ export function registerCodexStreamingHandler(): void {
             }
 
             extractRateLimitHeaders(response.headers)
+            extractCodexUsageHeaders(response.headers)
 
             // Step 6: Read stream
             console.log('[CodexAuth:Stream] Step 6: Reading response stream...')

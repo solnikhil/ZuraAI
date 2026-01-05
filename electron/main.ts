@@ -4,6 +4,7 @@ import path from 'path'
 import * as chatStore from './chatStore'
 import * as secureStorage from './secureStorage'
 import { registerCodexAuthHandlers, registerCodexStreamingHandler, cleanupCodexAuth } from './codexAuth'
+import { mcpManager } from './mcp'
 
 // Import tool handlers - use dynamic import to avoid circular dependency issues
 let registerToolHandlers: (() => void) | undefined
@@ -307,63 +308,77 @@ app.whenReady().then(async () => {
     // Overlay is now lazy-loaded - only created when first needed
     // This saves ~100-200MB RAM when overlay is not being used
 
-    // Global shortcut for overlay toggle - lazy loads overlay if not created
-    globalShortcut.register('CommandOrControl+Shift+Z', async () => {
-        // Lazy load overlay if not yet created
-        if (!overlayWin) {
-            createOverlayWindow(true)
-        }
+    // DISABLED: Agent shortcut popup (Ctrl+Shift+Z)
+    // To re-enable, uncomment the globalShortcut.register calls below
+    // globalShortcut.register('CommandOrControl+Shift+Z', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         if (overlayWin.isVisible()) {
+    //             overlayWin.hide()
+    //         } else {
+    //             overlayWin.show()
+    //             overlayWin.focus()
+    //             overlayWin.setAlwaysOnTop(true)
+    //             overlayWin.webContents.send('reset-overlay')
+    //         }
+    //     }
+    // })
 
-        if (overlayWin) {
-            if (overlayWin.isVisible()) {
-                overlayWin.hide()
-            } else {
-                overlayWin.show()
-                overlayWin.focus()
-                overlayWin.setAlwaysOnTop(true)
-                overlayWin.webContents.send('reset-overlay')
-            }
-        }
-    })
+    // DISABLED: Agent shortcut popup (Ctrl+Shift+Z)
+    // To re-enable, uncomment the globalShortcut.register calls below
+    // globalShortcut.register('CommandOrControl+Shift+Z', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         if (overlayWin.isVisible()) {
+    //             overlayWin.hide()
+    //         } else {
+    //             overlayWin.show()
+    //             overlayWin.focus()
+    //             overlayWin.setAlwaysOnTop(true)
+    //             overlayWin.webContents.send('reset-overlay')
+    //         }
+    //     }
+    // })
 
-    // Ctrl+Shift+X - Direct screenshot selection mode - lazy loads overlay
-    globalShortcut.register('CommandOrControl+Shift+X', async () => {
-        // Lazy load overlay if not yet created
-        if (!overlayWin) {
-            createOverlayWindow(true)
-        }
-
-        if (overlayWin) {
-            overlayWin.hide()
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 50))
-
-        const displaySize = screen.getPrimaryDisplay().size
-        const sources = await desktopCapturer.getSources({
-            types: ['screen'],
-            thumbnailSize: displaySize,
-            fetchWindowIcons: false
-        })
-
-        const primarySource = sources[0]
-        if (primarySource) {
-            currentScreenshot = primarySource.thumbnail
-        }
-
-        if (overlayWin) {
-            overlayWin.show()
-            overlayWin.focus()
-            overlayWin.setAlwaysOnTop(true)
-            overlayWin.webContents.send('start-screenshot-selection')
-        }
-    })
+    // // Ctrl+Shift+X - Direct screenshot selection mode
+    // globalShortcut.register('CommandOrControl+Shift+X', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         overlayWin.hide()
+    //     }
+    //     await new Promise(resolve => setTimeout(resolve, 50))
+    //     const displaySize = screen.getPrimaryDisplay().size
+    //     const sources = await desktopCapturer.getSources({
+    //         types: ['screen'],
+    //         thumbnailSize: displaySize,
+    //         fetchWindowIcons: false
+    //     })
+    //     const primarySource = sources[0]
+    //     if (primarySource) {
+    //         currentScreenshot = primarySource.thumbnail
+    //     }
+    //     if (overlayWin) {
+    //         overlayWin.show()
+    //         overlayWin.focus()
+    //         overlayWin.setAlwaysOnTop(true)
+    //         overlayWin.webContents.send('start-screenshot-selection')
+    //     }
+    // })
 })
 
 // IPC Handlers
 
 ipcMain.on('settings-changed', (_event, settings) => {
     (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
+    if (Array.isArray(settings.mcpServers)) {
+        mcpManager.setServerConfigs(settings.mcpServers)
+    }
 
     // Handle settings changes that affect the main process
     if (settings.shortcuts?.toggleOverlay) {
@@ -376,6 +391,13 @@ ipcMain.on('settings-changed', (_event, settings) => {
     if (overlayWin) {
         overlayWin.webContents.send('settings-updated', settings)
     }
+})
+
+ipcMain.handle('mcp:list-tools', async (_event, mcpServers) => {
+    if (Array.isArray(mcpServers)) {
+        mcpManager.setServerConfigs(mcpServers)
+    }
+    return mcpManager.listTools()
 })
 
 // ==================== CHAT STORE IPC HANDLERS ====================

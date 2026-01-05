@@ -60,7 +60,7 @@ interface OpenRouterRequestBody {
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
-    tool_choice?: 'auto' | 'none'
+    tool_choice?: 'auto' | 'none' | 'any' | 'required' | { type: 'function'; function: { name: string } }
 }
 
 export async function generateOpenRouterCompletion(
@@ -72,6 +72,7 @@ export async function generateOpenRouterCompletion(
         maxTokens?: number
         stream?: boolean
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
     }
 ): Promise<OpenRouterResponse> {
     if (!apiKey) {
@@ -94,7 +95,7 @@ export async function generateOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice ?? 'auto'
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -125,6 +126,7 @@ export async function* streamOpenRouterCompletion(
         temperature?: number
         maxTokens?: number
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: OpenRouterStreamChunk) => void
     }
 ): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
@@ -146,7 +148,7 @@ export async function* streamOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice ?? 'auto'
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

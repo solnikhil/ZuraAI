@@ -1,6 +1,6 @@
 // Tool Manager - Coordinates tool execution in chat flow
 
-import { toolDefinitions, getToolByName } from './definitions'
+import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { parseOpenRouterToolCalls, hasToolCalls, formatToolResultsForOpenRouter } from './adapters/openrouter'
 import { parseGeminiFunctionCalls, hasGeminiFunctionCalls, formatToolResultsForGemini } from './adapters/gemini'
@@ -92,7 +92,7 @@ export function getToolsForProvider(config: ToolManagerConfig) {
     }
     
     // Filter tools if specific ones are enabled
-    let tools = toolDefinitions
+    let tools = getAllToolDefinitions()
     if (config.enabledTools && config.enabledTools.length > 0) {
         tools = tools.filter(t => config.enabledTools!.includes(t.name))
     }
@@ -108,6 +108,7 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'codex':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return parseGeminiFunctionCalls(response as GeminiResponse)
@@ -124,6 +125,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'codex':
             return hasToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return hasGeminiFunctionCalls(response as GeminiResponse)
@@ -146,6 +148,7 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'codex':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'gemini':
             return formatToolResultsForGemini(toolCalls, toolResults)
@@ -250,6 +253,7 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'codex':
             return [
                 ...originalMessages,
                 assistantMessage,
@@ -273,7 +277,7 @@ export function buildMessagesWithToolResults(
  * Get a summary of available tools for the system prompt
  */
 export function getToolsSummaryForPrompt(enabledTools?: string[]): string {
-    let tools = toolDefinitions
+    let tools = getAllToolDefinitions()
     if (enabledTools && enabledTools.length > 0) {
         tools = tools.filter(t => enabledTools.includes(t.name))
     }
