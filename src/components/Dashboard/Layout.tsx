@@ -50,7 +50,7 @@ export default function DashboardLayout() {
     }, [hasUnsavedSettings, triggerWarning])
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: '#14120B' }}>
+        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--theme-background)' }}>
             <Sidebar
                 view={view}
                 onOpenSettings={() => setView('settings')}

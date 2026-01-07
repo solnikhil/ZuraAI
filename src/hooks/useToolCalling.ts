@@ -368,45 +368,90 @@ After this final search, provide your comprehensive answer. Use web_search now.`
 ${remaining} more searches required. Your response MUST be a web_search FUNCTION CALL, not text. Call web_search now.`
         }
 
-        // Regular research mode (non-mandatory)
+        // Regular research mode (non-mandatory) - model decides when to search
+        const isDeepResearch = maxRounds >= 10
+
         if (searchCount === 0) {
-            return `\n\n*** DEEP RESEARCH MODE ACTIVATED ***
-You MUST perform comprehensive research using up to ${maxRounds} searches before answering.
+            if (isDeepResearch) {
+                return `\n\n*** DEEP RESEARCH MODE - MANDATORY MULTI-SEARCH ***
+You MUST complete MULTIPLE SEARCHES before answering. You have up to 25 searches available.
 
-MANDATORY PROCESS:
-1. Start with a broad search on the main topic
-2. Then search for specific aspects (recent developments, different perspectives, verification)
-3. Continue searching until you have gathered sufficient information
-4. ONLY provide your final answer after comprehensive research
+CRITICAL RULE #1: Your FIRST response must be ONLY a web_search function call. NO text, NO explanation. Just the function call.
 
-DO NOT give a preliminary answer after just one search. Use multiple searches to build comprehensive understanding.`
+CRITICAL RULE #2: After the first search, you MUST continue searching different niches. DO NOT provide your final answer after just 1-2 searches.
+
+CRITICAL RULE #3: Only provide your final answer after completing ALL niche searches.
+
+MANDATORY MINIMUM SEARCHES: 6-10 searches on different aspects
+
+Your first search should be broad. Then identify niches and search each one.
+
+NOW: Call web_search with a broad query - NO TEXT, just the function.`
+            }
+
+            return `\n\n*** WEB SEARCH AVAILABLE ***
+You have access to web search (up to ${maxRounds} searches) to provide accurate, up-to-date information.
+
+When you need information that may be:
+- Recent or time-sensitive (news, current events, latest data)
+- Beyond your training cutoff
+- Specific facts, figures, or statistics
+- Verification of uncertain information
+
+Use the web_search tool to find accurate information. You may search multiple times from different angles to build comprehensive understanding.
+
+If you already know the answer confidently, you can respond directly.`
         }
 
-        // After 1st search - be very directive about continuing
+        // After 1st search - FORCE continuation
         if (searchCount === 1) {
-            return `\n\n*** CONTINUE RESEARCH - DO NOT ANSWER YET ***
-You have completed only 1 of ${maxRounds} searches. One search is NOT enough for comprehensive research.
+            if (isDeepResearch) {
+                return `\n\n*** CONTINUE RESEARCH - MANDATORY ***
+You have completed ONLY 1 search. You need 5-9 MORE searches.
 
-YOU MUST SEARCH AGAIN BEFORE ANSWERING. Use web_search with a different query to:
-- Find more recent information
-- Get different perspectives
-- Fill gaps in your knowledge
-- Verify claims
+DO NOT provide your answer yet. Your answer will be INCOMPLETE without more research.
 
-Do NOT provide your final answer now. Continue researching first.`
+Your next search must explore a different angle/niche. Call web_search NOW with a NEW query.
+
+After this, continue searching until all niches are covered.`
+            }
+
+            return `\n\n*** RESEARCH PROGRESS ***
+You have completed 1 of up to ${maxRounds} searches. You may continue searching if:
+- You need more recent information
+- You want different perspectives
+- There are gaps in your knowledge
+- You need to verify claims
+
+Use web_search with different queries as needed, or provide your answer if you have sufficient information.`
         }
 
-        return `\n\n*** RESEARCH CONTINUATION REQUIRED ***
+        // Searches 2-5 - Still force continuation
+        if (isDeepResearch && searchCount >= 2 && searchCount <= 5) {
+            return `\n\n*** CONTINUE RESEARCH - MANDATORY ***
+You have completed ${searchCount} search(es). You need MORE searches. Minimum 6 total required.
+
+DO NOT provide your answer yet. Continue with a NEW niche query.
+
+Call web_search NOW.`
+        }
+
+        // Searches 6+ - Allow completion but encourage more
+        if (isDeepResearch && searchCount >= 6 && searchCount < 25) {
+            const remaining = maxRounds - searchCount
+            return `\n\n*** RESEARCH PROGRESS ***
 Search ${searchCount} of ${maxRounds} completed. ${remaining} searches remaining.
 
-MANDATORY: DO NOT provide your final answer yet!
-- You MUST continue researching if information is incomplete
-- Use web_search with different queries to fill knowledge gaps
-- Search for: missing details, recent updates, counter-views, verification
-- Your goal is comprehensive understanding BEFORE responding
+You MAY provide your answer now if you have thoroughly covered the topic, OR continue searching for more comprehensive coverage.
 
-If you need more information: use web_search now.
-If you have sufficient information: provide comprehensive final answer.`
+To continue: Call web_search with another niche query.
+To provide answer: Follow the response format with Executive Summary, Analysis, Facts, Perspectives, Timeline, Conclusions, Sources.`
+        }
+
+        return `\n\n*** RESEARCH PROGRESS ***
+Search ${searchCount} of up to ${maxRounds} completed. ${remaining} searches remaining.
+
+Continue using web_search if you need more information, or provide your comprehensive answer if you have gathered sufficient information.`
     }
 
     return {

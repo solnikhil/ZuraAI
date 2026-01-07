@@ -45,14 +45,9 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         }
     }
 
-    // Enhance query with current date for more relevant results
-    const currentDate = new Date()
-    const currentYear = currentDate.getFullYear()
-    const currentMonth = currentDate.toLocaleString('default', { month: 'long' })
-    // Only append date if query doesn't already contain a year
-    const enhancedQuery = /\b(20\d{2})\b/.test(query)
-        ? query
-        : `${query} ${currentMonth} ${currentYear}`
+    // Use the query as-is - don't append date automatically
+    // The model can add specific dates if needed (e.g., "2025", "January 2025")
+    const enhancedQuery = query
 
     // Try to get API key from settings stored in userData
     // Check environment variable first, then try to get from settings

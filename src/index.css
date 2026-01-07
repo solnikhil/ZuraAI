@@ -1,49 +1,26 @@
 @import './styles/shared.css';
+@import './styles/themes.css';
+
 * {
     box-sizing: border-box;
-}
-
-:root {
-    /* Dark theme (default) */
-    --bg-primary: #14120B;
-    --bg-secondary: #1B1913;
-    --bg-tertiary: #1B1913;
-    --bg-card: #1B1913;
-    --bg-hover: rgba(255, 255, 255, 0.05);
-    --text-primary: #ffffff;
-    --text-secondary: #f0f0f0;
-    --text-tertiary: #b0b0b0;
-    --text-muted: #999999;
-    --border-color: rgba(255, 255, 255, 0.06);
-    --border-hover: rgba(255, 255, 255, 0.1);
-    --accent-primary: #8b5cf6;
-    --accent-secondary: #06b6d4;
-}
-
-:root:not(.dark) {
-    /* Light theme */
-    --bg-primary: #ffffff;
-    --bg-secondary: #f5f5f5;
-    --bg-tertiary: #e8e8e8;
-    --bg-card: #ffffff;
-    --bg-hover: rgba(0, 0, 0, 0.05);
-    --text-primary: #000000;
-    --text-secondary: #1a1a1a;
-    --text-tertiary: #666666;
-    --text-muted: #888888;
-    --border-color: #e0e0e0;
-    --border-hover: #cccccc;
-    --accent-primary: #6366f1;
-    --accent-secondary: #06b6d4;
 }
 
 html,
 body {
     margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     font-family: 'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+    background-color: var(--theme-background);
+    color: var(--theme-text-primary);
     transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+    width: 100%;
+    height: 100%;
 }

@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 import { setDynamicToolDefinitions, ToolDefinition } from '../tools/definitions'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
+import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
+import { applyThemeToDocument } from '../themes/themeUtils'
 
 export interface McpServerConfig {
     id: string
@@ -30,6 +32,7 @@ export interface McpServerStatus {
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system'
+    activeTheme: string  // Theme ID for the new theme system
     openRouterApiKey: string
     aiModel: string
     temperature: number
@@ -71,6 +74,7 @@ export interface Settings {
     enabledTools: string[]  // Which tools are active (empty = all enabled)
     toolApprovalMode: 'always' | 'sensitive' | 'never'
     webSearchEnabled: boolean  // Quick toggle for web search in chat
+    deepResearchEnabled: boolean  // Toggle for deep research mode (mandatory 3 searches)
     mcpServers: McpServerConfig[]
     // Favorite models
     favoriteModels: string[]
@@ -86,6 +90,7 @@ export interface TodoItem {
 
 const defaultSettings: Settings = {
     theme: 'dark',
+    activeTheme: 'dark-default',
     openRouterApiKey: '',
     perplexityApiKey: '',
     aiModel: 'x-ai/grok-4.1-fast',
@@ -101,12 +106,20 @@ const defaultSettings: Settings = {
     systemPrompt: defaultSystemPrompt,
     streamResponses: false,
     configuredModels: [
-        { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
-        { code: 'anthropic/claude-3.5-sonnet', displayName: 'Claude 3.5 Sonnet' },
-        { code: 'openai/gpt-4o', displayName: 'GPT-4o' },
-        { code: 'openai/gpt-4o-mini', displayName: 'GPT-4o Mini' },
-        { code: 'google/gemini-2.0-flash-exp:free', displayName: 'Gemini 2.0 Flash' },
-        { code: 'meta-llama/llama-3.3-70b-instruct', displayName: 'Llama 3.3 70B' },
+        // Deep Research Models
+        { code: 'perplexity/sonar-deep-research', displayName: 'Sonar Deep Research' },
+        { code: 'openai/o3-deep-research', displayName: 'o3 Deep Research' },
+        { code: 'openai/o4-mini-deep-research', displayName: 'o4-mini Deep Research' },
+        // Popular Models with :online variant support
+        { code: 'anthropic/claude-sonnet-4:online', displayName: 'Claude Sonnet 4 (Online)' },
+        { code: 'openai/gpt-4.1:online', displayName: 'GPT-4.1 (Online)' },
+        { code: 'google/gemini-2.5-flash:online', displayName: 'Gemini 2.5 Flash (Online)' },
+        { code: 'deepseek/deepseek-r1:online', displayName: 'DeepSeek R1 (Online)' },
+        // Free Models
+        { code: 'nvidia/nemotron-3-nano-30b-a3b:free', displayName: 'Nemotron 3 Nano 30B' },
+        { code: 'google/gemma-3-27b-it:free', displayName: 'Gemma 3 27B' },
+        { code: 'arcee-ai/trinity-mini:free', displayName: 'Trinity Mini' },
+        { code: 'openai/gpt-oss-20b:free', displayName: 'GPT-OSS 20B' },
     ],
     modelProvider: 'openrouter',
     ollamaUrl: 'http://localhost:11434',
@@ -172,6 +185,7 @@ const defaultSettings: Settings = {
     enabledTools: ['web_search', 'get_datetime'],
     toolApprovalMode: 'never',
     webSearchEnabled: true,
+    deepResearchEnabled: false,
     mcpServers: [],
     favoriteModels: []
 }
@@ -237,6 +251,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
+        if (parsed.deepResearchEnabled === undefined) parsed.deepResearchEnabled = defaultSettings.deepResearchEnabled
         if (!parsed.mcpServers) parsed.mcpServers = defaultSettings.mcpServers
         // Initialize loadOverlayOnStartup if missing
         if (parsed.loadOverlayOnStartup === undefined) parsed.loadOverlayOnStartup = defaultSettings.loadOverlayOnStartup
@@ -246,6 +261,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
             parsed.configuredModels = defaultSettings.configuredModels
         }
+        // Initialize activeTheme if missing (new theme system)
+        if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
 
         return parsed
     })
@@ -320,35 +337,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
 
-        // Apply theme
-        const isDark = settings.theme === 'dark' || (settings.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-        if (isDark) {
-            document.documentElement.classList.add('dark')
-        } else {
-            document.documentElement.classList.remove('dark')
-        }
-
-        // Also listen for system theme changes when theme is set to 'system'
-        if (settings.theme === 'system') {
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-            const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-                if (settings.theme === 'system') {
-                    if (e.matches) {
-                        document.documentElement.classList.add('dark')
-                    } else {
-                        document.documentElement.classList.remove('dark')
-                    }
-                }
-            }
-            mediaQuery.addEventListener('change', handleSystemThemeChange)
-            return () => mediaQuery.removeEventListener('change', handleSystemThemeChange)
-        }
-
         // Sync with main process (API keys are sent but main process doesn't store them)
         if (window.ipcRenderer) {
             window.ipcRenderer.send('settings-changed', settings)
         }
     }, [settings])
+
+    useLayoutEffect(() => {
+        const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
+        applyThemeToDocument(theme)
+    }, [settings.activeTheme])
 
     const refreshMcpTools = useCallback(async (serversOverride?: McpServerConfig[]) => {
         if (!window.ipcRenderer) {

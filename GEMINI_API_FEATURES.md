@@ -277,3 +277,7 @@ await generateGeminiCompletion(apiKey, model, messages, {
 - [Gemini API Reference](https://ai.google.dev/api)
 
 
+
+
+
+

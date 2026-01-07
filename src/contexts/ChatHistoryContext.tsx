@@ -24,6 +24,22 @@ export interface FileAttachment {
     mimeType: string
 }
 
+export interface ThinkingBlock {
+    type: 'thinking' | 'searching'
+    content?: string // For thinking blocks
+    query?: string // For searching blocks
+    duration?: number // Duration in milliseconds (for thinking)
+    timestamp: number // When this block was created
+}
+
+export interface ResponseVersion {
+    id: string
+    content: string
+    timestamp: number
+    instruction?: string // e.g., "more concise", "add details"
+    model?: string
+}
+
 export interface Message {
     id: string
     role: 'user' | 'assistant' | 'system'
@@ -36,16 +52,26 @@ export interface Message {
     latency?: number
     thinking?: string
     thinkingDuration?: number
+    thinkingBlocks?: ThinkingBlock[] // Array of completed thinking/search blocks
     toolResults?: ToolCallResult[]
+    researchStatus?: {
+        currentRound: number
+        maxRounds: number
+        currentSearch?: string // The search query being executed
+        isSearching: boolean
+    }
     usage?: {
         inputTokens: number
         outputTokens: number
         totalTokens: number
+        thinkingTokens?: number // Reasoning/thinking tokens used
         tps?: number // Tokens per second
         ttft?: number // Time to first token (ms)
         cachedInputTokens?: number
         cachedOutputTokens?: number
     }
+    responseVersions?: ResponseVersion[] // Previous response versions
+    currentVersionIndex?: number // Which version is currently displayed
 }
 
 export interface ChatSession {
@@ -65,6 +91,7 @@ interface ChatHistoryContextType {
     switchSession: (id: string) => void
     addMessageToSession: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => string
     updateStreamingMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
+    deleteMessageFromSession: (sessionId: string, messageId: string) => void
     deleteSession: (id: string) => void
     clearAllSessions: () => void
     updateSessionTitle: (id: string, title: string) => void
@@ -250,6 +277,19 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         setCurrentSessionId(null)
     }, [])
 
+    const deleteMessageFromSession = useCallback((sessionId: string, messageId: string) => {
+        setSessions(prev => prev.map(session => {
+            if (session.id === sessionId) {
+                return {
+                    ...session,
+                    messages: session.messages.filter(msg => msg.id !== messageId),
+                    updatedAt: Date.now()
+                }
+            }
+            return session
+        }))
+    }, [])
+
     const contextValue = useMemo(() => ({
         sessions,
         currentSessionId,
@@ -258,6 +298,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         switchSession,
         addMessageToSession,
         updateStreamingMessage,
+        deleteMessageFromSession,
         deleteSession,
         clearAllSessions,
         updateSessionTitle,
@@ -271,6 +312,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         switchSession,
         addMessageToSession,
         updateStreamingMessage,
+        deleteMessageFromSession,
         deleteSession,
         clearAllSessions,
         updateSessionTitle,

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon, PanelLeft,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X
+    Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X, Box, Brain
 } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
@@ -45,149 +45,238 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
         }}>
             {/* Header */}
             <div style={{
-                padding: isCollapsed ? '16px 8px' : '16px 12px 0',
+                padding: isCollapsed ? '8px 8px' : '12px 8px 8px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px'
+                gap: '12px',
+                borderBottom: '1px solid var(--theme-border)'
             }}>
-                {/* Top Actions Row - Library and Retract Button */}
+                {/* Top Row - Logo and Collapse Button */}
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: isCollapsed ? 'center' : 'space-between',
-                    padding: isCollapsed ? '0' : '0 4px',
-                    marginBottom: isCollapsed ? '8px' : '0'
+                    padding: isCollapsed ? '0' : '0',
+                    gap: '10px'
                 }}>
-                    {!isCollapsed && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
-                            <LayoutDashboard size={18} />
-                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Library</span>
-                        </div>
-                    )}
-                    <button
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#999999',
-                            cursor: 'pointer',
-                            padding: '6px',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
-                            e.currentTarget.style.color = '#fff'
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                            e.currentTarget.style.color = '#999999'
-                        }}
-                    >
-                        <PanelLeft size={20} />
-                    </button>
-                </div>
-
-                {/* New Chat Button */}
-                <button
-                    onClick={() => clearCurrentSession()}
-                    title="New chat"
-                    style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: isCollapsed ? '0' : '12px',
-                        padding: isCollapsed ? '10px' : '12px',
-                        cursor: 'pointer',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: '#999999',
-                        fontSize: '0.9rem',
-                        fontWeight: 500,
-                        transition: 'all 0.2s ease',
-                        justifyContent: isCollapsed ? 'center' : 'flex-start'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-                        e.currentTarget.style.color = '#fff'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                        e.currentTarget.style.color = '#999999'
-                    }}
-                >
-                    <FileEdit size={20} strokeWidth={2} />
-                    {!isCollapsed && <span>New chat</span>}
-                </button>
-
-                {/* Search Input - Show when not collapsed */}
-                {!isCollapsed && (
-                    <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        backgroundColor: 'rgba(255,255,255,0.04)', 
-                        borderRadius: '8px', 
-                        padding: '8px 12px', 
-                        border: '1px solid rgba(255,255,255,0.06)', 
-                        marginTop: '4px'
-                    }}>
-                        <Search size={16} color="#b0b0b0" style={{ marginRight: '10px', flexShrink: 0 }} />
-                        <input
-                            type="text"
-                            placeholder="Search chats"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            style={{ 
-                                background: 'transparent', 
-                                border: 'none', 
-                                color: '#fff', 
-                                fontSize: '0.9rem', 
-                                width: '100%', 
-                                outline: 'none' 
+                    {isCollapsed ? (
+                        <button
+                            onClick={() => setIsCollapsed(!isCollapsed)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '6px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s'
                             }}
-                        />
-                        {searchQuery && (
+                            onMouseEnter={e => {
+                                e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = 'transparent'
+                            }}
+                        >
+                            <PanelLeft size={18} />
+                        </button>
+                    ) : (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <img
+                                    src="/sidebar-logo.png"
+                                    alt="Zura"
+                                    style={{
+                                        width: '28px',
+                                        height: '28px',
+                                        objectFit: 'contain'
+                                    }}
+                                />
+                            </div>
                             <button
-                                onClick={() => setSearchQuery('')}
+                                onClick={() => setIsCollapsed(!isCollapsed)}
                                 style={{
                                     background: 'transparent',
                                     border: 'none',
-                                    color: '#b0b0b0',
+                                    color: '#ffffff',
                                     cursor: 'pointer',
                                     padding: '4px',
+                                    borderRadius: '6px',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justifyContent: 'center'
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = 'transparent'
                                 }}
                             >
-                                <X size={16} />
+                                <PanelLeft size={18} />
                             </button>
-                        )}
-                    </div>
-                )}
+                        </>
+                    )}
+                </div>
+
+                {/* Quick Actions - Search & New Chat (stacked, grey icons) */}
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    padding: '0'
+                }}>
+                    {/* New Chat Button */}
+                    <button
+                        onClick={() => clearCurrentSession()}
+                        className="quick-action-btn"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: isCollapsed ? '8px' : '8px 8px',
+                            background: 'transparent',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            color: '#ffffff',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            width: '100%',
+                            justifyContent: isCollapsed ? 'center' : 'flex-start'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                            e.currentTarget.style.color = '#ffffff'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = '#ffffff'
+                        }}
+                        title={isCollapsed ? 'New Chat' : ''}
+                    >
+                        <FileEdit size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
+                        {!isCollapsed && <span>New Chat</span>}
+                    </button>
+
+                    {/* Search Button */}
+                    <button
+                        onClick={() => {
+                            const searchInput = document.querySelector('.sidebar-search-input') as HTMLInputElement
+                            searchInput?.focus()
+                        }}
+                        className="quick-action-btn"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: isCollapsed ? '8px' : '8px 8px',
+                            background: 'transparent',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            color: '#ffffff',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            width: '100%',
+                            justifyContent: isCollapsed ? 'center' : 'flex-start'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                            e.currentTarget.style.color = '#ffffff'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = '#ffffff'
+                        }}
+                        title={isCollapsed ? 'Search chats' : ''}
+                    >
+                        <Search size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
+                        {!isCollapsed && <span>Search chats</span>}
+                    </button>
+                </div>
+
+                {/* Hidden search input for focus trigger */}
+                <input
+                    type="text"
+                    className="sidebar-search-input"
+                    placeholder="Search chats..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                        opacity: 0,
+                        position: 'absolute',
+                        pointerEvents: searchQuery ? 'all' : 'none',
+                        background: searchQuery ? 'rgba(255,255,255,0.04)' : 'transparent',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: '8px',
+                        padding: '8px 12px',
+                        color: '#fff',
+                        fontSize: '0.9rem',
+                        outline: 'none',
+                        width: isCollapsed ? 'calc(100% - 32px)' : 'calc(100% - 32px)',
+                        top: searchQuery ? (isCollapsed ? '90px' : '125px') : '0',
+                        left: isCollapsed ? '14px' : '16px',
+                        zIndex: 10
+                    }}
+                />
             </div>
 
             {/* Chat History List */}
             <div style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: isCollapsed ? '8px 4px 0' : '0 16px 0',
+                padding: isCollapsed ? '4px 4px 0' : '4px 8px 0',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '2px'
+                gap: '1px'
             }}>
                 {!isCollapsed && filteredSessions.length > 0 && (
-                    <div onClick={() => setIsListExpanded(!isListExpanded)} style={{ fontSize: '0.85rem', color: '#b0b0b0', padding: '12px 4px 8px', marginTop: '8px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none' }}>
-                        <ChevronDown size={14} style={{ transition: 'transform 0.2s', transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
-                        <span>Your chats</span>
+                    <div 
+                        onClick={() => setIsListExpanded(!isListExpanded)}
+                        onMouseEnter={e => {
+                            const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
+                            if (chevron) chevron.style.opacity = '1'
+                        }}
+                        onMouseLeave={e => {
+                            const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
+                            if (chevron) chevron.style.opacity = '0'
+                        }}
+                        style={{ 
+                            fontSize: '0.75rem', 
+                            color: 'var(--theme-text-muted)', 
+                            padding: '6px 0 4px 9px', 
+                            marginBottom: '2px', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '4px', 
+                            cursor: 'pointer', 
+                            userSelect: 'none', 
+                            fontWeight: 500,
+                            letterSpacing: '0.5px' 
+                        }}
+                    >
+                        <span>Your Chats</span>
+                        <ChevronDown 
+                            className="chevron-icon"
+                            size={12} 
+                            style={{ 
+                                transition: 'transform 0.2s, opacity 0.2s', 
+                                transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                opacity: 0,
+                                marginLeft: 'auto'
+                            }} 
+                        />
                     </div>
                 )}
 
-                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '1px' }}>
                     {filteredSessions.map((session, index) => (
                         <div
                             key={session.id}
@@ -197,19 +286,18 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '10px',
-                                padding: '10px 12px',
+                                gap: '8px',
+                                padding: '8px 0 8px 9px',
                                 cursor: 'pointer',
-                                borderRadius: '10px',
-                                fontSize: '0.9rem',
-                                color: currentSessionId === session.id ? '#fff' : '#b4b4b4',
-                                backgroundColor: currentSessionId === session.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                borderRadius: '6px',
+                                fontSize: '0.85rem',
+                                color: '#ffffff',
+                                backgroundColor: currentSessionId === session.id ? 'var(--theme-surface-active)' : 'transparent',
                                 transition: 'all 0.15s ease',
                                 justifyContent: isCollapsed ? 'center' : 'flex-start',
                                 animationDelay: `${index * 0.05}s`
                             }}
                         >
-                            <MessageSquare size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
                             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block', minWidth: 0 }}>{session.title}</span>
                             {!isCollapsed && (
                                 <div
@@ -217,14 +305,17 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                     onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
                                     style={{
                                         opacity: 0,
-                                        padding: '6px',
+                                        padding: '8px',
                                         borderRadius: '6px',
-                                        visibility: currentSessionId === session.id ? 'visible' : 'hidden',
                                         flexShrink: 0,
-                                        transition: 'opacity 0.15s ease'
+                                        transition: 'opacity 0.15s ease',
+                                        marginRight: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
                                     }}
                                 >
-                                    <Trash2 size={14} color="#b0b0b0" />
+                                    <Trash2 size={16} color="#ffffff" />
                                 </div>
                             )}
                         </div>
@@ -235,8 +326,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             {/* Footer - Settings Button */}
             <div style={{
                 marginTop: 'auto',
-                borderTop: '1px solid rgba(255,255,255,0.06)',
-                padding: isCollapsed ? '12px 0' : '12px',
+                borderTop: '1px solid var(--theme-border)',
+                padding: isCollapsed ? '8px 0' : '8px',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: isCollapsed ? 'center' : 'stretch'
@@ -245,29 +336,29 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     onClick={onOpenSettings} 
                     title="Settings" 
                     style={{ 
-                        width: isCollapsed ? '40px' : '100%', 
-                        padding: isCollapsed ? '10px' : '12px', 
+                        width: isCollapsed ? '36px' : '100%', 
+                        padding: isCollapsed ? '8px' : '8px', 
                         cursor: 'pointer', 
-                        borderRadius: '8px', 
+                        borderRadius: '6px', 
                         border: 'none', 
                         background: 'transparent', 
-                        color: '#fff', 
+                        color: '#ffffff', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: isCollapsed ? 'center' : 'flex-start', 
-                        gap: '12px',
-                        fontSize: '0.9rem',
+                        gap: '10px',
+                        fontSize: '0.85rem',
                         fontWeight: 500,
                         transition: 'all 0.2s ease'
                     }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
+                onMouseEnter={e => {
+                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                }}
+                onMouseLeave={e => {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                }}
                 >
-                    <SettingsIcon size={20} strokeWidth={2} />
+                    <SettingsIcon size={18} strokeWidth={2} />
                     {!isCollapsed && <span>Settings</span>}
                 </button>
             </div>
@@ -288,52 +379,92 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             transform: view === 'settings' ? 'translateX(0)' : 'translateX(20px)',
             transition: 'all 0.3s ease',
             pointerEvents: view === 'settings' ? 'all' : 'none',
-            backgroundColor: '#1B1913', // Ensure BG covers chat list
+            backgroundColor: 'var(--theme-surface)', // Ensure BG covers chat list
             boxSizing: 'border-box'
         }}>
 
 
             {/* Content Area - grows to push footer down */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '16px 12px 0', overflow: 'hidden' }}>
-                {/* Header */}
+                {/* Header - Same structure as chat view */}
                 <div style={{
-                    padding: '0 4px 16px 4px',
+                    padding: isCollapsed ? '8px 8px' : '12px 8px 8px',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: isCollapsed ? 'center' : 'space-between',
-                    marginBottom: '8px'
+                    flexDirection: 'column',
+                    gap: '12px',
+                    borderBottom: '1px solid var(--theme-border)'
                 }}>
-                    {!isCollapsed && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}>
-                            <SettingsIcon size={18} />
-                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Settings</span>
-                        </div>
-                    )}
-                    <button
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#999999',
-                            cursor: 'pointer',
-                            padding: '6px',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)'
-                            e.currentTarget.style.color = '#fff'
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                            e.currentTarget.style.color = '#666'
-                        }}
-                    >
-                        <PanelLeft size={20} />
-                    </button>
+                    {/* Top Row - Logo and Collapse Button */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: isCollapsed ? 'center' : 'space-between',
+                        padding: isCollapsed ? '0' : '0',
+                        gap: '10px'
+                    }}>
+                        {isCollapsed ? (
+                            <button
+                                onClick={() => setIsCollapsed(!isCollapsed)}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#ffffff',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = 'transparent'
+                                }}
+                            >
+                                <PanelLeft size={18} />
+                            </button>
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <img
+                                        src="/sidebar-logo.png"
+                                        alt="Zura"
+                                        style={{
+                                            width: '28px',
+                                            height: '28px',
+                                            objectFit: 'contain'
+                                        }}
+                                    />
+                                </div>
+                                <button
+                                    onClick={() => setIsCollapsed(!isCollapsed)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: '#ffffff',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.backgroundColor = 'transparent'
+                                    }}
+                                >
+                                    <PanelLeft size={18} />
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* GitHub Card - Compact vs Full */}
@@ -341,101 +472,159 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 <div
                     onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
                     style={{
-                        padding: '12px',
+                        padding: '14px',
                         marginBottom: '16px',
-                        background: 'rgba(35, 28, 20, 0.7)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: '12px',
+                        background: 'var(--theme-surface)',
+                        border: '1px solid var(--theme-border)',
+                        borderRadius: '14px',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         transition: 'all 0.3s ease',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                        boxShadow: 'var(--theme-shadow-sm)',
+                        position: 'relative',
+                        overflow: 'hidden'
                     }}
                     title="Star on GitHub"
                     onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+                        e.currentTarget.style.boxShadow = `0 4px 20px var(--theme-accent-muted)`;
+                        e.currentTarget.style.borderColor = 'var(--theme-accent)';
                         e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.background = 'rgba(40, 32, 22, 0.85)';
                     }}
                     onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                        e.currentTarget.style.boxShadow = 'var(--theme-shadow-sm)';
+                        e.currentTarget.style.borderColor = 'var(--theme-border)';
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.background = 'rgba(35, 28, 20, 0.7)';
                     }}
                 >
-                    <Github size={20} color="#fff" />
+                    {/* Subtle accent glow on hover */}
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: `linear-gradient(135deg, var(--theme-accent-muted) 0%, transparent 50%)`,
+                        opacity: 0,
+                        transition: 'opacity 0.3s ease'
+                    }} className="github-glow" />
+                    <Github size={22} color="var(--theme-accent)" style={{ position: 'relative', zIndex: 1 }} />
                 </div>
             ) : (
                 <div
                     onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
                     style={{
-                        padding: '16px',
+                        padding: '20px',
                         marginBottom: '16px',
-                        background: 'rgba(35, 28, 20, 0.7)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: '16px',
+                        background: 'var(--theme-surface)',
+                        border: '1px solid var(--theme-border)',
+                        borderRadius: '18px',
                         cursor: 'pointer',
                         position: 'relative',
                         overflow: 'hidden',
                         transition: 'all 0.3s ease',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                        boxShadow: 'var(--theme-shadow-sm)'
                     }}
                     onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
-                        e.currentTarget.style.background = 'rgba(40, 32, 22, 0.85)';
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.boxShadow = `0 8px 32px var(--theme-accent-muted)`;
+                        e.currentTarget.style.borderColor = 'var(--theme-accent)';
+                        // Show glow effect
+                        const glow = e.currentTarget.querySelector('.github-glow') as HTMLElement;
+                        if (glow) glow.style.opacity = '1';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
-                            badge.style.background = 'rgba(255, 215, 0, 0.15)';
-                            badge.style.color = '#FFD700';
+                            badge.style.background = 'var(--theme-accent-muted)';
+                            badge.style.color = 'var(--theme-accent)';
+                            badge.style.borderColor = 'var(--theme-accent)';
+                        }
+                        const iconBg = e.currentTarget.querySelector('.github-icon-bg') as HTMLElement;
+                        if (iconBg) {
+                            iconBg.style.background = 'var(--theme-accent-muted)';
                         }
                     }}
                     onMouseLeave={e => {
                         e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                        e.currentTarget.style.background = 'rgba(35, 28, 20, 0.7)';
+                        e.currentTarget.style.boxShadow = 'var(--theme-shadow-sm)';
+                        e.currentTarget.style.borderColor = 'var(--theme-border)';
+                        // Hide glow effect
+                        const glow = e.currentTarget.querySelector('.github-glow') as HTMLElement;
+                        if (glow) glow.style.opacity = '0';
                         const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
                         if (badge) {
-                            badge.style.background = 'rgba(255,255,255,0.05)';
-                            badge.style.color = '#e0e0e0';
+                            badge.style.background = 'var(--theme-surface-hover)';
+                            badge.style.color = 'var(--theme-text-secondary)';
+                            badge.style.borderColor = 'var(--theme-border)';
+                        }
+                        const iconBg = e.currentTarget.querySelector('.github-icon-bg') as HTMLElement;
+                        if (iconBg) {
+                            iconBg.style.background = 'var(--theme-surface-hover)';
                         }
                     }}
                 >
-                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                            width: 48, height: 48, borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%)',
+                    {/* Accent gradient glow */}
+                    <div className="github-glow" style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: `linear-gradient(135deg, 
+                            var(--theme-accent-muted) 0%, 
+                            transparent 40%,
+                            transparent 60%,
+                            var(--theme-accent-muted) 100%)`,
+                        opacity: 0,
+                        transition: 'opacity 0.3s ease',
+                        pointerEvents: 'none'
+                    }} />
+                    
+                    {/* Top accent line */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '2px',
+                        background: 'linear-gradient(90deg, transparent, var(--theme-accent), transparent)',
+                        opacity: 0.7
+                    }} />
+
+                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                        {/* Icon with subtle background */}
+                        <div className="github-icon-bg" style={{
+                            width: 56, height: 56, borderRadius: '14px',
+                            background: 'var(--theme-surface-hover)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#1a1a1a',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                            color: 'var(--theme-accent)',
+                            boxShadow: 'var(--theme-shadow-sm)',
+                            transition: 'all 0.3s ease',
+                            border: '1px solid var(--theme-border)'
                         }}>
-                            <Github size={28} strokeWidth={2.5} />
+                            <Github size={30} strokeWidth={2} />
                         </div>
 
                         <div style={{ textAlign: 'center', width: '100%' }}>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff', marginBottom: '6px', letterSpacing: '-0.01em' }}>Zura AI</div>
+                            <div style={{ 
+                                fontSize: '1rem', 
+                                fontWeight: 700, 
+                                color: 'var(--theme-text-primary)', 
+                                marginBottom: '8px', 
+                                letterSpacing: '-0.02em',
+                                textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                            }}>Zura AI</div>
 
                             <div className="github-star-badge" style={{
                                 fontSize: '0.8rem',
-                                color: '#e0e0e0',
+                                color: 'var(--theme-text-secondary)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 6,
                                 justifyContent: 'center',
-                                background: 'rgba(255,255,255,0.05)',
-                                padding: '6px 12px',
-                                borderRadius: '10px',
+                                background: 'var(--theme-surface-hover)',
+                                padding: '8px 14px',
+                                borderRadius: '20px',
                                 transition: 'all 0.3s ease',
-                                border: '1px solid rgba(255,255,255,0.05)'
+                                border: '1px solid var(--theme-border)',
+                                fontWeight: 500
                             }}>
-                                <Star size={12} fill="#FFD700" color="#FFD700" />
-                                <span style={{ fontWeight: 500 }}>Star on GitHub</span>
+                                <Star size={14} fill="var(--theme-accent)" color="var(--theme-accent)" />
+                                <span>Star on GitHub</span>
                             </div>
                         </div>
                     </div>
@@ -451,6 +640,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     {[
                         { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
                         { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
+                        { id: 'codex', label: 'Codex', icon: <Brain size={18} /> },
+                        { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
                         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
                         { id: 'tools', label: 'Tools', icon: <Sparkles size={18} /> }
                     ].map((item, index) => (
@@ -476,7 +667,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             {/* Footer - Back to Chat Button */}
             <div style={{
                 marginTop: 'auto',
-                borderTop: '1px solid rgba(255,255,255,0.06)',
+                borderTop: '1px solid var(--theme-border)',
                 padding: isCollapsed ? '12px 0' : '12px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -517,52 +708,78 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
 
     return (
         <div style={{
-            width: isCollapsed ? '72px' : '280px',
-            background: '#1B1913',
-            border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '24px',
-            margin: '16px',
+            width: isCollapsed ? '60px' : '260px',
+            background: 'var(--theme-surface)',
+            borderRight: '1px solid var(--theme-border)',
+            boxShadow: 'var(--theme-shadow-md)',
             display: 'flex',
             flexDirection: 'column',
-            height: 'calc(100vh - 32px)',
+            height: '100vh',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             position: 'relative',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-            overflow: 'hidden' // Important for sliding content
+            overflow: 'hidden'
         }}>
             {renderChatContent()}
             {renderSettingsContent()}
 
             <style>{`
-                .session-item:hover { background-color: rgba(255,255,255,0.06) !important; color: #fff !important; }
+                .session-item:hover { background-color: var(--theme-surface-hover) !important; }
                 .session-item:hover .delete-btn { opacity: 1 !important; }
-                .delete-btn:hover { background-color: rgba(255,255,255,0.1) !important; }
-                .delete-btn:hover svg { color: #ef4444 !important; }
-                ::-webkit-scrollbar { width: 4px; }
-                ::-webkit-scrollbar-track { background: transparent; }
-                ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-                ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+                .delete-btn:hover { background-color: var(--theme-surface-active) !important; padding: 6px !important; }
                 
+                /* Custom Scrollbar */
+                ::-webkit-scrollbar {
+                    width: 4px;
+                }
+                ::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                ::-webkit-scrollbar-thumb {
+                    background: var(--theme-border);
+                    border-radius: 2px;
+                }
+                ::-webkit-scrollbar-thumb:hover {
+                    background: var(--theme-border-hover);
+                }
+                ::-webkit-scrollbar-thumb:active {
+                    background: var(--theme-border-active);
+                }
+
                 .toggle-switch { width: 32px; height: 18px; background: rgba(255,255,255,0.1); border-radius: 9px; position: relative; cursor: pointer; transition: background 0.2s; }
                 .toggle-thumb { width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
                 .toggle-switch.active .toggle-thumb { transform: translateX(14px); }
                 .toggle-switch.active { background: #fff; }
-                
-                .btn-signout { width: 100%; padding: 10px; border: 1px solid #333; background: transparent; border-radius: 12px; color: #e0e0e0; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
-                .btn-signout:hover { background: #1a1a1a; color: #fff; border-color: #777777; }
-                
-                .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: #b0b0b0; background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
-                .nav-item:hover { color: #e0e0e0; background: rgba(255,255,255,0.03); }
-                .nav-item.active { background: rgba(255,255,255,0.1); color: #fff; }
 
-                 @keyframes blur-in-up {
+                .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
+                .btn-signout:hover { background: var(--theme-surface-hover); color: #fff; border-color: var(--theme-border-hover); }
+
+                .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: var(--theme-text-secondary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
+                .nav-item:hover { color: var(--theme-text-primary); background: var(--theme-surface-hover); }
+                .nav-item.active { background: var(--theme-accent-muted); color: var(--theme-accent); }
+
+                .quick-action-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
+
+                @keyframes blur-in-up {
                     0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
                     100% { opacity: 1; transform: translateY(0); filter: blur(0); }
                 }
                 .animate-sidebar-item {
                     animation: blur-in-up 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
                 }
+
+                @keyframes fade-in-slide {
+                    0% { opacity: 0; transform: translateY(-8px); }
+                    100% { opacity: 1; transform: translateY(0); }
+                }
+                .library-title {
+                    animation: fade-in-slide 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                }
+                .quick-action-btn {
+                    animation: fade-in-slide 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                }
+                .quick-action-btn:nth-child(1) { animation-delay: 0.05s; }
+                .quick-action-btn:nth-child(2) { animation-delay: 0.1s; }
             `}</style>
         </div>
     )

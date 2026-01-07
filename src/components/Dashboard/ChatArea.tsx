@@ -1,14 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import {
     Send, Paperclip, Sparkles, Copy, Check, ChevronDown, RotateCcw,
     Download, Share2, Globe, FolderOpen, Mic, Info, Clock, ArrowDown,
     ArrowUp, Sigma, Cpu, Twitter, MessageCircle, FlaskConical, Video,
     ShieldCheck, Brain, Trash2, Wrench, X, File, Image, FileText, Bot,
-    Square, Zap, TrendingUp, Database
+    Square, Zap, TrendingUp, Database, Edit2, ChevronLeft, ChevronRight
 } from '../icons'
 import StarBorder from '../StarBorder'
 import LazyMarkdown from '../LazyMarkdown'
-import { useChatHistory, Message } from '../../contexts/ChatHistoryContext'
+import { useChatHistory, Message, ThinkingBlock } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { generateOllamaCompletion, streamOllamaCompletion } from '../../services/ollama'
 import { generatePerplexityCompletion, streamPerplexityCompletion, cleanSonarResponse } from '../../services/perplexity'
@@ -27,12 +28,12 @@ import { hasGeminiFunctionCalls, formatToolResultsForGemini } from '../../tools/
 import { buildMessagesWithToolResults } from '../../tools/toolManager'
 import BlurText from '../BlurText'
 import GradientText from '../GradientText'
-import ThinkingBlock from '../ThinkingBlock'
+import ThinkingBlockComponent from '../ThinkingBlock'
 import ToolApprovalDialog from '../ToolApprovalDialog'
 import { ToolCallResult } from '../../tools/executor'
 
 export default function ChatArea() {
-    const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, deleteSession, clearAllSessions } = useChatHistory()
+    const { sessions, currentSessionId, addMessageToSession, updateStreamingMessage, createSession, updateSessionTitle, deleteSession, clearAllSessions, deleteMessageFromSession } = useChatHistory()
     const { settings, updateSettings } = useSettings()
     const { showToast } = useToast()
     const { canUseTools, getToolsForRequest, handleToolCalls, toolState, clearToolState, handleApprovalResponse, startResearchMode, getResearchContext } = useToolCalling()
@@ -277,23 +278,19 @@ export default function ChatArea() {
                 return msg
             })
 
-            // Check if user explicitly requested deep research
-            const deepResearchKeywords = /\b(deep research|thorough research|do research|through research)\b/i
-            const userRequestedDeepResearch = deepResearchKeywords.test(userMessageContent)
-
             // Use local variables for research mode (avoid async React state issues)
             let researchMaxRounds = 0
             let researchMandatory = false
 
             // Start research mode with appropriate search count
-            if (userRequestedDeepResearch && canUseTools) {
-                researchMaxRounds = 3
-                researchMandatory = true
-                startResearchMode(3, true) // Exactly 3 MANDATORY searches for deep research requests
+            if (settings.deepResearchEnabled && canUseTools) {
+                researchMaxRounds = 25
+                researchMandatory = false  // Let model decide when to search, up to 25
+                startResearchMode(25, false) // Up to 25 autonomous searches for deep research
             } else if (settings.webSearchEnabled && canUseTools) {
-                researchMaxRounds = 5
+                researchMaxRounds = 25
                 researchMandatory = false
-                startResearchMode(5, false) // Allow up to 5 searches for regular web search
+                startResearchMode(25, false) // Allow up to 25 searches for regular web search
             }
 
             // Get effective system prompt with research context
@@ -304,6 +301,11 @@ export default function ChatArea() {
             const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
 
             const optimizedHistory = buildOptimizedContext(conversationHistory, userMessageContent, effectiveSystemPrompt, settings.aiModel)
+
+            // Local accumulators to avoid stale React state during streaming
+            // These persist across async operations within a single message response
+            let localThinkingBlocks: ThinkingBlock[] = []
+            let localToolResults: ToolCallResult[] = []
 
             if (settings.modelProvider === 'ollama') {
                 // Get tools if enabled (Ollama uses OpenAI-compatible format for compatible models)
@@ -657,6 +659,7 @@ export default function ChatArea() {
 
                 // Stream the response
                 let accumulatedContent = ''
+                let accumulatedReasoning = ''  // For thinking/reasoning content
                 let lastUpdateTime = Date.now()
                 const UPDATE_INTERVAL = 50 // ms
                 let finalUsage: any = {}
@@ -729,13 +732,19 @@ export default function ChatArea() {
                         // Debounced update
                         const now = Date.now()
                         if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                content: accumulatedContent,
+                                thinking: accumulatedReasoning || undefined
+                            })
                             lastUpdateTime = now
                         }
                     }
 
                     // Final update
-                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: accumulatedContent,
+                        thinking: accumulatedReasoning || undefined
+                    })
 
                     // Handle tool calls if detected
                     if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc && tc.id).length > 0) {
@@ -766,6 +775,43 @@ export default function ChatArea() {
                             console.error('Tool calls processing error:', toolError)
                             showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+                        }
+
+                        // Add tool calls to the block list instead of mixing into thinking text
+                        const webSearchCalls = (toolResult.toolResults || [])
+                            .filter((tr: any) => tr.toolCall.name === 'web_search')
+
+                        if (webSearchCalls.length > 0) {
+                            // Use local accumulator instead of reading from stale React state
+                            // This fixes the issue where blocks are lost due to async state updates
+
+                            if (accumulatedReasoning && accumulatedReasoning.trim().length > 0) {
+                                localThinkingBlocks.push({
+                                    type: 'thinking',
+                                    content: accumulatedReasoning,
+                                    duration: 0, // Duration tracked separately
+                                    timestamp: Date.now()
+                                })
+                                accumulatedReasoning = ''
+                            }
+
+                            webSearchCalls.forEach((tr: any) => {
+                                const searchQuery = typeof tr.toolCall.arguments === 'object'
+                                    ? tr.toolCall.arguments?.query
+                                    : tr.toolCall.arguments
+                                const queryString = typeof searchQuery === 'string' ? searchQuery : String(searchQuery || '')
+                                localThinkingBlocks.push({
+                                    type: 'searching',
+                                    query: queryString,
+                                    timestamp: Date.now()
+                                })
+                            })
+
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                thinking: '',
+                                thinkingDuration: undefined,
+                                thinkingBlocks: [...localThinkingBlocks]
+                            })
                         }
 
                         // Save tool results to persist in final message (use toolResult directly)
@@ -1354,28 +1400,44 @@ export default function ChatArea() {
 
                 // Stream the response
                 let accumulatedContent = ''
+                let accumulatedReasoning = ''  // For thinking/reasoning content
                 let lastUpdateTime = Date.now()
                 const UPDATE_INTERVAL = 50 // ms
                 let finalUsage: any = {}
+                let totalThinkingTokens = 0  // Track reasoning tokens across all rounds
                 let hasToolCalls = false
                 let toolCallsAccumulator: any[] = []
                 let finishReason: string | null = null
                 let savedToolResults: any = null  // Save tool results to persist in final message
 
                 try {
+                    // Increase maxTokens for research mode to get comprehensive responses
+                    const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
+
                     for await (const chunk of streamOpenRouterCompletion(
                         settings.openRouterApiKey,
                         settings.aiModel,
                         openRouterMessages,
                         {
                             temperature: settings.temperature,
-                            maxTokens: settings.maxTokens,
+                            maxTokens: effectiveMaxTokens,
                             tools: tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
                         }
                     )) {
                         // Extract content delta
                         const delta = chunk.choices?.[0]?.delta?.content || ''
                         accumulatedContent += delta
+
+                        // Extract reasoning/thinking delta
+                        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+                        if (reasoningDelta) {
+                            accumulatedReasoning += reasoningDelta
+                            // Update message with reasoning visible
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                content: accumulatedContent,
+                                thinking: accumulatedReasoning
+                            })
+                        }
 
                         // Check for tool calls in delta
                         if (chunk.choices?.[0]?.delta?.tool_calls) {
@@ -1403,18 +1465,37 @@ export default function ChatArea() {
                         // Extract usage stats from final chunk
                         if (chunk.usage) {
                             finalUsage = chunk.usage
+                            // Track reasoning tokens (thinking tokens)
+                            const reasoningTokens = chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.reasoning_tokens || 0
+                            if (reasoningTokens > 0) {
+                                totalThinkingTokens += reasoningTokens
+                            }
+                        }
+
+                        // Track finish reason
+                        if (chunk.choices?.[0]?.finish_reason) {
+                            finishReason = chunk.choices[0].finish_reason
+                            if (finishReason === 'tool_calls') {
+                                hasToolCalls = true
+                            }
                         }
 
                         // Debounced update
                         const now = Date.now()
                         if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                            updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                content: accumulatedContent,
+                                thinking: accumulatedReasoning || undefined
+                            })
                             lastUpdateTime = now
                         }
                     }
 
                     // Final update
-                    updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                        content: accumulatedContent,
+                        thinking: accumulatedReasoning || undefined
+                    })
 
                     // Handle tool calls if detected (need to reconstruct message format)
                     if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc && tc.id).length > 0) {
@@ -1447,6 +1528,43 @@ export default function ChatArea() {
                             toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
                         }
 
+                        // Add tool calls to the block list instead of mixing into thinking text
+                        const webSearchCalls = (toolResult.toolResults || [])
+                            .filter((tr: any) => tr.toolCall.name === 'web_search')
+
+                        if (webSearchCalls.length > 0) {
+                            // Use local accumulator instead of reading from stale React state
+                            // This fixes the issue where blocks are lost due to async state updates
+
+                            if (accumulatedReasoning && accumulatedReasoning.trim().length > 0) {
+                                localThinkingBlocks.push({
+                                    type: 'thinking',
+                                    content: accumulatedReasoning,
+                                    duration: 0, // Duration tracked separately
+                                    timestamp: Date.now()
+                                })
+                                accumulatedReasoning = ''
+                            }
+
+                            webSearchCalls.forEach((tr: any) => {
+                                const searchQuery = typeof tr.toolCall.arguments === 'object'
+                                    ? tr.toolCall.arguments?.query
+                                    : tr.toolCall.arguments
+                                const queryString = typeof searchQuery === 'string' ? searchQuery : String(searchQuery || '')
+                                localThinkingBlocks.push({
+                                    type: 'searching',
+                                    query: queryString,
+                                    timestamp: Date.now()
+                                })
+                            })
+
+                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                thinking: '',
+                                thinkingDuration: undefined,
+                                thinkingBlocks: [...localThinkingBlocks]
+                            })
+                        }
+
                         // Save tool results to persist in final message (use toolResult directly)
                         savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
                             toolCall: {
@@ -1473,11 +1591,23 @@ export default function ChatArea() {
                             while (hasMoreToolCalls) {
                                 const openRouterTools = getToolsForRequest()
                                 let followUpContent = ''
+                                let followUpReasoning = ''  // Track reasoning for this round
                                 let followUpLastUpdate = Date.now()
                                 let followUpUsage: any = {}
                                 let followUpToolCalls: any[] = []
                                 let followUpAccumulatedContent = accumulatedContent
                                 const followUpStartTime = Date.now()
+                                // Track if this follow-up is after a search (for fresh thinking block)
+                                let justCompletedSearch = totalSearchCount > 0
+
+                                // Update research status - thinking
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                    researchStatus: {
+                                        currentRound: researchRound,
+                                        maxRounds: researchMaxRounds,
+                                        isSearching: false
+                                    }
+                                })
 
                                 // Build follow-up messages with research context (use local variables, not async state)
                                 const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
@@ -1518,13 +1648,27 @@ export default function ChatArea() {
                                     followUpMessages,
                                     {
                                         temperature: settings.temperature,
-                                        maxTokens: settings.maxTokens,
+                                        maxTokens: researchMaxRounds > 0 ? 8000 : settings.maxTokens,
                                         tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined,
                                         toolChoice: toolChoice
                                     }
                                 )) {
                                     const delta = chunk.choices?.[0]?.delta?.content || ''
                                     followUpContent += delta
+
+                                    // Extract reasoning/thinking delta for this follow-up round
+                                    const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+                                    if (reasoningDelta) {
+                                        followUpReasoning += reasoningDelta
+                                        // After a search, start fresh thinking block. Otherwise append.
+                                        const updatedThinking = justCompletedSearch
+                                            ? followUpReasoning // Fresh block after search
+                                            : accumulatedReasoning + '\n\n---\n\n' + followUpReasoning // Append
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                            content: accumulatedContent + followUpAccumulatedContent + followUpContent,
+                                            thinking: updatedThinking
+                                        })
+                                    }
 
                                     // Check for tool calls in follow-up
                                     if (chunk.choices?.[0]?.delta?.tool_calls) {
@@ -1551,19 +1695,42 @@ export default function ChatArea() {
 
                                     if (chunk.usage) {
                                         followUpUsage = chunk.usage
+                                        // Track reasoning tokens (thinking tokens)
+                                        const reasoningTokens = chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.reasoning_tokens || 0
+                                        if (reasoningTokens > 0) {
+                                            totalThinkingTokens += reasoningTokens
+                                        }
                                     }
 
                                     const now = Date.now()
                                     if (now - followUpLastUpdate >= UPDATE_INTERVAL) {
-                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + followUpAccumulatedContent + followUpContent })
+                                        // After search, show fresh thinking. Otherwise append.
+                                        const fullThinking = justCompletedSearch
+                                            ? followUpReasoning
+                                            : accumulatedReasoning + (followUpReasoning ? '\n\n---\n\n' + followUpReasoning : '')
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                            content: accumulatedContent + followUpAccumulatedContent + followUpContent,
+                                            thinking: fullThinking || undefined
+                                        })
                                         followUpLastUpdate = now
                                     }
                                 }
 
-                                // Add follow-up content to accumulated
+                                // Add follow-up content and reasoning to accumulated
                                 accumulatedContent += followUpContent
                                 followUpAccumulatedContent += followUpContent
-                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                                if (followUpReasoning) {
+                                    // After a search, start fresh thinking block instead of appending
+                                    if (justCompletedSearch) {
+                                        accumulatedReasoning = followUpReasoning // Start fresh
+                                    } else {
+                                        accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
+                                    }
+                                }
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                    content: accumulatedContent,
+                                    thinking: accumulatedReasoning || undefined
+                                })
 
                                 console.log('[RESEARCH LOOP] Follow-up complete. Content length:', followUpContent.length)
                                 console.log('[RESEARCH LOOP] Tool calls found:', followUpToolCalls.length)
@@ -1573,6 +1740,7 @@ export default function ChatArea() {
                                     inputTokens: (finalUsage.prompt_tokens || 0) + (followUpUsage.prompt_tokens || 0),
                                     outputTokens: (finalUsage.completion_tokens || 0) + (followUpUsage.completion_tokens || 0),
                                     totalTokens: (finalUsage.total_tokens || 0) + (followUpUsage.total_tokens || 0),
+                                    thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
                                     cachedInputTokens: ((finalUsage.prompt_cache_tokens || 0) + (followUpUsage.prompt_cache_tokens || 0)) || undefined,
                                     cachedOutputTokens: ((finalUsage.completion_cache_tokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
                                 }
@@ -1608,6 +1776,68 @@ export default function ChatArea() {
                                     // Update search count
                                     const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
                                     totalSearchCount += newWebSearches
+
+                                    // Add tool calls to the block list using local accumulator
+                                    // This avoids stale React state issues from sessions.find()
+                                    for (const tr of nextToolResult.toolResults || []) {
+                                        const toolCall = tr.toolCall
+
+                                        if (toolCall.name === 'web_search') {
+                                            const searchQuery = typeof toolCall.arguments === 'object' ? toolCall.arguments?.query : toolCall.arguments
+                                            const queryString = typeof searchQuery === 'string' ? searchQuery : String(searchQuery || '')
+
+                                            // If there was thinking content, save it as a completed block
+                                            if (accumulatedReasoning && accumulatedReasoning.trim().length > 0) {
+                                                localThinkingBlocks.push({
+                                                    type: 'thinking',
+                                                    content: accumulatedReasoning,
+                                                    duration: 0, // Duration tracked separately
+                                                    timestamp: Date.now()
+                                                })
+                                            }
+
+                                            // Update research status - searching (clear thinking to show new block after search)
+                                            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                                thinking: '', // Clear thinking with empty string instead of undefined
+                                                thinkingDuration: undefined, // Reset duration for fresh block after search
+                                                thinkingBlocks: [...localThinkingBlocks],
+                                                researchStatus: {
+                                                    currentRound: researchRound,
+                                                    maxRounds: researchMaxRounds,
+                                                    currentSearch: queryString,
+                                                    isSearching: true
+                                                }
+                                            })
+
+                                            // Reset accumulated reasoning so new thinking starts fresh
+                                            accumulatedReasoning = ''
+                                        }
+                                    }
+
+                                    // Clear searching status after tools complete
+                                    // Add search blocks to local accumulator for each web_search tool call
+                                    for (const tr of nextToolResult.toolResults || []) {
+                                        if (tr.toolCall.name === 'web_search') {
+                                            const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
+                                            const queryString = typeof searchQuery === 'string' ? searchQuery : String(searchQuery || '')
+                                            localThinkingBlocks.push({
+                                                type: 'searching',
+                                                query: queryString,
+                                                timestamp: Date.now()
+                                            })
+                                        }
+                                    }
+
+                                    updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                        thinking: '', // Clear thinking with empty string for fresh block after search
+                                        thinkingDuration: undefined, // Also reset duration for fresh block
+                                        thinkingBlocks: [...localThinkingBlocks],
+                                        researchStatus: {
+                                            currentRound: researchRound,
+                                            maxRounds: researchMaxRounds,
+                                            isSearching: false
+                                        }
+                                    })
 
                                     // Save tool results
                                     const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
@@ -1688,6 +1918,9 @@ export default function ChatArea() {
                             if (researchMandatory && totalSearchCount >= researchMaxRounds) {
                                 console.log('[RESEARCH LOOP] All searches complete. Requesting final answer...')
 
+                                // Get tools for final request
+                                const finalTools = getToolsForRequest()
+
                                 // Build final answer request messages
                                 const finalAnswerMessages: any[] = []
 
@@ -1705,6 +1938,7 @@ export default function ChatArea() {
 
                                 // Make final request WITHOUT forcing tool use
                                 let finalAnswerContent = ''
+                                let finalAnswerReasoning = ''
                                 let finalAnswerUsage: any = {}
 
                                 for await (const chunk of streamOpenRouterCompletion(
@@ -1713,36 +1947,65 @@ export default function ChatArea() {
                                     finalAnswerMessages,
                                     {
                                         temperature: settings.temperature,
-                                        maxTokens: settings.maxTokens,
-                                        tools: openRouterTools && Array.isArray(openRouterTools) && openRouterTools.length > 0 ? openRouterTools : undefined
+                                        maxTokens: researchMaxRounds > 0 ? 8000 : settings.maxTokens,
+                                        tools: finalTools && Array.isArray(finalTools) && finalTools.length > 0 ? finalTools : undefined
                                         // NO toolChoice - let model decide
                                     }
                                 )) {
                                     const delta = chunk.choices?.[0]?.delta?.content || ''
                                     finalAnswerContent += delta
 
+                                    // Extract reasoning/thinking delta for final answer
+                                    const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+                                    if (reasoningDelta) {
+                                        finalAnswerReasoning += reasoningDelta
+                                        // Append final answer reasoning and update display
+                                        const updatedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                            content: accumulatedContent + finalAnswerContent,
+                                            thinking: updatedThinking
+                                        })
+                                    }
+
                                     if (chunk.usage) {
                                         finalAnswerUsage = chunk.usage
+                                        // Track reasoning tokens (thinking tokens)
+                                        const reasoningTokens = chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.reasoning_tokens || 0
+                                        if (reasoningTokens > 0) {
+                                            totalThinkingTokens += reasoningTokens
+                                        }
                                     }
 
                                     const now = Date.now()
                                     if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-                                        updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent + finalAnswerContent })
+                                        const fullThinking = accumulatedReasoning + (finalAnswerReasoning ? '\n\n---\n\n' + finalAnswerReasoning : '')
+                                        updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                            content: accumulatedContent + finalAnswerContent,
+                                            thinking: fullThinking || undefined
+                                        })
                                         lastUpdateTime = now
                                     }
                                 }
 
-                                // Add final answer to accumulated content
+                                // Add final answer content and reasoning to accumulated
                                 accumulatedContent += finalAnswerContent
+                                if (finalAnswerReasoning) {
+                                    accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
+                                }
 
                                 // Update the streaming message with the final answer
-                                updateStreamingMessage(targetSessionId!, streamingMessageId, { content: accumulatedContent })
+                                updateStreamingMessage(targetSessionId!, streamingMessageId, {
+                                    content: accumulatedContent,
+                                    thinking: accumulatedReasoning || undefined,
+                                    researchStatus: undefined // Clear research status when complete
+                                })
 
                                 // Combine usage stats
                                 usage = {
                                     inputTokens: (usage.inputTokens || 0) + (finalAnswerUsage.prompt_tokens || 0),
                                     outputTokens: (usage.outputTokens || 0) + (finalAnswerUsage.completion_tokens || 0),
                                     totalTokens: (usage.totalTokens || 0) + (finalAnswerUsage.total_tokens || 0),
+                                    thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
                                     cachedInputTokens: ((usage.cachedInputTokens || 0) + (finalAnswerUsage.prompt_cache_tokens || 0)) || undefined,
                                     cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (finalAnswerUsage.completion_cache_tokens || 0)) || undefined
                                 }
@@ -1757,6 +2020,7 @@ export default function ChatArea() {
                                 inputTokens: finalUsage.prompt_tokens || 0,
                                 outputTokens: finalUsage.completion_tokens || 0,
                                 totalTokens: finalUsage.total_tokens || 0,
+                                thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
                                 cachedInputTokens: cachedInputTokens > 0 ? cachedInputTokens : undefined,
                                 cachedOutputTokens: cachedOutputTokens > 0 ? cachedOutputTokens : undefined
                             }
@@ -1769,6 +2033,7 @@ export default function ChatArea() {
                             inputTokens: finalUsage.prompt_tokens || 0,
                             outputTokens: finalUsage.completion_tokens || 0,
                             totalTokens: finalUsage.total_tokens || 0,
+                            thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
                             cachedInputTokens: cachedInputTokens > 0 ? cachedInputTokens : undefined,
                             cachedOutputTokens: cachedOutputTokens > 0 ? cachedOutputTokens : undefined
                         }
@@ -1790,6 +2055,7 @@ export default function ChatArea() {
 
                 updateStreamingMessage(targetSessionId!, streamingMessageId, {
                     content: responseContent,
+                    thinking: accumulatedReasoning || undefined,
                     model,
                     latency: latencyOpenRouter,
                     usage,
@@ -1875,6 +2141,252 @@ export default function ChatArea() {
         }
     }
 
+    // Helper function to get available models based on provider
+    const getModelOptions = (): Array<{ id: string; displayName: string }> => {
+        const allModels: Array<{ id: string; displayName: string }> = []
+
+        // Add configured models (OpenRouter)
+        if (settings.configuredModels) {
+            settings.configuredModels.forEach(m => {
+                allModels.push({ id: m.code, displayName: m.displayName })
+            })
+        }
+
+        // Add Ollama models
+        if (settings.ollamaModels) {
+            settings.ollamaModels.forEach(m => {
+                allModels.push({ id: m.code, displayName: m.displayName })
+            })
+        }
+
+        // Add Perplexity models
+        if (settings.perplexityModels) {
+            settings.perplexityModels.forEach(m => {
+                allModels.push({ id: `perplexity/${m.code}`, displayName: m.displayName })
+            })
+        }
+
+        // Add Gemini models
+        if (settings.geminiModels) {
+            settings.geminiModels.forEach(m => {
+                allModels.push({ id: m.code, displayName: m.displayName })
+            })
+        }
+
+        // Add Groq models
+        if (settings.groqModels) {
+            settings.groqModels.forEach(m => {
+                allModels.push({ id: m.code, displayName: m.displayName })
+            })
+        }
+
+        // Add Codex models
+        if (settings.codexModels) {
+            settings.codexModels.forEach(m => {
+                allModels.push({ id: m.code, displayName: m.displayName })
+            })
+        }
+
+        return allModels
+    }
+
+    // Handle regenerate message
+    const handleRegenerate = async (message: any, instruction: string) => {
+        if (!currentSessionId || isLoading) return
+
+        // Handle switch_model instruction
+        if (instruction === 'switch_model') {
+            // Get available models and cycle to the next one
+            const models = getModelOptions()
+            const currentModelIndex = models.findIndex(m => m.id === settings.aiModel)
+            const nextModel = models[(currentModelIndex + 1) % models.length]
+            updateSettings({ aiModel: nextModel.id })
+            // Continue with regeneration using the new model
+        }
+
+        // Store current message as a version
+        const versions = message.responseVersions || []
+        versions.push({
+            id: message.id,
+            content: message.content,
+            timestamp: message.timestamp,
+            instruction: message.instruction,
+            model: message.model
+        })
+
+        // Clear tool state
+        clearToolState()
+
+        setIsLoading(true)
+
+        try {
+            // Get conversation history
+            const session = sessions.find(s => s.id === currentSessionId)
+            if (!session) {
+                showToast('Session not found', 'error')
+                setIsLoading(false)
+                return
+            }
+
+            // Find the user message that preceded this assistant message
+            const messageIndex = session.messages.findIndex(m => m.id === message.id)
+            if (messageIndex <= 0) {
+                showToast('Cannot regenerate - no user message found', 'error')
+                setIsLoading(false)
+                return
+            }
+
+            const userMessage = session.messages[messageIndex - 1]
+            const conversationHistory = session.messages.slice(0, messageIndex)
+
+            // Build instruction for regeneration
+            let systemPrompt = getEffectiveSystemPrompt(settings)
+            let userContent = userMessage.content
+
+            if (instruction === 'concise') {
+                userContent += '\n\nPlease provide a more concise response.'
+            } else if (instruction === 'detailed') {
+                userContent += '\n\nPlease provide more details and expand on your response.'
+            } else if (instruction === 'custom') {
+                // For custom instructions, we'll use a prompt
+                userContent += '\n\nPlease reconsider your response.'
+            }
+
+            // Remove the original message first (it will be replaced by the regenerated version)
+            deleteMessageFromSession(currentSessionId, message.id)
+
+            // Create streaming message to replace the original
+            const streamingMessageId = addMessageToSession(currentSessionId, {
+                role: 'assistant',
+                content: '',
+                model: `openrouter/${settings.aiModel}`,
+                responseVersions: versions,
+                currentVersionIndex: versions.length
+            })
+
+            let accumulatedContent = ''
+            let accumulatedReasoning = ''
+
+            // Stream the response based on provider
+            const streamProvider = settings.aiModel.includes('/') ? settings.aiModel.split('/')[0] : 'openrouter'
+
+            // Build the messages for the API call
+            const apiMessages = buildOptimizedContext(conversationHistory, userContent, systemPrompt, settings.aiModel)
+
+            let streamError: Error | null = null
+
+            try {
+                // Stream based on provider
+                if (streamProvider === 'ollama') {
+                    for await (const chunk of streamOllamaCompletion(
+                        settings.ollamaUrl,
+                        settings.aiModel,
+                        apiMessages
+                    )) {
+                        const delta = chunk.message?.content || ''
+                        accumulatedContent += delta
+                        updateStreamingMessage(currentSessionId, streamingMessageId, {
+                            content: accumulatedContent,
+                            thinking: accumulatedReasoning || undefined
+                        })
+                    }
+                } else if (streamProvider === 'perplexity') {
+                    for await (const chunk of streamPerplexityCompletion(
+                        settings.perplexityApiKey,
+                        settings.aiModel,
+                        apiMessages
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
+                        updateStreamingMessage(currentSessionId, streamingMessageId, {
+                            content: accumulatedContent
+                        })
+                    }
+                } else if (streamProvider === 'gemini') {
+                    for await (const chunk of streamGeminiCompletion(
+                        settings.geminiApiKey,
+                        settings.aiModel,
+                        apiMessages
+                    )) {
+                        const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                        accumulatedContent += delta
+                        updateStreamingMessage(currentSessionId, streamingMessageId, {
+                            content: accumulatedContent
+                        })
+                    }
+                } else if (streamProvider === 'groq') {
+                    for await (const chunk of streamGroqCompletion(
+                        settings.groqApiKey,
+                        settings.aiModel,
+                        apiMessages
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        accumulatedContent += delta
+                        updateStreamingMessage(currentSessionId, streamingMessageId, {
+                            content: accumulatedContent,
+                            thinking: accumulatedReasoning || undefined
+                        })
+                    }
+                } else {
+                    // Default to OpenRouter
+                    for await (const chunk of streamOpenRouterCompletion(
+                        settings.openRouterApiKey,
+                        settings.aiModel,
+                        apiMessages,
+                        {
+                            temperature: settings.temperature,
+                            maxTokens: settings.maxTokens
+                        }
+                    )) {
+                        const delta = chunk.choices?.[0]?.delta?.content || ''
+                        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+
+                        if (reasoningDelta) {
+                            accumulatedReasoning += reasoningDelta
+                        }
+                        if (delta) {
+                            accumulatedContent += delta
+                        }
+
+                        updateStreamingMessage(currentSessionId, streamingMessageId, {
+                            content: accumulatedContent,
+                            thinking: accumulatedReasoning || undefined
+                        })
+                    }
+                }
+            } catch (error: any) {
+                streamError = error
+            }
+
+            // Handle completion or error
+            if (streamError) {
+                // Restore the original message if regeneration failed
+                deleteMessageFromSession(currentSessionId, streamingMessageId)
+                addMessageToSession(currentSessionId, {
+                    role: 'assistant',
+                    content: message.content,
+                    model: message.model,
+                    thinking: message.thinking,
+                    responseVersions: message.responseVersions,
+                    currentVersionIndex: message.currentVersionIndex
+                })
+                showToast(streamError.message || 'Failed to regenerate', 'error')
+                setIsLoading(false)
+            } else {
+                // Success - final update
+                updateStreamingMessage(currentSessionId, streamingMessageId, {
+                    content: accumulatedContent,
+                    thinking: accumulatedReasoning || undefined
+                })
+                setIsLoading(false)
+            }
+
+        } catch (error: any) {
+            showToast(error.message || 'Failed to regenerate', 'error')
+            setIsLoading(false)
+        }
+    }
+
 
     // Empty State
     if (!currentSession || messages.length === 0) {
@@ -1884,7 +2396,7 @@ export default function ChatArea() {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100vh',
-                background: '#14120B',
+                background: 'var(--theme-background)',
                 position: 'relative'
             }}>
                 {/* Header - Empty for spacing */}
@@ -1897,13 +2409,13 @@ export default function ChatArea() {
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    padding: '40px',
+                    padding: '40px 20px',
                     gap: '16px' // Reduced gap to place just above
                 }}>
                     {/* Title */}
                     {/* Title - Gradient Zura */}
                     <GradientText
-                        colors={['#FFE4C4', '#d4b89a', '#FFE4C4', '#d4b89a', '#FFE4C4']}
+                        useThemeAccent={true}
                         animationSpeed={12}
                         showBorder={false}
                         className="blur-text-title"
@@ -1942,23 +2454,23 @@ export default function ChatArea() {
                     `}</style>
 
                     {/* Input Area Group */}
-                    <div style={{ width: '100%', maxWidth: '600px' }}>
+                    <div style={{ width: '100%', maxWidth: '810px' }}>
                         <div style={{
                             position: 'relative',
-                            background: 'linear-gradient(145deg, #1B1913, #14120B)',
+                            background: 'var(--theme-surface)',
                             borderRadius: '24px',
                             padding: '24px',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '16px',
                             border: isInputFocused
-                                ? '1px solid rgba(255, 202, 40, 0.4)'
-                                : '1px solid rgba(255,255,255,0.08)',
+                                ? '1px solid var(--theme-accent)'
+                                : '1px solid var(--theme-border)',
                             boxShadow: isInputFocused
-                                ? '0 12px 40px rgba(0,0,0,0.4), 0 0 25px rgba(255, 202, 40, 0.15)'
-                                : '0 4px 20px rgba(0,0,0,0.2)',
+                                ? 'var(--theme-shadow-lg), 0 0 20px var(--theme-accent-muted)'
+                                : 'var(--theme-shadow-md)',
                             transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                            minHeight: '140px'
+                            minHeight: '110px'
                         }}>
                             {/* Animated Placeholder */}
                             {!input && (
@@ -2014,14 +2526,74 @@ export default function ChatArea() {
 
                                     {/* Web Search Toggle */}
                                     <button
-                                        onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
-                                        title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
+                                        onClick={() => {
+                                            // If deep research is on, just disable it and enable normal web search
+                                            if (settings.deepResearchEnabled) {
+                                                updateSettings({
+                                                    webSearchEnabled: true,
+                                                    deepResearchEnabled: false
+                                                })
+                                            } else {
+                                                // Normal toggle behavior
+                                                updateSettings({
+                                                    webSearchEnabled: !settings.webSearchEnabled,
+                                                    deepResearchEnabled: false
+                                                })
+                                            }
+                                        }}
+                                        title={settings.webSearchEnabled && !settings.deepResearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
                                         style={{
-                                            background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
+                                            background: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info-bg)' : 'transparent',
                                             border: 'none',
                                             borderRadius: '8px',
                                             padding: '6px 8px',
-                                            color: settings.webSearchEnabled ? '#60a5fa' : '#666',
+                                            color: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info)' : '#666',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                            height: '100%',
+                                            opacity: settings.deepResearchEnabled ? 0.4 : 1
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (settings.webSearchEnabled && !settings.deepResearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
+                                                e.currentTarget.style.color = 'var(--theme-info)'
+                                            } else {
+                                                e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                                e.currentTarget.style.color = '#999'
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (settings.webSearchEnabled && !settings.deepResearchEnabled) {
+                                                e.currentTarget.style.background = 'var(--theme-info-bg)'
+                                                e.currentTarget.style.color = 'var(--theme-info)'
+                                            } else {
+                                                e.currentTarget.style.background = 'transparent'
+                                                e.currentTarget.style.color = '#666'
+                                            }
+                                        }}
+                                    >
+                                        <Globe size={16} />
+                                    </button>
+
+                                    {/* Deep Research Toggle */}
+                                    <button
+                                        onClick={() => {
+                                            updateSettings({
+                                                deepResearchEnabled: !settings.deepResearchEnabled,
+                                                webSearchEnabled: !settings.deepResearchEnabled // Enable web search when deep research is on, disable when off
+                                            })
+                                        }}
+                                        title={settings.deepResearchEnabled ? 'Deep research enabled - 3 mandatory searches' : 'Deep research disabled - click to enable'}
+                                        style={{
+                                            background: settings.deepResearchEnabled ? 'var(--theme-accent-muted)' : 'transparent',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '6px 8px',
+                                            color: settings.deepResearchEnabled ? 'var(--theme-accent)' : '#666',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -2031,39 +2603,39 @@ export default function ChatArea() {
                                             height: '100%'
                                         }}
                                         onMouseEnter={e => {
-                                            if (settings.webSearchEnabled) {
-                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
-                                                e.currentTarget.style.color = '#93c5fd'
+                                            if (settings.deepResearchEnabled) {
+                                                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.3)'
+                                                e.currentTarget.style.color = 'var(--theme-accent)'
                                             } else {
-                                                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                                                e.currentTarget.style.background = 'var(--theme-surface-hover)'
                                                 e.currentTarget.style.color = '#999'
                                             }
                                         }}
                                         onMouseLeave={e => {
-                                            if (settings.webSearchEnabled) {
-                                                e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
-                                                e.currentTarget.style.color = '#60a5fa'
+                                            if (settings.deepResearchEnabled) {
+                                                e.currentTarget.style.background = 'var(--theme-accent-muted)'
+                                                e.currentTarget.style.color = 'var(--theme-accent)'
                                             } else {
                                                 e.currentTarget.style.background = 'transparent'
                                                 e.currentTarget.style.color = '#666'
                                             }
                                         }}
                                     >
-                                        <Globe size={16} />
+                                        <Brain size={16} />
                                     </button>
                                 </div>
                                 <div className="animate-in-control" style={{ display: 'flex', gap: '8px', animationDelay: '0.4s' }}>
                                     <button style={{
-                                        background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '8px', padding: '10px', color: '#cccccc', cursor: 'pointer',
+                                        background: 'transparent', border: '1px solid var(--theme-border)', borderRadius: '8px', padding: '10px', color: 'var(--theme-text-secondary)', cursor: 'pointer',
                                         transition: 'all 0.2s'
                                     }}
                                         onMouseEnter={e => {
-                                            e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                                            e.currentTarget.style.background = 'var(--theme-surface-hover)'
                                             e.currentTarget.style.color = '#fff'
                                         }}
                                         onMouseLeave={e => {
-                                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                            e.currentTarget.style.color = '#aaa'
+                                            e.currentTarget.style.background = 'transparent'
+                                            e.currentTarget.style.color = 'var(--theme-text-secondary)'
                                         }}
                                     >
                                         <Paperclip size={18} />
@@ -2072,11 +2644,11 @@ export default function ChatArea() {
                                         onClick={handleSendMessage}
                                         disabled={isLoading || !input.trim()}
                                         style={{
-                                            background: input.trim() ? '#FFCA28' : 'rgba(255,255,255,0.05)',
-                                            border: 'none',
+                                            background: input.trim() ? 'var(--theme-accent)' : 'transparent',
+                                            border: '1px solid var(--theme-border)',
                                             borderRadius: '8px',
                                             padding: '10px',
-                                            color: input.trim() ? '#000' : '#444',
+                                            color: input.trim() ? '#000' : 'var(--theme-text-muted)',
                                             cursor: input.trim() ? 'pointer' : 'default',
                                             transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
                                             transform: input.trim() ? 'scale(1)' : 'scale(0.95)',
@@ -2103,7 +2675,7 @@ export default function ChatArea() {
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
-            background: '#14120B',
+            background: 'var(--theme-background)',
             position: 'relative'
         }}>
             {/* Header - Session Title */}
@@ -2112,18 +2684,41 @@ export default function ChatArea() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                borderBottom: '1px solid rgba(255,255,255,0.05)'
+                borderBottom: '1px solid var(--theme-border)'
             }}>
                 <Sparkles size={20} color="#888" />
                 <span style={{ color: '#e0e0e0', fontSize: '0.95rem', fontWeight: 500 }}>
                     {currentSession?.title || 'New Conversation'}
                 </span>
+                {/* Current Model */}
+                <span style={{
+                    color: '#fff',
+                    fontSize: '0.75rem',
+                    background: 'rgba(255,255,255,0.08)',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    marginLeft: '8px',
+                    fontWeight: 500
+                }}>
+                    {(() => {
+                        const allModels: Array<{ code: string; displayName: string }> = [
+                            ...(settings.ollamaModels || []),
+                            ...(settings.perplexityModels || []),
+                            ...(settings.configuredModels || []),
+                            ...(settings.geminiModels || []),
+                            ...(settings.groqModels || []),
+                            ...(settings.codexModels || [])
+                        ]
+                        const currentModel = allModels.find(m => m.code === settings.aiModel)
+                        return currentModel?.displayName || settings.aiModel?.split('/').pop() || 'Auto'
+                    })()}
+                </span>
                 <ChevronDown size={14} color="#666" />
             </div>
 
             {/* Messages */}
-            <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-                <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
+                <div style={{ width: '100%', maxWidth: '810px', margin: '0 auto' }}>
                     {messages.map((msg, idx) => (
                         <div key={msg.id} data-message-id={msg.id}>
                             {/* Show stored tool results before the message */}
@@ -2142,6 +2737,7 @@ export default function ChatArea() {
                             <MessageBubble
                                 message={msg}
                                 isStreaming={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
+                                onRegenerate={(instruction) => handleRegenerate(msg, instruction)}
                             />
                             {/* Show active tool results after last assistant message (during streaming) */}
                             {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
@@ -2184,7 +2780,7 @@ export default function ChatArea() {
             </div>
 
             {/* Input Area */}
-            <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '0 20px 24px' }}>
+            <div style={{ width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 20px 24px 20px' }}>
                 <InputBar
                     input={input}
                     setInput={setInput}
@@ -2380,15 +2976,15 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
             padding: '20px'
         }} onClick={onClose}>
             <div style={{
-                backgroundColor: '#1a1a1a',
+                backgroundColor: 'var(--theme-surface)',
                 borderRadius: '12px',
                 padding: '24px',
                 maxWidth: '800px',
                 width: '100%',
                 maxHeight: '90vh',
                 overflowY: 'auto',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+                border: '1px solid var(--theme-border)',
+                boxShadow: 'var(--theme-shadow-lg)'
             }} onClick={(e) => e.stopPropagation()}>
                 <div style={{
                     display: 'flex',
@@ -2510,17 +3106,66 @@ function ToolDetailsModal({ toolResults, onClose }: { toolResults: any[], onClos
 }
 
 // Component to highlight first word in gold
-function MessageBubble({ message, isStreaming = false }: { message: any; isStreaming?: boolean }) {
+function MessageBubble({ message, isStreaming = false, onRegenerate }: { message: any; isStreaming?: boolean; onRegenerate?: (instruction: string) => void }) {
     const { settings } = useSettings()
     const [copied, setCopied] = useState(false)
     const [showToolModal, setShowToolModal] = useState(false)
     const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
     const [isHoveringInfo, setIsHoveringInfo] = useState(false)
+    const [showRegenerateMenu, setShowRegenerateMenu] = useState(false)
+    const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
     const infoTriggerRef = useRef<HTMLDivElement>(null)
-    const processedContent = convertUrlsToMarkdownLinks(message.content)
+    
+    // Get all versions including current message
+    const versions = message.responseVersions || []
+    const totalVersions = versions.length + (message.content ? 1 : 0)
+    const currentVersionIndex = message.currentVersionIndex || 0
+    
+    // Reset display version when message changes
+    useEffect(() => {
+        setDisplayVersionIndex(currentVersionIndex)
+    }, [message.id, currentVersionIndex])
+    
+    // Get the content to display based on version
+    const getVersionContent = () => {
+        if (displayVersionIndex === versions.length && message.content) {
+            // Current message
+            return message
+        } else if (displayVersionIndex < versions.length) {
+            // One of the stored versions
+            return versions[displayVersionIndex]
+        }
+        return message
+    }
+    
+    const displayMessage = getVersionContent()
+    const processedContent = convertUrlsToMarkdownLinks(displayMessage?.content || '')
     const isUser = message.role === 'user'
-    const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
+    const hasThinking = typeof displayMessage?.thinking === 'string' && displayMessage?.thinking.trim().length > 0
     const showThinkingSpinner = isStreaming && !hasThinking
+
+    // Handle regenerate action
+    const handleRegenerate = (instruction: string) => {
+        setShowRegenerateMenu(false)
+        if (onRegenerate) {
+            onRegenerate(instruction)
+        }
+    }
+
+    // Handle version navigation
+    const navigateVersion = (direction: 'prev' | 'next') => {
+        const versions = message.responseVersions || []
+        const totalVersions = versions.length + (message.content ? 1 : 0)
+
+        setDisplayVersionIndex(prev => {
+            if (direction === 'next' && prev < totalVersions - 1) {
+                return prev + 1
+            } else if (direction === 'prev' && prev > 0) {
+                return prev - 1
+            }
+            return prev
+        })
+    }
 
     const handleCopy = () => {
         navigator.clipboard.writeText(message.content)
@@ -2686,9 +3331,9 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                 {message.content && (
                     <div style={{
                         padding: '12px 18px',
-                        backgroundColor: '#1B1913',
+                        backgroundColor: 'var(--theme-surface)',
                         borderRadius: '20px',
-                        color: '#e0e0e0',
+                        color: 'var(--theme-text-secondary)',
                         fontSize: '0.95rem',
                         maxWidth: '70%',
                         whiteSpace: 'pre-wrap'
@@ -2726,13 +3371,67 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                 ref={messageRef}
             >
 
-                {(hasThinking || showThinkingSpinner) && (
+                {/* Single ThinkingBlock component that renders all blocks */}
+                {(hasThinking || showThinkingSpinner || (displayMessage.thinkingBlocks && displayMessage.thinkingBlocks.length > 0) || displayMessage.researchStatus?.isSearching) && (
                     <div style={{ marginBottom: '8px' }}>
-                        <ThinkingBlock
-                            thinking={message.thinking || ''}
-                            isThinking={showThinkingSpinner}
-                            thinkingDuration={message.thinkingDuration}
+                        <ThinkingBlockComponent
+                            thinking={displayMessage.thinking || ''}
+                            isThinking={showThinkingSpinner && !displayMessage.researchStatus?.isSearching}
+                            thinkingDuration={displayMessage.thinkingDuration}
+                            isSearching={displayMessage.researchStatus?.isSearching || false}
+                            searchQuery={displayMessage.researchStatus?.currentSearch}
+                            completedBlocks={displayMessage.thinkingBlocks || []}
                         />
+                    </div>
+                )}
+
+                {/* Research Status Indicator (hidden, using ThinkingBlock instead) */}
+                {message.researchStatus && false && (
+                    <div style={{
+                        marginBottom: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 14px',
+                        background: message.researchStatus.isSearching
+                            ? 'var(--theme-info-bg)'
+                            : 'var(--theme-accent-muted)',
+                        border: '1px solid ' + (
+                            message.researchStatus.isSearching
+                                ? 'rgba(59, 130, 246, 0.3)'
+                                : 'rgba(139, 92, 246, 0.3)'
+                        ),
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        color: message.researchStatus.isSearching ? 'var(--theme-info)' : 'var(--theme-accent)',
+                        fontWeight: 500
+                    }}>
+                        {message.researchStatus.isSearching ? (
+                            <>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                                    <path d="M12 2a10 10 0 0 1 10 10" />
+                                </svg>
+                                <span>
+                                    {message.researchStatus.currentSearch
+                                        ? `Searching: "${message.researchStatus.currentSearch}"`
+                                        : 'Searching...'}
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <Brain size={16} />
+                                <span>
+                                    Thinking (Round {message.researchStatus.currentRound}/{message.researchStatus.maxRounds})...
+                                </span>
+                            </>
+                        )}
+                        <style>{`
+                            @keyframes spin {
+                                from { transform: rotate(0deg); }
+                                to { transform: rotate(360deg); }
+                            }
+                        `}</style>
                     </div>
                 )}
 
@@ -2743,6 +3442,53 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
 
             {/* Action Bar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
+                {/* Version Indicator - Show if there are multiple versions */}
+                {message.responseVersions && message.responseVersions.length > 0 && (
+                    <>
+                        {/* Previous Version Button */}
+                        <button
+                            onClick={() => navigateVersion('prev')}
+                            disabled={(message.currentVersionIndex || 0) === 0}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: (message.currentVersionIndex || 0) > 0 ? 'var(--theme-text-muted)' : 'var(--theme-border)',
+                                cursor: (message.currentVersionIndex || 0) > 0 ? 'pointer' : 'not-allowed',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        
+                        <span style={{ 
+                            fontSize: '0.8rem', 
+                            color: 'var(--theme-text-secondary)',
+                            fontFamily: 'monospace'
+                        }}>
+                            v{(message.currentVersionIndex || 0) + 1}/{message.responseVersions.length + (message.content ? 1 : 0)}
+                        </span>
+                        
+                        {/* Next Version Button */}
+                        <button
+                            onClick={() => navigateVersion('next')}
+                            disabled={(message.currentVersionIndex || 0) >= message.responseVersions.length - 1}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: (message.currentVersionIndex || 0) < message.responseVersions.length - 1 ? 'var(--theme-text-muted)' : 'var(--theme-border)',
+                                cursor: (message.currentVersionIndex || 0) < message.responseVersions.length - 1 ? 'pointer' : 'not-allowed',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+                    </>
+                )}
+
                 {/* Tools Button - Show if tools were used */}
                 {message.toolResults && message.toolResults.length > 0 && (
                     <button
@@ -2799,6 +3545,207 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                     {copied ? <Check size={14} /> : <Copy size={14} />}
                 </button>
 
+                {/* Regenerate Button */}
+                {!isStreaming && message.role === 'assistant' && (
+                    <div style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => setShowRegenerateMenu(!showRegenerateMenu)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#666',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '4px',
+                                borderRadius: '4px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#e0e0e0')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#666')}
+                        >
+                            <RotateCcw size={14} />
+                        </button>
+
+                        {/* Regenerate Menu */}
+                        {showRegenerateMenu && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                marginTop: '8px',
+                                background: 'var(--theme-surface)',
+                                border: '1px solid var(--theme-border)',
+                                borderRadius: '12px',
+                                padding: '12px',
+                                minWidth: '220px',
+                                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                                zIndex: 1000,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px'
+                            }}>
+                                <div style={{
+                                    color: 'var(--theme-text-muted)',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.5px'
+                                }}>
+                                    Regenerate
+                                </div>
+                                
+                                {/* Regenerate Options */}
+                                <button
+                                    onClick={() => handleRegenerate('switch_model')}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        color: 'var(--theme-text-secondary)',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                        e.currentTarget.style.color = 'var(--theme-text-primary)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                                    }}
+                                >
+                                    <Cpu size={14} color="var(--theme-info)" />
+                                    <span>Switch Model</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => handleRegenerate('concise')}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        color: 'var(--theme-text-secondary)',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                        e.currentTarget.style.color = 'var(--theme-text-primary)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                                    }}
+                                >
+                                    <Sparkles size={14} color="var(--theme-accent)" />
+                                    <span>More Concise</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => handleRegenerate('detailed')}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        color: 'var(--theme-text-secondary)',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                        e.currentTarget.style.color = 'var(--theme-text-primary)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                                    }}
+                                >
+                                    <FileText size={14} color="var(--theme-success)" />
+                                    <span>Add Details</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => handleRegenerate('retry')}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        color: 'var(--theme-text-secondary)',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                        e.currentTarget.style.color = 'var(--theme-text-primary)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                                    }}
+                                >
+                                    <RotateCcw size={14} color="#888" />
+                                    <span>Try Again</span>
+                                </button>
+                                
+                                <button
+                                    onClick={() => handleRegenerate('custom')}
+                                    style={{
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        padding: '10px 12px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        color: 'var(--theme-text-secondary)',
+                                        fontSize: '0.85rem',
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                        e.currentTarget.style.color = 'var(--theme-text-primary)'
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = 'transparent'
+                                        e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                                    }}
+                                >
+                                    <Edit2 size={14} color="#f59e0b" />
+                                    <span>Ask to Change Response...</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Info Tooltip */}
                 {(message.usage || message.toolResults) && (
                     <>
@@ -2819,18 +3766,43 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                             onMouseEnter={handleInfoMouseEnter}
                             onMouseLeave={handleInfoMouseLeave}
                         >
-                            <Info
-                                size={14}
-                                style={{ 
-                                    cursor: 'pointer', 
-                                    color: '#666', 
-                                    flexShrink: 0,
-                                    display: 'block',
-                                    width: '14px',
-                                    height: '14px'
-                                }}
-                                className="info-icon"
-                            />
+                            <div style={{ position: 'relative', display: 'flex' }}>
+                                <Info
+                                    size={14}
+                                    style={{
+                                        cursor: 'pointer',
+                                        color: '#666',
+                                        flexShrink: 0,
+                                        display: 'block',
+                                        width: '14px',
+                                        height: '14px'
+                                    }}
+                                    className="info-icon"
+                                />
+                                {/* Sources badge - show count of web_search results */}
+                                {message.toolResults && message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length > 0 && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '-6px',
+                                        right: '-8px',
+                                        background: '#60a5fa',
+                                        color: 'white',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 'bold',
+                                        minWidth: '16px',
+                                        height: '16px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0 4px',
+                                        border: '2px solid var(--theme-bg)',
+                                        pointerEvents: 'none'
+                                    }}>
+                                        {message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length}
+                                    </span>
+                                )}
+                            </div>
                         </div>
 
                         {isHoveringInfo && popoverPosition && (
@@ -2846,13 +3818,13 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                         ? 'translateY(calc(-100% - 10px))' 
                                         : 'none',
                                     marginTop: popoverPosition.showAbove ? '0' : '10px',
-                                    backgroundColor: '#1a1a1a',
-                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    backgroundColor: 'var(--theme-surface)',
+                                    border: '1px solid var(--theme-border)',
                                     borderRadius: '12px',
                                     padding: '16px',
                                     width: message.toolResults && message.toolResults.length > 0 ? '400px' : '280px',
                                     zIndex: 10000,
-                                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+                                    boxShadow: 'var(--theme-shadow-lg)',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     gap: '12px',
@@ -2870,29 +3842,30 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
 
                             {/* Model */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Model</span>
+                                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>Model</span>
                                 <div style={{
-                                    background: '#ffe4c4', // Peach/Beige color like screenshot
-                                    color: '#5c4033',
+                                    background: 'var(--theme-surface)',
+                                    color: 'var(--theme-text-secondary)',
                                     padding: '4px 10px',
                                     borderRadius: '12px',
                                     fontSize: '0.8rem',
                                     fontWeight: 600,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '6px'
+                                    gap: '6px',
+                                    border: '1px solid var(--theme-border)'
                                 }}>
                                     <Cpu size={12} />
-                                    <span>{message.model?.split('/').pop() || 'Unknown Model'}</span>
+                                    <span>{displayMessage.model?.split('/').pop() || 'Unknown Model'}</span>
                                 </div>
                             </div>
 
                             {/* Performance Metrics */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Performance</span>
+                                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>Performance</span>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     <div style={{
-                                        background: '#252525',
+                                        background: 'var(--theme-background)',
                                         padding: '6px 10px',
                                         borderRadius: '8px',
                                         flex: 1,
@@ -2903,14 +3876,14 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                             <Clock size={12} color="#888" />
-                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>TTFT</span>
+                                            <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>TTFT</span>
                                         </div>
-                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
-                                            {message.usage?.ttft ? `${message.usage.ttft.toFixed(0)}ms` : '—'}
+                                        <span style={{ color: 'var(--theme-text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {displayMessage.usage?.ttft ? `${displayMessage.usage.ttft.toFixed(0)}ms` : '—'}
                                         </span>
                                     </div>
                                     <div style={{
-                                        background: '#252525',
+                                        background: 'var(--theme-background)',
                                         padding: '6px 10px',
                                         borderRadius: '8px',
                                         flex: 1,
@@ -2920,16 +3893,16 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                         justifyContent: 'space-between'
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <Zap size={12} color="#888" />
-                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>TPS</span>
+                                            <Zap size={12} color="var(--theme-text-muted)" />
+                                            <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>TPS</span>
                                         </div>
-                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
-                                            {message.usage?.tps ? message.usage.tps.toFixed(1) : '—'}
+                                        <span style={{ color: 'var(--theme-text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {displayMessage.usage?.tps ? displayMessage.usage.tps.toFixed(1) : '—'}
                                         </span>
                                     </div>
                                 </div>
                                 <div style={{
-                                    background: '#252525',
+                                    background: 'var(--theme-background)',
                                     padding: '8px 12px',
                                     borderRadius: '8px',
                                     display: 'flex',
@@ -2937,21 +3910,21 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                     justifyContent: 'space-between'
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Clock size={14} color="#888" />
-                                        <span style={{ color: '#e0e0e0', fontSize: '0.85rem' }}>Generation Time</span>
+                                        <Clock size={14} color="var(--theme-text-muted)" />
+                                        <span style={{ color: 'var(--theme-text-secondary)', fontSize: '0.85rem' }}>Generation Time</span>
                                     </div>
-                                    <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
-                                        {(message.latency ? message.latency / 1000 : 0).toFixed(2)}s
+                                    <span style={{ color: 'var(--theme-text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                        {(displayMessage.latency ? displayMessage.latency / 1000 : 0).toFixed(2)}s
                                     </span>
                                 </div>
                             </div>
 
                             {/* Token Usage */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Token Usage</span>
+                                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>Token Usage</span>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                     <div style={{
-                                        background: '#252525',
+                                        background: 'var(--theme-background)',
                                         padding: '6px 10px',
                                         borderRadius: '8px',
                                         flex: 1,
@@ -2961,15 +3934,15 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                         justifyContent: 'space-between'
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <ArrowDown size={12} color="#888" />
-                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Input</span>
+                                            <ArrowDown size={12} color="var(--theme-text-muted)" />
+                                            <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>Input</span>
                                         </div>
-                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
-                                            {message.usage?.inputTokens.toLocaleString()}
+                                        <span style={{ color: 'var(--theme-text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {displayMessage.usage?.inputTokens.toLocaleString()}
                                         </span>
                                     </div>
                                     <div style={{
-                                        background: '#252525',
+                                        background: 'var(--theme-background)',
                                         padding: '6px 10px',
                                         borderRadius: '8px',
                                         flex: 1,
@@ -2979,16 +3952,37 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                         justifyContent: 'space-between'
                                     }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <ArrowUp size={12} color="#888" />
-                                            <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Output</span>
+                                            <ArrowUp size={12} color="var(--theme-text-muted)" />
+                                            <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>Output</span>
                                         </div>
-                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>
-                                            {message.usage?.outputTokens.toLocaleString()}
+                                        <span style={{ color: 'var(--theme-text-primary)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {displayMessage.usage?.outputTokens.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
+                                {/* Thinking Tokens - Show if available */}
+                                {displayMessage.usage?.thinkingTokens !== undefined && displayMessage.usage.thinkingTokens > 0 && (
+                                    <div style={{
+                                        background: 'rgba(139, 92, 246, 0.1)',
+                                        padding: '6px 10px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        justifyContent: 'space-between',
+                                        border: '1px solid rgba(139, 92, 246, 0.2)'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <Brain size={12} color="rgba(139, 92, 246, 0.8)" />
+                                            <span style={{ color: 'rgba(139, 92, 246, 0.9)', fontSize: '0.8rem' }}>Thinking</span>
+                                        </div>
+                                        <span style={{ color: 'rgba(139, 92, 246, 1)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                            {displayMessage.usage.thinkingTokens.toLocaleString()}
+                                        </span>
+                                    </div>
+                                )}
                                 <div style={{
-                                    background: '#252525',
+                                    background: 'var(--theme-background)',
                                     padding: '8px 12px',
                                     borderRadius: '8px',
                                     display: 'flex',
@@ -2996,23 +3990,23 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                     justifyContent: 'space-between'
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Sigma size={14} color="#888" />
-                                        <span style={{ color: '#e0e0e0', fontWeight: 600, fontSize: '0.85rem' }}>Total</span>
+                                        <Sigma size={14} color="var(--theme-text-muted)" />
+                                        <span style={{ color: 'var(--theme-text-secondary)', fontWeight: 600, fontSize: '0.85rem' }}>Total</span>
                                     </div>
-                                    <span style={{ color: '#e0e0e0', fontWeight: 700, fontSize: '0.9rem' }}>
-                                        {message.usage?.totalTokens.toLocaleString()}
+                                    <span style={{ color: 'var(--theme-text-primary)', fontWeight: 700, fontSize: '0.9rem' }}>
+                                        {displayMessage.usage?.totalTokens.toLocaleString()}
                                     </span>
                                 </div>
                             </div>
 
                             {/* Cache Information */}
-                            {((message.usage?.cachedInputTokens && message.usage.cachedInputTokens > 0) || 
-                              (message.usage?.cachedOutputTokens && message.usage.cachedOutputTokens > 0)) && (
+                            {((displayMessage.usage?.cachedInputTokens && displayMessage.usage.cachedInputTokens > 0) || 
+                              (displayMessage.usage?.cachedOutputTokens && displayMessage.usage.cachedOutputTokens > 0)) && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <span style={{ color: '#b0b0b0', fontSize: '0.85rem' }}>Cache Tokens</span>
+                                    <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>Cache Tokens</span>
                                     <div style={{ display: 'flex', gap: '8px' }}>
                                         <div style={{
-                                            background: '#252525',
+                                            background: 'var(--theme-background)',
                                             padding: '6px 10px',
                                             borderRadius: '8px',
                                             flex: 1,
@@ -3022,15 +4016,15 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                             justifyContent: 'space-between'
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Database size={12} color="#4ade80" />
-                                                <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Input</span>
+                                                <Database size={12} color="var(--theme-success)" />
+                                                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>Input</span>
                                             </div>
-                                            <span style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.85rem' }}>
-                                                {message.usage.cachedInputTokens?.toLocaleString() || '0'}
+                                            <span style={{ color: 'var(--theme-success)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                                {displayMessage.usage.cachedInputTokens?.toLocaleString() || '0'}
                                             </span>
                                         </div>
                                         <div style={{
-                                            background: '#252525',
+                                            background: 'var(--theme-background)',
                                             padding: '6px 10px',
                                             borderRadius: '8px',
                                             flex: 1,
@@ -3040,11 +4034,11 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                             justifyContent: 'space-between'
                                         }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Database size={12} color="#4ade80" />
-                                                <span style={{ color: '#cccccc', fontSize: '0.8rem' }}>Output</span>
+                                                <Database size={12} color="var(--theme-success)" />
+                                                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>Output</span>
                                             </div>
-                                            <span style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.85rem' }}>
-                                                {message.usage.cachedOutputTokens?.toLocaleString() || '0'}
+                                            <span style={{ color: 'var(--theme-success)', fontWeight: 600, fontSize: '0.85rem' }}>
+                                                {displayMessage.usage.cachedOutputTokens?.toLocaleString() || '0'}
                                             </span>
                                         </div>
                                     </div>
@@ -3062,7 +4056,7 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '8px',
-                                        marginBottom: '12px'
+                                        marginBottom: '8px'
                                     }}>
                                         <Wrench size={14} color="#60a5fa" />
                                         <span style={{
@@ -3070,70 +4064,32 @@ function MessageBubble({ message, isStreaming = false }: { message: any; isStrea
                                             color: '#e0e0e0',
                                             fontSize: '0.9rem'
                                         }}>
-                                            Tools Used ({message.toolResults.length})
+                                            Tools ({message.toolResults.length})
                                         </span>
                                     </div>
 
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{
+                                        background: 'var(--theme-background)',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        gap: '6px'
+                                    }}>
                                         {message.toolResults.map((result: any, idx: number) => (
-                                            <div
+                                            <span
                                                 key={idx}
                                                 style={{
-                                                    background: 'rgba(59, 130, 246, 0.05)',
-                                                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                                                    borderRadius: '6px',
-                                                    padding: '10px',
-                                                    fontSize: '0.8rem'
+                                                    background: 'rgba(59, 130, 246, 0.15)',
+                                                    color: '#60a5fa',
+                                                    padding: '4px 10px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 500
                                                 }}
                                             >
-                                                <div style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    marginBottom: '6px'
-                                                }}>
-                                                    <span style={{
-                                                        color: result.result.success ? '#60a5fa' : '#f87171',
-                                                        fontWeight: 600
-                                                    }}>
-                                                        {result.toolCall.name.replace(/_/g, ' ')}
-                                                    </span>
-                                                    {result.result.executionTime && (
-                                                        <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
-                                                            {result.result.executionTime}ms
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {result.toolCall.arguments && Object.keys(result.toolCall.arguments).length > 0 && (
-                                                    <div style={{ marginBottom: '6px' }}>
-                                                        <div style={{ color: '#b0b0b0', fontSize: '0.75rem', marginBottom: '2px' }}>
-                                                            Args:
-                                                        </div>
-                                                        <div style={{
-                                                            color: '#cccccc',
-                                                            fontSize: '0.75rem',
-                                                            fontFamily: 'monospace',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap'
-                                                        }} title={JSON.stringify(result.toolCall.arguments, null, 2)}>
-                                                            {JSON.stringify(result.toolCall.arguments).substring(0, 60)}
-                                                            {JSON.stringify(result.toolCall.arguments).length > 60 ? '...' : ''}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {result.result.success ? (
-                                                    <div style={{ color: '#4ade80', fontSize: '0.75rem' }}>
-                                                        ✓ Success
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ color: '#f87171', fontSize: '0.75rem' }}>
-                                                        ✗ {result.result.error || 'Failed'}
-                                                    </div>
-                                                )}
-                                            </div>
+                                                {result.toolCall.name.replace(/_/g, ' ')}
+                                            </span>
                                         ))}
                                     </div>
                                 </div>
@@ -3177,9 +4133,52 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
     const [isFocused, setIsFocused] = React.useState(false)
     const [isDragging, setIsDragging] = React.useState(false)
     const [showImageModal, setShowImageModal] = React.useState(false)
+    const [showSearchMenu, setShowSearchMenu] = React.useState(false)
+    const [searchMenuPos, setSearchMenuPos] = React.useState({ top: 0, left: 0 })
+    const searchButtonRef = React.useRef<HTMLDivElement>(null)
+    const searchMenuRef = React.useRef<HTMLDivElement>(null)
+    const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
     const { settings, updateSettings } = useSettings()
 
     const imageFiles = attachedFiles?.filter((f: any) => f.type === 'image') || []
+
+    // Calculate menu position on hover
+    const handleSearchMouseEnter = () => {
+        // Clear any pending close
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+            closeTimeoutRef.current = null
+        }
+        if (searchButtonRef.current) {
+            const rect = searchButtonRef.current.getBoundingClientRect()
+            setSearchMenuPos({
+                top: rect.top - 8,
+                left: rect.left
+            })
+        }
+        setShowSearchMenu(true)
+    }
+
+    const handleSearchMouseLeave = () => {
+        // Delay closing to allow moving to menu
+        closeTimeoutRef.current = setTimeout(() => {
+            setShowSearchMenu(false)
+        }, 200)
+    }
+
+    const handleMenuMouseEnter = () => {
+        // Cancel any pending close when entering the menu
+        if (closeTimeoutRef.current) {
+            clearTimeout(closeTimeoutRef.current)
+            closeTimeoutRef.current = null
+        }
+        setShowSearchMenu(true)
+    }
+
+    const handleMenuMouseLeave = () => {
+        // Close when leaving the menu
+        setShowSearchMenu(false)
+    }
 
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault()
@@ -3217,18 +4216,20 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                 speed="10s"
                 style={{
                     borderRadius: '24px',
-                    padding: '1px', // Thinner border width
+                    padding: '0',
                     transition: 'all 0.3s ease',
-                    border: isDragging ? '2px dashed #60a5fa' : undefined
+                    border: isDragging ? '2px dashed #60a5fa' : undefined,
+                    minHeight: '110px',
+                    width: '100%'
                 }}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
             >
                 <div style={{
-                    background: isDragging ? 'rgba(96, 165, 250, 0.1)' : 'linear-gradient(145deg, #1B1913, #14120B)',
+                    background: isDragging ? 'var(--theme-info-bg)' : 'var(--theme-surface)',
                     borderRadius: '22px', // Slightly less than outer
-                    padding: '24px',
+                    padding: '10px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '16px',
@@ -3280,46 +4281,147 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                             {/* Divider */}
                             <div style={{ width: '1px', height: '16px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }} />
 
-                            {/* Web Search Toggle */}
-                            <button
-                                onClick={() => updateSettings({ webSearchEnabled: !settings.webSearchEnabled })}
-                                title={settings.webSearchEnabled ? 'Web search enabled - click to disable' : 'Web search disabled - click to enable'}
-                                style={{
-                                    background: settings.webSearchEnabled ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    padding: '6px 8px',
-                                    color: settings.webSearchEnabled ? '#60a5fa' : '#666',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                                    height: '100%'
-                                }}
-                                onMouseEnter={e => {
-                                    if (settings.webSearchEnabled) {
-                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
-                                        e.currentTarget.style.color = '#93c5fd'
-                                    } else {
-                                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                        e.currentTarget.style.color = '#999'
-                                    }
-                                }}
-                                onMouseLeave={e => {
-                                    if (settings.webSearchEnabled) {
-                                        e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
-                                        e.currentTarget.style.color = '#60a5fa'
-                                    } else {
-                                        e.currentTarget.style.background = 'transparent'
-                                        e.currentTarget.style.color = '#666'
-                                    }
-                                }}
+                            {/* Search Mode Button with Hover Menu */}
+                            <div
+                                ref={searchButtonRef}
+                                onMouseEnter={handleSearchMouseEnter}
+                                onMouseLeave={handleSearchMouseLeave}
+                                style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
                             >
-                                <Globe size={16} />
-                            </button>
+                                <button
+                                    style={{
+                                        background: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info-bg)'
+                                            : settings.deepResearchEnabled ? 'var(--theme-accent-muted)' : 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '6px 8px',
+                                        color: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info)'
+                                            : settings.deepResearchEnabled ? 'var(--theme-accent)' : '#666',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                        height: '100%'
+                                    }}
+                                >
+                                    <Globe size={16} />
+                                </button>
+                            </div>
 
+                            {/* Hover Menu - Portal Overlay (rendered separately) */}
+                            {showSearchMenu && ReactDOM.createPortal(
+                                <div
+                                    ref={searchMenuRef}
+                                    onMouseEnter={handleMenuMouseEnter}
+                                    onMouseLeave={handleMenuMouseLeave}
+                                    style={{
+                                        position: 'fixed',
+                                        top: `${searchMenuPos.top}px`,
+                                        left: `${searchMenuPos.left}px`,
+                                        transform: 'translateY(-100%)',
+                                        marginTop: '-8px',
+                                        background: 'var(--theme-surface)',
+                                        border: '1px solid var(--theme-border)',
+                                        borderRadius: '12px',
+                                        padding: '8px',
+                                        boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+                                        zIndex: 99999,
+                                        minWidth: '160px'
+                                    }}
+                                >
+                                        {/* Normal Chat - No Web Search */}
+                                        <button
+                                            onClick={() => {
+                                                updateSettings({
+                                                    webSearchEnabled: false,
+                                                    deepResearchEnabled: false
+                                                })
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '8px 12px',
+                                                borderRadius: '8px',
+                                                border: 'none',
+                                                background: (!settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                                color: '#ccc',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                transition: 'background 0.15s'
+                                            }}
+                                        >
+                                            <MessageCircle size={16} color="#888" />
+                                            <span>No Web Search</span>
+                                            {!settings.webSearchEnabled && !settings.deepResearchEnabled && (
+                                                <Check size={14} color="#60a5fa" style={{ marginLeft: 'auto' }} />
+                                            )}
+                                        </button>
+
+                                        {/* Web Search */}
+                                        <button
+                                            onClick={() => {
+                                                updateSettings({
+                                                    webSearchEnabled: true,
+                                                    deepResearchEnabled: false
+                                                })
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '8px 12px',
+                                                borderRadius: '8px',
+                                                border: 'none',
+                                                background: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info-bg)' : 'transparent',
+                                                color: '#ccc',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                transition: 'background 0.15s'
+                                            }}
+                                        >
+                                            <Globe size={16} color={settings.webSearchEnabled && !settings.deepResearchEnabled ? 'var(--theme-info)' : '#666'} />
+                                            <span>Web Search</span>
+                                            {settings.webSearchEnabled && !settings.deepResearchEnabled && (
+                                                <Check size={14} color="var(--theme-info)" style={{ marginLeft: 'auto' }} />
+                                            )}
+                                        </button>
+
+                                        {/* Deep Research */}
+                                        <button
+                                            onClick={() => {
+                                                updateSettings({
+                                                    webSearchEnabled: true,
+                                                    deepResearchEnabled: true
+                                                })
+                                            }}
+                                            style={{
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                padding: '8px 12px',
+                                                borderRadius: '8px',
+                                                border: 'none',
+                                                background: settings.deepResearchEnabled ? 'var(--theme-accent-muted)' : 'transparent',
+                                                color: '#ccc',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                transition: 'background 0.15s'
+                                            }}
+                                        >
+                                            <Brain size={16} color={settings.deepResearchEnabled ? 'var(--theme-accent)' : '#666'} />
+                                            <span>Deep Research</span>
+                                            {settings.deepResearchEnabled && (
+                                                <Check size={14} color="var(--theme-accent)" style={{ marginLeft: 'auto' }} />
+                                            )}
+                                        </button>
+                                    </div>,
+                                    document.body
+                            )}
 
                             {/* Images button - show if images are attached */}
                             {imageFiles.length > 0 && (
@@ -3331,11 +4433,11 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                         onClick={() => setShowImageModal(true)}
                                         title={`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} attached`}
                                         style={{
-                                            background: 'rgba(96, 165, 250, 0.15)',
+                                            background: 'var(--theme-info-bg)',
                                             border: 'none',
                                             borderRadius: '8px',
                                             padding: '6px 8px',
-                                            color: '#60a5fa',
+                                            color: 'var(--theme-info)',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -3346,12 +4448,12 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                             position: 'relative'
                                         }}
                                         onMouseEnter={e => {
-                                            e.currentTarget.style.background = 'rgba(96, 165, 250, 0.25)'
-                                            e.currentTarget.style.color = '#93c5fd'
+                                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'
+                                            e.currentTarget.style.color = 'var(--theme-info)'
                                         }}
                                         onMouseLeave={e => {
-                                            e.currentTarget.style.background = 'rgba(96, 165, 250, 0.15)'
-                                            e.currentTarget.style.color = '#60a5fa'
+                                            e.currentTarget.style.background = 'var(--theme-info-bg)'
+                                            e.currentTarget.style.color = 'var(--theme-info)'
                                         }}
                                     >
                                         <Image size={16} />
@@ -3359,7 +4461,7 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                             <span style={{
                                                 fontSize: '0.7rem',
                                                 fontWeight: 600,
-                                                background: 'rgba(96, 165, 250, 0.3)',
+                                                background: 'rgba(59, 130, 246, 0.3)',
                                                 borderRadius: '10px',
                                                 padding: '1px 4px',
                                                 minWidth: '16px',
@@ -3391,24 +4493,27 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                 }}
                                 type="button"
                                 style={{
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: 'none',
+                                    background: attachedFiles && attachedFiles.length > 0 ? 'var(--theme-accent)' : 'rgba(255,255,255,0.05)',
+                                    border: '1px solid var(--theme-border)',
                                     borderRadius: '8px',
-                                    padding: '10px',
-                                    color: '#cccccc',
+                                    padding: '10px 14px',
+                                    color: attachedFiles && attachedFiles.length > 0 ? '#000' : '#cccccc',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
-                                    position: 'relative'
+                                    position: 'relative',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
                                 }}
                                 onMouseEnter={e => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                                    e.currentTarget.style.color = '#fff'
+                                    e.currentTarget.style.background = attachedFiles && attachedFiles.length > 0 ? 'var(--theme-accent-hover)' : 'rgba(255,255,255,0.1)'
+                                    e.currentTarget.style.color = attachedFiles && attachedFiles.length > 0 ? '#000' : '#fff'
                                 }}
                                 onMouseLeave={e => {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                                    e.currentTarget.style.color = '#aaa'
+                                    e.currentTarget.style.background = attachedFiles && attachedFiles.length > 0 ? 'var(--theme-accent)' : 'rgba(255,255,255,0.05)'
+                                    e.currentTarget.style.color = attachedFiles && attachedFiles.length > 0 ? '#000' : '#aaa'
                                 }}
-                                title="Attach files (images, PDFs, documents) - or drag & drop"
+                                title={attachedFiles && attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files (images, PDFs, documents) - or drag & drop'}
                             >
                                 <Paperclip size={18} />
                             </button>
@@ -3418,11 +4523,11 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                     onClick={onSend}
                                     disabled={isLoading || (!input.trim() && (!attachedFiles || attachedFiles.length === 0))}
                                     style={{
-                                        background: (input.trim() || (attachedFiles && attachedFiles.length > 0)) && !isLoading ? '#FFCA28' : 'rgba(255,255,255,0.05)',
-                                        border: 'none',
+                                        background: (input.trim() || (attachedFiles && attachedFiles.length > 0)) && !isLoading ? 'var(--theme-accent)' : 'transparent',
+                                        border: '1px solid var(--theme-border)',
                                         borderRadius: '8px',
                                         padding: '10px 14px',
-                                        color: (input.trim() || (attachedFiles && attachedFiles.length > 0)) && !isLoading ? '#000' : '#444',
+                                        color: (input.trim() || (attachedFiles && attachedFiles.length > 0)) && !isLoading ? '#000' : 'var(--theme-text-muted)',
                                         cursor: (input.trim() || (attachedFiles && attachedFiles.length > 0)) && !isLoading ? 'pointer' : 'default',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -3460,16 +4565,16 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                 >
                     <div
                         style={{
-                            backgroundColor: '#1a1a1a',
+                            backgroundColor: 'var(--theme-surface)',
                             borderRadius: '12px',
                             padding: '24px',
                             width: '90%',
                             maxWidth: '800px',
                             maxHeight: '90%',
                             overflowY: 'auto',
-                            boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+                            boxShadow: 'var(--theme-shadow-lg)',
                             position: 'relative',
-                            color: '#e0e0e0'
+                            color: 'var(--theme-text-secondary)'
                         }}
                         onClick={e => e.stopPropagation()}
                     >
@@ -3519,8 +4624,8 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                         position: 'relative',
                                         borderRadius: '8px',
                                         overflow: 'hidden',
-                                        background: '#252525',
-                                        border: '1px solid rgba(255,255,255,0.1)'
+                                        background: 'var(--theme-surface)',
+                                        border: '1px solid var(--theme-border)'
                                     }}
                                 >
                                     <img
@@ -3530,17 +4635,17 @@ function InputBar({ input, setInput, onSend, isLoading, onKeyDown, textareaRef, 
                                             width: '100%',
                                             height: '200px',
                                             objectFit: 'contain',
-                                            background: '#1a1a1a',
+                                            background: 'var(--theme-background)',
                                             display: 'block'
                                         }}
                                     />
                                     <div style={{
                                         padding: '8px',
-                                        borderTop: '1px solid rgba(255,255,255,0.1)'
+                                        borderTop: '1px solid var(--theme-border)'
                                     }}>
                                         <div style={{
                                             fontSize: '0.85rem',
-                                            color: '#e0e0e0',
+                                            color: 'var(--theme-text-secondary)',
                                             overflow: 'hidden',
                                             textOverflow: 'ellipsis',
                                             whiteSpace: 'nowrap',

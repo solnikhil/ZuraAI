@@ -2,24 +2,24 @@
 
 /* Glass/Blur Effect */
 .glass-effect {
-    background: rgba(18, 18, 20, 0.85);
+    background: rgba(27, 25, 19, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
 }
 
 /* Subtle Border */
 .border-subtle {
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--theme-border);
 }
 
 /* Subtle Background */
 .bg-subtle {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--theme-surface-hover);
 }
 
 /* Hover Background */
 .bg-hover:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--theme-surface-hover);
 }
 
 /* Standard Border Radius */
@@ -38,12 +38,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--theme-border);
     border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: var(--theme-border-hover);
 }
 
 /* Animation Keyframes */
@@ -101,23 +101,24 @@
 }
 
 .btn-primary {
-    background: #FFCA28;
-    color: #000;
+    background: var(--theme-accent);
+    color: white;
     border: none;
 }
 
 .btn-primary:hover {
-    background: #FFD54F;
+    background: var(--theme-accent-hover);
 }
 
 .btn-secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--theme-surface);
+    color: var(--theme-text-primary);
+    border: 1px solid var(--theme-border);
 }
 
 .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border-hover);
 }
 
 /* Glass Effect Variants */
@@ -134,7 +135,7 @@
 }
 
 .glass-overlay {
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--theme-overlay-bg);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
 }
@@ -147,7 +148,7 @@
 
 /* Message Glass Effect */
 .glass-message {
-    background: rgba(27, 25, 19, 0.85);
+    background: var(--theme-assistant-message-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
 }

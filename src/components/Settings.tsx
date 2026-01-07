@@ -1,21 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { useSettings, TodoItem, McpServerConfig } from '../contexts/SettingsContext'
+import { useSettings, TodoItem } from '../contexts/SettingsContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, saveApiKeyToSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
-import {
-    Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff,
-    RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp,
-    Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot,
-    MousePointer, Keyboard, Monitor, FolderOpen, SettingsIcon, Shield,
-    Workflow, ChevronDown, Search, Globe, Calculator, Clipboard, Plug
-} from './icons'
+import { Crown, Zap, RefreshCw, Check, Edit2, Plus, Trash2, Brain, Eye, EyeOff, RotateCcw, MessageSquare, Clock, Cpu, Box, Sparkles, HardDrive, TrendingUp, Image as ImageIcon, BarChart, AlignLeft, CheckSquare, Square, ListTodo, Bot, MousePointer, Keyboard, Monitor, FolderOpen, Settings as SettingsIcon, Shield, Workflow, ChevronDown, Search, Calendar } from 'lucide-react'
 import { motion } from 'framer-motion'
 import KeyboardShortcuts from './KeyboardShortcuts'
+import ThemesPage from './ThemesPage'
 import type { CodexUsageInfo } from '../electron.d'
-import { getAllToolDefinitions } from '../tools/definitions'
-import { formatToolDisplayName, isMcpToolName } from '../tools/mcpUtils'
 import './Settings.css'
 
 interface SettingsProps {
@@ -170,19 +163,19 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                                     justifyContent: 'space-between',
                                     padding: '10px 12px',
                                     borderRadius: '12px',
-                                    background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                    background: isActive ? 'var(--theme-accent-muted)' : 'transparent',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s'
                                 }}
                                 onMouseEnter={e => {
-                                    if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                    if (!isActive) e.currentTarget.style.background = 'var(--theme-surface-hover)'
                                 }}
                                 onMouseLeave={e => {
                                     if (!isActive) e.currentTarget.style.background = 'transparent'
                                 }}
                             >
-                                <span style={{ color: '#ddd', fontSize: '0.9rem' }}>{model.displayName}</span>
-                                {isActive && <Check size={14} color="#fff" />}
+                                <span style={{ color: 'var(--theme-text-primary)', fontSize: '0.9rem' }}>{model.displayName}</span>
+                                {isActive && <Check size={14} color="var(--theme-accent)" />}
                             </div>
                         )
                     })}
@@ -209,8 +202,8 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                     textAlign: 'left'
                 }}
             >
-                <span style={{ color: '#fff' }}>{selectedModel?.displayName || 'Select a model...'}</span>
-                <ChevronDown size={16} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                <span style={{ color: 'var(--theme-text-primary)' }}>{selectedModel?.displayName || 'Select a model...'}</span>
+                <ChevronDown size={16} style={{ color: 'var(--theme-text-muted)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
 
             {/* Dropdown Portal */}
@@ -227,8 +220,8 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         maxHeight: dropdownPos.showAbove
                             ? `${Math.max(200, Math.min(dropdownPos.top - 16, 400))}px`
                             : `${Math.max(200, Math.min(window.innerHeight - dropdownPos.top - 16, 400))}px`,
-                        backgroundColor: '#1B1913',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        backgroundColor: 'var(--theme-surface)',
+                        border: '1px solid var(--theme-border)',
                         borderRadius: '20px',
                         boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
                         padding: '16px',
@@ -238,14 +231,13 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         animation: dropdownPos.showAbove
                             ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                        backdropFilter: 'blur(20px)',
                         zIndex: 99999,
                         overflow: 'hidden'
                     }}
                 >
                     {/* Search Header */}
                     <div style={{ position: 'relative' }}>
-                        <Search size={14} color="#666" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                        <Search size={14} color="var(--theme-text-muted)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                         <input
                             autoFocus
                             type="text"
@@ -254,13 +246,22 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={{
                                 width: '100%',
-                                background: 'rgba(255,255,255,0.05)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: 'var(--theme-surface-hover)',
+                                border: '1px solid var(--theme-border)',
                                 borderRadius: '12px',
                                 padding: '10px 12px 10px 36px',
-                                color: '#fff',
+                                color: 'var(--theme-text-primary)',
                                 fontSize: '0.9rem',
-                                outline: 'none'
+                                outline: 'none',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onFocus={e => {
+                                e.target.style.borderColor = 'var(--theme-accent)';
+                                e.target.style.boxShadow = '0 0 0 3px var(--theme-accent-muted)';
+                            }}
+                            onBlur={e => {
+                                e.target.style.borderColor = 'var(--theme-border)';
+                                e.target.style.boxShadow = 'none';
                             }}
                         />
                     </div>
@@ -274,7 +275,7 @@ function CustomModelSelect({ value, onChange, geminiModels, groqModels, openRout
                         {renderGroup('Ollama', groupedModels.Ollama)}
 
                         {filteredModels.length === 0 && (
-                            <div style={{ padding: '20px', textAlign: 'center', color: '#999999' }}>No models found</div>
+                            <div style={{ padding: '20px', textAlign: 'center', color: 'var(--theme-text-muted)' }}>No models found</div>
                         )}
                     </div>
                 </div>,
@@ -762,7 +763,7 @@ function CodexAuthSection() {
 }
 
 export default function Settings({ activeSection = 'usage', onUnsavedChange, showWarning = false }: SettingsProps) {
-    const { settings, updateSettings, resetSettings, mcpTools, mcpServerStatuses, refreshMcpTools } = useSettings()
+    const { settings, updateSettings, resetSettings } = useSettings()
     const { sessions } = useChatHistory()
     const [pendingSettings, setPendingSettings] = useState(settings)
 
@@ -779,9 +780,11 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     // Model Editing
     const [newModelCode, setNewModelCode] = useState('')
     const [newModelName, setNewModelName] = useState('')
+    const [newModelDescription, setNewModelDescription] = useState('')
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [editCode, setEditCode] = useState('')
     const [editName, setEditName] = useState('')
+    const [editDescription, setEditDescription] = useState('')
     const [collapsedModelGroups, setCollapsedModelGroups] = useState<Record<string, boolean>>({
         openrouter: false,
         perplexity: false,
@@ -983,43 +986,6 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         setPendingSettings(prev => ({ ...prev, ...changes }))
     }
 
-    const createMcpId = () => {
-        if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-            return crypto.randomUUID()
-        }
-        return `mcp_${Date.now()}_${Math.random().toString(16).slice(2)}`
-    }
-
-    const updateMcpServer = (id: string, updates: Partial<McpServerConfig>) => {
-        const servers = (pendingSettings.mcpServers || []).map(server =>
-            server.id === id ? { ...server, ...updates } : server
-        )
-        handleChange({ mcpServers: servers })
-    }
-
-    const addMcpServer = () => {
-        const newServer: McpServerConfig = {
-            id: createMcpId(),
-            name: 'custom',
-            enabled: true,
-            transport: 'stdio',
-            command: '',
-            args: '',
-            cwd: '',
-            env: '',
-            url: '',
-            headers: '',
-            requiresApproval: false,
-            timeoutMs: 30000
-        }
-        handleChange({ mcpServers: [...(pendingSettings.mcpServers || []), newServer] })
-    }
-
-    const removeMcpServer = (id: string) => {
-        const servers = (pendingSettings.mcpServers || []).filter(server => server.id !== id)
-        handleChange({ mcpServers: servers })
-    }
-
     const saveChanges = async () => {
         // Save API keys to secure storage first
         let allSaved = true
@@ -1071,11 +1037,6 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         }
     }
     const cancelChanges = () => setPendingSettings(settings)
-    const allToolDefinitions = getAllToolDefinitions()
-    const mcpToolNames = allToolDefinitions.filter(tool => isMcpToolName(tool.name)).map(tool => tool.name)
-    const enabledToolNames = pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0
-        ? new Set([...pendingSettings.enabledTools, ...mcpToolNames])
-        : new Set(allToolDefinitions.map(tool => tool.name))
     const hasChanges = JSON.stringify(pendingSettings) !== JSON.stringify(settings)
 
     // Notify parent about unsaved changes
@@ -1110,10 +1071,11 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
     // --- Model Management ---
     const addModel = () => {
         if (newModelCode && newModelName) {
-            const updated = [...(pendingSettings.configuredModels || []), { code: newModelCode, displayName: newModelName }]
+            const updated = [...(pendingSettings.configuredModels || []), { code: newModelCode, displayName: newModelName, description: newModelDescription || undefined }]
             handleChange({ configuredModels: updated })
             setNewModelCode('')
             setNewModelName('')
+            setNewModelDescription('')
         }
     }
 
@@ -1127,12 +1089,13 @@ export default function Settings({ activeSection = 'usage', onUnsavedChange, sho
         setEditingIndex(index)
         setEditCode(model.code)
         setEditName(model.displayName)
+        setEditDescription(model.description || '')
     }
 
     const saveEdit = () => {
         if (editingIndex !== null && editCode && editName) {
             const updated = [...pendingSettings.configuredModels]
-            updated[editingIndex] = { code: editCode, displayName: editName }
+            updated[editingIndex] = { code: editCode, displayName: editName, description: editDescription || undefined }
             handleChange({ configuredModels: updated })
             setEditingIndex(null)
         }
@@ -1249,129 +1212,142 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
 
     return (
-        <div className="settings-container" style={{ borderRadius: 24, margin: '16px 16px 16px 0', border: '1px solid rgba(255,255,255,0.06)', background: '#14120B', overflow: 'hidden', position: 'relative', height: 'calc(100vh - 32px)' }}>
+        <div className="settings-container" style={{ height: 'calc(100vh - 32px)' }}>
             <div className="settings-main-col" style={{ padding: '0', overflowY: 'auto', height: '100%', paddingBottom: hasChanges ? 80 : 0, maxWidth: '100%' }}>
                 <div style={{ width: '100%', maxWidth: '100%', margin: '0 auto', padding: '0 24px', transition: 'max-width 0.3s ease' }}>
 
                     {/* ========== USAGE SECTION ========== */}
                     {activeSection === 'usage' && (
-                        <div style={{ padding: '40px' }}>
+                        <div style={{ padding: '40px', paddingLeft: 'calc(40px + env(safe-area-inset-left, 0px))', paddingRight: 'calc(40px + env(safe-area-inset-right, 0px))' }}>
                             <div className="page-header">
                                 <h2 className="page-title">Usage Statistics</h2>
                                 <div className="page-subtitle">Track your chat activity and token usage</div>
                             </div>
 
-                            {/* Top Stats */}
-                            <div className="usage-stats-row">
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Today</span>
-                                        <MessageSquare size={14} color="#666" />
+                            {/* Quick Stats Grid */}
+                            <div className="usage-stats-grid" style={{ marginTop: 24 }}>
+                                {/* Today Messages */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <MessageSquare size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="stat-value">{usageStats.todayMessages}</div>
-                                    <div className="stat-subtext">Messages sent</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.todayMessages}</div>
+                                        <div className="stat-label-sm">Messages today</div>
+                                    </div>
                                 </div>
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Total Sessions</span>
-                                        <Clock size={14} color="#666" />
+                                
+                                {/* Total Sessions */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <Clock size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="stat-value">{usageStats.totalSessions}</div>
-                                    <div className="stat-subtext">Chat conversations</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.totalSessions}</div>
+                                        <div className="stat-label-sm">Total sessions</div>
+                                    </div>
                                 </div>
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Total Messages</span>
-                                        <Zap size={14} color="#666" />
+                                
+                                {/* Total Messages */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <Zap size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="stat-value">{usageStats.totalMessages}</div>
-                                    <div className="stat-subtext">All time</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.totalMessages}</div>
+                                        <div className="stat-label-sm">All messages</div>
+                                    </div>
+                                </div>
+                                
+                                {/* Avg Tokens */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <TrendingUp size={16} color="var(--theme-accent)" />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.avgTokens}</div>
+                                        <div className="stat-label-sm">Avg tokens/msg</div>
+                                    </div>
+                                </div>
+                                
+                                {/* Storage */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <HardDrive size={16} color="var(--theme-accent)" />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.storageUsed} KB</div>
+                                        <div className="stat-label-sm">Storage used</div>
+                                    </div>
+                                </div>
+                                
+                                {/* Images */}
+                                <div className="stat-card compact">
+                                    <div className="stat-icon-wrapper">
+                                        <ImageIcon size={16} color="var(--theme-accent)" />
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div className="stat-value-sm">{usageStats.imagesProcessed}</div>
+                                        <div className="stat-label-sm">Images processed</div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Secondary Stats Row */}
-                            <div className="usage-stats-row" style={{ marginTop: '16px' }}>
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Avg. Tokens / Msg</span>
-                                        <TrendingUp size={14} color="#666" />
+                            {/* Main Stats Cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 24 }}>
+                                <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Total Tokens</span>
+                                        <Cpu size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="stat-value">{usageStats.avgTokens}</div>
-                                    <div className="stat-subtext">Complexity rating</div>
+                                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-text-primary)', marginBottom: 4 }}>{usageStats.totalTokens.toLocaleString()}</div>
+                                    <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Lifetime usage</div>
                                 </div>
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Est. Storage</span>
-                                        <HardDrive size={14} color="#666" />
-                                    </div>
-                                    <div className="stat-value">{usageStats.storageUsed} KB</div>
-                                    <div className="stat-subtext">Local data size</div>
-                                </div>
-                                <div className="stat-card">
-                                    <div className="stat-header">
-                                        <span className="stat-label">Images Processed</span>
-                                        <ImageIcon size={14} color="#666" />
-                                    </div>
-                                    <div className="stat-value">{usageStats.imagesProcessed}</div>
-                                    <div className="stat-subtext">Visual queries</div>
-                                </div>
-                            </div>
 
-                            {/* Most Used Model (Full Width) */}
-                            <div className="limits-section" style={{ marginTop: 16 }}>
-                                <div className="limit-item">
-                                    <div className="limit-header">
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <BarChart size={14} /> Most Used Model
-                                        </span>
-                                        <span>{usageStats.mostUsedModel}</span>
+                                <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Most Used Model</span>
+                                        <BarChart size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="limit-footer" style={{ marginTop: 8 }}>
-                                        <span>Favorite AI</span>
-                                        <span>Usage count: {Math.max(...Object.values(sessions.flatMap(s => s.messages).reduce((acc, msg) => {
+                                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{usageStats.mostUsedModel || 'N/A'}</div>
+                                    <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
+                                        {Object.values(sessions.flatMap(s => s.messages).reduce((acc, msg) => {
                                             if (msg.role === 'assistant' && msg.model) {
                                                 const mName = msg.model.split('/').pop() || msg.model
                                                 acc[mName] = (acc[mName] || 0) + 1
                                             }
                                             return acc
-                                        }, {} as Record<string, number>)) || [0])}</span>
+                                        }, {} as Record<string, number>))[usageStats.mostUsedModel || ''] || 0} uses
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Token Usage */}
-                            <div className="limits-section" style={{ marginTop: 24 }}>
-                                <div className="limit-item">
-                                    <div className="limit-header">
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <Cpu size={14} /> Total Tokens Used
-                                        </span>
-                                        <span>{usageStats.totalTokens.toLocaleString()}</span>
+                                <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Active Days</span>
+                                        <Calendar size={16} color="var(--theme-accent)" />
                                     </div>
-                                    <div className="limit-footer" style={{ marginTop: 8 }}>
-                                        <span>Lifetime usage</span>
-                                        <span>Self-hosted (no limits)</span>
-                                    </div>
+                                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-text-primary)', marginBottom: 4 }}>{usageStats.activeDays}</div>
+                                    <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Days with activity</div>
                                 </div>
                             </div>
 
                             {/* Activity Graph */}
-                            <div className="activity-section" style={{ marginTop: 24 }}>
-                                <div className="activity-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                            <div className="activity-section" style={{ marginTop: 32 }}>
+                                <div className="activity-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <span className="stat-label" style={{ fontSize: '1rem', fontWeight: 600, color: '#e0e0e0' }}>Activity</span>
+                                        <span className="stat-label" style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>Activity</span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: 0, background: '#1B1913', padding: 2, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    <div style={{ display: 'flex', gap: 0, background: 'var(--theme-surface)', padding: 2, borderRadius: 8, border: '1px solid var(--theme-border)' }}>
                                         {['7d', '30d', '12m'].map((range) => (
                                             <button
                                                 key={range}
                                                 onClick={() => setGraphRange(range as any)}
                                                 style={{
-                                                    padding: '4px 12px',
-                                                    fontSize: '0.75rem',
+                                                    padding: '6px 14px',
+                                                    fontSize: '0.8rem',
                                                     borderRadius: 6,
-                                                    background: graphRange === range ? '#FFE4C4' : 'transparent',
-                                                    color: graphRange === range ? '#000' : '#888',
+                                                    background: graphRange === range ? 'var(--theme-accent)' : 'transparent',
+                                                    color: graphRange === range ? 'var(--theme-text-inverse)' : 'var(--theme-text-muted)',
                                                     border: 'none',
                                                     cursor: 'pointer',
                                                     fontWeight: 600,
@@ -1387,18 +1363,17 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                 <div
                                     ref={graphContainerRef}
                                     style={{
-                                        minHeight: 380,
+                                        minHeight: 320,
                                         width: '100%',
                                         position: 'relative',
-                                        background: 'linear-gradient(180deg, rgba(255,228,196,0.04) 0%, rgba(0,0,0,0) 100%), linear-gradient(180deg, #1B1913 0%, #14120B 100%)',
-                                        border: '1px solid rgba(255,255,255,0.06)',
+                                        background: 'linear-gradient(180deg, var(--theme-surface) 0%, var(--theme-background) 100%)',
+                                        border: '1px solid var(--theme-border)',
                                         borderRadius: 18,
-                                        padding: 'clamp(12px, 1.5vw, 18px)',
-                                        paddingTop: 'clamp(24px, 2.5vw, 36px)',
+                                        padding: '20px',
+                                        paddingTop: '32px',
                                         boxSizing: 'border-box',
                                         overflow: 'visible',
-                                        boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
-                                        minWidth: 0 // Allow flex shrinking
+                                        boxShadow: 'var(--theme-shadow-lg)'
                                     }}
                                 >
                                     {(() => {
@@ -1529,8 +1504,8 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                         >
                                                             <defs>
                                                                 <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                                                                    <stop offset="0%" stopColor="#FFE4C4" stopOpacity="0.4" />
-                                                                    <stop offset="100%" stopColor="#FFE4C4" stopOpacity="0" />
+                                                                    <stop offset="0%" stopColor="var(--theme-accent)" stopOpacity="0.4" />
+                                                                    <stop offset="100%" stopColor="var(--theme-accent)" stopOpacity="0" />
                                                                 </linearGradient>
                                                             </defs>
 
@@ -1580,7 +1555,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                 ref={pathRef}
                                                                 d={lineD}
                                                                 fill="none"
-                                                                stroke="#FFE4C4"
+                                                                stroke="var(--theme-accent)"
                                                                 strokeWidth="3"
                                                                 strokeLinecap="round"
                                                                 strokeLinejoin="round"
@@ -1705,8 +1680,8 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                             {/* Cursor-following point */}
                                                                             <motion.circle
                                                                                 r={7}
-                                                                                fill="#FFE4C4"
-                                                                                stroke="#14120B"
+                                                                                fill="var(--theme-accent)"
+                                                                                stroke="var(--theme-background)"
                                                                                 strokeWidth="3"
                                                                                 initial={false}
                                                                                 animate={{ cx: cursorX, cy: cursorY }}
@@ -1783,7 +1758,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                         pointerEvents: 'none',
                                                                         backdropFilter: 'blur(8px)'
                                                                     }}>
-                                                                    <div style={{ color: '#FFE4C4', fontSize: '1rem', fontWeight: 700, marginBottom: 2, textAlign: 'center' }}>
+                                                                    <div style={{ color: 'var(--theme-accent)', fontSize: '1rem', fontWeight: 700, marginBottom: 2, textAlign: 'center' }}>
                                                                         {nearestData.value}
                                                                     </div>
                                                                     <div style={{ color: '#888', fontSize: 'clamp(0.65rem, 0.8vw, 0.75rem)', textAlign: 'center' }}>
@@ -1858,8 +1833,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 value={pendingSettings.openRouterApiKey}
                                                 onChange={e => handleChange({ openRouterApiKey: e.target.value })}
                                                 placeholder="sk-or-..."
+                                                style={{ flex: 1, minWidth: 0 }}
                                             />
-                                            <button onClick={() => setShowOpenRouterKey(!showOpenRouterKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button 
+                                                onClick={() => setShowOpenRouterKey(!showOpenRouterKey)}
+                                                style={{
+                                                    padding: '0 14px',
+                                                    background: 'var(--theme-surface)',
+                                                    border: '1px solid var(--theme-border)',
+                                                    color: 'var(--theme-text-muted)',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-secondary)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface-hover)';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-muted)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface)';
+                                                }}
+                                            >
                                                 {showOpenRouterKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -1875,8 +1875,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 value={pendingSettings.perplexityApiKey}
                                                 onChange={e => handleChange({ perplexityApiKey: e.target.value })}
                                                 placeholder="pplx-..."
+                                                style={{ flex: 1, minWidth: 0 }}
                                             />
-                                            <button onClick={() => setShowPerplexityKey(!showPerplexityKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button 
+                                                onClick={() => setShowPerplexityKey(!showPerplexityKey)}
+                                                style={{
+                                                    padding: '0 14px',
+                                                    background: 'var(--theme-surface)',
+                                                    border: '1px solid var(--theme-border)',
+                                                    color: 'var(--theme-text-muted)',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-secondary)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface-hover)';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-muted)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface)';
+                                                }}
+                                            >
                                                 {showPerplexityKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -1892,8 +1917,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 value={pendingSettings.geminiApiKey}
                                                 onChange={e => handleChange({ geminiApiKey: e.target.value })}
                                                 placeholder="AIza..."
+                                                style={{ flex: 1, minWidth: 0 }}
                                             />
-                                            <button onClick={() => setShowGeminiKey(!showGeminiKey)} style={{ padding: '0 12px', background: '#222', border: '1px solid #333', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button 
+                                                onClick={() => setShowGeminiKey(!showGeminiKey)}
+                                                style={{
+                                                    padding: '0 14px',
+                                                    background: 'var(--theme-surface)',
+                                                    border: '1px solid var(--theme-border)',
+                                                    color: 'var(--theme-text-muted)',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-secondary)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface-hover)';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-muted)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface)';
+                                                }}
+                                            >
                                                 {showGeminiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -1909,8 +1959,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 value={pendingSettings.groqApiKey}
                                                 onChange={e => handleChange({ groqApiKey: e.target.value })}
                                                 placeholder="gsk_..."
+                                                style={{ flex: 1, minWidth: 0 }}
                                             />
-                                            <button onClick={() => setShowGroqKey(!showGroqKey)} style={{ padding: '0 12px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#888', borderRadius: 8, cursor: 'pointer' }}>
+                                            <button 
+                                                onClick={() => setShowGroqKey(!showGroqKey)}
+                                                style={{
+                                                    padding: '0 14px',
+                                                    background: 'var(--theme-surface)',
+                                                    border: '1px solid var(--theme-border)',
+                                                    color: 'var(--theme-text-muted)',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-secondary)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface-hover)';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                    e.currentTarget.style.color = 'var(--theme-text-muted)';
+                                                    e.currentTarget.style.background = 'var(--theme-surface)';
+                                                }}
+                                            >
                                                 {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                             </button>
                                         </div>
@@ -1931,8 +2006,33 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                 value={pendingSettings.ollamaUrl}
                                                 onChange={e => handleChange({ ollamaUrl: e.target.value })}
                                                 placeholder="http://localhost:11434"
+                                                style={{ flex: 1, minWidth: 0 }}
                                             />
-                                            <button onClick={checkOllama} style={{ padding: '0 16px', background: isOllamaConnected ? '#1a3a1a' : 'rgba(255,255,255,0.04)', border: `1px solid ${isOllamaConnected ? '#22c55e' : 'rgba(255,255,255,0.08)'}`, color: isOllamaConnected ? '#22c55e' : '#fff', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                            <button 
+                                                onClick={checkOllama}
+                                                style={{
+                                                    padding: '0 16px',
+                                                    background: isOllamaConnected ? 'var(--theme-success-bg)' : 'var(--theme-surface)',
+                                                    border: `1px solid ${isOllamaConnected ? 'var(--theme-success)' : 'var(--theme-border)'}`,
+                                                    color: isOllamaConnected ? 'var(--theme-success)' : 'var(--theme-text-secondary)',
+                                                    borderRadius: '10px',
+                                                    cursor: 'pointer',
+                                                    whiteSpace: 'nowrap',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    if (!isOllamaConnected) {
+                                                        e.currentTarget.style.borderColor = 'var(--theme-border-hover)';
+                                                        e.currentTarget.style.background = 'var(--theme-surface-hover)';
+                                                    }
+                                                }}
+                                                onMouseLeave={e => {
+                                                    if (!isOllamaConnected) {
+                                                        e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                                        e.currentTarget.style.background = 'var(--theme-surface)';
+                                                    }
+                                                }}
+                                            >
                                                 {isCheckingOllama ? '...' : (isOllamaConnected ? '✓ Connected' : 'Check')}
                                             </button>
                                         </div>
@@ -1952,7 +2052,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     className="setting-input-scira"
                                     value={pendingSettings.systemPrompt}
                                     onChange={e => handleChange({ systemPrompt: e.target.value })}
-                                    style={{ minHeight: 200, resize: 'vertical', fontFamily: 'inherit', fontSize: '0.9rem', lineHeight: 1.7 }}
+                                    style={{ minHeight: 200, resize: 'vertical', fontFamily: 'inherit', fontSize: '0.9rem', lineHeight: 1.7, width: '100%' }}
                                     placeholder="Enter the system prompt for the AI..."
                                 />
                             </div>
@@ -2005,7 +2105,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                 </div>
 
                                 {pendingSettings.toolsEnabled !== false && (
-                                    <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--theme-border)' }}>
                                         <h3 className="section-head" style={{ marginBottom: '16px' }}>Web Search API</h3>
                                         <div className="section-desc" style={{ marginBottom: '12px' }}>
                                             Get your Tavily key at{' '}
@@ -2019,241 +2119,94 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                             placeholder="tvly-..."
                                             value={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
                                             onChange={(e) => handleChange({ tavilyApiKey: e.target.value })}
-                                            style={{ fontFamily: 'monospace' }}
+                                            style={{ width: '100%' }}
                                         />
                                     </div>
                                 )}
                             </div>
 
-                            {/* MCP Servers */}
-                            <div className="settings-section-card">
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
-                                    <div>
-                                        <h3 className="section-head">MCP Servers</h3>
-                                        <div className="section-desc">Connect custom MCP servers and expose their tools to Zura</div>
+                            {/* Tool Approval Mode */}
+                            {pendingSettings.toolsEnabled !== false && (
+                                <div className="settings-section-card">
+                                    <h3 className="section-head">Tool Approval Mode</h3>
+                                    <div className="section-desc" style={{ marginBottom: '16px' }}>
+                                        Control when tools require user approval before execution
                                     </div>
-                                    <button
-                                        onClick={() => refreshMcpTools()}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 6,
-                                            padding: '6px 12px',
-                                            background: 'transparent',
-                                            border: '1px solid #333',
-                                            borderRadius: 6,
-                                            color: '#888',
-                                            cursor: 'pointer',
-                                            fontSize: '0.8rem'
-                                        }}
-                                    >
-                                        <RefreshCw size={12} /> Refresh
-                                    </button>
-                                </div>
-
-                                {(pendingSettings.mcpServers || []).length === 0 && (
-                                    <div style={{ color: '#888', fontSize: '0.85rem', padding: '12px 0' }}>
-                                        No MCP servers configured yet.
-                                    </div>
-                                )}
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                    {(pendingSettings.mcpServers || []).map((server) => {
-                                        const status = mcpServerStatuses.find(item => item.id === server.id)
-                                        const statusLabel = !server.enabled
-                                            ? 'disabled'
-                                            : status?.status || 'unknown'
-                                        const statusColor = statusLabel === 'ready'
-                                            ? '#22c55e'
-                                            : statusLabel === 'error'
-                                                ? '#ef4444'
-                                                : '#9ca3af'
-
-                                        return (
-                                            <div
-                                                key={server.id}
-                                                style={{
-                                                    padding: 16,
-                                                    borderRadius: 12,
-                                                    border: '1px solid rgba(255,255,255,0.06)',
-                                                    background: 'rgba(255,255,255,0.02)',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: 12
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {(['always', 'sensitive', 'never'] as const).map((mode) => {
+                                            const isSelected = (pendingSettings.toolApprovalMode ?? settings.toolApprovalMode) === mode
+                                            return (
+                                                <label
+                                                    key={mode}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '12px',
+                                                        cursor: 'pointer',
+                                                        padding: '12px',
+                                                        borderRadius: '8px',
+                                                        background: isSelected ? 'rgba(255, 228, 196, 0.08)' : 'rgba(255,255,255,0.02)',
+                                                        border: `1px solid ${isSelected ? 'rgba(255, 228, 196, 0.2)' : 'rgba(255,255,255,0.06)'}`,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        if (!isSelected) {
+                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
+                                                        }
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        if (!isSelected) {
+                                                            e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+                                                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                                                        }
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        borderRadius: '50%',
+                                                        border: `2px solid ${isSelected ? '#FFE4C4' : 'rgba(255,255,255,0.3)'}`,
+                                                        background: isSelected ? '#FFE4C4' : 'transparent',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        position: 'relative',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {isSelected && (
+                                                            <div style={{
+                                                                width: '10px',
+                                                                height: '10px',
+                                                                borderRadius: '50%',
+                                                                background: '#14120B'
+                                                            }} />
+                                                        )}
+                                                    </div>
                                                     <input
-                                                        className="setting-input-scira"
-                                                        placeholder="Server name"
-                                                        value={server.name}
-                                                        onChange={(e) => updateMcpServer(server.id, { name: e.target.value })}
-                                                        style={{ flex: 1, minWidth: 180 }}
+                                                        type="radio"
+                                                        name="toolApprovalMode"
+                                                        value={mode}
+                                                        checked={isSelected}
+                                                        onChange={() => handleChange({ toolApprovalMode: mode })}
+                                                        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none' }}
                                                     />
-                                                    <span style={{ fontSize: '0.8rem', color: statusColor }}>
-                                                        {statusLabel}
-                                                    </span>
-                                                    <label className="toggle-switch">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={server.enabled}
-                                                            onChange={(e) => updateMcpServer(server.id, { enabled: e.target.checked })}
-                                                        />
-                                                        <span className="toggle-slider"></span>
-                                                    </label>
-                                                </div>
-
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-                                                    <div>
-                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Transport</label>
-                                                        <select
-                                                            className="setting-input-scira"
-                                                            value={server.transport}
-                                                            onChange={(e) => updateMcpServer(server.id, { transport: e.target.value as McpServerConfig['transport'] })}
-                                                        >
-                                                            <option value="stdio">Stdio</option>
-                                                            <option value="http">HTTP</option>
-                                                        </select>
-                                                    </div>
-
-                                                    {server.transport === 'stdio' ? (
-                                                        <>
-                                                            <div>
-                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Command</label>
-                                                                <input
-                                                                    className="setting-input-scira"
-                                                                    placeholder="npx"
-                                                                    value={server.command || ''}
-                                                                    onChange={(e) => updateMcpServer(server.id, { command: e.target.value })}
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Args (space separated)</label>
-                                                                <input
-                                                                    className="setting-input-scira"
-                                                                    placeholder="-y @modelcontextprotocol/server-filesystem"
-                                                                    value={server.args || ''}
-                                                                    onChange={(e) => updateMcpServer(server.id, { args: e.target.value })}
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Working Directory</label>
-                                                                <input
-                                                                    className="setting-input-scira"
-                                                                    placeholder="Optional cwd"
-                                                                    value={server.cwd || ''}
-                                                                    onChange={(e) => updateMcpServer(server.id, { cwd: e.target.value })}
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <div>
-                                                            <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Server URL</label>
-                                                            <input
-                                                                className="setting-input-scira"
-                                                                placeholder="https://example.com/mcp"
-                                                                value={server.url || ''}
-                                                                onChange={(e) => updateMcpServer(server.id, { url: e.target.value })}
-                                                            />
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: 500, color: isSelected ? '#FFE4C4' : '#e0e0e0' }}>
+                                                            {mode === 'always' ? 'Always Ask' : mode === 'sensitive' ? 'Sensitive Only' : 'Never Ask'}
                                                         </div>
-                                                    )}
-                                                </div>
-
-                                                {server.transport === 'stdio' && (
-                                                    <div>
-                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Environment (KEY=VALUE per line)</label>
-                                                        <textarea
-                                                            className="setting-input-scira"
-                                                            placeholder="API_KEY=..."
-                                                            value={server.env || ''}
-                                                            onChange={(e) => updateMcpServer(server.id, { env: e.target.value })}
-                                                            style={{ minHeight: 80, resize: 'vertical' }}
-                                                        />
+                                                        <div style={{ fontSize: '0.85rem', color: '#888', marginTop: '2px' }}>
+                                                            {mode === 'always' && 'Require approval for all tool usage'}
+                                                            {mode === 'sensitive' && 'Require approval only for sensitive tools (clipboard, files)'}
+                                                            {mode === 'never' && 'Auto-execute all tools without approval'}
+                                                        </div>
                                                     </div>
-                                                )}
-
-                                                {server.transport === 'http' && (
-                                                    <div>
-                                                        <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>Headers (Header: Value per line)</label>
-                                                        <textarea
-                                                            className="setting-input-scira"
-                                                            placeholder="Authorization: Bearer ..."
-                                                            value={server.headers || ''}
-                                                            onChange={(e) => updateMcpServer(server.id, { headers: e.target.value })}
-                                                            style={{ minHeight: 80, resize: 'vertical' }}
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                                                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b0b0b0', fontSize: '0.85rem' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={server.requiresApproval || false}
-                                                            onChange={(e) => updateMcpServer(server.id, { requiresApproval: e.target.checked })}
-                                                        />
-                                                        Require approval for this server
-                                                    </label>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        <span style={{ color: '#888', fontSize: '0.8rem' }}>Timeout (ms)</span>
-                                                        <input
-                                                            className="setting-input-scira"
-                                                            type="number"
-                                                            min={1000}
-                                                            value={server.timeoutMs || 30000}
-                                                            onChange={(e) => updateMcpServer(server.id, { timeoutMs: Number(e.target.value) })}
-                                                            style={{ width: 110 }}
-                                                        />
-                                                    </div>
-                                                    <button
-                                                        onClick={() => removeMcpServer(server.id)}
-                                                        style={{
-                                                            padding: '8px 12px',
-                                                            background: 'rgba(239, 68, 68, 0.12)',
-                                                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                            color: '#f87171',
-                                                            borderRadius: 8,
-                                                            cursor: 'pointer',
-                                                            fontSize: '0.8rem'
-                                                        }}
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                </div>
-
-                                                {status?.error && (
-                                                    <div style={{ color: '#ef4444', fontSize: '0.8rem' }}>
-                                                        {status.error}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-
-                                <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
-                                    <button
-                                        onClick={addMcpServer}
-                                        style={{
-                                            padding: '10px 16px',
-                                            background: 'rgba(59, 130, 246, 0.15)',
-                                            border: '1px solid rgba(59, 130, 246, 0.35)',
-                                            borderRadius: 10,
-                                            color: '#93c5fd',
-                                            fontSize: '0.85rem',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 8
-                                        }}
-                                    >
-                                        <Plus size={14} /> Add MCP Server
-                                    </button>
-                                    <div style={{ color: '#888', fontSize: '0.8rem' }}>
-                                        {mcpTools.length > 0 ? `${mcpTools.length} MCP tool(s) available` : 'No MCP tools loaded'}
+                                                </label>
+                                            )
+                                        })}
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Available Tools List */}
                             {pendingSettings.toolsEnabled !== false && (
@@ -2261,59 +2214,44 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                     <h3 className="section-head">Available Tools</h3>
                                     <div className="section-desc" style={{ marginBottom: '16px' }}>
                                         {pendingSettings.enabledTools && pendingSettings.enabledTools.length > 0
-                                            ? `${enabledToolNames.size} tool(s) enabled`
+                                            ? `${pendingSettings.enabledTools.length} tool(s) enabled`
                                             : 'All tools enabled'}
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-                                        {allToolDefinitions.map((tool) => {
-                                            const isEnabled = enabledToolNames.has(tool.name)
-                                            const displayName = formatToolDisplayName(tool.name)
-                                            let icon = <Box size={18} />
-
-                                            if (isMcpToolName(tool.name)) {
-                                                icon = <Plug size={18} />
-                                            } else if (tool.name === 'web_search') {
-                                                icon = <Search size={18} />
-                                            } else if (tool.name === 'fetch_url') {
-                                                icon = <Globe size={18} />
-                                            } else if (tool.name === 'calculator') {
-                                                icon = <Calculator size={18} />
-                                            } else if (tool.name === 'get_datetime') {
-                                                icon = <Clock size={18} />
-                                            } else if (tool.name === 'read_clipboard' || tool.name === 'write_clipboard') {
-                                                icon = <Clipboard size={18} />
-                                            }
-
-                                            return (
-                                                <div
-                                                    key={tool.name}
-                                                    style={{
-                                                        padding: '12px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid rgba(255,255,255,0.06)',
-                                                        background: 'rgba(255,255,255,0.02)',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '10px',
-                                                        opacity: isEnabled ? 1 : 0.5
-                                                    }}
-                                                >
-                                                    <span style={{ fontSize: '1.2rem' }}>{icon}</span>
-                                                    <div style={{ flex: 1 }}>
-                                                        <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
-                                                            {displayName}
-                                                        </div>
-                                                        <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.description}</div>
+                                        {[
+                                            { name: 'web_search', desc: 'Search the internet', icon: '🔍' },
+                                            { name: 'fetch_url', desc: 'Read webpage content', icon: '🌐' },
+                                            { name: 'calculator', desc: 'Evaluate math expressions', icon: '🧮' },
+                                            { name: 'get_datetime', desc: 'Get current date/time', icon: '🕐' },
+                                            { name: 'read_clipboard', desc: 'Read clipboard', icon: '📋' },
+                                            { name: 'write_clipboard', desc: 'Copy to clipboard', icon: '📋' },
+                                        ].map((tool) => (
+                                            <div
+                                                key={tool.name}
+                                                style={{
+                                                    padding: '12px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid rgba(255,255,255,0.06)',
+                                                    background: 'rgba(255,255,255,0.02)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '1.5rem' }}>{tool.icon}</span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: '#e0e0e0' }}>
+                                                        {tool.name.replace(/_/g, ' ')}
                                                     </div>
-                                                    {!isEnabled && (
-                                                        <span style={{ fontSize: '0.7rem', color: '#777' }}>Disabled</span>
-                                                    )}
+                                                    <div style={{ fontSize: '0.8rem', color: '#888' }}>{tool.desc}</div>
                                                 </div>
-                                            )
-                                        })}
+                                            </div>
+                                        ))}
                                     </div>
+
                                 </div>
                             )}
+
                         </div>
                     )}
 
@@ -2327,37 +2265,37 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
                             <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                 {/* OpenRouter Models */}
-                                {(pendingSettings.configuredModels || []).length > 0 && (
-                                    <div className="settings-section-card" style={{ background: '#1B1913', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
-                                        {/* Header */}
-                                        <div
-                                            onClick={() => toggleModelGroup('openrouter')}
-                                            style={{
-                                                padding: '16px 20px',
-                                                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'space-between',
-                                                cursor: 'pointer',
-                                                userSelect: 'none'
-                                            }}
-                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                        >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <ProviderLogo provider="openrouter" size={18} />
-                                                <div>
-                                                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#e0e0e0' }}>OpenRouter</div>
-                                                    <div style={{ fontSize: '0.75rem', color: '#999999', marginTop: '2px' }}>{(pendingSettings.configuredModels || []).length} Models</div>
-                                                </div>
+                                <div className="settings-section-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 12, padding: 0, overflow: 'hidden' }}>
+                                    {/* Header */}
+                                    <div
+                                        onClick={() => toggleModelGroup('openrouter')}
+                                        style={{
+                                            padding: '16px 20px',
+                                            borderBottom: '1px solid var(--theme-border)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            cursor: 'pointer',
+                                            userSelect: 'none'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <ProviderLogo provider="openrouter" size={18} />
+                                            <div>
+                                                <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>OpenRouter</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', marginTop: '2px' }}>{(pendingSettings.configuredModels || []).length} Models</div>
                                             </div>
-                                            <ChevronDown size={16} style={{ transform: collapsedModelGroups.openrouter ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: '#999' }} />
                                         </div>
+                                        <ChevronDown size={16} style={{ transform: collapsedModelGroups.openrouter ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', color: 'var(--theme-text-muted)' }} />
+                                    </div>
 
-                                        {/* Model List */}
-                                        {!collapsedModelGroups.openrouter && (
-                                            <div style={{ padding: '8px' }}>
-                                                {(pendingSettings.configuredModels || []).map((model: any, index: number) => {
+                                    {/* Model List */}
+                                    {!collapsedModelGroups.openrouter && (
+                                        <div style={{ padding: '8px' }}>
+                                            {(pendingSettings.configuredModels || []).length > 0 ? (
+                                                (pendingSettings.configuredModels || []).map((model: any, index: number) => {
                                                     const { icon, color } = getModelAttributes(model, 'openrouter')
                                                     return (
                                                         <div
@@ -2387,6 +2325,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                         <input value={editCode} onChange={e => setEditCode(e.target.value)} className="setting-input-scira" style={{ padding: '6px 10px', fontSize: '0.85rem', flex: 1 }} placeholder="Code" />
                                                                         <input value={editName} onChange={e => setEditName(e.target.value)} className="setting-input-scira" style={{ padding: '6px 10px', fontSize: '0.85rem', flex: 1 }} placeholder="Name" />
                                                                     </div>
+                                                                    <input value={editDescription} onChange={e => setEditDescription(e.target.value)} className="setting-input-scira" style={{ padding: '6px 10px', fontSize: '0.85rem', width: '100%' }} placeholder="Description (optional)" />
                                                                     <div style={{ display: 'flex', gap: 8 }}>
                                                                         <button onClick={saveEdit} style={{ flex: 1, padding: '6px', background: '#1a3a1a', border: '1px solid #22c55e', color: '#22c55e', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Save</button>
                                                                         <button onClick={() => setEditingIndex(null)} style={{ flex: 1, padding: '6px', background: 'transparent', border: '1px solid #444', color: '#888', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
@@ -2397,6 +2336,9 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                                     <div style={{ flex: 1 }}>
                                                                         <div style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 500 }}>{removeEmojis(model.displayName)}</div>
                                                                         <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.code}</div>
+                                                                        {model.description && (
+                                                                            <div style={{ color: '#666', fontSize: '0.75rem', marginTop: '4px', fontStyle: 'italic' }}>{model.description}</div>
+                                                                        )}
                                                                     </div>
                                                                     <div style={{ display: 'flex', gap: 4 }}>
                                                                         <button onClick={(e) => { e.stopPropagation(); startEdit(index) }} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e0e0e0' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999999' }}><Edit2 size={14} /></button>
@@ -2406,26 +2348,31 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                                                             )}
                                                         </div>
                                                     )
-                                                })}
-                                            </div>
-                                        )}
+                                                })
+                                            ) : (
+                                                <div style={{ padding: '24px 16px', textAlign: 'center', color: '#666', fontSize: '0.85rem' }}>
+                                                    No models available. Add a custom model below.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
-                                        {/* Add New Model */}
-                                        {!collapsedModelGroups.openrouter && (
-                                            <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                                    <Plus size={14} color="#00bcd4" />
-                                                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#e0e0e0' }}>Add Custom Model</div>
-                                                </div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                                                    <input value={newModelCode} onChange={e => setNewModelCode(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Model ID" />
-                                                    <input value={newModelName} onChange={e => setNewModelName(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Display Name" />
-                                                </div>
-                                                <button onClick={addModel} style={{ width: '100%', padding: '8px 12px', background: 'linear-gradient(90deg, #00bcd4, #0097a7)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, opacity: (!newModelCode || !newModelName) ? 0.5 : 1, pointerEvents: (!newModelCode || !newModelName) ? 'none' : 'auto', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>Add Model to Library</button>
+                                    {/* Add New Model */}
+                                    {!collapsedModelGroups.openrouter && (
+                                        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                <Plus size={14} color="#00bcd4" />
+                                                <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#e0e0e0' }}>Add Custom Model</div>
                                             </div>
-                                        )}
-                                    </div>
-                                )}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                                <input value={newModelCode} onChange={e => setNewModelCode(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Model ID" />
+                                                <input value={newModelName} onChange={e => setNewModelName(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff' }} placeholder="Display Name" />
+                                            </div>
+                                            <input value={newModelDescription} onChange={e => setNewModelDescription(e.target.value)} className="setting-input-scira" style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', background: '#1B1913', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', marginBottom: 10 }} placeholder="Description (optional)" />
+                                            <button onClick={addModel} style={{ width: '100%', padding: '8px 12px', background: 'linear-gradient(90deg, #00bcd4, #0097a7)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, opacity: (!newModelCode || !newModelName) ? 0.5 : 1, pointerEvents: (!newModelCode || !newModelName) ? 'none' : 'auto', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>Add Model to Library</button>
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Perplexity Models */}
                                 {(pendingSettings.perplexityModels || []).length > 0 && (
@@ -2557,6 +2504,21 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
                                 {/* Codex Models - Model selection is done via the Model Switcher in chat, not here */}
                                 {/* Removed per user request - models are selected from the model switcher dropdown */}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ========== CODEX SECTION ========== */}
+                    {activeSection === 'codex' && (
+                        <div style={{ padding: '40px' }}>
+                            <div className="page-header">
+                                <h2 className="page-title">Codex</h2>
+                                <div className="page-subtitle">OpenAI Codex authentication and usage</div>
+                            </div>
+
+                            {/* Codex Auth Section */}
+                            <div style={{ marginTop: 24 }}>
+                                <CodexAuthSection />
                             </div>
                         </div>
                     )}
@@ -2774,6 +2736,11 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
                         </div>
                     )}
 
+                    {/* ========== THEMES SECTION ========== */}
+                    {activeSection === 'themes' && (
+                        <ThemesPage />
+                    )}
+
                 </div>
             </div>
 
@@ -2859,3 +2826,4 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
         </div>
     )
 }
+

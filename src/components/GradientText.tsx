@@ -1,5 +1,7 @@
 import './GradientText.css';
 import React, { ReactNode } from 'react';
+import { useSettings } from '../contexts/SettingsContext';
+import { getThemeById, getDefaultTheme } from '../themes/themeRegistry';
 
 interface GradientTextProps {
     children: ReactNode;
@@ -7,6 +9,7 @@ interface GradientTextProps {
     colors?: string[];
     animationSpeed?: number;
     showBorder?: boolean;
+    useThemeAccent?: boolean;
 }
 
 export default function GradientText({
@@ -14,10 +17,28 @@ export default function GradientText({
     className = '',
     colors = ['#40ffaa', '#4079ff', '#40ffaa', '#4079ff', '#40ffaa'],
     animationSpeed = 8,
-    showBorder = false
+    showBorder = false,
+    useThemeAccent = false
 }: GradientTextProps) {
+    const { settings } = useSettings();
+    
+    // Get theme colors from the theme registry
+    const theme = getThemeById(settings.activeTheme) || getDefaultTheme();
+    const themeColors = theme.colors;
+    
+    // If useThemeAccent is true, build colors from theme
+    const gradientColors = useThemeAccent 
+        ? [
+            themeColors.accent,
+            themeColors.accentSecondary || themeColors.accent,
+            themeColors.accent,
+            themeColors.accentSecondary || themeColors.accent,
+            themeColors.accent
+          ]
+        : colors;
+    
     const gradientStyle = {
-        backgroundImage: `linear-gradient(to right, ${colors.join(', ')})`,
+        backgroundImage: `linear-gradient(to right, ${gradientColors.join(', ')})`,
         animationDuration: `${animationSpeed}s`
     };
 

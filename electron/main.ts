@@ -60,7 +60,7 @@ function createMainWindow() {
             spellcheck: false,        // Disable spellcheck for performance
         },
         autoHideMenuBar: true,
-        backgroundColor: '#1a1a1a',
+        backgroundColor: '#14120B',
         show: false,  // Don't show until ready
     })
 

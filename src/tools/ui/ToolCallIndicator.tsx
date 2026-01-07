@@ -35,7 +35,10 @@ export default function ToolCallIndicator({ toolName, status, arguments: args }:
         switch (status) {
             case 'executing':
                 if (toolName === 'web_search' && args?.query) {
-                    return `Searching for "${args.query}"...`
+                    return `Tool: Web Search req "${args.query}"`
+                }
+                if (toolName === 'web_search') {
+                    return 'Tool: Web Search req'
                 }
                 if (toolName === 'fetch_url' && args?.url) {
                     const url = new URL(args.url)
