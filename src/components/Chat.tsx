@@ -273,22 +273,22 @@ export default function Chat() {
                 backgroundColor: '#1a1a1a'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <img
-                        src="/icon.png"
-                        alt="New Chat"
-                        title="Start New Chat"
-                        onClick={() => setMessages([{ id: '1', role: 'assistant', content: 'Hello! I am Zura. How can I help you today?' }])}
-                        style={{
-                            width: '28px',
-                            height: '28px',
-                            objectFit: 'contain',
-                            opacity: 0.7,
-                            cursor: 'pointer',
-                            transition: 'opacity 0.2s, transform 0.2s'
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.transform = 'scale(1)'; }}
-                    />
+                        <img
+                            src="/icon.png"
+                            alt="New Chat"
+                            title="Start New Chat"
+                            onClick={() => setMessages([{ id: '1', role: 'assistant', content: 'Hello! I am Zura. How can I help you today?' }])}
+                            style={{
+                                width: '28px',
+                                height: '28px',
+                                objectFit: 'contain',
+                                opacity: 0.7,
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+                        />
                     <span style={{ fontWeight: 600, color: '#fff' }}>Zura Chat</span>
                     {settings.modelProvider === 'ollama' && (
                         <div
