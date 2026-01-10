@@ -3,7 +3,8 @@ import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import * as chatStore from './chatStore'
 import * as secureStorage from './secureStorage'
-import { registerCodexAuthHandlers, cleanupCodexAuth } from './codexAuth'
+import { registerCodexAuthHandlers, registerCodexStreamingHandler, cleanupCodexAuth } from './codexAuth'
+import { mcpManager } from './mcp'
 
 // Import tool handlers - use dynamic import to avoid circular dependency issues
 let registerToolHandlers: (() => void) | undefined
@@ -60,7 +61,7 @@ function createMainWindow() {
             spellcheck: false,        // Disable spellcheck for performance
         },
         autoHideMenuBar: true,
-        backgroundColor: '#1a1a1a',
+        backgroundColor: '#14120B',
         show: false,  // Don't show until ready
     })
 
@@ -163,7 +164,7 @@ function createTray() {
     tray.setContextMenu(contextMenu)
 }
 
-function createOverlayWindow() {
+function createOverlayWindow(showImmediately = false) {
     if (overlayWin) {
         return
     }
@@ -213,10 +214,14 @@ function createOverlayWindow() {
         overlayWin.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'overlay' })
     }
 
-    // Don't auto-show overlay on startup anymore
-    // overlayWin.once('ready-to-show', () => {
-    //    overlayWin?.show()
-    // })
+    // Show immediately if requested (e.g., via settings or screenshot shortcut)
+    if (showImmediately) {
+        overlayWin.once('ready-to-show', () => {
+            overlayWin?.show()
+            overlayWin?.focus()
+            overlayWin?.setAlwaysOnTop(true)
+        })
+    }
 
     overlayWin.on('close', (e) => {
         if (!isQuitting) {
@@ -263,6 +268,7 @@ app.on('will-quit', () => {
 app.whenReady().then(async () => {
     // Register Codex authentication handlers
     registerCodexAuthHandlers()
+    registerCodexStreamingHandler()
 
     // Register tool handlers for AI function calling
     try {
@@ -313,54 +319,81 @@ app.whenReady().then(async () => {
 
     createTray()
     createMainWindow() // Open main window on start
-    createOverlayWindow()
 
-    globalShortcut.register('CommandOrControl+Shift+Z', async () => {
-        if (overlayWin) {
-            if (overlayWin.isVisible()) {
-                overlayWin.hide()
-            } else {
-                overlayWin.show()
-                overlayWin.focus()
-                overlayWin.setAlwaysOnTop(true)
-                overlayWin.webContents.send('reset-overlay')
-            }
-        }
-    })
+    // Overlay is now lazy-loaded - only created when first needed
+    // This saves ~100-200MB RAM when overlay is not being used
 
-    // Ctrl+Shift+X - Direct screenshot selection mode
-    globalShortcut.register('CommandOrControl+Shift+X', async () => {
-        if (overlayWin) {
-            overlayWin.hide()
-        }
+    // DISABLED: Agent shortcut popup (Ctrl+Shift+Z)
+    // To re-enable, uncomment the globalShortcut.register calls below
+    // globalShortcut.register('CommandOrControl+Shift+Z', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         if (overlayWin.isVisible()) {
+    //             overlayWin.hide()
+    //         } else {
+    //             overlayWin.show()
+    //             overlayWin.focus()
+    //             overlayWin.setAlwaysOnTop(true)
+    //             overlayWin.webContents.send('reset-overlay')
+    //         }
+    //     }
+    // })
 
-        await new Promise(resolve => setTimeout(resolve, 50))
+    // DISABLED: Agent shortcut popup (Ctrl+Shift+Z)
+    // To re-enable, uncomment the globalShortcut.register calls below
+    // globalShortcut.register('CommandOrControl+Shift+Z', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         if (overlayWin.isVisible()) {
+    //             overlayWin.hide()
+    //         } else {
+    //             overlayWin.show()
+    //             overlayWin.focus()
+    //             overlayWin.setAlwaysOnTop(true)
+    //             overlayWin.webContents.send('reset-overlay')
+    //         }
+    //     }
+    // })
 
-        const displaySize = screen.getPrimaryDisplay().size
-        const sources = await desktopCapturer.getSources({
-            types: ['screen'],
-            thumbnailSize: displaySize,
-            fetchWindowIcons: false
-        })
-
-        const primarySource = sources[0]
-        if (primarySource) {
-            currentScreenshot = primarySource.thumbnail
-        }
-
-        if (overlayWin) {
-            overlayWin.show()
-            overlayWin.focus()
-            overlayWin.setAlwaysOnTop(true)
-            overlayWin.webContents.send('start-screenshot-selection')
-        }
-    })
+    // // Ctrl+Shift+X - Direct screenshot selection mode
+    // globalShortcut.register('CommandOrControl+Shift+X', async () => {
+    //     if (!overlayWin) {
+    //         createOverlayWindow(true)
+    //     }
+    //     if (overlayWin) {
+    //         overlayWin.hide()
+    //     }
+    //     await new Promise(resolve => setTimeout(resolve, 50))
+    //     const displaySize = screen.getPrimaryDisplay().size
+    //     const sources = await desktopCapturer.getSources({
+    //         types: ['screen'],
+    //         thumbnailSize: displaySize,
+    //         fetchWindowIcons: false
+    //     })
+    //     const primarySource = sources[0]
+    //     if (primarySource) {
+    //         currentScreenshot = primarySource.thumbnail
+    //     }
+    //     if (overlayWin) {
+    //         overlayWin.show()
+    //         overlayWin.focus()
+    //         overlayWin.setAlwaysOnTop(true)
+    //         overlayWin.webContents.send('start-screenshot-selection')
+    //     }
+    // })
 })
 
 // IPC Handlers
 
 ipcMain.on('settings-changed', (_event, settings) => {
     (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
+    if (Array.isArray(settings.mcpServers)) {
+        mcpManager.setServerConfigs(settings.mcpServers)
+    }
 
     // Handle settings changes that affect the main process
     if (settings.shortcuts?.toggleOverlay) {
@@ -373,6 +406,13 @@ ipcMain.on('settings-changed', (_event, settings) => {
     if (overlayWin) {
         overlayWin.webContents.send('settings-updated', settings)
     }
+})
+
+ipcMain.handle('mcp:list-tools', async (_event, mcpServers) => {
+    if (Array.isArray(mcpServers)) {
+        mcpManager.setServerConfigs(mcpServers)
+    }
+    return mcpManager.listTools()
 })
 
 // ==================== CHAT STORE IPC HANDLERS ====================

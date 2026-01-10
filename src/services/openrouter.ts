@@ -8,6 +8,14 @@ export interface OpenRouterStreamChunk {
         delta?: {
             content?: string
             role?: string
+            reasoning?: string
+            reasoning_details?: Array<{
+                id: string | null
+                format: string
+                index?: number
+                type?: 'summary' | 'encrypted' | 'text'
+                [key: string]: any
+            }>
             tool_calls?: Array<{
                 index?: number
                 id?: string
@@ -26,6 +34,12 @@ export interface OpenRouterStreamChunk {
         total_tokens: number
         prompt_cache_tokens?: number
         completion_cache_tokens?: number
+        completion_tokens_details?: {
+            reasoning_tokens?: number
+            accepted_prediction_tokens?: number
+            rejected_prediction_tokens?: number
+        }
+        reasoning_tokens?: number // Some providers return this directly
     }
 }
 
@@ -35,6 +49,14 @@ export interface OpenRouterResponse {
         message: {
             role: string
             content: string
+            reasoning?: string
+            reasoning_details?: Array<{
+                id: string | null
+                format: string
+                index?: number
+                type?: 'summary' | 'encrypted' | 'text'
+                [key: string]: any
+            }>
             tool_calls?: Array<{
                 id: string
                 type: string
@@ -50,6 +72,12 @@ export interface OpenRouterResponse {
         prompt_tokens: number
         completion_tokens: number
         total_tokens: number
+        completion_tokens_details?: {
+            reasoning_tokens?: number
+            accepted_prediction_tokens?: number
+            rejected_prediction_tokens?: number
+        }
+        reasoning_tokens?: number // Some providers return this directly
     }
 }
 
@@ -60,7 +88,13 @@ interface OpenRouterRequestBody {
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
-    tool_choice?: 'auto' | 'none'
+    tool_choice?: 'auto' | 'none' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+    reasoning?: {
+        max_tokens?: number
+        effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+        exclude?: boolean
+        enabled?: boolean
+    }
 }
 
 export async function generateOpenRouterCompletion(
@@ -72,6 +106,13 @@ export async function generateOpenRouterCompletion(
         maxTokens?: number
         stream?: boolean
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+        reasoning?: {
+            max_tokens?: number
+            effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+            exclude?: boolean
+            enabled?: boolean
+        }
     }
 ): Promise<OpenRouterResponse> {
     if (!apiKey) {
@@ -94,7 +135,10 @@ export async function generateOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice ?? 'auto'
+    }
+    if (options?.reasoning) {
+        requestBody.reasoning = options.reasoning
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -125,7 +169,14 @@ export async function* streamOpenRouterCompletion(
         temperature?: number
         maxTokens?: number
         tools?: ToolDefinition[]
+        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: OpenRouterStreamChunk) => void
+        reasoning?: {
+            max_tokens?: number
+            effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+            exclude?: boolean
+            enabled?: boolean
+        }
     }
 ): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
     if (!apiKey) {
@@ -146,7 +197,10 @@ export async function* streamOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = 'auto'
+        requestBody.tool_choice = options.toolChoice ?? 'auto'
+    }
+    if (options?.reasoning) {
+        requestBody.reasoning = options.reasoning
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

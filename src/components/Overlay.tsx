@@ -305,10 +305,14 @@ export default function Overlay() {
         )
         const endTime = performance.now()
 
-        let rawContent = res.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't get a response."
+        // Add null checks to prevent errors
+        let rawContent = "Sorry, I couldn't get a response."
+        if (res && res.candidates && res.candidates[0]?.content?.parts?.[0]?.text) {
+            rawContent = res.candidates[0].content.parts[0].text
+        }
 
         // Check for function calls
-        if (canUseTools && hasGeminiFunctionCalls(res)) {
+        if (canUseTools && res && hasGeminiFunctionCalls(res)) {
             const toolResult = await handleToolCalls(res)
             
             if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
@@ -336,7 +340,9 @@ export default function Overlay() {
                     }
                 )
                 
-                rawContent = followUpRes.candidates?.[0]?.content?.parts?.[0]?.text || rawContent
+                if (followUpRes && followUpRes.candidates && followUpRes.candidates[0]?.content?.parts?.[0]?.text) {
+                    rawContent = followUpRes.candidates[0].content.parts[0].text
+                }
             }
         }
 
@@ -583,15 +589,23 @@ export default function Overlay() {
             messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
         }
 
-        const codexModel = settings.codexSelectedModel || 'gpt-4o'
+        const codexModel = settings.codexSelectedModel || 'gpt-5.2-codex-medium'
+        
+        // #region agent log - Overlay Codex call
+        console.log('[Overlay:Codex] ========== CODEX CALL INITIATED ==========')
+        console.log('[Overlay:Codex] codexModel:', codexModel)
+        console.log('[Overlay:Codex] messagesPayload count:', messagesPayload.length)
+        // #endregion
+        
         const startTime = performance.now()
         
+        // NOTE: temperature and maxTokens are NOT supported by Codex API
         const response = await generateCodexCompletion(
             codexModel,
             messagesPayload,
             {
-                temperature: settings.temperature,
-                maxTokens: settings.maxTokens
+                // NOTE: These options are IGNORED by the Codex API
+                // The official Codex CLI does not support temperature/maxTokens
             }
         )
         const endTime = performance.now()

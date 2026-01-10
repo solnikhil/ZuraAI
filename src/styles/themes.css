@@ -1,0 +1,78 @@
+/* Theme CSS Variables - Central Theme System */
+
+/* ========================================
+   DEFAULT FALLBACK VALUES (Dark Default)
+   ======================================== */
+:root {
+    /* Core surfaces */
+    --theme-background: #14120B;
+    --theme-surface: #1B1913;
+    --theme-surface-hover: rgba(255, 255, 255, 0.05);
+    --theme-surface-active: rgba(255, 255, 255, 0.08);
+    --theme-surface-pressed: rgba(255, 255, 255, 0.1);
+    
+    /* Text hierarchy */
+    --theme-text-primary: #ffffff;
+    --theme-text-secondary: #f0f0f0;
+    --theme-text-tertiary: #b0b0b0;
+    --theme-text-muted: #999999;
+    --theme-text-inverse: #000000;
+    
+    /* Borders */
+    --theme-border: rgba(255, 255, 255, 0.06);
+    --theme-border-hover: rgba(255, 255, 255, 0.1);
+    --theme-border-active: rgba(255, 255, 255, 0.12);
+    --theme-border-subtle: rgba(255, 255, 255, 0.03);
+    
+    /* Accents */
+    --theme-accent: #8b5cf6;
+    --theme-accent-secondary: #06b6d4;
+    --theme-accent-hover: #7c3aed;
+    --theme-accent-muted: rgba(139, 92, 246, 0.2);
+    
+    /* Semantic */
+    --theme-error: #ef4444;
+    --theme-error-bg: rgba(239, 68, 68, 0.1);
+    --theme-success: #4ade80;
+    --theme-success-bg: rgba(74, 222, 128, 0.1);
+    --theme-warning: #fbbf24;
+    --theme-warning-bg: rgba(251, 191, 36, 0.1);
+    --theme-info: #3b82f6;
+    --theme-info-bg: rgba(59, 130, 246, 0.1);
+    
+    /* Special elements */
+    --theme-user-message-bg: linear-gradient(135deg, #ff7a50 0%, #ff5a30 100%);
+    --theme-user-message-text: #ffffff;
+    --theme-assistant-message-bg: rgba(27, 25, 19, 0.85);
+    --theme-assistant-message-text: #e0e0e0;
+    --theme-overlay-bg: rgba(0, 0, 0, 0.7);
+    --theme-dimmer-bg: rgba(0, 0, 0, 0.4);
+    --theme-selection-bg: rgba(139, 92, 246, 0.3);
+    --theme-selection-text: #ffffff;
+    
+    /* Shadows */
+    --theme-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --theme-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --theme-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    
+    /* Legacy variable mappings (for backward compatibility) */
+    --bg-primary: var(--theme-background);
+    --bg-secondary: var(--theme-surface);
+    --bg-tertiary: var(--theme-surface);
+    --bg-card: var(--theme-surface);
+    --bg-hover: var(--theme-surface-hover);
+    --text-primary: var(--theme-text-primary);
+    --text-secondary: var(--theme-text-secondary);
+    --text-tertiary: var(--theme-text-tertiary);
+    --text-muted: var(--theme-text-muted);
+    --border-color: var(--theme-border);
+    --border-hover: var(--theme-border-hover);
+    --accent-primary: var(--theme-accent);
+    --accent-secondary: var(--theme-accent-secondary);
+}
+
+/* Theme values are applied at runtime from theme definitions. */
+
+
+
+

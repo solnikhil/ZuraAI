@@ -27,7 +27,7 @@ export const toolDefinitions: ToolDefinition[] = [
     // ==================== SEARCH TOOLS ====================
     {
         name: 'web_search',
-        description: 'Search the internet for real-time information. Use this when you need current information, news, recent events, or facts that might have changed after your knowledge cutoff date.',
+        description: 'Search the internet for real-time information. Use this when you need current information, news, recent events, or facts that might have changed after your knowledge cutoff date. Returns text results and images.',
         parameters: {
             type: 'object',
             properties: {
@@ -39,6 +39,12 @@ export const toolDefinitions: ToolDefinition[] = [
                     type: 'number',
                     description: 'Number of results to return (default: 5, max: 10)',
                     default: 5
+                },
+                search_depth: {
+                    type: 'string',
+                    description: 'Search depth: "basic" for quick results, "advanced" for more comprehensive research',
+                    enum: ['basic', 'advanced'],
+                    default: 'basic'
                 }
             },
             required: ['query']
@@ -133,9 +139,26 @@ export const toolDefinitions: ToolDefinition[] = [
     }
 ]
 
+let dynamicToolDefinitions: ToolDefinition[] = []
+
+export function setDynamicToolDefinitions(tools: ToolDefinition[]) {
+    dynamicToolDefinitions = tools
+}
+
+export function getAllToolDefinitions(): ToolDefinition[] {
+    const merged = new Map<string, ToolDefinition>()
+    for (const tool of toolDefinitions) {
+        merged.set(tool.name, tool)
+    }
+    for (const tool of dynamicToolDefinitions) {
+        merged.set(tool.name, tool)
+    }
+    return Array.from(merged.values())
+}
+
 /**
  * Get tool definition by name
  */
 export function getToolByName(name: string): ToolDefinition | undefined {
-    return toolDefinitions.find(t => t.name === name)
+    return getAllToolDefinitions().find(t => t.name === name)
 }

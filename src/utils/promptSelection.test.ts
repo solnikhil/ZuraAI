@@ -31,15 +31,17 @@ describe('Tool Enablement', () => {
         fc.assert(
             fc.property(
                 fc.boolean(),
-                (toolsEnabled) => {
+                fc.boolean(),
+                (toolsEnabled, webSearchEnabled) => {
                     const settings = {
                         toolsEnabled: toolsEnabled,
+                        webSearchEnabled: webSearchEnabled,
                     }
-                    
+
                     const toolsAvailable = shouldEnableTools(settings)
-                    
-                    // Should match the toolsEnabled setting
-                    expect(toolsAvailable).toBe(toolsEnabled)
+
+                    // Should be true if either setting is enabled
+                    expect(toolsAvailable).toBe(toolsEnabled || webSearchEnabled)
                 }
             ),
             { numRuns: 100 }

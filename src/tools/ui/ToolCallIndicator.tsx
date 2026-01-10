@@ -1,5 +1,6 @@
 import React from 'react'
-import { Search, Globe, Calculator, Clock, Clipboard, Loader2 } from 'lucide-react'
+import { Search, Globe, Calculator, Clock, Clipboard, Loader2, Plug } from '../../components/icons'
+import { formatToolDisplayName, isMcpToolName } from '../mcpUtils'
 import './ToolCallIndicator.css'
 
 const toolIcons: Record<string, React.ReactNode> = {
@@ -27,14 +28,17 @@ interface ToolCallIndicatorProps {
 }
 
 export default function ToolCallIndicator({ toolName, status, arguments: args }: ToolCallIndicatorProps) {
-    const icon = toolIcons[toolName] || <Search size={16} />
-    const displayName = toolDisplayNames[toolName] || toolName.replace(/_/g, ' ')
+    const icon = toolIcons[toolName] || (isMcpToolName(toolName) ? <Plug size={16} /> : <Search size={16} />)
+    const displayName = toolDisplayNames[toolName] || formatToolDisplayName(toolName)
     
     const getStatusMessage = () => {
         switch (status) {
             case 'executing':
                 if (toolName === 'web_search' && args?.query) {
-                    return `Searching for "${args.query}"...`
+                    return `Tool: Web Search req "${args.query}"`
+                }
+                if (toolName === 'web_search') {
+                    return 'Tool: Web Search req'
                 }
                 if (toolName === 'fetch_url' && args?.url) {
                     const url = new URL(args.url)

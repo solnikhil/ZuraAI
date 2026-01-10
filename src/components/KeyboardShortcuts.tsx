@@ -1,5 +1,5 @@
 import React from 'react'
-import { Keyboard } from 'lucide-react'
+import { Keyboard } from './icons'
 import './KeyboardShortcuts.css'
 
 export default function KeyboardShortcuts() {

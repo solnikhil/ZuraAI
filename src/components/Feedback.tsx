@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Send, Bug, MessageSquare, Lightbulb } from 'lucide-react'
+import { X, Send, Bug, MessageSquare, Lightbulb } from './icons'
 import { useToast } from './Toast'
 import './Feedback.css'
 

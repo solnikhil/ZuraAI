@@ -64,4 +64,23 @@ contextBridge.exposeInMainWorld('codexAuth', {
         ipcRenderer.invoke('codex:send-request', params),
     fetchModels: () => ipcRenderer.invoke('codex:fetch-models'),
     checkUsage: () => ipcRenderer.invoke('codex:check-usage'),
+    getBaseInstructions: (modelSlug: string) => ipcRenderer.invoke('codex:get-base-instructions', modelSlug),
+    // True SSE streaming support
+    streamChat: (params: { messages: any[]; model: string; options?: any }) =>
+        ipcRenderer.invoke('codex:stream-chat', params),
+    onStreamChunk: (callback: (chunk: any) => void) => {
+        const handler = (_: any, chunk: any) => callback(chunk)
+        ipcRenderer.on('codex:stream-chunk', handler)
+        return () => ipcRenderer.removeListener('codex:stream-chunk', handler)
+    },
+    onStreamDone: (callback: () => void) => {
+        const handler = () => callback()
+        ipcRenderer.on('codex:stream-done', handler)
+        return () => ipcRenderer.removeListener('codex:stream-done', handler)
+    },
+    onStreamError: (callback: (error: { message: string }) => void) => {
+        const handler = (_: any, error: { message: string }) => callback(error)
+        ipcRenderer.on('codex:stream-error', handler)
+        return () => ipcRenderer.removeListener('codex:stream-error', handler)
+    }
 })

@@ -1,7 +1,27 @@
 /* ==== THINKING BLOCK - ChatGPT Style ==== */
 
+/* Container for all thinking blocks */
+.thinking-blocks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .thinking-block {
-    margin-bottom: 12px;
+    margin-bottom: 0;
+}
+
+/* Completed blocks styling */
+.thinking-block.completed .thinking-header {
+    opacity: 0.6;
+}
+
+.thinking-block.completed .thinking-header:hover {
+    opacity: 0.8;
+}
+
+.thinking-block.completed .thinking-text {
+    color: rgba(255, 255, 255, 0.5);
 }
 
 
@@ -10,9 +30,11 @@
 .thinking-header {
     display: inline-flex;
     align-items: center;
+    gap: 12px;
     padding: 6px 0;
     user-select: none;
     transition: opacity 0.2s ease;
+    cursor: pointer;
 }
 
 .thinking-header:hover {
@@ -32,6 +54,65 @@
     color: rgba(255, 255, 255, 0.7);
 }
 
+/* Searching state text - blue color */
+.thinking-header.searching .thinking-text {
+    color: rgba(59, 130, 246, 0.9);
+}
+
+/* ==== COPY BUTTON ==== */
+
+.thinking-copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.thinking-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.thinking-copy-btn svg {
+    transition: transform 0.2s ease;
+}
+
+.thinking-copy-btn:active svg {
+    transform: scale(0.9);
+}
+
+.copy-tooltip {
+    position: absolute;
+    top: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    animation: tooltipFadeIn 0.2s ease;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
 
 /* ==== THINKING DOT (LOADING STATE) ==== */
 
@@ -43,10 +124,28 @@
     animation: thinkingPulse 1.2s ease-in-out infinite;
 }
 
+/* Searching state - blue color */
+.thinking-dot.searching-dot {
+    background: rgba(59, 130, 246, 0.8);
+    animation: searchingPulse 0.8s ease-in-out infinite;
+}
+
 @keyframes thinkingPulse {
     0%,
     100% {
         opacity: 0.3;
+        transform: scale(0.8);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+@keyframes searchingPulse {
+    0%,
+    100% {
+        opacity: 0.4;
         transform: scale(0.8);
     }
     50% {
