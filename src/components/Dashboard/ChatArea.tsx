@@ -2773,7 +2773,7 @@ export default function ChatArea() {
                     )}
                     {/* Spacer to push content up when waiting for AI response */}
                     {isLoading && (
-                        <div style={{ minHeight: 'calc(100vh - 350px)' }} />
+                        <div style={{ minHeight: 'calc(100% - 350px)' }} />
                     )}
                     <div ref={messagesEndRef} />
                 </div>

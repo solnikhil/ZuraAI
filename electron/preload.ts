@@ -15,6 +15,21 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
 })
 
+// Window controls API (custom title bar)
+contextBridge.exposeInMainWorld('windowControls', {
+    minimize: () => ipcRenderer.invoke('window-controls:minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
+    close: () => ipcRenderer.invoke('window-controls:close'),
+    isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
+    onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
+        const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
+            callback(state)
+        }
+        ipcRenderer.on('window-controls:state', listener)
+        return () => ipcRenderer.removeListener('window-controls:state', listener)
+    },
+})
+
 // Secure storage API
 contextBridge.exposeInMainWorld('secureStorage', {
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
