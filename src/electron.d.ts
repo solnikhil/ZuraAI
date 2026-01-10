@@ -29,6 +29,18 @@ export interface UpdaterAPI {
     onUpdateDownloaded: (callback: () => void) => () => void
 }
 
+export interface WindowControlsState {
+    isMaximized: boolean
+}
+
+export interface WindowControlsAPI {
+    minimize: () => Promise<boolean>
+    toggleMaximize: () => Promise<boolean>
+    close: () => Promise<boolean>
+    isMaximized: () => Promise<boolean>
+    onWindowState: (callback: (state: WindowControlsState) => void) => () => void
+}
+
 export interface CodexAuthState {
     isAuthenticated: boolean
     userEmail?: string
@@ -123,5 +135,6 @@ declare global {
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
         codexAuth: CodexAuthAPI
+        windowControls?: WindowControlsAPI
     }
 }

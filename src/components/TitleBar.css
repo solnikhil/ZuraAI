@@ -1,0 +1,92 @@
+.titlebar {
+    height: var(--titlebar-height);
+    display: flex;
+    align-items: stretch;
+    background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+    border-bottom: 1px solid var(--border-color);
+    -webkit-app-region: drag;
+    user-select: none;
+    color: var(--text-secondary);
+}
+
+.titlebar--mac .titlebar__controls {
+    order: 0;
+}
+
+.titlebar--mac .titlebar__drag-region {
+    order: 1;
+}
+
+.titlebar__drag-region {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    min-width: 0;
+}
+
+.titlebar__brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: 0.2px;
+    font-weight: 600;
+}
+
+.titlebar__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    box-shadow: 0 0 8px var(--accent-primary);
+}
+
+.titlebar__title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.titlebar__controls {
+    display: flex;
+    align-items: stretch;
+    -webkit-app-region: no-drag;
+}
+
+.titlebar__button {
+    width: 44px;
+    height: var(--titlebar-height);
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.titlebar__button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.titlebar__button:active {
+    background: var(--border-hover);
+}
+
+.titlebar__button--close:hover {
+    background: #e81123;
+    color: #ffffff;
+}
+
+.titlebar__button--close:active {
+    background: #c50f1f;
+    color: #ffffff;
+}
+
+.titlebar__button svg {
+    width: 12px;
+    height: 12px;
+}

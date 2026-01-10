@@ -3,7 +3,7 @@
 .chat-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     width: 100%;
     background: linear-gradient(180deg, #14120B 0%, #14120B 100%);
     color: #e0e0e0;

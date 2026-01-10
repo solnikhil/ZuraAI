@@ -51,6 +51,7 @@ function createMainWindow() {
         minHeight: 600,
         title: 'Zura',
         icon: path.join(process.env.PUBLIC || '', 'icon.png'),
+        frame: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -62,6 +63,13 @@ function createMainWindow() {
         backgroundColor: '#1a1a1a',
         show: false,  // Don't show until ready
     })
+
+    const sendWindowState = () => {
+        if (!mainWindow) return
+        mainWindow.webContents.send('window-controls:state', {
+            isMaximized: mainWindow.isMaximized() || mainWindow.isFullScreen()
+        })
+    }
 
     // Handle external links - open in default browser
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -82,7 +90,14 @@ function createMainWindow() {
     // Show when ready to prevent white flash
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show()
+        sendWindowState()
     })
+
+    mainWindow.webContents.on('did-finish-load', sendWindowState)
+    mainWindow.on('maximize', sendWindowState)
+    mainWindow.on('unmaximize', sendWindowState)
+    mainWindow.on('enter-full-screen', sendWindowState)
+    mainWindow.on('leave-full-screen', sendWindowState)
 
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
@@ -501,6 +516,41 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
 
 ipcMain.on('open-settings', () => {
     createMainWindow()
+})
+
+// ==================== WINDOW CONTROLS IPC HANDLERS ====================
+
+ipcMain.handle('window-controls:minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    win?.minimize()
+    return true
+})
+
+ipcMain.handle('window-controls:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return false
+    const isCurrentlyMaximized = win.isMaximized() || win.isFullScreen()
+    if (isCurrentlyMaximized) {
+        if (win.isFullScreen()) {
+            win.setFullScreen(false)
+        } else {
+            win.unmaximize()
+        }
+    } else {
+        win.maximize()
+    }
+    return win.isMaximized() || win.isFullScreen()
+})
+
+ipcMain.handle('window-controls:close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    win?.close()
+    return true
+})
+
+ipcMain.handle('window-controls:is-maximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return win ? (win.isMaximized() || win.isFullScreen()) : false
 })
 
 // ==================== SECURE STORAGE IPC HANDLERS ====================

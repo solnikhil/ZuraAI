@@ -18,6 +18,7 @@
     --border-hover: rgba(255, 255, 255, 0.1);
     --accent-primary: #8b5cf6;
     --accent-secondary: #06b6d4;
+    --titlebar-height: 30px;
 }
 
 :root:not(.dark) {
@@ -46,4 +47,19 @@ body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.app-frame {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+}
+
+.app-content {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
 }

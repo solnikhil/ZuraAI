@@ -1195,7 +1195,7 @@ Zura never includes generic safety warnings unless asked for. It is fine to be h
 
 
     return (
-        <div className="settings-container" style={{ borderRadius: 24, margin: '16px 16px 16px 0', border: '1px solid rgba(255,255,255,0.06)', background: '#14120B', overflow: 'hidden', position: 'relative', height: 'calc(100vh - 32px)' }}>
+        <div className="settings-container" style={{ borderRadius: 24, margin: '16px 16px 16px 0', border: '1px solid rgba(255,255,255,0.06)', background: '#14120B', overflow: 'hidden', position: 'relative', height: 'calc(100% - 32px)' }}>
             <div className="settings-main-col" style={{ padding: '0', overflowY: 'auto', height: '100%', paddingBottom: hasChanges ? 80 : 0, maxWidth: '100%' }}>
                 <div style={{ width: '100%', maxWidth: '100%', margin: '0 auto', padding: '0 24px', transition: 'max-width 0.3s ease' }}>
 

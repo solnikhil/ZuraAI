@@ -1335,7 +1335,7 @@ export default function ChatArea() {
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                height: '100vh',
+                height: '100%',
                 background: '#14120B',
                 position: 'relative'
             }}>
@@ -1554,7 +1554,7 @@ export default function ChatArea() {
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
+            height: '100%',
             background: '#14120B',
             position: 'relative'
         }}>
@@ -1628,7 +1628,7 @@ export default function ChatArea() {
                     )}
                     {/* Spacer to push content up when waiting for AI response */}
                     {isLoading && (
-                        <div style={{ minHeight: 'calc(100vh - 350px)' }} />
+                        <div style={{ minHeight: 'calc(100% - 350px)' }} />
                     )}
                     <div ref={messagesEndRef} />
                 </div>
