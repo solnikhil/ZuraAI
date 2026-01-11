@@ -38,12 +38,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: var(--theme-border);
+    background: var(--theme-scrollbar, var(--theme-border));
     border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--theme-border-hover);
+    background: var(--theme-scrollbar-hover, var(--theme-border-hover));
 }
 
 /* Animation Keyframes */

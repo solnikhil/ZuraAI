@@ -1,7 +1,7 @@
 import React, { useState, useCallback, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
-import { useSettings } from '../../contexts/SettingsContext'
+import { useAppShell } from '../../contexts/AppShellContext'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
@@ -22,11 +22,8 @@ function SettingsLoadingFallback() {
 }
 
 export default function DashboardLayout() {
-    const [view, setView] = useState<'chat' | 'settings'>('chat')
-    const [activeSettingsSection, setActiveSettingsSection] = useState('usage')
-    const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false)
+    const { dashboardView: view, setDashboardView: setView, activeSettingsSection, setActiveSettingsSection, hasUnsavedSettings, setHasUnsavedSettings } = useAppShell()
     const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
-    const { settings } = useSettings()
 
     // This callback is passed to Settings to track unsaved changes
     const handleUnsavedChange = useCallback((hasChanges: boolean) => {
@@ -50,7 +47,7 @@ export default function DashboardLayout() {
     }, [hasUnsavedSettings, triggerWarning])
 
     return (
-        <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--theme-background)' }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--theme-background)' }}>
             <Sidebar
                 view={view}
                 onOpenSettings={() => setView('settings')}

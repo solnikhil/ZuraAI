@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, ChevronRight, ChevronLeft, Key, Zap, Image, CheckCircle, Command } from './icons'
 import { useSettings } from '../contexts/SettingsContext'
-import { useToast } from './Toast'
+import { useToast } from './shared'
 import { saveApiKeyToSecureStorage } from '../utils/secureApiKeys'
 import './Onboarding.css'
 

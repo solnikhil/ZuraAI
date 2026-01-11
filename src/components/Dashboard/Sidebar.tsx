@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
 import {
-    Plus, Search, MessageSquare, Trash2, SettingsIcon, PanelLeft,
+    Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
     Key, ArrowLeft, Github, Star, Sparkles, FileEdit, X, Box, Brain
 } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
+import { useAppShell } from '../../contexts/AppShellContext'
+
 
 interface SidebarProps {
     view: 'chat' | 'settings'
@@ -18,7 +20,7 @@ interface SidebarProps {
 
 export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
-    const [isCollapsed, setIsCollapsed] = useState(false)
+    const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
     const { settings, resetSettings, updateSettings } = useSettings()
@@ -38,90 +40,21 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             height: '100%',
             opacity: view === 'chat' ? 1 : 0,
             transform: view === 'chat' ? 'translateX(0)' : 'translateX(-20px)',
-            transition: 'all 0.3s ease',
+            transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
             pointerEvents: view === 'chat' ? 'all' : 'none',
             position: view === 'chat' ? 'relative' : 'absolute',
             width: '100%'
         }}>
             {/* Header */}
             <div style={{
-                padding: isCollapsed ? '8px 8px' : '12px 8px 8px',
+                padding: '12px 8px 8px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
-                borderBottom: '1px solid var(--theme-border)'
+                borderBottom: '1px solid var(--theme-border)',
+                minWidth: 0,
+                overflow: 'hidden'
             }}>
-                {/* Top Row - Logo and Collapse Button */}
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: isCollapsed ? 'center' : 'space-between',
-                    padding: isCollapsed ? '0' : '0',
-                    gap: '10px'
-                }}>
-                    {isCollapsed ? (
-                        <button
-                            onClick={() => setIsCollapsed(!isCollapsed)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: '#ffffff',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.backgroundColor = 'transparent'
-                            }}
-                        >
-                            <PanelLeft size={18} />
-                        </button>
-                    ) : (
-                        <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <img
-                                    src="/sidebar-logo.png"
-                                    alt="Zura"
-                                    style={{
-                                        width: '28px',
-                                        height: '28px',
-                                        objectFit: 'contain'
-                                    }}
-                                />
-                            </div>
-                            <button
-                                onClick={() => setIsCollapsed(!isCollapsed)}
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#ffffff',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                }}
-                            >
-                                <PanelLeft size={18} />
-                            </button>
-                        </>
-                    )}
-                </div>
 
                 {/* Quick Actions - Search & New Chat (stacked, grey icons) */}
                 <div style={{
@@ -138,7 +71,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px',
-                            padding: isCollapsed ? '8px' : '8px 8px',
+                            padding: '8px 8px',
                             background: 'transparent',
                             border: 'none',
                             borderRadius: '6px',
@@ -148,7 +81,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             fontSize: '0.85rem',
                             fontWeight: 500,
                             width: '100%',
-                            justifyContent: isCollapsed ? 'center' : 'flex-start'
+                            justifyContent: 'flex-start',
+                            minWidth: 0,
+                            overflow: 'hidden'
                         }}
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
@@ -160,8 +95,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         }}
                         title={isCollapsed ? 'New Chat' : ''}
                     >
-                        <FileEdit size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
-                        {!isCollapsed && <span>New Chat</span>}
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <FileEdit size={16} strokeWidth={2} />
+                        </div>
+                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>New Chat</span>}
                     </button>
 
                     {/* Search Button */}
@@ -175,7 +118,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px',
-                            padding: isCollapsed ? '8px' : '8px 8px',
+                            padding: '8px 8px',
                             background: 'transparent',
                             border: 'none',
                             borderRadius: '6px',
@@ -185,7 +128,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             fontSize: '0.85rem',
                             fontWeight: 500,
                             width: '100%',
-                            justifyContent: isCollapsed ? 'center' : 'flex-start'
+                            justifyContent: 'flex-start',
+                            minWidth: 0,
+                            overflow: 'hidden'
                         }}
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
@@ -197,8 +142,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         }}
                         title={isCollapsed ? 'Search chats' : ''}
                     >
-                        <Search size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
-                        {!isCollapsed && <span>Search chats</span>}
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <Search size={16} strokeWidth={2} />
+                        </div>
+                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Search chats</span>}
                     </button>
                 </div>
 
@@ -232,13 +185,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             <div style={{
                 flex: 1,
                 overflowY: 'auto',
-                padding: isCollapsed ? '4px 4px 0' : '4px 8px 0',
+                padding: '4px 8px 0',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '1px'
+                gap: '1px',
+                minWidth: 0
             }}>
                 {!isCollapsed && filteredSessions.length > 0 && (
-                    <div 
+                    <div
                         onClick={() => setIsListExpanded(!isListExpanded)}
                         onMouseEnter={e => {
                             const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
@@ -248,35 +202,40 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
                             if (chevron) chevron.style.opacity = '0'
                         }}
-                        style={{ 
-                            fontSize: '0.75rem', 
-                            color: 'var(--theme-text-muted)', 
-                            padding: '6px 0 4px 9px', 
-                            marginBottom: '2px', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '4px', 
-                            cursor: 'pointer', 
-                            userSelect: 'none', 
+                        style={{
+                            fontSize: '0.75rem',
+                            color: 'var(--theme-text-muted)',
+                            padding: '6px 0 4px 9px',
+                            marginBottom: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            userSelect: 'none',
                             fontWeight: 500,
-                            letterSpacing: '0.5px' 
+                            letterSpacing: '0.5px'
                         }}
                     >
                         <span>Your Chats</span>
-                        <ChevronDown 
+                        <ChevronDown
                             className="chevron-icon"
-                            size={12} 
-                            style={{ 
-                                transition: 'transform 0.2s, opacity 0.2s', 
+                            size={12}
+                            style={{
+                                transition: 'transform 0.2s, opacity 0.2s',
                                 transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                                 opacity: 0,
                                 marginLeft: 'auto'
-                            }} 
+                            }}
                         />
                     </div>
                 )}
 
-                <div style={{ display: isListExpanded && !isCollapsed ? 'flex' : 'none', flexDirection: 'column', gap: '1px' }}>
+                <div style={{
+                    display: isListExpanded && !isCollapsed ? 'flex' : 'none',
+                    flexDirection: 'column',
+                    gap: '1px',
+                    minWidth: 0
+                }}>
                     {filteredSessions.map((session, index) => (
                         <div
                             key={session.id}
@@ -286,19 +245,28 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
-                                padding: '8px 0 8px 9px',
+                                gap: '6px',
+                                padding: '4px 0 4px 6px',
                                 cursor: 'pointer',
-                                borderRadius: '6px',
-                                fontSize: '0.85rem',
+                                borderRadius: '4px',
+                                fontSize: '0.8rem',
                                 color: '#ffffff',
                                 backgroundColor: currentSessionId === session.id ? 'var(--theme-surface-active)' : 'transparent',
                                 transition: 'all 0.15s ease',
-                                justifyContent: isCollapsed ? 'center' : 'flex-start',
-                                animationDelay: `${index * 0.05}s`
+                                justifyContent: 'flex-start',
+                                animationDelay: `${index * 0.05}s`,
+                                minWidth: 0,
+                                overflow: 'hidden'
                             }}
                         >
-                            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: isCollapsed ? 'none' : 'block', minWidth: 0 }}>{session.title}</span>
+                            <span style={{
+                                flex: 1,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: isCollapsed ? 'none' : 'block',
+                                minWidth: 0
+                            }}>{session.title}</span>
                             {!isCollapsed && (
                                 <div
                                     className="delete-btn"
@@ -327,39 +295,50 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             <div style={{
                 marginTop: 'auto',
                 borderTop: '1px solid var(--theme-border)',
-                padding: isCollapsed ? '8px 0' : '8px',
+                padding: '8px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: isCollapsed ? 'center' : 'stretch'
+                alignItems: 'stretch',
+                minWidth: 0
             }}>
-                <button 
-                    onClick={onOpenSettings} 
-                    title="Settings" 
-                    style={{ 
-                        width: isCollapsed ? '36px' : '100%', 
-                        padding: isCollapsed ? '8px' : '8px', 
-                        cursor: 'pointer', 
-                        borderRadius: '6px', 
-                        border: 'none', 
-                        background: 'transparent', 
-                        color: '#ffffff', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: isCollapsed ? 'center' : 'flex-start', 
+                <button
+                    onClick={onOpenSettings}
+                    title="Settings"
+                    style={{
+                        width: '100%',
+                        padding: '8px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
                         gap: '10px',
                         fontSize: '0.85rem',
                         fontWeight: 500,
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        minWidth: 0,
+                        overflow: 'hidden'
                     }}
-                onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                }}
-                onMouseLeave={e => {
-                    e.currentTarget.style.backgroundColor = 'transparent'
-                }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
                 >
-                    <SettingsIcon size={18} strokeWidth={2} />
-                    {!isCollapsed && <span>Settings</span>}
+                    <div style={{
+                        width: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                    }}>
+                        <SettingsIcon size={18} strokeWidth={2} />
+                    </div>
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
                 </button>
             </div>
         </div>
@@ -377,270 +356,29 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             flexDirection: 'column',
             opacity: view === 'settings' ? 1 : 0,
             transform: view === 'settings' ? 'translateX(0)' : 'translateX(20px)',
-            transition: 'all 0.3s ease',
+            transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
             pointerEvents: view === 'settings' ? 'all' : 'none',
-            backgroundColor: 'var(--theme-surface)', // Ensure BG covers chat list
+            backgroundColor: 'var(--theme-surface)',
             boxSizing: 'border-box'
         }}>
 
 
             {/* Content Area - grows to push footer down */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '16px 12px 0', overflow: 'hidden' }}>
-                {/* Header - Same structure as chat view */}
-                <div style={{
-                    padding: isCollapsed ? '8px 8px' : '12px 8px 8px',
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: isCollapsed ? '8px 6px 0' : '16px 12px 0', overflow: 'hidden' }}>
+                {/* Navigation */}
+                <div className="nav-menu" style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    minWidth: 0,
+                    overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '12px',
-                    borderBottom: '1px solid var(--theme-border)'
-                }}>
-                    {/* Top Row - Logo and Collapse Button */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: isCollapsed ? 'center' : 'space-between',
-                        padding: isCollapsed ? '0' : '0',
-                        gap: '10px'
-                    }}>
-                        {isCollapsed ? (
-                            <button
-                                onClick={() => setIsCollapsed(!isCollapsed)}
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: '#ffffff',
-                                    cursor: 'pointer',
-                                    padding: '4px',
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.backgroundColor = 'transparent'
-                                }}
-                            >
-                                <PanelLeft size={18} />
-                            </button>
-                        ) : (
-                            <>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <img
-                                        src="/sidebar-logo.png"
-                                        alt="Zura"
-                                        style={{
-                                            width: '28px',
-                                            height: '28px',
-                                            objectFit: 'contain'
-                                        }}
-                                    />
-                                </div>
-                                <button
-                                    onClick={() => setIsCollapsed(!isCollapsed)}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: '#ffffff',
-                                        cursor: 'pointer',
-                                        padding: '4px',
-                                        borderRadius: '6px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.backgroundColor = 'transparent'
-                                    }}
-                                >
-                                    <PanelLeft size={18} />
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* GitHub Card - Compact vs Full */}
-            {isCollapsed ? (
-                <div
-                    onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
-                    style={{
-                        padding: '14px',
-                        marginBottom: '16px',
-                        background: 'var(--theme-surface)',
-                        border: '1px solid var(--theme-border)',
-                        borderRadius: '14px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transition: 'all 0.3s ease',
-                        boxShadow: 'var(--theme-shadow-sm)',
-                        position: 'relative',
-                        overflow: 'hidden'
-                    }}
-                    title="Star on GitHub"
-                    onMouseEnter={e => {
-                        e.currentTarget.style.boxShadow = `0 4px 20px var(--theme-accent-muted)`;
-                        e.currentTarget.style.borderColor = 'var(--theme-accent)';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.boxShadow = 'var(--theme-shadow-sm)';
-                        e.currentTarget.style.borderColor = 'var(--theme-border)';
-                        e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                >
-                    {/* Subtle accent glow on hover */}
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: `linear-gradient(135deg, var(--theme-accent-muted) 0%, transparent 50%)`,
-                        opacity: 0,
-                        transition: 'opacity 0.3s ease'
-                    }} className="github-glow" />
-                    <Github size={22} color="var(--theme-accent)" style={{ position: 'relative', zIndex: 1 }} />
-                </div>
-            ) : (
-                <div
-                    onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
-                    style={{
-                        padding: '20px',
-                        marginBottom: '16px',
-                        background: 'var(--theme-surface)',
-                        border: '1px solid var(--theme-border)',
-                        borderRadius: '18px',
-                        cursor: 'pointer',
-                        position: 'relative',
-                        overflow: 'hidden',
-                        transition: 'all 0.3s ease',
-                        boxShadow: 'var(--theme-shadow-sm)'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.transform = 'translateY(-3px)';
-                        e.currentTarget.style.boxShadow = `0 8px 32px var(--theme-accent-muted)`;
-                        e.currentTarget.style.borderColor = 'var(--theme-accent)';
-                        // Show glow effect
-                        const glow = e.currentTarget.querySelector('.github-glow') as HTMLElement;
-                        if (glow) glow.style.opacity = '1';
-                        const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
-                        if (badge) {
-                            badge.style.background = 'var(--theme-accent-muted)';
-                            badge.style.color = 'var(--theme-accent)';
-                            badge.style.borderColor = 'var(--theme-accent)';
-                        }
-                        const iconBg = e.currentTarget.querySelector('.github-icon-bg') as HTMLElement;
-                        if (iconBg) {
-                            iconBg.style.background = 'var(--theme-accent-muted)';
-                        }
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = 'var(--theme-shadow-sm)';
-                        e.currentTarget.style.borderColor = 'var(--theme-border)';
-                        // Hide glow effect
-                        const glow = e.currentTarget.querySelector('.github-glow') as HTMLElement;
-                        if (glow) glow.style.opacity = '0';
-                        const badge = e.currentTarget.querySelector('.github-star-badge') as HTMLElement;
-                        if (badge) {
-                            badge.style.background = 'var(--theme-surface-hover)';
-                            badge.style.color = 'var(--theme-text-secondary)';
-                            badge.style.borderColor = 'var(--theme-border)';
-                        }
-                        const iconBg = e.currentTarget.querySelector('.github-icon-bg') as HTMLElement;
-                        if (iconBg) {
-                            iconBg.style.background = 'var(--theme-surface-hover)';
-                        }
-                    }}
-                >
-                    {/* Accent gradient glow */}
-                    <div className="github-glow" style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: `linear-gradient(135deg, 
-                            var(--theme-accent-muted) 0%, 
-                            transparent 40%,
-                            transparent 60%,
-                            var(--theme-accent-muted) 100%)`,
-                        opacity: 0,
-                        transition: 'opacity 0.3s ease',
-                        pointerEvents: 'none'
-                    }} />
-                    
-                    {/* Top accent line */}
-                    <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: '2px',
-                        background: 'linear-gradient(90deg, transparent, var(--theme-accent), transparent)',
-                        opacity: 0.7
-                    }} />
-
-                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-                        {/* Icon with subtle background */}
-                        <div className="github-icon-bg" style={{
-                            width: 56, height: 56, borderRadius: '14px',
-                            background: 'var(--theme-surface-hover)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: 'var(--theme-accent)',
-                            boxShadow: 'var(--theme-shadow-sm)',
-                            transition: 'all 0.3s ease',
-                            border: '1px solid var(--theme-border)'
-                        }}>
-                            <Github size={30} strokeWidth={2} />
-                        </div>
-
-                        <div style={{ textAlign: 'center', width: '100%' }}>
-                            <div style={{ 
-                                fontSize: '1rem', 
-                                fontWeight: 700, 
-                                color: 'var(--theme-text-primary)', 
-                                marginBottom: '8px', 
-                                letterSpacing: '-0.02em',
-                                textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                            }}>Zura AI</div>
-
-                            <div className="github-star-badge" style={{
-                                fontSize: '0.8rem',
-                                color: 'var(--theme-text-secondary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                justifyContent: 'center',
-                                background: 'var(--theme-surface-hover)',
-                                padding: '8px 14px',
-                                borderRadius: '20px',
-                                transition: 'all 0.3s ease',
-                                border: '1px solid var(--theme-border)',
-                                fontWeight: 500
-                            }}>
-                                <Star size={14} fill="var(--theme-accent)" color="var(--theme-accent)" />
-                                <span>Star on GitHub</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-                {/* Navigation */}
-                <div className="nav-menu" style={{ 
-                    background: 'transparent', 
-                    border: 'none', 
-                    padding: 0
+                    alignItems: 'center'
                 }}>
                     {[
                         { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
                         { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
-                        { id: 'codex', label: 'Codex', icon: <Brain size={18} /> },
                         { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
                         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
                         { id: 'tools', label: 'Tools', icon: <Sparkles size={18} /> }
@@ -650,17 +388,94 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             onClick={() => onNavigateSettings(item.id)}
                             className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
-                                padding: '10px 12px',
+                                padding: isCollapsed ? '8px' : '10px 12px',
                                 fontSize: '0.9rem',
                                 justifyContent: isCollapsed ? 'center' : 'flex-start',
-                                animationDelay: `${index * 0.05}s`
+                                animationDelay: `${index * 0.05}s`,
+                                minWidth: 0,
+                                overflow: 'hidden',
+                                width: isCollapsed ? '36px' : '100%'
                             }}
                             title={isCollapsed ? item.label : ''}
                         >
-                            {item.icon}
-                            {!isCollapsed && item.label}
+                            <div style={{
+                                width: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                {item.icon}
+                            </div>
+                            {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
                         </button>
                     ))}
+                </div>
+
+                {/* GitHub Card - Compact vs Full - positioned above footer */}
+                <div style={{ marginTop: 'auto' }}>
+                    {isCollapsed ? (
+                        <div
+                            onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
+                            style={{
+                                padding: '14px',
+                                background: 'var(--theme-surface)',
+                                border: '1px solid var(--theme-border)',
+                                borderRadius: '14px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
+                                boxShadow: 'var(--theme-shadow-sm)',
+                                position: 'relative',
+                                overflow: 'hidden'
+                            }}
+                            title="Star on GitHub"
+                            onMouseEnter={e => {
+                                e.currentTarget.style.boxShadow = `0 4px 20px var(--theme-accent-muted)`;
+                                e.currentTarget.style.borderColor = 'var(--theme-accent)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.boxShadow = 'var(--theme-shadow-sm)';
+                                e.currentTarget.style.borderColor = 'var(--theme-border)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            }}
+                        >
+                            <Github size={22} color="var(--theme-accent)" />
+                        </div>
+                    ) : (
+                        <div
+                            onClick={() => window.open('https://github.com/solnikhil/ZuraAI', '_blank')}
+                            style={{
+                                padding: '16px',
+                                background: 'var(--theme-surface)',
+                                border: '1px solid var(--theme-border)',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                position: 'relative',
+                                overflow: 'hidden',
+                                transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
+                                boxShadow: 'var(--theme-shadow-sm)'
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.borderColor = 'var(--theme-accent)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.borderColor = 'var(--theme-border)';
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <Github size={24} color="var(--theme-accent)" />
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>Zura AI</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-secondary)' }}>Star on GitHub</div>
+                                </div>
+                                <Star size={16} fill="var(--theme-accent)" color="var(--theme-accent)" />
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -668,28 +483,31 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             <div style={{
                 marginTop: 'auto',
                 borderTop: '1px solid var(--theme-border)',
-                padding: isCollapsed ? '12px 0' : '12px',
+                padding: '8px',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: isCollapsed ? 'center' : 'stretch'
+                alignItems: 'stretch',
+                minWidth: 0
             }}>
                 <button
                     onClick={onCloseSettings}
                     style={{
-                        width: isCollapsed ? '40px' : '100%',
-                        padding: isCollapsed ? '10px' : '12px',
+                        width: '100%',
+                        padding: '8px',
                         cursor: 'pointer',
-                        borderRadius: '8px',
+                        borderRadius: '6px',
                         border: 'none',
                         background: 'transparent',
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: isCollapsed ? 'center' : 'flex-start',
+                        justifyContent: 'flex-start',
                         gap: '12px',
                         fontSize: '0.9rem',
                         fontWeight: 500,
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        minWidth: 0,
+                        overflow: 'hidden'
                     }}
                     onMouseEnter={e => {
                         e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
@@ -699,8 +517,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     }}
                     title={isCollapsed ? "Back to Chat" : ""}
                 >
-                    <ArrowLeft size={20} strokeWidth={2} />
-                    {!isCollapsed && <span>Back to Chat</span>}
+                    <div style={{
+                        width: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                    }}>
+                        <ArrowLeft size={20} strokeWidth={2} />
+                    </div>
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to Chat</span>}
                 </button>
             </div>
         </div >
@@ -708,17 +534,18 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
 
     return (
         <div style={{
-            width: isCollapsed ? '60px' : '260px',
+            width: sidebarHidden ? '0px' : (isCollapsed ? '60px' : '260px'),
             background: 'var(--theme-surface)',
-            borderRight: '1px solid var(--theme-border)',
-            boxShadow: 'var(--theme-shadow-md)',
+            borderRight: sidebarHidden ? 'none' : '1px solid var(--theme-border)',
+            boxShadow: sidebarHidden ? 'none' : 'var(--theme-shadow-md)',
             display: 'flex',
             flexDirection: 'column',
-            height: '100vh',
+            height: '100%',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            pointerEvents: sidebarHidden ? 'none' : 'auto'
         }}>
             {renderChatContent()}
             {renderSettingsContent()}
@@ -726,8 +553,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             <style>{`
                 .session-item:hover { background-color: var(--theme-surface-hover) !important; }
                 .session-item:hover .delete-btn { opacity: 1 !important; }
-                .delete-btn:hover { background-color: var(--theme-surface-active) !important; padding: 6px !important; }
-                
+                .delete-btn:hover { background-color: var(--theme-surface-active) !important; }
+
                 /* Custom Scrollbar */
                 ::-webkit-scrollbar {
                     width: 4px;
@@ -751,10 +578,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 .toggle-switch.active .toggle-thumb { transform: translateX(14px); }
                 .toggle-switch.active { background: #fff; }
 
-                .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
+                .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; alignItems: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
                 .btn-signout:hover { background: var(--theme-surface-hover); color: #fff; border-color: var(--theme-border-hover); }
 
-                .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 16px; color: var(--theme-text-secondary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; }
+                .nav-item { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 16px; color: var(--theme-text-secondary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; width: 100%; box-sizing: border-box; }
                 .nav-item:hover { color: var(--theme-text-primary); background: var(--theme-surface-hover); }
                 .nav-item.active { background: var(--theme-accent-muted); color: var(--theme-accent); }
 
@@ -765,7 +592,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     100% { opacity: 1; transform: translateY(0); filter: blur(0); }
                 }
                 .animate-sidebar-item {
-                    animation: blur-in-up 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                    animation: blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
                 }
 
                 @keyframes fade-in-slide {
@@ -773,10 +600,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     100% { opacity: 1; transform: translateY(0); }
                 }
                 .library-title {
-                    animation: fade-in-slide 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                    animation: fade-in-slide 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
                 }
                 .quick-action-btn {
-                    animation: fade-in-slide 0.5s cubic-bezier(0.25, 0.8, 0.25, 1) backwards;
+                    animation: fade-in-slide 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
                 }
                 .quick-action-btn:nth-child(1) { animation-delay: 0.05s; }
                 .quick-action-btn:nth-child(2) { animation-delay: 0.1s; }

@@ -55,6 +55,10 @@
     --theme-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --theme-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
     
+    /* Scrollbar */
+    --theme-scrollbar: rgba(255, 255, 255, 0.08);
+    --theme-scrollbar-hover: rgba(255, 255, 255, 0.14);
+    
     /* Legacy variable mappings (for backward compatibility) */
     --bg-primary: var(--theme-background);
     --bg-secondary: var(--theme-surface);

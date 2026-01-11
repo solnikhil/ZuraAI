@@ -10,10 +10,7 @@
 // 1. PERPLEXITY - Has native built-in web search and research capabilities.
 //    Adding external tools would interfere with their native functionality.
 //
-// 2. CODEX - Uses specialized API with built-in reasoning capabilities.
-//    External tools are not compatible with their API structure.
-//
-// DO NOT add 'perplexity' or 'codex' to:
+// DO NOT add 'perplexity' to:
 // - providerSupportsTools()
 // - convertToolsForProvider() switch cases
 // - parseToolCallsFromResponse() switch cases
@@ -40,7 +37,7 @@ export type ProviderToolFormat = OpenAITool[] | GeminiTools
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'codex'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
@@ -56,9 +53,8 @@ export function convertToolsForProvider(
             return convertToOpenRouterFormat(tools)
 
         case 'perplexity':
-        case 'codex':
-            // EXCLUDED: Perplexity has native search, Codex has specialized API
-            // DO NOT add tool support for these providers
+            // EXCLUDED: Perplexity has native search
+            // DO NOT add tool support for this provider
             return null
 
         default:
@@ -68,7 +64,7 @@ export function convertToolsForProvider(
 
 /**
  * Check if a provider supports function calling
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function providerSupportsTools(provider: string): boolean {
     return ['openrouter', 'gemini', 'groq', 'ollama'].includes(provider)
@@ -76,7 +72,7 @@ export function providerSupportsTools(provider: string): boolean {
 
 /**
  * Get models that support function calling for each provider
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export const modelsWithToolSupport: Record<string, string[]> = {
     openrouter: [
@@ -113,7 +109,7 @@ export const modelsWithToolSupport: Record<string, string[]> = {
 
 /**
  * Check if a specific model supports function calling
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function modelSupportsTools(provider: string, model: string): boolean {
     // OpenRouter: Allow ALL models to use tools for deep research functionality
@@ -122,7 +118,6 @@ export function modelSupportsTools(provider: string, model: string): boolean {
         return true
     }
 
-    // EXCLUDED: codex (see header comment)
     // EXCLUDED: perplexity (see header comment)
 
     const supportedModels = modelsWithToolSupport[provider]

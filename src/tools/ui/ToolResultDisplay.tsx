@@ -1,7 +1,11 @@
 import React, { useState } from 'react'
 import { ChevronDown, ChevronUp, ExternalLink, Search, Globe, Calculator, Clock, Clipboard, AlertCircle } from '../../components/icons'
-import { formatToolDisplayName } from '../mcpUtils'
 import './ToolResultDisplay.css'
+
+// Simple tool name formatter (replaces underscores with spaces)
+function formatToolDisplayName(name: string): string {
+    return name.replace(/_/g, ' ')
+}
 
 interface SearchResult {
     title: string

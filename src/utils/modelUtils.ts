@@ -1,0 +1,310 @@
+/**
+ * Centralized model utilities for Zura AI
+ * Consolidates duplicate model-related functions from Settings.tsx and ModelSelector.tsx
+ * 
+ * @module modelUtils
+ * Requirements: 4.1
+ */
+
+import React from 'react'
+import { MessageSquare, Sparkles, Box, Cpu, Zap, Brain, Globe } from 'lucide-react'
+
+/**
+ * Model information interface
+ */
+export interface ModelInfo {
+  code: string
+  displayName: string
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+}
+
+/**
+ * Model attributes returned by getModelAttributes
+ */
+export interface ModelAttributes {
+  icon: React.ReactNode
+  color: string
+  badge?: React.ReactNode
+}
+
+/**
+ * Model capability types
+ */
+export type ModelCapability = 'vision' | 'code' | 'reasoning' | 'fast' | 'online' | 'deep-research'
+
+/**
+ * Model family detection patterns
+ */
+const MODEL_FAMILIES = {
+  gemini: { color: '#4dabf7', icon: Sparkles },
+  claude: { color: '#da7756', icon: Box },
+  gpt: { color: '#10a37f', icon: Cpu },
+  openai: { color: '#10a37f', icon: Cpu },
+  mistral: { color: '#fcc419', icon: Zap },
+  llama: { color: '#339af0', icon: Brain },
+} as const
+
+/**
+ * Badge type patterns
+ */
+const BADGE_PATTERNS = {
+  fast: ['flash', 'turbo', 'instant'],
+  pro: ['pro', 'plus', 'opus'],
+  reasoning: ['reasoning'],
+} as const
+
+/**
+ * Detect model family from model code or name
+ * @param modelCode - The model code
+ * @param modelName - The model display name
+ * @returns The detected model family key or null
+ */
+function detectModelFamily(modelCode: string, modelName: string): keyof typeof MODEL_FAMILIES | null {
+  const code = modelCode.toLowerCase()
+  const name = modelName.toLowerCase()
+  
+  for (const family of Object.keys(MODEL_FAMILIES) as (keyof typeof MODEL_FAMILIES)[]) {
+    if (code.includes(family) || name.includes(family)) {
+      return family
+    }
+  }
+  return null
+}
+
+/**
+ * Get visual attributes for a model based on its name/code
+ * Centralizes icon detection, color assignment, and capability badges
+ * 
+ * @param model - Model object with code and displayName
+ * @param options - Optional configuration
+ * @returns ModelAttributes with icon, color, and optional badge
+ */
+export function getModelAttributes(
+  model: { code: string; displayName: string },
+  options: { iconSize?: number; badgeSize?: number } = {}
+): ModelAttributes {
+  const { iconSize = 16, badgeSize = 10 } = options
+  const code = model.code.toLowerCase()
+  const name = model.displayName.toLowerCase()
+
+  // Default values
+  let icon: React.ReactNode = React.createElement(MessageSquare, { size: iconSize })
+  let color = '#b0b0b0'
+  let badge: React.ReactNode = null
+
+  // Detect model family for icon and color
+  const family = detectModelFamily(code, name)
+  if (family) {
+    const familyConfig = MODEL_FAMILIES[family]
+    icon = React.createElement(familyConfig.icon, { size: iconSize })
+    color = familyConfig.color
+  }
+
+  // Detect badge type
+  if (BADGE_PATTERNS.fast.some(p => name.includes(p))) {
+    badge = React.createElement(Zap, { size: badgeSize, color: '#fcc419', fill: 'currentColor' })
+  } else if (BADGE_PATTERNS.pro.some(p => name.includes(p))) {
+    badge = React.createElement(Sparkles, { size: badgeSize, color: '#da7756', fill: 'currentColor' })
+  } else if (BADGE_PATTERNS.reasoning.some(p => name.includes(p) || code.includes(p))) {
+    badge = React.createElement(Brain, { size: badgeSize, color: '#be4bdb', fill: 'currentColor' })
+  }
+
+  // Deep Research badge - shown for models with deep-research in name/code
+  if (name.includes('deep research') || code.includes('deep-research')) {
+    badge = React.createElement('div', {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        borderRadius: '4px',
+        padding: '1px 4px',
+        fontSize: '0.6rem',
+        fontWeight: 600,
+        color: '#fff'
+      }
+    }, 
+      React.createElement(Globe, { size: 8 }),
+      React.createElement('span', null, 'Deep Research')
+    )
+  }
+
+  // Online/Web Search badge - shown for models with :online variant
+  if (code.includes(':online')) {
+    badge = React.createElement('div', {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2px',
+        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+        borderRadius: '4px',
+        padding: '1px 4px',
+        fontSize: '0.6rem',
+        fontWeight: 600,
+        color: '#fff'
+      }
+    },
+      React.createElement(Globe, { size: 8 }),
+      React.createElement('span', null, 'Online')
+    )
+  }
+
+  return { icon, color, badge }
+}
+
+/**
+ * Get the appropriate icon component for a model
+ * Simplified version that returns just the icon
+ * 
+ * @param modelName - The model name or code
+ * @param size - Icon size (default: 16)
+ * @returns React node with the appropriate icon
+ */
+export function getModelIcon(modelName: string, size: number = 16): React.ReactNode {
+  const name = modelName.toLowerCase()
+  
+  const family = detectModelFamily(name, name)
+  if (family) {
+    return React.createElement(MODEL_FAMILIES[family].icon, { size })
+  }
+  
+  return React.createElement(MessageSquare, { size })
+}
+
+/**
+ * Get the color associated with a model
+ * 
+ * @param modelName - The model name or code
+ * @returns Hex color string
+ */
+export function getModelColor(modelName: string): string {
+  const name = modelName.toLowerCase()
+  
+  const family = detectModelFamily(name, name)
+  if (family) {
+    return MODEL_FAMILIES[family].color
+  }
+  
+  return '#b0b0b0'
+}
+
+/**
+ * Detect model capabilities from name
+ * 
+ * @param modelName - The model name or code
+ * @returns Array of detected capabilities
+ */
+export function detectModelCapabilities(modelName: string): ModelCapability[] {
+  const name = modelName.toLowerCase()
+  const capabilities: ModelCapability[] = []
+
+  // Vision capability
+  if (name.includes('vision') || name.includes('4o') || name.includes('pro-vision')) {
+    capabilities.push('vision')
+  }
+
+  // Code capability
+  if (name.includes('code') || name.includes('codestral') || name.includes('coder')) {
+    capabilities.push('code')
+  }
+
+  // Reasoning capability
+  if (name.includes('reasoning') || name.includes('o1') || name.includes('think')) {
+    capabilities.push('reasoning')
+  }
+
+  // Fast/turbo models
+  if (name.includes('flash') || name.includes('turbo') || name.includes('instant') || name.includes('fast')) {
+    capabilities.push('fast')
+  }
+
+  // Online/web search capability
+  if (name.includes(':online') || name.includes('online')) {
+    capabilities.push('online')
+  }
+
+  // Deep research capability
+  if (name.includes('deep-research') || name.includes('deep research')) {
+    capabilities.push('deep-research')
+  }
+
+  return capabilities
+}
+
+/**
+ * Filter models by search query
+ * Searches both displayName and code
+ * 
+ * @param models - Array of models to filter
+ * @param query - Search query string
+ * @returns Filtered array of models
+ */
+export function filterModels<T extends { code: string; displayName: string }>(
+  models: T[],
+  query: string
+): T[] {
+  if (!query.trim()) return models
+
+  const lowerQuery = query.toLowerCase()
+  return models.filter(m =>
+    m.displayName.toLowerCase().includes(lowerQuery) ||
+    m.code.toLowerCase().includes(lowerQuery)
+  )
+}
+
+/**
+ * Group models by provider
+ * 
+ * @param models - Array of models with provider field
+ * @returns Record of provider to models array
+ */
+export function groupModelsByProvider<T extends ModelInfo>(
+  models: T[]
+): Record<string, T[]> {
+  const groups: Record<string, T[]> = {
+    ollama: [],
+    perplexity: [],
+    openrouter: [],
+    gemini: [],
+    groq: []
+  }
+
+  models.forEach(model => {
+    if (groups[model.provider]) {
+      groups[model.provider].push(model)
+    }
+  })
+
+  return groups
+}
+
+/**
+ * Provider configuration with colors and icons
+ */
+export const PROVIDER_CONFIG = {
+  gemini: { title: 'Gemini', color: '#4dabf7' },
+  openrouter: { title: 'OpenRouter', color: '#a855f7' },
+  perplexity: { title: 'Perplexity', color: '#22c55e' },
+  groq: { title: 'Groq', color: '#f97316' },
+  ollama: { title: 'Ollama', color: '#339af0' },
+} as const
+
+/**
+ * Get provider display title
+ * 
+ * @param provider - Provider key
+ * @returns Display title for the provider
+ */
+export function getProviderTitle(provider: string): string {
+  return PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG]?.title || provider
+}
+
+/**
+ * Get provider color
+ * 
+ * @param provider - Provider key
+ * @returns Hex color for the provider
+ */
+export function getProviderColor(provider: string): string {
+  return PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG]?.color || '#b0b0b0'
+}

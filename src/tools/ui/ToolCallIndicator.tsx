@@ -1,7 +1,11 @@
 import React from 'react'
-import { Search, Globe, Calculator, Clock, Clipboard, Loader2, Plug } from '../../components/icons'
-import { formatToolDisplayName, isMcpToolName } from '../mcpUtils'
+import { Search, Globe, Calculator, Clock, Clipboard, Loader2 } from '../../components/icons'
 import './ToolCallIndicator.css'
+
+// Simple tool name formatter (replaces underscores with spaces)
+function formatToolDisplayName(name: string): string {
+    return name.replace(/_/g, ' ')
+}
 
 const toolIcons: Record<string, React.ReactNode> = {
     web_search: <Search size={16} />,
@@ -28,7 +32,7 @@ interface ToolCallIndicatorProps {
 }
 
 export default function ToolCallIndicator({ toolName, status, arguments: args }: ToolCallIndicatorProps) {
-    const icon = toolIcons[toolName] || (isMcpToolName(toolName) ? <Plug size={16} /> : <Search size={16} />)
+    const icon = toolIcons[toolName] || <Search size={16} />
     const displayName = toolDisplayNames[toolName] || formatToolDisplayName(toolName)
     
     const getStatusMessage = () => {

@@ -49,6 +49,10 @@ export interface ColorPalette {
     shadowSm: string
     shadowMd: string
     shadowLg: string
+    
+    // Scrollbar
+    scrollbar?: string
+    scrollbarHover?: string
 }
 
 export interface Theme {

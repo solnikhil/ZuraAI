@@ -1,27 +1,23 @@
 // Hook for handling tool calling in chat flows
-// Sensitive tools require approval based on settings
-// **Validates: Requirements 4.3**
+// Tools auto-execute without requiring user approval
+// **Validates: Requirements 2.1**
 
-import { useState, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import {
     getToolsForProvider,
     processToolCalls,
     responseHasToolCalls,
-    buildMessagesWithToolResults,
     ToolCallResult
 } from '../tools/toolManager'
-import { ToolCallIndicator, ToolResultDisplay } from '../tools/ui'
 import { ToolCall } from '../tools/executor'
-import { getAllToolDefinitions, getToolByName } from '../tools/definitions'
-import { isMcpToolName } from '../tools/mcpUtils'
+import { getAllToolDefinitions } from '../tools/definitions'
 import { shouldEnableTools } from '../utils/promptSelection'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
     toolResults: ToolCallResult[]
     isProcessingTools: boolean
-    pendingApproval: ToolCall | null
     researchMode: {
         isActive: boolean
         currentRound: number
@@ -31,18 +27,12 @@ export interface ToolCallState {
     }
 }
 
-export interface ApprovalCallbacks {
-    onApprove: () => void
-    onReject: () => void
-}
-
 export function useToolCalling() {
     const { settings } = useSettings()
     const [toolState, setToolState] = useState<ToolCallState>({
         activeToolCalls: [] as ToolCall[],
         toolResults: [] as ToolCallResult[],
         isProcessingTools: false,
-        pendingApproval: null,
         researchMode: {
             isActive: false,
             currentRound: 0,
@@ -51,38 +41,15 @@ export function useToolCalling() {
             mandatory: false
         }
     })
-    const searchToolNames = getAllToolDefinitions()
-        .filter(tool => tool.category === 'search')
-        .map(tool => tool.name)
-
-    // Refs to store approval resolution callbacks
-    const approvalResolveRef = useRef<((approved: boolean) => void) | null>(null)
 
     const getEnabledToolsForProvider = () => {
         const allToolNames = getAllToolDefinitions().map(tool => tool.name)
-        let enabledTools: string[] | undefined = settings.enabledTools.length > 0
+        let enabledTools: string[] = settings.enabledTools.length > 0
             ? [...settings.enabledTools]
             : allToolNames
 
-        if (settings.enabledTools.length > 0) {
-            const mcpToolNames = allToolNames.filter(isMcpToolName)
-            for (const mcpTool of mcpToolNames) {
-                if (!enabledTools.includes(mcpTool)) {
-                    enabledTools.push(mcpTool)
-                }
-            }
-        }
-
-        if (settings.modelProvider === 'codex') {
-            enabledTools = [...searchToolNames]
-        }
-
         if (!settings.webSearchEnabled) {
-            if (enabledTools) {
-                enabledTools = enabledTools.filter(tool => tool !== 'web_search')
-            } else {
-                enabledTools = allToolNames.filter((name) => name !== 'web_search')
-            }
+            enabledTools = enabledTools.filter(tool => tool !== 'web_search')
         }
 
         return enabledTools
@@ -122,43 +89,9 @@ export function useToolCalling() {
     }
 
     /**
-     * Check if a tool requires approval based on toolApprovalMode setting
-     * Sensitive tools require approval based on settings
-     * **Validates: Requirements 4.3**
-     */
-    const shouldRequireApproval = useCallback((toolCall: ToolCall): boolean => {
-        const toolDef = getToolByName(toolCall.name)
-        const toolRequiresApproval = toolDef?.requiresApproval === true
-
-        switch (settings.toolApprovalMode) {
-            case 'always':
-                // All tools require approval
-                return true
-            case 'sensitive':
-                // Only tools marked with requiresApproval need approval
-                return toolRequiresApproval
-            case 'never':
-                // No tools require approval
-                return false
-            default:
-                // Default to sensitive mode
-                return toolRequiresApproval
-        }
-    }, [settings.toolApprovalMode])
-
-    /**
-     * Handle user approval response
-     */
-    const handleApprovalResponse = useCallback((approved: boolean) => {
-        if (approvalResolveRef.current) {
-            approvalResolveRef.current(approved)
-            approvalResolveRef.current = null
-        }
-        setToolState(prev => ({ ...prev, pendingApproval: null }))
-    }, [])
-
-    /**
      * Process tool calls from AI response
+     * Tools auto-execute without requiring user approval
+     * **Validates: Requirements 2.1**
      */
     const handleToolCalls = async (
         response: any,
@@ -185,15 +118,10 @@ export function useToolCalling() {
             // Build enabled tools list respecting webSearchEnabled
             const enabledToolsForProcessing = getEnabledToolsForProvider()
 
-            const { toolCalls, results, formattedResults } = await processToolCalls(response, {
+            const { results, formattedResults } = await processToolCalls(response, {
                 provider: settings.modelProvider,
                 model: settings.aiModel,
                 enabledTools: enabledToolsForProcessing,
-                requireApprovalFor: settings.toolApprovalMode === 'always'
-                    ? undefined  // Will check tool.requiresApproval
-                    : settings.toolApprovalMode === 'sensitive'
-                        ? undefined  // Will check tool.requiresApproval
-                        : [],
                 onToolStart: (toolCall) => {
                     setToolState(prev => ({
                         ...prev,
@@ -220,18 +148,6 @@ export function useToolCalling() {
                         }
                     })
                     onToolComplete?.(result)
-                },
-                onApprovalNeeded: async (toolCall) => {
-                    // Check if this tool needs approval based on settings
-                    if (!shouldRequireApproval(toolCall)) {
-                        return true // Auto-approve if not required
-                    }
-
-                    // Show approval dialog and wait for user response
-                    return new Promise<boolean>((resolve) => {
-                        approvalResolveRef.current = resolve
-                        setToolState(prev => ({ ...prev, pendingApproval: toolCall }))
-                    })
                 }
             })
 
@@ -244,7 +160,7 @@ export function useToolCalling() {
                 needsFollowUp: formattedResults.length > 0
             }
         } catch (error: any) {
-            setToolState(prev => ({ ...prev, isProcessingTools: false, pendingApproval: null }))
+            setToolState(prev => ({ ...prev, isProcessingTools: false }))
             console.error('Tool processing error:', error)
 
             return {
@@ -260,16 +176,10 @@ export function useToolCalling() {
      * Clear tool state
      */
     const clearToolState = () => {
-        // Clear any pending approval
-        if (approvalResolveRef.current) {
-            approvalResolveRef.current(false)
-            approvalResolveRef.current = null
-        }
         setToolState({
             activeToolCalls: [] as ToolCall[],
             toolResults: [] as ToolCallResult[],
             isProcessingTools: false,
-            pendingApproval: null,
             researchMode: {
                 isActive: false,
                 currentRound: 0,
@@ -460,8 +370,6 @@ Continue using web_search if you need more information, or provide your comprehe
         handleToolCalls,
         toolState,
         clearToolState,
-        handleApprovalResponse,
-        shouldRequireApproval,
         startResearchMode,
         getResearchContext
     }

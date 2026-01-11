@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { v4 as uuidv4 } from 'uuid'
+import { useSettings } from './SettingsContext'
 
 export interface ToolCallResult {
     toolCall: {
@@ -103,8 +103,10 @@ const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(und
 
 // Check if we're in Electron environment
 const isElectron = typeof window !== 'undefined' && window.ipcRenderer
+const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
+    const { settings } = useSettings()
     const [sessions, setSessions] = useState<ChatSession[]>([])
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
@@ -183,20 +185,47 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         saveSessions()
     }, [sessions, isInitialized])
 
+    // Restore last active chat session (optional)
+    useEffect(() => {
+        if (!isInitialized) return
+        if (currentSessionId) return
+        if (!settings.rememberLastChatSession) return
+
+        const rememberedId = localStorage.getItem(LAST_SESSION_ID_KEY)
+        if (!rememberedId) return
+        if (sessions.some(s => s.id === rememberedId)) {
+            setCurrentSessionId(rememberedId)
+        }
+    }, [currentSessionId, isInitialized, sessions, settings.rememberLastChatSession])
+
+    // Persist last active chat session (optional)
+    useEffect(() => {
+        if (!isInitialized) return
+        if (!settings.rememberLastChatSession) {
+            localStorage.removeItem(LAST_SESSION_ID_KEY)
+            return
+        }
+        if (currentSessionId) {
+            localStorage.setItem(LAST_SESSION_ID_KEY, currentSessionId)
+        } else {
+            localStorage.removeItem(LAST_SESSION_ID_KEY)
+        }
+    }, [currentSessionId, isInitialized, settings.rememberLastChatSession])
+
     const refreshSessions = useCallback(async () => {
         await loadSessions()
     }, [loadSessions])
 
     const createSession = useCallback((firstMessage?: string) => {
         const initialMessages: Message[] = firstMessage ? [{
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             role: 'user',
             content: firstMessage,
             timestamp: Date.now()
         }] : []
 
         const newSession: ChatSession = {
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             title: firstMessage ? (firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '')) : 'New Chat',
             messages: initialMessages,
             createdAt: Date.now(),
@@ -219,7 +248,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     const addMessageToSession = useCallback((sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
         const newMessage: Message = {
             ...message,
-            id: uuidv4(),
+            id: crypto.randomUUID(),
             timestamp: Date.now()
         }
 
@@ -274,6 +303,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }, [])
 
     const clearCurrentSession = useCallback(() => {
+        // Clear the remembered session so it doesn't auto-restore
+        localStorage.removeItem(LAST_SESSION_ID_KEY)
         setCurrentSessionId(null)
     }, [])
 
