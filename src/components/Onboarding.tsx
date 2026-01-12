@@ -72,19 +72,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             }
 
             // Save the API key to secure storage
+            const trimmedKey = apiKey.trim()
             const updates: any = { modelProvider: selectedProvider }
             if (selectedProvider === 'openrouter') {
-                await saveApiKeyToSecureStorage('openRouterApiKey', apiKey)
-                updates.openRouterApiKey = '' // Don't store in localStorage
+                await saveApiKeyToSecureStorage('openRouterApiKey', trimmedKey)
+                updates.openRouterApiKey = trimmedKey
             } else if (selectedProvider === 'perplexity') {
-                await saveApiKeyToSecureStorage('perplexityApiKey', apiKey)
-                updates.perplexityApiKey = ''
+                await saveApiKeyToSecureStorage('perplexityApiKey', trimmedKey)
+                updates.perplexityApiKey = trimmedKey
             } else if (selectedProvider === 'gemini') {
-                await saveApiKeyToSecureStorage('geminiApiKey', apiKey)
-                updates.geminiApiKey = ''
+                await saveApiKeyToSecureStorage('geminiApiKey', trimmedKey)
+                updates.geminiApiKey = trimmedKey
             } else if (selectedProvider === 'groq') {
-                await saveApiKeyToSecureStorage('groqApiKey', apiKey)
-                updates.groqApiKey = ''
+                await saveApiKeyToSecureStorage('groqApiKey', trimmedKey)
+                updates.groqApiKey = trimmedKey
             }
 
             updateSettings(updates)

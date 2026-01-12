@@ -17,6 +17,7 @@ export const themes: Record<string, Theme> = {
             surfaceHover: 'rgba(255, 255, 255, 0.05)',
             surfaceActive: 'rgba(255, 255, 255, 0.08)',
             surfacePressed: 'rgba(255, 255, 255, 0.1)',
+            surfaceSubtle: 'rgba(255, 255, 255, 0.02)',
             textPrimary: '#ffffff',
             textSecondary: '#f0f0f0',
             textTertiary: '#b0b0b0',
@@ -38,6 +39,7 @@ export const themes: Record<string, Theme> = {
             warningBg: 'rgba(251, 191, 36, 0.1)',
             info: '#3b82f6',
             infoBg: 'rgba(59, 130, 246, 0.1)',
+            favorite: '#FFD700',
             userMessageBg: 'linear-gradient(135deg, #ff7a50 0%, #ff5a30 100%)',
             userMessageText: '#ffffff',
             assistantMessageBg: 'rgba(27, 25, 19, 0.85)',
@@ -48,10 +50,12 @@ export const themes: Record<string, Theme> = {
             selectionText: '#ffffff',
             shadowSm: '0 1px 2px rgba(0, 0, 0, 0.3)',
             shadowMd: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)'
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            scrollbar: 'rgba(255, 255, 255, 0.1)',
+            scrollbarHover: 'rgba(255, 255, 255, 0.16)'
         }
     },
-    
+
     // =====================================
     // CLAUDE - Terminal-style with warm amber
     // =====================================
@@ -68,6 +72,7 @@ export const themes: Record<string, Theme> = {
             surfaceHover: 'rgba(217, 164, 72, 0.08)',
             surfaceActive: 'rgba(217, 164, 72, 0.12)',
             surfacePressed: 'rgba(217, 164, 72, 0.16)',
+            surfaceSubtle: 'rgba(217, 164, 72, 0.04)',
             textPrimary: '#E8E8E8',
             textSecondary: '#C9C9C9',
             textTertiary: '#8A8A8A',
@@ -85,10 +90,11 @@ export const themes: Record<string, Theme> = {
             errorBg: 'rgba(229, 91, 91, 0.12)',
             success: '#5DD879',
             successBg: 'rgba(93, 216, 121, 0.12)',
-            warning: '#D9A448',
-            warningBg: 'rgba(217, 164, 72, 0.12)',
+            warning: '#E88A3D',
+            warningBg: 'rgba(232, 138, 61, 0.12)',
             info: '#6B9FD4',
             infoBg: 'rgba(107, 159, 212, 0.12)',
+            favorite: '#E8C068',
             userMessageBg: 'linear-gradient(135deg, #D9A448 0%, #C49438 100%)',
             userMessageText: '#0D0D0D',
             assistantMessageBg: '#1A1A1A',
@@ -99,10 +105,12 @@ export const themes: Record<string, Theme> = {
             selectionText: '#0D0D0D',
             shadowSm: '0 1px 2px rgba(0, 0, 0, 0.5)',
             shadowMd: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)'
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            scrollbar: 'rgba(217, 164, 72, 0.2)',
+            scrollbarHover: 'rgba(217, 164, 72, 0.3)'
         }
     },
-    
+
     // =====================================
     // GREISH - Pure grey, black and white
     // =====================================
@@ -119,6 +127,7 @@ export const themes: Record<string, Theme> = {
             surfaceHover: 'rgba(255, 255, 255, 0.06)',
             surfaceActive: 'rgba(255, 255, 255, 0.09)',
             surfacePressed: 'rgba(255, 255, 255, 0.12)',
+            surfaceSubtle: 'rgba(255, 255, 255, 0.03)',
             textPrimary: '#F5F5F5',
             textSecondary: '#D4D4D4',
             textTertiary: '#A3A3A3',
@@ -128,10 +137,10 @@ export const themes: Record<string, Theme> = {
             borderHover: 'rgba(255, 255, 255, 0.12)',
             borderActive: 'rgba(255, 255, 255, 0.16)',
             borderSubtle: 'rgba(255, 255, 255, 0.04)',
-            accent: '#FFFFFF',
+            accent: '#D4D4D4',
             accentSecondary: '#E5E5E5',
-            accentHover: '#F0F0F0',
-            accentMuted: 'rgba(255, 255, 255, 0.15)',
+            accentHover: '#E8E8E8',
+            accentMuted: 'rgba(212, 212, 212, 0.2)',
             error: '#DC2626',
             errorBg: 'rgba(220, 38, 38, 0.15)',
             success: '#16A34A',
@@ -140,7 +149,8 @@ export const themes: Record<string, Theme> = {
             warningBg: 'rgba(202, 138, 4, 0.15)',
             info: '#2563EB',
             infoBg: 'rgba(37, 99, 235, 0.15)',
-            userMessageBg: 'linear-gradient(135deg, #FFFFFF 0%, #E5E5E5 100%)',
+            favorite: '#E5E5E5',
+            userMessageBg: 'linear-gradient(135deg, #D4D4D4 0%, #B8B8B8 100%)',
             userMessageText: '#1A1A1A',
             assistantMessageBg: '#262626',
             assistantMessageText: '#D4D4D4',
@@ -150,61 +160,12 @@ export const themes: Record<string, Theme> = {
             selectionText: '#1A1A1A',
             shadowSm: '0 1px 2px rgba(0, 0, 0, 0.4)',
             shadowMd: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)'
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            scrollbar: 'rgba(255, 255, 255, 0.15)',
+            scrollbarHover: 'rgba(255, 255, 255, 0.22)'
         }
     },
-    
-    // =====================================
-    // WATER - Refreshing oceanic blues
-    // =====================================
-    'water': {
-        id: 'water',
-        name: 'Water',
-        shortName: 'Water',
-        description: 'Refreshing oceanic blues inspired by crystal clear waters',
-        category: 'colorful',
-        isDark: true,
-        colors: {
-            background: '#0A1628',
-            surface: '#0F2744',
-            surfaceHover: 'rgba(56, 189, 248, 0.08)',
-            surfaceActive: 'rgba(56, 189, 248, 0.12)',
-            surfacePressed: 'rgba(56, 189, 248, 0.16)',
-            textPrimary: '#E0F7FA',
-            textSecondary: '#B2EBF2',
-            textTertiary: '#80DEEA',
-            textMuted: '#4DD0E1',
-            textInverse: '#0A1628',
-            border: 'rgba(56, 189, 248, 0.12)',
-            borderHover: 'rgba(56, 189, 248, 0.2)',
-            borderActive: 'rgba(56, 189, 248, 0.28)',
-            borderSubtle: 'rgba(56, 189, 248, 0.06)',
-            accent: '#38BDF8',
-            accentSecondary: '#22D3EE',
-            accentHover: '#0EA5E9',
-            accentMuted: 'rgba(56, 189, 248, 0.2)',
-            error: '#F87171',
-            errorBg: 'rgba(248, 113, 113, 0.12)',
-            success: '#34D399',
-            successBg: 'rgba(52, 211, 153, 0.12)',
-            warning: '#FBBF24',
-            warningBg: 'rgba(251, 191, 36, 0.12)',
-            info: '#38BDF8',
-            infoBg: 'rgba(56, 189, 248, 0.12)',
-            userMessageBg: 'linear-gradient(135deg, #38BDF8 0%, #0EA5E9 100%)',
-            userMessageText: '#0A1628',
-            assistantMessageBg: '#0F2744',
-            assistantMessageText: '#B2EBF2',
-            overlayBg: 'rgba(10, 22, 40, 0.85)',
-            dimmerBg: 'rgba(10, 22, 40, 0.6)',
-            selectionBg: 'rgba(56, 189, 248, 0.3)',
-            selectionText: '#0A1628',
-            shadowSm: '0 1px 2px rgba(0, 0, 0, 0.4)',
-            shadowMd: '0 4px 12px rgba(0, 0, 0, 0.4)',
-            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)'
-        }
-    },
-    
+
     // =====================================
     // CHATGPT - Clean dark theme inspired by ChatGPT
     // =====================================
@@ -221,6 +182,7 @@ export const themes: Record<string, Theme> = {
             surfaceHover: 'rgba(255, 255, 255, 0.06)',
             surfaceActive: 'rgba(255, 255, 255, 0.1)',
             surfacePressed: 'rgba(255, 255, 255, 0.14)',
+            surfaceSubtle: 'rgba(255, 255, 255, 0.02)',
             textPrimary: '#FFFFFF',
             textSecondary: '#E5E5E5',
             textTertiary: '#A3A3A3',
@@ -242,9 +204,10 @@ export const themes: Record<string, Theme> = {
             warningBg: 'rgba(245, 158, 11, 0.12)',
             info: '#3B82F6',
             infoBg: 'rgba(59, 130, 246, 0.12)',
+            favorite: '#FBBF24',
             userMessageBg: 'rgba(255, 255, 255, 0.08)',
             userMessageText: '#FFFFFF',
-            assistantMessageBg: 'transparent',
+            assistantMessageBg: 'rgba(0, 0, 0, 0.2)',
             assistantMessageText: '#E5E5E5',
             overlayBg: 'rgba(0, 0, 0, 0.7)',
             dimmerBg: 'rgba(0, 0, 0, 0.5)',
@@ -256,6 +219,171 @@ export const themes: Record<string, Theme> = {
             scrollbar: '#303030',
             scrollbarHover: '#3A3A3A'
         }
+    },
+
+    // =====================================
+    // LIGHT DEFAULT - Clean light theme
+    // =====================================
+    'light-default': {
+        id: 'light-default',
+        name: 'Light Default',
+        shortName: 'Light',
+        description: 'A clean light theme with soft purple accents',
+        category: 'classic',
+        isDark: false,
+        colors: {
+            background: '#FFFFFF',
+            surface: '#F5F5F7',
+            surfaceHover: 'rgba(0, 0, 0, 0.03)',
+            surfaceActive: 'rgba(0, 0, 0, 0.05)',
+            surfacePressed: 'rgba(0, 0, 0, 0.08)',
+            surfaceSubtle: 'rgba(0, 0, 0, 0.01)',
+            textPrimary: '#1D1D1F',
+            textSecondary: '#6E6E73',
+            textTertiary: '#86868B',
+            textMuted: '#AEAEB2',
+            textInverse: '#FFFFFF',
+            border: 'rgba(0, 0, 0, 0.08)',
+            borderHover: 'rgba(0, 0, 0, 0.12)',
+            borderActive: 'rgba(0, 0, 0, 0.16)',
+            borderSubtle: 'rgba(0, 0, 0, 0.04)',
+            accent: '#8B5CF6',
+            accentSecondary: '#06B6D4',
+            accentHover: '#7C3AED',
+            accentMuted: 'rgba(139, 92, 246, 0.15)',
+            error: '#EF4444',
+            errorBg: 'rgba(239, 68, 68, 0.1)',
+            success: '#22C55E',
+            successBg: 'rgba(34, 197, 94, 0.1)',
+            warning: '#F59E0B',
+            warningBg: 'rgba(245, 158, 11, 0.1)',
+            info: '#3B82F6',
+            infoBg: 'rgba(59, 130, 246, 0.1)',
+            favorite: '#F59E0B',
+            userMessageBg: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+            userMessageText: '#FFFFFF',
+            assistantMessageBg: '#F5F5F7',
+            assistantMessageText: '#1D1D1F',
+            overlayBg: 'rgba(0, 0, 0, 0.5)',
+            dimmerBg: 'rgba(0, 0, 0, 0.3)',
+            selectionBg: 'rgba(139, 92, 246, 0.25)',
+            selectionText: '#1D1D1F',
+            shadowSm: '0 1px 2px rgba(0, 0, 0, 0.05)',
+            shadowMd: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.12)',
+            scrollbar: '#D1D1D6',
+            scrollbarHover: '#C7C7CC'
+        }
+    },
+
+    // =====================================
+    // MATRIX - Classic green terminal aesthetic
+    // =====================================
+    'matrix': {
+        id: 'matrix',
+        name: 'Matrix',
+        shortName: 'Matrix',
+        description: 'Classic green terminal aesthetic inspired by The Matrix',
+        category: 'terminal',
+        isDark: true,
+        colors: {
+            background: '#0C0C0C',
+            surface: '#111111',
+            surfaceHover: 'rgba(100, 255, 100, 0.05)',
+            surfaceActive: 'rgba(100, 255, 100, 0.08)',
+            surfacePressed: 'rgba(100, 255, 100, 0.11)',
+            surfaceSubtle: 'rgba(100, 255, 100, 0.02)',
+            textPrimary: '#4AF626',
+            textSecondary: '#3DD021',
+            textTertiary: '#32AA1B',
+            textMuted: '#268514',
+            textInverse: '#0C0C0C',
+            border: 'rgba(74, 246, 38, 0.15)',
+            borderHover: 'rgba(74, 246, 38, 0.25)',
+            borderActive: 'rgba(74, 246, 38, 0.35)',
+            borderSubtle: 'rgba(74, 246, 38, 0.08)',
+            accent: '#4AF626',
+            accentSecondary: '#5CFF33',
+            accentHover: '#6CFF43',
+            accentMuted: 'rgba(74, 246, 38, 0.12)',
+            error: '#C43636',
+            errorBg: 'rgba(196, 54, 54, 0.12)',
+            success: '#4AF626',
+            successBg: 'rgba(74, 246, 38, 0.12)',
+            warning: '#C4941E',
+            warningBg: 'rgba(196, 148, 30, 0.12)',
+            info: '#4A9FF6',
+            infoBg: 'rgba(74, 159, 246, 0.12)',
+            favorite: '#5CFF33',
+            userMessageBg: 'rgba(74, 246, 38, 0.12)',
+            userMessageText: '#4AF626',
+            assistantMessageBg: 'rgba(0, 0, 0, 0.3)',
+            assistantMessageText: '#3DD021',
+            overlayBg: 'rgba(0, 0, 0, 0.85)',
+            dimmerBg: 'rgba(0, 0, 0, 0.5)',
+            selectionBg: 'rgba(74, 246, 38, 0.2)',
+            selectionText: '#0C0C0C',
+            shadowSm: '0 1px 2px rgba(0, 0, 0, 0.5)',
+            shadowMd: '0 4px 12px rgba(0, 0, 0, 0.4)',
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            scrollbar: 'rgba(74, 246, 38, 0.15)',
+            scrollbarHover: 'rgba(74, 246, 38, 0.25)'
+        }
+    },
+
+    // =====================================
+    // AURORA - Northern lights aesthetic
+    // =====================================
+    'aurora': {
+        id: 'aurora',
+        name: 'Aurora',
+        shortName: 'Aurora',
+        description: 'Northern lights inspired with ethereal green and purple gradients',
+        category: 'creative',
+        isDark: true,
+        colors: {
+            background: '#050A14',
+            surface: '#0B1221',
+            surfaceHover: 'rgba(168, 237, 138, 0.06)',
+            surfaceActive: 'rgba(168, 237, 138, 0.1)',
+            surfacePressed: 'rgba(168, 237, 138, 0.14)',
+            surfaceSubtle: 'rgba(168, 237, 138, 0.03)',
+            textPrimary: '#E8F5E9',
+            textSecondary: '#C8E6C9',
+            textTertiary: '#A5D6A7',
+            textMuted: '#81C784',
+            textInverse: '#050A14',
+            border: 'rgba(168, 237, 138, 0.12)',
+            borderHover: 'rgba(168, 237, 138, 0.2)',
+            borderActive: 'rgba(168, 237, 138, 0.28)',
+            borderSubtle: 'rgba(168, 237, 138, 0.06)',
+            accent: '#A8ED8A',
+            accentSecondary: '#D49BFF',
+            accentHover: '#C2F0B8',
+            accentMuted: 'rgba(168, 237, 138, 0.15)',
+            error: '#FF6B6B',
+            errorBg: 'rgba(255, 107, 107, 0.12)',
+            success: '#A8ED8A',
+            successBg: 'rgba(168, 237, 138, 0.12)',
+            warning: '#FFD93D',
+            warningBg: 'rgba(255, 217, 61, 0.12)',
+            info: '#7DD3FC',
+            infoBg: 'rgba(125, 211, 252, 0.12)',
+            favorite: '#FFD93D',
+            userMessageBg: 'linear-gradient(135deg, #A8ED8A 0%, #D49BFF 100%)',
+            userMessageText: '#050A14',
+            assistantMessageBg: 'rgba(11, 18, 33, 0.8)',
+            assistantMessageText: '#C8E6C9',
+            overlayBg: 'rgba(5, 10, 20, 0.85)',
+            dimmerBg: 'rgba(5, 10, 20, 0.6)',
+            selectionBg: 'rgba(168, 237, 138, 0.2)',
+            selectionText: '#050A14',
+            shadowSm: '0 1px 2px rgba(0, 0, 0, 0.4)',
+            shadowMd: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            shadowLg: '0 8px 24px rgba(0, 0, 0, 0.6)',
+            scrollbar: 'rgba(168, 237, 138, 0.15)',
+            scrollbarHover: 'rgba(168, 237, 138, 0.25)'
+        }
     }
 }
 
@@ -263,16 +391,18 @@ const THEME_CATEGORY_LABELS = {
     classic: 'Classic',
     colorful: 'Colorful',
     minimal: 'Minimal',
-    professional: 'Professional',
-    ai: 'AI Inspired'
+    ai: 'AI Inspired',
+    terminal: 'Terminal',
+    creative: 'Creative'
 } satisfies Record<Theme['category'], string>
 
 const THEME_CATEGORY_ORDER: Theme['category'][] = [
     'classic',
     'colorful',
     'minimal',
-    'professional',
-    'ai'
+    'ai',
+    'terminal',
+    'creative'
 ]
 
 const availableCategoryIds = new Set(Object.values(themes).map(theme => theme.category))

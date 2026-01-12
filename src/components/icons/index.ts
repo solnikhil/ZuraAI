@@ -89,3 +89,7 @@ export {
   Clipboard,
   Command
 } from 'lucide-react'
+
+// Animated icons
+export { default as SendIcon } from './SendIcon'
+export type { AnimatedIconHandle, AnimatedIconProps } from './types'

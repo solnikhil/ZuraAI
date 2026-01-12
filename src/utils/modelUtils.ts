@@ -62,7 +62,7 @@ const BADGE_PATTERNS = {
 function detectModelFamily(modelCode: string, modelName: string): keyof typeof MODEL_FAMILIES | null {
   const code = modelCode.toLowerCase()
   const name = modelName.toLowerCase()
-  
+
   for (const family of Object.keys(MODEL_FAMILIES) as (keyof typeof MODEL_FAMILIES)[]) {
     if (code.includes(family) || name.includes(family)) {
       return family
@@ -123,7 +123,7 @@ export function getModelAttributes(
         fontWeight: 600,
         color: '#fff'
       }
-    }, 
+    },
       React.createElement(Globe, { size: 8 }),
       React.createElement('span', null, 'Deep Research')
     )
@@ -162,12 +162,12 @@ export function getModelAttributes(
  */
 export function getModelIcon(modelName: string, size: number = 16): React.ReactNode {
   const name = modelName.toLowerCase()
-  
+
   const family = detectModelFamily(name, name)
   if (family) {
     return React.createElement(MODEL_FAMILIES[family].icon, { size })
   }
-  
+
   return React.createElement(MessageSquare, { size })
 }
 
@@ -179,12 +179,12 @@ export function getModelIcon(modelName: string, size: number = 16): React.ReactN
  */
 export function getModelColor(modelName: string): string {
   const name = modelName.toLowerCase()
-  
+
   const family = detectModelFamily(name, name)
   if (family) {
     return MODEL_FAMILIES[family].color
   }
-  
+
   return '#b0b0b0'
 }
 
@@ -198,28 +198,49 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
   const name = modelName.toLowerCase()
   const capabilities: ModelCapability[] = []
 
-  // Vision capability
-  if (name.includes('vision') || name.includes('4o') || name.includes('pro-vision')) {
+  // Vision capability - detect multimodal/image-capable models
+  if (
+    name.includes('vision') ||
+    name.includes('4o') ||
+    name.includes('pro-vision') ||
+    name.includes('gemini') ||  // All Gemini models support vision
+    name.includes('claude-3') || // Claude 3 models support vision
+    name.includes('claude-sonnet') ||
+    name.includes('claude-opus') ||
+    name.includes('gpt-4') ||  // GPT-4 family generally supports vision
+    name.includes('image') ||
+    name.includes('multimodal')
+  ) {
     capabilities.push('vision')
   }
 
-  // Code capability
-  if (name.includes('code') || name.includes('codestral') || name.includes('coder')) {
+  // Code/Function calling capability
+  if (
+    name.includes('code') ||
+    name.includes('codestral') ||
+    name.includes('coder') ||
+    name.includes('gpt-4') ||
+    name.includes('gpt-3.5') ||
+    name.includes('claude') ||
+    name.includes('gemini') ||
+    name.includes('mistral') ||
+    name.includes('llama-3')
+  ) {
     capabilities.push('code')
   }
 
   // Reasoning capability
-  if (name.includes('reasoning') || name.includes('o1') || name.includes('think')) {
+  if (name.includes('reasoning') || name.includes('o1') || name.includes('think') || name.includes('r1')) {
     capabilities.push('reasoning')
   }
 
   // Fast/turbo models
-  if (name.includes('flash') || name.includes('turbo') || name.includes('instant') || name.includes('fast')) {
+  if (name.includes('flash') || name.includes('turbo') || name.includes('instant') || name.includes('fast') || name.includes('lite')) {
     capabilities.push('fast')
   }
 
   // Online/web search capability
-  if (name.includes(':online') || name.includes('online')) {
+  if (name.includes(':online') || name.includes('online') || name.includes('sonar')) {
     capabilities.push('online')
   }
 

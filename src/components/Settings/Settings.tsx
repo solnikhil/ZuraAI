@@ -12,7 +12,6 @@ import { UsageSection } from './sections/UsageSection'
 import { ModelSection } from './sections/ModelSection'
 import { ApiKeysSection } from './sections/ApiKeysSection'
 import { AppearanceSection } from './sections/AppearanceSection'
-import { ToolsSection } from './sections/ToolsSection'
 import { CommandBarSection } from './sections/CommandBarSection'
 
 import { GraphRange, ActivityData } from './ActivityGraph'
@@ -174,7 +173,7 @@ export default function Settings({
 
   useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
 
-  // Check Ollama connection on mount
+  // Check Ollama connection
   const checkOllama = async () => {
     const connected = await checkOllamaStatus(pendingSettings.ollamaUrl)
     if (connected) {
@@ -184,6 +183,13 @@ export default function Settings({
       }
     }
   }
+
+  // Check Ollama connection on mount (regardless of model provider)
+  useEffect(() => {
+    void checkOllama()
+  }, []) // Run once on mount
+
+  // Also check Ollama when provider changes to ollama or URL changes
   useEffect(
     () => { if (pendingSettings.modelProvider === 'ollama') void checkOllama() },
     [pendingSettings.modelProvider, pendingSettings.ollamaUrl]
@@ -219,7 +225,7 @@ export default function Settings({
           )}
 
           {/* API Keys Section */}
-          {activeSection === 'preferences' && (
+          {(activeSection === 'preferences' || activeSection === 'tools') && (
             <ApiKeysSection
               openRouterApiKey={pendingSettings.openRouterApiKey}
               perplexityApiKey={pendingSettings.perplexityApiKey}
@@ -227,6 +233,7 @@ export default function Settings({
               groqApiKey={pendingSettings.groqApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
+              ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
               onChange={handleChange}
             />
           )}
@@ -250,14 +257,6 @@ export default function Settings({
             <AppearanceSection />
           )}
 
-          {/* Tools Section */}
-          {activeSection === 'tools' && (
-            <ToolsSection
-              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
-              tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
-              onChange={handleChange}
-            />
-          )}
 
           {/* Command Bar Section */}
           {activeSection === 'commandbar' && (

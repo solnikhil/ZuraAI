@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft } from './icons'
+import { Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -15,17 +15,30 @@ import {
   normalizeCommandQuery
 } from '../commandBar/suggestions'
 
-function getSuggestionIcon(suggestion: CommandBarSuggestion) {
-  if (suggestion.id === 'go-settings') return SettingsIcon
-  if (suggestion.id === 'go-chat') return LayoutDashboard
-  if (suggestion.id === 'new-chat') return Plus
-  if (suggestion.id === 'toggle-sidebar-hidden' || suggestion.id === 'toggle-sidebar-collapsed') return PanelLeft
+function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconClass: string } {
+  // Navigation actions
+  if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
-  if (suggestion.action.type === 'run_tool') {
-    return Search
+  // Create actions
+  if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
+
+  // Toggle actions
+  if (suggestion.id === 'toggle-sidebar-hidden' || suggestion.id === 'toggle-sidebar-collapsed') {
+    return { Icon: PanelLeft, iconClass: 'app-titlebar__commandbar-item-icon--toggle' }
   }
 
-  return Search
+  // Export actions
+  if (suggestion.id.startsWith('export-')) {
+    return { Icon: Search, iconClass: 'app-titlebar__commandbar-item-icon--export' }
+  }
+
+  // Tool actions
+  if (suggestion.action.type === 'run_tool') {
+    return { Icon: Search, iconClass: 'app-titlebar__commandbar-item-icon--tool' }
+  }
+
+  return { Icon: Search, iconClass: '' }
 }
 
 interface CommandBarHistoryEntry {
@@ -155,8 +168,37 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   const [query, setQuery] = useState('')
   const [isFocused, setIsFocused] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [history, setHistory] = useState<CommandBarHistoryEntry[]>(() => loadCommandBarHistory())
+
+  // Collapse state with localStorage persistence
+  const [recentsCollapsed, setRecentsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('zura-commandbar-recents-collapsed') === 'true'
+    } catch { return false }
+  })
+  const [shortcutsCollapsed, setShortcutsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('zura-commandbar-shortcuts-collapsed') === 'true'
+    } catch { return false }
+  })
+
+  const toggleRecentsCollapsed = () => {
+    setRecentsCollapsed(prev => {
+      const next = !prev
+      try { localStorage.setItem('zura-commandbar-recents-collapsed', String(next)) } catch { }
+      return next
+    })
+  }
+
+  const toggleShortcutsCollapsed = () => {
+    setShortcutsCollapsed(prev => {
+      const next = !prev
+      try { localStorage.setItem('zura-commandbar-shortcuts-collapsed', String(next)) } catch { }
+      return next
+    })
+  }
 
   const currentSession = useMemo(() => {
     return sessions.find(s => s.id === currentSessionId) || null
@@ -206,7 +248,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     return filtered.slice(0, maxRecents).map((entry) => ({
       id: entry.suggestionId,
       title: entry.title,
-      subtitle: entry.subtitle ? `${entry.subtitle} • Recent` : 'Recent',
+      subtitle: 'Recent',
       action: entry.action,
       score: 1000
     }))
@@ -222,7 +264,21 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     return merged.slice(0, maxSuggestions)
   }, [baseSuggestions, maxSuggestions, recentSuggestions])
 
-  const isOpen = isFocused && suggestions.length > 0
+  const shouldShowDropdown = isFocused && suggestions.length > 0
+  const isOpen = shouldShowDropdown || isClosing
+
+  // Handle closing animation
+  useEffect(() => {
+    if (!shouldShowDropdown && !isClosing) return
+    if (shouldShowDropdown) {
+      setIsClosing(false)
+      return
+    }
+    // Trigger closing animation
+    setIsClosing(true)
+    const timer = setTimeout(() => setIsClosing(false), 150)
+    return () => clearTimeout(timer)
+  }, [shouldShowDropdown, isClosing])
 
   useEffect(() => {
     setHighlightIndex(0)
@@ -256,18 +312,28 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Enter') return
+      if (event.key !== ' ') return
       if (!(event.ctrlKey || event.metaKey)) return
       if (event.shiftKey || event.altKey) return
 
       event.preventDefault()
-      setIsFocused(true)
-      focusInput()
+
+      // Toggle - if focused, close it; if not focused, open it
+      if (isFocused) {
+        setIsFocused(false)
+        setQuery('')
+        setHighlightIndex(0)
+        inputRef.current?.blur()
+      } else {
+        setIsFocused(true)
+        setHighlightIndex(0)
+        focusInput()
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [isFocused])
 
   const ensureDashboardView = (view: 'chat' | 'settings') => {
     if (dashboardView === view) return
@@ -514,7 +580,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     }
   }
 
-  const keyHint = navigator.platform.toLowerCase().includes('mac') ? '⌘K' : 'Ctrl K'
+  const keyHint = navigator.platform.toLowerCase().includes('mac') ? '⌘ Space' : 'Ctrl Space'
   const idlePlaceholderText = idlePlaceholder && idlePlaceholder.trim() ? idlePlaceholder : 'Search ZuraAI'
   const placeholder = isFocused ? 'Search ZuraAI' : idlePlaceholderText
 
@@ -523,9 +589,8 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const recentsToRender = recentsCount > 0 ? suggestions.slice(0, recentsCount) : []
   const otherSuggestionsToRender = suggestions.slice(recentsCount)
 
-  const renderSuggestionItem = (suggestion: CommandBarSuggestion, index: number) => {
+  const renderSuggestionItem = (suggestion: CommandBarSuggestion, index: number, isRecent: boolean = false) => {
     const isActive = index === highlightIndex
-    const Icon = getSuggestionIcon(suggestion)
 
     return (
       <div
@@ -543,12 +608,9 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
           void runSuggestion(suggestion)
         }}
       >
-        <div className="app-titlebar__commandbar-item-icon">
-          <Icon size={14} />
-        </div>
         <div className="app-titlebar__commandbar-item-text">
           <div className="app-titlebar__commandbar-item-title">{suggestion.title}</div>
-          {suggestion.subtitle && (
+          {!isRecent && suggestion.subtitle && (
             <div className="app-titlebar__commandbar-item-subtitle">{suggestion.subtitle}</div>
           )}
         </div>
@@ -605,21 +667,61 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       </div>
 
       {isOpen && (
-        <div className="app-titlebar__commandbar-dropdown" role="listbox">
+        <div
+          className={`app-titlebar__commandbar-dropdown ${isClosing ? 'app-titlebar__commandbar-dropdown--closing' : ''}`}
+          role="listbox"
+        >
           {hasRecentsSection && (
-            <div className="app-titlebar__commandbar-section">
-              <div className="app-titlebar__commandbar-section-label">Recent</div>
-            </div>
+            <>
+              <div
+                className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  toggleRecentsCollapsed()
+                }}
+              >
+                <div className="app-titlebar__commandbar-section-label">Recent</div>
+                <ChevronDown
+                  size={12}
+                  style={{
+                    transform: recentsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    opacity: 0.5
+                  }}
+                />
+              </div>
+              {!recentsCollapsed && recentsToRender.map((suggestion, index) =>
+                renderSuggestionItem(suggestion, index, true)
+              )}
+            </>
           )}
 
-          {recentsToRender.map((suggestion, index) => renderSuggestionItem(suggestion, index))}
-
-          {hasRecentsSection && otherSuggestionsToRender.length > 0 && (
-            <div className="app-titlebar__commandbar-divider" />
-          )}
-
-          {otherSuggestionsToRender.map((suggestion, index) =>
-            renderSuggestionItem(suggestion, recentsCount + index)
+          {otherSuggestionsToRender.length > 0 && (
+            <>
+              {hasRecentsSection && <div className="app-titlebar__commandbar-divider" />}
+              <div
+                className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  toggleShortcutsCollapsed()
+                }}
+              >
+                <div className="app-titlebar__commandbar-section-label">Shortcuts</div>
+                <ChevronDown
+                  size={12}
+                  style={{
+                    transform: shortcutsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.15s ease',
+                    opacity: 0.5
+                  }}
+                />
+              </div>
+              {!shortcutsCollapsed && otherSuggestionsToRender.map((suggestion, index) =>
+                renderSuggestionItem(suggestion, recentsCount + index, false)
+              )}
+            </>
           )}
         </div>
       )}

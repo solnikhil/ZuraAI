@@ -161,7 +161,7 @@ const defaultSettings: Settings = {
     todos: [],
     toolsEnabled: true,
     tavilyApiKey: '',
-    enabledTools: ['web_search'],
+    enabledTools: ['web_search', 'get_datetime'],
     webSearchEnabled: true,
     deepResearchEnabled: false,
     favoriteModels: [],
@@ -250,11 +250,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.rememberLastSettingsSection === undefined) parsed.rememberLastSettingsSection = defaultSettings.rememberLastSettingsSection
         if (parsed.rememberLastDashboardView === undefined) parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
         // Initialize commandBar settings if missing
-        if (!parsed.commandBar || typeof parsed.commandBar !== 'object') {
-            parsed.commandBar = defaultSettings.commandBar
-        } else {
-            parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
-        }
+        if (!parsed.commandBar) parsed.commandBar = defaultSettings.commandBar
 
         // Initialize configuredModels if missing or empty
         if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
@@ -301,6 +297,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
                     }))
                 }
+
             } catch (error) {
                 console.error('[SettingsContext] Failed to load API keys from secure storage:', error)
             }
@@ -308,7 +305,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         loadSecureKeys()
     }, []) // Only run on mount
 
-    // Auto-fetch Ollama models on startup and when the URL changes
+    // Auto-fetch Ollama models on startup
     useEffect(() => {
         const fetchOllamaModels = async () => {
             try {
@@ -326,20 +323,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             } catch { /* Ollama not available */ }
         }
         fetchOllamaModels()
-    }, [settings.ollamaUrl])
+    }, [])
 
     useEffect(() => {
-        // Persist non-sensitive settings only (never store API keys in localStorage).
-        const settingsToPersist: Settings = {
-            ...settings,
-            openRouterApiKey: '',
-            perplexityApiKey: '',
-            geminiApiKey: '',
-            groqApiKey: '',
-            tavilyApiKey: '',
-        }
+        // Save settings to localStorage
+        // We now keep API keys in localStorage as a fallback in case secure storage fails
+        // The secure storage is still the primary storage for keys (encrypted)
+        // But having them in localStorage ensures they're not lost on secure storage failures
+        localStorage.setItem('zura-settings', JSON.stringify(settings))
 
-        localStorage.setItem('zura-settings', JSON.stringify(settingsToPersist))
+        // Sync with main process (API keys are sent but main process doesn't store them)
+        if (window.ipcRenderer) {
+            window.ipcRenderer.send('settings-changed', settings)
+        }
     }, [settings])
 
     useLayoutEffect(() => {

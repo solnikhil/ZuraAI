@@ -137,35 +137,35 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     {
       id: 'go-chat',
       title: 'Go to Chat',
-      subtitle: 'Open the dashboard chat view',
+      subtitle: 'Dashboard',
       keywords: ['dashboard', 'home', 'conversation'],
       action: { type: 'open_dashboard_view', view: 'chat' }
     },
     {
       id: 'go-settings',
       title: 'Go to Settings',
-      subtitle: 'Open the dashboard settings view',
+      subtitle: 'Preferences & API Keys',
       keywords: ['preferences', 'config', 'api keys'],
       action: { type: 'open_dashboard_view', view: 'settings' }
     },
     {
       id: 'new-chat',
       title: 'New Chat',
-      subtitle: 'Start a fresh conversation',
+      subtitle: 'Start fresh',
       keywords: ['new', 'conversation', 'session'],
       action: { type: 'new_chat' }
     },
     {
       id: 'toggle-sidebar-hidden',
       title: 'Toggle Sidebar',
-      subtitle: 'Show or hide the sidebar',
+      subtitle: 'Show or hide',
       keywords: ['sidebar', 'layout', 'panel'],
       action: { type: 'toggle_sidebar_hidden' }
     },
     {
       id: 'toggle-sidebar-collapsed',
       title: 'Toggle Sidebar Collapse',
-      subtitle: 'Collapse or expand the sidebar',
+      subtitle: 'Expand or collapse',
       keywords: ['sidebar', 'layout', 'panel'],
       action: { type: 'toggle_sidebar_collapsed' }
     }
@@ -176,14 +176,14 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       {
         id: 'export-chat-markdown',
         title: 'Export Chat (Markdown)',
-        subtitle: 'Download the current chat as .md',
+        subtitle: 'Download as .md',
         keywords: ['export', 'download', 'markdown', 'md'],
         action: { type: 'export_chat', format: 'markdown' }
       },
       {
         id: 'export-chat-text',
         title: 'Export Chat (Text)',
-        subtitle: 'Download the current chat as .txt',
+        subtitle: 'Download as .txt',
         keywords: ['export', 'download', 'text', 'txt'],
         action: { type: 'export_chat', format: 'text' }
       }
@@ -214,7 +214,7 @@ export function getCommandBarSuggestions(
       results.push({
         id: 'quick-web-search',
         title: `Web Search: ${query}`,
-        subtitle: 'Search the web and add results to chat',
+        subtitle: 'Search & add to chat',
         keywords: ['search', 'web', 'tavily'],
         action: { type: 'run_tool', toolName: 'web_search', args: { query } },
         score: 40 + Math.min(query.trim().length, 20)

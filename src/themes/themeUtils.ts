@@ -6,6 +6,7 @@ const THEME_CSS_VAR_MAP = {
     surfaceHover: '--theme-surface-hover',
     surfaceActive: '--theme-surface-active',
     surfacePressed: '--theme-surface-pressed',
+    surfaceSubtle: '--theme-surface-subtle',
     textPrimary: '--theme-text-primary',
     textSecondary: '--theme-text-secondary',
     textTertiary: '--theme-text-tertiary',
@@ -27,6 +28,7 @@ const THEME_CSS_VAR_MAP = {
     warningBg: '--theme-warning-bg',
     info: '--theme-info',
     infoBg: '--theme-info-bg',
+    favorite: '--theme-favorite',
     userMessageBg: '--theme-user-message-bg',
     userMessageText: '--theme-user-message-text',
     assistantMessageBg: '--theme-assistant-message-bg',
@@ -40,20 +42,23 @@ const THEME_CSS_VAR_MAP = {
     shadowLg: '--theme-shadow-lg',
     scrollbar: '--theme-scrollbar',
     scrollbarHover: '--theme-scrollbar-hover'
-} satisfies Record<keyof ColorPalette, string>
+} as const
 
 type ThemeCssVar = (typeof THEME_CSS_VAR_MAP)[keyof typeof THEME_CSS_VAR_MAP]
 
+// All ColorPalette keys including optional ones
+type AllColorPaletteKeys = (keyof ColorPalette) | 'scrollbar' | 'scrollbarHover'
+
 export function getThemeCssVariables(theme: Theme): Record<ThemeCssVar, string> {
     const cssVars = {} as Record<ThemeCssVar, string>
-    const entries = Object.entries(THEME_CSS_VAR_MAP) as Array<[keyof ColorPalette, ThemeCssVar]>
+    const entries = Object.entries(THEME_CSS_VAR_MAP) as Array<[AllColorPaletteKeys, ThemeCssVar]>
 
     for (const [colorKey, cssVar] of entries) {
-        const themeColor = theme.colors[colorKey]
+        const themeColor = theme.colors[colorKey as keyof ColorPalette]
         const fallback =
             colorKey === 'scrollbar' ? theme.colors.border :
-            colorKey === 'scrollbarHover' ? theme.colors.borderHover :
-            theme.colors.border
+                colorKey === 'scrollbarHover' ? theme.colors.borderHover :
+                    theme.colors.border
 
         cssVars[cssVar] = themeColor ?? fallback
     }

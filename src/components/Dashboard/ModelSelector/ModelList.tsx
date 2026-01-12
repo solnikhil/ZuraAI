@@ -2,12 +2,12 @@
  * ModelList component - renders the list of models
  * 
  * @module ModelSelector/ModelList
- * Requirements: 3.2
+ * Requirements: 3.2 - Matches t3.chat design
  */
 
 import React, { useState } from 'react'
-import { Check, Star, Search, MessageSquare } from 'lucide-react'
-import { getModelAttributes } from '../../../utils/modelUtils'
+import { Check, Star, Search, Eye, Code, Info, Zap, Globe, Brain, Sparkles } from 'lucide-react'
+import { getModelAttributes, detectModelCapabilities } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
 
@@ -30,6 +30,50 @@ export interface ModelListProps {
 }
 
 /**
+ * Get description for a model based on its attributes
+ */
+function getModelDescription(model: ModelWithProvider): string {
+  const name = model.displayName.toLowerCase()
+  const code = model.code.toLowerCase()
+
+  // Provider-specific descriptions
+  if (model.provider === 'gemini') {
+    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
+    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
+    return 'Google AI model with multimodal capabilities'
+  }
+
+  if (model.provider === 'openrouter') {
+    if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
+    if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
+    if (code.includes('gpt-5')) return "OpenAI's next-generation language model"
+    if (code.includes('llama')) return 'Meta AI open source model'
+    if (code.includes('mistral')) return 'Efficient European AI model'
+    if (code.includes('deepseek')) return 'Advanced reasoning with deep thinking'
+    if (code.includes('grok')) return 'xAI model with real-time knowledge'
+    if (code.includes('kimi')) return 'Enhanced version with longer context'
+    if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
+    return 'Available via OpenRouter'
+  }
+
+  if (model.provider === 'perplexity') {
+    if (name.includes('deep research')) return 'In-depth research with citations'
+    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
+    return 'Real-time web search powered'
+  }
+
+  if (model.provider === 'groq') {
+    return 'Ultra-fast inference on Groq hardware'
+  }
+
+  if (model.provider === 'ollama') {
+    return 'Running locally on your machine'
+  }
+
+  return `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} model`
+}
+
+/**
  * ModelList component
  * Renders a list of models with selection and favorite functionality
  */
@@ -43,8 +87,8 @@ export function ModelList({
 }: ModelListProps): React.ReactElement {
   if (models.length === 0) {
     return (
-      <div style={{ 
-        padding: '24px 16px', 
+      <div style={{
+        padding: '24px 16px',
         textAlign: 'center',
         color: '#666'
       }}>
@@ -55,10 +99,10 @@ export function ModelList({
   }
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      gap: '2px',
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
       animation: 'fadeIn 0.2s ease',
       position: 'relative',
       zIndex: 2
@@ -92,7 +136,7 @@ interface ModelItemProps {
 }
 
 /**
- * ModelItem component - renders a single model item
+ * ModelItem component - renders a single model item (t3.chat style)
  */
 function ModelItem({
   model,
@@ -101,105 +145,190 @@ function ModelItem({
   onSelect,
   onToggleFavorite
 }: ModelItemProps): React.ReactElement {
-  const { color } = getModelAttributes(model)
+  const { color, badge } = getModelAttributes(model)
+  const capabilities = detectModelCapabilities(model.code + ' ' + model.displayName)
+  const hasVision = capabilities.includes('vision')
+  const hasCode = capabilities.includes('code')
+  const description = getModelDescription(model)
 
   return (
     <div
       onClick={(e) => onSelect(model, e)}
       onMouseDown={(e) => e.stopPropagation()}
-      className={`compact-model-item ${isActive ? 'compact-model-item-active' : ''}`}
+      className={`model-item-t3 ${isActive ? 'model-item-t3-active' : ''}`}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        gap: '12px',
         padding: '10px 12px',
         borderRadius: '10px',
-        background: isActive ? 'var(--theme-surface-hover)' : 'transparent',
-        border: isActive ? '1px solid var(--theme-border)' : '1px solid transparent',
+        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
         cursor: 'pointer',
         minWidth: 0,
-        flexShrink: 0,
         transition: 'all 0.15s ease'
       }}
       onMouseEnter={e => {
-        if (!isActive) e.currentTarget.style.background = 'var(--theme-surface-hover)'
-        const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
-        if (starBtn) starBtn.style.opacity = '1'
+        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
       }}
       onMouseLeave={e => {
         if (!isActive) e.currentTarget.style.background = 'transparent'
-        const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
-        if (starBtn && !isFavorite) starBtn.style.opacity = '0'
       }}
     >
       {/* Provider Logo/Icon */}
-      <div style={{ 
-        width: '32px', 
-        height: '32px', 
-        borderRadius: '8px', 
-        background: `linear-gradient(145deg, ${color}25, transparent)`,
+      <div style={{
+        width: '32px',
+        height: '32px',
+        borderRadius: '8px',
+        background: `linear-gradient(145deg, ${color}20, transparent)`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
         overflow: 'hidden'
       }}>
-        <ModelIcon model={model} color={color} size={24} />
+        <ModelIcon model={model} color={color} size={22} />
       </div>
-      
+
       {/* Model Info */}
-      <div style={{ 
-        flex: 1, 
+      <div style={{
+        flex: 1,
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         gap: '2px'
       }}>
-        <span style={{ 
-          fontSize: '0.85rem', 
-          color: isActive ? 'var(--theme-text-primary)' : 'var(--theme-text-secondary)',
-          fontWeight: 500,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
+        {/* Top row: Name + Favorite Star + Badge */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          minWidth: 0
         }}>
-          {removeEmojis(model.displayName)}
-        </span>
-        <span style={{ 
-          fontSize: '0.7rem', 
+          <span style={{
+            fontSize: '0.85rem',
+            color: 'var(--theme-text-primary)',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {removeEmojis(model.displayName)}
+          </span>
+
+          {/* Inline Favorite Star */}
+          <button
+            className={`star-btn-inline ${isFavorite ? 'favorited' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite(model.code, e)
+            }}
+            style={{
+              padding: '2px',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
+              opacity: isFavorite ? 1 : 0.4,
+              transition: 'all 0.15s ease',
+              flexShrink: 0
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.opacity = '1'
+              e.currentTarget.style.transform = 'scale(1.1)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.opacity = isFavorite ? '1' : '0.4'
+              e.currentTarget.style.transform = 'scale(1)'
+            }}
+          >
+            <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+          </button>
+
+          {/* Badge (if any) */}
+          {badge && (
+            <div style={{ flexShrink: 0 }}>
+              {badge}
+            </div>
+          )}
+        </div>
+
+        {/* Description line */}
+        <span style={{
+          fontSize: '0.7rem',
           color: 'var(--theme-text-muted)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           opacity: 0.7
         }}>
-          {model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} model
+          {description}
         </span>
       </div>
-      
-      {/* Active indicator or Favorite */}
-      {isActive ? (
-        <Check size={14} color="var(--theme-accent)" />
-      ) : (
-        <button
-          className={`star-btn ${isFavorite ? 'favorited' : ''}`}
-          onClick={(e) => onToggleFavorite(model.code, e)}
+
+      {/* Feature Badges (Right side) */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        flexShrink: 0
+      }}>
+        {/* Vision Badge */}
+        {hasVision && (
+          <div
+            title="Supports vision/images"
+            style={{
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--theme-text-muted)',
+              opacity: 0.6
+            }}
+          >
+            <Eye size={14} />
+          </div>
+        )}
+
+        {/* Function Calling Badge */}
+        {hasCode && (
+          <div
+            title="Supports function calling"
+            style={{
+              padding: '4px',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--theme-text-muted)',
+              opacity: 0.6
+            }}
+          >
+            <Code size={14} />
+          </div>
+        )}
+
+        {/* Info Button */}
+        <div
+          title="Model information"
           style={{
-            opacity: isFavorite ? 1 : 0,
             padding: '4px',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
             borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#FFD700'
+            color: 'var(--theme-text-muted)',
+            opacity: 0.4,
+            cursor: 'pointer'
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <Star size={14} fill={isFavorite ? '#FFD700' : 'none'} />
-        </button>
-      )}
+          <Info size={14} />
+        </div>
+      </div>
     </div>
   )
 }
@@ -207,14 +336,14 @@ function ModelItem({
 /**
  * ModelIcon component - renders provider logo with fallback
  */
-function ModelIcon({ 
-  model, 
-  color, 
-  size = 24 
-}: { 
+function ModelIcon({
+  model,
+  color,
+  size = 24
+}: {
   model: ModelWithProvider
   color: string
-  size?: number 
+  size?: number
 }): React.ReactElement {
   const [imgError, setImgError] = useState(false)
 
@@ -224,15 +353,23 @@ function ModelIcon({
         src={`/provider-logos/${model.provider}.png`}
         alt={model.displayName}
         onError={() => setImgError(true)}
-        style={{ 
-          width: `${size}px`, 
-          height: `${size}px`, 
-          objectFit: 'contain', 
-          borderRadius: '6px' 
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          objectFit: 'contain',
+          borderRadius: '6px'
         }}
       />
     )
   }
+
+  // Fallback icon based on model name
+  const name = model.displayName.toLowerCase()
+  let FallbackIcon = Sparkles
+
+  if (name.includes('gpt') || name.includes('openai')) FallbackIcon = Zap
+  else if (name.includes('claude')) FallbackIcon = Brain
+  else if (name.includes('llama')) FallbackIcon = Globe
 
   return (
     <div style={{
@@ -241,7 +378,7 @@ function ModelIcon({
       justifyContent: 'center',
       color: color
     }}>
-      <MessageSquare size={size === 24 ? 20 : 14} />
+      <FallbackIcon size={size * 0.75} />
     </div>
   )
 }

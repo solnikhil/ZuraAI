@@ -25,17 +25,31 @@ const STORAGE_KEYS = {
     sidebarHidden: 'zura-ui:sidebarHidden',
 } as const
 
+const VALID_SETTINGS_SECTIONS = new Set<string>([
+    'usage',
+    'models',
+    'themes',
+    'preferences',
+    'commandbar',
+])
+
+function normalizeSettingsSection(section: string | null): string | null {
+    if (!section) return null
+    if (section === 'tools') return 'preferences'
+    return VALID_SETTINGS_SECTIONS.has(section) ? section : null
+}
+
 function readStoredDashboardView(): DashboardView | null {
+
     const raw = localStorage.getItem(STORAGE_KEYS.dashboardView)
     if (raw === 'chat' || raw === 'settings') return raw
     return null
 }
 
 function readStoredSettingsSection(): string | null {
-    const raw = localStorage.getItem(STORAGE_KEYS.settingsSection)
-    if (!raw) return null
-    return raw
+    return normalizeSettingsSection(localStorage.getItem(STORAGE_KEYS.settingsSection))
 }
+
 
 function readStoredBoolean(key: string): boolean | null {
     const raw = localStorage.getItem(key)
@@ -90,8 +104,9 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const setActiveSettingsSection = useCallback((section: string) => {
-        setActiveSettingsSectionState(section)
+        setActiveSettingsSectionState(normalizeSettingsSection(section) ?? 'usage')
     }, [])
+
 
     useEffect(() => {
         if (!settings.rememberLastDashboardView) {

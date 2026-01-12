@@ -94,40 +94,90 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let savedToolResults: any = null
     let localThinkingBlocks: ThinkingBlock[] = []
 
-    for await (const chunk of streamOllamaCompletion(
-      settings.ollamaUrl,
-      settings.aiModel,
-      optimizedHistory,
-      { temperature: settings.temperature, tools: ollamaTools }
-    )) {
-      if (chunk.message?.content) {
-        accumulatedContent += chunk.message.content
-      }
+    try {
+      for await (const chunk of streamOllamaCompletion(
+        settings.ollamaUrl,
+        settings.aiModel,
+        optimizedHistory,
+        { temperature: settings.temperature, tools: ollamaTools }
+      )) {
+        if (chunk.message?.content) {
+          accumulatedContent += chunk.message.content
+        }
 
-      if (chunk.message) {
-        finalMessage = chunk.message
-        if ((chunk.message as any)?.tool_calls?.length > 0) {
-          hasToolCalls = true
+        if (chunk.message) {
+          finalMessage = chunk.message
+          if ((chunk.message as any)?.tool_calls?.length > 0) {
+            hasToolCalls = true
+          }
+        }
+
+        if (chunk.done) {
+          isDone = true
+          finalUsage = {
+            inputTokens: chunk.prompt_eval_count || 0,
+            outputTokens: chunk.eval_count || 0,
+            totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+          }
+        }
+
+        const now = Date.now()
+        if (now - lastUpdateTime >= UPDATE_INTERVAL && !isDone) {
+          updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+          lastUpdateTime = now
         }
       }
 
-      if (chunk.done) {
-        isDone = true
+      updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+    } catch (streamError: any) {
+      console.error('Ollama streaming failed, trying non-streaming:', streamError)
+      
+      // Fallback to non-streaming
+      const nonStreamingResponse = await fetch(`${settings.ollamaUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: settings.aiModel,
+          messages: optimizedHistory,
+          stream: false,
+          tools: ollamaTools,
+          tool_choice: ollamaTools ? 'auto' : undefined,
+          options: { temperature: settings.temperature }
+        })
+      })
+
+      if (nonStreamingResponse.ok) {
+        const data = await nonStreamingResponse.json()
+        accumulatedContent = data.message?.content || ''
         finalUsage = {
-          inputTokens: chunk.prompt_eval_count || 0,
-          outputTokens: chunk.eval_count || 0,
-          totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+          inputTokens: data.prompt_eval_count || 0,
+          outputTokens: data.eval_count || 0,
+          totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0)
         }
-      }
-
-      const now = Date.now()
-      if (now - lastUpdateTime >= UPDATE_INTERVAL && !isDone) {
+        if (data.message?.tool_calls?.length > 0) {
+          hasToolCalls = true
+          finalMessage = data.message
+        }
         updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
-        lastUpdateTime = now
+      } else {
+        throw new Error(`Ollama API Error: ${nonStreamingResponse.statusText}`)
       }
     }
 
     updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+
+    if (!accumulatedContent) {
+      // If still no content, return empty
+      const endTime = performance.now()
+      const latency = Math.round(endTime - startTime)
+      updateStreamingMessage(targetSessionId, streamingMessageId, {
+        content: '',
+        model: `ollama/${settings.aiModel}`,
+        latency,
+        usage: finalUsage
+      })
+      return { content: '', model: `ollama/${settings.aiModel}` }
+    }
 
     // Handle tool calls
     if (canUseTools && hasToolCalls && finalMessage?.tool_calls?.length > 0) {

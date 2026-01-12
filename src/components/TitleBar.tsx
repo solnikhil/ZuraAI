@@ -113,14 +113,6 @@ export default function TitleBar() {
                         </button>
                     </div>
                 )}
-                {showAppName && (
-                    <img
-                        className="app-titlebar__logo"
-                        src="/sidebar-logo.png"
-                        alt="Zura"
-                        draggable={false}
-                    />
-                )}
                 {hasUnsavedSettings && dashboardView === 'settings' && (
                     <span className="app-titlebar__unsaved" title="Unsaved changes" />
                 )}
@@ -131,7 +123,7 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__right">
-                {showModel && (
+                {showModel && dashboardView !== 'settings' && (
                     <span className="app-titlebar__model no-drag" title={settings.aiModel}>
                         {modelDisplayName}
                     </span>

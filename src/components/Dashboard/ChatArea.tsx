@@ -157,7 +157,7 @@ export default function ChatArea() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '32px',
+          gap: '16px',
           maxWidth: '600px',
           width: '100%'
         }}>
@@ -189,9 +189,9 @@ export default function ChatArea() {
 
         <style>{`
           .zura-title {
-            font-size: 3rem;
+            font-size: 4rem;
             font-weight: 800;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.03em;
           }
         `}</style>
       </div>
@@ -276,22 +276,6 @@ export default function ChatArea() {
 
           <div ref={messagesEndRef} />
         </div>
-      </div>
-
-      {/* zura Title */}
-      <div style={{ 
-        textAlign: 'center', 
-        paddingTop: '16px',
-        paddingBottom: '8px'
-      }}>
-        <GradientText
-          animationSpeed={4}
-          showBorder={false}
-          useThemeAccent={true}
-          className="zura-title"
-        >
-          zura
-        </GradientText>
       </div>
 
       {/* Input Area */}

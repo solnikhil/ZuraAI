@@ -6,7 +6,7 @@
  * Requirements: 2.4
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 
 /**
@@ -23,6 +23,8 @@ export interface ApiKeysSectionProps {
   groqApiKey: string
   /** Tavily API key for web search */
   tavilyApiKey: string
+  /** Ollama server URL */
+  ollamaUrl: string
   /** Whether tools are enabled */
   toolsEnabled: boolean
   /** Callback when settings change */
@@ -32,6 +34,7 @@ export interface ApiKeysSectionProps {
     geminiApiKey: string
     groqApiKey: string
     tavilyApiKey: string
+    ollamaUrl: string
     toolsEnabled: boolean
   }>) => void
 }
@@ -96,6 +99,144 @@ function ApiKeyInput({ label, value, placeholder, onChange }: ApiKeyInputProps):
 }
 
 /**
+ * Ollama connection section with check button
+ */
+interface OllamaSectionProps {
+  ollamaUrl: string
+  onChange: (changes: { ollamaUrl?: string }) => void
+}
+
+function OllamaSection({ ollamaUrl, onChange }: OllamaSectionProps): React.ReactElement {
+  const [status, setStatus] = useState<'idle' | 'checking' | 'connected' | 'error'>('idle')
+  const [modelCount, setModelCount] = useState(0)
+  const [errorMessage, setErrorMessage] = useState('')
+
+  const checkConnection = async () => {
+    if (!ollamaUrl || ollamaUrl.trim() === '') {
+      setStatus('error')
+      setErrorMessage('Please enter Ollama URL')
+      return
+    }
+
+    setStatus('checking')
+    setErrorMessage('')
+
+    try {
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      const response = await fetch(`${ollamaUrl}/api/tags`, { 
+        method: 'GET',
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
+        const data = await response.json()
+        const models = data.models || []
+        setModelCount(models.length)
+        setStatus('connected')
+      } else {
+        setStatus('error')
+        setErrorMessage('Could not connect to Ollama')
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setStatus('error')
+        setErrorMessage('Connection timed out (5s)')
+      } else {
+        setStatus('error')
+        setErrorMessage('Connection failed. Is Ollama running?')
+      }
+    }
+  }
+
+  // Check connection on mount and when URL changes
+  useEffect(() => {
+    if (ollamaUrl && ollamaUrl.trim() !== '') {
+      void checkConnection()
+    }
+  }, [ollamaUrl])
+
+  return (
+    <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 className="section-head" style={{ marginBottom: 0 }}>Ollama (Local)</h3>
+        {status === 'connected' && (
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '4px 10px',
+            background: 'rgba(34, 197, 94, 0.15)',
+            color: '#22c55e',
+            borderRadius: 12,
+            fontWeight: 500
+          }}>
+            ●  Connected • {modelCount} models
+          </span>
+        )}
+        {status === 'checking' && (
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '4px 10px',
+            background: 'rgba(59, 130, 246, 0.15)',
+            color: '#60a5fa',
+            borderRadius: 12,
+            fontWeight: 500
+          }}>
+            ●  Checking...
+          </span>
+        )}
+        {status === 'error' && (
+          <span style={{
+            fontSize: '0.75rem',
+            padding: '4px 10px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            color: '#ef4444',
+            borderRadius: 12,
+            fontWeight: 500
+          }}>
+            ●  {errorMessage}
+          </span>
+        )}
+      </div>
+      <div className="section-desc" style={{ marginBottom: 12 }}>
+        Connect to your local Ollama instance. Make sure Ollama is running.
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <input
+          type="text"
+          className="setting-input-scira"
+          value={ollamaUrl}
+          onChange={e => onChange({ ollamaUrl: e.target.value })}
+          placeholder="http://localhost:11434"
+          style={{ flex: 1 }}
+        />
+        <button
+          onClick={checkConnection}
+          disabled={status === 'checking'}
+          style={{
+            padding: '0 16px',
+            background: status === 'checking' ? 'var(--theme-surface)' : 'var(--theme-accent)',
+            border: 'none',
+            color: '#fff',
+            borderRadius: '10px',
+            cursor: status === 'checking' ? 'default' : 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            transition: 'all 0.2s ease',
+            opacity: status === 'checking' ? 0.7 : 1
+          }}
+        >
+          {status === 'checking' ? 'Checking...' : 'Check'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Available tools list
  */
 const AVAILABLE_TOOLS = [
@@ -112,6 +253,7 @@ export function ApiKeysSection({
   geminiApiKey,
   groqApiKey,
   tavilyApiKey,
+  ollamaUrl,
   toolsEnabled,
   onChange
 }: ApiKeysSectionProps): React.ReactElement {
@@ -152,6 +294,9 @@ export function ApiKeysSection({
           />
         </div>
       </div>
+
+      {/* Ollama Section */}
+      <OllamaSection ollamaUrl={ollamaUrl} onChange={onChange} />
 
       {/* Tools Toggle */}
       <div className="settings-section-card" style={{ marginTop: 24 }}>
