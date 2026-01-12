@@ -256,8 +256,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      const key = event.key.toLowerCase()
-      if (key !== 'k') return
+      if (event.key !== 'Enter') return
       if (!(event.ctrlKey || event.metaKey)) return
       if (event.shiftKey || event.altKey) return
 
