@@ -28,13 +28,13 @@ export function createOverlayWindow(showImmediately = false): BrowserWindow | nu
     }
 
     const primaryDisplay = screen.getPrimaryDisplay()
-    const { width, height } = primaryDisplay.workAreaSize
+    const { x, y, width, height } = primaryDisplay.bounds
 
     overlayWin = new BrowserWindow({
         width,
         height,
-        x: 0,
-        y: 0,
+        x,
+        y,
         transparent: true,
         frame: false,
         alwaysOnTop: true,

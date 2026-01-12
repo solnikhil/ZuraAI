@@ -190,16 +190,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     )
   }
 
-  // Tools that don't need extra input
-  if (ctx.toolsEnabled) {
-    suggestions.push({
-      id: 'tool-get-datetime',
-      title: 'Get Date/Time',
-      subtitle: 'Insert the current local time',
-      keywords: ['time', 'date', 'clock'],
-      action: { type: 'run_tool', toolName: 'get_datetime', args: { format: 'full' } }
-    })
-  }
 
   return suggestions
 }
@@ -219,20 +209,7 @@ export function getCommandBarSuggestions(
 
   // Quick actions (only when not in commands-only mode)
   if (!commandsOnly && query) {
-    const url = ctx.toolsEnabled ? normalizeUrlCandidate(query) : null
-
-    if (ctx.toolsEnabled && url) {
-      results.push({
-        id: 'quick-fetch-url',
-        title: `Fetch URL: ${url}`,
-        subtitle: 'Read page content and add it to chat',
-        keywords: ['fetch', 'read', 'url'],
-        action: { type: 'run_tool', toolName: 'fetch_url', args: { url } },
-        score: 90
-      })
-    }
-
-    // Keep web search as a convenient fallback, but don’t let it beat clear commands.
+    // Quick web search action
     if (ctx.toolsEnabled && ctx.webSearchEnabled && query.trim().length >= 3) {
       results.push({
         id: 'quick-web-search',

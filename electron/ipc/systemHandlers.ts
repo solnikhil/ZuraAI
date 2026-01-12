@@ -1,159 +1,164 @@
 import { ipcMain, BrowserWindow, desktopCapturer, screen } from 'electron'
 import {
-    getMainWindow,
-    setTitleBarOverlay,
-    createMainWindow,
-    getOverlayWindow,
-    hideOverlay,
-    showOverlay,
-    setCurrentScreenshot,
-    getCurrentScreenshot,
-    clearScreenshot,
-    sendSettingsToOverlay
+  setTitleBarOverlay,
+  createMainWindow,
+  getOverlayWindow,
+  hideOverlay,
+  setCurrentScreenshot,
+  getCurrentScreenshot,
+  clearScreenshot,
 } from '../windows'
+
+const MAX_SCREENSHOT_EDGE = 2560
+const MAX_CROP_EDGE = 1536
+const JPEG_QUALITY = 85
+
+function clampNumber(value: unknown, min: number, max: number): number {
+  const num = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(num)) return min
+  return Math.min(max, Math.max(min, num))
+}
 
 /**
  * Register all system IPC handlers
  */
 export function registerSystemHandlers(): void {
-    // Titlebar overlay handler (Windows only)
-    ipcMain.on('set-titlebar-overlay', (_event, overlay) => {
-        if (process.platform !== 'win32') return
+  // Titlebar overlay handler (Windows only)
+  ipcMain.on('set-titlebar-overlay', (_event, overlay) => {
+    if (process.platform !== 'win32') return
 
-        const color = overlay?.color
-        const symbolColor = overlay?.symbolColor
-        const height = overlay?.height
+    const color = overlay?.color
+    const symbolColor = overlay?.symbolColor
+    const height = overlay?.height
 
-        if (typeof color !== 'string' || typeof symbolColor !== 'string') return
+    if (typeof color !== 'string' || typeof symbolColor !== 'string') return
 
-        const parsedHeight = typeof height === 'number' && Number.isFinite(height) ? Math.round(height) : undefined
-        const safeHeight = parsedHeight !== undefined && parsedHeight >= 28 && parsedHeight <= 64 ? parsedHeight : undefined
+    const parsedHeight = typeof height === 'number' && Number.isFinite(height) ? Math.round(height) : undefined
+    const safeHeight = parsedHeight !== undefined && parsedHeight >= 28 && parsedHeight <= 64 ? parsedHeight : undefined
 
-        setTitleBarOverlay(color, symbolColor, safeHeight)
+    setTitleBarOverlay(color, symbolColor, safeHeight)
+  })
+
+  // Screen capture handler
+  ipcMain.handle('capture-screen', async () => {
+    const overlayWin = getOverlayWindow()
+    overlayWin?.hide()
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const displayBounds = screen.getPrimaryDisplay().bounds
+    const maxEdge = Math.max(displayBounds.width, displayBounds.height)
+    const scale = Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(1, maxEdge))
+
+    const thumbnailSize = {
+      width: Math.max(1, Math.round(displayBounds.width * scale)),
+      height: Math.max(1, Math.round(displayBounds.height * scale)),
+    }
+
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize,
+      fetchWindowIcons: false,
     })
 
-    // Settings changed handler
-    ipcMain.on('settings-changed', (_event, settings) => {
-        (global as any).tavilyApiKey = settings.tavilyApiKey || undefined
+    const primarySource = sources[0]
+    if (primarySource?.thumbnail) {
+      setCurrentScreenshot(primarySource.thumbnail)
+    }
 
-        // Forward settings to overlay window if needed
-        sendSettingsToOverlay(settings)
-    })
+    overlayWin?.show()
+    overlayWin?.setAlwaysOnTop(true)
 
-    // Screen capture handler
-    ipcMain.handle('capture-screen', async () => {
-        const overlayWin = getOverlayWindow()
-        if (overlayWin) {
-            overlayWin.hide()
-        }
+    return true
+  })
 
-        await new Promise(resolve => setTimeout(resolve, 50))
+  // Screenshot crop handler
+  ipcMain.handle('crop-screenshot', async (_event, selection) => {
+    const currentScreenshot = getCurrentScreenshot()
+    if (!currentScreenshot) {
+      return null
+    }
 
-        const displaySize = screen.getPrimaryDisplay().size
-        const sources = await desktopCapturer.getSources({
-            types: ['screen'],
-            thumbnailSize: displaySize,
-            fetchWindowIcons: false
+    try {
+      const displayBounds = screen.getPrimaryDisplay().bounds
+      const imgSize = currentScreenshot.getSize()
+      const scaleX = imgSize.width / Math.max(1, displayBounds.width)
+      const scaleY = imgSize.height / Math.max(1, displayBounds.height)
+
+      const x = clampNumber(selection?.x, 0, displayBounds.width) * scaleX
+      const y = clampNumber(selection?.y, 0, displayBounds.height) * scaleY
+      const width = clampNumber(selection?.width, 0, displayBounds.width) * scaleX
+      const height = clampNumber(selection?.height, 0, displayBounds.height) * scaleY
+
+      const cropRect = {
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height),
+      }
+
+      if (cropRect.width <= 0 || cropRect.height <= 0) {
+        return null
+      }
+
+      // Clamp crop rect to image bounds
+      cropRect.x = Math.max(0, Math.min(cropRect.x, imgSize.width - 1))
+      cropRect.y = Math.max(0, Math.min(cropRect.y, imgSize.height - 1))
+      cropRect.width = Math.max(1, Math.min(cropRect.width, imgSize.width - cropRect.x))
+      cropRect.height = Math.max(1, Math.min(cropRect.height, imgSize.height - cropRect.y))
+
+      let croppedImage = currentScreenshot.crop(cropRect)
+
+      // Resize large crops to reduce RAM and base64 payload size
+      const croppedSize = croppedImage.getSize()
+      const cropMaxEdge = Math.max(croppedSize.width, croppedSize.height)
+      if (cropMaxEdge > MAX_CROP_EDGE) {
+        const resizeScale = MAX_CROP_EDGE / cropMaxEdge
+        croppedImage = croppedImage.resize({
+          width: Math.max(1, Math.round(croppedSize.width * resizeScale)),
+          height: Math.max(1, Math.round(croppedSize.height * resizeScale)),
         })
+      }
 
-        const primarySource = sources[0]
-        if (primarySource) {
-            setCurrentScreenshot(primarySource.thumbnail)
-        }
+      const base64Image = `data:image/jpeg;base64,${croppedImage.toJPEG(JPEG_QUALITY).toString('base64')}`
 
-        if (overlayWin) {
-            overlayWin.show()
-            overlayWin.setAlwaysOnTop(true)
-        }
+      // Drop the full-screen screenshot as soon as we have the crop
+      clearScreenshot()
 
-        return true
-    })
+      return base64Image
+    } catch (error) {
+      console.error('[ERROR] Crop failed:', error)
+      return null
+    }
+  })
 
-    // Screenshot crop handler
-    ipcMain.handle('crop-screenshot', async (_event, selection) => {
-        const currentScreenshot = getCurrentScreenshot()
-        if (!currentScreenshot) {
-            return null
-        }
+  // Overlay control handlers
+  ipcMain.on('close-overlay', () => {
+    hideOverlay()
+    clearScreenshot()
+  })
 
-        try {
-            const croppedImage = currentScreenshot.crop({
-                x: Math.round(selection.x),
-                y: Math.round(selection.y),
-                width: Math.round(selection.width),
-                height: Math.round(selection.height)
-            })
+  // Mouse events handler
+  ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (typeof ignore !== 'boolean') return
+    win?.setIgnoreMouseEvents(ignore, options)
+  })
 
-            const base64Image = `data:image/png;base64,${croppedImage.toPNG().toString('base64')}`
-            return base64Image
-        } catch (error) {
-            console.error('[ERROR] Crop failed:', error)
-            return null
-        }
-    })
-
-    // Submit prompt with screenshot handler
-    ipcMain.on('submit-prompt', async (_event, { prompt, selection }) => {
-        const currentScreenshot = getCurrentScreenshot()
-        if (!currentScreenshot) {
-            return
-        }
-
-        try {
-            const croppedImage = currentScreenshot.crop({
-                x: Math.round(selection.x),
-                y: Math.round(selection.y),
-                width: Math.round(selection.width),
-                height: Math.round(selection.height)
-            })
-
-            const base64Image = `data:image/png;base64,${croppedImage.toPNG().toString('base64')}`
-
-            const overlayWin = getOverlayWindow()
-            if (overlayWin) {
-                overlayWin.webContents.send('ai-response-start', {
-                    prompt,
-                    image: base64Image
-                })
-            }
-        } catch (error) {
-            console.error('[ERROR] Crop failed:', error)
-        }
-    })
-
-    // Overlay control handlers
-    ipcMain.on('close-overlay', () => {
-        hideOverlay()
-        clearScreenshot()
-    })
-
-    ipcMain.on('minimize-overlay', () => {
-        hideOverlay()
-    })
-
-    // Mouse events handler
-    ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
-        const win = BrowserWindow.fromWebContents(event.sender)
-        win?.setIgnoreMouseEvents(ignore, options)
-    })
-
-    // Open settings handler
-    ipcMain.on('open-settings', () => {
-        createMainWindow()
-    })
+  // Open settings handler
+  ipcMain.on('open-settings', () => {
+    createMainWindow()
+  })
 }
 
 /**
  * Unregister all system IPC handlers
  */
 export function unregisterSystemHandlers(): void {
-    ipcMain.removeAllListeners('set-titlebar-overlay')
-    ipcMain.removeAllListeners('settings-changed')
-    ipcMain.removeHandler('capture-screen')
-    ipcMain.removeHandler('crop-screenshot')
-    ipcMain.removeAllListeners('submit-prompt')
-    ipcMain.removeAllListeners('close-overlay')
-    ipcMain.removeAllListeners('minimize-overlay')
-    ipcMain.removeAllListeners('set-ignore-mouse-events')
-    ipcMain.removeAllListeners('open-settings')
+  ipcMain.removeAllListeners('set-titlebar-overlay')
+  ipcMain.removeHandler('capture-screen')
+  ipcMain.removeHandler('crop-screenshot')
+  ipcMain.removeAllListeners('close-overlay')
+  ipcMain.removeAllListeners('set-ignore-mouse-events')
+  ipcMain.removeAllListeners('open-settings')
 }

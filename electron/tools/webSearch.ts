@@ -2,6 +2,7 @@
 // Supports multiple search providers: Tavily (recommended), SerpAPI, Brave
 
 import type { ToolResult } from './types'
+import { getSecureValueAsync } from '../secureStorage'
 
 interface WebSearchArgs {
     query: string
@@ -49,9 +50,8 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
     // The model can add specific dates if needed (e.g., "2025", "January 2025")
     const enhancedQuery = query
 
-    // Try to get API key from settings stored in userData
-    // Check environment variable first, then try to get from settings
-    const tavilyKey = process.env.TAVILY_API_KEY || (global as any).tavilyApiKey
+    // Try to get API key from environment or secure storage
+    const tavilyKey = process.env.TAVILY_API_KEY || await getSecureValueAsync('tavilyApiKey')
 
     if (tavilyKey && tavilyKey.trim()) {
         return searchWithTavily(enhancedQuery, num_results, tavilyKey, search_depth)

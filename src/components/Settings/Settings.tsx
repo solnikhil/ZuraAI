@@ -146,12 +146,13 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
         { key: 'geminiApiKey', current: pendingSettings.geminiApiKey, original: settings.geminiApiKey },
-        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey }
+        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
+        { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey }
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -183,7 +184,10 @@ export default function Settings({
       }
     }
   }
-  useEffect(() => { if (pendingSettings.modelProvider === 'ollama') checkOllama() }, [])
+  useEffect(
+    () => { if (pendingSettings.modelProvider === 'ollama') void checkOllama() },
+    [pendingSettings.modelProvider, pendingSettings.ollamaUrl]
+  )
 
   return (
     <div className="settings-container">

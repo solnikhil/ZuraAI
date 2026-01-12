@@ -102,7 +102,7 @@ interface ChatHistoryContextType {
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
 
 // Check if we're in Electron environment
-const isElectron = typeof window !== 'undefined' && window.ipcRenderer
+const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
 const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
@@ -165,24 +165,29 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }, [loadSessions])
 
     // Save sessions whenever they change (after initialization)
+    // Debounced to avoid excessive IPC/disk writes during streaming.
     useEffect(() => {
         if (!isInitialized) return
 
-        const saveSessions = async () => {
-            try {
-                if (isElectron) {
-                    await window.ipcRenderer.invoke('chat-store:save-all', sessions)
-                } else {
+        const timeoutId = setTimeout(() => {
+            const saveSessions = async () => {
+                try {
+                    if (isElectron) {
+                        await window.ipcRenderer.invoke('chat-store:save-all', sessions)
+                    } else {
+                        localStorage.setItem('zura-chat-history', JSON.stringify(sessions))
+                    }
+                } catch (error) {
+                    console.error('Failed to save chat history:', error)
+                    // Fallback to localStorage
                     localStorage.setItem('zura-chat-history', JSON.stringify(sessions))
                 }
-            } catch (error) {
-                console.error('Failed to save chat history:', error)
-                // Fallback to localStorage
-                localStorage.setItem('zura-chat-history', JSON.stringify(sessions))
             }
-        }
 
-        saveSessions()
+            void saveSessions()
+        }, 750)
+
+        return () => clearTimeout(timeoutId)
     }, [sessions, isInitialized])
 
     // Restore last active chat session (optional)

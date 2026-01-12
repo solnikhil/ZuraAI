@@ -32,8 +32,7 @@ let registerToolHandlers: (() => void) | undefined
 app.commandLine.appendSwitch('disable-gpu-compositing')
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
-// Memory Optimization: Reduce process count and overhead
-app.commandLine.appendSwitch('disable-site-isolation-trials')
+// Disable window animations
 app.commandLine.appendSwitch('wm-window-animations-disabled')
 
 // Set App Name explicitly

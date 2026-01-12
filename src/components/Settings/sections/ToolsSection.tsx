@@ -6,7 +6,8 @@
  */
 
 import React from 'react'
-import { Sparkles, Globe, Calculator, Clock, Clipboard } from 'lucide-react'
+import { Sparkles, Globe } from 'lucide-react'
+
 
 /**
  * Props for ToolsSection component
@@ -28,12 +29,8 @@ export interface ToolsSectionProps {
  */
 const BUILT_IN_TOOLS = [
   { name: 'web_search', desc: 'Search the internet using Tavily', icon: Globe, color: '#60a5fa' },
-  { name: 'fetch_url', desc: 'Read webpage content', icon: Globe, color: '#34d399' },
-  { name: 'calculator', desc: 'Evaluate math expressions', icon: Calculator, color: '#f472b6' },
-  { name: 'get_datetime', desc: 'Get current date/time', icon: Clock, color: '#fbbf24' },
-  { name: 'read_clipboard', desc: 'Read clipboard content', icon: Clipboard, color: '#a78bfa' },
-  { name: 'write_clipboard', desc: 'Copy to clipboard', icon: Clipboard, color: '#a78bfa' }
 ]
+
 
 /**
  * ToolsSection - Manages tool settings
@@ -69,7 +66,7 @@ export function ToolsSection({
             </div>
             <div>
               <h3 className="section-head" style={{ marginBottom: 4 }}>Enable Tools</h3>
-              <div className="section-desc">Allow AI to use tools like web search, calculator, etc.</div>
+              <div className="section-desc">Allow AI to use web search.</div>
             </div>
           </div>
           <label className="toggle-switch">

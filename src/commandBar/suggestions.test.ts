@@ -56,14 +56,14 @@ describe('commandBar suggestions', () => {
       expect(suggestions[0]?.id).toBe('go-settings')
     })
 
-    it('offers fetch URL quick action for domains', () => {
+    it('offers web search quick action for domains', () => {
       const suggestions = getCommandBarSuggestions('example.com', {
         toolsEnabled: true,
         webSearchEnabled: true,
         hasCurrentSession: false
       })
 
-      expect(suggestions[0]?.id).toBe('quick-fetch-url')
+      expect(suggestions[0]?.id).toBe('quick-web-search')
     })
 
     it('hides quick actions in commands-only mode', () => {

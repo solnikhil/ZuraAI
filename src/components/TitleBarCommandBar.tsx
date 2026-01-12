@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, Clock, Globe } from './icons'
+import { Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -22,9 +22,7 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion) {
   if (suggestion.id === 'toggle-sidebar-hidden' || suggestion.id === 'toggle-sidebar-collapsed') return PanelLeft
 
   if (suggestion.action.type === 'run_tool') {
-    if (suggestion.action.toolName === 'get_datetime') return Clock
-    if (suggestion.action.toolName === 'fetch_url') return Globe
-    if (suggestion.action.toolName === 'web_search') return Search
+    return Search
   }
 
   return Search
@@ -301,6 +299,11 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const runToolAndStoreResult = async (toolName: string, args: Record<string, unknown>): Promise<boolean> => {
     if (!toolsEnabled) {
       showToast('Tools are disabled in Settings', 'warning')
+      return false
+    }
+
+    if (toolName !== 'web_search') {
+      showToast(`Tool disabled: ${formatToolName(toolName)}`, 'warning')
       return false
     }
 

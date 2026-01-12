@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { Send, Paperclip, Globe, Brain, MessageCircle, Check, Image, X } from '../../icons'
 import StarBorder from '../../StarBorder'
-import ModelSelector from '../ModelSelector'
+import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
 

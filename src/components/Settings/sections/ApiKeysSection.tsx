@@ -100,12 +100,8 @@ function ApiKeyInput({ label, value, placeholder, onChange }: ApiKeyInputProps):
  */
 const AVAILABLE_TOOLS = [
   { name: 'web_search', desc: 'Search the internet', icon: '🔍' },
-  { name: 'fetch_url', desc: 'Read webpage content', icon: '🌐' },
-  { name: 'calculator', desc: 'Evaluate math expressions', icon: '🧮' },
-  { name: 'get_datetime', desc: 'Get current date/time', icon: '🕐' },
-  { name: 'read_clipboard', desc: 'Read clipboard', icon: '📋' },
-  { name: 'write_clipboard', desc: 'Copy to clipboard', icon: '📋' }
 ]
+
 
 /**
  * ApiKeysSection - Manages API keys and tool settings
@@ -162,7 +158,7 @@ export function ApiKeysSection({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h3 className="section-head" style={{ marginBottom: 4 }}>Enable Tools</h3>
-            <div className="section-desc">Allow AI to use tools like web search, calculator, etc.</div>
+            <div className="section-desc">Allow AI to use web search.</div>
           </div>
           <label className="toggle-switch">
             <input

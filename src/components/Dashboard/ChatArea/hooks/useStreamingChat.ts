@@ -33,7 +33,7 @@ export interface UseStreamingChatReturn {
   stopStreaming: () => void
 }
 
-const UPDATE_INTERVAL = 50 // ms
+const UPDATE_INTERVAL = 120 // ms
 
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)

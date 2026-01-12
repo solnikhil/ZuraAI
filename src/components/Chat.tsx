@@ -1,11 +1,8 @@
-﻿import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import { checkOllamaStatus, generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import LazyMarkdown from './LazyMarkdown'
 import './Chat.css'
 
 interface Message {
@@ -218,25 +215,7 @@ export default function Chat() {
         setMessages(prev => [...prev, aiMessage])
     }
 
-    useEffect(() => {
-        const handleNewPrompt = (_event: any, { prompt, image }: { prompt: string, image?: string }) => {
-            const userMessage: Message = {
-                id: Date.now().toString(),
-                role: 'user',
-                content: prompt,
-                image: image
-            }
-            setMessages(prev => [...prev, userMessage])
-            callAI(prompt, image)
-        }
 
-        if (window.ipcRenderer) {
-            window.ipcRenderer.on('new-prompt', handleNewPrompt)
-            return () => {
-                window.ipcRenderer.off('new-prompt', handleNewPrompt)
-            }
-        }
-    }, [settings]) // Re-bind if settings change (though mostly for the closure)
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
@@ -346,28 +325,7 @@ export default function Chat() {
                             )}
                             {msg.content && (
                                 <div className="markdown-body">
-                                    <ReactMarkdown
-                                        children={msg.content}
-                                        remarkPlugins={[remarkGfm]}
-                                        components={{
-                                            code({ node, inline, className, children, ...props }: any) {
-                                                const match = /language-(\w+)/.exec(className || '')
-                                                return !inline && match ? (
-                                                    <SyntaxHighlighter
-                                                        {...props}
-                                                        children={String(children).replace(/\n$/, '')}
-                                                        style={vscDarkPlus}
-                                                        language={match[1]}
-                                                        PreTag="div"
-                                                    />
-                                                ) : (
-                                                    <code {...props} className={className}>
-                                                        {children}
-                                                    </code>
-                                                )
-                                            }
-                                        }}
-                                    />
+                                    <LazyMarkdown content={msg.content} />
                                 </div>
                             )}
                         </div>

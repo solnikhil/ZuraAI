@@ -37,7 +37,9 @@ const THEME_CSS_VAR_MAP = {
     selectionText: '--theme-selection-text',
     shadowSm: '--theme-shadow-sm',
     shadowMd: '--theme-shadow-md',
-    shadowLg: '--theme-shadow-lg'
+    shadowLg: '--theme-shadow-lg',
+    scrollbar: '--theme-scrollbar',
+    scrollbarHover: '--theme-scrollbar-hover'
 } satisfies Record<keyof ColorPalette, string>
 
 type ThemeCssVar = (typeof THEME_CSS_VAR_MAP)[keyof typeof THEME_CSS_VAR_MAP]
@@ -47,7 +49,13 @@ export function getThemeCssVariables(theme: Theme): Record<ThemeCssVar, string> 
     const entries = Object.entries(THEME_CSS_VAR_MAP) as Array<[keyof ColorPalette, ThemeCssVar]>
 
     for (const [colorKey, cssVar] of entries) {
-        cssVars[cssVar] = theme.colors[colorKey]
+        const themeColor = theme.colors[colorKey]
+        const fallback =
+            colorKey === 'scrollbar' ? theme.colors.border :
+            colorKey === 'scrollbarHover' ? theme.colors.borderHover :
+            theme.colors.border
+
+        cssVars[cssVar] = themeColor ?? fallback
     }
 
     return cssVars
