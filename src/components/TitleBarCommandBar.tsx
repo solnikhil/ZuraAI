@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown } from './icons'
+import {
+  Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
+  ChartNoAxesCombined, Cpu, Box, Key, Command
+} from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -19,6 +22,13 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconC
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+
+  // Settings section actions
+  if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-models') return { Icon: Cpu, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-themes') return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-preferences') return { Icon: Key, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Create actions
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
@@ -102,6 +112,11 @@ function formatToolName(name: string): string {
 const COMMAND_AUTOCOMPLETE_KEYWORDS: Record<string, string> = {
   'go-chat': 'chat',
   'go-settings': 'settings',
+  'go-settings-usage': 'usage settings',
+  'go-settings-models': 'model settings',
+  'go-settings-themes': 'theme settings',
+  'go-settings-preferences': 'api keys',
+  'go-settings-commandbar': 'command bar settings',
   'new-chat': 'new chat',
   'toggle-sidebar-hidden': 'toggle sidebar',
   'toggle-sidebar-collapsed': 'toggle sidebar collapse',
@@ -150,6 +165,8 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const {
     dashboardView,
     setDashboardView,
+    activeSettingsSection,
+    setActiveSettingsSection,
     hasUnsavedSettings,
     toggleSidebarCollapsed,
     toggleSidebarHidden,
@@ -432,6 +449,11 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       case 'open_dashboard_view':
         ensureDashboardRoute()
         ensureDashboardView(action.view)
+        return true
+      case 'open_settings_section':
+        ensureDashboardRoute()
+        ensureDashboardView('settings')
+        setActiveSettingsSection(action.section)
         return true
       case 'toggle_sidebar_hidden':
         toggleSidebarHidden()

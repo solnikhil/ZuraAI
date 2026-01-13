@@ -268,6 +268,10 @@ export default function Settings({
                   ...changes
                 }
               })}
+              rememberLastChatSession={pendingSettings.rememberLastChatSession ?? settings.rememberLastChatSession}
+              rememberLastDashboardView={pendingSettings.rememberLastDashboardView ?? settings.rememberLastDashboardView}
+              rememberLastSettingsSection={pendingSettings.rememberLastSettingsSection ?? settings.rememberLastSettingsSection}
+              onRememberChange={(changes) => handleChange(changes)}
             />
           )}
 

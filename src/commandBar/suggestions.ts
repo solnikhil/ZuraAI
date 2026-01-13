@@ -1,5 +1,6 @@
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
+  | { type: 'open_settings_section'; section: string }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
@@ -57,16 +58,21 @@ function scoreMatch(query: string, candidate: string): number | null {
   }
 
   const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
-  if (tokens.length === 1) {
+  // Filter out very short tokens (less than 4 chars) to avoid false matches like "com" in domains
+  const meaningfulTokens = tokens.filter(t => t.length >= 4)
+
+  if (meaningfulTokens.length === 0) return null
+
+  if (meaningfulTokens.length === 1) {
     // If the condensed query is a single token, still allow token matching.
-    const tokenIndex = normalizedCandidate.indexOf(tokens[0])
+    const tokenIndex = normalizedCandidate.indexOf(meaningfulTokens[0])
     return tokenIndex === -1 ? null : 95 - Math.min(tokenIndex, 70)
   }
 
   let matchedTokens = 0
   let scoreSum = 0
 
-  for (const token of tokens) {
+  for (const token of meaningfulTokens) {
     const tokenIndex = normalizedCandidate.indexOf(token)
     if (tokenIndex === -1) continue
     matchedTokens++
@@ -74,7 +80,7 @@ function scoreMatch(query: string, candidate: string): number | null {
   }
 
   if (matchedTokens === 0) return null
-  if (matchedTokens === tokens.length) return 60 + scoreSum / tokens.length
+  if (matchedTokens === meaningfulTokens.length) return 60 + scoreSum / meaningfulTokens.length
   return 40 + scoreSum / matchedTokens
 }
 
@@ -147,6 +153,41 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       subtitle: 'Preferences & API Keys',
       keywords: ['preferences', 'config', 'api keys'],
       action: { type: 'open_dashboard_view', view: 'settings' }
+    },
+    {
+      id: 'go-settings-usage',
+      title: 'Usage Settings',
+      subtitle: 'Statistics & token tracking',
+      keywords: ['usage', 'stats', 'statistics', 'tokens', 'activity'],
+      action: { type: 'open_settings_section', section: 'usage' }
+    },
+    {
+      id: 'go-settings-models',
+      title: 'Model Settings',
+      subtitle: 'AI model selection',
+      keywords: ['models', 'ai', 'model', 'provider', 'llm'],
+      action: { type: 'open_settings_section', section: 'models' }
+    },
+    {
+      id: 'go-settings-themes',
+      title: 'Theme Settings',
+      subtitle: 'Appearance & themes',
+      keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
+      action: { type: 'open_settings_section', section: 'themes' }
+    },
+    {
+      id: 'go-settings-preferences',
+      title: 'API Keys & Preferences',
+      subtitle: 'Configure providers & tools',
+      keywords: ['api', 'keys', 'preferences', 'api keys', 'providers', 'tools'],
+      action: { type: 'open_settings_section', section: 'preferences' }
+    },
+    {
+      id: 'go-settings-commandbar',
+      title: 'Command Bar Settings',
+      subtitle: 'Customize command palette',
+      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette'],
+      action: { type: 'open_settings_section', section: 'commandbar' }
     },
     {
       id: 'new-chat',
@@ -261,6 +302,25 @@ export function getCommandBarSuggestions(
       }
       if (item.id === 'go-chat' && /\b(chat|conversation|messages)\b/.test(normalized)) {
         item.score += 45
+      }
+      // Boost settings sections when query matches their keywords with word boundaries
+      if (item.id.startsWith('go-settings-')) {
+        const section = item.id.replace('go-settings-', '')
+        const sectionKeywords = item.keywords || []
+        const queryLower = normalized.toLowerCase()
+
+        // Check if query contains the section name as a distinct word
+        const hasSectionMatch = new RegExp(`\\b${section}\\b`, 'i').test(queryLower)
+
+        // Check if query contains any keyword as a distinct word
+        const hasKeywordMatch = sectionKeywords.some(kw => {
+          const kwPattern = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+          return kwPattern.test(queryLower)
+        })
+
+        if (hasSectionMatch || hasKeywordMatch) {
+          item.score += 70
+        }
       }
     }
   }

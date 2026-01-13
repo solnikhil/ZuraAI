@@ -25,10 +25,10 @@
     --theme-border-subtle: rgba(255, 255, 255, 0.03);
     
     /* Accents */
-    --theme-accent: #8b5cf6;
-    --theme-accent-secondary: #06b6d4;
-    --theme-accent-hover: #7c3aed;
-    --theme-accent-muted: rgba(139, 92, 246, 0.2);
+    --theme-accent: #c9a66e;
+    --theme-accent-secondary: #b89558;
+    --theme-accent-hover: #d4b07a;
+    --theme-accent-muted: rgba(201, 166, 110, 0.15);
     
     /* Semantic */
     --theme-error: #ef4444;

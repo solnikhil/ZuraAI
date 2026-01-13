@@ -4,6 +4,10 @@ import type { Settings } from '../../../contexts/SettingsContext'
 export interface CommandBarSectionProps {
   commandBar: Settings['commandBar']
   onChange: (changes: Partial<Settings['commandBar']>) => void
+  rememberLastChatSession?: boolean
+  rememberLastDashboardView?: boolean
+  rememberLastSettingsSection?: boolean
+  onRememberChange?: (changes: { rememberLastChatSession?: boolean; rememberLastDashboardView?: boolean; rememberLastSettingsSection?: boolean }) => void
 }
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -11,7 +15,7 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-export function CommandBarSection({ commandBar, onChange }: CommandBarSectionProps): React.ReactElement {
+export function CommandBarSection({ commandBar, onChange, rememberLastChatSession, rememberLastDashboardView, rememberLastSettingsSection, onRememberChange }: CommandBarSectionProps): React.ReactElement {
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
   const blurPx = clampNumber(commandBar.blurPx, 0, 30)
@@ -209,6 +213,47 @@ export function CommandBarSection({ commandBar, onChange }: CommandBarSectionPro
 
       <div style={{ marginTop: 18, color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
         Tip: Use Ctrl+K / Cmd+K to focus the command bar.
+      </div>
+
+      {/* Remember Section */}
+      <div className="settings-section-card" style={{ marginTop: 24 }}>
+        <h3 className="section-head">Remember</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div>
+              <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Restore your last state when reopening Zura</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={rememberLastChatSession ?? true}
+                onChange={(e) => onRememberChange?.({ rememberLastChatSession: e.target.checked })}
+                style={{ accentColor: 'var(--theme-accent)' }}
+              />
+              Chat session
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={rememberLastDashboardView ?? true}
+                onChange={(e) => onRememberChange?.({ rememberLastDashboardView: e.target.checked })}
+                style={{ accentColor: 'var(--theme-accent)' }}
+              />
+              Chat/Settings view
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={rememberLastSettingsSection ?? true}
+                onChange={(e) => onRememberChange?.({ rememberLastSettingsSection: e.target.checked })}
+                style={{ accentColor: 'var(--theme-accent)' }}
+              />
+              Settings section
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   )

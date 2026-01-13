@@ -29,10 +29,15 @@ export interface UpdaterAPI {
     onUpdateDownloaded: (callback: () => void) => () => void
 }
 
+export interface TerminalAPI {
+    spawnCommand: (command: string, args?: string[]) => void
+}
+
 declare global {
     interface Window {
         ipcRenderer: IElectronAPI
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
+        terminal: TerminalAPI
     }
 }

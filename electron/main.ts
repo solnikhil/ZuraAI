@@ -1,4 +1,4 @@
-import { app, globalShortcut } from 'electron'
+import { app, globalShortcut, protocol } from 'electron'
 import path from 'path'
 
 // Import window management
@@ -19,6 +19,9 @@ import {
     registerUpdaterHandlers,
     cleanupAutoUpdater
 } from './updater'
+
+// Import child_process for terminal spawning
+import { exec } from 'child_process'
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -61,6 +64,29 @@ app.on('will-quit', () => {
 })
 
 app.whenReady().then(async () => {
+    // Register a custom protocol to handle terminal spawning
+    // This bypasses contextBridge issues by using a URL scheme
+    protocol.registerStringProtocol('zura-terminal', (request, callback) => {
+        const url = request.url.replace('zura-terminal://', '')
+        const [command, ...args] = decodeURIComponent(url).split(' ')
+        
+        console.log('[ZURA-TERMINAL] Protocol handler called:', { command, args })
+        
+        if (process.platform === 'win32') {
+            const cmd = `start cmd.exe /K "${command} ${args.join(' ')} & pause"`
+            exec(cmd, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('[ZURA-TERMINAL] exec error:', error.message)
+                } else {
+                    console.log('[ZURA-TERMINAL] Terminal spawned successfully')
+                }
+            })
+            callback('success')
+        } else {
+            callback('unsupported platform')
+        }
+    })
+
     // Register tool handlers for AI function calling
     try {
         const toolsModule = await import('./tools/index')

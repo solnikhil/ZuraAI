@@ -153,6 +153,17 @@ function OllamaSection({ ollamaUrl, onChange }: OllamaSectionProps): React.React
     }
   }
 
+  // Auto-run Ollama handler - spawns terminal with Ollama
+  const handleAutoRunOllama = () => {
+    const terminal = (window as any).terminal
+    if (terminal?.spawnCommand) {
+      console.log('[Settings] Spawning Ollama in new terminal...')
+      terminal.spawnCommand('ollama', ['serve'])
+    } else {
+      console.error('[Settings] Terminal API not available. Restart the app.')
+    }
+  }
+
   // Check connection on mount and when URL changes
   useEffect(() => {
     if (ollamaUrl && ollamaUrl.trim() !== '') {
@@ -189,16 +200,41 @@ function OllamaSection({ ollamaUrl, onChange }: OllamaSectionProps): React.React
           </span>
         )}
         {status === 'error' && (
-          <span style={{
-            fontSize: '0.75rem',
-            padding: '4px 10px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            color: '#ef4444',
-            borderRadius: 12,
-            fontWeight: 500
-          }}>
-            ●  {errorMessage}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              fontSize: '0.75rem',
+              padding: '4px 10px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#ef4444',
+              borderRadius: 12,
+              fontWeight: 500
+            }}>
+              ●  {errorMessage}
+            </span>
+            <button
+              onClick={handleAutoRunOllama}
+              style={{
+                fontSize: '0.7rem',
+                padding: '4px 10px',
+                background: 'var(--theme-surface)',
+                border: '1px solid var(--theme-border)',
+                color: 'var(--theme-text-secondary)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'var(--theme-surface)'
+                e.currentTarget.style.borderColor = 'var(--theme-border)'
+              }}
+            >
+              Auto-Run Ollama
+            </button>
+          </div>
         )}
       </div>
       <div className="section-desc" style={{ marginBottom: 12 }}>

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain
+    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command
 } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
@@ -27,6 +27,15 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
+
+    // Settings navigation items
+    const navItems = [
+        { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
+        { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
+        { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
+        { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
+        { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> }
+    ]
 
     const filteredSessions = sessions.filter(s =>
         s.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -241,6 +250,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             key={session.id}
                             onClick={() => switchSession(session.id)}
                             className="session-item animate-sidebar-item"
+                            data-active={currentSessionId === session.id ? "true" : "false"}
                             title={isCollapsed ? session.title : ''}
                             style={{
                                 display: 'flex',
@@ -251,7 +261,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                 borderRadius: '4px',
                                 fontSize: '0.8rem',
                                 color: 'var(--theme-text-primary)',
-                                backgroundColor: currentSessionId === session.id ? 'var(--theme-surface-active)' : 'transparent',
+                                backgroundColor: currentSessionId === session.id ? 'var(--theme-accent-muted)' : 'transparent',
+                                borderLeft: currentSessionId === session.id ? '2px solid var(--theme-accent)' : '2px solid transparent',
                                 transition: 'all 0.15s ease',
                                 justifyContent: 'flex-start',
                                 animationDelay: `${index * 0.05}s`,
@@ -359,7 +370,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             transform: view === 'settings' ? 'translateX(0)' : 'translateX(20px)',
             transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
             pointerEvents: view === 'settings' ? 'all' : 'none',
-            backgroundColor: 'var(--theme-surface)',
             boxSizing: 'border-box'
         }}>
 
@@ -375,14 +385,9 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'flex-start'
+                    alignItems: 'center'
                 }}>
-                    {[
-                        { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
-                        { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
-                        { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
-                        { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> }
-                    ].map((item, index) => (
+                    {navItems.map((item, index) => (
                         <button
                             key={item.id}
                             onClick={() => onNavigateSettings(item.id)}
@@ -473,7 +478,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             width: sidebarHidden ? '0px' : (isCollapsed ? '60px' : '260px'),
             background: 'var(--theme-surface)',
             borderRight: sidebarHidden ? 'none' : '1px solid var(--theme-border)',
-            boxShadow: sidebarHidden ? 'none' : 'var(--theme-shadow-md)',
+            boxShadow: 'none',
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
@@ -487,7 +492,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
             {renderSettingsContent()}
 
             <style>{`
-                .session-item:hover { background-color: var(--theme-surface-hover) !important; }
+                .session-item:hover { background-color: var(--theme-surface-hover); }
+                .session-item[style*="accent-muted"]:hover { background-color: var(--theme-accent-muted) !important; }
                 .session-item:hover .delete-btn { opacity: 1 !important; }
                 .delete-btn:hover { background-color: var(--theme-surface-active) !important; }
 
@@ -517,7 +523,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; alignItems: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
                 .btn-signout:hover { background: var(--theme-surface-hover); color: #fff; border-color: var(--theme-border-hover); }
 
-                .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease, width 0.2s ease; box-sizing: border-box; }
+                .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: all 0.15s ease; width: 100%; box-sizing: border-box; }
                 .nav-item:hover { background: var(--theme-surface-hover); }
                 .nav-item.active { background: var(--theme-surface-active); }
 

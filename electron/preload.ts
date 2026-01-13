@@ -1,4 +1,17 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
+import { execSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+
+// Debug: write to log file to confirm preload is executing
+const PRELOAD_LOG_PATH = "c:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\\.cursor\\preload-debug.log"
+function preloadLog(msg: string) {
+  try {
+    const dir = PRELOAD_LOG_PATH.substring(0, PRELOAD_LOG_PATH.lastIndexOf('\\'))
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(PRELOAD_LOG_PATH, `[${Date.now()}] ${msg}\n`, { flag: 'a' })
+  } catch (e) {}
+}
+
+preloadLog('Preload script STARTED')
 
 // ----------------------------------------------------------------------------
 // IPC hardening
@@ -11,6 +24,7 @@ const SEND_CHANNELS = new Set<string>([
   'set-ignore-mouse-events',
   'open-settings',
   'set-titlebar-overlay',
+  'spawn-terminal-command',
 ])
 
 const INVOKE_CHANNELS = new Set<string>([
@@ -106,3 +120,19 @@ contextBridge.exposeInMainWorld('updater', Object.freeze({
     return () => ipcRenderer.off('update-downloaded', listener)
   },
 }))
+
+// Terminal API - expose spawnCommand for launching terminals
+try {
+  preloadLog('About to expose terminal API...')
+  contextBridge.exposeInMainWorld('terminal', {
+    spawnCommand: (command: string, args?: string[]) => {
+      preloadLog(`terminal.spawnCommand called: ${command} ${JSON.stringify(args)}`)
+      ipcRenderer.send('spawn-terminal-command', command, args ?? [])
+      preloadLog('IPC send completed')
+    },
+  })
+  preloadLog('terminal API exposed successfully')
+} catch (error: any) {
+  preloadLog(`Failed to expose terminal API: ${error.message}`)
+  console.error('[PRELOAD] Failed to expose terminal API:', error.message, error.stack)
+}

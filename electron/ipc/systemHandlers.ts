@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow, desktopCapturer, screen } from 'electron'
+import { spawn, exec } from 'child_process'
 import {
   setTitleBarOverlay,
   createMainWindow,
@@ -149,6 +150,43 @@ export function registerSystemHandlers(): void {
   ipcMain.on('open-settings', () => {
     createMainWindow()
   })
+
+  // Spawn terminal with command handler
+  ipcMain.on('spawn-terminal-command', (_event, command, args) => {
+    console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
+
+    if (process.platform === 'win32') {
+      // Windows: spawn command in new terminal window using start command
+      const argsStr = args && args.length > 0 ? args.map((a: string) => `"${a}"`).join(' ') : ''
+      const fullCommand = `"${command}" ${argsStr}`
+
+      // Use start to open a new cmd window that stays open
+      const cmd = `start cmd /K "${fullCommand}"`
+
+      console.log('[SYSTEM] Executing Windows command:', cmd)
+      exec(cmd, (error) => {
+        if (error) {
+          console.error('[SYSTEM] Failed to spawn terminal:', error.message)
+        }
+      })
+    } else if (process.platform === 'darwin') {
+      // macOS: use Terminal.app with osascript
+      const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
+      const script = `tell app "Terminal" to do script "${fullCommand}; read -n1"`
+      exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
+        if (error) console.error('[SYSTEM] macOS exec error:', error.message)
+        else console.log('[SYSTEM] macOS terminal opened')
+      })
+    } else {
+      // Linux: use xterm or other terminal
+      const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
+      const child = spawn('xterm', ['-e', 'bash', '-c', `${fullCommand}; echo "Press Enter to close..."; read`], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      child.unref()
+    }
+  })
 }
 
 /**
@@ -161,4 +199,5 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('close-overlay')
   ipcMain.removeAllListeners('set-ignore-mouse-events')
   ipcMain.removeAllListeners('open-settings')
+  ipcMain.removeAllListeners('spawn-terminal-command')
 }
