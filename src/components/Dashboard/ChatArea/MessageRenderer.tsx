@@ -610,7 +610,7 @@ export function MessageRenderer({
             style={{
               background: 'transparent',
               border: 'none',
-              color: copied ? '#4ade80' : '#666',
+              color: copied ? 'var(--theme-success)' : 'var(--theme-text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -634,7 +634,7 @@ export function MessageRenderer({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#666',
+                color: 'var(--theme-text-muted)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -732,7 +732,7 @@ export function MessageRenderer({
                 size={14}
                 style={{
                   cursor: 'pointer',
-                  color: '#666',
+                  color: 'var(--theme-text-muted)',
                   flexShrink: 0,
                   display: 'block',
                   width: '14px',

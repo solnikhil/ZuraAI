@@ -76,27 +76,31 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
 export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, completedBlocks = [] }: ThinkingBlockProps) {
     const [isExpanded, setIsExpanded] = useState(true) // Auto-expand by default
     const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
-    const [finalTime, setFinalTime] = useState<number | null>(null) // Store final time when thinking completes
+    // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
+    const [finalTime, setFinalTime] = useState<number | null>(
+        thinkingDuration ? thinkingDuration / 1000 : null
+    )
     const thinkingStartRef = useRef<number | null>(null)
 
     // Live timer effect - runs while isThinking is true
+    // Start timer when thinking content appears
     useEffect(() => {
+        if (isThinking && thinking && thinking.length > 0 && !thinkingStartRef.current) {
+            thinkingStartRef.current = Date.now()
+            setFinalTime(null)
+        }
+    }, [isThinking, thinking])
+
+    // Live timer effect - runs while isThinking is true
+    useEffect(() => {
+        let interval: NodeJS.Timeout
+
         if (isThinking) {
-            // Start timer ONLY when thinking content arrives (first token)
-            if (thinking && thinking.trim().length > 0) {
-                if (!thinkingStartRef.current) {
-                    thinkingStartRef.current = Date.now()
-                    setFinalTime(null)
+            interval = setInterval(() => {
+                if (thinkingStartRef.current) {
+                    setElapsedTime((Date.now() - thinkingStartRef.current) / 1000)
                 }
-
-                const interval = setInterval(() => {
-                    if (thinkingStartRef.current) {
-                        setElapsedTime((Date.now() - thinkingStartRef.current) / 1000)
-                    }
-                }, 100)
-
-                return () => clearInterval(interval)
-            }
+            }, 50)
         } else if (thinkingStartRef.current) {
             // isThinking just became false - capture final time
             const elapsed = (Date.now() - thinkingStartRef.current) / 1000
@@ -104,7 +108,11 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
             setElapsedTime(elapsed)
             thinkingStartRef.current = null
         }
-    }, [isThinking, thinking])
+
+        return () => {
+            if (interval) clearInterval(interval)
+        }
+    }, [isThinking])
 
     // Auto-expand when thinking content exists
     useEffect(() => {
@@ -156,7 +164,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                             ) : (
                                 <>
                                     <span className="thinking-text">
-                                        Thought for {displayTime.toFixed(3)} seconds
+                                        Thought for {displayTime > 0.1 ? `${displayTime.toFixed(3)} seconds` : 'a moment'}
                                     </span>
                                     <ChevronRight
                                         size={14}

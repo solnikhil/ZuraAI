@@ -702,6 +702,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
 
+    // Track thinking time
+    let thinkingStartTime: number | null = null
+    let thinkingEndTime: number | null = null
+    let thinkingDuration: number | undefined = undefined
+
     const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
 
     for await (const chunk of streamOpenRouterCompletion(
@@ -714,16 +719,27 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (!firstTokenTime && delta) {
         firstTokenTime = performance.now()
       }
-      accumulatedContent += delta
 
       const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
       if (reasoningDelta) {
+        if (!thinkingStartTime) thinkingStartTime = performance.now()
         accumulatedReasoning += reasoningDelta
+
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           content: accumulatedContent,
           thinking: accumulatedReasoning
         })
       }
+
+      // If we have content and were thinking, mark thinking as done
+      if (delta && accumulatedReasoning && !thinkingEndTime) {
+        thinkingEndTime = performance.now()
+        if (thinkingStartTime) {
+          thinkingDuration = thinkingEndTime - thinkingStartTime
+        }
+      }
+
+      if (delta) accumulatedContent += delta
 
       if (chunk.choices?.[0]?.delta?.tool_calls) {
         hasToolCalls = true
@@ -752,15 +768,25 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (now - lastUpdateTime >= UPDATE_INTERVAL) {
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           content: accumulatedContent,
-          thinking: accumulatedReasoning || undefined
+          thinking: accumulatedReasoning || undefined,
+          thinkingDuration
         })
         lastUpdateTime = now
       }
     }
 
+    // Finalize thinking duration if not set
+    if (accumulatedReasoning && !thinkingEndTime) {
+      thinkingEndTime = performance.now()
+      if (thinkingStartTime) {
+        thinkingDuration = thinkingEndTime - thinkingStartTime
+      }
+    }
+
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: accumulatedContent,
-      thinking: accumulatedReasoning || undefined
+      thinking: accumulatedReasoning || undefined,
+      thinkingDuration
     })
 
     let usage: any = {

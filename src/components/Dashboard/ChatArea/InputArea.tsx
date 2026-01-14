@@ -1,17 +1,19 @@
 /**
  * InputArea - Component for chat input handling
  * Handles text input, file attachment triggers, and submit
- * 
+ *
  * Requirements: 1.1
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { Send, Paperclip, Globe, Brain, MessageCircle, Check, Image, X } from '../../icons'
+import { Send, Paperclip, Globe, Brain, MessageCircle, Check, Image, X, Info, Zap, Clock, ChevronDown } from '../../icons'
 import StarBorder from '../../StarBorder'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
+import { PastedContentChunk } from './PastedContentChunk'
+import type { PastedContentChunk as PastedContentChunkType } from './types'
 
 export interface InputAreaProps {
   input: string
@@ -20,6 +22,10 @@ export interface InputAreaProps {
   isLoading: boolean
   attachedFiles: AttachedFile[]
   onFilesChange: (files: AttachedFile[]) => void
+  pastedChunks?: PastedContentChunkType[]
+  onChunkEdit?: (chunk: PastedContentChunkType) => void
+  onChunkDelete?: (id: string) => void
+  onChunkCreate?: (content: string) => void
   onError?: (message: string) => void
 }
 
@@ -33,6 +39,10 @@ export function InputArea({
   isLoading,
   attachedFiles,
   onFilesChange,
+  pastedChunks = [],
+  onChunkEdit,
+  onChunkDelete,
+  onChunkCreate,
   onError
 }: InputAreaProps) {
   const [isFocused, setIsFocused] = useState(false)
@@ -41,12 +51,30 @@ export function InputArea({
   const [showSearchMenu, setShowSearchMenu] = useState(false)
   const [searchMenuPos, setSearchMenuPos] = useState({ top: 0, left: 0 })
   const searchButtonRef = useRef<HTMLDivElement>(null)
-  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchMenuRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
+
+  // Click outside handler for search menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showSearchMenu &&
+        searchMenuRef.current &&
+        !searchMenuRef.current.contains(event.target as Node) &&
+        searchButtonRef.current &&
+        !searchButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowSearchMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSearchMenu])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -77,10 +105,13 @@ export function InputArea({
     }
   }
 
+  const PASTE_THRESHOLD = 250 // chars - triggers chunk creation
+
   const handlePaste = async (event: React.ClipboardEvent) => {
     const items = event.clipboardData.items
     const files: File[] = []
 
+    // Check for files first
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
       if (item.kind === 'file') {
@@ -95,7 +126,16 @@ export function InputArea({
       if (newFiles.length > 0) {
         onFilesChange([...attachedFiles, ...newFiles])
       }
+      return
     }
+
+    // Check for long text paste
+    const pastedText = event.clipboardData.getData('text')
+    if (pastedText.length > PASTE_THRESHOLD && onChunkCreate) {
+      event.preventDefault()
+      onChunkCreate(pastedText)
+    }
+    // Otherwise, allow default paste behavior for short text
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -129,35 +169,32 @@ export function InputArea({
   }
 
   // Search menu handlers
-  const handleSearchMouseEnter = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-      closeTimeoutRef.current = null
-    }
+  const toggleSearchMenu = useCallback(() => {
     if (searchButtonRef.current) {
       const rect = searchButtonRef.current.getBoundingClientRect()
-      setSearchMenuPos({ top: rect.top - 8, left: rect.left })
+      // Position menu below the button with better alignment
+      setSearchMenuPos({
+        top: rect.bottom + 8,
+        left: rect.left
+      })
     }
-    setShowSearchMenu(true)
-  }
+    setShowSearchMenu(prev => !prev)
+  }, [])
 
-  const handleSearchMouseLeave = () => {
-    closeTimeoutRef.current = setTimeout(() => {
-      setShowSearchMenu(false)
-    }, 200)
-  }
-
-  const handleMenuMouseEnter = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-      closeTimeoutRef.current = null
-    }
-    setShowSearchMenu(true)
-  }
-
-  const handleMenuMouseLeave = () => {
+  const closeSearchMenu = useCallback(() => {
     setShowSearchMenu(false)
-  }
+  }, [])
+
+  const handleSearchModeSelect = useCallback((mode: 'none' | 'webSearch' | 'deepResearch') => {
+    if (mode === 'none') {
+      updateSettings({ webSearchEnabled: false, deepResearchEnabled: false })
+    } else if (mode === 'webSearch') {
+      updateSettings({ webSearchEnabled: true, deepResearchEnabled: false })
+    } else if (mode === 'deepResearch') {
+      updateSettings({ webSearchEnabled: true, deepResearchEnabled: true })
+    }
+    closeSearchMenu()
+  }, [updateSettings, closeSearchMenu])
 
   return (
     <>
@@ -167,7 +204,7 @@ export function InputArea({
         color={isFocused || isDragging ? "cyan" : "#444"}
         speed="10s"
         style={{
-          borderRadius: '24px',
+          borderRadius: '12px',
           padding: '0',
           transition: 'all 0.3s ease',
           border: isDragging ? '2px dashed #60a5fa' : undefined,
@@ -180,15 +217,32 @@ export function InputArea({
       >
         <div style={{
           background: isDragging ? 'var(--theme-info-bg)' : 'var(--theme-surface)',
-          borderRadius: '22px',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
           padding: '10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '12px',
           height: '100%',
           width: '100%',
           transition: 'background 0.2s ease'
         }}>
+          {/* Pasted Content Chunks - inside the container */}
+          {pastedChunks.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {pastedChunks.map(chunk => (
+                <PastedContentChunk
+                  key={chunk.id}
+                  id={chunk.id}
+                  content={chunk.content}
+                  charCount={chunk.charCount}
+                  onEdit={() => onChunkEdit?.(chunk)}
+                  onDelete={() => onChunkDelete?.(chunk.id)}
+                />
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={input}
@@ -236,11 +290,10 @@ export function InputArea({
               {/* Search Mode Button */}
               <div
                 ref={searchButtonRef}
-                onMouseEnter={handleSearchMouseEnter}
-                onMouseLeave={handleSearchMouseLeave}
                 style={{ position: 'relative', display: 'flex', alignItems: 'center' }}
               >
                 <button
+                  onClick={toggleSearchMenu}
                   style={{
                     background: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info-bg)'
                       : settings.deepResearchEnabled ? 'var(--theme-accent-muted)' : 'transparent',
@@ -264,96 +317,215 @@ export function InputArea({
               {/* Search Menu Portal */}
               {showSearchMenu && ReactDOM.createPortal(
                 <div
-                  onMouseEnter={handleMenuMouseEnter}
-                  onMouseLeave={handleMenuMouseLeave}
+                  ref={searchMenuRef}
                   style={{
                     position: 'fixed',
                     top: `${searchMenuPos.top}px`,
                     left: `${searchMenuPos.left}px`,
-                    transform: 'translateY(-100%)',
-                    marginTop: '-8px',
                     background: 'var(--theme-surface)',
                     border: '1px solid var(--theme-border)',
                     borderRadius: '12px',
                     padding: '8px',
                     boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
                     zIndex: 99999,
-                    minWidth: '160px'
+                    minWidth: '240px',
+                    animation: 'fadeIn 0.15s ease-out'
                   }}
                 >
+                  {/* Arrow pointing up to button */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '-6px',
+                    left: '12px',
+                    width: '10px',
+                    height: '10px',
+                    background: 'var(--theme-surface)',
+                    transform: 'rotate(45deg)',
+                    borderLeft: '1px solid var(--theme-border)',
+                    borderTop: '1px solid var(--theme-border)'
+                  }} />
+
+                  {/* Menu Header */}
+                  <div style={{
+                    padding: '8px 12px 12px 12px',
+                    borderBottom: '1px solid var(--theme-border)',
+                    marginBottom: '4px'
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      color: 'var(--theme-text-secondary)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      Search Mode
+                    </div>
+                  </div>
+
                   {/* No Web Search */}
                   <button
-                    onClick={() => updateSettings({ webSearchEnabled: false, deepResearchEnabled: false })}
+                    onClick={() => handleSearchModeSelect('none')}
                     style={{
                       width: '100%',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 12px',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      padding: '10px 12px',
                       borderRadius: '8px',
                       border: 'none',
-                      background: (!settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      background: (!settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'rgba(255,255,255,0.06)' : 'transparent',
                       color: '#ccc',
                       cursor: 'pointer',
                       fontSize: '0.85rem',
-                      transition: 'background 0.15s'
+                      transition: 'background 0.15s',
+                      textAlign: 'left'
                     }}
                   >
-                    <MessageCircle size={16} color="#888" />
-                    <span>No Web Search</span>
-                    {!settings.webSearchEnabled && !settings.deepResearchEnabled && (
-                      <Check size={14} color="#60a5fa" style={{ marginLeft: 'auto' }} />
-                    )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'rgba(255,255,255,0.05)',
+                      flexShrink: 0
+                    }}>
+                      <MessageCircle size={14} color="#888" />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontWeight: 500,
+                        color: '#fff',
+                        marginBottom: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        Off
+                        {!settings.webSearchEnabled && !settings.deepResearchEnabled && (
+                          <Check size={14} color="#60a5fa" />
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--theme-text-secondary)'
+                      }}>
+                        Standard AI response without web access
+                      </div>
+                    </div>
                   </button>
 
                   {/* Web Search */}
                   <button
-                    onClick={() => updateSettings({ webSearchEnabled: true, deepResearchEnabled: false })}
+                    onClick={() => handleSearchModeSelect('webSearch')}
                     style={{
                       width: '100%',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 12px',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      padding: '10px 12px',
                       borderRadius: '8px',
                       border: 'none',
                       background: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info-bg)' : 'transparent',
                       color: '#ccc',
                       cursor: 'pointer',
                       fontSize: '0.85rem',
-                      transition: 'background 0.15s'
+                      transition: 'background 0.15s',
+                      textAlign: 'left'
                     }}
                   >
-                    <Globe size={16} color={settings.webSearchEnabled && !settings.deepResearchEnabled ? 'var(--theme-info)' : '#666'} />
-                    <span>Web Search</span>
-                    {settings.webSearchEnabled && !settings.deepResearchEnabled && (
-                      <Check size={14} color="var(--theme-info)" style={{ marginLeft: 'auto' }} />
-                    )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: (settings.webSearchEnabled && !settings.deepResearchEnabled)
+                        ? 'rgba(59, 130, 246, 0.15)'
+                        : 'rgba(255,255,255,0.05)',
+                      flexShrink: 0
+                    }}>
+                      <Zap size={14} color={settings.webSearchEnabled && !settings.deepResearchEnabled ? 'var(--theme-info)' : '#666'} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontWeight: 500,
+                        color: (settings.webSearchEnabled && !settings.deepResearchEnabled) ? 'var(--theme-info)' : '#fff',
+                        marginBottom: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        Quick Search
+                        {settings.webSearchEnabled && !settings.deepResearchEnabled && (
+                          <Check size={14} color="var(--theme-info)" />
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--theme-text-secondary)'
+                      }}>
+                        Fast web lookup for current information
+                      </div>
+                    </div>
                   </button>
 
                   {/* Deep Research */}
                   <button
-                    onClick={() => updateSettings({ webSearchEnabled: true, deepResearchEnabled: true })}
+                    onClick={() => handleSearchModeSelect('deepResearch')}
                     style={{
                       width: '100%',
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '8px 12px',
+                      alignItems: 'flex-start',
+                      gap: '12px',
+                      padding: '10px 12px',
                       borderRadius: '8px',
                       border: 'none',
                       background: settings.deepResearchEnabled ? 'var(--theme-accent-muted)' : 'transparent',
                       color: '#ccc',
                       cursor: 'pointer',
                       fontSize: '0.85rem',
-                      transition: 'background 0.15s'
+                      transition: 'background 0.15s',
+                      textAlign: 'left'
                     }}
                   >
-                    <Brain size={16} color={settings.deepResearchEnabled ? 'var(--theme-accent)' : '#666'} />
-                    <span>Deep Research</span>
-                    {settings.deepResearchEnabled && (
-                      <Check size={14} color="var(--theme-accent)" style={{ marginLeft: 'auto' }} />
-                    )}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: settings.deepResearchEnabled
+                        ? 'rgba(139, 92, 246, 0.15)'
+                        : 'rgba(255,255,255,0.05)',
+                      flexShrink: 0
+                    }}>
+                      <Brain size={14} color={settings.deepResearchEnabled ? 'var(--theme-accent)' : '#666'} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontWeight: 500,
+                        color: settings.deepResearchEnabled ? 'var(--theme-accent)' : '#fff',
+                        marginBottom: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        Deep Research
+                        {settings.deepResearchEnabled && (
+                          <Check size={14} color="var(--theme-accent)" />
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--theme-text-secondary)'
+                      }}>
+                        Comprehensive analysis with multiple sources
+                      </div>
+                    </div>
                   </button>
                 </div>,
                 document.body
@@ -419,17 +591,18 @@ export function InputArea({
                 }}
                 type="button"
                 style={{
-                  background: attachedFiles.length > 0 ? 'var(--theme-accent)' : 'rgba(255,255,255,0.05)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: '8px',
-                  padding: '10px 14px',
-                  color: attachedFiles.length > 0 ? '#000' : '#cccccc',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  width: '36px',
+                  height: '36px',
+                  color: attachedFiles.length > 0 ? 'var(--theme-accent)' : '#888',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  position: 'relative',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  padding: 0
                 }}
                 title={attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files'}
               >
@@ -437,28 +610,39 @@ export function InputArea({
               </button>
 
               {/* Send button */}
-              {!isLoading && (
-                <button
-                  onClick={onSend}
-                  disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
-                  style={{
-                    background: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'var(--theme-accent)' : 'transparent',
-                    border: '1px solid var(--theme-border)',
-                    borderRadius: '8px',
-                    padding: '10px 14px',
-                    color: (input.trim() || attachedFiles.length > 0) && !isLoading ? '#000' : 'var(--theme-text-muted)',
-                    cursor: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'pointer' : 'default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                    transform: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'scale(1)' : 'scale(0.95)'
-                  }}
-                  title={attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Send message'}
-                >
+              <button
+                onClick={onSend}
+                disabled={isLoading || (!input.trim() && attachedFiles.length === 0)}
+                style={{
+                  background: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'var(--theme-accent)' : 'rgba(255, 255, 255, 0.03)',
+                  border: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  width: '36px',
+                  height: '36px',
+                  color: (input.trim() || attachedFiles.length > 0) && !isLoading ? '#000' : '#888',
+                  cursor: (input.trim() || attachedFiles.length > 0) && !isLoading ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                  padding: 0,
+                  opacity: isLoading ? 0.5 : 1
+                }}
+                title={attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Send message'}
+              >
+                {isLoading ? (
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTopColor: '#fff',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                ) : (
                   <Send size={18} />
-                </button>
-              )}
+                )}
+              </button>
             </div>
           </div>
         </div>

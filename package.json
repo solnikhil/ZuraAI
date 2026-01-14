@@ -33,6 +33,7 @@
     "@vitejs/plugin-react": "^4.0.0",
     "electron": "^25.9.8",
     "electron-builder": "^24.0.0",
+    "electron-devtools-installer": "^4.0.0",
     "fast-check": "^4.4.0",
     "jsdom": "^27.3.0",
     "typescript": "^5.0.0",

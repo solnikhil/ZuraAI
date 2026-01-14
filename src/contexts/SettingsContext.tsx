@@ -22,7 +22,7 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
@@ -33,6 +33,9 @@ export interface Settings {
     // Groq settings
     groqApiKey: string
     groqModels: Array<{ code: string; displayName: string }>
+    // MiniMax settings
+    minimaxApiKey: string
+    minimaxModels: Array<{ code: string; displayName: string }>
     // Quick prompts for welcome screen
     quickPrompts: string[]
     // Title generation model
@@ -88,7 +91,7 @@ const defaultSettings: Settings = {
     aiModel: 'x-ai/grok-4.1-fast',
     titleModel: 'gemini-2.0-flash', // Default to fast free model
     temperature: 0.7,
-    maxTokens: 1000,
+    maxTokens: 25000,
     autoHideOverlay: false,
     overlayTransparency: 0.95,
     loadOverlayOnStartup: false,
@@ -151,6 +154,12 @@ const defaultSettings: Settings = {
         { code: 'llama-guard-3-8b', displayName: 'Llama Guard 3 8B' },
         { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
         { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
+    ],
+    minimaxApiKey: '',
+    minimaxModels: [
+        { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' },
+        { code: 'MiniMax-M2.1-lightning', displayName: 'MiniMax M2.1 Lightning' },
+        { code: 'MiniMax-M2', displayName: 'MiniMax M2' },
     ],
     quickPrompts: [
         'Explain this code to me',
@@ -224,6 +233,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize Groq fields if missing
         if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
+        // Initialize MiniMax fields if missing
+        if (!parsed.minimaxApiKey) parsed.minimaxApiKey = defaultSettings.minimaxApiKey
+        if (!parsed.minimaxModels) parsed.minimaxModels = defaultSettings.minimaxModels
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         // Initialize todos if missing
@@ -284,7 +296,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
                 // Check if we got any keys
                 const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
-                    secureKeys.geminiApiKey || secureKeys.groqApiKey || secureKeys.tavilyApiKey
+                    secureKeys.geminiApiKey || secureKeys.groqApiKey || secureKeys.tavilyApiKey ||
+                    secureKeys.minimaxApiKey
 
                 if (hasSecureKeys) {
                     // Update settings with secure keys - prefer secure storage values
@@ -295,6 +308,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                         tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
+                        minimaxApiKey: secureKeys.minimaxApiKey || prev.minimaxApiKey,
                     }))
                 }
 

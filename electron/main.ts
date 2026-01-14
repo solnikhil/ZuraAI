@@ -1,5 +1,6 @@
 import { app, globalShortcut, protocol } from 'electron'
 import path from 'path'
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
 // Import window management
 import {
@@ -64,14 +65,21 @@ app.on('will-quit', () => {
 })
 
 app.whenReady().then(async () => {
+    // Install React DevTools in development
+    if (!app.isPackaged) {
+        installExtension(REACT_DEVELOPER_TOOLS)
+            .then((name) => console.log(`[MAIN] Added Extension:  ${name}`))
+            .catch((err) => console.log('[MAIN] An error occurred: ', err));
+    }
+
     // Register a custom protocol to handle terminal spawning
     // This bypasses contextBridge issues by using a URL scheme
     protocol.registerStringProtocol('zura-terminal', (request, callback) => {
         const url = request.url.replace('zura-terminal://', '')
         const [command, ...args] = decodeURIComponent(url).split(' ')
-        
+
         console.log('[ZURA-TERMINAL] Protocol handler called:', { command, args })
-        
+
         if (process.platform === 'win32') {
             const cmd = `start cmd.exe /K "${command} ${args.join(' ')} & pause"`
             exec(cmd, (error, stdout, stderr) => {

@@ -26,8 +26,8 @@ function App() {
                                     <Route path="/" element={<DashboardLayout />} />
                                     <Route path="/dashboard" element={<DashboardLayout />} />
                                     <Route path="/settings" element={<Settings />} />
-                                    {/* Legacy chat view if accessed directly */}
-                                    <Route path="/chat" element={<LegacyChatWrapper />} />
+                                    {/* Legacy chat view now uses DashboardLayout to include sidebar */}
+                                    <Route path="/chat" element={<DashboardLayout />} />
                                 </Route>
                                 <Route path="/overlay" element={<Overlay />} />
                             </Routes>

@@ -89,6 +89,27 @@ function MarkdownContent({ content }: { content: string }) {
                                 customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}
                             />
                         </div>
+                    ) : !inline ? (
+                        <div style={{
+                            margin: '12px 0',
+                            borderRadius: '8px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{
+                                padding: '12px 16px',
+                                overflowX: 'auto',
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: '0.9em',
+                                lineHeight: '1.6',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                color: '#e0e0e0'
+                            }}>
+                                {children}
+                            </div>
+                        </div>
                     ) : (
                         <code {...props} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em', fontFamily: 'menubar' }}>
                             {children}

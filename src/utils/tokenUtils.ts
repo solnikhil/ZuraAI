@@ -54,6 +54,9 @@ const DEFAULT_CONTEXT_WINDOWS: Record<string, ContextWindow> = {
     'gemma': { maxTokens: 8192, reserveForResponse: 1000 },
     'mistral': { maxTokens: 32768, reserveForResponse: 2000 },
     'sonar': { maxTokens: 32768, reserveForResponse: 2000 },
+    // OpenRouter models - allow up to 12k output tokens
+    'openrouter': { maxTokens: 16384, reserveForResponse: 12000 },
+    // Default for unknown models
     'default': { maxTokens: 8192, reserveForResponse: 1000 }
 }
 
