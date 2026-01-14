@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
-import { Eye, EyeOff, PanelLeft } from './icons'
+import { PanelLeft } from './icons'
+import { EyeIcon, EyeOffIcon } from './icons'
 import TitleBarCommandBar from './TitleBarCommandBar'
 import './TitleBar.css'
 
@@ -100,7 +101,7 @@ export default function TitleBar() {
                             aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
                             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
                         >
-                            {sidebarHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                            {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
                         </button>
                         <button
                             type="button"

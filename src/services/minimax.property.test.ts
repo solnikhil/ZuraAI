@@ -21,7 +21,12 @@ import {
     extractReasoningText,
     chunkHasReasoning,
     MiniMaxStreamChunk,
-    MiniMaxReasoningDetail
+    MiniMaxReasoningDetail,
+    extractUsageMetrics,
+    accumulateUsageMetrics,
+    calculateTPS,
+    MiniMaxUsage,
+    NormalizedUsageMetrics
 } from './minimax'
 import { StreamingToolCall } from './types'
 
@@ -670,25 +675,28 @@ describe('MiniMax Service Property Tests', () => {
             )
         })
 
-        it('should handle incremental updates to same index', async () => {
+        it('should handle incremental updates to same index (MiniMax sends full text each time)', async () => {
             await fc.assert(
                 fc.asyncProperty(
                     fc.array(reasoningTextArb, { minLength: 2, maxLength: 5 }),
                     (textParts) => {
                         const accumulator = new ReasoningAccumulator()
                         
-                        // Accumulate all parts to the same index (simulating streaming)
+                        // MiniMax sends full accumulated text in each chunk, not deltas
+                        // So we simulate this by sending progressively longer strings
+                        let accumulatedText = ''
                         for (const text of textParts) {
+                            accumulatedText += text
                             accumulator.accumulate([{
                                 type: 'reasoning.text',
                                 id: 'reasoning-text-0',
                                 format: 'MiniMax-response-v1',
                                 index: 0,
-                                text: text
+                                text: accumulatedText  // Full text, not delta
                             }])
                         }
                         
-                        // Property: All parts should be concatenated
+                        // Property: Final result should be the full accumulated text
                         const expectedText = textParts.join('')
                         expect(accumulator.getReasoning()).toBe(expectedText)
                     }
@@ -773,6 +781,268 @@ describe('MiniMax Service Property Tests', () => {
                         } else {
                             expect(result).toBe(expectedText)
                         }
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+    })
+
+    /**
+     * Feature: minimax-provider, Property 5: Usage Metrics Extraction
+     * 
+     * *For any* response containing usage data, the MiniMax provider SHALL:
+     * - Map `prompt_tokens` to `inputTokens`
+     * - Map `completion_tokens` to `outputTokens`
+     * - Calculate `totalTokens` as `inputTokens + outputTokens`
+     * - Extract `reasoning_tokens` from `completion_tokens_details` when present
+     * 
+     * **Validates: Requirements 10.1, 10.2, 10.3, 10.4**
+     */
+    describe('Property 5: Usage Metrics Extraction', () => {
+        // Arbitrary for generating valid token counts
+        const tokenCountArb = fc.integer({ min: 0, max: 100000 })
+        
+        // Arbitrary for generating valid reasoning token counts
+        const reasoningTokensArb = fc.integer({ min: 0, max: 50000 })
+        
+        // Arbitrary for generating MiniMax usage objects
+        const usageArb = fc.record({
+            prompt_tokens: tokenCountArb,
+            completion_tokens: tokenCountArb,
+            total_tokens: tokenCountArb,
+            hasReasoningTokens: fc.boolean(),
+            reasoning_tokens: reasoningTokensArb
+        })
+
+        it('should map prompt_tokens to inputTokens', async () => {
+            await fc.assert(
+                fc.asyncProperty(usageArb, async (usageData) => {
+                    const usage: MiniMaxUsage = {
+                        prompt_tokens: usageData.prompt_tokens,
+                        completion_tokens: usageData.completion_tokens,
+                        total_tokens: usageData.total_tokens,
+                        completion_tokens_details: usageData.hasReasoningTokens 
+                            ? { reasoning_tokens: usageData.reasoning_tokens }
+                            : undefined
+                    }
+                    
+                    const result = extractUsageMetrics(usage)
+                    
+                    // Property: inputTokens should equal prompt_tokens
+                    expect(result).toBeDefined()
+                    expect(result!.inputTokens).toBe(usageData.prompt_tokens)
+                }),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should map completion_tokens to outputTokens', async () => {
+            await fc.assert(
+                fc.asyncProperty(usageArb, async (usageData) => {
+                    const usage: MiniMaxUsage = {
+                        prompt_tokens: usageData.prompt_tokens,
+                        completion_tokens: usageData.completion_tokens,
+                        total_tokens: usageData.total_tokens,
+                        completion_tokens_details: usageData.hasReasoningTokens 
+                            ? { reasoning_tokens: usageData.reasoning_tokens }
+                            : undefined
+                    }
+                    
+                    const result = extractUsageMetrics(usage)
+                    
+                    // Property: outputTokens should equal completion_tokens
+                    expect(result).toBeDefined()
+                    expect(result!.outputTokens).toBe(usageData.completion_tokens)
+                }),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should calculate totalTokens correctly', async () => {
+            await fc.assert(
+                fc.asyncProperty(usageArb, async (usageData) => {
+                    const usage: MiniMaxUsage = {
+                        prompt_tokens: usageData.prompt_tokens,
+                        completion_tokens: usageData.completion_tokens,
+                        total_tokens: usageData.total_tokens,
+                        completion_tokens_details: usageData.hasReasoningTokens 
+                            ? { reasoning_tokens: usageData.reasoning_tokens }
+                            : undefined
+                    }
+                    
+                    const result = extractUsageMetrics(usage)
+                    
+                    // Property: totalTokens should equal total_tokens from API when provided
+                    // If total_tokens is 0 or missing, it falls back to inputTokens + outputTokens
+                    expect(result).toBeDefined()
+                    const expectedTotal = usageData.total_tokens || (usageData.prompt_tokens + usageData.completion_tokens)
+                    expect(result!.totalTokens).toBe(expectedTotal)
+                }),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should extract reasoning_tokens when present', async () => {
+            await fc.assert(
+                fc.asyncProperty(usageArb, async (usageData) => {
+                    const usage: MiniMaxUsage = {
+                        prompt_tokens: usageData.prompt_tokens,
+                        completion_tokens: usageData.completion_tokens,
+                        total_tokens: usageData.total_tokens,
+                        completion_tokens_details: usageData.hasReasoningTokens 
+                            ? { reasoning_tokens: usageData.reasoning_tokens }
+                            : undefined
+                    }
+                    
+                    const result = extractUsageMetrics(usage)
+                    
+                    // Property: reasoningTokens should be extracted when present and > 0
+                    expect(result).toBeDefined()
+                    if (usageData.hasReasoningTokens && usageData.reasoning_tokens > 0) {
+                        expect(result!.reasoningTokens).toBe(usageData.reasoning_tokens)
+                    } else {
+                        expect(result!.reasoningTokens).toBeUndefined()
+                    }
+                }),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should return undefined for null or undefined usage', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.constantFrom(null, undefined),
+                    async (invalidUsage) => {
+                        const result = extractUsageMetrics(invalidUsage as MiniMaxUsage | undefined | null)
+                        
+                        // Property: Should return undefined for invalid input
+                        expect(result).toBeUndefined()
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should handle missing token fields gracefully', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.record({
+                        hasPromptTokens: fc.boolean(),
+                        hasCompletionTokens: fc.boolean(),
+                        hasTotalTokens: fc.boolean(),
+                        prompt_tokens: tokenCountArb,
+                        completion_tokens: tokenCountArb,
+                        total_tokens: tokenCountArb
+                    }),
+                    async (data) => {
+                        // Create usage with potentially missing fields
+                        const usage: any = {}
+                        if (data.hasPromptTokens) usage.prompt_tokens = data.prompt_tokens
+                        if (data.hasCompletionTokens) usage.completion_tokens = data.completion_tokens
+                        if (data.hasTotalTokens) usage.total_tokens = data.total_tokens
+                        
+                        const result = extractUsageMetrics(usage as MiniMaxUsage)
+                        
+                        // Property: Should handle missing fields with defaults of 0
+                        expect(result).toBeDefined()
+                        const expectedInput = data.hasPromptTokens ? data.prompt_tokens : 0
+                        const expectedOutput = data.hasCompletionTokens ? data.completion_tokens : 0
+                        expect(result!.inputTokens).toBe(expectedInput)
+                        expect(result!.outputTokens).toBe(expectedOutput)
+                        
+                        // totalTokens should use provided value if non-zero, otherwise calculate from input + output
+                        const providedTotal = data.hasTotalTokens ? data.total_tokens : 0
+                        const expectedTotal = providedTotal || (expectedInput + expectedOutput)
+                        expect(result!.totalTokens).toBe(expectedTotal)
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should accumulate usage metrics correctly across multiple calls', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.array(usageArb, { minLength: 1, maxLength: 5 }),
+                    async (usageDataArray) => {
+                        let accumulated: NormalizedUsageMetrics | undefined = undefined
+                        
+                        // Accumulate all usage data
+                        for (const usageData of usageDataArray) {
+                            const usage: MiniMaxUsage = {
+                                prompt_tokens: usageData.prompt_tokens,
+                                completion_tokens: usageData.completion_tokens,
+                                total_tokens: usageData.total_tokens,
+                                completion_tokens_details: usageData.hasReasoningTokens 
+                                    ? { reasoning_tokens: usageData.reasoning_tokens }
+                                    : undefined
+                            }
+                            const extracted = extractUsageMetrics(usage)
+                            accumulated = accumulateUsageMetrics(accumulated, extracted)
+                        }
+                        
+                        // Calculate expected totals
+                        const expectedInput = usageDataArray.reduce((sum, u) => sum + u.prompt_tokens, 0)
+                        const expectedOutput = usageDataArray.reduce((sum, u) => sum + u.completion_tokens, 0)
+                        // For totalTokens, we need to account for the fallback logic in extractUsageMetrics
+                        const expectedTotal = usageDataArray.reduce((sum, u) => {
+                            const total = u.total_tokens || (u.prompt_tokens + u.completion_tokens)
+                            return sum + total
+                        }, 0)
+                        const expectedReasoning = usageDataArray
+                            .filter(u => u.hasReasoningTokens && u.reasoning_tokens > 0)
+                            .reduce((sum, u) => sum + u.reasoning_tokens, 0)
+                        
+                        // Property: Accumulated values should equal sum of all inputs
+                        expect(accumulated).toBeDefined()
+                        expect(accumulated!.inputTokens).toBe(expectedInput)
+                        expect(accumulated!.outputTokens).toBe(expectedOutput)
+                        expect(accumulated!.totalTokens).toBe(expectedTotal)
+                        if (expectedReasoning > 0) {
+                            expect(accumulated!.reasoningTokens).toBe(expectedReasoning)
+                        } else {
+                            expect(accumulated!.reasoningTokens).toBeUndefined()
+                        }
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should calculate TPS correctly', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.integer({ min: 1, max: 10000 }),
+                    fc.integer({ min: 1, max: 60000 }),
+                    async (outputTokens, latencyMs) => {
+                        const tps = calculateTPS(outputTokens, latencyMs)
+                        
+                        // Property: TPS should be outputTokens / (latencyMs / 1000)
+                        expect(tps).toBeDefined()
+                        const expectedTps = outputTokens / (latencyMs / 1000)
+                        expect(tps).toBeCloseTo(expectedTps, 5)
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should return undefined TPS for invalid inputs', async () => {
+            await fc.assert(
+                fc.asyncProperty(
+                    fc.constantFrom(
+                        { outputTokens: 0, latencyMs: 1000 },
+                        { outputTokens: -1, latencyMs: 1000 },
+                        { outputTokens: 100, latencyMs: 0 },
+                        { outputTokens: 100, latencyMs: -1 },
+                        { outputTokens: 0, latencyMs: 0 }
+                    ),
+                    async ({ outputTokens, latencyMs }) => {
+                        const tps = calculateTPS(outputTokens, latencyMs)
+                        
+                        // Property: Should return undefined for invalid inputs
+                        expect(tps).toBeUndefined()
                     }
                 ),
                 { numRuns: 100 }

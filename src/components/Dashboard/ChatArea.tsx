@@ -126,6 +126,14 @@ export default function ChatArea() {
       fullInput += (fullInput ? '\n\n[Attached Content]\n' : '[Attached Content]\n') + chunkContent
     }
 
+    // Debug: log the full input being sent
+    console.log('[ChatArea] Sending message:', {
+      inputLength: input.length,
+      chunkCount: pastedChunks.length,
+      fullInputLength: fullInput.length,
+      fullInputPreview: fullInput.slice(0, 200) + (fullInput.length > 200 ? '...' : '')
+    })
+
     await sendMessage(fullInput, attachedFiles)
   }
 

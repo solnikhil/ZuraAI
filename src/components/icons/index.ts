@@ -11,6 +11,7 @@ export {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  CornerDownLeft,
   RotateCcw,
   Download,
   Share2,
@@ -92,4 +93,9 @@ export {
 
 // Animated icons
 export { default as SendIcon } from './SendIcon'
+export { default as MessageCircleIcon } from './MessageCircleIcon'
+export { default as MagnifierIcon } from './MagnifierIcon'
+export { default as TrashIcon } from './TrashIcon'
+export { default as EyeIcon } from './EyeIcon'
+export { default as EyeOffIcon } from './EyeOffIcon'
 export type { AnimatedIconHandle, AnimatedIconProps } from './types'

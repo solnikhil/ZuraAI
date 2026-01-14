@@ -12,7 +12,7 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Overlay UI (always-on-top, click-through, screenshot selection/cropping)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Gemini, Groq)
+- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Gemini, Groq, MiniMax)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; only `web_search` is enabled end-to-end)
 
@@ -154,6 +154,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/gemini.ts` (`streamGeminiCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
+  - `src/services/minimax.ts` (`streamMiniMaxCompletion`)
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
@@ -196,6 +197,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `geminiApiKey`, `groqApiKey`, `tavilyApiKey`, `minimaxApiKey`
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
@@ -219,6 +221,7 @@ Tool execution is intentionally restricted.
 - Gemini: `src/services/gemini.ts` (Gemini function calling)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
+- MiniMax: `src/services/minimax.ts` (OpenAI-compatible; streaming, tool calling, interleaved thinking/reasoning)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)
 
 ### Environment & Secrets

@@ -10,7 +10,7 @@ import ReactDOM from 'react-dom'
 import {
   Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
   Wrench, X, File, FileText, RotateCcw, Sparkles, Edit2, Zap, Database,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
@@ -374,10 +374,29 @@ export function MessageRenderer({
   const [showToolModal, setShowToolModal] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
   const [isHoveringInfo, setIsHoveringInfo] = useState(false)
-  const [showRegenerateMenu, setShowRegenerateMenu] = useState(false)
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false)
+  const [regenerateInstruction, setRegenerateInstruction] = useState('')
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const infoTriggerRef = useRef<HTMLDivElement>(null)
   const messageRef = useRef<HTMLDivElement>(null)
+  const regenerateInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Track if content has arrived during streaming
+  const [hasContentDuringStreaming, setHasContentDuringStreaming] = useState(false)
+
+  // Reset content tracking when streaming starts
+  useEffect(() => {
+    if (isStreaming) {
+      setHasContentDuringStreaming(false)
+    }
+  }, [isStreaming])
+
+  // Track when content arrives during streaming
+  useEffect(() => {
+    if (isStreaming && message.content && message.content.length > 0) {
+      setHasContentDuringStreaming(true)
+    }
+  }, [isStreaming, message.content])
 
   // Get all versions including current message
   const versions = message.responseVersions || []
@@ -417,12 +436,26 @@ export function MessageRenderer({
   }
 
   // Handle regenerate action
-  const handleRegenerate = (instruction: string) => {
-    setShowRegenerateMenu(false)
+  const handleRegenerate = () => {
     if (onRegenerate) {
-      onRegenerate(instruction)
+      onRegenerate(regenerateInstruction.trim())
+      setShowRegenerateModal(false)
+      setRegenerateInstruction('')
     }
   }
+
+  // Open regenerate modal and focus input
+  const openRegenerateModal = () => {
+    setShowRegenerateModal(true)
+    setRegenerateInstruction('')
+  }
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (showRegenerateModal && regenerateInputRef.current) {
+      regenerateInputRef.current.focus()
+    }
+  }, [showRegenerateModal])
 
   // Handle version navigation
   const navigateVersion = (direction: 'prev' | 'next') => {
@@ -526,10 +559,12 @@ export function MessageRenderer({
         </div>
       )}
 
-      {/* Message content */}
-      <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-        <LazyMarkdown content={processedContent} />
-      </div>
+      {/* Message content - only show when not streaming or when content has arrived */}
+      {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
+        <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
+          <LazyMarkdown content={processedContent} />
+        </div>
+      )}
 
       {/* Action Bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
@@ -628,85 +663,24 @@ export function MessageRenderer({
 
         {/* Regenerate Button */}
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowRegenerateMenu(!showRegenerateMenu)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--theme-text-muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px',
-                borderRadius: '4px',
-                transition: 'all 0.2s'
-              }}
-            >
-              <RotateCcw size={14} />
-            </button>
-
-            {/* Regenerate Menu */}
-            {showRegenerateMenu && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                marginTop: '8px',
-                background: 'var(--theme-surface)',
-                border: '1px solid var(--theme-border)',
-                borderRadius: '12px',
-                padding: '12px',
-                minWidth: '220px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                zIndex: 1000,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <div style={{
-                  color: 'var(--theme-text-muted)',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Regenerate
-                </div>
-
-                {[
-                  { instruction: 'switch_model', icon: <Cpu size={14} color="var(--theme-info)" />, label: 'Switch Model' },
-                  { instruction: 'concise', icon: <Sparkles size={14} color="var(--theme-accent)" />, label: 'More Concise' },
-                  { instruction: 'detailed', icon: <FileText size={14} color="var(--theme-success)" />, label: 'Add Details' },
-                  { instruction: 'retry', icon: <RotateCcw size={14} color="#888" />, label: 'Try Again' },
-                  { instruction: 'custom', icon: <Edit2 size={14} color="#f59e0b" />, label: 'Ask to Change Response...' }
-                ].map(({ instruction, icon, label }) => (
-                  <button
-                    key={instruction}
-                    onClick={() => handleRegenerate(instruction)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      color: 'var(--theme-text-secondary)',
-                      fontSize: '0.85rem',
-                      textAlign: 'left'
-                    }}
-                  >
-                    {icon}
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={openRegenerateModal}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--theme-text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: 'all 0.2s'
+            }}
+            title="Regenerate with custom instructions"
+          >
+            <RotateCcw size={14} />
+          </button>
         )}
 
         {/* Info Tooltip */}
@@ -794,6 +768,182 @@ export function MessageRenderer({
           toolResults={message.toolResults}
           onClose={() => setShowToolModal(false)}
         />
+      )}
+
+      {/* Regenerate Modal */}
+      {showRegenerateModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '20px',
+            animation: 'fadeIn 0.15s ease-out'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowRegenerateModal(false)
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--theme-surface)',
+              borderRadius: '16px',
+              padding: '20px',
+              width: '100%',
+              maxWidth: '500px',
+              border: '1px solid var(--theme-border)',
+              boxShadow: 'var(--theme-shadow-lg)',
+              animation: 'slideUp 0.2s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  background: 'var(--theme-accent)',
+                  borderRadius: '8px',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <RotateCcw size={16} color="var(--theme-text-inverse)" />
+                </div>
+                <div>
+                  <div style={{ color: 'var(--theme-text-primary)', fontSize: '0.95rem', fontWeight: 600 }}>
+                    Regenerate Response
+                  </div>
+                  <div style={{ color: 'var(--theme-text-tertiary)', fontSize: '0.75rem' }}>
+                    Leave empty to regenerate normally
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRegenerateModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--theme-text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderRadius: '4px',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Text Input */}
+            <textarea
+              ref={regenerateInputRef}
+              value={regenerateInstruction}
+              onChange={(e) => setRegenerateInstruction(e.target.value)}
+              placeholder="Describe what you want to change... (e.g., &quot;make it more concise&quot;, &quot;add code examples&quot;, &quot;explain in simpler terms&quot;)"
+              style={{
+                width: '100%',
+                minHeight: '80px',
+                maxHeight: '200px',
+                padding: '12px',
+                backgroundColor: 'var(--theme-surface-subtle)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: '10px',
+                color: 'var(--theme-text-primary)',
+                fontSize: '0.9rem',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                transition: 'border-color 0.15s'
+              }}
+              onFocus={(e) => e.currentTarget.style.borderColor = 'var(--theme-accent)'}
+              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--theme-border)'}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  handleRegenerate()
+                } else if (e.key === 'Escape') {
+                  setShowRegenerateModal(false)
+                }
+              }}
+            />
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+              <div style={{ color: 'var(--theme-text-muted)', fontSize: '0.75rem' }}>
+                <CornerDownLeft size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                Cmd+Enter to regenerate
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setShowRegenerateModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'transparent',
+                    border: '1px solid var(--theme-border)',
+                    borderRadius: '8px',
+                    color: 'var(--theme-text-secondary)',
+                    fontSize: '0.85rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRegenerate}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'var(--theme-accent)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'var(--theme-text-inverse)',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-accent-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'var(--theme-accent)'}
+                >
+                  <RotateCcw size={14} />
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Animations */}
+          <style>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUp {
+              from { opacity: 0; transform: translateY(20px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
+        </div>
       )}
     </div>
   )

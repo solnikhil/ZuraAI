@@ -117,6 +117,117 @@ export function isToolCallsFinishReason(finishReason: string | null | undefined)
 }
 
 /**
+ * Normalized usage metrics interface
+ * Maps MiniMax API usage fields to a standard format
+ * 
+ * Requirements: 10.1, 10.2, 10.3, 10.4
+ */
+export interface NormalizedUsageMetrics {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    reasoningTokens?: number
+}
+
+/**
+ * MiniMax API usage structure
+ */
+export interface MiniMaxUsage {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+    completion_tokens_details?: {
+        reasoning_tokens?: number
+    }
+}
+
+/**
+ * Extract and normalize usage metrics from MiniMax API response
+ * 
+ * Maps MiniMax API fields to standard format:
+ * - prompt_tokens → inputTokens
+ * - completion_tokens → outputTokens
+ * - total_tokens → totalTokens (or calculated as inputTokens + outputTokens)
+ * - completion_tokens_details.reasoning_tokens → reasoningTokens
+ * 
+ * Requirements: 10.1, 10.2, 10.3, 10.4
+ * 
+ * @param usage - MiniMax API usage object from response
+ * @returns Normalized usage metrics or undefined if no usage data
+ */
+export function extractUsageMetrics(usage: MiniMaxUsage | undefined | null): NormalizedUsageMetrics | undefined {
+    if (!usage) {
+        return undefined
+    }
+
+    const inputTokens = usage.prompt_tokens || 0
+    const outputTokens = usage.completion_tokens || 0
+    
+    // Calculate totalTokens - use provided value or sum of input + output
+    const totalTokens = usage.total_tokens || (inputTokens + outputTokens)
+    
+    // Extract reasoning tokens from completion_tokens_details
+    const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens
+
+    return {
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        reasoningTokens: reasoningTokens !== undefined && reasoningTokens > 0 ? reasoningTokens : undefined
+    }
+}
+
+/**
+ * Accumulate usage metrics from multiple API calls
+ * Used when making follow-up requests in research mode
+ * 
+ * Requirements: 10.1, 10.2, 10.3, 10.4
+ * 
+ * @param existing - Existing accumulated usage metrics
+ * @param newUsage - New usage metrics to add
+ * @returns Combined usage metrics
+ */
+export function accumulateUsageMetrics(
+    existing: NormalizedUsageMetrics | undefined,
+    newUsage: NormalizedUsageMetrics | undefined
+): NormalizedUsageMetrics {
+    const existingInput = existing?.inputTokens || 0
+    const existingOutput = existing?.outputTokens || 0
+    const existingTotal = existing?.totalTokens || 0
+    const existingReasoning = existing?.reasoningTokens || 0
+
+    const newInput = newUsage?.inputTokens || 0
+    const newOutput = newUsage?.outputTokens || 0
+    const newTotal = newUsage?.totalTokens || 0
+    const newReasoning = newUsage?.reasoningTokens || 0
+
+    const combinedReasoning = existingReasoning + newReasoning
+
+    return {
+        inputTokens: existingInput + newInput,
+        outputTokens: existingOutput + newOutput,
+        totalTokens: existingTotal + newTotal,
+        reasoningTokens: combinedReasoning > 0 ? combinedReasoning : undefined
+    }
+}
+
+/**
+ * Calculate tokens per second (TPS) metric
+ * 
+ * Requirements: 10.5
+ * 
+ * @param outputTokens - Number of output tokens generated
+ * @param latencyMs - Total latency in milliseconds
+ * @returns TPS value or undefined if cannot be calculated
+ */
+export function calculateTPS(outputTokens: number, latencyMs: number): number | undefined {
+    if (outputTokens <= 0 || latencyMs <= 0) {
+        return undefined
+    }
+    return outputTokens / (latencyMs / 1000)
+}
+
+/**
  * Extract tool calls from a streaming chunk's delta
  * 
  * Requirements: 2.3
@@ -140,21 +251,26 @@ export function chunkHasToolCalls(chunk: MiniMaxStreamChunk): boolean {
 
 /**
  * Extract reasoning details from a streaming chunk
- * MiniMax M2.1 returns reasoning in the message.reasoning_details field
+ * MiniMax M2.1 returns reasoning in delta.reasoning_details during streaming
  * 
  * Requirements: 3.2, 3.3
  * @param chunk - A MiniMax streaming chunk
  * @returns Array of reasoning details or undefined
  */
 export function extractReasoningFromChunk(chunk: MiniMaxStreamChunk): MiniMaxReasoningDetail[] | undefined {
-    // Check for reasoning_details in the message field (MiniMax-specific location)
     const choice = chunk.choices?.[0]
     if (!choice) return undefined
     
-    // MiniMax returns reasoning_details in the message field during streaming
-    const reasoningDetails = choice.message?.reasoning_details
-    if (reasoningDetails && Array.isArray(reasoningDetails) && reasoningDetails.length > 0) {
-        return reasoningDetails
+    // Primary location: delta.reasoning_details (streaming format per MiniMax API docs)
+    const deltaReasoningDetails = choice.delta?.reasoning_details
+    if (deltaReasoningDetails && Array.isArray(deltaReasoningDetails) && deltaReasoningDetails.length > 0) {
+        return deltaReasoningDetails
+    }
+    
+    // Fallback: message.reasoning_details (some responses may use this format)
+    const messageReasoningDetails = choice.message?.reasoning_details
+    if (messageReasoningDetails && Array.isArray(messageReasoningDetails) && messageReasoningDetails.length > 0) {
+        return messageReasoningDetails
     }
     
     return undefined
@@ -201,7 +317,8 @@ export function chunkHasReasoning(chunk: MiniMaxStreamChunk): boolean {
 
 /**
  * Reasoning accumulator for tracking reasoning content across streaming chunks
- * Accumulates reasoning text incrementally as chunks arrive
+ * MiniMax sends the full accumulated text in each chunk, so we track the latest
+ * text per index and don't append (to avoid duplication)
  * 
  * Requirements: 3.4
  */
@@ -211,6 +328,7 @@ export class ReasoningAccumulator {
 
     /**
      * Accumulate reasoning details from a streaming chunk
+     * MiniMax sends full text in each chunk, so we replace (not append)
      * @param reasoningDetails - Array of reasoning details from the chunk
      */
     accumulate(reasoningDetails: MiniMaxReasoningDetail[] | undefined): void {
@@ -220,14 +338,9 @@ export class ReasoningAccumulator {
             const index = detail.index ?? 0
             const text = detail.text ?? ''
             
-            if (!this.reasoningParts.has(index)) {
-                // Initialize new reasoning part
-                this.reasoningParts.set(index, text)
-            } else {
-                // Append to existing reasoning part
-                const existing = this.reasoningParts.get(index)!
-                this.reasoningParts.set(index, existing + text)
-            }
+            // MiniMax sends full accumulated text in each chunk, so we replace
+            // not append to avoid duplication
+            this.reasoningParts.set(index, text)
         }
         
         // Update accumulated text
@@ -305,9 +418,11 @@ export interface MiniMaxStreamChunk {
                     arguments?: string
                 }
             }>
+            // MiniMax-specific: reasoning details in delta during streaming
+            reasoning_details?: MiniMaxReasoningDetail[]
         }
         finish_reason?: string | null
-        // MiniMax-specific: reasoning details for M2.1
+        // Legacy: some responses may still include message field
         message?: {
             reasoning_details?: MiniMaxReasoningDetail[]
         }

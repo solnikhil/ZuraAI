@@ -60,6 +60,14 @@ describe('modelUtils', () => {
       expect(attrs.icon).toBeDefined()
     })
 
+    it('returns correct attributes for MiniMax models', () => {
+      const model = { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' }
+      const attrs = getModelAttributes(model)
+      
+      expect(attrs.color).toBe('#6366f1')
+      expect(attrs.icon).toBeDefined()
+    })
+
     it('returns default attributes for unknown models', () => {
       const model = { code: 'unknown-model', displayName: 'Unknown Model' }
       const attrs = getModelAttributes(model)
@@ -118,6 +126,7 @@ describe('modelUtils', () => {
       expect(getModelIcon('gpt-4')).toBeDefined()
       expect(getModelIcon('mistral')).toBeDefined()
       expect(getModelIcon('llama')).toBeDefined()
+      expect(getModelIcon('minimax')).toBeDefined()
     })
 
     it('returns default icon for unknown models', () => {
@@ -137,6 +146,7 @@ describe('modelUtils', () => {
       expect(getModelColor('gpt-4')).toBe('#10a37f')
       expect(getModelColor('mistral')).toBe('#fcc419')
       expect(getModelColor('llama')).toBe('#339af0')
+      expect(getModelColor('minimax')).toBe('#6366f1')
     })
 
     it('returns default color for unknown models', () => {
@@ -155,11 +165,13 @@ describe('modelUtils', () => {
       expect(detectModelCapabilities('codestral')).toContain('code')
       expect(detectModelCapabilities('code-llama')).toContain('code')
       expect(detectModelCapabilities('deepseek-coder')).toContain('code')
+      expect(detectModelCapabilities('minimax-m2')).toContain('code')
     })
 
     it('detects reasoning capability', () => {
       expect(detectModelCapabilities('o1-reasoning')).toContain('reasoning')
       expect(detectModelCapabilities('o1-preview')).toContain('reasoning')
+      expect(detectModelCapabilities('MiniMax-M2.1')).toContain('reasoning')
     })
 
     it('detects fast capability', () => {
@@ -227,7 +239,8 @@ describe('modelUtils', () => {
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
       { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' },
       { code: 'sonar', displayName: 'Sonar', provider: 'perplexity' },
-      { code: 'mixtral', displayName: 'Mixtral', provider: 'groq' }
+      { code: 'mixtral', displayName: 'Mixtral', provider: 'groq' },
+      { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1', provider: 'minimax' }
     ]
 
     it('groups models by provider', () => {
@@ -238,6 +251,7 @@ describe('modelUtils', () => {
       expect(groups.ollama).toHaveLength(1)
       expect(groups.perplexity).toHaveLength(1)
       expect(groups.groq).toHaveLength(1)
+      expect(groups.minimax).toHaveLength(1)
     })
 
     it('returns empty arrays for providers with no models', () => {
@@ -248,6 +262,7 @@ describe('modelUtils', () => {
       expect(groups.ollama).toEqual([])
       expect(groups.perplexity).toEqual([])
       expect(groups.groq).toEqual([])
+      expect(groups.minimax).toEqual([])
     })
   })
 
@@ -258,6 +273,7 @@ describe('modelUtils', () => {
       expect(getProviderTitle('perplexity')).toBe('Perplexity')
       expect(getProviderTitle('groq')).toBe('Groq')
       expect(getProviderTitle('ollama')).toBe('Ollama')
+      expect(getProviderTitle('minimax')).toBe('MiniMax')
     })
 
     it('returns provider name for unknown providers', () => {
@@ -272,6 +288,7 @@ describe('modelUtils', () => {
       expect(getProviderColor('perplexity')).toBe('#22c55e')
       expect(getProviderColor('groq')).toBe('#f97316')
       expect(getProviderColor('ollama')).toBe('#339af0')
+      expect(getProviderColor('minimax')).toBe('#6366f1')
     })
 
     it('returns default color for unknown providers', () => {

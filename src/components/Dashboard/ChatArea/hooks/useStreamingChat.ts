@@ -15,6 +15,17 @@ import { streamPerplexityCompletion, cleanSonarResponse } from '../../../../serv
 import { streamGeminiCompletion } from '../../../../services/gemini'
 import { streamGroqCompletion } from '../../../../services/groq'
 import { streamOpenRouterCompletion } from '../../../../services/openrouter'
+import { 
+  streamMiniMaxCompletion, 
+  extractReasoningFromChunk, 
+  extractReasoningText,
+  ToolCallAccumulator,
+  ReasoningAccumulator,
+  isToolCallsFinishReason,
+  extractUsageMetrics,
+  accumulateUsageMetrics,
+  calculateTPS
+} from '../../../../services/minimax'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
@@ -677,6 +688,441 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
 
   /**
+   * Stream response from MiniMax provider with tool calling and reasoning support
+   * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5
+   */
+  const streamMiniMax = async (
+    targetSessionId: string,
+    streamingMessageId: string,
+    optimizedHistory: any[],
+    startTime: number,
+    researchMaxRounds: number,
+    researchMandatory: boolean
+  ) => {
+    const tools = canUseTools ? getToolsForRequest() : null
+    const minimaxTools = tools && Array.isArray(tools) ? tools : undefined
+
+    let accumulatedContent = ''
+    let lastUpdateTime = Date.now()
+    let finalUsage: any = {}
+    let hasToolCalls = false
+    let finishReason: string | null = null
+    let savedToolResults: any = null
+    let localThinkingBlocks: ThinkingBlock[] = []
+    let firstTokenTime: number | null = null
+
+    // Tool call accumulator for tracking partial tool calls
+    const toolCallAccumulator = new ToolCallAccumulator()
+    // Reasoning accumulator for tracking thinking content
+    const reasoningAccumulator = new ReasoningAccumulator()
+
+    // Track thinking time
+    let thinkingStartTime: number | null = null
+    let thinkingEndTime: number | null = null
+    let thinkingDuration: number | undefined = undefined
+
+    const initialForceToolUse = researchMandatory && researchMaxRounds > 0
+    let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
+    if (initialForceToolUse) {
+      initialToolChoice = { type: 'function', function: { name: 'web_search' } }
+    }
+
+    try {
+      for await (const chunk of streamMiniMaxCompletion(
+        settings.minimaxApiKey,
+        settings.aiModel,
+        optimizedHistory,
+        {
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          tools: minimaxTools,
+          toolChoice: initialToolChoice
+        }
+      )) {
+        // Extract content delta
+        const delta = chunk.choices?.[0]?.delta?.content || ''
+        if (!firstTokenTime && delta) {
+          firstTokenTime = performance.now()
+        }
+        accumulatedContent += delta
+
+        // Extract reasoning from MiniMax-specific reasoning_details
+        const reasoningDetails = extractReasoningFromChunk(chunk)
+        if (reasoningDetails && reasoningDetails.length > 0) {
+          if (!thinkingStartTime) thinkingStartTime = performance.now()
+          reasoningAccumulator.accumulate(reasoningDetails)
+
+          updateStreamingMessage(targetSessionId, streamingMessageId, {
+            content: accumulatedContent,
+            thinking: reasoningAccumulator.getReasoning()
+          })
+        }
+
+        // If we have content and were thinking, mark thinking as done
+        if (delta && reasoningAccumulator.hasReasoning() && !thinkingEndTime) {
+          thinkingEndTime = performance.now()
+          if (thinkingStartTime) {
+            thinkingDuration = thinkingEndTime - thinkingStartTime
+          }
+        }
+
+        // Accumulate tool calls
+        if (chunk.choices?.[0]?.delta?.tool_calls) {
+          hasToolCalls = true
+          toolCallAccumulator.accumulate(chunk.choices[0].delta.tool_calls)
+        }
+
+        // Check finish reason
+        if (chunk.choices?.[0]?.finish_reason) {
+          finishReason = chunk.choices[0].finish_reason
+          if (isToolCallsFinishReason(finishReason)) hasToolCalls = true
+        }
+
+        // Extract usage metrics
+        if (chunk.usage) {
+          finalUsage = chunk.usage
+        }
+
+        // Throttled UI updates
+        const now = Date.now()
+        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+          updateStreamingMessage(targetSessionId, streamingMessageId, {
+            content: accumulatedContent,
+            thinking: reasoningAccumulator.hasReasoning() ? reasoningAccumulator.getReasoning() : undefined,
+            thinkingDuration
+          })
+          lastUpdateTime = now
+        }
+      }
+    } catch (streamError: any) {
+      console.error('MiniMax streaming error:', streamError)
+      throw streamError
+    }
+
+    // Finalize thinking duration if not set
+    if (reasoningAccumulator.hasReasoning() && !thinkingEndTime) {
+      thinkingEndTime = performance.now()
+      if (thinkingStartTime) {
+        thinkingDuration = thinkingEndTime - thinkingStartTime
+      }
+    }
+
+    updateStreamingMessage(targetSessionId, streamingMessageId, {
+      content: accumulatedContent,
+      thinking: reasoningAccumulator.hasReasoning() ? reasoningAccumulator.getReasoning() : undefined,
+      thinkingDuration
+    })
+
+    // Map MiniMax usage to standard format using utility function
+    // Requirements: 10.1, 10.2, 10.3, 10.4
+    let usage = extractUsageMetrics(finalUsage) || {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0
+    }
+    // Map reasoningTokens to thinkingTokens for UI consistency
+    const usageWithThinking: any = {
+      ...usage,
+      thinkingTokens: usage.reasoningTokens
+    }
+    delete usageWithThinking.reasoningTokens
+    usage = usageWithThinking
+
+    // Handle tool calls with research loop
+    if (canUseTools && hasToolCalls && isToolCallsFinishReason(finishReason) && toolCallAccumulator.hasToolCalls()) {
+      const accumulatedToolCalls = toolCallAccumulator.getToolCalls()
+      const reconstructedMessage = {
+        role: 'assistant',
+        content: accumulatedContent,
+        tool_calls: accumulatedToolCalls
+      }
+
+      let toolResult
+      try {
+        toolResult = await handleToolCalls({ choices: [{ message: reconstructedMessage }] })
+      } catch (toolError: any) {
+        console.error('Tool calls processing error:', toolError)
+        showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
+        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+      }
+
+      // Add search blocks to thinking
+      const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
+      if (webSearchCalls.length > 0) {
+        const currentReasoning = reasoningAccumulator.getReasoning()
+        if (currentReasoning?.trim()) {
+          localThinkingBlocks.push({
+            type: 'thinking',
+            content: currentReasoning,
+            duration: 0,
+            timestamp: Date.now()
+          })
+          reasoningAccumulator.clear()
+        }
+
+        webSearchCalls.forEach((tr: any) => {
+          const searchQuery = typeof tr.toolCall.arguments === 'object'
+            ? tr.toolCall.arguments?.query
+            : tr.toolCall.arguments
+          localThinkingBlocks.push({
+            type: 'searching',
+            query: String(searchQuery || ''),
+            timestamp: Date.now()
+          })
+        })
+
+        updateStreamingMessage(targetSessionId, streamingMessageId, {
+          thinking: '',
+          thinkingDuration: undefined,
+          thinkingBlocks: [...localThinkingBlocks]
+        })
+      }
+
+      savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+        toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
+        result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+      })) || null
+
+      if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+        // Research loop
+        let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+        let hasMoreToolCalls = true
+        let lastAssistantMessage = reconstructedMessage
+        let researchRound = 1
+
+        while (hasMoreToolCalls && researchRound < 10) { // Safety limit
+          const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
+          const remainingSearches = researchMaxRounds - totalSearchCount
+          const forceToolUse = researchMandatory && remainingSearches > 0
+
+          let toolChoice: any = forceToolUse ? { type: 'function', function: { name: 'web_search' } } : undefined
+
+          const followUpMessages: any[] = []
+          if (researchContextMsg) {
+            followUpMessages.push({ role: 'system', content: researchContextMsg })
+          }
+          followUpMessages.push(...optimizedHistory, lastAssistantMessage, ...toolResult.formattedResults)
+
+          let followUpContent = ''
+          let followUpUsage: any = {}
+          const followUpToolAccumulator = new ToolCallAccumulator()
+          const followUpReasoningAccumulator = new ReasoningAccumulator()
+
+          updateStreamingMessage(targetSessionId, streamingMessageId, {
+            researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+          })
+
+          for await (const chunk of streamMiniMaxCompletion(
+            settings.minimaxApiKey,
+            settings.aiModel,
+            followUpMessages,
+            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools, toolChoice }
+          )) {
+            const delta = chunk.choices?.[0]?.delta?.content || ''
+            followUpContent += delta
+
+            // Extract reasoning
+            const reasoningDetails = extractReasoningFromChunk(chunk)
+            if (reasoningDetails && reasoningDetails.length > 0) {
+              followUpReasoningAccumulator.accumulate(reasoningDetails)
+              updateStreamingMessage(targetSessionId, streamingMessageId, {
+                content: accumulatedContent + followUpContent,
+                thinking: followUpReasoningAccumulator.getReasoning()
+              })
+            }
+
+            // Accumulate tool calls
+            if (chunk.choices?.[0]?.delta?.tool_calls) {
+              followUpToolAccumulator.accumulate(chunk.choices[0].delta.tool_calls)
+            }
+
+            if (chunk.usage) followUpUsage = chunk.usage
+
+            const now = Date.now()
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateStreamingMessage(targetSessionId, streamingMessageId, {
+                content: accumulatedContent + followUpContent,
+                thinking: followUpReasoningAccumulator.hasReasoning() ? followUpReasoningAccumulator.getReasoning() : undefined
+              })
+              lastUpdateTime = now
+            }
+          }
+
+          accumulatedContent += followUpContent
+          updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+
+          // Accumulate usage metrics from follow-up request
+          // Requirements: 10.1, 10.2, 10.3, 10.4
+          const followUpExtracted = extractUsageMetrics(followUpUsage)
+          const accumulated = accumulateUsageMetrics(
+            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: usage.thinkingTokens },
+            followUpExtracted
+          )
+          usage = {
+            inputTokens: accumulated.inputTokens,
+            outputTokens: accumulated.outputTokens,
+            totalTokens: accumulated.totalTokens,
+            thinkingTokens: accumulated.reasoningTokens
+          }
+
+          if (followUpToolAccumulator.hasToolCalls()) {
+            const followUpToolCalls = followUpToolAccumulator.getToolCalls()
+            const reconstructedFollowUp = {
+              role: 'assistant',
+              content: followUpContent,
+              tool_calls: followUpToolCalls
+            }
+
+            let nextToolResult
+            try {
+              nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUp }] })
+            } catch (e: any) {
+              nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+            }
+
+            const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+            totalSearchCount += newWebSearches
+
+            // Update thinking blocks for new searches
+            for (const tr of nextToolResult.toolResults || []) {
+              if (tr.toolCall.name === 'web_search') {
+                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
+                const currentFollowUpReasoning = followUpReasoningAccumulator.getReasoning()
+                if (currentFollowUpReasoning?.trim()) {
+                  localThinkingBlocks.push({ type: 'thinking', content: currentFollowUpReasoning, duration: 0, timestamp: Date.now() })
+                }
+                updateStreamingMessage(targetSessionId, streamingMessageId, {
+                  thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
+                  researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true }
+                })
+                followUpReasoningAccumulator.clear()
+              }
+            }
+
+            for (const tr of nextToolResult.toolResults || []) {
+              if (tr.toolCall.name === 'web_search') {
+                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
+                localThinkingBlocks.push({ type: 'searching', query: String(searchQuery || ''), timestamp: Date.now() })
+              }
+            }
+
+            updateStreamingMessage(targetSessionId, streamingMessageId, {
+              thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
+              researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+            })
+
+            const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
+              toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
+              result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+            })) || []
+
+            savedToolResults = savedToolResults ? [...savedToolResults, ...newSavedResults] : newSavedResults
+            lastAssistantMessage = reconstructedFollowUp
+            toolResult = nextToolResult
+            researchRound++
+
+            const remainingAfter = researchMaxRounds - totalSearchCount
+            hasMoreToolCalls = remainingAfter > 0 && (researchMandatory || nextToolResult.needsFollowUp)
+          } else {
+            hasMoreToolCalls = false
+          }
+        }
+
+        // Final answer request for mandatory research
+        if (researchMandatory && totalSearchCount >= researchMaxRounds) {
+          const finalAnswerMessages: any[] = [
+            { role: 'system', content: `\n\n*** ALL RESEARCH COMPLETE ***\nYou have completed all ${totalSearchCount} required web searches.\n\nYou MUST now provide your FINAL COMPREHENSIVE ANSWER based on all the information gathered.\n\nDo NOT make any more tool calls.\nSynthesize all the search results into a coherent, well-structured response that directly answers the user's question.\nInclude relevant details from the searches and cite sources where appropriate.` },
+            ...optimizedHistory, lastAssistantMessage, ...toolResult.formattedResults
+          ]
+
+          let finalAnswerContent = ''
+          let finalAnswerUsage: any = {}
+          const finalReasoningAccumulator = new ReasoningAccumulator()
+
+          for await (const chunk of streamMiniMaxCompletion(
+            settings.minimaxApiKey,
+            settings.aiModel,
+            finalAnswerMessages,
+            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools }
+          )) {
+            const delta = chunk.choices?.[0]?.delta?.content || ''
+            finalAnswerContent += delta
+
+            const reasoningDetails = extractReasoningFromChunk(chunk)
+            if (reasoningDetails && reasoningDetails.length > 0) {
+              finalReasoningAccumulator.accumulate(reasoningDetails)
+              const currentReasoning = reasoningAccumulator.getReasoning()
+              const finalReasoning = finalReasoningAccumulator.getReasoning()
+              const updatedThinking = currentReasoning + (currentReasoning ? '\n\n---\n\n' : '') + finalReasoning
+              updateStreamingMessage(targetSessionId, streamingMessageId, {
+                content: accumulatedContent + finalAnswerContent,
+                thinking: updatedThinking
+              })
+            }
+
+            if (chunk.usage) {
+              finalAnswerUsage = chunk.usage
+            }
+
+            const now = Date.now()
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              const currentReasoning = reasoningAccumulator.getReasoning()
+              const finalReasoning = finalReasoningAccumulator.getReasoning()
+              const fullThinking = currentReasoning + (finalReasoning ? '\n\n---\n\n' + finalReasoning : '')
+              updateStreamingMessage(targetSessionId, streamingMessageId, {
+                content: accumulatedContent + finalAnswerContent,
+                thinking: fullThinking || undefined
+              })
+              lastUpdateTime = now
+            }
+          }
+
+          accumulatedContent += finalAnswerContent
+
+          updateStreamingMessage(targetSessionId, streamingMessageId, {
+            content: accumulatedContent,
+            thinking: reasoningAccumulator.hasReasoning() ? reasoningAccumulator.getReasoning() : undefined,
+            researchStatus: undefined
+          })
+
+          // Accumulate usage metrics from final answer request
+          // Requirements: 10.1, 10.2, 10.3, 10.4
+          const finalAnswerExtracted = extractUsageMetrics(finalAnswerUsage)
+          const finalAccumulated = accumulateUsageMetrics(
+            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: usage.thinkingTokens },
+            finalAnswerExtracted
+          )
+          usage = {
+            inputTokens: finalAccumulated.inputTokens,
+            outputTokens: finalAccumulated.outputTokens,
+            totalTokens: finalAccumulated.totalTokens,
+            thinkingTokens: finalAccumulated.reasoningTokens
+          }
+        }
+      }
+    }
+
+    const endTime = performance.now()
+    const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    // Calculate TPS using utility function
+    // Requirements: 10.5
+    const tps = calculateTPS(usage.outputTokens, latency)
+
+    updateStreamingMessage(targetSessionId, streamingMessageId, {
+      content: accumulatedContent,
+      thinking: reasoningAccumulator.hasReasoning() ? reasoningAccumulator.getReasoning() : undefined,
+      model: `minimax/${settings.aiModel}`,
+      latency,
+      usage: { ...usage, tps, ttft },
+      toolResults: savedToolResults
+    })
+
+    return { content: accumulatedContent, model: `minimax/${settings.aiModel}` }
+  }
+
+
+  /**
    * Stream response from OpenRouter provider with tool calling and research support
    */
   const streamOpenRouter = async (
@@ -1078,6 +1524,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
    * Main send message function
    */
   const sendMessage = useCallback(async (content: string, files: AttachedFile[]) => {
+    // Debug: log received content
+    console.log('[useStreamingChat] sendMessage called:', {
+      contentLength: content.length,
+      contentPreview: content.slice(0, 200) + (content.length > 200 ? '...' : ''),
+      filesCount: files.length
+    })
+
     if ((!content.trim() && files.length === 0) || isLoading) return
 
     clearToolState()
@@ -1164,6 +1617,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         result = await streamGemini(targetSessionId!, streamingMessageId, geminiMessages, startTime)
       } else if (settings.modelProvider === 'groq') {
         result = await streamGroq(targetSessionId!, streamingMessageId, optimizedHistory, startTime, researchMaxRounds, researchMandatory)
+      } else if (settings.modelProvider === 'minimax') {
+        result = await streamMiniMax(targetSessionId!, streamingMessageId, optimizedHistory, startTime, researchMaxRounds, researchMandatory)
       } else {
         // OpenRouter (default)
         let openRouterMessages = [...optimizedHistory]
@@ -1274,8 +1729,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         userContent += '\n\nPlease provide a more concise response.'
       } else if (instruction === 'detailed') {
         userContent += '\n\nPlease provide more details and expand on your response.'
-      } else if (instruction === 'custom') {
-        userContent += '\n\nPlease reconsider your response.'
+      } else if (instruction && instruction.trim()) {
+        // Handle custom instructions - append the user's instruction directly
+        userContent += `\n\n[Regenerate Instruction]: ${instruction}`
       }
 
       deleteMessageFromSession(currentSessionId, message.id)
@@ -1317,6 +1773,24 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             const delta = chunk.choices?.[0]?.delta?.content || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
+          }
+        } else if (settings.modelProvider === 'minimax') {
+          const reasoningAccumulator = new ReasoningAccumulator()
+          for await (const chunk of streamMiniMaxCompletion(settings.minimaxApiKey, settings.aiModel, apiMessages, {
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens
+          })) {
+            const delta = chunk.choices?.[0]?.delta?.content || ''
+            const reasoningDetails = extractReasoningFromChunk(chunk)
+            if (reasoningDetails && reasoningDetails.length > 0) {
+              reasoningAccumulator.accumulate(reasoningDetails)
+              accumulatedReasoning = reasoningAccumulator.getReasoning()
+            }
+            if (delta) accumulatedContent += delta
+            updateStreamingMessage(currentSessionId, streamingMessageId, {
+              content: accumulatedContent,
+              thinking: accumulatedReasoning || undefined
+            })
           }
         } else {
           for await (const chunk of streamOpenRouterCompletion(
@@ -1384,6 +1858,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
     if (settings.groqModels) {
       settings.groqModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+    }
+    if (settings.minimaxModels) {
+      settings.minimaxModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
 
     return allModels

@@ -15,7 +15,7 @@ import { MessageSquare, Sparkles, Box, Cpu, Zap, Brain, Globe } from 'lucide-rea
 export interface ModelInfo {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
 }
 
 /**
@@ -42,6 +42,7 @@ const MODEL_FAMILIES = {
   openai: { color: '#10a37f', icon: Cpu },
   mistral: { color: '#fcc419', icon: Zap },
   llama: { color: '#339af0', icon: Brain },
+  minimax: { color: '#6366f1', icon: Brain },
 } as const
 
 /**
@@ -224,13 +225,14 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
     name.includes('claude') ||
     name.includes('gemini') ||
     name.includes('mistral') ||
-    name.includes('llama-3')
+    name.includes('llama-3') ||
+    name.includes('minimax')
   ) {
     capabilities.push('code')
   }
 
   // Reasoning capability
-  if (name.includes('reasoning') || name.includes('o1') || name.includes('think') || name.includes('r1')) {
+  if (name.includes('reasoning') || name.includes('o1') || name.includes('think') || name.includes('r1') || name.includes('m2.1')) {
     capabilities.push('reasoning')
   }
 
@@ -287,7 +289,8 @@ export function groupModelsByProvider<T extends ModelInfo>(
     perplexity: [],
     openrouter: [],
     gemini: [],
-    groq: []
+    groq: [],
+    minimax: []
   }
 
   models.forEach(model => {
@@ -308,6 +311,7 @@ export const PROVIDER_CONFIG = {
   perplexity: { title: 'Perplexity', color: '#22c55e' },
   groq: { title: 'Groq', color: '#f97316' },
   ollama: { title: 'Ollama', color: '#339af0' },
+  minimax: { title: 'MiniMax', color: '#6366f1' },
 } as const
 
 /**

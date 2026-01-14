@@ -1,9 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
     Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command
 } from '../icons'
+import { MessageCircleIcon, MagnifierIcon, TrashIcon } from '../icons'
+import type { AnimatedIconHandle } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
@@ -27,6 +29,11 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
+
+    // New Chat icon animation ref
+    const newChatIconRef = useRef<AnimatedIconHandle>(null)
+    // Search icon animation ref
+    const searchIconRef = useRef<AnimatedIconHandle>(null)
 
     // Settings navigation items
     const navItems = [
@@ -97,10 +104,12 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            newChatIconRef.current?.startAnimation()
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            newChatIconRef.current?.stopAnimation()
                         }}
                         title={isCollapsed ? 'New Chat' : ''}
                     >
@@ -111,7 +120,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             justifyContent: 'center',
                             flexShrink: 0
                         }}>
-                            <FileEdit size={16} strokeWidth={2} />
+                            <MessageCircleIcon ref={newChatIconRef} size={16} strokeWidth={2} />
                         </div>
                         {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>New Chat</span>}
                     </button>
@@ -144,10 +153,12 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            searchIconRef.current?.startAnimation()
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            searchIconRef.current?.stopAnimation()
                         }}
                         title={isCollapsed ? 'Search chats' : ''}
                     >
@@ -158,7 +169,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             justifyContent: 'center',
                             flexShrink: 0
                         }}>
-                            <Search size={16} strokeWidth={2} />
+                            <MagnifierIcon ref={searchIconRef} size={16} strokeWidth={2} />
                         </div>
                         {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Search chats</span>}
                     </button>
@@ -295,7 +306,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                                         justifyContent: 'center'
                                     }}
                                 >
-                                    <Trash2 size={16} color="#ffffff" />
+                                    <TrashIcon size={16} dangerHover />
                                 </div>
                             )}
                         </div>
