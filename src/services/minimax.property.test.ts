@@ -675,28 +675,26 @@ describe('MiniMax Service Property Tests', () => {
             )
         })
 
-        it('should handle incremental updates to same index (MiniMax sends full text each time)', async () => {
+        it('should handle incremental updates to same index (delta mode - appends text)', async () => {
+            // MiniMax sends delta text in each chunk (incremental)
+            // Each chunk's reasoning_details[].text contains only the NEW text
             await fc.assert(
                 fc.asyncProperty(
                     fc.array(reasoningTextArb, { minLength: 2, maxLength: 5 }),
                     (textParts) => {
                         const accumulator = new ReasoningAccumulator()
                         
-                        // MiniMax sends full accumulated text in each chunk, not deltas
-                        // So we simulate this by sending progressively longer strings
-                        let accumulatedText = ''
+                        // Simulate delta text in each chunk
                         for (const text of textParts) {
-                            accumulatedText += text
                             accumulator.accumulate([{
                                 type: 'reasoning.text',
                                 id: 'reasoning-text-0',
                                 format: 'MiniMax-response-v1',
                                 index: 0,
-                                text: accumulatedText  // Full text, not delta
+                                text: text  // Delta only
                             }])
                         }
                         
-                        // Property: Final result should be the full accumulated text
                         const expectedText = textParts.join('')
                         expect(accumulator.getReasoning()).toBe(expectedText)
                     }
@@ -941,19 +939,20 @@ describe('MiniMax Service Property Tests', () => {
                         if (data.hasPromptTokens) usage.prompt_tokens = data.prompt_tokens
                         if (data.hasCompletionTokens) usage.completion_tokens = data.completion_tokens
                         if (data.hasTotalTokens) usage.total_tokens = data.total_tokens
-                        
+
                         const result = extractUsageMetrics(usage as MiniMaxUsage)
-                        
+
                         // Property: Should handle missing fields with defaults of 0
                         expect(result).toBeDefined()
                         const expectedInput = data.hasPromptTokens ? data.prompt_tokens : 0
                         const expectedOutput = data.hasCompletionTokens ? data.completion_tokens : 0
                         expect(result!.inputTokens).toBe(expectedInput)
                         expect(result!.outputTokens).toBe(expectedOutput)
-                        
-                        // totalTokens should use provided value if non-zero, otherwise calculate from input + output
-                        const providedTotal = data.hasTotalTokens ? data.total_tokens : 0
-                        const expectedTotal = providedTotal || (expectedInput + expectedOutput)
+
+                        // totalTokens uses provided value (even if 0), or falls back to calculated sum
+                        // Note: The implementation uses ?? (nullish coalescing), so 0 is a valid value
+                        const providedTotal = data.hasTotalTokens ? data.total_tokens : undefined
+                        const expectedTotal = providedTotal ?? (expectedInput + expectedOutput)
                         expect(result!.totalTokens).toBe(expectedTotal)
                     }
                 ),
@@ -986,8 +985,9 @@ describe('MiniMax Service Property Tests', () => {
                         const expectedInput = usageDataArray.reduce((sum, u) => sum + u.prompt_tokens, 0)
                         const expectedOutput = usageDataArray.reduce((sum, u) => sum + u.completion_tokens, 0)
                         // For totalTokens, we need to account for the fallback logic in extractUsageMetrics
+                        // Note: Uses ?? (nullish coalescing), so only undefined/null triggers fallback, not 0
                         const expectedTotal = usageDataArray.reduce((sum, u) => {
-                            const total = u.total_tokens || (u.prompt_tokens + u.completion_tokens)
+                            const total = u.total_tokens ?? (u.prompt_tokens + u.completion_tokens)
                             return sum + total
                         }, 0)
                         const expectedReasoning = usageDataArray
@@ -1040,13 +1040,51 @@ describe('MiniMax Service Property Tests', () => {
                     ),
                     async ({ outputTokens, latencyMs }) => {
                         const tps = calculateTPS(outputTokens, latencyMs)
-                        
+
                         // Property: Should return undefined for invalid inputs
                         expect(tps).toBeUndefined()
                     }
                 ),
                 { numRuns: 100 }
             )
+        })
+
+        it('should handle alternative field names (input_tokens/output_tokens)', async () => {
+            await fc.assert(
+                fc.asyncProperty(tokenCountArb, tokenCountArb, tokenCountArb, async (inputTokens, outputTokens, totalTokens) => {
+                    const usage: MiniMaxUsage = {
+                        input_tokens: inputTokens,
+                        output_tokens: outputTokens,
+                        total_tokens: totalTokens
+                    }
+
+                    const result = extractUsageMetrics(usage)
+
+                    // Property: Should extract tokens from alternative field names
+                    expect(result).toBeDefined()
+                    expect(result!.inputTokens).toBe(inputTokens)
+                    expect(result!.outputTokens).toBe(outputTokens)
+                    expect(result!.totalTokens).toBe(totalTokens)
+                }),
+                { numRuns: 100 }
+            )
+        })
+
+        it('should prefer prompt_tokens over input_tokens when both are present', async () => {
+            const usage: MiniMaxUsage = {
+                prompt_tokens: 100,
+                input_tokens: 200,
+                completion_tokens: 50,
+                output_tokens: 150,
+                total_tokens: 150
+            }
+
+            const result = extractUsageMetrics(usage)
+
+            // Property: Should prefer OpenAI-style field names
+            expect(result).toBeDefined()
+            expect(result!.inputTokens).toBe(100) // From prompt_tokens
+            expect(result!.outputTokens).toBe(50) // From completion_tokens
         })
     })
 })

@@ -131,11 +131,16 @@ export interface NormalizedUsageMetrics {
 
 /**
  * MiniMax API usage structure
+ * Supports both OpenAI-style (prompt_tokens/completion_tokens) and
+ * alternative naming (input_tokens/output_tokens) for compatibility
  */
 export interface MiniMaxUsage {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+    // Alternative field names for compatibility
+    input_tokens?: number
+    output_tokens?: number
     completion_tokens_details?: {
         reasoning_tokens?: number
     }
@@ -143,15 +148,17 @@ export interface MiniMaxUsage {
 
 /**
  * Extract and normalize usage metrics from MiniMax API response
- * 
+ *
  * Maps MiniMax API fields to standard format:
  * - prompt_tokens → inputTokens
  * - completion_tokens → outputTokens
  * - total_tokens → totalTokens (or calculated as inputTokens + outputTokens)
  * - completion_tokens_details.reasoning_tokens → reasoningTokens
- * 
+ *
+ * Also handles alternative field names (input_tokens/output_tokens) for compatibility
+ *
  * Requirements: 10.1, 10.2, 10.3, 10.4
- * 
+ *
  * @param usage - MiniMax API usage object from response
  * @returns Normalized usage metrics or undefined if no usage data
  */
@@ -160,12 +167,14 @@ export function extractUsageMetrics(usage: MiniMaxUsage | undefined | null): Nor
         return undefined
     }
 
-    const inputTokens = usage.prompt_tokens || 0
-    const outputTokens = usage.completion_tokens || 0
-    
+    // Handle both OpenAI-style (prompt_tokens/completion_tokens) and
+    // alternative naming (input_tokens/output_tokens) for compatibility
+    const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? 0
+    const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0
+
     // Calculate totalTokens - use provided value or sum of input + output
-    const totalTokens = usage.total_tokens || (inputTokens + outputTokens)
-    
+    const totalTokens = usage.total_tokens ?? (inputTokens + outputTokens)
+
     // Extract reasoning tokens from completion_tokens_details
     const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens
 
@@ -317,8 +326,7 @@ export function chunkHasReasoning(chunk: MiniMaxStreamChunk): boolean {
 
 /**
  * Reasoning accumulator for tracking reasoning content across streaming chunks
- * MiniMax sends the full accumulated text in each chunk, so we track the latest
- * text per index and don't append (to avoid duplication)
+ * Appends text incrementally as chunks arrive (delta mode)
  * 
  * Requirements: 3.4
  */
@@ -328,7 +336,7 @@ export class ReasoningAccumulator {
 
     /**
      * Accumulate reasoning details from a streaming chunk
-     * MiniMax sends full text in each chunk, so we replace (not append)
+     * Always appends new text (delta mode) - each chunk contains incremental text
      * @param reasoningDetails - Array of reasoning details from the chunk
      */
     accumulate(reasoningDetails: MiniMaxReasoningDetail[] | undefined): void {
@@ -338,9 +346,11 @@ export class ReasoningAccumulator {
             const index = detail.index ?? 0
             const text = detail.text ?? ''
             
-            // MiniMax sends full accumulated text in each chunk, so we replace
-            // not append to avoid duplication
-            this.reasoningParts.set(index, text)
+            if (!text) continue
+            
+            const existing = this.reasoningParts.get(index) || ''
+            // Always append - MiniMax sends deltas (incremental text)
+            this.reasoningParts.set(index, existing + text)
         }
         
         // Update accumulated text
