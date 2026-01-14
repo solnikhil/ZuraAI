@@ -19,6 +19,7 @@ const PROVIDERS = [
   { key: 'openrouter', title: 'OpenRouter', icon: <Cloud />, color: '#a855f7', logo: true },
   { key: 'perplexity', title: 'Perplexity', icon: <Globe />, color: '#22c55e', logo: true },
   { key: 'groq', title: 'Groq', icon: <Zap />, color: '#f97316', logo: true },
+  { key: 'minimax', title: 'MiniMax', icon: <Sparkles />, color: '#6366f1', logo: true },
   { key: 'ollama', title: 'Ollama', icon: <Database />, color: '#339af0', logo: true },
 ] as const
 

@@ -66,6 +66,13 @@ function getModelDescription(model: ModelWithProvider): string {
     return 'Ultra-fast inference on Groq hardware'
   }
 
+  if (model.provider === 'minimax') {
+    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
+    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
+    if (name.includes('m2')) return 'Powerful model with 200k context'
+    return 'MiniMax AI model with advanced capabilities'
+  }
+
   if (model.provider === 'ollama') {
     return 'Running locally on your machine'
   }

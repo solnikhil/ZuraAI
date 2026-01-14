@@ -12,7 +12,7 @@ import React from 'react'
 export interface ModelWithProvider {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
 }
 
 /**
@@ -40,6 +40,7 @@ export interface GroupedModels {
   openrouter: ModelWithProvider[]
   gemini: ModelWithProvider[]
   groq: ModelWithProvider[]
+  minimax: ModelWithProvider[]
 }
 
 /**

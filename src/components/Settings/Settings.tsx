@@ -145,13 +145,14 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
         { key: 'geminiApiKey', current: pendingSettings.geminiApiKey, original: settings.geminiApiKey },
         { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
-        { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey }
+        { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
+        { key: 'minimaxApiKey', current: pendingSettings.minimaxApiKey, original: settings.minimaxApiKey }
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -231,6 +232,7 @@ export default function Settings({
               perplexityApiKey={pendingSettings.perplexityApiKey}
               geminiApiKey={pendingSettings.geminiApiKey}
               groqApiKey={pendingSettings.groqApiKey}
+              minimaxApiKey={pendingSettings.minimaxApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}

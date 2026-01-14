@@ -21,6 +21,8 @@ export interface ApiKeysSectionProps {
   geminiApiKey: string
   /** Groq API key */
   groqApiKey: string
+  /** MiniMax API key */
+  minimaxApiKey: string
   /** Tavily API key for web search */
   tavilyApiKey: string
   /** Ollama server URL */
@@ -33,6 +35,7 @@ export interface ApiKeysSectionProps {
     perplexityApiKey: string
     geminiApiKey: string
     groqApiKey: string
+    minimaxApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
     toolsEnabled: boolean
@@ -288,6 +291,7 @@ export function ApiKeysSection({
   perplexityApiKey,
   geminiApiKey,
   groqApiKey,
+  minimaxApiKey,
   tavilyApiKey,
   ollamaUrl,
   toolsEnabled,
@@ -327,6 +331,12 @@ export function ApiKeysSection({
             value={groqApiKey}
             placeholder="gsk_..."
             onChange={value => onChange({ groqApiKey: value })}
+          />
+          <ApiKeyInput
+            label="MiniMax API Key"
+            value={minimaxApiKey}
+            placeholder="mm-..."
+            onChange={value => onChange({ minimaxApiKey: value })}
           />
         </div>
       </div>

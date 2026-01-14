@@ -50,11 +50,16 @@ export function InputArea({
   const [showImageModal, setShowImageModal] = useState(false)
   const [showSearchMenu, setShowSearchMenu] = useState(false)
   const [searchMenuPos, setSearchMenuPos] = useState({ top: 0, left: 0 })
+  const [searchMenuOpenUpward, setSearchMenuOpenUpward] = useState(false)
   const searchButtonRef = useRef<HTMLDivElement>(null)
   const searchMenuRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
+
+  // Menu dimensions for smart positioning
+  const MENU_HEIGHT = 220 // approximate menu height
+  const MENU_WIDTH = 240
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
 
@@ -168,15 +173,46 @@ export function InputArea({
     onFilesChange(attachedFiles.filter(f => f.id !== fileId))
   }
 
-  // Search menu handlers
+  // Search menu handlers with smart positioning
   const toggleSearchMenu = useCallback(() => {
     if (searchButtonRef.current) {
       const rect = searchButtonRef.current.getBoundingClientRect()
-      // Position menu below the button with better alignment
-      setSearchMenuPos({
-        top: rect.bottom + 8,
-        left: rect.left
-      })
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+
+      // Calculate available space
+      const spaceBelow = viewportHeight - rect.bottom
+      const spaceAbove = rect.top
+
+      // Check if menu would fit below with some margin
+      const fitsBelow = spaceBelow > MENU_HEIGHT + 20
+
+      // Determine if we should open upward
+      const openUpward = !fitsBelow && spaceAbove > MENU_HEIGHT - 50
+
+      setSearchMenuOpenUpward(openUpward)
+
+      if (openUpward) {
+        // Position menu above the button
+        const menuTop = rect.top - MENU_HEIGHT + 8
+        // Ensure menu stays within left edge
+        const menuLeft = Math.max(8, Math.min(rect.left, viewportWidth - MENU_WIDTH - 8))
+
+        setSearchMenuPos({
+          top: menuTop,
+          left: menuLeft
+        })
+      } else {
+        // Position menu below the button
+        const menuTop = rect.bottom + 8
+        // Ensure menu stays within left edge
+        const menuLeft = Math.max(8, Math.min(rect.left, viewportWidth - MENU_WIDTH - 8))
+
+        setSearchMenuPos({
+          top: menuTop,
+          left: menuLeft
+        })
+      }
     }
     setShowSearchMenu(prev => !prev)
   }, [])
@@ -332,18 +368,34 @@ export function InputArea({
                     animation: 'fadeIn 0.15s ease-out'
                   }}
                 >
-                  {/* Arrow pointing up to button */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '-6px',
-                    left: '12px',
-                    width: '10px',
-                    height: '10px',
-                    background: 'var(--theme-surface)',
-                    transform: 'rotate(45deg)',
-                    borderLeft: '1px solid var(--theme-border)',
-                    borderTop: '1px solid var(--theme-border)'
-                  }} />
+                  {/* Arrow pointing towards button */}
+                  {searchMenuOpenUpward ? (
+                    // Arrow pointing down (menu is above button)
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '-6px',
+                      left: '12px',
+                      width: '10px',
+                      height: '10px',
+                      background: 'var(--theme-surface)',
+                      transform: 'rotate(45deg)',
+                      borderRight: '1px solid var(--theme-border)',
+                      borderBottom: '1px solid var(--theme-border)'
+                    }} />
+                  ) : (
+                    // Arrow pointing up (menu is below button)
+                    <div style={{
+                      position: 'absolute',
+                      top: '-6px',
+                      left: '12px',
+                      width: '10px',
+                      height: '10px',
+                      background: 'var(--theme-surface)',
+                      transform: 'rotate(45deg)',
+                      borderLeft: '1px solid var(--theme-border)',
+                      borderTop: '1px solid var(--theme-border)'
+                    }} />
+                  )}
 
                   {/* Menu Header */}
                   <div style={{

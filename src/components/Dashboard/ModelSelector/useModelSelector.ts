@@ -83,7 +83,8 @@ export function useModelSelector(): UseModelSelectorReturn {
     perplexity: false,
     openrouter: false,
     gemini: false,
-    groq: false
+    groq: false,
+    minimax: false
   })
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, showAbove: true })
   
@@ -118,6 +119,9 @@ export function useModelSelector(): UseModelSelectorReturn {
     if (settings.groqModels) {
       settings.groqModels.forEach(m => models.push({ ...m, provider: 'groq' }))
     }
+    if (settings.minimaxModels) {
+      settings.minimaxModels.forEach(m => models.push({ ...m, provider: 'minimax' }))
+    }
     
     return models
   }, [settings])
@@ -134,7 +138,8 @@ export function useModelSelector(): UseModelSelectorReturn {
       perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
       openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
       gemini: filteredModels.filter(m => m.provider === 'gemini'),
-      groq: filteredModels.filter(m => m.provider === 'groq')
+      groq: filteredModels.filter(m => m.provider === 'groq'),
+      minimax: filteredModels.filter(m => m.provider === 'minimax')
     }
   }, [filteredModels])
   

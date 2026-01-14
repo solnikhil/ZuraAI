@@ -77,7 +77,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           selectedProvider={state.selectedProvider}
           onProviderSelect={setSelectedProvider}
           currentModels={currentModels}
-          groupedModels={{ ollama: [], perplexity: [], openrouter: [], gemini: [], groq: [] }}
+          groupedModels={{ ollama: [], perplexity: [], openrouter: [], gemini: [], groq: [], minimax: [] }}
           selectedModelCode={settings.aiModel}
           selectedModelProvider={settings.modelProvider}
           favoriteModels={settings.favoriteModels || []}

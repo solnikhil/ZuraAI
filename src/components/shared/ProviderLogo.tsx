@@ -7,12 +7,12 @@
  */
 
 import React, { useState } from 'react'
-import { Cloud, Database, Globe, Sparkles, Zap } from 'lucide-react'
+import { Cloud, Database, Globe, Sparkles, Zap, Brain } from 'lucide-react'
 
 /**
  * Provider types supported by the application
  */
-export type ProviderType = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+export type ProviderType = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
 
 /**
  * Size variants for the provider logo
@@ -52,7 +52,8 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   openrouter: Cloud,
   perplexity: Globe,
   groq: Zap,
-  ollama: Database
+  ollama: Database,
+  minimax: Brain
 }
 
 /**
@@ -63,7 +64,8 @@ const PROVIDER_COLORS: Record<string, string> = {
   openrouter: '#a855f7',
   perplexity: '#22c55e',
   groq: '#f97316',
-  ollama: '#339af0'
+  ollama: '#339af0',
+  minimax: '#6366f1'
 }
 
 /**
@@ -162,7 +164,7 @@ export function getProviderLogoColor(provider: string): string {
  * @returns True if provider is known
  */
 export function isKnownProvider(provider: string): provider is ProviderType {
-  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq'].includes(provider.toLowerCase())
+  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax'].includes(provider.toLowerCase())
 }
 
 export default ProviderLogo
