@@ -14,6 +14,7 @@ import {
 } from '../../icons'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
+import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
 
@@ -99,9 +100,9 @@ function convertUrlsToMarkdownLinks(content: string): string {
 /**
  * Tool Details Modal Component
  */
-function ToolDetailsModal({ toolResults, onClose }: { 
+function ToolDetailsModal({ toolResults, onClose }: {
   toolResults: MessageRendererProps['message']['toolResults']
-  onClose: () => void 
+  onClose: () => void
 }) {
   if (!toolResults) return null
 
@@ -322,13 +323,13 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
                 ) : (
                   <File size={16} color="#888" />
                 )}
-                <span style={{ 
-                  color: '#e0e0e0', 
-                  fontSize: '0.85rem', 
-                  flex: 1, 
-                  overflow: 'hidden', 
-                  textOverflow: 'ellipsis', 
-                  whiteSpace: 'nowrap' 
+                <span style={{
+                  color: '#e0e0e0',
+                  fontSize: '0.85rem',
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
                 }}>
                   {file.name}
                 </span>
@@ -362,11 +363,11 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
 /**
  * Main MessageRenderer component
  */
-export function MessageRenderer({ 
-  message, 
-  isStreaming = false, 
+export function MessageRenderer({
+  message,
+  isStreaming = false,
   onCopy,
-  onRegenerate 
+  onRegenerate
 }: MessageRendererProps) {
   const { settings } = useSettings()
   const [copied, setCopied] = useState(false)
@@ -516,7 +517,7 @@ export function MessageRenderer({
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
             thinking={(message as any).thinking || ''}
-            isThinking={showThinkingSpinner && !message.researchStatus?.isSearching}
+            isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching}
             thinkingDuration={message.thinkingDuration}
             isSearching={message.researchStatus?.isSearching || false}
             searchQuery={message.researchStatus?.currentSearch}
@@ -602,26 +603,28 @@ export function MessageRenderer({
           </button>
         )}
 
-        {/* Copy Button */}
-        <button
-          onClick={handleCopy}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: copied ? '#4ade80' : '#666',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px',
-            borderRadius: '4px',
-            transition: 'all 0.2s',
-            fontSize: '0.8rem',
-            fontFamily: 'inherit'
-          }}
-        >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-        </button>
+        {/* Copy Button - hide while streaming */}
+        {!isStreaming && (
+          <button
+            onClick={handleCopy}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: copied ? '#4ade80' : '#666',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: 'all 0.2s',
+              fontSize: '0.8rem',
+              fontFamily: 'inherit'
+            }}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        )}
 
         {/* Regenerate Button */}
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
@@ -760,6 +763,27 @@ export function MessageRenderer({
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Info Popover */}
+        {popoverPosition && (
+          <div
+            style={{
+              position: 'fixed',
+              top: popoverPosition.showAbove
+                ? popoverPosition.top - 10 // Adjustment for shadow/margin
+                : popoverPosition.top + 30,
+              left: popoverPosition.left,
+              zIndex: 1000,
+              transform: popoverPosition.showAbove ? 'translateY(-100%)' : 'none'
+            }}
+          >
+            <ResponseInfo
+              model={message.model || settings.aiModel}
+              latency={message.latency}
+              usage={message.usage}
+            />
           </div>
         )}
       </div>

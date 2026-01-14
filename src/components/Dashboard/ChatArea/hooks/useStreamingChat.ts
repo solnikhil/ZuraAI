@@ -38,27 +38,27 @@ const UPDATE_INTERVAL = 120 // ms
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
-  
-  const { 
-    sessions, 
-    currentSessionId, 
-    addMessageToSession, 
-    updateStreamingMessage, 
-    createSession, 
+
+  const {
+    sessions,
+    currentSessionId,
+    addMessageToSession,
+    updateStreamingMessage,
+    createSession,
     updateSessionTitle,
-    deleteMessageFromSession 
+    deleteMessageFromSession
   } = useChatHistory()
-  
+
   const { settings, updateSettings } = useSettings()
   const { showToast } = useToast()
-  const { 
-    canUseTools, 
-    getToolsForRequest, 
-    handleToolCalls, 
-    toolState, 
+  const {
+    canUseTools,
+    getToolsForRequest,
+    handleToolCalls,
+    toolState,
     clearToolState,
-    startResearchMode, 
-    getResearchContext 
+    startResearchMode,
+    getResearchContext
   } = useToolCalling()
 
   const currentSession = sessions.find(s => s.id === currentSessionId)
@@ -93,6 +93,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let isDone = false
     let savedToolResults: any = null
     let localThinkingBlocks: ThinkingBlock[] = []
+    let firstTokenTime: number | null = null
 
     try {
       for await (const chunk of streamOllamaCompletion(
@@ -101,6 +102,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         optimizedHistory,
         { temperature: settings.temperature, tools: ollamaTools }
       )) {
+        if (!firstTokenTime && chunk.message?.content) {
+          firstTokenTime = performance.now()
+        }
+
         if (chunk.message?.content) {
           accumulatedContent += chunk.message.content
         }
@@ -131,7 +136,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
     } catch (streamError: any) {
       console.error('Ollama streaming failed, trying non-streaming:', streamError)
-      
+
       // Fallback to non-streaming
       const nonStreamingResponse = await fetch(`${settings.ollamaUrl}/api/chat`, {
         method: 'POST',
@@ -170,11 +175,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // If still no content, return empty
       const endTime = performance.now()
       const latency = Math.round(endTime - startTime)
+      const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+      const outputTokens = finalUsage.outputTokens || 0
+      const tps = outputTokens > 0 && latency > 0 ? (outputTokens / (latency / 1000)) : undefined
+
       updateStreamingMessage(targetSessionId, streamingMessageId, {
         content: '',
         model: `ollama/${settings.aiModel}`,
         latency,
-        usage: finalUsage
+        usage: { ...finalUsage, tps, ttft }
       })
       return { content: '', model: `ollama/${settings.aiModel}` }
     }
@@ -198,13 +207,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
         const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
-        
+
         const followUpMessages: any[] = [
           ...optimizedHistory,
           finalMessage,
           ...toolResult.formattedResults
         ]
-        
+
         if (researchContextMsg) {
           followUpMessages.push({ role: 'user', content: researchContextMsg })
         }
@@ -228,8 +237,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
           const now = Date.now()
           if (now - followUpLastUpdate >= UPDATE_INTERVAL && !chunk.done) {
-            updateStreamingMessage(targetSessionId, streamingMessageId, { 
-              content: accumulatedContent + followUpContent 
+            updateStreamingMessage(targetSessionId, streamingMessageId, {
+              content: accumulatedContent + followUpContent
             })
             followUpLastUpdate = now
           }
@@ -248,12 +257,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const outputTokens = finalUsage.outputTokens || 0
+    const tps = outputTokens > 0 && latency > 0 ? (outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: accumulatedContent,
       model: `ollama/${settings.aiModel}`,
       latency,
-      usage: finalUsage,
+      usage: { ...finalUsage, tps, ttft },
       toolResults: savedToolResults
     })
 
@@ -273,6 +285,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let accumulatedContent = ''
     let lastUpdateTime = Date.now()
     let finalUsage: any = {}
+    let firstTokenTime: number | null = null
 
     for await (const chunk of streamPerplexityCompletion(
       settings.perplexityApiKey,
@@ -281,6 +294,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       { temperature: settings.temperature, max_tokens: settings.maxTokens }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
+      if (!firstTokenTime && delta) {
+        firstTokenTime = performance.now()
+      }
       accumulatedContent += delta
 
       if (chunk.usage) {
@@ -305,12 +321,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: cleanedContent,
       model: `perplexity/${settings.aiModel}`,
       latency,
-      usage
+      usage: { ...usage, tps, ttft }
     })
 
     return { content: cleanedContent, model: `perplexity/${settings.aiModel}` }
@@ -329,6 +347,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let lastUpdateTime = Date.now()
     let finalUsage: any = {}
     let chunkCount = 0
+    let firstTokenTime: number | null = null
 
     for await (const chunk of streamGeminiCompletion(
       settings.geminiApiKey,
@@ -340,6 +359,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (!chunk) continue
 
       const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      if (!firstTokenTime && chunkText) {
+        firstTokenTime = performance.now()
+      }
       if (chunkText) accumulatedContent = chunkText
 
       if (chunk.usageMetadata) finalUsage = chunk.usageMetadata
@@ -372,12 +394,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: accumulatedContent,
       model: `gemini/${settings.aiModel}`,
       latency,
-      usage
+      usage: { ...usage, tps, ttft }
     })
 
     return { content: accumulatedContent, model: `gemini/${settings.aiModel}` }
@@ -407,6 +431,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let finishReason: string | null = null
     let savedToolResults: any = null
     let localThinkingBlocks: ThinkingBlock[] = []
+    let firstTokenTime: number | null = null
 
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
@@ -426,6 +451,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
+      if (!firstTokenTime && delta) {
+        firstTokenTime = performance.now()
+      }
       accumulatedContent += delta
 
       if (chunk.choices?.[0]?.delta?.tool_calls) {
@@ -633,12 +661,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: accumulatedContent,
       model: `groq/${settings.aiModel}`,
       latency,
-      usage,
+      usage: { ...usage, tps, ttft },
       toolResults: savedToolResults
     })
 
@@ -670,6 +700,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let finishReason: string | null = null
     let savedToolResults: any = null
     let localThinkingBlocks: ThinkingBlock[] = []
+    let firstTokenTime: number | null = null
 
     const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
 
@@ -680,6 +711,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
+      if (!firstTokenTime && delta) {
+        firstTokenTime = performance.now()
+      }
       accumulatedContent += delta
 
       const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
@@ -998,13 +1032,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(targetSessionId, streamingMessageId, {
       content: accumulatedContent,
       thinking: accumulatedReasoning || undefined,
       model: `openrouter/${settings.aiModel}`,
       latency,
-      usage,
+      usage: { ...usage, tps, ttft },
       toolResults: savedToolResults
     })
 

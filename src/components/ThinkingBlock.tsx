@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { ChevronRight, Copy } from './icons'
+import React, { useState, useEffect, useRef } from 'react'
+import { ChevronRight } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 
@@ -63,20 +63,6 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                         />
                     )}
                 </div>
-                {hasContent && (
-                    <button
-                        className="thinking-copy-btn"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            if (block.content) {
-                                navigator.clipboard.writeText(block.content)
-                            }
-                        }}
-                        title="Copy thinking"
-                    >
-                        <Copy size={14} />
-                    </button>
-                )}
             </div>
             {isExpanded && hasContent && (
                 <div className="thinking-content">
@@ -89,7 +75,36 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
 
 export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, completedBlocks = [] }: ThinkingBlockProps) {
     const [isExpanded, setIsExpanded] = useState(true) // Auto-expand by default
-    const [copied, setCopied] = useState(false)
+    const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
+    const [finalTime, setFinalTime] = useState<number | null>(null) // Store final time when thinking completes
+    const thinkingStartRef = useRef<number | null>(null)
+
+    // Live timer effect - runs while isThinking is true
+    useEffect(() => {
+        if (isThinking) {
+            // Start timer ONLY when thinking content arrives (first token)
+            if (thinking && thinking.trim().length > 0) {
+                if (!thinkingStartRef.current) {
+                    thinkingStartRef.current = Date.now()
+                    setFinalTime(null)
+                }
+
+                const interval = setInterval(() => {
+                    if (thinkingStartRef.current) {
+                        setElapsedTime((Date.now() - thinkingStartRef.current) / 1000)
+                    }
+                }, 100)
+
+                return () => clearInterval(interval)
+            }
+        } else if (thinkingStartRef.current) {
+            // isThinking just became false - capture final time
+            const elapsed = (Date.now() - thinkingStartRef.current) / 1000
+            setFinalTime(elapsed)
+            setElapsedTime(elapsed)
+            thinkingStartRef.current = null
+        }
+    }, [isThinking, thinking])
 
     // Auto-expand when thinking content exists
     useEffect(() => {
@@ -98,14 +113,6 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [thinking])
 
-    const handleCopy = () => {
-        if (thinking) {
-            navigator.clipboard.writeText(thinking)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
-        }
-    }
-
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
     }
@@ -113,8 +120,10 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     if (!thinking && !isThinking && !isSearching && completedBlocks.length === 0) return null
 
     const hasThinkingContent = thinking && thinking.trim().length > 0
-
     const showActiveBlock = hasThinkingContent || isThinking || isSearching
+
+    // Use finalTime when thinking is complete, otherwise use live elapsedTime
+    const displayTime = finalTime !== null ? finalTime : elapsedTime
 
     return (
         <div className="thinking-blocks-container">
@@ -134,22 +143,21 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                         <div className="thinking-label">
                             {isSearching && !hasThinkingContent ? (
                                 <>
-                                    <span className="thinking-dot searching-dot"></span>
+                                    <span className="thinking-dot searching-dot"><span className="middle-dot"></span></span>
                                     <span className="thinking-text">
                                         Tool: Web Search req{searchQuery ? ` "${searchQuery}"` : ''}
                                     </span>
                                 </>
-                            ) : isThinking && !hasThinkingContent ? (
+                            ) : isThinking ? (
                                 <>
-                                    <span className="thinking-dot"></span>
-                                    <span className="thinking-text">Thinking</span>
+                                    {!hasThinkingContent && <span className="thinking-dot"><span className="middle-dot"></span></span>}
+                                    <span className="thinking-text">Thinking {elapsedTime.toFixed(3)} seconds</span>
                                 </>
                             ) : (
                                 <>
                                     <span className="thinking-text">
-                                        Thought for {thinkingDuration ? formatDuration(thinkingDuration) : 'a moment'}
+                                        Thought for {displayTime.toFixed(3)} seconds
                                     </span>
-                                    {isThinking && <span className="thinking-dot"></span>}
                                     <ChevronRight
                                         size={14}
                                         className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`}
@@ -157,19 +165,6 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                                 </>
                             )}
                         </div>
-                        {hasThinkingContent && (
-                            <button
-                                className="thinking-copy-btn"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleCopy()
-                                }}
-                                title={copied ? 'Copied!' : 'Copy thinking'}
-                            >
-                                <Copy size={14} />
-                                {copied && <span className="copy-tooltip">Copied!</span>}
-                            </button>
-                        )}
                     </div>
                     {isExpanded && hasThinkingContent && (
                         <div className="thinking-content">

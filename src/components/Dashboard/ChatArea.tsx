@@ -262,15 +262,6 @@ export default function ChatArea() {
             </div>
           ))}
 
-          {/* Loading indicator */}
-          {isLoading && (
-            <div style={{ marginBottom: '24px' }}>
-              <div className="typing-indicator">
-                <span></span><span></span><span></span>
-              </div>
-            </div>
-          )}
-
           {/* Spacer for loading state */}
           {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
