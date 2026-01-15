@@ -57,7 +57,7 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
       if (!dangerHover) return;
 
       await animate(
-        ".trash-icon",
+        "svg",
         { stroke: "#ef4444" },
         { duration: 0.2, delay: 0.1, ease: "easeInOut" },
       );
@@ -67,7 +67,7 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
       if (!dangerHover) return;
 
       await animate(
-        ".trash-icon",
+        "svg",
         { stroke: "currentColor" },
         { duration: 0.2, ease: "easeInOut" },
       );

@@ -18,7 +18,7 @@
 // - formatResultsForProvider() switch cases
 // - buildMessagesWithToolResults() switch cases
 //
-// Providers WITH tool support: openrouter, gemini, groq, ollama
+// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
 // ============================================================================
 
 // Tool Adapters - Convert tool definitions to provider-specific formats
@@ -37,20 +37,18 @@ export type ProviderToolFormat = OpenAITool[] | GeminiTools
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
         case 'groq':
+        case 'ollama':
+        case 'minimax':
             // All use OpenAI-compatible format
             return convertToOpenRouterFormat(tools)
 
         case 'gemini':
             return convertToGeminiFormat(tools)
-
-        case 'ollama':
-            // Ollama with compatible models (llama3.1+) uses OpenAI format
-            return convertToOpenRouterFormat(tools)
 
         case 'perplexity':
             // EXCLUDED: Perplexity has native search
@@ -67,7 +65,7 @@ export function convertToolsForProvider(
  * EXCLUDED: perplexity (see header comment)
  */
 export function providerSupportsTools(provider: string): boolean {
-    return ['openrouter', 'gemini', 'groq', 'ollama'].includes(provider)
+    return ['openrouter', 'gemini', 'groq', 'ollama', 'minimax'].includes(provider)
 }
 
 /**
@@ -80,30 +78,39 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'openai/gpt-4o-mini',
         'openai/gpt-4-turbo',
         'anthropic/claude-3.5-sonnet',
+        'anthropic/claude-4-sonnet',
+        'anthropic/claude-sonnet-4',
         'anthropic/claude-3-opus',
-        'google/gemini-pro',
+        'google/gemini-3-flash-preview',
+        'google/gemini-3-pro-preview',
+        'google/gemini-2.5-pro',
+        'google/gemini-2.5-flash',
         'mistralai/mistral-large',
     ],
     gemini: [
-        'gemini-2.0-flash',
+        'gemini-3-flash-preview',
+        'gemini-3-pro-preview',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
-        'gemini-1.5-pro',
-        'gemini-1.5-flash',
+        'gemini-2.5-flash-lite',
     ],
     groq: [
-        'llama-3.1-70b-versatile',
-        'llama-3.1-8b-instant',
-        'llama-3.3-70b-versatile',
         'llama-4-scout',
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'deepseek-r1-distill-llama-70b',
         'mixtral-8x7b-32768',
-        'meta-llama',
     ],
     ollama: [
         'llama3.1',
         'llama3.2',
         'mistral',
         'mixtral',
+    ],
+    minimax: [
+        'MiniMax-M2.1',
+        'MiniMax-M2.1-lightning',
+        'MiniMax-M2',
     ]
 }
 

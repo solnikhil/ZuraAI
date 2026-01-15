@@ -13,6 +13,7 @@ import { ModelSection } from './sections/ModelSection'
 import { ApiKeysSection } from './sections/ApiKeysSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { CommandBarSection } from './sections/CommandBarSection'
+import { SystemPromptSection } from './sections/SystemPromptSection'
 
 import { GraphRange, ActivityData } from './ActivityGraph'
 import './Settings.css'
@@ -247,6 +248,7 @@ export default function Settings({
               perplexityModels={pendingSettings.perplexityModels || []}
               geminiModels={pendingSettings.geminiModels || []}
               groqModels={pendingSettings.groqModels || []}
+              minimaxModels={pendingSettings.minimaxModels || []}
               ollamaModels={pendingSettings.ollamaModels || []}
               onModelsChange={(models) => handleChange({ configuredModels: models })}
               titleModel={pendingSettings.titleModel || 'gemini-2.0-flash'}
@@ -274,6 +276,14 @@ export default function Settings({
               rememberLastDashboardView={pendingSettings.rememberLastDashboardView ?? settings.rememberLastDashboardView}
               rememberLastSettingsSection={pendingSettings.rememberLastSettingsSection ?? settings.rememberLastSettingsSection}
               onRememberChange={(changes) => handleChange(changes)}
+            />
+          )}
+
+          {/* System Prompt Section */}
+          {activeSection === 'systemprompt' && (
+            <SystemPromptSection
+              systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
+              onChange={(changes) => handleChange(changes)}
             />
           )}
 

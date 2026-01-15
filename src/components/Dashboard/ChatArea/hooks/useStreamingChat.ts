@@ -1565,19 +1565,26 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         return msg
       })
 
-      // Research mode setup
+      // Research mode setup - FIXED
+      // Deep research (deepResearchEnabled ON): 25 rounds, existing behavior
+      // Normal web search (only webSearchEnabled ON): 5 rounds, planning required
+      // Neither toggle ON: 0 rounds, no research mode started
+      // Requirements: 2.1, 4.1, 5.1, 5.2, 5.3
       let researchMaxRounds = 0
       let researchMandatory = false
 
       if (settings.deepResearchEnabled && canUseTools) {
+        // Deep research mode: 25 searches, existing behavior
         researchMaxRounds = 25
         researchMandatory = false
         startResearchMode(25, false)
       } else if (settings.webSearchEnabled && canUseTools) {
-        researchMaxRounds = 25
+        // Normal web search mode: 5 searches, planning required
+        researchMaxRounds = 5
         researchMandatory = false
-        startResearchMode(25, false)
+        startResearchMode(5, false)
       }
+      // If neither toggle is ON, researchMaxRounds stays 0 and no research mode is started
 
       const effectiveSystemPrompt = getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds, researchMandatory)
       const imageFiles = files.filter(f => f.type === 'image')

@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, gemini, groq, ollama
+// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -35,6 +35,37 @@ type ProviderResponse = OpenRouterResponse | GeminiResponse
 
 // Type for formatted tool results
 type FormattedToolResults = OpenRouterToolResultMessage[] | GeminiFunctionResponse[]
+
+/**
+ * Validate that all required parameters are present in tool arguments
+ * Returns an error message if validation fails, null if valid
+ */
+function validateRequiredParameters(toolCall: ToolCall): string | null {
+    const toolDef = getToolByName(toolCall.name)
+    
+    // Check if tool exists
+    if (!toolDef) {
+        const availableTools = getAllToolDefinitions().map(t => t.name).join(', ')
+        return `Unknown tool "${toolCall.name}". Available tools: ${availableTools}`
+    }
+    
+    const requiredParams = toolDef.parameters.required || []
+    const missingParams: string[] = []
+    
+    for (const param of requiredParams) {
+        const value = toolCall.arguments[param]
+        // Check if parameter is missing, null, undefined, or empty string
+        if (value === undefined || value === null || value === '') {
+            missingParams.push(param)
+        }
+    }
+    
+    if (missingParams.length > 0) {
+        return `Missing required parameter(s): ${missingParams.join(', ')}. Please provide ${missingParams.map(p => `'${p}'`).join(' and ')} to use ${toolCall.name}.`
+    }
+    
+    return null
+}
 
 /**
  * Coerce tool arguments to correct types based on tool definition schema
@@ -86,7 +117,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
@@ -123,6 +154,7 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return parseGeminiFunctionCalls(response as GeminiResponse)
@@ -143,6 +175,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return hasToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return hasGeminiFunctionCalls(response as GeminiResponse)
@@ -169,6 +202,7 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'gemini':
             return formatToolResultsForGemini(toolCalls, toolResults)
@@ -203,6 +237,25 @@ export async function processToolCalls(
     for (const toolCall of toolCalls) {
         // Coerce arguments to correct types based on schema
         const coercedToolCall = coerceToolArguments(toolCall)
+        
+        // Validate required parameters before executing
+        const validationError = validateRequiredParameters(coercedToolCall)
+        if (validationError) {
+            console.warn(`Tool validation failed for ${coercedToolCall.name}:`, validationError)
+            // Notify tool start (so UI shows the attempt)
+            config.onToolStart?.(coercedToolCall)
+            // Add error result without executing
+            const errorResult: ToolCallResult = {
+                toolCall: coercedToolCall,
+                result: {
+                    success: false,
+                    error: validationError
+                }
+            }
+            results.push(errorResult)
+            config.onToolComplete?.(errorResult)
+            continue
+        }
         
         // Notify tool start
         config.onToolStart?.(coercedToolCall)
@@ -261,6 +314,7 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return [
                 ...originalMessages,
                 assistantMessage,

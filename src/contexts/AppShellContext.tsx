@@ -173,6 +173,23 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
 export function useAppShell() {
     const context = useContext(AppShellContext)
     if (context === undefined) {
+        // During HMR, the context may temporarily be undefined
+        // Return a safe default to prevent crashes during hot reload
+        if (import.meta.hot) {
+            console.warn('[AppShellContext] Context undefined during HMR, using defaults')
+            return {
+                dashboardView: 'chat' as DashboardView,
+                setDashboardView: () => {},
+                activeSettingsSection: 'usage',
+                setActiveSettingsSection: () => {},
+                hasUnsavedSettings: false,
+                setHasUnsavedSettings: () => {},
+                sidebarCollapsed: false,
+                toggleSidebarCollapsed: () => {},
+                sidebarHidden: false,
+                toggleSidebarHidden: () => {},
+            }
+        }
         throw new Error('useAppShell must be used within a AppShellProvider')
     }
     return context

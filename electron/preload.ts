@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-import { execSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { writeFileSync, existsSync, mkdirSync } from 'fs'
 
 // Debug: write to log file to confirm preload is executing
 const PRELOAD_LOG_PATH = "c:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\\.cursor\\preload-debug.log"

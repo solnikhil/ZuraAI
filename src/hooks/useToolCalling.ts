@@ -48,7 +48,13 @@ export function useToolCalling() {
             ? [...settings.enabledTools]
             : allToolNames
 
-        if (!settings.webSearchEnabled) {
+        // Gate web_search based on BOTH toggles
+        // web_search is excluded only when BOTH webSearchEnabled AND deepResearchEnabled are OFF
+        // This ensures web_search is available when:
+        // - webSearchEnabled is ON (normal web search mode)
+        // - deepResearchEnabled is ON (deep research mode, regardless of webSearchEnabled)
+        // Validates: Requirements 1.1, 1.3, 1.4
+        if (!settings.webSearchEnabled && !settings.deepResearchEnabled) {
             enabledTools = enabledTools.filter(tool => tool !== 'web_search')
         }
 
@@ -228,8 +234,11 @@ export function useToolCalling() {
         const searchCount = actualSearchCount ?? toolState.researchMode.searchCount
         const remaining = maxRounds - searchCount
 
+        // Limit reached state - instructs model to provide final answer
+        // Works for both normal mode (5 searches) and deep research mode (25 searches)
+        // Validates: Requirements 2.2, 2.3
         if (remaining <= 0) {
-            return `\n\nYou have completed all ${maxRounds} required searches. You MUST now provide your final comprehensive answer based on all the information gathered.`
+            return `\n\nYou have completed all ${maxRounds} available searches. You MUST now provide your final comprehensive answer based on all the information gathered.`
         }
 
         // MANDATORY mode - user explicitly requested deep research
@@ -278,10 +287,39 @@ After this final search, provide your comprehensive answer. Use web_search now.`
 ${remaining} more searches required. Your response MUST be a web_search FUNCTION CALL, not text. Call web_search now.`
         }
 
+        // ============================================================================
+        // MODE DIFFERENTIATION
+        // ============================================================================
+        // The research context system supports two distinct modes:
+        // 
+        // 1. DEEP RESEARCH MODE (maxRounds >= 10, typically 25):
+        //    - Triggered when deepResearchEnabled is ON
+        //    - Forces multiple searches with mandatory continuation prompts
+        //    - Requires minimum 6-10 searches before allowing final answer
+        //    - Uses aggressive prompts to ensure comprehensive research
+        //    - Validates: Requirements 4.1, 4.2, 4.3
+        //
+        // 2. NORMAL WEB SEARCH MODE (maxRounds > 0 && maxRounds < 10, typically 5):
+        //    - Triggered when only webSearchEnabled is ON
+        //    - Requires planning before executing searches
+        //    - Allows model to decide when to stop (up to limit)
+        //    - Uses guidance prompts rather than mandatory continuation
+        //    - Validates: Requirements 2.1, 3.1, 3.2, 3.3
+        //
+        // The branching below ensures these modes remain completely separate.
+        // Deep research prompts are preserved unchanged per Requirement 4.3.
+        // ============================================================================
+        
         // Regular research mode (non-mandatory) - model decides when to search
-        const isDeepResearch = maxRounds >= 10
+        const isDeepResearch = maxRounds >= 10  // Deep research has 25 rounds
+        const isNormalSearch = maxRounds > 0 && maxRounds < 10  // Normal search has 5 rounds
 
         if (searchCount === 0) {
+            // ----------------------------------------------------------------
+            // DEEP RESEARCH MODE - Initial prompt (searchCount = 0)
+            // This prompt is UNCHANGED per Requirement 4.3
+            // Forces immediate web_search call with no text explanation
+            // ----------------------------------------------------------------
             if (isDeepResearch) {
                 return `\n\n*** DEEP RESEARCH MODE - MANDATORY MULTI-SEARCH ***
 You MUST complete MULTIPLE SEARCHES before answering. You have up to 25 searches available.
@@ -299,6 +337,22 @@ Your first search should be broad. Then identify niches and search each one.
 NOW: Call web_search with a broad query - NO TEXT, just the function.`
             }
 
+            // Normal web search mode - requires planning before executing searches
+            // Validates: Requirements 3.1, 3.2, 3.3
+            if (isNormalSearch) {
+                return `\n\n*** WEB SEARCH MODE - PLAN FIRST ***
+You have access to web search with a maximum of ${maxRounds} searches.
+
+BEFORE searching, you MUST:
+1. Briefly state what information you need
+2. List the specific searches you plan to make (up to ${maxRounds})
+3. Explain why each search is necessary
+
+After planning, proceed with your searches. Use them wisely - you have limited searches available.
+
+If you already know the answer confidently without needing current information, you can respond directly without searching.`
+            }
+
             return `\n\n*** WEB SEARCH AVAILABLE ***
 You have access to web search (up to ${maxRounds} searches) to provide accurate, up-to-date information.
 
@@ -313,8 +367,13 @@ Use the web_search tool to find accurate information. You may search multiple ti
 If you already know the answer confidently, you can respond directly.`
         }
 
-        // After 1st search - FORCE continuation
+        // After 1st search - FORCE continuation for deep research, allow choice for normal mode
         if (searchCount === 1) {
+            // ----------------------------------------------------------------
+            // DEEP RESEARCH MODE - After 1st search (searchCount = 1)
+            // This prompt is UNCHANGED per Requirement 4.3
+            // Forces continuation with mandatory language
+            // ----------------------------------------------------------------
             if (isDeepResearch) {
                 return `\n\n*** CONTINUE RESEARCH - MANDATORY ***
 You have completed ONLY 1 search. You need 5-9 MORE searches.
@@ -324,6 +383,20 @@ DO NOT provide your answer yet. Your answer will be INCOMPLETE without more rese
 Your next search must explore a different angle/niche. Call web_search NOW with a NEW query.
 
 After this, continue searching until all niches are covered.`
+            }
+
+            // Normal web search mode - allow model to decide when to stop
+            // Different from deep research which forces continuation
+            // Validates: Requirements 2.2, 3.4
+            if (isNormalSearch) {
+                return `\n\n*** WEB SEARCH PROGRESS ***
+You have completed 1 of ${maxRounds} available searches. ${remaining} searches remaining.
+
+You may:
+- Continue searching if you need more information, different perspectives, or verification
+- Provide your answer now if you have gathered sufficient information
+
+If continuing, use web_search with a different query to explore other aspects of the topic.`
             }
 
             return `\n\n*** RESEARCH PROGRESS ***
@@ -336,7 +409,12 @@ You have completed 1 of up to ${maxRounds} searches. You may continue searching 
 Use web_search with different queries as needed, or provide your answer if you have sufficient information.`
         }
 
-        // Searches 2-5 - Still force continuation
+        // ----------------------------------------------------------------
+        // DEEP RESEARCH MODE - Searches 2-5 (searchCount 2-5)
+        // This prompt is UNCHANGED per Requirement 4.3
+        // Forces continuation until minimum 6 searches reached
+        // ----------------------------------------------------------------
+        // Searches 2-5 - Still force continuation for deep research
         if (isDeepResearch && searchCount >= 2 && searchCount <= 5) {
             return `\n\n*** CONTINUE RESEARCH - MANDATORY ***
 You have completed ${searchCount} search(es). You need MORE searches. Minimum 6 total required.
@@ -346,6 +424,37 @@ DO NOT provide your answer yet. Continue with a NEW niche query.
 Call web_search NOW.`
         }
 
+        // Normal mode searches 2+ - allow model to decide when to stop (up to limit)
+        // Different from deep research which forces continuation
+        // Validates: Requirements 2.2, 3.4
+        if (isNormalSearch && searchCount >= 2 && searchCount < maxRounds) {
+            // Check if this is the last available search
+            if (remaining === 1) {
+                return `\n\n*** WEB SEARCH PROGRESS - LAST SEARCH AVAILABLE ***
+You have completed ${searchCount} of ${maxRounds} searches. You have 1 search remaining.
+
+You may:
+- Use your final search if you need one more piece of information
+- Provide your answer now if you have gathered sufficient information
+
+Choose wisely - this is your last available search.`
+            }
+
+            return `\n\n*** WEB SEARCH PROGRESS ***
+You have completed ${searchCount} of ${maxRounds} available searches. ${remaining} searches remaining.
+
+You may:
+- Continue searching if you need more information or different perspectives
+- Provide your answer now if you have gathered sufficient information
+
+If continuing, use web_search with a different query to explore other aspects of the topic.`
+        }
+
+        // ----------------------------------------------------------------
+        // DEEP RESEARCH MODE - Searches 6+ (searchCount 6-24)
+        // This prompt is UNCHANGED per Requirement 4.3
+        // Allows completion but encourages more comprehensive coverage
+        // ----------------------------------------------------------------
         // Searches 6+ - Allow completion but encourage more
         if (isDeepResearch && searchCount >= 6 && searchCount < 25) {
             const remaining = maxRounds - searchCount

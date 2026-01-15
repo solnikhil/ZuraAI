@@ -89,7 +89,7 @@ const defaultSettings: Settings = {
     openRouterApiKey: '',
     perplexityApiKey: '',
     aiModel: 'x-ai/grok-4.1-fast',
-    titleModel: 'gemini-2.0-flash', // Default to fast free model
+    titleModel: 'gemini-2.5-flash', // Default to fast free model
     temperature: 0.7,
     maxTokens: 25000,
     autoHideOverlay: false,
@@ -101,57 +101,65 @@ const defaultSettings: Settings = {
     systemPrompt: defaultSystemPrompt,
     streamResponses: false,
     configuredModels: [
+        // Top Models 2025 (Text Only)
+        { code: 'anthropic/claude-sonnet-4', displayName: 'Claude Sonnet 4' },
+        { code: 'openai/gpt-4o', displayName: 'GPT-4o' },
+        { code: 'google/gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
+        { code: 'google/gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        { code: 'google/gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+        { code: 'google/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+        { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
+        { code: 'deepseek/deepseek-r1', displayName: 'DeepSeek R1' },
+        { code: 'meta-llama/llama-4-scout', displayName: 'Llama 4 Scout' },
+        // Online/Search Models
+        { code: 'anthropic/claude-sonnet-4:online', displayName: 'Claude Sonnet 4 (Online)' },
+        { code: 'google/gemini-2.5-flash:online', displayName: 'Gemini 2.5 Flash (Online)' },
+        { code: 'deepseek/deepseek-r1:online', displayName: 'DeepSeek R1 (Online)' },
         // Deep Research Models
         { code: 'perplexity/sonar-deep-research', displayName: 'Sonar Deep Research' },
         { code: 'openai/o3-deep-research', displayName: 'o3 Deep Research' },
         { code: 'openai/o4-mini-deep-research', displayName: 'o4-mini Deep Research' },
-        // Popular Models with :online variant support
-        { code: 'anthropic/claude-sonnet-4:online', displayName: 'Claude Sonnet 4 (Online)' },
-        { code: 'openai/gpt-4.1:online', displayName: 'GPT-4.1 (Online)' },
-        { code: 'google/gemini-2.5-flash:online', displayName: 'Gemini 2.5 Flash (Online)' },
-        { code: 'deepseek/deepseek-r1:online', displayName: 'DeepSeek R1 (Online)' },
-        // Free Models
-        { code: 'nvidia/nemotron-3-nano-30b-a3b:free', displayName: 'Nemotron 3 Nano 30B' },
+        // Free Models (Text Only)
         { code: 'google/gemma-3-27b-it:free', displayName: 'Gemma 3 27B' },
         { code: 'arcee-ai/trinity-mini:free', displayName: 'Trinity Mini' },
-        { code: 'openai/gpt-oss-20b:free', displayName: 'GPT-OSS 20B' },
     ],
     modelProvider: 'openrouter',
     ollamaUrl: 'http://localhost:11434',
     ollamaModels: [],
     perplexityModels: [
+        // Sonar Models (2025)
         { code: 'sonar', displayName: 'Sonar' },
         { code: 'sonar-pro', displayName: 'Sonar Pro' },
         { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
         { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
         { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+        // Llama 3.1 Sonar Variants (128k Context)
+        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online' },
+        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online' },
+        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online' },
+        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online' },
     ],
     geminiApiKey: '',
     geminiModels: [
-        // Gemini 3.0 Models (Preview)
-        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
-        { code: 'gemini-3-pro-image-preview', displayName: 'Gemini 3 Pro Image (Preview)' },
+        // Gemini 3.0 Models (Preview - Text Only)
         { code: 'gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
-        // Gemini 2.5 Models (Stable)
+        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        // Gemini 2.5 Models (Stable - Text Only)
         { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
-        { code: 'gemini-2.5-pro-preview-tt', displayName: 'Gemini 2.5 Pro Thinking (Preview)' },
         { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-        { code: 'gemini-2.5-flash-preview-tt', displayName: 'Gemini 2.5 Flash Thinking (Preview)' },
-        { code: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash Image' },
         { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
-        { code: 'gemini-2.5-flash-native-audio-preview-12-2025', displayName: 'Gemini 2.5 Flash Native Audio (Preview)' },
-        // Gemini 2.0 Models (Latest Stable)
-        { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash (Latest)' },
-        { code: 'gemini-2.0-flash-001', displayName: 'Gemini 2.0 Flash (Stable)' },
-        { code: 'gemini-2.0-flash-exp', displayName: 'Gemini 2.0 Flash (Experimental)' },
-        { code: 'gemini-2.0-flash-preview-image-generation', displayName: 'Gemini 2.0 Flash Image Gen (Preview)' },
-        { code: 'gemini-2.0-flash-lite', displayName: 'Gemini 2.0 Flash Lite' },
     ],
     groqApiKey: '',
     groqModels: [
-        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B' },
+        // Llama 4 (Latest 2025)
+        { code: 'llama-4-scout', displayName: 'Llama 4 Scout' },
+        // Llama 3.3
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
+        // Llama 3.1
         { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
-        { code: 'llama-guard-3-8b', displayName: 'Llama Guard 3 8B' },
+        // DeepSeek R1 Distill
+        { code: 'deepseek-r1-distill-llama-70b', displayName: 'DeepSeek R1 Distill Llama 70B' },
+        // Other models
         { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
         { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
     ],
@@ -346,10 +354,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
 
-        // Sync with main process (API keys are sent but main process doesn't store them)
-        if (window.ipcRenderer) {
-            window.ipcRenderer.send('settings-changed', settings)
-        }
+        // Note: settings-changed IPC was removed as there's no handler in main process
+        // Settings sync happens via localStorage + storage events
     }, [settings])
 
     useLayoutEffect(() => {
@@ -394,6 +400,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 export function useSettings() {
     const context = useContext(SettingsContext)
     if (context === undefined) {
+        // During HMR, the context may temporarily be undefined
+        // This prevents crashes during hot reload in development
+        if (import.meta.hot) {
+            console.warn('[SettingsContext] Context undefined during HMR, using defaults')
+            return {
+                settings: defaultSettings,
+                updateSettings: () => {},
+                ollamaStatus: 'disconnected' as const,
+                checkOllama: async () => {},
+            }
+        }
         throw new Error('useSettings must be used within a SettingsProvider')
     }
     return context

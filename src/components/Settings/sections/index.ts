@@ -19,3 +19,6 @@ export type { AppearanceSectionProps } from './AppearanceSection'
 
 export { ToolsSection } from './ToolsSection'
 export type { ToolsSectionProps } from './ToolsSection'
+
+export { SystemPromptSection } from './SystemPromptSection'
+export type { SystemPromptSectionProps } from './SystemPromptSection'

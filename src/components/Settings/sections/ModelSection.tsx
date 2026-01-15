@@ -33,6 +33,8 @@ export interface ModelSectionProps {
   geminiModels: ModelConfig[]
   /** Groq models */
   groqModels: ModelConfig[]
+  /** MiniMax models */
+  minimaxModels: ModelConfig[]
   /** Ollama models */
   ollamaModels: ModelConfig[]
   /** Callback when models change */
@@ -51,6 +53,7 @@ export function ModelSection({
   perplexityModels,
   geminiModels,
   groqModels,
+  minimaxModels,
   ollamaModels,
   onModelsChange,
   titleModel,
@@ -69,6 +72,7 @@ export function ModelSection({
     perplexity: false,
     gemini: false,
     groq: false,
+    minimax: false,
     ollama: false
   })
   const [titleModelDropdownOpen, setTitleModelDropdownOpen] = useState(false)
@@ -89,12 +93,15 @@ export function ModelSection({
     if (perplexityModels.length > 0) {
       groups.push({ provider: 'Perplexity', providerKey: 'perplexity', models: perplexityModels })
     }
+    if (minimaxModels.length > 0) {
+      groups.push({ provider: 'MiniMax', providerKey: 'minimax', models: minimaxModels })
+    }
     if (ollamaModels.length > 0) {
       groups.push({ provider: 'Ollama', providerKey: 'ollama', models: ollamaModels })
     }
     
     return groups
-  }, [configuredModels, geminiModels, groqModels, perplexityModels, ollamaModels])
+  }, [configuredModels, geminiModels, groqModels, minimaxModels, perplexityModels, ollamaModels])
 
   // Find the currently selected title model's display info
   const selectedTitleModel = useMemo(() => {
@@ -644,6 +651,9 @@ export function ModelSection({
 
         {/* Groq Models */}
         {groqModels.length > 0 && renderProviderGroup('Groq', 'groq', groqModels)}
+
+        {/* MiniMax Models */}
+        {minimaxModels.length > 0 && renderProviderGroup('MiniMax', 'minimax', minimaxModels)}
 
         {/* Ollama Models */}
         {ollamaModels.length > 0 && renderProviderGroup('Ollama', 'ollama', ollamaModels)}

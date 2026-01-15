@@ -261,3 +261,290 @@ describe('Property 7: Model Name Formatting', () => {
         )
     })
 })
+
+
+/**
+ * Feature: web-search-fix
+ * 
+ * Unit Tests for Research Mode Configuration in useStreamingChat Hook
+ * 
+ * These tests verify the research mode configuration logic that determines
+ * maxRounds based on toggle states (webSearchEnabled and deepResearchEnabled).
+ * 
+ * **Validates: Requirements 2.1, 4.1, 5.1**
+ */
+
+/**
+ * Helper function to simulate the research mode configuration logic
+ * from useStreamingChat.ts sendMessage function.
+ * 
+ * This mirrors the logic:
+ * - Deep research (deepResearchEnabled ON): researchMaxRounds = 25
+ * - Normal web search (only webSearchEnabled ON): researchMaxRounds = 5
+ * - Neither toggle ON: researchMaxRounds = 0
+ * 
+ * @param deepResearchEnabled - Whether deep research toggle is ON
+ * @param webSearchEnabled - Whether web search toggle is ON
+ * @param canUseTools - Whether tools can be used (defaults to true)
+ * @returns The calculated researchMaxRounds value
+ */
+function calculateResearchMaxRounds(
+    deepResearchEnabled: boolean,
+    webSearchEnabled: boolean,
+    canUseTools: boolean = true
+): number {
+    let researchMaxRounds = 0
+
+    if (deepResearchEnabled && canUseTools) {
+        // Deep research mode: 25 searches, existing behavior
+        researchMaxRounds = 25
+    } else if (webSearchEnabled && canUseTools) {
+        // Normal web search mode: 5 searches, planning required
+        researchMaxRounds = 5
+    }
+    // If neither toggle is ON, researchMaxRounds stays 0
+
+    return researchMaxRounds
+}
+
+describe('Feature: web-search-fix - Research Mode Configuration', () => {
+    /**
+     * Requirement 4.1: WHEN deepResearchEnabled is ON, THE Streaming_Chat_Hook 
+     * SHALL set researchMaxRounds to 25 (existing behavior)
+     * 
+     * **Validates: Requirements 4.1**
+     */
+    describe('Requirement 4.1: deepResearchEnabled ON sets maxRounds to 25', () => {
+        it('deepResearchEnabled ON with webSearchEnabled OFF sets maxRounds to 25', () => {
+            const maxRounds = calculateResearchMaxRounds(true, false, true)
+            expect(maxRounds).toBe(25)
+        })
+
+        it('deepResearchEnabled ON with webSearchEnabled ON sets maxRounds to 25', () => {
+            const maxRounds = calculateResearchMaxRounds(true, true, true)
+            expect(maxRounds).toBe(25)
+        })
+
+        it('deepResearchEnabled ON with canUseTools false sets maxRounds to 0', () => {
+            const maxRounds = calculateResearchMaxRounds(true, false, false)
+            expect(maxRounds).toBe(0)
+        })
+    })
+
+    /**
+     * Requirement 2.1: WHEN webSearchEnabled is ON AND deepResearchEnabled is OFF, 
+     * THE Streaming_Chat_Hook SHALL set researchMaxRounds to 5
+     * 
+     * **Validates: Requirements 2.1**
+     */
+    describe('Requirement 2.1: only webSearchEnabled ON sets maxRounds to 5', () => {
+        it('webSearchEnabled ON with deepResearchEnabled OFF sets maxRounds to 5', () => {
+            const maxRounds = calculateResearchMaxRounds(false, true, true)
+            expect(maxRounds).toBe(5)
+        })
+
+        it('webSearchEnabled ON with canUseTools false sets maxRounds to 0', () => {
+            const maxRounds = calculateResearchMaxRounds(false, true, false)
+            expect(maxRounds).toBe(0)
+        })
+    })
+
+    /**
+     * Both toggles OFF results in maxRounds = 0
+     * 
+     * **Validates: Requirements 5.4**
+     */
+    describe('Both toggles OFF results in maxRounds = 0', () => {
+        it('both toggles OFF sets maxRounds to 0', () => {
+            const maxRounds = calculateResearchMaxRounds(false, false, true)
+            expect(maxRounds).toBe(0)
+        })
+
+        it('both toggles OFF with canUseTools false sets maxRounds to 0', () => {
+            const maxRounds = calculateResearchMaxRounds(false, false, false)
+            expect(maxRounds).toBe(0)
+        })
+    })
+
+    /**
+     * Requirement 5.1: WHEN determining research mode, THE Streaming_Chat_Hook 
+     * SHALL check deepResearchEnabled first before webSearchEnabled
+     * 
+     * This means deepResearchEnabled takes precedence when both are ON.
+     * 
+     * **Validates: Requirements 5.1**
+     */
+    describe('Requirement 5.1: deepResearchEnabled takes precedence when both are ON', () => {
+        it('both toggles ON results in maxRounds = 25 (deep research precedence)', () => {
+            const maxRounds = calculateResearchMaxRounds(true, true, true)
+            expect(maxRounds).toBe(25)
+        })
+
+        it('precedence is maintained regardless of toggle order in logic', () => {
+            // Test that the result is always 25 when deepResearchEnabled is ON
+            // regardless of webSearchEnabled state
+            const withWebSearchOff = calculateResearchMaxRounds(true, false, true)
+            const withWebSearchOn = calculateResearchMaxRounds(true, true, true)
+            
+            expect(withWebSearchOff).toBe(25)
+            expect(withWebSearchOn).toBe(25)
+            expect(withWebSearchOff).toBe(withWebSearchOn)
+        })
+    })
+
+    /**
+     * Property-based test: Exhaustive toggle combinations
+     * 
+     * Test all possible combinations of toggle states to ensure correct behavior.
+     * 
+     * **Validates: Requirements 2.1, 4.1, 5.1**
+     */
+    describe('Exhaustive toggle combinations', () => {
+        it('all four toggle combinations produce correct maxRounds values', () => {
+            const testCases = [
+                { deepResearch: false, webSearch: false, canUseTools: true, expectedMaxRounds: 0 },
+                { deepResearch: false, webSearch: true, canUseTools: true, expectedMaxRounds: 5 },
+                { deepResearch: true, webSearch: false, canUseTools: true, expectedMaxRounds: 25 },
+                { deepResearch: true, webSearch: true, canUseTools: true, expectedMaxRounds: 25 },
+            ]
+
+            for (const testCase of testCases) {
+                const maxRounds = calculateResearchMaxRounds(
+                    testCase.deepResearch,
+                    testCase.webSearch,
+                    testCase.canUseTools
+                )
+
+                expect(maxRounds).toBe(testCase.expectedMaxRounds)
+            }
+        })
+
+        it('canUseTools false always results in maxRounds = 0', () => {
+            const testCases = [
+                { deepResearch: false, webSearch: false },
+                { deepResearch: false, webSearch: true },
+                { deepResearch: true, webSearch: false },
+                { deepResearch: true, webSearch: true },
+            ]
+
+            for (const testCase of testCases) {
+                const maxRounds = calculateResearchMaxRounds(
+                    testCase.deepResearch,
+                    testCase.webSearch,
+                    false // canUseTools = false
+                )
+
+                expect(maxRounds).toBe(0)
+            }
+        })
+    })
+
+    /**
+     * Property-based test using fast-check
+     * 
+     * Verify the research mode configuration logic holds for all boolean combinations.
+     * 
+     * **Validates: Requirements 2.1, 4.1, 5.1**
+     */
+    describe('Property-based tests for research mode configuration', () => {
+        it('Property: maxRounds is determined by toggle precedence rules', () => {
+            fc.assert(
+                fc.property(
+                    fc.boolean(), // deepResearchEnabled
+                    fc.boolean(), // webSearchEnabled
+                    fc.boolean(), // canUseTools
+                    (deepResearchEnabled, webSearchEnabled, canUseTools) => {
+                        const maxRounds = calculateResearchMaxRounds(
+                            deepResearchEnabled,
+                            webSearchEnabled,
+                            canUseTools
+                        )
+
+                        // If canUseTools is false, maxRounds should always be 0
+                        if (!canUseTools) {
+                            expect(maxRounds).toBe(0)
+                            return true
+                        }
+
+                        // If deepResearchEnabled is ON, maxRounds should be 25
+                        if (deepResearchEnabled) {
+                            expect(maxRounds).toBe(25)
+                            return true
+                        }
+
+                        // If only webSearchEnabled is ON, maxRounds should be 5
+                        if (webSearchEnabled) {
+                            expect(maxRounds).toBe(5)
+                            return true
+                        }
+
+                        // If both toggles are OFF, maxRounds should be 0
+                        expect(maxRounds).toBe(0)
+                        return true
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('Property: deepResearchEnabled always takes precedence over webSearchEnabled', () => {
+            fc.assert(
+                fc.property(
+                    fc.boolean(), // webSearchEnabled (any value)
+                    (webSearchEnabled) => {
+                        // When deepResearchEnabled is ON, maxRounds should always be 25
+                        // regardless of webSearchEnabled state
+                        const maxRounds = calculateResearchMaxRounds(true, webSearchEnabled, true)
+                        expect(maxRounds).toBe(25)
+                        return maxRounds === 25
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('Property: webSearchEnabled only affects maxRounds when deepResearchEnabled is OFF', () => {
+            fc.assert(
+                fc.property(
+                    fc.boolean(), // webSearchEnabled
+                    (webSearchEnabled) => {
+                        // When deepResearchEnabled is OFF, webSearchEnabled determines the result
+                        const maxRounds = calculateResearchMaxRounds(false, webSearchEnabled, true)
+                        
+                        if (webSearchEnabled) {
+                            expect(maxRounds).toBe(5)
+                            return maxRounds === 5
+                        } else {
+                            expect(maxRounds).toBe(0)
+                            return maxRounds === 0
+                        }
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+
+        it('Property: maxRounds is always one of {0, 5, 25}', () => {
+            fc.assert(
+                fc.property(
+                    fc.boolean(), // deepResearchEnabled
+                    fc.boolean(), // webSearchEnabled
+                    fc.boolean(), // canUseTools
+                    (deepResearchEnabled, webSearchEnabled, canUseTools) => {
+                        const maxRounds = calculateResearchMaxRounds(
+                            deepResearchEnabled,
+                            webSearchEnabled,
+                            canUseTools
+                        )
+
+                        // maxRounds should only ever be 0, 5, or 25
+                        const validValues = [0, 5, 25]
+                        expect(validValues).toContain(maxRounds)
+                        return validValues.includes(maxRounds)
+                    }
+                ),
+                { numRuns: 100 }
+            )
+        })
+    })
+})

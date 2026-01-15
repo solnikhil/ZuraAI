@@ -42,9 +42,10 @@ export function createOverlayWindow(showImmediately = false): BrowserWindow | nu
         hasShadow: false,
         show: false,
         webPreferences: {
-            preload: path.join(__dirname, '../preload.js'),
+            preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            sandbox: false, // Required for preload to use Node.js APIs like fs
             devTools: !isProduction,
             spellcheck: false,
             backgroundThrottling: false,

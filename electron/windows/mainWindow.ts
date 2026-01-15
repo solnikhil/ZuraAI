@@ -43,9 +43,10 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             },
         } : {}),
         webPreferences: {
-            preload: path.join(__dirname, '../preload.js'),
+            preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            sandbox: false, // Required for preload to use Node.js APIs like fs
             devTools: options?.devTools ?? !isProduction,
             spellcheck: false,
         },
