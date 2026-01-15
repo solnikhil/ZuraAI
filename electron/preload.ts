@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
 })
 
+<<<<<<< Updated upstream
 // Window controls API (custom title bar)
 contextBridge.exposeInMainWorld('windowControls', {
     minimize: () => ipcRenderer.invoke('window-controls:minimize'),
@@ -29,6 +30,129 @@ contextBridge.exposeInMainWorld('windowControls', {
         return () => ipcRenderer.removeListener('window-controls:state', listener)
     },
 })
+=======
+preloadLog('Preload script STARTED')
+
+// ----------------------------------------------------------------------------
+// IPC hardening
+// ----------------------------------------------------------------------------
+// Only allow a small set of channels to be used by the renderer.
+// This prevents arbitrary IPC access if the renderer is compromised.
+
+const SEND_CHANNELS = new Set<string>([
+  'close-overlay',
+  'set-ignore-mouse-events',
+  'open-settings',
+  'set-titlebar-overlay',
+  'spawn-terminal-command',
+])
+
+// PDF IPC channels - imported from src/types/pdf.ts for reference
+// These channels support the PDF Reader Chat feature with RAG capabilities
+
+const INVOKE_CHANNELS = new Set<string>([
+  // Chat store
+  'chat-store:get-all',
+  'chat-store:save-all',
+  'chat-store:migrate',
+
+  // Secure storage
+  'secure-storage:get',
+  'secure-storage:set',
+  'secure-storage:get-all',
+  'secure-storage:clear',
+  'secure-storage:status',
+
+  // Screenshot
+  'capture-screen',
+  'crop-screenshot',
+
+  // Tools
+  'execute-tool',
+
+  // Updater
+  'updater:check-for-updates',
+  'updater:quit-and-install',
+  'updater:get-version',
+
+  // PDF Loading & Parsing
+  'pdf:load',
+  'pdf:get-page',
+  'pdf:search-text',
+  'pdf:get-outline',
+  'pdf:unload',
+
+  // PDF Indexing
+  'pdf:index',
+  'pdf:get-index-status',
+  'pdf:delete-index',
+
+  // PDF RAG Query
+  'pdf:query',
+  'pdf:get-chunks',
+
+  // PDF Session Management
+  'pdf-chat:create-session',
+  'pdf-chat:get-sessions',
+  'pdf-chat:get-session',
+  'pdf-chat:save-session',
+  'pdf-chat:delete-session',
+
+  // PDF Settings
+  'pdf:get-settings',
+  'pdf:update-settings',
+
+  // PDF Feedback
+  'pdf:save-feedback',
+])
+
+const ON_CHANNELS = new Set<string>([
+  'update-available',
+  'update-downloaded',
+
+  // PDF Indexing Events (main process → renderer)
+  'pdf:index-progress',
+  'pdf:index-complete',
+  'pdf:index-error',
+])
+
+function assertAllowed(kind: 'send' | 'invoke' | 'on' | 'off', channel: string, allowed: Set<string>) {
+  if (!allowed.has(channel)) {
+    throw new Error(`Blocked IPC ${kind} channel: ${channel}`)
+  }
+}
+
+contextBridge.exposeInMainWorld('ipcRenderer', Object.freeze({
+  on: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+    assertAllowed('on', channel, ON_CHANNELS)
+    ipcRenderer.on(channel, listener)
+  },
+  off: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+    assertAllowed('off', channel, ON_CHANNELS)
+    ipcRenderer.off(channel, listener)
+  },
+  send: (channel: string, ...args: any[]) => {
+    assertAllowed('send', channel, SEND_CHANNELS)
+    ipcRenderer.send(channel, ...args)
+  },
+  invoke: (channel: string, ...args: any[]) => {
+    assertAllowed('invoke', channel, INVOKE_CHANNELS)
+
+    // Extra validation for tool execution
+    if (channel === 'execute-tool') {
+      const toolName = args[0]
+      if (toolName !== 'web_search') {
+        return Promise.resolve({
+          success: false,
+          error: `Tool "${String(toolName)}" is disabled. Only "web_search" is available.`
+        })
+      }
+    }
+
+    return ipcRenderer.invoke(channel, ...args)
+  },
+}))
+>>>>>>> Stashed changes
 
 // Secure storage API
 contextBridge.exposeInMainWorld('secureStorage', {

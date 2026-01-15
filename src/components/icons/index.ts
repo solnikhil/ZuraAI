@@ -1,6 +1,7 @@
 // Centralized icon exports for better tree-shaking
 // Using direct imports from lucide-react/dist/esm/icons/* ensures only used icons are bundled
 
+<<<<<<< Updated upstream
 export { default as Send } from 'lucide-react/dist/esm/icons/send'
 export { default as Paperclip } from 'lucide-react/dist/esm/icons/paperclip'
 export { default as Sparkles } from 'lucide-react/dist/esm/icons/sparkles'
@@ -87,3 +88,104 @@ export { default as ExternalLink } from 'lucide-react/dist/esm/icons/external-li
 export { default as Calculator } from 'lucide-react/dist/esm/icons/calculator'
 export { default as Clipboard } from 'lucide-react/dist/esm/icons/clipboard'
 export { default as Command } from 'lucide-react/dist/esm/icons/command'
+=======
+export {
+  Send,
+  Paperclip,
+  Sparkles,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  CornerDownLeft,
+  RotateCcw,
+  Download,
+  Share2,
+  Globe,
+  FolderOpen,
+  Mic,
+  Info,
+  Clock,
+  ArrowDown,
+  ArrowUp,
+  ArrowLeft,
+  ArrowRight,
+  Sigma,
+  Cpu,
+  Twitter,
+  MessageCircle,
+  MessageSquare,
+  FlaskConical,
+  Video,
+  ShieldCheck,
+  Brain,
+  Trash2,
+  Wrench,
+  X,
+  File,
+  Image,
+  FileText,
+  Bot,
+  Square,
+  Zap,
+  TrendingUp,
+  Database,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
+  PanelLeft,
+  LayoutDashboard,
+  User,
+  LogOut,
+  ChartNoAxesCombined,
+  Key,
+  Github,
+  Star,
+  FileEdit,
+  Crown,
+  RefreshCw,
+  Edit2,
+  Eye,
+  EyeOff,
+  Box,
+  HardDrive,
+  BarChart,
+  AlignLeft,
+  CheckSquare,
+  ListTodo,
+  MousePointer,
+  Keyboard,
+  Monitor,
+  Shield,
+  ShieldOff,
+  Workflow,
+  Filter,
+  Cloud,
+  Grid,
+  LayoutGrid,
+  Expand,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  AlertTriangle,
+  Bug,
+  Lightbulb,
+  Loader2,
+  Plug,
+  ExternalLink,
+  Calculator,
+  Clipboard,
+  Command
+} from 'lucide-react'
+
+// Animated icons
+export { default as SendIcon } from './SendIcon'
+export { default as MessageCircleIcon } from './MessageCircleIcon'
+export { default as MagnifierIcon } from './MagnifierIcon'
+export { default as TrashIcon } from './TrashIcon'
+export { default as EyeIcon } from './EyeIcon'
+export { default as EyeOffIcon } from './EyeOffIcon'
+export type { AnimatedIconHandle, AnimatedIconProps } from './types'
+>>>>>>> Stashed changes
