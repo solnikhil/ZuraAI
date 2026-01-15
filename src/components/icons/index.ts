@@ -1,7 +1,6 @@
-// Centralized icon exports for better tree-shaking
-// Using direct imports from lucide-react/dist/esm/icons/* ensures only used icons are bundled
+// Centralized icon exports from lucide-react
+// Re-exporting icons for consistent usage across the application
 
-<<<<<<< Updated upstream
 export { default as Send } from 'lucide-react/dist/esm/icons/send'
 export { default as Paperclip } from 'lucide-react/dist/esm/icons/paperclip'
 export { default as Sparkles } from 'lucide-react/dist/esm/icons/sparkles'
@@ -88,7 +87,6 @@ export { default as ExternalLink } from 'lucide-react/dist/esm/icons/external-li
 export { default as Calculator } from 'lucide-react/dist/esm/icons/calculator'
 export { default as Clipboard } from 'lucide-react/dist/esm/icons/clipboard'
 export { default as Command } from 'lucide-react/dist/esm/icons/command'
-=======
 export {
   Send,
   Paperclip,
@@ -188,4 +186,4 @@ export { default as TrashIcon } from './TrashIcon'
 export { default as EyeIcon } from './EyeIcon'
 export { default as EyeOffIcon } from './EyeOffIcon'
 export type { AnimatedIconHandle, AnimatedIconProps } from './types'
->>>>>>> Stashed changes
+

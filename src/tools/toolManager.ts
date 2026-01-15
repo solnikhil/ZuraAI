@@ -9,12 +9,9 @@
 // 1. PERPLEXITY - Has native built-in web search and research capabilities.
 //    Adding external tools would interfere with their native functionality.
 //
-// 2. CODEX - Uses specialized API with built-in reasoning capabilities.
-//    External tools are not compatible with their API structure.
+// DO NOT add 'perplexity' to tool support functions.
 //
-// DO NOT add 'perplexity' or 'codex' to tool support functions.
-//
-// Providers WITH tool support: openrouter, gemini, groq, ollama
+// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -38,6 +35,37 @@ type ProviderResponse = OpenRouterResponse | GeminiResponse
 
 // Type for formatted tool results
 type FormattedToolResults = OpenRouterToolResultMessage[] | GeminiFunctionResponse[]
+
+/**
+ * Validate that all required parameters are present in tool arguments
+ * Returns an error message if validation fails, null if valid
+ */
+function validateRequiredParameters(toolCall: ToolCall): string | null {
+    const toolDef = getToolByName(toolCall.name)
+    
+    // Check if tool exists
+    if (!toolDef) {
+        const availableTools = getAllToolDefinitions().map(t => t.name).join(', ')
+        return `Unknown tool "${toolCall.name}". Available tools: ${availableTools}`
+    }
+    
+    const requiredParams = toolDef.parameters.required || []
+    const missingParams: string[] = []
+    
+    for (const param of requiredParams) {
+        const value = toolCall.arguments[param]
+        // Check if parameter is missing, null, undefined, or empty string
+        if (value === undefined || value === null || value === '') {
+            missingParams.push(param)
+        }
+    }
+    
+    if (missingParams.length > 0) {
+        return `Missing required parameter(s): ${missingParams.join(', ')}. Please provide ${missingParams.map(p => `'${p}'`).join(' and ')} to use ${toolCall.name}.`
+    }
+    
+    return null
+}
 
 /**
  * Coerce tool arguments to correct types based on tool definition schema
@@ -89,13 +117,11 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'codex'
+    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
-    requireApprovalFor?: string[]  // Tools that need user approval
     onToolStart?: (toolCall: ToolCall) => void
     onToolComplete?: (result: ToolCallResult) => void
-    onApprovalNeeded?: (toolCall: ToolCall) => Promise<boolean>
 }
 
 /**
@@ -121,19 +147,19 @@ export function getToolsForProvider(config: ToolManagerConfig) {
 
 /**
  * Parse tool calls from AI response based on provider
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function parseToolCallsFromResponse(response: ProviderResponse, provider: string): ToolCall[] {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return parseGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
-        case 'codex':
-            // EXCLUDED: These providers have native capabilities
+            // EXCLUDED: This provider has native capabilities
             return []
         default:
             return []
@@ -142,19 +168,19 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
 
 /**
  * Check if response has tool calls based on provider
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function responseHasToolCalls(response: ProviderResponse, provider: string): boolean {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return hasToolCalls(response as OpenRouterResponse)
         case 'gemini':
             return hasGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
-        case 'codex':
-            // EXCLUDED: These providers have native capabilities
+            // EXCLUDED: This provider has native capabilities
             return false
         default:
             return false
@@ -163,7 +189,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
 
 /**
  * Format tool results for sending back to AI based on provider
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function formatResultsForProvider(
     toolCalls: ToolCall[],
@@ -176,12 +202,12 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'gemini':
             return formatToolResultsForGemini(toolCalls, toolResults)
         case 'perplexity':
-        case 'codex':
-            // EXCLUDED: These providers have native capabilities
+            // EXCLUDED: This provider has native capabilities
             return []
         default:
             return []
@@ -212,20 +238,23 @@ export async function processToolCalls(
         // Coerce arguments to correct types based on schema
         const coercedToolCall = coerceToolArguments(toolCall)
         
-        // Check if tool needs approval
-        const toolDef = getToolByName(coercedToolCall.name)
-        const needsApproval = toolDef?.requiresApproval || 
-            config.requireApprovalFor?.includes(coercedToolCall.name)
-        
-        if (needsApproval && config.onApprovalNeeded) {
-            const approved = await config.onApprovalNeeded(coercedToolCall)
-            if (!approved) {
-                results.push({
-                    toolCall: coercedToolCall,
-                    result: { success: false, error: 'User denied permission' }
-                })
-                continue
+        // Validate required parameters before executing
+        const validationError = validateRequiredParameters(coercedToolCall)
+        if (validationError) {
+            console.warn(`Tool validation failed for ${coercedToolCall.name}:`, validationError)
+            // Notify tool start (so UI shows the attempt)
+            config.onToolStart?.(coercedToolCall)
+            // Add error result without executing
+            const errorResult: ToolCallResult = {
+                toolCall: coercedToolCall,
+                result: {
+                    success: false,
+                    error: validationError
+                }
             }
+            results.push(errorResult)
+            config.onToolComplete?.(errorResult)
+            continue
         }
         
         // Notify tool start
@@ -273,7 +302,7 @@ type ProviderMessage = OpenRouterMessage | GeminiMessage
 
 /**
  * Build messages array with tool results for follow-up API call
- * EXCLUDED: perplexity, codex (see header comment)
+ * EXCLUDED: perplexity (see header comment)
  */
 export function buildMessagesWithToolResults(
     originalMessages: ProviderMessage[],
@@ -285,6 +314,7 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'minimax':
             return [
                 ...originalMessages,
                 assistantMessage,
@@ -300,8 +330,7 @@ export function buildMessagesWithToolResults(
             ]
 
         case 'perplexity':
-        case 'codex':
-            // EXCLUDED: These providers have native capabilities
+            // EXCLUDED: This provider has native capabilities
             return originalMessages
 
         default:

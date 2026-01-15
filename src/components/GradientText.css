@@ -1,3 +1,5 @@
+@import url('https://api.fontshare.com/v2/css?f[]=gilroy@400,500,600,700&display=swap');
+
 .animated-gradient-text {
     position: relative;
     margin: 0 auto;
@@ -65,4 +67,11 @@
     -webkit-background-clip: text;
     color: transparent;
     animation: gradient linear infinite;
+    animation-duration: 4s;
+    font-family: 'Gilroy', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }

@@ -57,7 +57,7 @@ User message: "${userMessage.slice(0, 200)}"`
         // Check for Ollama (usually no API key needed, but needs URL)
         // We assume if the model is NOT gemini/groq/openrouter/perplexity, it might be Ollama if configured
         const isOllama = settings.modelProvider === 'ollama' && !settings.titleModel // If no specific title model set, and main is ollama
-            || (settings.ollamaModels?.some((m: any) => m.name === titleModel)) // Or if title model is in ollama list
+            || (settings.ollamaModels?.some((m: any) => m.code === titleModel)) // Or if title model is in ollama list
 
         const isPerplexity = titleModel.startsWith('sonar') && settings.perplexityApiKey
 

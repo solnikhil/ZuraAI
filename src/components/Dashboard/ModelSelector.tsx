@@ -2,11 +2,14 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe, Grid, LayoutGrid, ArrowRight, Expand, ChevronUp } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
+import { getModelAttributes } from '../../utils/modelUtils'
+import { removeEmojis } from '../../utils/textUtils'
+import { ProviderLogo } from '../shared'
 
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'codex'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
 }
 
 type ViewMode = 'favorites' | 'all'
@@ -18,8 +21,7 @@ const providers = [
     { key: 'perplexity', title: 'Perplexity', icon: <Globe />, color: '#22c55e', logo: true },
     { key: 'groq', title: 'Groq', icon: <Zap />, color: '#f97316', logo: true },
     { key: 'ollama', title: 'Ollama', icon: <Database />, color: '#339af0', logo: true },
-    { key: 'codex', title: 'Codex', icon: <Cpu />, color: '#6366f1', logo: true }
-]
+] as const
 
 // Helper function to convert hex to rgb
 const hexToRgb = (hex: string): string => {
@@ -48,12 +50,12 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         perplexity: false,
         openrouter: false,
         gemini: false,
-        groq: false,
-        codex: false
+        groq: false
     })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
     const portalRef = useRef<HTMLDivElement>(null)
+    const searchInputRef = useRef<HTMLInputElement>(null)
     const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, showAbove: true })
 
     // Calculate dropdown position
@@ -123,10 +125,31 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
 
         window.addEventListener('resize', handleResize)
         window.addEventListener('scroll', handleResize, true)
-        
+
         return () => {
             window.removeEventListener('resize', handleResize)
             window.removeEventListener('scroll', handleResize, true)
+        }
+    }, [isOpen])
+
+    useEffect(() => {
+        if (!isOpen) return
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsOpen(false)
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        const rafId = requestAnimationFrame(() => {
+            searchInputRef.current?.focus()
+            searchInputRef.current?.select()
+        })
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+            cancelAnimationFrame(rafId)
         }
     }, [isOpen])
 
@@ -149,9 +172,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         if (settings.groqModels) {
             settings.groqModels.forEach(m => allModels.push({ ...m, provider: 'groq' }))
         }
-        if (settings.codexModels) {
-            settings.codexModels.forEach(m => allModels.push({ ...m, provider: 'codex' }))
-        }
         return allModels
     }
 
@@ -165,10 +185,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }
         
         if (viewMode === 'favorites') {
-            return favoriteModels
-        }
-        
-        if (selectedProvider === 'favorites') {
             return favoriteModels
         }
         
@@ -227,114 +243,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         )
     }
 
-    // Provider Logo
-    const ProviderLogo = ({ provider, size = 14 }: { provider: string, size?: number }) => {
-        const [imgError, setImgError] = useState(false)
-        if (!imgError) {
-            return (
-                <img
-                    src={`/provider-logos/${provider}.png`}
-                    alt={provider}
-                    onError={() => setImgError(true)}
-                    style={{ width: `${size}px`, height: `${size}px`, objectFit: 'contain' }}
-                />
-            )
-        }
-        return null
-    }
-
-    // Remove emojis from text
-    const removeEmojis = (text: string): string => {
-        return text.replace(/[\u{1F600}-\u{1F64F}]/gu, '')
-                   .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
-                   .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
-                   .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
-                   .replace(/[\u{2600}-\u{26FF}]/gu, '')
-                   .replace(/[\u{2700}-\u{27BF}]/gu, '')
-                   .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
-                   .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
-                   .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')
-                   .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')
-                   .trim()
-    }
-
-    // Detect Model Family & Attributes
-    const getModelAttributes = (model: ModelWithProvider) => {
-        const code = model.code.toLowerCase()
-        const name = model.displayName.toLowerCase()
-
-        let icon = <MessageSquare size={16} />
-        let color = '#b0b0b0'
-        let badge = null
-
-        if (code.includes('gemini') || name.includes('gemini')) {
-            icon = <Sparkles size={16} />
-            color = '#4dabf7'
-        } else if (code.includes('claude') || name.includes('claude')) {
-            icon = <Box size={16} />
-            color = '#da7756'
-        } else if (code.includes('gpt') || name.includes('gpt') || code.includes('openai')) {
-            icon = <Cpu size={16} />
-            color = '#10a37f'
-        } else if (code.includes('mistral') || name.includes('mistral')) {
-            icon = <Zap size={16} />
-            color = '#fcc419'
-        } else if (code.includes('llama') || name.includes('llama')) {
-            icon = <Brain size={16} />
-            color = '#339af0'
-        }
-
-        if (name.includes('flash') || name.includes('turbo') || name.includes('instant')) {
-            badge = <Zap size={10} color="#fcc419" fill="currentColor" />
-        } else if (name.includes('pro') || name.includes('plus') || name.includes('opus')) {
-            badge = <Sparkles size={10} color="#da7756" fill="currentColor" />
-        } else if (name.includes('reasoning') || code.includes('reasoning')) {
-            badge = <Brain size={10} color="#be4bdb" fill="currentColor" />
-        }
-
-        // Deep Research badge - shown for models with deep-research in name/code
-        if (name.includes('deep research') || code.includes('deep-research')) {
-            badge = (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: '4px',
-                    padding: '1px 4px',
-                    fontSize: '0.6rem',
-                    fontWeight: 600,
-                    color: '#fff'
-                }}>
-                    <Globe size={8} />
-                    <span>Deep Research</span>
-                </div>
-            )
-        }
-
-        // Online/Web Search badge - shown for models with :online variant
-        if (code.includes(':online')) {
-            badge = (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-                    borderRadius: '4px',
-                    padding: '1px 4px',
-                    fontSize: '0.6rem',
-                    fontWeight: 600,
-                    color: '#fff'
-                }}>
-                    <Globe size={8} />
-                    <span>Online</span>
-                </div>
-            )
-        }
-
-        return { icon, color, badge }
-    }
-
     // Find current model
     const currentModel = allModels.find(m => m.code === settings.aiModel && m.provider === settings.modelProvider)
     const currentNameRaw = currentModel?.displayName || (settings.aiModel ? settings.aiModel.split('/').pop() : null) || 'Select Models...'
@@ -359,8 +267,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
             openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
             gemini: filteredModels.filter(m => m.provider === 'gemini'),
-            groq: filteredModels.filter(m => m.provider === 'groq'),
-            codex: filteredModels.filter(m => m.provider === 'codex')
+            groq: filteredModels.filter(m => m.provider === 'groq')
         }
     }, [filteredModels])
 
@@ -654,8 +561,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             { key: 'openrouter', title: 'OpenRouter', icon: <Cloud size={14} />, color: '#a855f7' },
             { key: 'perplexity', title: 'Perplexity', icon: <Globe size={14} />, color: '#22c55e' },
             { key: 'groq', title: 'Groq', icon: <Zap size={14} />, color: '#f97316' },
-            { key: 'ollama', title: 'Ollama', icon: <Database size={14} />, color: '#339af0' },
-            { key: 'codex', title: 'Codex', icon: <Cpu size={14} />, color: '#6366f1' }
+            { key: 'ollama', title: 'Ollama', icon: <Database size={14} />, color: '#339af0' }
         ]
 
         return (
@@ -718,6 +624,9 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             {/* Trigger Button */}
             <button
                 onClick={toggleOpen}
+                aria-haspopup="dialog"
+                aria-expanded={isOpen}
+                title={`${currentName} — ${settings.modelProvider || 'auto'}`}
                 style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -727,8 +636,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                     fontSize: '0.85rem',
                     fontWeight: 500,
                     cursor: 'pointer',
-                    padding: minimal ? '8px' : '6px 12px',
-                    borderRadius: minimal ? '8px' : '12px',
+                    padding: minimal ? '6px 8px' : '6px 12px',
+                    borderRadius: minimal ? '10px' : '12px',
                     transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
                     color: '#e0e0e0',
                     height: '100%'
@@ -750,7 +659,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                     }
                 }}
             >
-                {/* Current Model Icon - Only show logo in minimal mode */}
                 {currentModel ? (
                     <ModelIcon
                         model={currentModel}
@@ -759,12 +667,16 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         size={16}
                     />
                 ) : <Cpu size={14} />}
-                {!minimal && (
-                    <>
-                        <span className="truncate" style={{ maxWidth: '120px' }}>{currentName}</span>
-                        <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </>
-                )}
+                <span
+                    className="truncate"
+                    style={{
+                        maxWidth: minimal ? '110px' : '120px',
+                        fontSize: minimal ? '0.8rem' : '0.85rem',
+                    }}
+                >
+                    {currentName}
+                </span>
+                <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </button>
 
             {/* Model Picker Overlay */}
@@ -797,6 +709,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Search size={14} color="#666" />
                             <input
+                                ref={searchInputRef}
                                 className="search-input"
                                 type="text"
                                 placeholder="Search models..."

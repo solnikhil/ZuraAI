@@ -2,11 +2,13 @@ import React, { useState } from 'react'
 import { themes, themeCategories, getThemesByCategory } from '../themes/themeRegistry'
 import { Theme } from '../themes/themeDefinitions'
 import { useTheme } from '../themes/useTheme'
+import { useSettings } from '../contexts/SettingsContext'
 import ThemePreview from './ThemePreview'
 import './ThemesPage.css'
 
 export default function ThemesPage() {
     const { currentTheme, setTheme } = useTheme()
+    const { settings, updateSettings } = useSettings()
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [previewThemeId, setPreviewThemeId] = useState<string | null>(null)
     
@@ -16,16 +18,16 @@ export default function ThemesPage() {
         : currentTheme
 
     return (
-        <div className="themes-page">
-            <div className="themes-header">
-                <h2>Themes</h2>
-                <p className="themes-description">
+        <div style={{ padding: '32px', paddingBottom: 100 }}>
+            <div className="page-header">
+                <h2 className="page-title">Themes</h2>
+                <div className="page-subtitle">
                     Choose a theme for your interface. Each theme changes the colors and appearance of all UI elements.
-                </p>
+                </div>
             </div>
 
             {/* Category Filter */}
-            <div className="theme-categories">
+            <div style={{ display: 'flex', gap: 8, marginTop: 24, flexWrap: 'wrap' }}>
                 {themeCategories.map(category => (
                     <button
                         key={category.id}
@@ -38,15 +40,16 @@ export default function ThemesPage() {
             </div>
 
             {/* Theme Grid */}
-            <div className="themes-grid">
+            <div className="themes-grid" style={{ marginTop: 24 }}>
                 {filteredThemes.map(theme => (
-                    <div 
+                    <div
                         key={theme.id}
                         className={`theme-card ${currentTheme.id === theme.id ? 'active' : ''}`}
                         onClick={() => setTheme(theme.id)}
                         onMouseEnter={() => setPreviewThemeId(theme.id)}
                         onMouseLeave={() => setPreviewThemeId(null)}
                     >
+                        <div className="theme-card-overlay" />
                         <div className="theme-color-preview">
                             <div 
                                 className="color-swatch"
@@ -99,9 +102,9 @@ export default function ThemesPage() {
             </div>
 
             {/* Theme Details */}
-            <div className="theme-details-section">
-                <h3>Theme Details</h3>
-                <div className="theme-details-grid">
+            <div className="settings-section-card" style={{ marginTop: 24 }}>
+                <h3 className="section-head">Theme Details</h3>
+                <div className="theme-details-grid" style={{ marginTop: 16 }}>
                     <div className="detail-card">
                         <h4>Background</h4>
                         <div className="detail-color">

@@ -65,23 +65,74 @@ export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[]
 }
 
 /**
+ * Check if a JSON string is complete (balanced braces and brackets)
+ */
+function isJsonComplete(str: string): boolean {
+    const trimmed = str.trim()
+    if (trimmed.length === 0) return false
+
+    let depth = 0
+    let inString = false
+    let escapeNext = false
+
+    for (const char of trimmed) {
+        if (escapeNext) {
+            escapeNext = false
+            continue
+        }
+
+        if (char === '\\') {
+            escapeNext = true
+            continue
+        }
+
+        if (char === '"') {
+            inString = !inString
+            continue
+        }
+
+        if (!inString) {
+            if (char === '{' || char === '[') depth++
+            if (char === '}' || char === ']') depth--
+        }
+    }
+
+    // JSON is complete if we're back at depth 0 and not inside a string
+    return depth === 0 && !inString
+}
+
+/**
  * Parse tool calls from OpenRouter/OpenAI response
  */
 export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall[] {
     const message = response.choices?.[0]?.message
-    
+
     if (!message?.tool_calls || message.tool_calls.length === 0) {
         return []
     }
-    
+
     return message.tool_calls.map((tc: OpenRouterToolCall) => {
         let args: Record<string, unknown> = {}
         try {
-            args = JSON.parse(tc.function.arguments)
+            const argsStr = tc.function.arguments || ''
+            // Only attempt to parse if JSON appears complete
+            if (isJsonComplete(argsStr)) {
+                args = JSON.parse(argsStr)
+            } else {
+                console.warn('[openrouter] Incomplete JSON for tool call, skipping:', {
+                    tool: tc.function.name,
+                    argsLength: argsStr.length,
+                    argsPreview: argsStr.slice(0, 100)
+                })
+            }
         } catch (e) {
-            console.error('Failed to parse tool arguments:', tc.function.arguments)
+            console.error('[openrouter] Failed to parse tool arguments:', {
+                tool: tc.function.name,
+                error: e instanceof Error ? e.message : String(e),
+                args: tc.function.arguments?.slice(0, 200)
+            })
         }
-        
+
         return {
             id: tc.id,
             name: tc.function.name,
