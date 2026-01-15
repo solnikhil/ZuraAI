@@ -1,7 +1,12 @@
 import React, { useState } from 'react'
-import { ChevronDown, ChevronUp, ExternalLink, Search, Globe, Calculator, Clock, Clipboard, AlertCircle } from '../../components/icons'
-import { formatToolDisplayName } from '../mcpUtils'
+import { ChevronDown, ChevronUp, ExternalLink, Search, AlertCircle } from '../../components/icons'
+
 import './ToolResultDisplay.css'
+
+// Simple tool name formatter (replaces underscores with spaces)
+function formatToolDisplayName(name: string): string {
+    return name.replace(/_/g, ' ')
+}
 
 interface SearchResult {
     title: string
@@ -124,80 +129,9 @@ export default function ToolResultDisplay({ toolName, result, error }: ToolResul
         )
     }
     
-    // URL Fetch Results
-    if (toolName === 'fetch_url') {
-        return (
-            <div className="tool-result tool-result-url">
-                <div 
-                    className="tool-result-header tool-result-clickable"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                >
-                    <Globe size={16} />
-                    <span>Fetched: {result?.title || result?.url}</span>
-                    <span className="tool-result-count">{result?.contentLength?.toLocaleString()} chars</span>
-                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                </div>
-                
-                {isExpanded && (
-                    <div className="url-content-preview">
-                        {result?.content?.slice(0, 500)}
-                        {result?.content?.length > 500 && '...'}
-                    </div>
-                )}
-            </div>
-        )
-    }
-    
-    // Calculator Results
-    if (toolName === 'calculator') {
-        return (
-            <div className="tool-result tool-result-calculator">
-                <div className="tool-result-header">
-                    <Calculator size={16} />
-                    <span>Calculator</span>
-                </div>
-                <div className="calculator-result">
-                    <span className="calc-expression">{result?.expression}</span>
-                    <span className="calc-equals">=</span>
-                    <span className="calc-answer">{result?.formatted || result?.result}</span>
-                </div>
-            </div>
-        )
-    }
-    
-    // DateTime Results
-    if (toolName === 'get_datetime') {
-        return (
-            <div className="tool-result tool-result-datetime">
-                <div className="tool-result-header">
-                    <Clock size={16} />
-                    <span>Current Date/Time</span>
-                </div>
-                <div className="datetime-result">
-                    {result?.formatted}
-                </div>
-            </div>
-        )
-    }
-    
-    // Clipboard Results
-    if (toolName === 'read_clipboard' || toolName === 'write_clipboard') {
-        return (
-            <div className="tool-result tool-result-clipboard">
-                <div className="tool-result-header">
-                    <Clipboard size={16} />
-                    <span>{toolName === 'read_clipboard' ? 'Clipboard Contents' : 'Copied to Clipboard'}</span>
-                </div>
-                {result?.preview && (
-                    <div className="clipboard-preview">
-                        {result.preview}
-                        {result.length > 200 && '...'}
-                    </div>
-                )}
-            </div>
-        )
-    }
-    
+    // Other tools are disabled; fall through to generic renderer.
+
+
     // Generic result display for unknown tools
     return (
         <div className="tool-result tool-result-generic">

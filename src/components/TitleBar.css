@@ -1,92 +1,439 @@
-.titlebar {
-    height: var(--titlebar-height);
-    display: flex;
-    align-items: stretch;
-    background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
-    border-bottom: 1px solid var(--border-color);
-    -webkit-app-region: drag;
-    user-select: none;
-    color: var(--text-secondary);
-}
-
-.titlebar--mac .titlebar__controls {
-    order: 0;
-}
-
-.titlebar--mac .titlebar__drag-region {
-    order: 1;
-}
-
-.titlebar__drag-region {
-    flex: 1;
+.app-titlebar {
+    position: relative;
+    z-index: 50;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    height: 44px;
     padding: 0 12px;
-    min-width: 0;
+    padding-left: calc(12px + env(titlebar-area-x, 0px));
+    padding-right: calc(12px + (100% - env(titlebar-area-width, 100%) - env(titlebar-area-x, 0px)));
+    background: var(--theme-background);
+
+    user-select: none;
+    -webkit-app-region: drag;
 }
 
-.titlebar__brand {
+.app-titlebar--compact {
+    height: 36px;
+}
+
+.app-titlebar__left,
+.app-titlebar__center,
+.app-titlebar__right {
+    min-width: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    letter-spacing: 0.2px;
-    font-weight: 600;
+    gap: 10px;
 }
 
-.titlebar__dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-primary);
-    box-shadow: 0 0 8px var(--accent-primary);
+.app-titlebar__center {
+    position: fixed;
+    left: 50%;
+    top: 0;
+    height: 44px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    pointer-events: none;
+    z-index: 51;
 }
 
-.titlebar__title {
+.app-titlebar__right {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.app-titlebar__controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    -webkit-app-region: no-drag;
+}
+
+.app-titlebar__icon-btn {
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--theme-text-primary);
+    cursor: pointer;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.app-titlebar__icon-btn:hover {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
+}
+
+.app-titlebar__icon-btn:active {
+    transform: translateY(0.5px);
+}
+
+.app-titlebar__icon-btn:focus-visible {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 2px;
+}
+
+.app-titlebar__logo {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    opacity: 0.95;
+}
+
+.app-titlebar__title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--theme-text-secondary);
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.titlebar__controls {
-    display: flex;
-    align-items: stretch;
+.app-titlebar__model {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--theme-text-secondary);
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     -webkit-app-region: no-drag;
 }
 
-.titlebar__button {
-    width: 44px;
-    height: var(--titlebar-height);
+.app-titlebar__unsaved {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--theme-warning);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
+    -webkit-app-region: no-drag;
+}
+
+.no-drag {
+    -webkit-app-region: no-drag;
+}
+
+.app-titlebar__commandbar {
+    width: var(--commandbar-width, clamp(320px, 40vw, 500px));
+    max-width: var(--commandbar-max-width, 70vw);
+    position: relative;
+    z-index: 20;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+}
+
+.app-titlebar__commandbar-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.app-titlebar__commandbar-field--focused {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 0 0 4px rgba(255, 255, 255, 0.04);
+}
+
+.app-titlebar__commandbar-icon {
+    color: var(--theme-text-muted);
+    flex-shrink: 0;
+}
+
+.app-titlebar__commandbar-input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.app-titlebar__commandbar-ghost {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    font-size: 0.85rem;
+    font-family: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.app-titlebar__commandbar-ghost-prefix {
+    color: transparent;
+    white-space: pre;
+}
+
+.app-titlebar__commandbar-ghost-suffix {
+    color: rgba(160, 160, 160, 0.5);
+    white-space: pre;
+}
+
+.app-titlebar__commandbar-input {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
     border: none;
+    outline: none;
     background: transparent;
-    color: var(--text-tertiary);
+    color: var(--theme-text-primary);
+    font-size: 0.85rem;
+}
+
+.app-titlebar__commandbar-input::placeholder {
+    color: var(--theme-text-muted);
+}
+
+.app-titlebar__commandbar-hint {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--theme-text-muted);
+    padding: 3px 7px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    flex-shrink: 0;
+}
+
+/* === COMMAND BAR DROPDOWN - Premium Redesign === */
+
+@keyframes commandbar-dropdown-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.96);
+    }
+
+    60% {
+        opacity: 1;
+        transform: translateY(2px) scale(1.01);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.app-titlebar__commandbar-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: rgba(22, 22, 24, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+    z-index: 5000;
+    max-height: min(300px, calc(100vh - 140px));
+    overflow-y: auto;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    -webkit-app-region: no-drag;
+    animation: commandbar-dropdown-enter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    will-change: opacity, transform;
+    transform-origin: top center;
+    padding: 4px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+@keyframes commandbar-dropdown-exit {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.97);
+    }
+}
+
+.app-titlebar__commandbar-dropdown--closing {
+    animation: commandbar-dropdown-exit 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
+    pointer-events: none;
+}
+
+.app-titlebar__commandbar-dropdown::-webkit-scrollbar {
+    display: none;
+}
+
+.app-titlebar__commandbar-section {
+    padding: 6px 8px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.app-titlebar__commandbar-section--clickable {
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 2px 4px;
+    padding: 6px 8px;
+}
+
+.app-titlebar__commandbar-section--clickable:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.app-titlebar__commandbar-section-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.app-titlebar__commandbar-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0.08) 80%, transparent 100%);
+    margin: 6px 10px;
+}
+
+@keyframes commandbar-item-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.app-titlebar__commandbar-item {
+    padding: 8px 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    border-radius: 6px;
+    margin: 1px 0;
+    transition: background 0.1s ease;
+}
+
+.app-titlebar__commandbar-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.app-titlebar__commandbar-item--active {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.app-titlebar__commandbar-item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
     justify-content: center;
-    transition: background 0.15s ease, color 0.15s ease;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.15s ease;
 }
 
-.titlebar__button:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+/* Color-coded icon backgrounds */
+.app-titlebar__commandbar-item-icon--navigate {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60A5FA;
 }
 
-.titlebar__button:active {
-    background: var(--border-hover);
+.app-titlebar__commandbar-item-icon--create {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34D399;
 }
 
-.titlebar__button--close:hover {
-    background: #e81123;
-    color: #ffffff;
+.app-titlebar__commandbar-item-icon--toggle {
+    background: rgba(167, 139, 250, 0.15);
+    color: #A78BFA;
 }
 
-.titlebar__button--close:active {
-    background: #c50f1f;
-    color: #ffffff;
+.app-titlebar__commandbar-item-icon--tool {
+    background: rgba(251, 191, 36, 0.15);
+    color: #FBBF24;
 }
 
-.titlebar__button svg {
-    width: 12px;
-    height: 12px;
+.app-titlebar__commandbar-item-icon--export {
+    background: rgba(244, 114, 182, 0.15);
+    color: #F472B6;
+}
+
+.app-titlebar__commandbar-item-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.app-titlebar__commandbar-item-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-titlebar__commandbar-item-subtitle {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-titlebar__commandbar-item-shortcut {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.35);
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: system-ui, -apple-system, sans-serif;
+}
+
+
+
+.app-titlebar--compact .app-titlebar__commandbar-field {
+    height: 26px;
+    border-radius: 9px;
+}
+
+.app-titlebar--compact .app-titlebar__commandbar-dropdown {
+    top: calc(100% + 8px);
+}
+
+.app-titlebar--compact .app-titlebar__center {
+    height: 36px;
 }

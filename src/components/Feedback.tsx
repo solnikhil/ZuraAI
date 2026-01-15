@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { X, Send, Bug, MessageSquare, Lightbulb } from './icons'
-import { useToast } from './Toast'
+import { useToast } from './shared/Toast'
 import './Feedback.css'
 
 interface FeedbackProps {

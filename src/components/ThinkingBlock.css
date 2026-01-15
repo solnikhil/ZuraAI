@@ -107,6 +107,7 @@
         opacity: 0;
         transform: translateX(-50%) translateY(4px);
     }
+
     to {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
@@ -114,43 +115,72 @@
 }
 
 
-/* ==== THINKING DOT (LOADING STATE) ==== */
+/* ==== THINKING DOTS (LOADING STATE) ==== */
 
 .thinking-dot {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    position: relative;
+    padding: 2px 0;
+}
+
+.thinking-dot::before,
+.thinking-dot::after {
+    content: '';
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.5);
-    animation: thinkingPulse 1.2s ease-in-out infinite;
+    background: rgba(255, 255, 255, 0.7);
+}
+
+.thinking-dot::before {
+    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: 0s;
+}
+
+.thinking-dot .middle-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.7);
+    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: 0.15s;
+}
+
+.thinking-dot::after {
+    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-delay: 0.3s;
 }
 
 /* Searching state - blue color */
-.thinking-dot.searching-dot {
-    background: rgba(59, 130, 246, 0.8);
-    animation: searchingPulse 0.8s ease-in-out infinite;
+.thinking-dot.searching-dot::before,
+.thinking-dot.searching-dot::after,
+.thinking-dot.searching-dot .middle-dot {
+    background: rgba(59, 130, 246, 0.9);
 }
 
-@keyframes thinkingPulse {
+@keyframes thinkingWave {
+
     0%,
     100% {
-        opacity: 0.3;
-        transform: scale(0.8);
+        transform: translateY(0) scale(1);
+        opacity: 0.5;
     }
-    50% {
+
+    25% {
+        transform: translateY(-6px) scale(1.1);
         opacity: 1;
-        transform: scale(1.2);
     }
-}
 
-@keyframes searchingPulse {
-    0%,
-    100% {
+    50% {
+        transform: translateY(0) scale(1);
+        opacity: 0.7;
+    }
+
+    75% {
+        transform: translateY(2px) scale(0.95);
         opacity: 0.4;
-        transform: scale(0.8);
-    }
-    50% {
-        opacity: 1;
-        transform: scale(1.2);
     }
 }
 
@@ -187,6 +217,7 @@
         opacity: 0;
         transform: translateY(-4px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

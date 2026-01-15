@@ -3,7 +3,13 @@
     "allow": [
       "Bash(npx tsc --noEmit)",
       "WebSearch",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run build)",
+      "Bash(git checkout:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)"
     ]
   }
 }

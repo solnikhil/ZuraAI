@@ -20,15 +20,24 @@ export async function executeTool(toolName: string, args: Record<string, unknown
             }
         }
         
-        // Add timeout handling
+        // Add timeout handling (and ensure the timer is cleared)
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Tool execution timed out after ${TIMEOUT_MS / 1000} seconds`)), TIMEOUT_MS)
+            timeoutId = setTimeout(
+                () => reject(new Error(`Tool execution timed out after ${TIMEOUT_MS / 1000} seconds`)),
+                TIMEOUT_MS
+            )
         })
-        
-        const result = await Promise.race([
-            window.ipcRenderer.invoke('execute-tool', toolName, args),
-            timeoutPromise
-        ])
+
+        let result: any
+        try {
+            result = await Promise.race([
+                window.ipcRenderer.invoke('execute-tool', toolName, args),
+                timeoutPromise
+            ])
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId)
+        }
         
         const executionTime = Math.round(performance.now() - startTime)
         

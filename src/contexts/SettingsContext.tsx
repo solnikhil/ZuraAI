@@ -1,34 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
-import { setDynamicToolDefinitions, ToolDefinition } from '../tools/definitions'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
 import { applyThemeToDocument } from '../themes/themeUtils'
-
-export interface McpServerConfig {
-    id: string
-    name: string
-    enabled: boolean
-    transport: 'stdio' | 'http'
-    command?: string
-    args?: string
-    cwd?: string
-    env?: string
-    url?: string
-    headers?: string
-    requiresApproval?: boolean
-    timeoutMs?: number
-}
-
-export interface McpServerStatus {
-    id: string
-    name: string
-    enabled: boolean
-    status: 'ready' | 'error' | 'disabled'
-    error?: string
-    toolCount?: number
-}
 
 export interface Settings {
     theme: 'light' | 'dark' | 'system'
@@ -47,7 +22,7 @@ export interface Settings {
     streamResponses: boolean
     configuredModels: Array<{ code: string; displayName: string }>
     // Provider settings
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'codex'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
     ollamaUrl: string
     ollamaModels: Array<{ code: string; displayName: string }>
     perplexityApiKey: string
@@ -58,10 +33,9 @@ export interface Settings {
     // Groq settings
     groqApiKey: string
     groqModels: Array<{ code: string; displayName: string }>
-    // Codex settings (uses OAuth, no API key needed)
-    codexModels: Array<{ code: string; displayName: string; description?: string; isDefault?: boolean }>
-    codexSelectedModel: string
-    codexReasoningEffort: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+    // MiniMax settings
+    minimaxApiKey: string
+    minimaxModels: Array<{ code: string; displayName: string }>
     // Quick prompts for welcome screen
     quickPrompts: string[]
     // Title generation model
@@ -72,12 +46,33 @@ export interface Settings {
     toolsEnabled: boolean
     tavilyApiKey: string
     enabledTools: string[]  // Which tools are active (empty = all enabled)
-    toolApprovalMode: 'always' | 'sensitive' | 'never'
     webSearchEnabled: boolean  // Quick toggle for web search in chat
     deepResearchEnabled: boolean  // Toggle for deep research mode (mandatory 3 searches)
-    mcpServers: McpServerConfig[]
     // Favorite models
     favoriteModels: string[]
+
+    // UI personalization
+    titleBarDensity: 'comfortable' | 'compact'
+    titleBarShowAppName: boolean
+    titleBarShowChatTitle: boolean
+    titleBarShowModel: boolean
+    rememberLastChatSession: boolean
+    rememberLastSettingsSection: boolean
+    rememberLastDashboardView: boolean
+    // Command bar settings
+    commandBar: {
+        enabled: boolean
+        size: 'small' | 'medium' | 'large'
+        fieldSurface: number
+        fieldSurfaceFocused: number
+        dropdownSurface: number
+        enableBlur: boolean
+        blurPx: number
+        maxSuggestions: number
+        showRecents: boolean
+        maxRecents: number
+        enableTabAutocomplete: boolean
+    }
 }
 
 // Todo item structure
@@ -94,9 +89,9 @@ const defaultSettings: Settings = {
     openRouterApiKey: '',
     perplexityApiKey: '',
     aiModel: 'x-ai/grok-4.1-fast',
-    titleModel: 'gemini-2.0-flash', // Default to fast free model
+    titleModel: 'gemini-2.5-flash', // Default to fast free model
     temperature: 0.7,
-    maxTokens: 1000,
+    maxTokens: 25000,
     autoHideOverlay: false,
     overlayTransparency: 0.95,
     loadOverlayOnStartup: false,
@@ -106,73 +101,74 @@ const defaultSettings: Settings = {
     systemPrompt: defaultSystemPrompt,
     streamResponses: false,
     configuredModels: [
+        // Top Models 2025 (Text Only)
+        { code: 'anthropic/claude-sonnet-4', displayName: 'Claude Sonnet 4' },
+        { code: 'openai/gpt-4o', displayName: 'GPT-4o' },
+        { code: 'google/gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
+        { code: 'google/gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        { code: 'google/gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+        { code: 'google/gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+        { code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast' },
+        { code: 'deepseek/deepseek-r1', displayName: 'DeepSeek R1' },
+        { code: 'meta-llama/llama-4-scout', displayName: 'Llama 4 Scout' },
+        // Online/Search Models
+        { code: 'anthropic/claude-sonnet-4:online', displayName: 'Claude Sonnet 4 (Online)' },
+        { code: 'google/gemini-2.5-flash:online', displayName: 'Gemini 2.5 Flash (Online)' },
+        { code: 'deepseek/deepseek-r1:online', displayName: 'DeepSeek R1 (Online)' },
         // Deep Research Models
         { code: 'perplexity/sonar-deep-research', displayName: 'Sonar Deep Research' },
         { code: 'openai/o3-deep-research', displayName: 'o3 Deep Research' },
         { code: 'openai/o4-mini-deep-research', displayName: 'o4-mini Deep Research' },
-        // Popular Models with :online variant support
-        { code: 'anthropic/claude-sonnet-4:online', displayName: 'Claude Sonnet 4 (Online)' },
-        { code: 'openai/gpt-4.1:online', displayName: 'GPT-4.1 (Online)' },
-        { code: 'google/gemini-2.5-flash:online', displayName: 'Gemini 2.5 Flash (Online)' },
-        { code: 'deepseek/deepseek-r1:online', displayName: 'DeepSeek R1 (Online)' },
-        // Free Models
-        { code: 'nvidia/nemotron-3-nano-30b-a3b:free', displayName: 'Nemotron 3 Nano 30B' },
+        // Free Models (Text Only)
         { code: 'google/gemma-3-27b-it:free', displayName: 'Gemma 3 27B' },
         { code: 'arcee-ai/trinity-mini:free', displayName: 'Trinity Mini' },
-        { code: 'openai/gpt-oss-20b:free', displayName: 'GPT-OSS 20B' },
     ],
     modelProvider: 'openrouter',
     ollamaUrl: 'http://localhost:11434',
     ollamaModels: [],
     perplexityModels: [
+        // Sonar Models (2025)
         { code: 'sonar', displayName: 'Sonar' },
         { code: 'sonar-pro', displayName: 'Sonar Pro' },
         { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
         { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
         { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+        // Llama 3.1 Sonar Variants (128k Context)
+        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online' },
+        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online' },
+        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online' },
+        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online' },
     ],
     geminiApiKey: '',
     geminiModels: [
-        // Gemini 3.0 Models (Preview)
-        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
-        { code: 'gemini-3-pro-image-preview', displayName: 'Gemini 3 Pro Image (Preview)' },
+        // Gemini 3.0 Models (Preview - Text Only)
         { code: 'gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
-        // Gemini 2.5 Models (Stable)
+        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
+        // Gemini 2.5 Models (Stable - Text Only)
         { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
-        { code: 'gemini-2.5-pro-preview-tt', displayName: 'Gemini 2.5 Pro Thinking (Preview)' },
         { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-        { code: 'gemini-2.5-flash-preview-tt', displayName: 'Gemini 2.5 Flash Thinking (Preview)' },
-        { code: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash Image' },
         { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
-        { code: 'gemini-2.5-flash-native-audio-preview-12-2025', displayName: 'Gemini 2.5 Flash Native Audio (Preview)' },
-        // Gemini 2.0 Models (Latest Stable)
-        { code: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash (Latest)' },
-        { code: 'gemini-2.0-flash-001', displayName: 'Gemini 2.0 Flash (Stable)' },
-        { code: 'gemini-2.0-flash-exp', displayName: 'Gemini 2.0 Flash (Experimental)' },
-        { code: 'gemini-2.0-flash-preview-image-generation', displayName: 'Gemini 2.0 Flash Image Gen (Preview)' },
-        { code: 'gemini-2.0-flash-lite', displayName: 'Gemini 2.0 Flash Lite' },
     ],
     groqApiKey: '',
     groqModels: [
-        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B' },
+        // Llama 4 (Latest 2025)
+        { code: 'llama-4-scout', displayName: 'Llama 4 Scout' },
+        // Llama 3.3
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
+        // Llama 3.1
         { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
-        { code: 'llama-guard-3-8b', displayName: 'Llama Guard 3 8B' },
+        // DeepSeek R1 Distill
+        { code: 'deepseek-r1-distill-llama-70b', displayName: 'DeepSeek R1 Distill Llama 70B' },
+        // Other models
         { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
         { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
     ],
-    codexModels: [
-        // Official Codex CLI models - Reference: research-codex/codex/codex-rs/core/src/models_manager/model_presets.rs
-        { code: 'gpt-5.2-codex-medium', displayName: 'GPT-5.2 Codex', description: 'Latest frontier agentic coding model (default)', isDefault: true },
-        { code: 'gpt-5.2-codex-high', displayName: 'GPT-5.2 Codex (High)', description: 'Greater reasoning depth' },
-        { code: 'gpt-5.2-codex-xhigh', displayName: 'GPT-5.2 Codex (XHigh)', description: 'Extra high reasoning' },
-        { code: 'gpt-5.1-codex-max-medium', displayName: 'GPT-5.1 Codex Max', description: 'Flagship for deep and fast reasoning' },
-        { code: 'gpt-5.1-codex-max-high', displayName: 'GPT-5.1 Codex Max (High)', description: 'Greater reasoning depth' },
-        { code: 'gpt-5.1-codex-max-xhigh', displayName: 'GPT-5.1 Codex Max (XHigh)', description: 'Maximum reasoning' },
-        { code: 'gpt-5.1-codex-mini-medium', displayName: 'GPT-5.1 Codex Mini', description: 'Cheaper, faster' },
-        { code: 'gpt-5.1-codex-mini-high', displayName: 'GPT-5.1 Codex Mini (High)', description: 'Maximizes reasoning' },
+    minimaxApiKey: '',
+    minimaxModels: [
+        { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' },
+        { code: 'MiniMax-M2.1-lightning', displayName: 'MiniMax M2.1 Lightning' },
+        { code: 'MiniMax-M2', displayName: 'MiniMax M2' },
     ],
-    codexSelectedModel: 'gpt-5.2-codex-medium',
-    codexReasoningEffort: 'medium',
     quickPrompts: [
         'Explain this code to me',
         'Help me debug an error',
@@ -183,20 +179,37 @@ const defaultSettings: Settings = {
     toolsEnabled: true,
     tavilyApiKey: '',
     enabledTools: ['web_search', 'get_datetime'],
-    toolApprovalMode: 'never',
     webSearchEnabled: true,
     deepResearchEnabled: false,
-    mcpServers: [],
-    favoriteModels: []
+    favoriteModels: [],
+
+    titleBarDensity: 'comfortable',
+    titleBarShowAppName: true,
+    titleBarShowChatTitle: true,
+    titleBarShowModel: true,
+    rememberLastChatSession: true,
+    rememberLastSettingsSection: true,
+    rememberLastDashboardView: true,
+    // Command bar settings
+    commandBar: {
+        enabled: true,
+        size: 'medium',
+        fieldSurface: 35,
+        fieldSurfaceFocused: 50,
+        dropdownSurface: 35,
+        enableBlur: true,
+        blurPx: 14,
+        maxSuggestions: 5,
+        showRecents: true,
+        maxRecents: 3,
+        enableTabAutocomplete: true,
+    },
 }
 
 interface SettingsContextType {
     settings: Settings
     updateSettings: (newSettings: Partial<Settings>) => void
     resetSettings: () => void
-    mcpTools: ToolDefinition[]
-    mcpServerStatuses: McpServerStatus[]
-    refreshMcpTools: (serversOverride?: McpServerConfig[]) => Promise<void>
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
@@ -228,19 +241,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize Groq fields if missing
         if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
-        // Initialize Codex fields if missing
-        if (!parsed.codexModels) parsed.codexModels = defaultSettings.codexModels
-        if (!parsed.codexSelectedModel) parsed.codexSelectedModel = defaultSettings.codexSelectedModel
-        // Force migration: Always use latest Codex models (official Codex CLI approach)
-        parsed.codexModels = defaultSettings.codexModels
-        // Migrate old model selections to new format (gpt-5.2-codex is the new default)
-        if (!parsed.codexSelectedModel?.startsWith('gpt-5.2-codex-') && !parsed.codexSelectedModel?.startsWith('gpt-5.1-codex-')) {
-            parsed.codexSelectedModel = 'gpt-5.2-codex-medium'
-        }
-        // Initialize codexReasoningEffort if missing or invalid
-        if (!parsed.codexReasoningEffort || !['minimal', 'low', 'medium', 'high', 'xhigh'].includes(parsed.codexReasoningEffort)) {
-            parsed.codexReasoningEffort = defaultSettings.codexReasoningEffort
-        }
+        // Initialize MiniMax fields if missing
+        if (!parsed.minimaxApiKey) parsed.minimaxApiKey = defaultSettings.minimaxApiKey
+        if (!parsed.minimaxModels) parsed.minimaxModels = defaultSettings.minimaxModels
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         // Initialize todos if missing
@@ -249,14 +252,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
-        if (!parsed.toolApprovalMode) parsed.toolApprovalMode = defaultSettings.toolApprovalMode
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
         if (parsed.deepResearchEnabled === undefined) parsed.deepResearchEnabled = defaultSettings.deepResearchEnabled
-        if (!parsed.mcpServers) parsed.mcpServers = defaultSettings.mcpServers
         // Initialize loadOverlayOnStartup if missing
         if (parsed.loadOverlayOnStartup === undefined) parsed.loadOverlayOnStartup = defaultSettings.loadOverlayOnStartup
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
+
+        // Title bar personalization
+        if (!parsed.titleBarDensity || !['comfortable', 'compact'].includes(parsed.titleBarDensity)) {
+            parsed.titleBarDensity = defaultSettings.titleBarDensity
+        }
+        if (parsed.titleBarShowAppName === undefined) parsed.titleBarShowAppName = defaultSettings.titleBarShowAppName
+        if (parsed.titleBarShowChatTitle === undefined) parsed.titleBarShowChatTitle = defaultSettings.titleBarShowChatTitle
+        if (parsed.titleBarShowModel === undefined) parsed.titleBarShowModel = defaultSettings.titleBarShowModel
+        if (parsed.rememberLastChatSession === undefined) parsed.rememberLastChatSession = defaultSettings.rememberLastChatSession
+        if (parsed.rememberLastSettingsSection === undefined) parsed.rememberLastSettingsSection = defaultSettings.rememberLastSettingsSection
+        if (parsed.rememberLastDashboardView === undefined) parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
+        // Initialize commandBar settings if missing
+        if (!parsed.commandBar) parsed.commandBar = defaultSettings.commandBar
+
         // Initialize configuredModels if missing or empty
         if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
             parsed.configuredModels = defaultSettings.configuredModels
@@ -266,8 +281,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
         return parsed
     })
-    const [mcpTools, setMcpTools] = useState<ToolDefinition[]>([])
-    const [mcpServerStatuses, setMcpServerStatuses] = useState<McpServerStatus[]>([])
 
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
@@ -291,7 +304,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
                 // Check if we got any keys
                 const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
-                    secureKeys.geminiApiKey || secureKeys.groqApiKey
+                    secureKeys.geminiApiKey || secureKeys.groqApiKey || secureKeys.tavilyApiKey ||
+                    secureKeys.minimaxApiKey
 
                 if (hasSecureKeys) {
                     // Update settings with secure keys - prefer secure storage values
@@ -301,8 +315,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                         perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
                         geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
+                        tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
+                        minimaxApiKey: secureKeys.minimaxApiKey || prev.minimaxApiKey,
                     }))
                 }
+
             } catch (error) {
                 console.error('[SettingsContext] Failed to load API keys from secure storage:', error)
             }
@@ -337,44 +354,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // But having them in localStorage ensures they're not lost on secure storage failures
         localStorage.setItem('zura-settings', JSON.stringify(settings))
 
-        // Sync with main process (API keys are sent but main process doesn't store them)
-        if (window.ipcRenderer) {
-            window.ipcRenderer.send('settings-changed', settings)
-        }
+        // Note: settings-changed IPC was removed as there's no handler in main process
+        // Settings sync happens via localStorage + storage events
     }, [settings])
 
     useLayoutEffect(() => {
         const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
         applyThemeToDocument(theme)
-    }, [settings.activeTheme])
 
-    const refreshMcpTools = useCallback(async (serversOverride?: McpServerConfig[]) => {
-        if (!window.ipcRenderer) {
-            setMcpTools([])
-            setDynamicToolDefinitions([])
-            setMcpServerStatuses([])
-            return
+        // Keep native Windows title bar overlay in sync
+        if (window.ipcRenderer) {
+            const height = settings.titleBarDensity === 'compact' ? 36 : 44
+            window.ipcRenderer.send('set-titlebar-overlay', {
+                color: 'rgba(0, 0, 0, 0)',
+                symbolColor: theme.colors.textPrimary,
+                height,
+            })
         }
-
-        try {
-            const result = await window.ipcRenderer.invoke('mcp:list-tools', serversOverride ?? settings.mcpServers)
-            const tools = Array.isArray(result?.tools) ? result.tools : []
-            const statuses = Array.isArray(result?.servers) ? result.servers : []
-
-            setMcpTools(tools)
-            setDynamicToolDefinitions(tools)
-            setMcpServerStatuses(statuses)
-        } catch (error) {
-            console.error('[SettingsContext] Failed to refresh MCP tools:', error)
-            setMcpTools([])
-            setDynamicToolDefinitions([])
-            setMcpServerStatuses([])
-        }
-    }, [settings.mcpServers])
-
-    useEffect(() => {
-        refreshMcpTools()
-    }, [refreshMcpTools])
+    }, [settings.activeTheme, settings.titleBarDensity])
 
     const updateSettings = useCallback((newSettings: Partial<Settings>) => {
         setSettings(prev => {
@@ -391,10 +388,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         settings,
         updateSettings,
         resetSettings,
-        mcpTools,
-        mcpServerStatuses,
-        refreshMcpTools
-    }), [settings, updateSettings, resetSettings, mcpTools, mcpServerStatuses, refreshMcpTools])
+    }), [settings, updateSettings, resetSettings])
 
     return (
         <SettingsContext.Provider value={contextValue}>
@@ -406,6 +400,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 export function useSettings() {
     const context = useContext(SettingsContext)
     if (context === undefined) {
+        // During HMR, the context may temporarily be undefined
+        // This prevents crashes during hot reload in development
+        if (import.meta.hot) {
+            console.warn('[SettingsContext] Context undefined during HMR, using defaults')
+            return {
+                settings: defaultSettings,
+                updateSettings: () => {},
+                ollamaStatus: 'disconnected' as const,
+                checkOllama: async () => {},
+            }
+        }
         throw new Error('useSettings must be used within a SettingsProvider')
     }
     return context

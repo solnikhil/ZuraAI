@@ -24,3 +24,22 @@ body {
     width: 100%;
     height: 100%;
 }
+
+.app-frame {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--theme-background);
+}
+
+.app-content {
+    position: relative;
+    z-index: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border-top: 1px solid var(--theme-border);
+}
+

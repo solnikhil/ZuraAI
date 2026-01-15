@@ -1,13 +1,10 @@
-﻿import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
 import './Overlay.css'
 import ShinyText from './ShinyText'
 import AgentBar from './AgentBar'
 import ThinkingBlock from './ThinkingBlock'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import LazyMarkdown from './LazyMarkdown'
 import { generateOllamaCompletion } from '../services/ollama'
 import { generatePerplexityCompletion } from '../services/perplexity'
 import { generateGeminiCompletion } from '../services/gemini'
@@ -66,46 +63,6 @@ export default function Overlay() {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isSelectionMode, isChatActive])
 
-    // Handle reset-overlay event from main process (triggered on shortcut)
-    useEffect(() => {
-        const handleResetOverlay = () => {
-            // Reset state when overlay is shown via shortcut
-            setIsSelectionMode(false)
-            setSelection(null)
-            setIsDragging(false)
-            setStartPos(null)
-            setViewingImage(null)
-            // If there are messages, ensure the chat is active/visible
-            // Otherwise, collapse it (false)
-            setIsChatActive(messages.length > 0)
-        }
-
-        if (window.ipcRenderer) {
-            window.ipcRenderer.on('reset-overlay', handleResetOverlay)
-            return () => {
-                window.ipcRenderer.off('reset-overlay', handleResetOverlay)
-            }
-        }
-    }, [messages.length])
-
-    // Handle direct screenshot selection mode (Ctrl+Shift+X shortcut)
-    useEffect(() => {
-        const handleStartScreenshotSelection = () => {
-            // Reset any existing state and enter selection mode
-            setSelection(null)
-            setIsDragging(false)
-            setStartPos(null)
-            setViewingImage(null)
-            setIsSelectionMode(true)
-        }
-
-        if (window.ipcRenderer) {
-            window.ipcRenderer.on('start-screenshot-selection', handleStartScreenshotSelection)
-            return () => {
-                window.ipcRenderer.off('start-screenshot-selection', handleStartScreenshotSelection)
-            }
-        }
-    }, [])
 
     // Scroll to bottom of chat
     useEffect(() => {
@@ -133,11 +90,24 @@ export default function Overlay() {
         const baseSpeed = 12
         const fastSpeed = 4
 
+        // Precompute code fence positions to avoid O(n²) scanning.
+        const fencePositions: number[] = []
+        for (let idx = text.indexOf('```'); idx !== -1; idx = text.indexOf('```', idx + 3)) {
+            fencePositions.push(idx)
+        }
+
+        let fencePtr = 0
+        let inCodeBlock = false
+
         let i = 0
         const length = text.length
 
         while (i < length) {
-            const inCodeBlock = text.substring(0, i).split('```').length % 2 === 0
+            while (fencePtr < fencePositions.length && fencePositions[fencePtr] < i) {
+                inCodeBlock = !inCodeBlock
+                fencePtr++
+            }
+
             const speed = inCodeBlock ? fastSpeed : baseSpeed
             const chunkSize = inCodeBlock ? 5 : 2
             const chunk = text.substring(i, Math.min(i + chunkSize, length))
@@ -182,14 +152,11 @@ export default function Overlay() {
                 await callPerplexity(userPrompt, image)
             } else if (settings.modelProvider === 'gemini') {
                 await callGemini(userPrompt, image)
-            } else if (settings.modelProvider === 'codex') {
-                await callCodex(userPrompt, image)
             } else {
                 await callOpenRouter(userPrompt, image)
             }
         } catch (error: any) {
             console.error("AI Error:", error)
-            window.ipcRenderer.send('log-to-terminal', `[API ERROR] ${error.message || error}`)
 
             const errorMsg = error.message || "An unexpected error occurred."
             setIsLoading(false)
@@ -555,83 +522,6 @@ export default function Overlay() {
         finishStreaming()
     }
 
-    const callCodex = async (userPrompt: string, image?: string) => {
-        // Import Codex service dynamically
-        const { generateCodexCompletion, getCodexAuthState } = await import('../services/codex')
-        
-        // Check authentication
-        const authState = await getCodexAuthState()
-        if (!authState.isAuthenticated) {
-            throw new Error("Please sign in with ChatGPT in Settings to use Codex.")
-        }
-
-        let messagesPayload: any[] = []
-
-        if (image) {
-            messagesPayload = [
-                {
-                    "role": "user",
-                    "content": [
-                        { "type": "text", "text": userPrompt },
-                        { "type": "image_url", "image_url": { "url": image } }
-                    ]
-                }
-            ]
-        } else {
-            messagesPayload = [
-                { "role": "user", "content": userPrompt }
-            ]
-        }
-
-        // Use system prompt
-        const systemPromptToUse = settings.systemPrompt
-        if (systemPromptToUse) {
-            messagesPayload.unshift({ "role": "system", "content": systemPromptToUse })
-        }
-
-        const codexModel = settings.codexSelectedModel || 'gpt-5.2-codex-medium'
-        
-        // #region agent log - Overlay Codex call
-        console.log('[Overlay:Codex] ========== CODEX CALL INITIATED ==========')
-        console.log('[Overlay:Codex] codexModel:', codexModel)
-        console.log('[Overlay:Codex] messagesPayload count:', messagesPayload.length)
-        // #endregion
-        
-        const startTime = performance.now()
-        
-        // NOTE: temperature and maxTokens are NOT supported by Codex API
-        const response = await generateCodexCompletion(
-            codexModel,
-            messagesPayload,
-            {
-                // NOTE: These options are IGNORED by the Codex API
-                // The official Codex CLI does not support temperature/maxTokens
-            }
-        )
-        const endTime = performance.now()
-
-        const rawContent = response.choices?.[0]?.message?.content || "Sorry, I couldn't get a response."
-
-        // Show typewriter effect
-        setIsLoading(false)
-        await typewriterEffect(rawContent)
-
-        const aiMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            role: 'assistant',
-            content: rawContent,
-            model: `codex/${codexModel}`,
-            latency: Math.round(endTime - startTime),
-            usage: {
-                inputTokens: response.usage?.prompt_tokens || 0,
-                outputTokens: response.usage?.completion_tokens || 0,
-                totalTokens: response.usage?.total_tokens || 0
-            }
-        }
-        setMessages(prev => [...prev, aiMessage])
-        finishStreaming()
-    }
-
     const handlePromptSubmit = (prompt: string) => {
         if (screenshot) {
             callAI(prompt, screenshot)
@@ -674,7 +564,7 @@ export default function Overlay() {
     }
 
     const handleMouseUp = async () => {
-        if (isDragging && selection && (selection.width > 10 || selection.height > 10)) {
+        if (isDragging && selection && (selection.width > 10 && selection.height > 10)) {
             setIsDragging(false)
             setIsSelectionMode(false)
 
@@ -774,28 +664,7 @@ export default function Overlay() {
                                         <ThinkingBlock thinking={msg.thinking} />
                                     )}
                                     <div className="text markdown-body">
-                                        <ReactMarkdown
-                                            children={msg.content}
-                                            remarkPlugins={[remarkGfm]}
-                                            components={{
-                                                code({ node, inline, className, children, ...props }: any) {
-                                                    const match = /language-(\w+)/.exec(className || '')
-                                                    return !inline && match ? (
-                                                        <SyntaxHighlighter
-                                                            {...props}
-                                                            children={String(children).replace(/\n$/, '')}
-                                                            style={vscDarkPlus}
-                                                            language={match[1]}
-                                                            PreTag="div"
-                                                        />
-                                                    ) : (
-                                                        <code {...props} className={className}>
-                                                            {children}
-                                                        </code>
-                                                    )
-                                                }
-                                            }}
-                                        />
+                                        <LazyMarkdown content={msg.content} />
                                     </div>
                                     {msg.role === 'assistant' && (
                                         <div className="message-footer">
@@ -859,10 +728,7 @@ export default function Overlay() {
                             <div className="chat-message-item assistant">
                                 <div className="message-content">
                                     <div className="text markdown-body">
-                                        <ReactMarkdown
-                                            children={streamingContent}
-                                            remarkPlugins={[remarkGfm]}
-                                        />
+                                        <LazyMarkdown content={streamingContent} />
                                     </div>
                                     <span className="cursor-blink">▌</span>
                                 </div>

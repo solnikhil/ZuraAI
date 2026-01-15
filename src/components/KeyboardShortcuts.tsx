@@ -23,9 +23,11 @@ export default function KeyboardShortcuts() {
         {
             category: 'Navigation',
             items: [
+                { keys: ['Ctrl', 'K'], description: 'Focus command bar' },
                 { keys: ['Ctrl', ','], description: 'Open Settings (when main window focused)' },
             ]
         }
+
     ]
 
     return (

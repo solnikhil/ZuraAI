@@ -5,13 +5,18 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     perplexityApiKey: string
     geminiApiKey: string
     groqApiKey: string
+    tavilyApiKey: string
+    minimaxApiKey: string
 }> {
     const defaults = {
         openRouterApiKey: '',
         perplexityApiKey: '',
         geminiApiKey: '',
         groqApiKey: '',
+        tavilyApiKey: '',
+        minimaxApiKey: '',
     }
+
 
     if (!window.secureStorage) {
         return defaults
@@ -24,6 +29,8 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             perplexityApiKey: allKeys.perplexityApiKey || '',
             geminiApiKey: allKeys.geminiApiKey || '',
             groqApiKey: allKeys.groqApiKey || '',
+            tavilyApiKey: allKeys.tavilyApiKey || '',
+            minimaxApiKey: allKeys.minimaxApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)
@@ -32,7 +39,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
 }
 
 export async function saveApiKeyToSecureStorage(
-    key: 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey',
+    key: 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey',
     value: string
 ): Promise<boolean> {
     if (!window.secureStorage) {
@@ -48,11 +55,13 @@ export async function saveApiKeyToSecureStorage(
 }
 
 export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boolean> {
-    const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey'> = [
+    const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey'> = [
         'openRouterApiKey',
         'perplexityApiKey',
         'geminiApiKey',
         'groqApiKey',
+        'tavilyApiKey',
+        'minimaxApiKey',
     ]
 
     const hasMigrated = localStorage.getItem('zura-api-keys-migrated') === 'true'
