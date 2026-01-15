@@ -88,7 +88,7 @@ interface OpenRouterRequestBody {
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
-    tool_choice?: 'auto' | 'none' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+    tool_choice?: 'auto' | 'none' | 'required' | { type: 'function'; function: { name: string } }
     reasoning?: {
         max_tokens?: number
         effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'

@@ -1,16 +1,35 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import { writeFileSync, existsSync, mkdirSync } from 'fs'
 
-// Debug: write to log file to confirm preload is executing
-const PRELOAD_LOG_PATH = "c:\\Users\\Nikhil\\Desktop\\Zura\\ZuraAI\\.cursor\\preload-debug.log"
-function preloadLog(msg: string) {
-  try {
-    const dir = PRELOAD_LOG_PATH.substring(0, PRELOAD_LOG_PATH.lastIndexOf('\\'))
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(PRELOAD_LOG_PATH, `[${Date.now()}] ${msg}\n`, { flag: 'a' })
-  } catch (e) {}
-}
+contextBridge.exposeInMainWorld('ipcRenderer', {
+    on: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+        ipcRenderer.on(channel, listener)
+    },
+    off: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
+        ipcRenderer.off(channel, listener)
+    },
+    send: (channel: string, ...args: any[]) => {
+        ipcRenderer.send(channel, ...args)
+    },
+    invoke: (channel: string, ...args: any[]) => {
+        return ipcRenderer.invoke(channel, ...args)
+    },
+})
 
+// Window controls API (custom title bar)
+contextBridge.exposeInMainWorld('windowControls', {
+    minimize: () => ipcRenderer.invoke('window-controls:minimize'),
+    toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
+    close: () => ipcRenderer.invoke('window-controls:close'),
+    isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
+    onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
+        const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
+            callback(state)
+        }
+        ipcRenderer.on('window-controls:state', listener)
+        return () => ipcRenderer.removeListener('window-controls:state', listener)
+    },
+})
 preloadLog('Preload script STARTED')
 
 // ----------------------------------------------------------------------------
@@ -26,6 +45,9 @@ const SEND_CHANNELS = new Set<string>([
   'set-titlebar-overlay',
   'spawn-terminal-command',
 ])
+
+// PDF IPC channels - imported from src/types/pdf.ts for reference
+// These channels support the PDF Reader Chat feature with RAG capabilities
 
 const INVOKE_CHANNELS = new Set<string>([
   // Chat store
@@ -51,11 +73,46 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:check-for-updates',
   'updater:quit-and-install',
   'updater:get-version',
+
+  // PDF Loading & Parsing
+  'pdf:load',
+  'pdf:get-page',
+  'pdf:search-text',
+  'pdf:get-outline',
+  'pdf:unload',
+
+  // PDF Indexing
+  'pdf:index',
+  'pdf:get-index-status',
+  'pdf:delete-index',
+
+  // PDF RAG Query
+  'pdf:query',
+  'pdf:get-chunks',
+
+  // PDF Session Management
+  'pdf-chat:create-session',
+  'pdf-chat:get-sessions',
+  'pdf-chat:get-session',
+  'pdf-chat:save-session',
+  'pdf-chat:delete-session',
+
+  // PDF Settings
+  'pdf:get-settings',
+  'pdf:update-settings',
+
+  // PDF Feedback
+  'pdf:save-feedback',
 ])
 
 const ON_CHANNELS = new Set<string>([
   'update-available',
   'update-downloaded',
+
+  // PDF Indexing Events (main process → renderer)
+  'pdf:index-progress',
+  'pdf:index-complete',
+  'pdf:index-error',
 ])
 
 function assertAllowed(kind: 'send' | 'invoke' | 'on' | 'off', channel: string, allowed: Set<string>) {

@@ -815,18 +815,17 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     // Map MiniMax usage to standard format using utility function
     // Requirements: 10.1, 10.2, 10.3, 10.4
-    let usage = extractUsageMetrics(finalUsage) || {
+    const extractedUsage = extractUsageMetrics(finalUsage) || {
       inputTokens: 0,
       outputTokens: 0,
       totalTokens: 0
     }
     // Map reasoningTokens to thinkingTokens for UI consistency
-    const usageWithThinking: any = {
-      ...usage,
-      thinkingTokens: usage.reasoningTokens
+    let usage: any = {
+      ...extractedUsage,
+      thinkingTokens: extractedUsage.reasoningTokens
     }
-    delete usageWithThinking.reasoningTokens
-    usage = usageWithThinking
+    delete usage.reasoningTokens
 
     // Handle tool calls with research loop
     if (canUseTools && hasToolCalls && isToolCallsFinishReason(finishReason) && toolCallAccumulator.hasToolCalls()) {
@@ -955,7 +954,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           // Requirements: 10.1, 10.2, 10.3, 10.4
           const followUpExtracted = extractUsageMetrics(followUpUsage)
           const accumulated = accumulateUsageMetrics(
-            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: usage.thinkingTokens },
+            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: (usage as any).thinkingTokens },
             followUpExtracted
           )
           usage = {
@@ -1089,7 +1088,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           // Requirements: 10.1, 10.2, 10.3, 10.4
           const finalAnswerExtracted = extractUsageMetrics(finalAnswerUsage)
           const finalAccumulated = accumulateUsageMetrics(
-            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: usage.thinkingTokens },
+            { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, totalTokens: usage.totalTokens, reasoningTokens: (usage as any).thinkingTokens },
             finalAnswerExtracted
           )
           usage = {
@@ -1133,7 +1132,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     researchMaxRounds: number,
     researchMandatory: boolean
   ) => {
-    const tools = getToolsForRequest()
+    const tools = canUseTools ? getToolsForRequest() : null
     const openRouterTools = tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
 
     let accumulatedContent = ''
@@ -1155,11 +1154,18 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
 
+    // Set tool choice for mandatory research mode to force web_search
+    const initialForceToolUse = researchMandatory && researchMaxRounds > 0
+    let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
+    if (initialForceToolUse) {
+      initialToolChoice = { type: 'function', function: { name: 'web_search' } }
+    }
+
     for await (const chunk of streamOpenRouterCompletion(
       settings.openRouterApiKey,
       settings.aiModel,
       openRouterMessages,
-      { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools }
+      { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -1167,10 +1173,25 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+      const reasoningDetails = chunk.choices?.[0]?.delta?.reasoning_details
       if (reasoningDelta) {
         if (!thinkingStartTime) thinkingStartTime = performance.now()
         accumulatedReasoning += reasoningDelta
 
+        updateStreamingMessage(targetSessionId, streamingMessageId, {
+          content: accumulatedContent,
+          thinking: accumulatedReasoning
+        })
+      }
+
+      // Handle reasoning_details (extended format from models like DeepSeek R1)
+      if (reasoningDetails && reasoningDetails.length > 0) {
+        if (!thinkingStartTime) thinkingStartTime = performance.now()
+        for (const detail of reasoningDetails) {
+          if (detail.type === 'text' && typeof detail.content === 'string') {
+            accumulatedReasoning += detail.content
+          }
+        }
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           content: accumulatedContent,
           thinking: accumulatedReasoning
@@ -1190,12 +1211,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (chunk.choices?.[0]?.delta?.tool_calls) {
         hasToolCalls = true
         const deltaToolCalls = chunk.choices[0].delta.tool_calls
-        deltaToolCalls?.forEach((tc: any, idx: number) => {
-          if (!toolCallsAccumulator[tc.index ?? idx]) {
-            toolCallsAccumulator[tc.index ?? idx] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
+        deltaToolCalls?.forEach((tc: any) => {
+          const index = tc.index ?? 0
+          if (!toolCallsAccumulator[index]) {
+            toolCallsAccumulator[index] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
           }
-          if (tc.function?.name) toolCallsAccumulator[tc.index ?? idx].function.name += tc.function.name
-          if (tc.function?.arguments) toolCallsAccumulator[tc.index ?? idx].function.arguments += tc.function.arguments
+          if (tc.function?.name) toolCallsAccumulator[index].function.name += tc.function.name
+          if (tc.function?.arguments) toolCallsAccumulator[index].function.arguments += tc.function.arguments
         })
       }
 
@@ -1331,12 +1353,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
             if (chunk.choices?.[0]?.delta?.tool_calls) {
               const deltaToolCalls = chunk.choices[0].delta.tool_calls
-              deltaToolCalls?.forEach((tc: any, idx: number) => {
-                if (!followUpToolCalls[tc.index ?? idx]) {
-                  followUpToolCalls[tc.index ?? idx] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
+              deltaToolCalls?.forEach((tc: any) => {
+                const index = tc.index ?? 0
+                if (!followUpToolCalls[index]) {
+                  followUpToolCalls[index] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
                 }
-                if (tc.function?.name) followUpToolCalls[tc.index ?? idx].function.name += tc.function.name
-                if (tc.function?.arguments) followUpToolCalls[tc.index ?? idx].function.arguments += tc.function.arguments
+                if (tc.function?.name) followUpToolCalls[index].function.name += tc.function.name
+                if (tc.function?.arguments) followUpToolCalls[index].function.arguments += tc.function.arguments
               })
             }
 
