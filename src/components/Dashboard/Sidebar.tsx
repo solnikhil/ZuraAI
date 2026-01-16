@@ -1,29 +1,40 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command
+    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command, FileText
 } from '../icons'
 import { MessageCircleIcon, MagnifierIcon, TrashIcon } from '../icons'
 import type { AnimatedIconHandle } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
+import type { RecentDocument, PDFChatSession } from '../../types/pdf'
 
 
 interface SidebarProps {
-    view: 'chat' | 'settings'
+    view: 'chat' | 'pdf' | 'settings'
     onOpenSettings: () => void
     onCloseSettings: () => void
+    onNavigateToPDF: () => void
+    onLoadRecentPDF?: (filePath: string) => void
+    onSwitchPDFSession?: (sessionId: string) => void
+    activePDFSessionId?: string | null
     activeSettingsSection: string
     onNavigateSettings: (section: string) => void
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToPDF, onLoadRecentPDF, onSwitchPDFSession, activePDFSessionId, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
+    const [isRecentPDFsExpanded, setIsRecentPDFsExpanded] = useState(true)
+    const [isPDFSessionsExpanded, setIsPDFSessionsExpanded] = useState(true)
+    const [recentPDFs, setRecentPDFs] = useState<RecentDocument[]>([])
+    const [pdfSessions, setPdfSessions] = useState<PDFChatSession[]>([])
+    const [isLoadingRecentPDFs, setIsLoadingRecentPDFs] = useState(false)
+    const [isLoadingPDFSessions, setIsLoadingPDFSessions] = useState(false)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
     const { settings, resetSettings, updateSettings } = useSettings()
 
@@ -34,6 +45,61 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
     const newChatIconRef = useRef<AnimatedIconHandle>(null)
     // Search icon animation ref
     const searchIconRef = useRef<AnimatedIconHandle>(null)
+    // PDF icon animation ref
+    const pdfIconRef = useRef<AnimatedIconHandle>(null)
+
+    // Fetch recent PDF documents when in PDF mode
+    useEffect(() => {
+        const fetchRecentPDFs = async () => {
+            if (view === 'pdf' && window.ipcRenderer) {
+                setIsLoadingRecentPDFs(true)
+                try {
+                    const docs = await window.ipcRenderer.invoke('pdf-chat:get-recent-documents', 10)
+                    setRecentPDFs(docs || [])
+                } catch (error) {
+                    console.error('[Sidebar] Error fetching recent PDFs:', error)
+                    setRecentPDFs([])
+                } finally {
+                    setIsLoadingRecentPDFs(false)
+                }
+            }
+        }
+        
+        fetchRecentPDFs()
+    }, [view])
+
+    // Fetch PDF chat sessions when in PDF mode
+    useEffect(() => {
+        const fetchPDFSessions = async () => {
+            if (view === 'pdf' && window.ipcRenderer) {
+                setIsLoadingPDFSessions(true)
+                try {
+                    const sessions = await window.ipcRenderer.invoke('pdf-chat:get-sessions')
+                    setPdfSessions(sessions || [])
+                } catch (error) {
+                    console.error('[Sidebar] Error fetching PDF sessions:', error)
+                    setPdfSessions([])
+                } finally {
+                    setIsLoadingPDFSessions(false)
+                }
+            }
+        }
+        
+        fetchPDFSessions()
+    }, [view])
+
+    // Handler to delete a PDF session
+    const handleDeletePDFSession = async (sessionId: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (window.ipcRenderer) {
+            try {
+                await window.ipcRenderer.invoke('pdf-chat:delete-session', sessionId)
+                setPdfSessions(prev => prev.filter(s => s.id !== sessionId))
+            } catch (error) {
+                console.error('[Sidebar] Error deleting PDF session:', error)
+            }
+        }
+    }
 
     // Settings navigation items
     const navItems = [
@@ -41,7 +107,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
         { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
         { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
-        { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> }
+        { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> },
+        { id: 'rag', label: 'PDF RAG', icon: <FileText size={18} /> }
     ]
 
     const filteredSessions = sessions.filter(s =>
@@ -123,6 +190,57 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                             <MessageCircleIcon ref={newChatIconRef} size={16} strokeWidth={2} />
                         </div>
                         {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>New Chat</span>}
+                    </button>
+
+                    {/* PDF Chat Button */}
+                    <button
+                        onClick={onNavigateToPDF}
+                        className="quick-action-btn"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '8px 8px',
+                            background: view === 'pdf' ? 'var(--theme-accent-muted)' : 'transparent',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            color: view === 'pdf' ? 'var(--theme-accent)' : 'var(--theme-text-primary)',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            width: '100%',
+                            justifyContent: 'flex-start',
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            borderLeft: view === 'pdf' ? '2px solid var(--theme-accent)' : '2px solid transparent'
+                        }}
+                        onMouseEnter={e => {
+                            if (view !== 'pdf') {
+                                e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            }
+                            pdfIconRef.current?.startAnimation()
+                        }}
+                        onMouseLeave={e => {
+                            if (view !== 'pdf') {
+                                e.currentTarget.style.background = 'transparent'
+                                e.currentTarget.style.color = 'var(--theme-text-primary)'
+                            }
+                            pdfIconRef.current?.stopAnimation()
+                        }}
+                        title={isCollapsed ? 'PDF Chat' : ''}
+                    >
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <FileText ref={pdfIconRef} size={16} strokeWidth={2} />
+                        </div>
+                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>PDF Chat</span>}
                     </button>
 
                     {/* Search Button */}
@@ -211,6 +329,267 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, activeS
                 gap: '1px',
                 minWidth: 0
             }}>
+                {/* Recent PDFs Section - Only visible in PDF mode */}
+                {view === 'pdf' && !isCollapsed && (
+                    <>
+                        <div
+                            onClick={() => setIsRecentPDFsExpanded(!isRecentPDFsExpanded)}
+                            onMouseEnter={e => {
+                                const chevron = e.currentTarget.querySelector('.chevron-icon-pdf') as HTMLElement
+                                if (chevron) chevron.style.opacity = '1'
+                            }}
+                            onMouseLeave={e => {
+                                const chevron = e.currentTarget.querySelector('.chevron-icon-pdf') as HTMLElement
+                                if (chevron) chevron.style.opacity = '0'
+                            }}
+                            style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--theme-text-muted)',
+                                padding: '6px 0 4px 9px',
+                                marginBottom: '2px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                fontWeight: 500,
+                                letterSpacing: '0.5px'
+                            }}
+                        >
+                            <span>Recent PDFs</span>
+                            <ChevronDown
+                                className="chevron-icon-pdf"
+                                size={12}
+                                style={{
+                                    transition: 'transform 0.2s, opacity 0.2s',
+                                    transform: isRecentPDFsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                    opacity: 0,
+                                    marginLeft: 'auto'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{
+                            display: isRecentPDFsExpanded ? 'flex' : 'none',
+                            flexDirection: 'column',
+                            gap: '1px',
+                            minWidth: 0,
+                            marginBottom: '8px'
+                        }}>
+                            {isLoadingRecentPDFs ? (
+                                <div style={{
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--theme-text-muted)',
+                                    fontStyle: 'italic'
+                                }}>
+                                    Loading...
+                                </div>
+                            ) : recentPDFs.length === 0 ? (
+                                <div style={{
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--theme-text-muted)',
+                                    fontStyle: 'italic'
+                                }}>
+                                    No recent documents
+                                </div>
+                            ) : (
+                                recentPDFs.map((doc, index) => (
+                                    <div
+                                        key={doc.id}
+                                        onClick={() => onLoadRecentPDF?.(doc.filePath)}
+                                        className="session-item animate-sidebar-item"
+                                        title={doc.filePath}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '4px 0 4px 6px',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px',
+                                            fontSize: '0.8rem',
+                                            color: 'var(--theme-text-primary)',
+                                            backgroundColor: 'transparent',
+                                            borderLeft: '2px solid transparent',
+                                            transition: 'all 0.15s ease',
+                                            justifyContent: 'flex-start',
+                                            animationDelay: `${index * 0.05}s`,
+                                            minWidth: 0,
+                                            overflow: 'hidden'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                            color: 'var(--theme-text-muted)'
+                                        }}>
+                                            <FileText size={14} strokeWidth={2} />
+                                        </div>
+                                        <span style={{
+                                            flex: 1,
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            minWidth: 0
+                                        }}>{doc.fileName}</span>
+                                        {doc.isIndexed && (
+                                            <div
+                                                title="Indexed"
+                                                style={{
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    borderRadius: '50%',
+                                                    backgroundColor: 'var(--theme-accent)',
+                                                    flexShrink: 0,
+                                                    marginRight: '8px'
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </>
+                )}
+
+                {/* PDF Sessions Section - Only visible in PDF mode */}
+                {view === 'pdf' && !isCollapsed && (
+                    <>
+                        <div
+                            onClick={() => setIsPDFSessionsExpanded(!isPDFSessionsExpanded)}
+                            onMouseEnter={e => {
+                                const chevron = e.currentTarget.querySelector('.chevron-icon-sessions') as HTMLElement
+                                if (chevron) chevron.style.opacity = '1'
+                            }}
+                            onMouseLeave={e => {
+                                const chevron = e.currentTarget.querySelector('.chevron-icon-sessions') as HTMLElement
+                                if (chevron) chevron.style.opacity = '0'
+                            }}
+                            style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--theme-text-muted)',
+                                padding: '6px 0 4px 9px',
+                                marginBottom: '2px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                fontWeight: 500,
+                                letterSpacing: '0.5px'
+                            }}
+                        >
+                            <span>PDF Sessions</span>
+                            <ChevronDown
+                                className="chevron-icon-sessions"
+                                size={12}
+                                style={{
+                                    transition: 'transform 0.2s, opacity 0.2s',
+                                    transform: isPDFSessionsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                    opacity: 0,
+                                    marginLeft: 'auto'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{
+                            display: isPDFSessionsExpanded ? 'flex' : 'none',
+                            flexDirection: 'column',
+                            gap: '1px',
+                            minWidth: 0,
+                            marginBottom: '8px'
+                        }}>
+                            {isLoadingPDFSessions ? (
+                                <div style={{
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--theme-text-muted)',
+                                    fontStyle: 'italic'
+                                }}>
+                                    Loading...
+                                </div>
+                            ) : pdfSessions.length === 0 ? (
+                                <div style={{
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    color: 'var(--theme-text-muted)',
+                                    fontStyle: 'italic'
+                                }}>
+                                    No sessions
+                                </div>
+                            ) : (
+                                pdfSessions.map((session, index) => (
+                                    <div
+                                        key={session.id}
+                                        onClick={() => onSwitchPDFSession?.(session.id)}
+                                        className="session-item animate-sidebar-item"
+                                        data-active={activePDFSessionId === session.id ? "true" : "false"}
+                                        title={session.title}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            padding: '4px 0 4px 6px',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px',
+                                            fontSize: '0.8rem',
+                                            color: 'var(--theme-text-primary)',
+                                            backgroundColor: activePDFSessionId === session.id ? 'var(--theme-accent-muted)' : 'transparent',
+                                            borderLeft: activePDFSessionId === session.id ? '2px solid var(--theme-accent)' : '2px solid transparent',
+                                            transition: 'all 0.15s ease',
+                                            justifyContent: 'flex-start',
+                                            animationDelay: `${index * 0.05}s`,
+                                            minWidth: 0,
+                                            overflow: 'hidden'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexShrink: 0,
+                                            color: activePDFSessionId === session.id ? 'var(--theme-accent)' : 'var(--theme-text-muted)'
+                                        }}>
+                                            <MessageSquare size={14} strokeWidth={2} />
+                                        </div>
+                                        <span style={{
+                                            flex: 1,
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            minWidth: 0
+                                        }}>{session.title}</span>
+                                        <div
+                                            className="delete-btn"
+                                            onClick={(e) => handleDeletePDFSession(session.id, e)}
+                                            style={{
+                                                opacity: 0,
+                                                padding: '8px',
+                                                borderRadius: '6px',
+                                                flexShrink: 0,
+                                                transition: 'opacity 0.15s ease',
+                                                marginRight: '8px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}
+                                        >
+                                            <TrashIcon size={16} dangerHover />
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </>
+                )}
+
                 {!isCollapsed && filteredSessions.length > 0 && (
                     <div
                         onClick={() => setIsListExpanded(!isListExpanded)}

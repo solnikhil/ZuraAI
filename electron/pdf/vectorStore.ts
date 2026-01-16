@@ -134,11 +134,11 @@ function computeRRFScore(ranks: number[], weights: number[], k: number): number 
  * Provides document indexing, vector search, BM25 search, and hybrid search.
  */
 export class VectorStore implements IVectorStore {
-  private db: lancedb.Connection | null = null;
-  private documentsTable: lancedb.Table | null = null;
-  private chunksTable: lancedb.Table | null = null;
-  private embeddingDimensions: number;
-  private isInitialized: boolean = false;
+  protected db: lancedb.Connection | null = null;
+  protected documentsTable: lancedb.Table | null = null;
+  protected chunksTable: lancedb.Table | null = null;
+  protected embeddingDimensions: number;
+  protected isInitialized: boolean = false;
   private initPromise: Promise<void> | null = null;
 
   constructor(embeddingDimensions: number = DEFAULT_EMBEDDING_DIMENSIONS) {
@@ -202,7 +202,7 @@ export class VectorStore implements IVectorStore {
   /**
    * Ensure the store is initialized before operations
    */
-  private async ensureInitialized(): Promise<void> {
+  protected async ensureInitialized(): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize();
     }
@@ -876,6 +876,659 @@ export class VectorStore implements IVectorStore {
     }
     this.embeddingDimensions = dimensions;
   }
+
+  /**
+   * Get all documents indexed with a specific embedding model
+   * 
+   * Implements Requirement 21.6: Handle embedding model changes
+   * 
+   * @param embeddingModel - The embedding model ID to filter by
+   * @returns Array of document records indexed with the specified model
+   */
+  async getDocumentsByEmbeddingModel(embeddingModel: string): Promise<DocumentRecord[]> {
+    await this.ensureInitialized();
+    
+    if (!this.documentsTable) {
+      return [];
+    }
+
+    try {
+      const results = await this.documentsTable
+        .query()
+        .where(`embeddingModel = '${embeddingModel}'`)
+        .toArray();
+
+      return results.map(row => ({
+        id: row.id,
+        filePath: row.filePath,
+        fileName: row.fileName,
+        fileHash: row.fileHash,
+        pageCount: row.pageCount,
+        title: row.title,
+        author: row.author,
+        indexedAt: Number(row.indexedAt),
+        chunkCount: row.chunkCount,
+        embeddingModel: row.embeddingModel,
+      }));
+    } catch (error) {
+      console.error('[VectorStore] Error getting documents by embedding model:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all documents that would need re-indexing if switching to a new model
+   * 
+   * Implements Requirement 21.6: Handle embedding model changes
+   * 
+   * @param newModelId - The new embedding model ID
+   * @returns Array of document records that need re-indexing
+   */
+  async getDocumentsNeedingReindex(newModelId: string): Promise<DocumentRecord[]> {
+    await this.ensureInitialized();
+    
+    if (!this.documentsTable) {
+      return [];
+    }
+
+    try {
+      // Get all documents not indexed with the new model
+      const results = await this.documentsTable
+        .query()
+        .where(`embeddingModel != '${newModelId}'`)
+        .toArray();
+
+      return results.map(row => ({
+        id: row.id,
+        filePath: row.filePath,
+        fileName: row.fileName,
+        fileHash: row.fileHash,
+        pageCount: row.pageCount,
+        title: row.title,
+        author: row.author,
+        indexedAt: Number(row.indexedAt),
+        chunkCount: row.chunkCount,
+        embeddingModel: row.embeddingModel,
+      }));
+    } catch (error) {
+      console.error('[VectorStore] Error getting documents needing reindex:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all unique embedding models used across all indexed documents
+   * 
+   * Implements Requirement 21.6: Handle embedding model changes
+   * 
+   * @returns Array of unique embedding model IDs
+   */
+  async getUsedEmbeddingModels(): Promise<string[]> {
+    await this.ensureInitialized();
+    
+    if (!this.documentsTable) {
+      return [];
+    }
+
+    try {
+      const results = await this.documentsTable
+        .query()
+        .toArray();
+
+      const models = new Set<string>();
+      for (const row of results) {
+        if (row.embeddingModel) {
+          models.add(row.embeddingModel);
+        }
+      }
+
+      return Array.from(models);
+    } catch (error) {
+      console.error('[VectorStore] Error getting used embedding models:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all indexed documents with their embedding model info
+   * 
+   * Implements Requirement 21.6: Handle embedding model changes
+   * 
+   * @returns Array of all document records
+   */
+  async getAllDocuments(): Promise<DocumentRecord[]> {
+    await this.ensureInitialized();
+    
+    if (!this.documentsTable) {
+      return [];
+    }
+
+    try {
+      const results = await this.documentsTable
+        .query()
+        .toArray();
+
+      return results.map(row => ({
+        id: row.id,
+        filePath: row.filePath,
+        fileName: row.fileName,
+        fileHash: row.fileHash,
+        pageCount: row.pageCount,
+        title: row.title,
+        author: row.author,
+        indexedAt: Number(row.indexedAt),
+        chunkCount: row.chunkCount,
+        embeddingModel: row.embeddingModel,
+      }));
+    } catch (error) {
+      console.error('[VectorStore] Error getting all documents:', error);
+      return [];
+    }
+  }
+}
+
+// =============================================================================
+// Index Corruption Detection and Recovery (Requirement 18.4)
+// =============================================================================
+
+/**
+ * Corruption issue type
+ */
+export type IndexCorruptionType =
+  | 'missing_table'
+  | 'schema_mismatch'
+  | 'orphaned_chunks'
+  | 'missing_chunks'
+  | 'invalid_embeddings'
+  | 'data_inconsistency'
+  | 'file_corruption'
+  | 'unknown';
+
+/**
+ * Details about a corruption issue
+ */
+export interface CorruptionIssue {
+  type: IndexCorruptionType;
+  description: string;
+  severity: 'warning' | 'error' | 'critical';
+  affectedDocuments?: string[];
+  affectedCount?: number;
+  canAutoRepair: boolean;
+  suggestedAction: string;
+}
+
+/**
+ * Result of corruption check
+ */
+export interface IndexCorruptionCheckResult {
+  isCorrupted: boolean;
+  isHealthy: boolean;
+  issues: CorruptionIssue[];
+  checkedAt: number;
+  documentsChecked: number;
+  chunksChecked: number;
+  rebuildRecommended: boolean;
+  summary: string;
+}
+
+/**
+ * Extended VectorStore class with corruption detection and recovery
+ * 
+ * Implements Requirement 18.4: IF the Vector_Store becomes corrupted, 
+ * THEN THE System SHALL offer to rebuild the index
+ */
+export class VectorStoreWithRecovery extends VectorStore {
+  
+  /**
+   * Check the index for corruption
+   * 
+   * Detects various types of corruption:
+   * - Missing tables
+   * - Schema mismatches
+   * - Orphaned chunks (chunks without documents)
+   * - Missing chunks (documents without chunks)
+   * - Invalid embeddings (wrong dimensions)
+   * - Data inconsistencies
+   * 
+   * Implements Requirement 18.4: Detect corrupted indexes
+   */
+  async checkIndexCorruption(): Promise<IndexCorruptionCheckResult> {
+    const issues: CorruptionIssue[] = [];
+    let documentsChecked = 0;
+    let chunksChecked = 0;
+    
+    console.log('[VectorStore] Starting index corruption check...');
+    
+    try {
+      await this.ensureInitialized();
+      
+      // Check 1: Verify tables exist
+      const tablesExist = await this.checkTablesExist();
+      if (!tablesExist.documentsTable) {
+        issues.push({
+          type: 'missing_table',
+          description: 'Documents table is missing from the vector store',
+          severity: 'critical',
+          canAutoRepair: false,
+          suggestedAction: 'Rebuild the entire index from source PDFs',
+        });
+      }
+      
+      if (!tablesExist.chunksTable) {
+        issues.push({
+          type: 'missing_table',
+          description: 'Chunks table is missing from the vector store',
+          severity: 'critical',
+          canAutoRepair: false,
+          suggestedAction: 'Rebuild the entire index from source PDFs',
+        });
+      }
+      
+      // If tables are missing, we can't do further checks
+      if (!tablesExist.documentsTable || !tablesExist.chunksTable) {
+        return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
+      }
+      
+      // Check 2: Get all documents and chunks
+      const allDocuments = await this.getAllDocuments();
+      const stats = await this.getCollectionStats();
+      documentsChecked = allDocuments.length;
+      chunksChecked = stats.chunkCount;
+      
+      // Check 3: Verify document-chunk consistency
+      const consistencyIssues = await this.checkDocumentChunkConsistency(allDocuments);
+      issues.push(...consistencyIssues);
+      
+      // Check 4: Check for orphaned chunks
+      const orphanedChunks = await this.checkOrphanedChunks(allDocuments);
+      if (orphanedChunks.length > 0) {
+        issues.push({
+          type: 'orphaned_chunks',
+          description: `Found ${orphanedChunks.length} chunks without corresponding document records`,
+          severity: 'warning',
+          affectedCount: orphanedChunks.length,
+          canAutoRepair: true,
+          suggestedAction: 'Clean up orphaned chunks or rebuild affected documents',
+        });
+      }
+      
+      // Check 5: Validate embedding dimensions
+      const embeddingIssues = await this.checkEmbeddingDimensions(allDocuments);
+      issues.push(...embeddingIssues);
+      
+      // Check 6: Check for data inconsistencies
+      const dataIssues = await this.checkDataIntegrity(allDocuments);
+      issues.push(...dataIssues);
+      
+      console.log('[VectorStore] Corruption check complete. Issues found:', issues.length);
+      
+      return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
+      
+    } catch (error) {
+      console.error('[VectorStore] Error during corruption check:', error);
+      
+      // If we can't even check, assume file corruption
+      issues.push({
+        type: 'file_corruption',
+        description: `Failed to read index data: ${error instanceof Error ? error.message : String(error)}`,
+        severity: 'critical',
+        canAutoRepair: false,
+        suggestedAction: 'Clear the index and rebuild from source PDFs',
+      });
+      
+      return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
+    }
+  }
+  
+  /**
+   * Check if required tables exist
+   */
+  private async checkTablesExist(): Promise<{ documentsTable: boolean; chunksTable: boolean }> {
+    try {
+      if (!this.db) {
+        return { documentsTable: false, chunksTable: false };
+      }
+      
+      const tableNames = await this.db.tableNames();
+      return {
+        documentsTable: tableNames.includes(DOCUMENTS_TABLE),
+        chunksTable: tableNames.includes(CHUNKS_TABLE),
+      };
+    } catch (error) {
+      console.error('[VectorStore] Error checking tables:', error);
+      return { documentsTable: false, chunksTable: false };
+    }
+  }
+  
+  /**
+   * Check document-chunk consistency
+   */
+  private async checkDocumentChunkConsistency(documents: DocumentRecord[]): Promise<CorruptionIssue[]> {
+    const issues: CorruptionIssue[] = [];
+    const documentsWithMissingChunks: string[] = [];
+    const documentsWithWrongCount: string[] = [];
+    
+    for (const doc of documents) {
+      try {
+        const chunks = await this.getChunksForDocument(doc.id);
+        
+        // Check if document has no chunks but claims to have some
+        if (doc.chunkCount > 0 && chunks.length === 0) {
+          documentsWithMissingChunks.push(doc.id);
+        }
+        
+        // Check if chunk count matches
+        if (chunks.length !== doc.chunkCount) {
+          documentsWithWrongCount.push(doc.id);
+        }
+      } catch (error) {
+        console.error(`[VectorStore] Error checking chunks for document ${doc.id}:`, error);
+        documentsWithMissingChunks.push(doc.id);
+      }
+    }
+    
+    if (documentsWithMissingChunks.length > 0) {
+      issues.push({
+        type: 'missing_chunks',
+        description: `${documentsWithMissingChunks.length} document(s) have missing chunks`,
+        severity: 'error',
+        affectedDocuments: documentsWithMissingChunks,
+        affectedCount: documentsWithMissingChunks.length,
+        canAutoRepair: false,
+        suggestedAction: 'Rebuild the index for affected documents',
+      });
+    }
+    
+    if (documentsWithWrongCount.length > 0) {
+      issues.push({
+        type: 'data_inconsistency',
+        description: `${documentsWithWrongCount.length} document(s) have incorrect chunk counts`,
+        severity: 'warning',
+        affectedDocuments: documentsWithWrongCount,
+        affectedCount: documentsWithWrongCount.length,
+        canAutoRepair: true,
+        suggestedAction: 'Update document metadata or rebuild affected documents',
+      });
+    }
+    
+    return issues;
+  }
+  
+  /**
+   * Check for orphaned chunks (chunks without documents)
+   */
+  private async checkOrphanedChunks(documents: DocumentRecord[]): Promise<string[]> {
+    const orphanedChunkIds: string[] = [];
+    
+    try {
+      if (!this.chunksTable) {
+        return [];
+      }
+      
+      const documentIds = new Set(documents.map(d => d.id));
+      
+      // Get all unique document IDs from chunks
+      const allChunks = await this.chunksTable.query().toArray();
+      
+      for (const chunk of allChunks) {
+        if (!documentIds.has(chunk.documentId)) {
+          orphanedChunkIds.push(chunk.id);
+        }
+      }
+    } catch (error) {
+      console.error('[VectorStore] Error checking orphaned chunks:', error);
+    }
+    
+    return orphanedChunkIds;
+  }
+  
+  /**
+   * Check embedding dimensions consistency
+   */
+  private async checkEmbeddingDimensions(documents: DocumentRecord[]): Promise<CorruptionIssue[]> {
+    const issues: CorruptionIssue[] = [];
+    const documentsWithWrongDimensions: string[] = [];
+    
+    const expectedDimensions = this.getEmbeddingDimensions();
+    
+    for (const doc of documents) {
+      try {
+        const chunks = await this.getChunksForDocument(doc.id);
+        
+        for (const chunk of chunks) {
+          if (chunk.vector && chunk.vector.length !== expectedDimensions) {
+            documentsWithWrongDimensions.push(doc.id);
+            break; // Only report once per document
+          }
+        }
+      } catch (error) {
+        console.error(`[VectorStore] Error checking embeddings for document ${doc.id}:`, error);
+      }
+    }
+    
+    if (documentsWithWrongDimensions.length > 0) {
+      issues.push({
+        type: 'invalid_embeddings',
+        description: `${documentsWithWrongDimensions.length} document(s) have embeddings with incorrect dimensions (expected ${expectedDimensions})`,
+        severity: 'error',
+        affectedDocuments: documentsWithWrongDimensions,
+        affectedCount: documentsWithWrongDimensions.length,
+        canAutoRepair: false,
+        suggestedAction: 'Rebuild the index for affected documents with the current embedding model',
+      });
+    }
+    
+    return issues;
+  }
+  
+  /**
+   * Check data integrity
+   */
+  private async checkDataIntegrity(documents: DocumentRecord[]): Promise<CorruptionIssue[]> {
+    const issues: CorruptionIssue[] = [];
+    const documentsWithInvalidData: string[] = [];
+    
+    for (const doc of documents) {
+      // Check for required fields
+      if (!doc.id || !doc.filePath || !doc.fileName || !doc.fileHash) {
+        documentsWithInvalidData.push(doc.id || 'unknown');
+      }
+      
+      // Check for valid timestamps
+      if (doc.indexedAt <= 0 || doc.indexedAt > Date.now() + 86400000) { // Allow 1 day future
+        documentsWithInvalidData.push(doc.id);
+      }
+      
+      // Check for valid page count
+      if (doc.pageCount <= 0) {
+        documentsWithInvalidData.push(doc.id);
+      }
+    }
+    
+    // Remove duplicates
+    const uniqueInvalid = [...new Set(documentsWithInvalidData)];
+    
+    if (uniqueInvalid.length > 0) {
+      issues.push({
+        type: 'data_inconsistency',
+        description: `${uniqueInvalid.length} document(s) have invalid or missing metadata`,
+        severity: 'warning',
+        affectedDocuments: uniqueInvalid,
+        affectedCount: uniqueInvalid.length,
+        canAutoRepair: false,
+        suggestedAction: 'Rebuild the index for affected documents',
+      });
+    }
+    
+    return issues;
+  }
+  
+  /**
+   * Build the corruption check result
+   */
+  private buildCorruptionResult(
+    issues: CorruptionIssue[],
+    documentsChecked: number,
+    chunksChecked: number
+  ): IndexCorruptionCheckResult {
+    const hasCritical = issues.some(i => i.severity === 'critical');
+    const hasError = issues.some(i => i.severity === 'error');
+    const isCorrupted = hasCritical || hasError;
+    const isHealthy = issues.length === 0;
+    const rebuildRecommended = hasCritical || issues.filter(i => i.severity === 'error').length >= 2;
+    
+    let summary: string;
+    if (isHealthy) {
+      summary = 'Index is healthy. No corruption detected.';
+    } else if (hasCritical) {
+      summary = `Critical corruption detected. ${issues.length} issue(s) found. Immediate rebuild recommended.`;
+    } else if (hasError) {
+      summary = `Index corruption detected. ${issues.length} issue(s) found. Rebuild recommended for affected documents.`;
+    } else {
+      summary = `Minor issues detected. ${issues.length} warning(s) found. Index is functional but may benefit from cleanup.`;
+    }
+    
+    return {
+      isCorrupted,
+      isHealthy,
+      issues,
+      checkedAt: Date.now(),
+      documentsChecked,
+      chunksChecked,
+      rebuildRecommended,
+      summary,
+    };
+  }
+  
+  /**
+   * Clean up orphaned chunks
+   * 
+   * Removes chunks that don't have corresponding document records.
+   * This is a safe operation that doesn't affect valid data.
+   */
+  async cleanupOrphanedChunks(): Promise<{ removed: number; errors: string[] }> {
+    const errors: string[] = [];
+    let removed = 0;
+    
+    try {
+      await this.ensureInitialized();
+      
+      if (!this.chunksTable || !this.documentsTable) {
+        return { removed: 0, errors: ['Tables not initialized'] };
+      }
+      
+      // Get all document IDs
+      const documents = await this.getAllDocuments();
+      const documentIds = new Set(documents.map(d => d.id));
+      
+      // Get all chunks
+      const allChunks = await this.chunksTable.query().toArray();
+      
+      // Find and delete orphaned chunks
+      for (const chunk of allChunks) {
+        if (!documentIds.has(chunk.documentId)) {
+          try {
+            await this.chunksTable.delete(`id = '${chunk.id}'`);
+            removed++;
+          } catch (error) {
+            errors.push(`Failed to delete chunk ${chunk.id}: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+      }
+      
+      console.log(`[VectorStore] Cleaned up ${removed} orphaned chunks`);
+      
+    } catch (error) {
+      console.error('[VectorStore] Error cleaning up orphaned chunks:', error);
+      errors.push(`Cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    return { removed, errors };
+  }
+  
+  /**
+   * Repair document chunk count metadata
+   * 
+   * Updates document records to have accurate chunk counts.
+   */
+  async repairChunkCounts(): Promise<{ repaired: number; errors: string[] }> {
+    const errors: string[] = [];
+    let repaired = 0;
+    
+    try {
+      await this.ensureInitialized();
+      
+      if (!this.documentsTable || !this.chunksTable) {
+        return { repaired: 0, errors: ['Tables not initialized'] };
+      }
+      
+      const documents = await this.getAllDocuments();
+      
+      for (const doc of documents) {
+        try {
+          const chunks = await this.getChunksForDocument(doc.id);
+          const actualCount = chunks.length;
+          
+          if (actualCount !== doc.chunkCount) {
+            await this.documentsTable.update({
+              where: `id = '${doc.id}'`,
+              values: { chunkCount: actualCount },
+            });
+            repaired++;
+            console.log(`[VectorStore] Repaired chunk count for ${doc.id}: ${doc.chunkCount} -> ${actualCount}`);
+          }
+        } catch (error) {
+          errors.push(`Failed to repair ${doc.id}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      
+      console.log(`[VectorStore] Repaired chunk counts for ${repaired} documents`);
+      
+    } catch (error) {
+      console.error('[VectorStore] Error repairing chunk counts:', error);
+      errors.push(`Repair failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    return { repaired, errors };
+  }
+  
+  /**
+   * Get documents that need rebuilding based on corruption check
+   */
+  async getDocumentsNeedingRebuild(): Promise<DocumentRecord[]> {
+    const corruptionResult = await this.checkIndexCorruption();
+    
+    if (corruptionResult.isHealthy) {
+      return [];
+    }
+    
+    // Collect all affected document IDs
+    const affectedIds = new Set<string>();
+    
+    for (const issue of corruptionResult.issues) {
+      if (issue.affectedDocuments) {
+        issue.affectedDocuments.forEach(id => affectedIds.add(id));
+      }
+    }
+    
+    // If critical issues, return all documents
+    if (corruptionResult.issues.some(i => i.severity === 'critical')) {
+      return this.getAllDocuments();
+    }
+    
+    // Return only affected documents
+    const allDocs = await this.getAllDocuments();
+    return allDocs.filter(doc => affectedIds.has(doc.id));
+  }
+  
+  /**
+   * Ensure initialized - expose for recovery operations
+   */
+  async ensureInitialized(): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+  }
 }
 
 // =============================================================================
@@ -883,7 +1536,7 @@ export class VectorStore implements IVectorStore {
 // =============================================================================
 
 /**
- * Singleton instance of the vector store
+ * Singleton instance of the vector store with recovery capabilities
  */
-export const vectorStore = new VectorStore();
+export const vectorStore = new VectorStoreWithRecovery();
 

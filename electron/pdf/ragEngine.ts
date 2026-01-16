@@ -507,10 +507,10 @@ export class RAGEngine implements IRAGEngine {
    * 
    * Orchestrates: query → retrieve → format context flow
    * 
-   * Implements Requirements 6.4, 7.9, 8.1
+   * Implements Requirements 6.4, 7.9, 8.1, 13.3, 13.4
    * 
    * @param query - User's query
-   * @param docIds - Document IDs to search
+   * @param docIds - Document IDs to search (supports multiple for cross-document retrieval)
    * @param options - Query options
    * @param context - Optional conversation context
    * @returns RAG response with answer placeholder and sources
@@ -545,12 +545,16 @@ export class RAGEngine implements IRAGEngine {
       };
     }
 
-    // Retrieve relevant chunks
+    // Retrieve relevant chunks from all specified documents
+    // This implements cross-document retrieval (Requirement 13.3)
     const retrievalResult = await this.retrieval.retrieveWithConfidence(
       processedQuery,
       docIds,
       queryOpts
     );
+
+    // Build document name map for proper citation display (Requirement 13.4)
+    const documentNameMap = await this.buildDocumentNameMap(docIds, retrievalResult.results);
 
     // Build context for AI
     const contextOptions: ContextBuildOptions = {
@@ -562,8 +566,8 @@ export class RAGEngine implements IRAGEngine {
     
     const builtContext = this.buildContext(retrievalResult.results, contextOptions);
 
-    // Build citations from sources
-    const citations = this.buildCitations(builtContext.includedSources);
+    // Build citations from sources with document names
+    const citations = this.buildCitations(builtContext.includedSources, documentNameMap);
 
     // Return RAG response (answer will be filled by AI provider)
     return {
@@ -576,15 +580,64 @@ export class RAGEngine implements IRAGEngine {
   }
 
   /**
+   * Build a map of document IDs to document names
+   * 
+   * Implements Requirement 13.4: Include document identifier in retrieval results
+   * 
+   * @param docIds - Document IDs to look up
+   * @param results - Retrieval results (to get additional document IDs from chunks)
+   * @returns Map of document ID to document name
+   */
+  private async buildDocumentNameMap(
+    docIds: string[],
+    results: RetrievalResult[]
+  ): Promise<Map<string, string>> {
+    const documentNameMap = new Map<string, string>();
+    
+    // Collect all unique document IDs from both input and results
+    const allDocIds = new Set<string>(docIds);
+    for (const result of results) {
+      allDocIds.add(result.chunk.documentId);
+    }
+
+    // Fetch document records from vector store
+    for (const docId of allDocIds) {
+      try {
+        const docRecord = await this.vecStore.getDocument(docId);
+        if (docRecord) {
+          // Use fileName as the display name
+          documentNameMap.set(docId, docRecord.fileName);
+        } else {
+          // Try to get from loaded documents in parser
+          const loadedDocs = (this.pdfParser as any).loadedDocuments;
+          const loadedDoc = loadedDocs?.get(docId);
+          if (loadedDoc?.document) {
+            documentNameMap.set(docId, loadedDoc.document.fileName);
+          }
+        }
+      } catch (error) {
+        console.warn('[RAGEngine] Could not get document name for:', docId, error);
+      }
+    }
+
+    return documentNameMap;
+  }
+
+  /**
    * Build context string for AI prompt from retrieval results
    * 
-   * Implements Requirements 7.9, 8.1
+   * Implements Requirements 7.9, 8.1, 13.4
    * 
    * @param results - Retrieval results
    * @param options - Context building options
+   * @param documentNameMap - Optional map of document IDs to names for cross-document scenarios
    * @returns Built context with citation mapping
    */
-  buildContext(results: RetrievalResult[], options: ContextBuildOptions = DEFAULT_CONTEXT_OPTIONS): BuiltContext {
+  buildContext(
+    results: RetrievalResult[], 
+    options: ContextBuildOptions = DEFAULT_CONTEXT_OPTIONS,
+    documentNameMap?: Map<string, string>
+  ): BuiltContext {
     const { maxTokens, maxSources, includeCitationMarkers, format } = options;
     
     const includedSources: RetrievalResult[] = [];
@@ -617,7 +670,8 @@ export class RAGEngine implements IRAGEngine {
             chunk,
             citationMarker,
             format,
-            i + 1
+            i + 1,
+            documentNameMap
           ));
           
           citationMap.set(chunk.id, citationMarker);
@@ -637,7 +691,8 @@ export class RAGEngine implements IRAGEngine {
         chunk,
         citationMarker,
         format,
-        i + 1
+        i + 1,
+        documentNameMap
       ));
       
       citationMap.set(chunk.id, citationMarker);
@@ -665,13 +720,16 @@ export class RAGEngine implements IRAGEngine {
 
   /**
    * Format a chunk for inclusion in context
+   * 
+   * Implements Requirement 13.4: Include document identifier in results
    */
   private formatChunkForContext(
     content: string,
     chunk: Chunk,
     citationMarker: string,
     format: 'plain' | 'markdown' | 'structured',
-    sourceIndex: number
+    sourceIndex: number,
+    documentNameMap?: Map<string, string>
   ): string {
     const pageInfo = chunk.metadata.pageNumbers.length > 0
       ? `Page ${chunk.metadata.pageNumbers.join(', ')}`
@@ -681,25 +739,47 @@ export class RAGEngine implements IRAGEngine {
       ? ` - ${chunk.metadata.sectionHeader}`
       : '';
 
+    // Get document name for cross-document scenarios
+    const docName = documentNameMap?.get(chunk.documentId) || chunk.documentId.substring(0, 20);
+    const docInfo = documentNameMap && documentNameMap.size > 1 
+      ? ` from "${docName}"`
+      : '';
+
     if (format === 'markdown') {
-      return `**Source ${sourceIndex}** (${pageInfo}${sectionInfo}) ${citationMarker}\n\n${content}`;
+      return `**Source ${sourceIndex}** (${pageInfo}${sectionInfo}${docInfo}) ${citationMarker}\n\n${content}`;
     } else if (format === 'structured') {
-      return `[Source ${sourceIndex}] ${pageInfo}${sectionInfo}\nCitation: ${citationMarker}\nContent: ${content}`;
+      return `[Source ${sourceIndex}] ${pageInfo}${sectionInfo}${docInfo}\nCitation: ${citationMarker}\nContent: ${content}`;
     } else {
-      return `Source ${sourceIndex} (${pageInfo}${sectionInfo}): ${content} ${citationMarker}`;
+      return `Source ${sourceIndex} (${pageInfo}${sectionInfo}${docInfo}): ${content} ${citationMarker}`;
     }
   }
 
   /**
    * Build citations from retrieval results
+   * 
+   * Implements Requirements 13.3, 13.4: Include document identifier in results
+   * 
+   * @param sources - Retrieval results
+   * @param documentNameMap - Map of document IDs to document names
    */
-  private buildCitations(sources: RetrievalResult[]): Citation[] {
+  private buildCitations(
+    sources: RetrievalResult[], 
+    documentNameMap?: Map<string, string>
+  ): Citation[] {
     return sources.map((source, index) => {
       const chunk = source.chunk;
       const pageNumber = chunk.metadata.pageNumbers[0] || 1;
       
-      // Get document name from chunk ID or use placeholder
-      const docName = chunk.documentId.substring(0, 20);
+      // Get document name from map, or fall back to document ID
+      // This ensures cross-document retrieval includes proper document identifiers
+      let docName = documentNameMap?.get(chunk.documentId);
+      if (!docName) {
+        // Fallback: try to extract a meaningful name from the document ID
+        // Document IDs are typically UUIDs or file-based identifiers
+        docName = chunk.documentId.includes('/') || chunk.documentId.includes('\\')
+          ? chunk.documentId.split(/[/\\]/).pop() || chunk.documentId
+          : chunk.documentId.substring(0, 20);
+      }
       
       // Extract a short quote from the content
       const quotedText = chunk.content.substring(0, 150) + 
@@ -712,6 +792,7 @@ export class RAGEngine implements IRAGEngine {
         boundingBoxes: chunk.metadata.boundingBoxes,
         quotedText,
         chunkId: chunk.id,
+        documentId: chunk.documentId, // Include document ID for cross-document scenarios
       };
     });
   }
@@ -878,10 +959,81 @@ export class RAGEngine implements IRAGEngine {
   }
 
   /**
+   * Get effective settings for a document
+   * 
+   * Merges global settings with per-document overrides.
+   * Per-document settings take precedence when enabled.
+   * 
+   * Implements Requirement 16.7: Support per-collection retrieval settings
+   * 
+   * @param docId - Document ID
+   * @param documentSettings - Per-document settings (if available)
+   * @returns Merged settings
+   */
+  getEffectiveSettings(
+    docId: string,
+    documentSettings?: import('../../src/types/pdf').DocumentRetrievalSettings | null
+  ): PDFRAGSettings {
+    // If no per-document settings or not enabled, return global settings
+    if (!documentSettings || !documentSettings.enabled) {
+      return { ...this.settings };
+    }
+
+    // Merge per-document overrides with global settings
+    const effective: PDFRAGSettings = { ...this.settings };
+
+    // Apply chunking overrides
+    if (documentSettings.chunkSize !== undefined) {
+      effective.chunkSize = documentSettings.chunkSize;
+    }
+    if (documentSettings.chunkOverlap !== undefined) {
+      effective.chunkOverlap = documentSettings.chunkOverlap;
+    }
+    if (documentSettings.chunkingStrategy !== undefined) {
+      effective.chunkingStrategy = documentSettings.chunkingStrategy;
+    }
+
+    // Apply retrieval overrides
+    if (documentSettings.topK !== undefined) {
+      effective.topK = documentSettings.topK;
+    }
+    if (documentSettings.minConfidenceScore !== undefined) {
+      effective.minConfidenceScore = documentSettings.minConfidenceScore;
+    }
+    if (documentSettings.useHybridSearch !== undefined) {
+      effective.useHybridSearch = documentSettings.useHybridSearch;
+    }
+    if (documentSettings.hybridAlpha !== undefined) {
+      effective.hybridAlpha = documentSettings.hybridAlpha;
+    }
+    if (documentSettings.useReranker !== undefined) {
+      effective.useReranker = documentSettings.useReranker;
+    }
+    if (documentSettings.maxSourcesInContext !== undefined) {
+      effective.maxSourcesInContext = documentSettings.maxSourcesInContext;
+    }
+
+    // Apply grounding overrides
+    if (documentSettings.groundedModeEnabled !== undefined) {
+      effective.groundedModeEnabled = documentSettings.groundedModeEnabled;
+    }
+    if (documentSettings.showLowConfidenceWarning !== undefined) {
+      effective.showLowConfidenceWarning = documentSettings.showLowConfidenceWarning;
+    }
+    if (documentSettings.lowConfidenceThreshold !== undefined) {
+      effective.lowConfidenceThreshold = documentSettings.lowConfidenceThreshold;
+    }
+
+    return effective;
+  }
+
+  /**
    * Get context string for a query (for external use)
    * 
    * This method retrieves relevant chunks and builds a context string
    * that can be used in AI prompts.
+   * 
+   * Implements Requirements 13.3, 13.4 for cross-document retrieval
    */
   async getContextForQuery(
     query: string,
@@ -894,6 +1046,7 @@ export class RAGEngine implements IRAGEngine {
     confidence: number;
     isLowConfidence: boolean;
     warning?: string;
+    documentNameMap?: Map<string, string>;
   }> {
     // Ensure vector store is initialized
     await this.vecStore.initialize();
@@ -919,12 +1072,15 @@ export class RAGEngine implements IRAGEngine {
       };
     }
 
-    // Retrieve with confidence
+    // Retrieve with confidence from all specified documents
     const retrievalResult = await this.retrieval.retrieveWithConfidence(
       processedQuery,
       docIds,
       queryOpts
     );
+
+    // Build document name map for cross-document scenarios
+    const documentNameMap = await this.buildDocumentNameMap(docIds, retrievalResult.results);
 
     // Build context
     const contextOptions: ContextBuildOptions = {
@@ -942,7 +1098,236 @@ export class RAGEngine implements IRAGEngine {
       confidence: retrievalResult.confidence,
       isLowConfidence: retrievalResult.isLowConfidence,
       warning: retrievalResult.warning,
+      documentNameMap,
     };
+  }
+
+  // ===========================================================================
+  // Section-Aware Summarization
+  // ===========================================================================
+
+  /**
+   * Get major sections from a document
+   * 
+   * Implements Requirement 12.2: Extract document outline/table of contents
+   * 
+   * @param docId - Document ID
+   * @returns Array of major sections
+   */
+  async getMajorSections(docId: string): Promise<import('../../src/types/pdf').MajorSection[]> {
+    return this.pdfParser.getMajorSections(docId);
+  }
+
+  /**
+   * Generate a summary for a specific section of the document
+   * 
+   * Implements Requirement 12.3: Section-by-section summarization
+   * 
+   * @param docId - Document ID
+   * @param section - Section to summarize
+   * @returns Section summary with citations
+   */
+  async summarizeSection(
+    docId: string,
+    section: import('../../src/types/pdf').MajorSection
+  ): Promise<import('../../src/types/pdf').SectionSummary> {
+    // Ensure vector store is initialized
+    await this.vecStore.initialize();
+
+    // Retrieve chunks for this section using page filter
+    const queryOpts: QueryOptions = {
+      topK: 10, // Get more chunks for summarization
+      minScore: 0.3, // Lower threshold for summarization
+      useHybrid: this.settings.useHybridSearch,
+      useReranker: false, // Don't rerank for summarization
+      pageFilter: {
+        start: section.startPage,
+        end: section.endPage > 0 ? section.endPage : section.startPage + 50, // Handle -1 end page
+      },
+    };
+
+    // Use section title as query to get relevant chunks
+    const retrievalResult = await this.retrieval.retrieveWithConfidence(
+      `Summary of ${section.title}`,
+      [docId],
+      queryOpts
+    );
+
+    // Build context from retrieved chunks
+    const contextOptions: ContextBuildOptions = {
+      maxTokens: 3000,
+      maxSources: 8,
+      includeCitationMarkers: true,
+      format: 'markdown',
+    };
+
+    const builtContext = this.buildContext(retrievalResult.results, contextOptions);
+
+    // Build citations for this section
+    const citations = this.buildCitations(builtContext.includedSources);
+
+    // Return section summary structure (content will be filled by AI)
+    return {
+      sectionTitle: section.title,
+      startPage: section.startPage,
+      endPage: section.endPage,
+      level: section.level,
+      content: '', // To be filled by AI provider
+      citations,
+      sources: builtContext.includedSources,
+      contextString: builtContext.contextString,
+    };
+  }
+
+  /**
+   * Generate section-by-section summaries for a document
+   * 
+   * Implements Requirements 12.1, 12.3, 12.4:
+   * - 12.1: Generate document summary
+   * - 12.3: Section-by-section summarization
+   * - 12.4: Include section citations in summary
+   * 
+   * @param docId - Document ID
+   * @param options - Summarization options
+   * @returns Document summary with section summaries and citations
+   */
+  async generateDocumentSummary(
+    docId: string,
+    options: {
+      maxSectionsToSummarize?: number;
+      includeSubsections?: boolean;
+    } = {}
+  ): Promise<import('../../src/types/pdf').DocumentSummary> {
+    const { maxSectionsToSummarize = 20, includeSubsections = false } = options;
+
+    // Step 1: Get major sections (Requirement 12.2)
+    const sections = await this.getMajorSections(docId);
+    
+    if (sections.length === 0) {
+      // If no sections found, create a single "full document" section
+      const docInfo = await this.getDocumentInfo(docId);
+      const fullDocSection: import('../../src/types/pdf').MajorSection = {
+        title: 'Full Document',
+        startPage: 1,
+        endPage: docInfo?.pageCount || 100,
+        level: 0,
+        subsections: [],
+        isTopLevel: true,
+      };
+      sections.push(fullDocSection);
+    }
+
+    // Step 2: Flatten sections if including subsections
+    let sectionsToSummarize: import('../../src/types/pdf').MajorSection[] = [];
+    
+    if (includeSubsections) {
+      const flattenSections = (
+        secs: import('../../src/types/pdf').MajorSection[]
+      ): import('../../src/types/pdf').MajorSection[] => {
+        const result: import('../../src/types/pdf').MajorSection[] = [];
+        for (const sec of secs) {
+          result.push(sec);
+          if (sec.subsections && sec.subsections.length > 0) {
+            result.push(...flattenSections(sec.subsections));
+          }
+        }
+        return result;
+      };
+      sectionsToSummarize = flattenSections(sections);
+    } else {
+      // Only top-level sections
+      sectionsToSummarize = sections.filter(s => s.isTopLevel);
+    }
+
+    // Limit number of sections
+    sectionsToSummarize = sectionsToSummarize.slice(0, maxSectionsToSummarize);
+
+    // Step 3: Generate summary for each section (Requirement 12.3)
+    const sectionSummaries: import('../../src/types/pdf').SectionSummary[] = [];
+    
+    for (const section of sectionsToSummarize) {
+      try {
+        const summary = await this.summarizeSection(docId, section);
+        sectionSummaries.push(summary);
+      } catch (error) {
+        console.warn(`[RAGEngine] Failed to summarize section "${section.title}":`, error);
+        // Add placeholder for failed section
+        sectionSummaries.push({
+          sectionTitle: section.title,
+          startPage: section.startPage,
+          endPage: section.endPage,
+          level: section.level,
+          content: `[Unable to summarize section: ${section.title}]`,
+          citations: [],
+          sources: [],
+          contextString: '',
+        });
+      }
+    }
+
+    // Step 4: Collect all citations (Requirement 12.4)
+    const allCitations: import('../../src/types/pdf').Citation[] = [];
+    const seenChunkIds = new Set<string>();
+    
+    for (const summary of sectionSummaries) {
+      for (const citation of summary.citations) {
+        if (!seenChunkIds.has(citation.chunkId)) {
+          seenChunkIds.add(citation.chunkId);
+          allCitations.push(citation);
+        }
+      }
+    }
+
+    // Get document info for the summary
+    const docInfo = await this.getDocumentInfo(docId);
+
+    return {
+      documentId: docId,
+      documentName: docInfo?.fileName || docId,
+      pageCount: docInfo?.pageCount || 0,
+      sectionCount: sectionsToSummarize.length,
+      sectionSummaries,
+      overallSummary: '', // To be filled by combining section summaries
+      citations: allCitations,
+      generatedAt: Date.now(),
+    };
+  }
+
+  /**
+   * Get document info from loaded documents or vector store
+   * 
+   * @param docId - Document ID
+   * @returns Document info or null
+   */
+  private async getDocumentInfo(docId: string): Promise<{
+    fileName: string;
+    pageCount: number;
+  } | null> {
+    // Try loaded documents first
+    const loadedDocs = (this.pdfParser as any).loadedDocuments;
+    const loadedDoc = loadedDocs?.get(docId);
+    
+    if (loadedDoc?.document) {
+      return {
+        fileName: loadedDoc.document.fileName,
+        pageCount: loadedDoc.document.pageCount,
+      };
+    }
+
+    // Try vector store
+    try {
+      const docRecord = await this.vecStore.getDocument(docId);
+      if (docRecord) {
+        return {
+          fileName: docRecord.fileName,
+          pageCount: docRecord.pageCount,
+        };
+      }
+    } catch (error) {
+      console.warn('[RAGEngine] Could not get document info:', error);
+    }
+
+    return null;
   }
 }
 

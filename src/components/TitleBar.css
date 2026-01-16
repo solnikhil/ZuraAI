@@ -139,22 +139,18 @@
 .app-titlebar__commandbar-field {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 28px;
-    padding: 0 10px;
+    gap: 10px;
+    height: 32px;
+    padding: 0 12px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .app-titlebar__commandbar-field--focused {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
-    box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.08),
-        0 0 0 4px rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
 .app-titlebar__commandbar-icon {
@@ -212,13 +208,14 @@
 
 .app-titlebar__commandbar-hint {
     font-size: 0.7rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--theme-text-muted);
-    padding: 3px 7px;
+    padding: 4px 8px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
     flex-shrink: 0;
+    white-space: nowrap;
 }
 
 /* === COMMAND BAR DROPDOWN - Premium Redesign === */
@@ -426,8 +423,8 @@
 
 
 .app-titlebar--compact .app-titlebar__commandbar-field {
-    height: 26px;
-    border-radius: 9px;
+    height: 30px;
+    border-radius: 10px;
 }
 
 .app-titlebar--compact .app-titlebar__commandbar-dropdown {

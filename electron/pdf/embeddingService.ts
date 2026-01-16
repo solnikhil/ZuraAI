@@ -12,11 +12,21 @@
  * - Batch embedding generation
  * - Rate limiting for API calls
  * - Automatic fallback handling
+ * - Model caching and offline support (Requirement 21.7)
  * 
- * Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 19.4
+ * Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.7, 19.4
  */
 
-import type { EmbeddingModelInfo } from '../../src/types/pdf';
+import type { 
+  EmbeddingModelInfo, 
+  ModelCacheStatus, 
+  AllModelsStatus, 
+  ModelDownloadResult, 
+  ModelCheckOptions,
+  EmbeddingFallbackState,
+  EmbeddingFallbackReason,
+  EmbeddingFallbackNotification,
+} from '../../src/types/pdf';
 import type {
   IEmbeddingService,
   EmbeddingRequest,
@@ -557,9 +567,826 @@ export class EmbeddingService implements IEmbeddingService {
   clearAvailabilityCache(): void {
     this.modelAvailabilityCache.clear();
   }
+
+  /**
+   * Check if switching to a new model would require re-indexing
+   * 
+   * Implements Requirement 21.6: Handle embedding model changes
+   * 
+   * @param newModelId - The model ID to switch to
+   * @param documentEmbeddingModel - The model used to index the document
+   * @returns Model change information including whether re-indexing is required
+   */
+  checkModelChange(newModelId: string, documentEmbeddingModel?: string): ModelChangeInfo {
+    const newModelInfo = this.getModelInfoById(newModelId);
+    const currentDimensions = newModelInfo.dimensions;
+    
+    // If no document model provided, just return current model info
+    if (!documentEmbeddingModel) {
+      return {
+        hasChanged: false,
+        currentModelId: newModelId,
+        requiresReindex: false,
+        currentDimensions,
+      };
+    }
+    
+    const previousModelInfo = this.getModelInfoById(documentEmbeddingModel);
+    const previousDimensions = previousModelInfo.dimensions;
+    
+    const hasChanged = newModelId !== documentEmbeddingModel;
+    const requiresReindex = hasChanged && previousDimensions !== currentDimensions;
+    
+    return {
+      hasChanged,
+      previousModelId: documentEmbeddingModel,
+      currentModelId: newModelId,
+      requiresReindex,
+      previousDimensions,
+      currentDimensions,
+    };
+  }
+
+  /**
+   * Get the current model ID
+   */
+  getCurrentModelId(): string {
+    return this.currentModelId;
+  }
+}
+
+/**
+ * Check if two embedding models are compatible (same dimensions)
+ * 
+ * @param modelId1 - First model ID
+ * @param modelId2 - Second model ID
+ * @returns Whether the models have compatible dimensions
+ */
+export function areModelsCompatible(modelId1: string, modelId2: string): boolean {
+  const model1 = EMBEDDING_MODELS.find(m => m.id === modelId1);
+  const model2 = EMBEDDING_MODELS.find(m => m.id === modelId2);
+  
+  if (!model1 || !model2) {
+    return false;
+  }
+  
+  return model1.dimensions === model2.dimensions;
+}
+
+/**
+ * Get model info by ID (exported for external use)
+ * 
+ * @param modelId - Model ID to look up
+ * @returns Model info or undefined if not found
+ */
+export function getEmbeddingModelById(modelId: string): EmbeddingModelInfo | undefined {
+  return EMBEDDING_MODELS.find(m => m.id === modelId);
+}
+
+/**
+ * Model change detection result
+ */
+export interface ModelChangeInfo {
+  /** Whether the model has changed */
+  hasChanged: boolean;
+  /** Previous model ID (if available) */
+  previousModelId?: string;
+  /** Current model ID */
+  currentModelId: string;
+  /** Whether re-indexing is required (dimensions differ) */
+  requiresReindex: boolean;
+  /** Previous model dimensions */
+  previousDimensions?: number;
+  /** Current model dimensions */
+  currentDimensions: number;
 }
 
 /**
  * Singleton instance of the embedding service
  */
 export const embeddingService = new EmbeddingService();
+
+// =============================================================================
+// Embedding Fallback Support (Requirement 18.2)
+// =============================================================================
+
+/**
+ * Embedding Fallback Manager
+ * 
+ * Tracks embedding availability and manages fallback state.
+ * When embeddings are unavailable, the system falls back to BM25-only search.
+ * 
+ * Implements Requirement 18.2: Fall back to BM25 when embeddings unavailable
+ */
+export class EmbeddingFallbackManager {
+  private state: EmbeddingFallbackState;
+  private readonly maxFailuresBeforeFallback = 3;
+  private readonly recoveryCheckIntervalMs = 30000; // 30 seconds
+  private recoveryCheckTimer: NodeJS.Timeout | null = null;
+  private onStateChangeCallback?: (state: EmbeddingFallbackState) => void;
+
+  constructor() {
+    this.state = {
+      isActive: false,
+      failureCount: 0,
+      canRecover: true,
+    };
+  }
+
+  /**
+   * Get the current fallback state
+   */
+  getState(): EmbeddingFallbackState {
+    return { ...this.state };
+  }
+
+  /**
+   * Check if fallback mode is active
+   */
+  isInFallbackMode(): boolean {
+    return this.state.isActive;
+  }
+
+  /**
+   * Record an embedding failure
+   * 
+   * @param error - The error that occurred
+   * @param reason - The reason for the failure
+   */
+  recordFailure(error: Error | string, reason: EmbeddingFallbackReason = 'generation_failed'): void {
+    const errorMessage = error instanceof Error ? error.message : error;
+    
+    this.state.failureCount++;
+    this.state.lastError = errorMessage;
+
+    console.warn(`[EmbeddingFallbackManager] Embedding failure #${this.state.failureCount}: ${errorMessage}`);
+
+    // Activate fallback mode after max failures
+    if (this.state.failureCount >= this.maxFailuresBeforeFallback && !this.state.isActive) {
+      this.activateFallback(reason, errorMessage);
+    }
+  }
+
+  /**
+   * Activate fallback mode
+   * 
+   * @param reason - Reason for activating fallback
+   * @param errorMessage - Optional error message
+   */
+  activateFallback(reason: EmbeddingFallbackReason, errorMessage?: string): void {
+    const message = this.getFallbackMessage(reason, errorMessage);
+    
+    this.state = {
+      isActive: true,
+      reason,
+      message,
+      activatedAt: Date.now(),
+      failureCount: this.state.failureCount,
+      lastError: errorMessage || this.state.lastError,
+      canRecover: this.canRecoverFromReason(reason),
+    };
+
+    console.warn(`[EmbeddingFallbackManager] Fallback mode activated: ${reason} - ${message}`);
+    
+    // Start recovery check timer if recovery is possible
+    if (this.state.canRecover) {
+      this.startRecoveryChecks();
+    }
+
+    // Notify listeners
+    this.onStateChangeCallback?.(this.state);
+  }
+
+  /**
+   * Deactivate fallback mode (recovery successful)
+   */
+  deactivateFallback(): void {
+    if (!this.state.isActive) return;
+
+    console.log('[EmbeddingFallbackManager] Fallback mode deactivated - embeddings recovered');
+    
+    this.state = {
+      isActive: false,
+      failureCount: 0,
+      canRecover: true,
+    };
+
+    this.stopRecoveryChecks();
+    this.onStateChangeCallback?.(this.state);
+  }
+
+  /**
+   * Record a successful embedding operation
+   * Resets failure count and potentially deactivates fallback
+   */
+  recordSuccess(): void {
+    if (this.state.isActive) {
+      // If we were in fallback mode and now succeeded, deactivate
+      this.deactivateFallback();
+    } else {
+      // Reset failure count on success
+      this.state.failureCount = 0;
+    }
+  }
+
+  /**
+   * Attempt recovery from fallback mode
+   * 
+   * @returns Whether recovery was successful
+   */
+  async attemptRecovery(): Promise<boolean> {
+    if (!this.state.isActive || !this.state.canRecover) {
+      return false;
+    }
+
+    this.state.lastRecoveryAttempt = Date.now();
+    console.log('[EmbeddingFallbackManager] Attempting recovery from fallback mode...');
+
+    try {
+      // Check if the current embedding model is available
+      const isAvailable = await embeddingService.isModelAvailable(
+        embeddingService.getCurrentModelId()
+      );
+
+      if (isAvailable) {
+        // Try a test embedding to verify it works
+        const testEmbedding = await embeddingService.generateEmbedding('test');
+        
+        if (testEmbedding && testEmbedding.length > 0) {
+          this.deactivateFallback();
+          return true;
+        }
+      }
+    } catch (error) {
+      console.warn('[EmbeddingFallbackManager] Recovery attempt failed:', error);
+    }
+
+    return false;
+  }
+
+  /**
+   * Set callback for state changes
+   */
+  onStateChange(callback: (state: EmbeddingFallbackState) => void): void {
+    this.onStateChangeCallback = callback;
+  }
+
+  /**
+   * Create a notification for the UI
+   */
+  createNotification(): EmbeddingFallbackNotification | null {
+    if (!this.state.isActive) {
+      return null;
+    }
+
+    const notification: EmbeddingFallbackNotification = {
+      type: 'warning',
+      title: 'Using Keyword Search Only',
+      message: this.state.message || 'Semantic search is temporarily unavailable. Results are based on keyword matching only.',
+      dismissible: true,
+      timestamp: Date.now(),
+    };
+
+    // Add action based on reason
+    if (this.state.reason === 'model_unavailable') {
+      notification.action = {
+        label: 'Configure Embedding Model',
+        actionType: 'configure',
+      };
+    } else if (this.state.canRecover) {
+      notification.action = {
+        label: 'Retry',
+        actionType: 'retry',
+      };
+    }
+
+    return notification;
+  }
+
+  /**
+   * Get human-readable message for fallback reason
+   */
+  private getFallbackMessage(reason: EmbeddingFallbackReason, errorMessage?: string): string {
+    switch (reason) {
+      case 'model_unavailable':
+        return 'The embedding model is not available. Please check that Ollama is running or configure an API key for cloud embeddings.';
+      case 'generation_failed':
+        return `Embedding generation failed${errorMessage ? `: ${errorMessage}` : ''}. Using keyword search as fallback.`;
+      case 'rate_limited':
+        return 'API rate limit exceeded. Using keyword search while waiting for rate limit to reset.';
+      case 'model_loading':
+        return 'The embedding model is still loading. Using keyword search temporarily.';
+      case 'dimension_mismatch':
+        return 'Embedding dimensions do not match the indexed documents. Please re-index the documents or switch to a compatible model.';
+      default:
+        return 'Semantic search is temporarily unavailable. Using keyword search as fallback.';
+    }
+  }
+
+  /**
+   * Check if recovery is possible for a given reason
+   */
+  private canRecoverFromReason(reason: EmbeddingFallbackReason): boolean {
+    switch (reason) {
+      case 'dimension_mismatch':
+        // Dimension mismatch requires re-indexing, not automatic recovery
+        return false;
+      case 'model_unavailable':
+      case 'generation_failed':
+      case 'rate_limited':
+      case 'model_loading':
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * Start periodic recovery checks
+   */
+  private startRecoveryChecks(): void {
+    if (this.recoveryCheckTimer) {
+      return;
+    }
+
+    this.recoveryCheckTimer = setInterval(async () => {
+      if (this.state.isActive && this.state.canRecover) {
+        await this.attemptRecovery();
+      }
+    }, this.recoveryCheckIntervalMs);
+  }
+
+  /**
+   * Stop periodic recovery checks
+   */
+  private stopRecoveryChecks(): void {
+    if (this.recoveryCheckTimer) {
+      clearInterval(this.recoveryCheckTimer);
+      this.recoveryCheckTimer = null;
+    }
+  }
+
+  /**
+   * Clean up resources
+   */
+  dispose(): void {
+    this.stopRecoveryChecks();
+    this.onStateChangeCallback = undefined;
+  }
+}
+
+/**
+ * Singleton instance of the fallback manager
+ */
+export const embeddingFallbackManager = new EmbeddingFallbackManager();
+
+/**
+ * Wrapper function to generate embeddings with fallback support
+ * 
+ * Implements Requirement 18.2: Fall back to BM25 when embeddings unavailable
+ * 
+ * @param text - Text to embed
+ * @returns Embedding vector or null if fallback mode is active
+ */
+export async function generateEmbeddingWithFallback(text: string): Promise<number[] | null> {
+  // If already in fallback mode, return null immediately
+  if (embeddingFallbackManager.isInFallbackMode()) {
+    return null;
+  }
+
+  try {
+    const embedding = await embeddingService.generateEmbedding(text);
+    embeddingFallbackManager.recordSuccess();
+    return embedding;
+  } catch (error: any) {
+    // Determine the reason for failure
+    let reason: EmbeddingFallbackReason = 'generation_failed';
+    
+    if (error.message?.includes('not available') || error.message?.includes('not running')) {
+      reason = 'model_unavailable';
+    } else if (error.message?.includes('rate limit')) {
+      reason = 'rate_limited';
+    } else if (error.message?.includes('timeout') || error.message?.includes('timed out')) {
+      reason = 'generation_failed';
+    }
+
+    embeddingFallbackManager.recordFailure(error, reason);
+    return null;
+  }
+}
+
+/**
+ * Wrapper function to generate batch embeddings with fallback support
+ * 
+ * Implements Requirement 18.2: Fall back to BM25 when embeddings unavailable
+ * 
+ * @param texts - Array of texts to embed
+ * @returns Array of embedding vectors or null if fallback mode is active
+ */
+export async function generateEmbeddingsWithFallback(texts: string[]): Promise<number[][] | null> {
+  // If already in fallback mode, return null immediately
+  if (embeddingFallbackManager.isInFallbackMode()) {
+    return null;
+  }
+
+  try {
+    const embeddings = await embeddingService.generateEmbeddings(texts);
+    embeddingFallbackManager.recordSuccess();
+    return embeddings;
+  } catch (error: any) {
+    // Determine the reason for failure
+    let reason: EmbeddingFallbackReason = 'generation_failed';
+    
+    if (error.message?.includes('not available') || error.message?.includes('not running')) {
+      reason = 'model_unavailable';
+    } else if (error.message?.includes('rate limit')) {
+      reason = 'rate_limited';
+    }
+
+    embeddingFallbackManager.recordFailure(error, reason);
+    return null;
+  }
+}
+
+/**
+ * Check embedding availability and update fallback state
+ * 
+ * @returns Whether embeddings are available
+ */
+export async function checkEmbeddingAvailability(): Promise<boolean> {
+  try {
+    const modelId = embeddingService.getCurrentModelId();
+    const isAvailable = await embeddingService.isModelAvailable(modelId);
+    
+    if (!isAvailable) {
+      embeddingFallbackManager.activateFallback('model_unavailable');
+      return false;
+    }
+
+    // If we were in fallback mode and model is now available, try recovery
+    if (embeddingFallbackManager.isInFallbackMode()) {
+      const recovered = await embeddingFallbackManager.attemptRecovery();
+      return recovered;
+    }
+
+    return true;
+  } catch (error: any) {
+    embeddingFallbackManager.recordFailure(error, 'model_unavailable');
+    return false;
+  }
+}
+
+// =============================================================================
+// Model Caching Functions (Requirement 21.7)
+// =============================================================================
+
+/**
+ * Get the cache status for a specific embedding model
+ * 
+ * Implements Requirement 21.7: Cache downloaded models locally, support offline use
+ * 
+ * @param modelId - ID of the model to check
+ * @param options - Options for the check
+ * @returns Model cache status
+ */
+export async function getModelCacheStatus(
+  modelId: string,
+  options: ModelCheckOptions = {}
+): Promise<ModelCacheStatus> {
+  const modelInfo = getEmbeddingModelById(modelId);
+  
+  if (!modelInfo) {
+    return {
+      modelId,
+      modelName: modelId,
+      provider: 'local',
+      isAvailable: false,
+      isCached: false,
+      isDownloading: false,
+      lastCheckedAt: Date.now(),
+      errorMessage: `Unknown model: ${modelId}`,
+      requiresApiKey: false,
+    };
+  }
+
+  const status: ModelCacheStatus = {
+    modelId,
+    modelName: modelInfo.name,
+    provider: modelInfo.provider,
+    isAvailable: false,
+    isCached: false,
+    isDownloading: false,
+    lastCheckedAt: Date.now(),
+    requiresApiKey: modelInfo.provider !== 'local',
+  };
+
+  try {
+    if (modelInfo.provider === 'local') {
+      // For local models (Ollama), check if the model is installed
+      const ollamaStatus = await checkOllamaModelStatus(modelId, options);
+      status.isAvailable = ollamaStatus.isAvailable;
+      status.isCached = ollamaStatus.isCached;
+      status.isDownloading = ollamaStatus.isDownloading;
+      status.downloadProgress = ollamaStatus.downloadProgress;
+      status.cacheSizeBytes = ollamaStatus.cacheSizeBytes;
+      status.errorMessage = ollamaStatus.errorMessage;
+    } else if (modelInfo.provider === 'openai') {
+      // For OpenAI, check if API key is configured
+      const apiKey = getSecureValue('openRouterApiKey');
+      status.hasApiKey = !!apiKey && apiKey.startsWith('sk-');
+      status.isAvailable = status.hasApiKey;
+      status.isCached = true; // API models don't need local caching
+      if (!status.hasApiKey) {
+        status.errorMessage = 'OpenAI API key not configured';
+      }
+    } else if (modelInfo.provider === 'voyage') {
+      // For Voyage AI, check if API key is configured
+      const apiKey = getSecureValue('voyageApiKey');
+      status.hasApiKey = !!apiKey;
+      status.isAvailable = status.hasApiKey;
+      status.isCached = true; // API models don't need local caching
+      if (!status.hasApiKey) {
+        status.errorMessage = 'Voyage AI API key not configured';
+      }
+    }
+  } catch (error: any) {
+    status.errorMessage = error.message || 'Failed to check model status';
+  }
+
+  return status;
+}
+
+/**
+ * Check Ollama model status including cache information
+ */
+async function checkOllamaModelStatus(
+  modelId: string,
+  options: ModelCheckOptions = {}
+): Promise<{
+  isAvailable: boolean;
+  isCached: boolean;
+  isDownloading: boolean;
+  downloadProgress?: number;
+  cacheSizeBytes?: number;
+  errorMessage?: string;
+}> {
+  const ollamaModelName = OLLAMA_MODEL_MAP[modelId];
+  
+  if (!ollamaModelName) {
+    return {
+      isAvailable: false,
+      isCached: false,
+      isDownloading: false,
+      errorMessage: `Unknown Ollama model for ID: ${modelId}`,
+    };
+  }
+
+  const ollamaUrl = embeddingService.getOllamaBaseUrl();
+  const timeout = options.timeoutMs || 5000;
+
+  try {
+    // First check if Ollama is running
+    const tagsResponse = await fetch(`${ollamaUrl}/api/tags`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(timeout),
+    });
+
+    if (!tagsResponse.ok) {
+      return {
+        isAvailable: false,
+        isCached: false,
+        isDownloading: false,
+        errorMessage: 'Ollama is not running or not accessible',
+      };
+    }
+
+    const tagsData = await tagsResponse.json();
+    const models = tagsData.models || [];
+
+    // Check if the model is installed
+    const installedModel = models.find((m: { name: string; size?: number }) => 
+      m.name === ollamaModelName || m.name.startsWith(`${ollamaModelName}:`)
+    );
+
+    if (installedModel) {
+      return {
+        isAvailable: true,
+        isCached: true,
+        isDownloading: false,
+        cacheSizeBytes: installedModel.size,
+      };
+    }
+
+    // Model not installed - check if it's being downloaded
+    // Note: Ollama doesn't have a direct API for download progress,
+    // but we can check the /api/pull endpoint status
+    return {
+      isAvailable: false,
+      isCached: false,
+      isDownloading: false,
+      errorMessage: `Model '${ollamaModelName}' is not installed. Run: ollama pull ${ollamaModelName}`,
+    };
+  } catch (error: any) {
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      return {
+        isAvailable: false,
+        isCached: false,
+        isDownloading: false,
+        errorMessage: 'Ollama connection timed out',
+      };
+    }
+    return {
+      isAvailable: false,
+      isCached: false,
+      isDownloading: false,
+      errorMessage: `Failed to connect to Ollama: ${error.message}`,
+    };
+  }
+}
+
+/**
+ * Get status of all available embedding models
+ * 
+ * Implements Requirement 21.7: Cache downloaded models locally, support offline use
+ * 
+ * @param options - Options for the check
+ * @returns Status of all models
+ */
+export async function getAllModelsStatus(
+  options: ModelCheckOptions = {}
+): Promise<AllModelsStatus> {
+  const models: ModelCacheStatus[] = [];
+  
+  // Check all models in parallel
+  const statusPromises = EMBEDDING_MODELS.map(model => 
+    getModelCacheStatus(model.id, options)
+  );
+  
+  const statuses = await Promise.all(statusPromises);
+  models.push(...statuses);
+
+  const currentModelId = embeddingService.getCurrentModelId();
+  const hasAvailableModel = models.some(m => m.isAvailable);
+
+  return {
+    models,
+    currentModelId,
+    hasAvailableModel,
+    lastUpdatedAt: Date.now(),
+  };
+}
+
+/**
+ * Download/pull a local embedding model via Ollama
+ * 
+ * Implements Requirement 21.7: Cache downloaded models locally, support offline use
+ * 
+ * @param modelId - ID of the model to download
+ * @param onProgress - Optional callback for download progress
+ * @returns Download result
+ */
+export async function downloadModel(
+  modelId: string,
+  onProgress?: (progress: number, status: string) => void
+): Promise<ModelDownloadResult> {
+  const modelInfo = getEmbeddingModelById(modelId);
+  
+  if (!modelInfo) {
+    return {
+      success: false,
+      modelId,
+      error: `Unknown model: ${modelId}`,
+    };
+  }
+
+  if (modelInfo.provider !== 'local') {
+    return {
+      success: false,
+      modelId,
+      error: 'Only local (Ollama) models can be downloaded',
+    };
+  }
+
+  const ollamaModelName = OLLAMA_MODEL_MAP[modelId];
+  if (!ollamaModelName) {
+    return {
+      success: false,
+      modelId,
+      error: `Unknown Ollama model for ID: ${modelId}`,
+    };
+  }
+
+  const ollamaUrl = embeddingService.getOllamaBaseUrl();
+  const startTime = Date.now();
+
+  try {
+    // Use Ollama's pull API to download the model
+    const response = await fetch(`${ollamaUrl}/api/pull`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: ollamaModelName,
+        stream: true,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      return {
+        success: false,
+        modelId,
+        error: `Failed to start download: ${response.status} ${response.statusText} - ${errorText}`,
+      };
+    }
+
+    // Process the streaming response for progress updates
+    const reader = response.body?.getReader();
+    if (!reader) {
+      return {
+        success: false,
+        modelId,
+        error: 'Failed to read download stream',
+      };
+    }
+
+    const decoder = new TextDecoder();
+    let lastProgress = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const text = decoder.decode(value, { stream: true });
+      const lines = text.split('\n').filter(line => line.trim());
+
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line);
+          
+          if (data.status) {
+            // Calculate progress from download status
+            if (data.completed && data.total) {
+              const progress = Math.round((data.completed / data.total) * 100);
+              if (progress !== lastProgress) {
+                lastProgress = progress;
+                onProgress?.(progress, data.status);
+              }
+            } else {
+              onProgress?.(lastProgress, data.status);
+            }
+          }
+
+          if (data.error) {
+            return {
+              success: false,
+              modelId,
+              error: data.error,
+            };
+          }
+        } catch {
+          // Ignore JSON parse errors for incomplete lines
+        }
+      }
+    }
+
+    // Clear the availability cache to force a fresh check
+    embeddingService.clearAvailabilityCache();
+
+    return {
+      success: true,
+      modelId,
+      downloadTimeMs: Date.now() - startTime,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      modelId,
+      error: error.message || 'Download failed',
+    };
+  }
+}
+
+/**
+ * Clear the model availability cache
+ * Forces fresh checks on next status request
+ * 
+ * Implements Requirement 21.7: Cache downloaded models locally, support offline use
+ */
+export function clearModelCache(): void {
+  embeddingService.clearAvailabilityCache();
+}
+
+/**
+ * Refresh the status of a specific model
+ * 
+ * @param modelId - ID of the model to refresh
+ * @returns Updated model status
+ */
+export async function refreshModelStatus(modelId: string): Promise<ModelCacheStatus> {
+  // Clear cache for this model
+  embeddingService.clearAvailabilityCache();
+  
+  // Get fresh status
+  return getModelCacheStatus(modelId, { forceRefresh: true });
+}

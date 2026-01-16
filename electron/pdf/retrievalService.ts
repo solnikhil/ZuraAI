@@ -8,8 +8,9 @@
  * - Cross-encoder reranking (optional)
  * - Metadata filtering (page range, section, document)
  * - Confidence scoring and low-confidence warnings
+ * - BM25-only fallback when embeddings are unavailable (Requirement 18.2)
  * 
- * Requirements: 7.3, 7.5, 7.6, 10.2, 10.5
+ * Requirements: 7.3, 7.5, 7.6, 10.2, 10.5, 18.2
  */
 
 import type {
@@ -18,6 +19,8 @@ import type {
   BoundingBox,
   QueryOptions,
   RetrievalResult,
+  EmbeddingFallbackState,
+  RetrievalResultWithFallback,
 } from '../../src/types/pdf';
 import type {
   IRetrievalService,
@@ -30,7 +33,7 @@ import type {
   ChunkRecord,
 } from './types';
 import { vectorStore } from './vectorStore';
-import { embeddingService } from './embeddingService';
+import { embeddingService, embeddingFallbackManager, generateEmbeddingWithFallback } from './embeddingService';
 
 // =============================================================================
 // Constants
@@ -410,7 +413,7 @@ export class RetrievalService implements IRetrievalService {
   /**
    * Retrieve relevant chunks for a query
    * 
-   * Implements Requirements 7.1, 7.2, 7.3, 7.5, 7.6
+   * Implements Requirements 7.1, 7.2, 7.3, 7.5, 7.6, 18.2
    * 
    * @param query - The user's query
    * @param docIds - Document IDs to search
@@ -427,9 +430,9 @@ export class RetrievalService implements IRetrievalService {
     // Process the query
     const processedQuery = await this.processQuery(query);
     
-    // Generate query embedding
-    const queryEmbedding = await this.embeddingService.generateEmbedding(processedQuery.expanded);
-
+    // Check if we should use fallback mode (BM25-only)
+    const useFallback = embeddingFallbackManager.isInFallbackMode();
+    
     // Determine search limit (get more candidates for reranking)
     const searchLimit = opts.useReranker 
       ? Math.max(opts.topK * 4, this.rerankerConfig.topN)
@@ -437,33 +440,56 @@ export class RetrievalService implements IRetrievalService {
 
     let searchResults: Array<{ id: string; score: number }>;
 
-    if (opts.useHybrid) {
-      // Hybrid search: vector + BM25 with RRF
-      searchResults = await this.vectorStore.hybridSearch(
-        {
+    if (useFallback) {
+      // Fallback mode: BM25-only search (Requirement 18.2)
+      console.log('[RetrievalService] Using BM25-only fallback mode');
+      searchResults = await this.vectorStore.bm25Search({
+        queryText: processedQuery.expanded,
+        limit: searchLimit,
+        documentIds: docIds.length > 0 ? docIds : undefined,
+        pageRange: opts.pageFilter,
+      });
+    } else {
+      // Try to generate query embedding
+      const queryEmbedding = await generateEmbeddingWithFallback(processedQuery.expanded);
+      
+      if (queryEmbedding === null) {
+        // Embedding failed, use BM25-only fallback
+        console.log('[RetrievalService] Embedding generation failed, falling back to BM25-only');
+        searchResults = await this.vectorStore.bm25Search({
+          queryText: processedQuery.expanded,
+          limit: searchLimit,
+          documentIds: docIds.length > 0 ? docIds : undefined,
+          pageRange: opts.pageFilter,
+        });
+      } else if (opts.useHybrid) {
+        // Hybrid search: vector + BM25 with RRF
+        searchResults = await this.vectorStore.hybridSearch(
+          {
+            queryVector: queryEmbedding,
+            limit: searchLimit,
+            minScore: opts.minScore,
+            documentIds: docIds.length > 0 ? docIds : undefined,
+            pageRange: opts.pageFilter,
+          },
+          {
+            queryText: processedQuery.expanded,
+            limit: searchLimit,
+            documentIds: docIds.length > 0 ? docIds : undefined,
+            pageRange: opts.pageFilter,
+          },
+          this.rrfParams
+        );
+      } else {
+        // Vector-only search
+        searchResults = await this.vectorStore.vectorSearch({
           queryVector: queryEmbedding,
           limit: searchLimit,
           minScore: opts.minScore,
           documentIds: docIds.length > 0 ? docIds : undefined,
           pageRange: opts.pageFilter,
-        },
-        {
-          queryText: processedQuery.expanded,
-          limit: searchLimit,
-          documentIds: docIds.length > 0 ? docIds : undefined,
-          pageRange: opts.pageFilter,
-        },
-        this.rrfParams
-      );
-    } else {
-      // Vector-only search
-      searchResults = await this.vectorStore.vectorSearch({
-        queryVector: queryEmbedding,
-        limit: searchLimit,
-        minScore: opts.minScore,
-        documentIds: docIds.length > 0 ? docIds : undefined,
-        pageRange: opts.pageFilter,
-      });
+        });
+      }
     }
 
     // Fetch full chunk records
@@ -488,8 +514,8 @@ export class RetrievalService implements IRetrievalService {
       results.push({
         chunk,
         score: searchResult.score,
-        vectorScore: searchResult.score, // Will be updated if hybrid
-        bm25Score: undefined,
+        vectorScore: useFallback ? undefined : searchResult.score, // Will be updated if hybrid
+        bm25Score: useFallback ? searchResult.score : undefined,
         rerankerScore: undefined,
       });
     }
@@ -497,13 +523,75 @@ export class RetrievalService implements IRetrievalService {
     // Apply metadata filters
     results = this.applyMetadataFilters(results, opts);
 
-    // Apply reranking if enabled
-    if (opts.useReranker && this.rerankerConfig.enabled) {
+    // Apply reranking if enabled and not in fallback mode
+    // Note: Reranking requires embeddings, so skip in fallback mode
+    if (opts.useReranker && this.rerankerConfig.enabled && !useFallback) {
       results = await this.reranker.rerank(query, results, this.rerankerConfig);
     }
 
     // Limit to topK
     results = results.slice(0, opts.topK);
+
+    return results;
+  }
+
+  /**
+   * Retrieve using BM25-only search (explicit fallback method)
+   * 
+   * Implements Requirement 18.2: Fall back to BM25 when embeddings unavailable
+   * 
+   * @param query - The user's query
+   * @param docIds - Document IDs to search
+   * @param options - Query options
+   * @returns Array of retrieval results with scores
+   */
+  async retrieveBM25Only(
+    query: string,
+    docIds: string[],
+    options: QueryOptions = {}
+  ): Promise<RetrievalResult[]> {
+    const opts = { ...DEFAULT_QUERY_OPTIONS, ...options };
+    
+    // Process the query
+    const processedQuery = await this.processQuery(query);
+    
+    // BM25-only search
+    const searchResults = await this.vectorStore.bm25Search({
+      queryText: processedQuery.expanded,
+      limit: opts.topK,
+      documentIds: docIds.length > 0 ? docIds : undefined,
+      pageRange: opts.pageFilter,
+    });
+
+    // Fetch full chunk records
+    const chunkIds = searchResults.map(r => r.id);
+    const chunkRecords = await this.vectorStore.getChunks(chunkIds);
+
+    // Create a map for quick lookup
+    const chunkMap = new Map(chunkRecords.map(c => [c.id, c]));
+
+    // Build retrieval results
+    let results: RetrievalResult[] = [];
+    
+    for (const searchResult of searchResults) {
+      const chunkRecord = chunkMap.get(searchResult.id);
+      if (!chunkRecord) {
+        continue;
+      }
+
+      const chunk = chunkRecordToChunk(chunkRecord);
+      
+      results.push({
+        chunk,
+        score: searchResult.score,
+        vectorScore: undefined,
+        bm25Score: searchResult.score,
+        rerankerScore: undefined,
+      });
+    }
+
+    // Apply metadata filters
+    results = this.applyMetadataFilters(results, opts);
 
     return results;
   }
@@ -588,29 +676,44 @@ export class RetrievalService implements IRetrievalService {
   /**
    * Get retrieval results with confidence metadata
    * 
-   * Implements Requirements 7.6, 10.2, 10.5
+   * Implements Requirements 7.6, 10.2, 10.5, 18.2
    * 
    * @param query - The user's query
    * @param docIds - Document IDs to search
    * @param options - Query options
-   * @returns Results with confidence information
+   * @returns Results with confidence information and fallback state
    */
   async retrieveWithConfidence(
     query: string,
     docIds: string[],
     options: QueryOptions = {}
-  ): Promise<{
-    results: RetrievalResult[];
-    confidence: number;
-    isLowConfidence: boolean;
-    warning?: string;
-  }> {
+  ): Promise<RetrievalResultWithFallback> {
+    // Check fallback state before retrieval
+    const fallbackState = embeddingFallbackManager.getState();
+    const usedFallback = fallbackState.isActive;
+    
     const results = await this.retrieve(query, docIds, options);
     const confidence = this.calculateConfidenceScore(results);
     const isLow = confidence < this.lowConfidenceThreshold;
 
+    // Determine search method used
+    let searchMethod: 'hybrid' | 'vector_only' | 'bm25_only';
+    if (usedFallback) {
+      searchMethod = 'bm25_only';
+    } else if (options.useHybrid ?? true) {
+      searchMethod = 'hybrid';
+    } else {
+      searchMethod = 'vector_only';
+    }
+
     let warning: string | undefined;
-    if (isLow) {
+    
+    // Build warning message
+    if (usedFallback) {
+      // Fallback mode warning (Requirement 18.2)
+      warning = fallbackState.message || 
+        'Semantic search is unavailable. Results are based on keyword matching only, which may be less accurate.';
+    } else if (isLow) {
       if (results.length === 0) {
         warning = 'No relevant information found in the documents.';
       } else {
@@ -623,7 +726,39 @@ export class RetrievalService implements IRetrievalService {
       confidence,
       isLowConfidence: isLow,
       warning,
+      usedFallback,
+      fallbackState: usedFallback ? fallbackState : undefined,
+      searchMethod,
     };
+  }
+
+  /**
+   * Get the current fallback state
+   * 
+   * Implements Requirement 18.2
+   */
+  getFallbackState(): EmbeddingFallbackState {
+    return embeddingFallbackManager.getState();
+  }
+
+  /**
+   * Check if currently in fallback mode
+   * 
+   * Implements Requirement 18.2
+   */
+  isInFallbackMode(): boolean {
+    return embeddingFallbackManager.isInFallbackMode();
+  }
+
+  /**
+   * Attempt to recover from fallback mode
+   * 
+   * Implements Requirement 18.2
+   * 
+   * @returns Whether recovery was successful
+   */
+  async attemptFallbackRecovery(): Promise<boolean> {
+    return embeddingFallbackManager.attemptRecovery();
   }
 
   /**

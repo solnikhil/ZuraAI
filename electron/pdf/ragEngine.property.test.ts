@@ -569,6 +569,285 @@ describe('RAG Engine Property Tests', () => {
   });
 
 
+  describe('Property 14: Multi-Document Retrieval', () => {
+    /**
+     * **Property 14: Multi-Document Retrieval**
+     * 
+     * For any query across N documents, results may come from any of the N documents.
+     * Each result includes a valid document identifier.
+     * Document identifiers match one of the loaded documents.
+     * 
+     * **Validates: Requirements 13.1, 13.3, 13.4**
+     */
+
+    // Generator for multiple document IDs
+    const genDocumentIds = fc.array(
+      fc.string({ minLength: 8, maxLength: 32 })
+        .filter(s => /^[a-zA-Z0-9_-]+$/.test(s))
+        .map(s => `doc_${s}`),
+      { minLength: 1, maxLength: 5 }
+    ).filter(arr => new Set(arr).size === arr.length); // Ensure unique IDs
+
+    // Generator for retrieval results from multiple documents with unique chunk IDs
+    const genMultiDocRetrievalResults = (docIds: string[]) => {
+      return fc.array(
+        fc.tuple(
+          fc.nat({ max: 999999 }), // Unique index for chunk ID
+          fc.constantFrom(...docIds),
+          fc.string({ minLength: 10, maxLength: 500 }),
+          genChunkMetadata,
+          fc.array(fc.float({ min: -1, max: 1, noNaN: true }), { minLength: TEST_DIMS, maxLength: TEST_DIMS }),
+          fc.float({ min: 0, max: 1, noNaN: true }),
+          fc.option(fc.float({ min: 0, max: 1, noNaN: true }), { nil: undefined }),
+          fc.option(fc.float({ min: 0, max: 1, noNaN: true }), { nil: undefined }),
+          fc.option(fc.float({ min: 0, max: 1, noNaN: true }), { nil: undefined }),
+        ),
+        { minLength: 1, maxLength: 10 }
+      ).map((tuples) => {
+        // Ensure unique chunk IDs by using index
+        return tuples.map((tuple, index) => ({
+          chunk: {
+            id: `chunk_${index}_${tuple[0]}`,
+            documentId: tuple[1],
+            content: tuple[2],
+            metadata: tuple[3],
+            embedding: tuple[4],
+          },
+          score: tuple[5],
+          vectorScore: tuple[6],
+          bm25Score: tuple[7],
+          rerankerScore: tuple[8],
+        }));
+      }) as fc.Arbitrary<RetrievalResult[]>;
+    };
+
+    it('should include valid document identifier in each retrieval result', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds,
+        async (docIds) => {
+          // Generate results that come from the specified documents
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Build context with the results
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options);
+          
+          // Property: Each included source must have a valid document identifier
+          for (const source of built.includedSources) {
+            // Document ID must be a non-empty string
+            expect(typeof source.chunk.documentId).toBe('string');
+            expect(source.chunk.documentId.length).toBeGreaterThan(0);
+            
+            // Document ID must match one of the loaded documents
+            expect(docIds).toContain(source.chunk.documentId);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should allow results from any of the loaded documents', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds.filter(ids => ids.length >= 2), // Need at least 2 documents
+        async (docIds) => {
+          // Generate results that come from multiple documents
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Build context
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options);
+          
+          // Property: All document IDs in results must be from the loaded documents set
+          const resultDocIds = new Set(built.includedSources.map(s => s.chunk.documentId));
+          
+          for (const docId of resultDocIds) {
+            expect(docIds).toContain(docId);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should include document identifier in citations for cross-document scenarios', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds.filter(ids => ids.length >= 2), // Need at least 2 documents for cross-doc
+        async (docIds) => {
+          // Generate results from multiple documents
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Create a document name map (simulating what RAGEngine.query does)
+          const documentNameMap = new Map<string, string>();
+          for (const docId of docIds) {
+            documentNameMap.set(docId, `${docId}.pdf`);
+          }
+
+          // Build context with document name map
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options, documentNameMap);
+          
+          // Property: Context string should contain document references when multiple docs
+          if (built.includedSources.length > 0 && documentNameMap.size > 1) {
+            // The context should include document name references
+            // Check that at least one document name appears in the context
+            const hasDocReference = Array.from(documentNameMap.values()).some(
+              name => built.contextString.includes(name) || built.contextString.includes('from "')
+            );
+            expect(hasDocReference).toBe(true);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should preserve document ID through citation building', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds,
+        async (docIds) => {
+          // Generate results from the specified documents
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Create document name map
+          const documentNameMap = new Map<string, string>();
+          for (const docId of docIds) {
+            documentNameMap.set(docId, `${docId}.pdf`);
+          }
+
+          // Build context
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options, documentNameMap);
+          
+          // Property: Citation map should have entries for all included sources
+          for (const source of built.includedSources) {
+            expect(built.citationMap.has(source.chunk.id)).toBe(true);
+            
+            // The citation marker should reference the chunk
+            const marker = built.citationMap.get(source.chunk.id);
+            expect(marker).toContain('[[cite:');
+            expect(marker).toContain(source.chunk.id);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should handle single document queries correctly', async () => {
+      await fc.assert(fc.asyncProperty(
+        fc.string({ minLength: 8, maxLength: 32 })
+          .filter(s => /^[a-zA-Z0-9_-]+$/.test(s))
+          .map(s => `doc_${s}`),
+        async (singleDocId) => {
+          const docIds = [singleDocId];
+          
+          // Generate results from single document
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Build context
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options);
+          
+          // Property: All results should be from the single document
+          for (const source of built.includedSources) {
+            expect(source.chunk.documentId).toBe(singleDocId);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should handle empty document ID list gracefully', () => {
+      const results: RetrievalResult[] = [];
+      
+      const options: ContextBuildOptions = {
+        maxTokens: 10000,
+        maxSources: 100,
+        includeCitationMarkers: true,
+        format: 'markdown',
+      };
+
+      const built = ragEngine.buildContext(results, options);
+      
+      // Property: Empty results should produce empty context
+      expect(built.includedSources).toEqual([]);
+      expect(built.contextString).toBe('');
+      expect(built.citationMap.size).toBe(0);
+    });
+
+    it('should ensure document identifiers are non-empty strings', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds,
+        async (docIds) => {
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Property: Every chunk must have a non-empty document ID
+          for (const result of results) {
+            expect(typeof result.chunk.documentId).toBe('string');
+            expect(result.chunk.documentId.length).toBeGreaterThan(0);
+            expect(result.chunk.documentId.trim()).not.toBe('');
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+
+    it('should maintain document ID consistency through context building', async () => {
+      await fc.assert(fc.asyncProperty(
+        genDocumentIds,
+        async (docIds) => {
+          const results = fc.sample(genMultiDocRetrievalResults(docIds), 1)[0];
+          
+          // Create a map of chunk ID to original document ID for lookup
+          const originalDocIdMap = new Map<string, string>();
+          for (const result of results) {
+            originalDocIdMap.set(result.chunk.id, result.chunk.documentId);
+          }
+          
+          const options: ContextBuildOptions = {
+            maxTokens: 10000,
+            maxSources: 100,
+            includeCitationMarkers: true,
+            format: 'markdown',
+          };
+
+          const built = ragEngine.buildContext(results, options);
+          
+          // Property: Document IDs should not be modified during context building
+          // Note: buildContext sorts by score, so we must look up by chunk ID, not index
+          for (const includedSource of built.includedSources) {
+            const originalDocId = originalDocIdMap.get(includedSource.chunk.id);
+            
+            // The document ID in the included source should match the original
+            expect(includedSource.chunk.documentId).toBe(originalDocId);
+          }
+        }
+      ), { numRuns: 30, seed: 12345 });
+    });
+  });
+
+
   describe('Settings Management', () => {
     it('should allow updating settings', () => {
       ragEngine.updateSettings({ topK: 10, useHybridSearch: false });

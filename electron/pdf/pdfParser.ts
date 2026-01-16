@@ -1355,6 +1355,173 @@ export class PDFParserService implements IPDFParserService {
   }
 
   /**
+   * Get major sections from the document outline
+   * 
+   * Identifies top-level sections from the PDF outline/table of contents
+   * and calculates their page ranges for section-aware summarization.
+   * 
+   * Implements Requirement 12.2: Extract document outline/table of contents
+   * 
+   * @param docId - Document ID
+   * @returns Promise resolving to array of MajorSection
+   */
+  async getMajorSections(docId: string): Promise<import('../../src/types/pdf').MajorSection[]> {
+    const loaded = this.loadedDocuments.get(docId);
+    if (!loaded) {
+      throw new Error(`Document not loaded: ${docId}`);
+    }
+
+    // Get the document outline first
+    const outline = await this.getDocumentOutline(docId);
+    
+    if (outline.length === 0) {
+      // If no outline, try to identify sections from headings
+      return this.identifySectionsFromHeadings(docId);
+    }
+
+    // Convert outline to major sections with page ranges
+    const totalPages = loaded.document.pageCount;
+    return this.convertOutlineToMajorSections(outline, totalPages);
+  }
+
+  /**
+   * Convert outline items to major sections with calculated page ranges
+   * 
+   * @param outline - Document outline items
+   * @param totalPages - Total number of pages in the document
+   * @returns Array of MajorSection with page ranges
+   */
+  private convertOutlineToMajorSections(
+    outline: OutlineItem[],
+    totalPages: number
+  ): import('../../src/types/pdf').MajorSection[] {
+    const sections: import('../../src/types/pdf').MajorSection[] = [];
+    
+    // Flatten outline to get all page numbers for range calculation
+    const allPageNumbers = this.flattenOutlinePageNumbers(outline);
+    
+    for (let i = 0; i < outline.length; i++) {
+      const item = outline[i];
+      const startPage = item.pageNumber;
+      
+      // Calculate end page: next sibling's start page or total pages
+      let endPage: number;
+      if (i < outline.length - 1) {
+        endPage = outline[i + 1].pageNumber;
+      } else {
+        endPage = totalPages + 1; // Exclusive end
+      }
+      
+      // Convert children to subsections
+      const subsections = item.children.length > 0
+        ? this.convertOutlineToMajorSections(item.children, endPage - 1)
+        : [];
+      
+      sections.push({
+        title: item.title,
+        startPage,
+        endPage,
+        level: item.level,
+        subsections,
+        isTopLevel: item.level === 0,
+      });
+    }
+    
+    return sections;
+  }
+
+  /**
+   * Flatten outline to get all page numbers
+   */
+  private flattenOutlinePageNumbers(outline: OutlineItem[]): number[] {
+    const pages: number[] = [];
+    
+    const flatten = (items: OutlineItem[]) => {
+      for (const item of items) {
+        pages.push(item.pageNumber);
+        if (item.children.length > 0) {
+          flatten(item.children);
+        }
+      }
+    };
+    
+    flatten(outline);
+    return pages.sort((a, b) => a - b);
+  }
+
+  /**
+   * Identify sections from headings when no outline is available
+   * 
+   * Falls back to using font-size heuristics to identify section headers
+   * when the PDF doesn't have a built-in outline/table of contents.
+   * 
+   * @param docId - Document ID
+   * @returns Array of MajorSection identified from headings
+   */
+  private async identifySectionsFromHeadings(
+    docId: string
+  ): Promise<import('../../src/types/pdf').MajorSection[]> {
+    const loaded = this.loadedDocuments.get(docId);
+    if (!loaded) {
+      return [];
+    }
+
+    try {
+      // Get all section headers from the document
+      const headers = await this.getSectionHeaders(docId);
+      
+      if (headers.length === 0) {
+        return [];
+      }
+
+      // Group headers by font size to determine hierarchy
+      const fontSizes = headers.map(h => h.fontSize || 12);
+      const uniqueFontSizes = [...new Set(fontSizes)].sort((a, b) => b - a);
+      
+      // Top 2 largest font sizes are considered major sections
+      const majorFontSizes = uniqueFontSizes.slice(0, 2);
+      
+      const sections: import('../../src/types/pdf').MajorSection[] = [];
+      const totalPages = loaded.document.pageCount;
+      
+      // Filter to major headers only
+      const majorHeaders = headers.filter(h => 
+        majorFontSizes.includes(h.fontSize || 12)
+      );
+      
+      for (let i = 0; i < majorHeaders.length; i++) {
+        const header = majorHeaders[i];
+        const startPage = header.bbox.pageNumber;
+        
+        // Calculate end page
+        let endPage: number;
+        if (i < majorHeaders.length - 1) {
+          endPage = majorHeaders[i + 1].bbox.pageNumber;
+        } else {
+          endPage = totalPages + 1;
+        }
+        
+        // Determine level based on font size
+        const level = majorFontSizes.indexOf(header.fontSize || 12);
+        
+        sections.push({
+          title: header.text.trim(),
+          startPage,
+          endPage,
+          level,
+          subsections: [],
+          isTopLevel: level === 0,
+        });
+      }
+      
+      return sections;
+    } catch (error) {
+      console.warn('Failed to identify sections from headings:', error);
+      return [];
+    }
+  }
+
+  /**
    * Extract tables from text blocks using heuristic detection
    * 
    * Implements Requirement 5.4: Extract tables with row and column structure preserved

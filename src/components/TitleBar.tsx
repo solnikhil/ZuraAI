@@ -14,6 +14,9 @@ const SETTINGS_SECTION_LABELS: Record<string, string> = {
     themes: 'Themes',
     preferences: 'API Keys',
     tools: 'Tools',
+    commandbar: 'Command Bar',
+    systemprompt: 'System Prompt',
+    rag: 'PDF RAG',
 }
 
 function getModelDisplayName(settings: Settings): string {

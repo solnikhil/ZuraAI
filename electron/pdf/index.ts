@@ -16,7 +16,14 @@ export { PDFParserService, pdfParserService } from './pdfParser';
 export { ChunkManager, chunkManager } from './chunkManager';
 
 // Embedding Service
-export { EmbeddingService, embeddingService, EMBEDDING_MODELS } from './embeddingService';
+export { 
+  EmbeddingService, 
+  embeddingService, 
+  EMBEDDING_MODELS,
+  areModelsCompatible,
+  getEmbeddingModelById,
+} from './embeddingService';
+export type { ModelChangeInfo } from './embeddingService';
 
 // Vector Store Service (LanceDB)
 export { VectorStore, vectorStore } from './vectorStore';
@@ -60,6 +67,7 @@ export type {
   CollectionInfo,
   EmbeddingModelInfo,
   OutlineItem,
+  MajorSection,
   TextSearchResult,
   RecentDocument,
   PDFChatStore as PDFChatStoreType,

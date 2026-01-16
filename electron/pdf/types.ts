@@ -371,6 +371,8 @@ export interface IPDFParserService {
   getSectionHeaders(docId: string): Promise<TextBlock[]>;
   searchText(docId: string, query: string): Promise<any[]>;
   getDocumentOutline(docId: string): Promise<any[]>;
+  /** Get major sections from the document outline for section-aware summarization (Requirement 12.2) */
+  getMajorSections(docId: string): Promise<any[]>;
   unloadDocument(docId: string): void;
   isDocumentLoaded(docId: string): boolean;
   /** Check if a PDF is password protected (Requirement 18.5) */

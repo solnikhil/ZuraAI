@@ -602,9 +602,9 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     }
   }
 
-  const keyHint = navigator.platform.toLowerCase().includes('mac') ? '⌘ Space' : 'Ctrl Space'
-  const idlePlaceholderText = idlePlaceholder && idlePlaceholder.trim() ? idlePlaceholder : 'Search ZuraAI'
-  const placeholder = isFocused ? 'Search ZuraAI' : idlePlaceholderText
+  const keyHint = navigator.platform.toLowerCase().includes('mac') ? '⌘ + Space' : 'Ctrl + Space'
+  const idlePlaceholderText = idlePlaceholder && idlePlaceholder.trim() ? idlePlaceholder : 'Search or run a command'
+  const placeholder = isFocused ? 'Search or run a command' : idlePlaceholderText
 
   const hasRecentsSection = showRecents && recentSuggestions.length > 0
   const recentsCount = hasRecentsSection ? recentSuggestions.length : 0

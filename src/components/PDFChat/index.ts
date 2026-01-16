@@ -7,7 +7,9 @@
  */
 
 // Layout Components
-// export { PDFChatLayout } from './PDFChatLayout';
+export { PDFChatLayout } from './PDFChatLayout';
+export { DocumentTabs } from './DocumentTabs';
+export type { DocumentTabInfo } from './DocumentTabs';
 
 // PDF Viewer Components
 export { PDFViewer, clampZoom, clampPage, MIN_ZOOM, MAX_ZOOM, DEFAULT_ZOOM, ZOOM_STEP } from './PDFViewer';

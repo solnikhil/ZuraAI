@@ -30,6 +30,40 @@ export interface PDFChatLayoutProps {
   initialDocumentPath?: string;
 }
 
+/**
+ * Information about a loaded document for display in tabs
+ * Requirements: 13.1, 13.2
+ */
+export interface DocumentTabInfo {
+  /** Document ID (file path) */
+  id: string;
+  /** Display name (file name) */
+  name: string;
+  /** Whether the document is indexed */
+  isIndexed: boolean;
+  /** Page count (optional) */
+  pageCount?: number;
+}
+
+/**
+ * Props for the document tabs component
+ * Requirements: 13.1, 13.2
+ */
+export interface DocumentTabsProps {
+  /** List of loaded documents */
+  documents: DocumentTabInfo[];
+  /** ID of the currently active document */
+  activeDocumentId: string | null;
+  /** Callback when a tab is clicked */
+  onTabSelect: (documentId: string) => void;
+  /** Callback when a tab close button is clicked */
+  onTabClose: (documentId: string) => void;
+  /** Callback when add document button is clicked */
+  onAddDocument: () => void;
+  /** Whether adding documents is disabled */
+  addDisabled?: boolean;
+}
+
 // =============================================================================
 // PDF Viewer Component Props
 // =============================================================================
