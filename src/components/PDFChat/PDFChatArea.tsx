@@ -11,9 +11,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
 import StarBorder from '../StarBorder';
-import type { 
-  Citation, 
-  PDFChatMessage, 
+import { useSettings } from '../../../contexts/SettingsContext';
+import type {
+  Citation,
+  PDFChatMessage,
   TextSelection,
   RetrievalResult,
   DocumentSummary,
@@ -26,9 +27,9 @@ import type {
 import type { PDFChatAreaProps } from './types';
 import { CitationLink } from './CitationLink';
 import { SourcesPanel } from './SourcesPanel';
-import { 
-  exportAndCopy, 
-  exportAndDownload, 
+import {
+  exportAndCopy,
+  exportAndDownload,
   exportMessageToMarkdown,
   exportBriefToMarkdown,
   downloadAsFile,
@@ -1264,6 +1265,9 @@ export function PDFChatArea({
   groundedMode = false,
   onGroundedModeChange
 }: PDFChatAreaProps) {
+  // Get settings from context - uses currently selected model
+  const { settings } = useSettings();
+
   // State
   const [messages, setMessages] = useState<PDFChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -1386,9 +1390,434 @@ export function PDFChatArea({
     }
   };
 
+  /**
+   * Stream AI response from the configured provider
+   * Supports: Ollama, Perplexity, Gemini, Groq, MiniMax, OpenRouter
+   */
+  const streamAIResponse = async (
+    provider: string,
+    settings: any,
+    messages: any[],
+    messageId: string,
+    ragContext: any
+  ) => {
+    let accumulatedContent = '';
+    let lastUpdateTime = Date.now();
+    const UPDATE_INTERVAL = 100;
+
+    const updateContent = (content: string) => {
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId
+          ? { ...msg, content }
+          : msg
+      ));
+    };
+
+    try {
+      switch (provider) {
+        case 'ollama':
+          await streamOllamaResponse(settings, messages, (chunk: string) => {
+            accumulatedContent += chunk;
+            const now = Date.now();
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateContent(accumulatedContent);
+              lastUpdateTime = now;
+            }
+          });
+          break;
+
+        case 'perplexity':
+          await streamPerplexityResponse(settings, messages, (chunk: string) => {
+            accumulatedContent += chunk;
+            const now = Date.now();
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateContent(accumulatedContent);
+              lastUpdateTime = now;
+            }
+          });
+          break;
+
+        case 'gemini':
+          await streamGeminiResponse(settings, messages, (chunk: string) => {
+            accumulatedContent = chunk; // Gemini returns full content
+            updateContent(accumulatedContent);
+          });
+          break;
+
+        case 'groq':
+          await streamGroqResponse(settings, messages, (chunk: string) => {
+            accumulatedContent += chunk;
+            const now = Date.now();
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateContent(accumulatedContent);
+              lastUpdateTime = now;
+            }
+          });
+          break;
+
+        case 'minimax':
+          await streamMiniMaxResponse(settings, messages, (chunk: string) => {
+            accumulatedContent += chunk;
+            const now = Date.now();
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateContent(accumulatedContent);
+              lastUpdateTime = now;
+            }
+          });
+          break;
+
+        default:
+          // OpenRouter as default
+          await streamOpenRouterResponse(settings, messages, (chunk: string) => {
+            accumulatedContent += chunk;
+            const now = Date.now();
+            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+              updateContent(accumulatedContent);
+              lastUpdateTime = now;
+            }
+          });
+          break;
+      }
+
+      // Final update with citations and sources
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              content: accumulatedContent,
+              citations: ragContext.citations,
+              sources: ragContext.sources
+            }
+          : msg
+      ));
+
+      // Save session after completion
+      await saveSession();
+
+    } catch (error: any) {
+      console.error('[PDFChatArea] AI streaming failed:', error);
+      throw error;
+    }
+  };
 
   /**
-   * Send a message and get RAG response
+   * Stream response from Ollama
+   */
+  const streamOllamaResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    const response = await fetch(`${settings.ollamaUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: settings.aiModel,
+        messages: messages,
+        stream: true,
+        options: { temperature: settings.temperature || 0.7 }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const json = JSON.parse(line);
+            const content = json.message?.content || '';
+            if (content) onChunk(content);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Stream response from Perplexity
+   */
+  const streamPerplexityResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.perplexityApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: settings.aiModel,
+        messages: messages,
+        stream: true,
+        temperature: settings.temperature || 0.7
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim() && line.startsWith('data:')) {
+          try {
+            const json = JSON.parse(line.slice(5));
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) onChunk(content);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Stream response from Gemini
+   */
+  const streamGeminiResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    // Remove system message for Gemini and convert format
+    const geminiMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${settings.aiModel}:streamGenerateContent?key=${settings.geminiApiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: geminiMessages,
+        generationConfig: {
+          temperature: settings.temperature || 0.7,
+          maxOutputTokens: settings.maxTokens || 4096
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulatedContent = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim() && line.startsWith('data:')) {
+          try {
+            const json = JSON.parse(line.slice(5));
+            const content = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            accumulatedContent = content;
+            onChunk(accumulatedContent);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Stream response from Groq
+   */
+  const streamGroqResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.groqApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: settings.aiModel,
+        messages: messages,
+        stream: true,
+        temperature: settings.temperature || 0.7,
+        max_tokens: settings.maxTokens || 4096
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Groq API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const json = JSON.parse(line);
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) onChunk(content);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Stream response from MiniMax
+   */
+  const streamMiniMaxResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    const response = await fetch('https://api.minimax.chat/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.minimaxApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: settings.aiModel,
+        messages: messages,
+        stream: true,
+        temperature: settings.temperature || 0.7,
+        max_tokens: settings.maxTokens || 4096
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`MiniMax API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const json = JSON.parse(line);
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) onChunk(content);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Stream response from OpenRouter
+   */
+  const streamOpenRouterResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.openRouterApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'ZuraAI',
+        'X-Title': 'ZuraAI'
+      },
+      body: JSON.stringify({
+        model: settings.aiModel,
+        messages: messages,
+        stream: true,
+        temperature: settings.temperature || 0.7,
+        max_tokens: settings.maxTokens || 4096
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim()) {
+          try {
+            const json = JSON.parse(line);
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) onChunk(content);
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  };
+
+
+  /**
+   * Send a message and get AI response with PDF RAG context
+   *
+   * This function:
+   * 1. Gets relevant context from PDF documents via RAG
+   * 2. Calls the AI model with the context
+   * 3. Streams the response back to the user
    */
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading || documentIds.length === 0) return;
@@ -1418,51 +1847,64 @@ export function PDFChatArea({
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
-      // Query RAG engine via IPC
-      const response = await window.ipcRenderer?.invoke('pdf:query', 
-        userMessage.content, 
-        documentIds, 
-        { 
+      // Step 1: Get RAG context from PDF documents
+      const ragContext = await window.ipcRenderer?.invoke('pdf:get-context',
+        userMessage.content,
+        documentIds,
+        {
           groundedMode,
           attachedSelection: attachedSelection || undefined
+        },
+        {
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
         }
       );
 
-      if (response) {
-        // Update confidence
-        setLastConfidence(response.confidence);
-
-        // Update assistant message with response
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId 
-            ? {
-                ...msg,
-                content: response.answer,
-                citations: response.citations,
-                sources: response.sources
-              }
-            : msg
-        ));
-
-        // Save session
-        await saveSession();
+      if (!ragContext) {
+        throw new Error('Failed to retrieve context from documents');
       }
-    } catch (error) {
+
+      // Update confidence
+      setLastConfidence(ragContext.confidence);
+
+      // Step 2: Prepare messages for AI model with PDF system prompt and context
+      const { getPDFSystemPrompt } = await import('../../prompts/pdfSystemPrompt');
+      const systemPrompt = getPDFSystemPrompt(ragContext.contextString);
+
+      // Build conversation history for AI
+      const conversationHistory = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      const messagesForAI = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory,
+        { role: 'user', content: userMessage.content }
+      ];
+
+      // Step 3: Use the currently selected model from settings and stream response
+      const modelProvider = settings.modelProvider || 'openrouter';
+
+      // Stream response from AI provider
+      await streamAIResponse(modelProvider, settings, messagesForAI, assistantMessageId, ragContext);
+
+    } catch (error: any) {
       console.error('[PDFChatArea] Query failed:', error);
-      
+
       // Update with error message
-      setMessages(prev => prev.map(msg => 
-        msg.id === assistantMessageId 
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
           ? {
               ...msg,
-              content: 'Sorry, I encountered an error while processing your question. Please try again.'
+              content: `Sorry, I encountered an error: ${error?.message || 'Unknown error'}. Please try again.`
             }
           : msg
       ));
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, documentIds, groundedMode, attachedSelection]);
+  }, [input, isLoading, documentIds, groundedMode, attachedSelection, messages, settings]);
 
 
   /**

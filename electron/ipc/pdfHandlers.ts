@@ -48,6 +48,8 @@ import type {
   DocumentRetrievalSettings,
   ModelChangeInfo,
   IndexedDocumentInfo,
+  RetrievalResult,
+  Citation,
 } from '../../src/types/pdf';
 
 // =============================================================================
@@ -532,9 +534,87 @@ function registerRAGQueryHandlers(): void {
   });
 
   /**
+   * Get RAG context for AI generation
+   * Channel: pdf:get-context
+   *
+   * Returns the formatted context string and sources for use with AI model.
+   * This separates retrieval from generation, allowing the frontend to call AI providers.
+   */
+  ipcMain.handle('pdf:get-context', async (
+    _event,
+    query: string,
+    docIds: string[],
+    options?: QueryOptions,
+    conversationContext?: {
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      viewState?: { currentPage: number; visibleText: string };
+    }
+  ): Promise<{
+    contextString: string;
+    sources: RetrievalResult[];
+    confidence: number;
+    isLowConfidence: boolean;
+    warning?: string;
+    citations: Citation[];
+    documentNameMap: Record<string, string>;
+  }> => {
+    console.log('[PDFHandlers] Getting RAG context:', query, docIds);
+
+    try {
+      if (!query || typeof query !== 'string') {
+        throw new Error('Invalid query');
+      }
+
+      if (!Array.isArray(docIds) || docIds.length === 0) {
+        throw new Error('No documents specified for query');
+      }
+
+      // Build conversation context if provided
+      const context = conversationContext ? {
+        messages: conversationContext.messages || [],
+        documentIds: docIds,
+        viewState: conversationContext.viewState,
+      } : undefined;
+
+      // Get context from RAG engine
+      const result = await ragEngine.getContextForQuery(query, docIds, options, context);
+
+      // Build citations from sources
+      const citations = ragEngine.buildCitations(result.sources, result.documentNameMap);
+
+      // Convert Map to plain object for JSON serialization
+      const documentNameMapObj: Record<string, string> = {};
+      if (result.documentNameMap) {
+        result.documentNameMap.forEach((value, key) => {
+          documentNameMapObj[key] = value;
+        });
+      }
+
+      console.log('[PDFHandlers] Context retrieved:', {
+        contextLength: result.contextString.length,
+        sourceCount: result.sources.length,
+        confidence: result.confidence
+      });
+
+      return {
+        contextString: result.contextString,
+        sources: result.sources,
+        confidence: result.confidence,
+        isLowConfidence: result.isLowConfidence,
+        warning: result.warning,
+        citations,
+        documentNameMap: documentNameMapObj
+      };
+    } catch (error) {
+      console.error('[PDFHandlers] Error getting RAG context:', error);
+      throw error;
+    }
+  });
+
+  /**
    * Generate section-by-section document summary
    * Channel: pdf:summarize-document
-   * 
+   *
    * Implements Requirements 12.1, 12.3, 12.4:
    * - 12.1: Generate document summary
    * - 12.3: Section-by-section summarization
@@ -1988,6 +2068,7 @@ export function unregisterPDFHandlers(): void {
   
   // RAG Query
   ipcMain.removeHandler('pdf:query');
+  ipcMain.removeHandler('pdf:get-context');
   ipcMain.removeHandler('pdf:get-chunks');
   ipcMain.removeHandler('pdf:summarize-document');
   

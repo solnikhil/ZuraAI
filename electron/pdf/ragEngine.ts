@@ -581,14 +581,14 @@ export class RAGEngine implements IRAGEngine {
 
   /**
    * Build a map of document IDs to document names
-   * 
+   *
    * Implements Requirement 13.4: Include document identifier in retrieval results
-   * 
+   *
    * @param docIds - Document IDs to look up
    * @param results - Retrieval results (to get additional document IDs from chunks)
    * @returns Map of document ID to document name
    */
-  private async buildDocumentNameMap(
+  public async buildDocumentNameMap(
     docIds: string[],
     results: RetrievalResult[]
   ): Promise<Map<string, string>> {
@@ -756,14 +756,14 @@ export class RAGEngine implements IRAGEngine {
 
   /**
    * Build citations from retrieval results
-   * 
+   *
    * Implements Requirements 13.3, 13.4: Include document identifier in results
-   * 
+   *
    * @param sources - Retrieval results
    * @param documentNameMap - Map of document IDs to document names
    */
-  private buildCitations(
-    sources: RetrievalResult[], 
+  public buildCitations(
+    sources: RetrievalResult[],
     documentNameMap?: Map<string, string>
   ): Citation[] {
     return sources.map((source, index) => {

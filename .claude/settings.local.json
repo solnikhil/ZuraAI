@@ -9,7 +9,8 @@
       "Bash(npx tsc:*)",
       "Bash(npm test:*)",
       "Bash(npx vitest run:*)",
-      "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)"
+      "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)",
+      "Bash(git add:*)"
     ]
   }
 }

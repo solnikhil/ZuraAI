@@ -129,16 +129,17 @@ export class PDFParserService implements IPDFParserService {
     }
 
     try {
-      // Dynamic import of pdfjs-dist for Node.js environment
-      const pdfjsLib = await import('pdfjs-dist');
+      // Use the legacy build for Node.js which doesn't require canvas
+      // This is necessary for text extraction in Electron main process
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
       this.pdfjs = pdfjsLib;
-      
+
       // Configure pdf.js for Node.js environment
       // Disable worker in Node.js as it's not needed and can cause issues
       if (this.pdfjs.GlobalWorkerOptions) {
         this.pdfjs.GlobalWorkerOptions.workerSrc = '';
       }
-      
+
       this.initialized = true;
     } catch (error) {
       throw new Error(`Failed to initialize pdf.js: ${error instanceof Error ? error.message : String(error)}`);
