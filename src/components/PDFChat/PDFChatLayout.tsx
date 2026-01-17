@@ -1,22 +1,49 @@
 /**
  * PDFChatLayout - Split-screen layout for PDF viewer and chat
- * 
+ *
  * Implements a split-screen interface with:
  * - PDF viewer on the left (55% initial width)
  * - Chat area on the right (45% initial width)
  * - Draggable divider for resizing panels
  * - Shared state management for citations and navigation
- * - Multi-document support with tabs (Requirements 13.1, 13.2)
- * 
+ * - Multi-document support with tabs managed in sidebar (Requirements 13.1, 13.2)
+ *
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 13.1, 13.2
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { PDFViewer } from './PDFViewer';
 import { PDFChatArea } from './PDFChatArea';
-import { DocumentTabs, type DocumentTabInfo } from './DocumentTabs';
+import { IndexingProgress } from './IndexingProgress';
 import type { PDFChatLayoutProps } from './types';
-import type { Citation, TextSelection, PDFDocument } from '../../types/pdf';
+import type { Citation, TextSelection, PDFDocument, IndexResult } from '../../types/pdf';
+import { usePDFDocuments } from '../../contexts/PDFDocumentContext';
+import type { DocumentTabInfo } from './DocumentTabs';
+
+// =============================================================================
+// Indexing Progress State Type
+// =============================================================================
+
+interface IndexingState {
+  /** Document ID being indexed */
+  documentId: string;
+  /** Document name for display */
+  documentName: string;
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Whether indexing is in progress */
+  isIndexing: boolean;
+  /** Error message if indexing failed */
+  error: string | null;
+  /** Whether indexing completed successfully */
+  isComplete: boolean;
+}
+
+interface StarredPdf {
+  filePath: string;
+  fileName: string;
+  starredAt: number;
+}
 
 // Initial split proportions (Requirements 2.2)
 const INITIAL_LEFT_WIDTH_PERCENT = 55;
@@ -28,6 +55,8 @@ const MAX_PANEL_WIDTH_PERCENT = 80;
 
 // Divider width in pixels
 const DIVIDER_WIDTH = 6;
+
+const STARRED_PDFS_KEY = 'zura-pdf-starred-v1';
 
 /**
  * PDFChatLayout Component
@@ -42,46 +71,69 @@ const DIVIDER_WIDTH = 6;
  * @param sessionId - Optional session ID to load existing chat
  * @param initialDocumentPath - Optional path to initially load a document
  */
-export function PDFChatLayout({ 
+export function PDFChatLayout({
   sessionId,
-  initialDocumentPath 
+  initialDocumentPath
 }: PDFChatLayoutProps) {
+  // PDF document state from context (managed by sidebar)
+  const { loadedDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId } = usePDFDocuments();
+
+  // Local state for document IDs array (derived from loadedDocuments)
+  const documentIds = loadedDocuments.map(doc => doc.id);
+
   // Layout state
   const [leftWidthPercent, setLeftWidthPercent] = useState(INITIAL_LEFT_WIDTH_PERCENT);
-  
+
   // Divider drag state (Requirements 2.3, 2.4)
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  
-  // Multi-document state (Requirements 13.1, 13.2)
-  const [loadedDocuments, setLoadedDocuments] = useState<Map<string, DocumentTabInfo>>(new Map());
-  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(initialDocumentPath || null);
-  const [documentIds, setDocumentIds] = useState<string[]>(
-    initialDocumentPath ? [initialDocumentPath] : []
-  );
-  
+
   // File input ref for adding documents
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // PDF viewer state (per-document state could be added for more advanced use)
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
-  
+
   // Citation and selection state
   const [highlightedCitations, setHighlightedCitations] = useState<Citation[]>([]);
   const [selectedText, setSelectedText] = useState<TextSelection | null>(null);
-  
+
   // Grounded mode state
   const [groundedMode, setGroundedMode] = useState(false);
-  
+
   // Session state
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
-  
+
+  // Indexing progress state (Requirements 18.6, 19.3)
+  const [indexingState, setIndexingState] = useState<IndexingState | null>(null);
+
+  const [starredPdfs, setStarredPdfs] = useState<StarredPdf[]>([]);
+
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
   const dragStartXRef = useRef<number>(0);
   const dragStartWidthRef = useRef<number>(INITIAL_LEFT_WIDTH_PERCENT);
+
+  const loadStarredPdfs = useCallback((): StarredPdf[] => {
+    try {
+      const raw = localStorage.getItem(STARRED_PDFS_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const persistStarredPdfs = useCallback((next: StarredPdf[]) => {
+    try {
+      localStorage.setItem(STARRED_PDFS_KEY, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent('pdf-starred-updated'));
+    } catch (error) {
+      console.warn('[PDFChatLayout] Failed to persist starred PDFs:', error);
+    }
+  }, []);
 
   // Initialize session if not provided
   useEffect(() => {
@@ -89,6 +141,10 @@ export function PDFChatLayout({
       createNewSession();
     }
   }, [documentIds]);
+
+  useEffect(() => {
+    setStarredPdfs(loadStarredPdfs());
+  }, [loadStarredPdfs]);
 
   /**
    * Handle divider drag start (Requirements 2.3)
@@ -171,6 +227,106 @@ export function PDFChatLayout({
   }, [handleDragMove, handleDragEnd]);
 
   /**
+   * Setup IPC listeners for indexing progress events
+   * Requirements: 18.6, 19.3
+   * - 18.6: Display progress indication when processing large PDFs
+   * - 19.3: Process indexing in background without blocking UI
+   */
+  useEffect(() => {
+    if (!window.ipcRenderer) return;
+
+    // Handle indexing progress updates
+    const handleIndexProgress = (_event: any, docId: string, progress: number) => {
+      console.log('[PDFChatLayout] Index progress:', docId, progress);
+      setIndexingState(prev => {
+        // Only update if this is the document we're tracking
+        if (prev && prev.documentId === docId) {
+          return {
+            ...prev,
+            progress,
+            isIndexing: true,
+            isComplete: false,
+            error: null,
+          };
+        }
+        return prev;
+      });
+    };
+
+    // Handle indexing completion
+    const handleIndexComplete = (_event: any, docId: string, result: IndexResult) => {
+      console.log('[PDFChatLayout] Index complete:', docId, result);
+      setIndexingState(prev => {
+        if (prev && prev.documentId === docId) {
+          return {
+            ...prev,
+            progress: 100,
+            isIndexing: false,
+            isComplete: true,
+            error: null,
+          };
+        }
+        return prev;
+      });
+
+      // Update document tab to show indexed status
+      setLoadedDocuments(prev => {
+        const newMap = new Map(prev);
+        const existing = newMap.get(docId);
+        if (existing) {
+          newMap.set(docId, { ...existing, isIndexed: true });
+        }
+        return newMap;
+      });
+
+      // Auto-dismiss after 3 seconds
+      setTimeout(() => {
+        setIndexingState(prev => {
+          if (prev && prev.documentId === docId && prev.isComplete) {
+            return null;
+          }
+          return prev;
+        });
+      }, 3000);
+    };
+
+    // Handle indexing errors
+    const handleIndexError = (_event: any, docId: string, errorMessage: string) => {
+      console.error('[PDFChatLayout] Index error:', docId, errorMessage);
+      setIndexingState(prev => {
+        if (prev && prev.documentId === docId) {
+          return {
+            ...prev,
+            isIndexing: false,
+            isComplete: false,
+            error: errorMessage,
+          };
+        }
+        return prev;
+      });
+    };
+
+    // Register listeners
+    window.ipcRenderer.on('pdf:index-progress', handleIndexProgress);
+    window.ipcRenderer.on('pdf:index-complete', handleIndexComplete);
+    window.ipcRenderer.on('pdf:index-error', handleIndexError);
+
+    // Cleanup listeners on unmount
+    return () => {
+      window.ipcRenderer.off('pdf:index-progress', handleIndexProgress);
+      window.ipcRenderer.off('pdf:index-complete', handleIndexComplete);
+      window.ipcRenderer.off('pdf:index-error', handleIndexError);
+    };
+  }, []);
+
+  /**
+   * Dismiss the indexing progress indicator
+   */
+  const dismissIndexingProgress = useCallback(() => {
+    setIndexingState(null);
+  }, []);
+
+  /**
    * Create a new PDF chat session
    */
   const createNewSession = async () => {
@@ -181,6 +337,11 @@ export function PDFChatLayout({
       }
     } catch (error) {
       console.error('[PDFChatLayout] Failed to create session:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('PDF features are currently unavailable')) {
+        const fallbackId = `local-${Date.now().toString(36)}`;
+        setCurrentSessionId(fallbackId);
+      }
     }
   };
 
@@ -231,6 +392,30 @@ export function PDFChatLayout({
     setGroundedMode(enabled);
   }, []);
 
+  const isActiveStarred = Boolean(
+    activeDocumentId && starredPdfs.some(pdf => pdf.filePath === activeDocumentId)
+  );
+
+  const toggleStarForActiveDocument = useCallback(() => {
+    if (!activeDocumentId) return;
+    setStarredPdfs(prev => {
+      const exists = prev.some(pdf => pdf.filePath === activeDocumentId);
+      const doc = loadedDocuments.find(d => d.id === activeDocumentId);
+      const next = exists
+        ? prev.filter(pdf => pdf.filePath !== activeDocumentId)
+        : [
+            ...prev,
+            {
+              filePath: activeDocumentId,
+              fileName: doc?.name || activeDocumentId.split(/[/\\]/).pop() || 'Document',
+              starredAt: Date.now()
+            }
+          ];
+      persistStarredPdfs(next);
+      return next;
+    });
+  }, [activeDocumentId, loadedDocuments, persistStarredPdfs]);
+
   /**
    * Load a document into the viewer (supports multi-document)
    * Requirements: 13.1
@@ -238,18 +423,23 @@ export function PDFChatLayout({
   const loadDocument = useCallback(async (filePath: string) => {
     try {
       // Check if document is already loaded
-      if (loadedDocuments.has(filePath)) {
+      if (loadedDocuments.some(d => d.id === filePath)) {
         // Just switch to the existing document
         setActiveDocumentId(filePath);
         return;
       }
 
       // Load document via IPC
-      const doc = await window.ipcRenderer?.invoke('pdf:load', filePath);
+      let doc: PDFDocument | undefined;
+      try {
+        doc = await window.ipcRenderer?.invoke('pdf:load', filePath);
+      } catch (invokeError) {
+        throw invokeError;
+      }
       if (doc) {
-        const docId = doc.id || filePath;
+        const docId = doc.filePath || filePath;
         const fileName = doc.fileName || filePath.split(/[/\\]/).pop() || 'Document';
-        
+
         // Create document tab info
         const tabInfo: DocumentTabInfo = {
           id: docId,
@@ -257,22 +447,14 @@ export function PDFChatLayout({
           isIndexed: false,
           pageCount: doc.pageCount,
         };
-        
-        // Add to loaded documents
-        setLoadedDocuments(prev => {
+
+        // Add to loaded documents (using the Map-based setter for compatibility with context)
+        setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
           const newMap = new Map(prev);
           newMap.set(docId, tabInfo);
           return newMap;
         });
-        
-        // Update document IDs array
-        setDocumentIds(prev => {
-          if (!prev.includes(docId)) {
-            return [...prev, docId];
-          }
-          return prev;
-        });
-        
+
         // Set as active document
         setActiveDocumentId(docId);
         
@@ -294,6 +476,36 @@ export function PDFChatLayout({
               }
               return newMap;
             });
+          } else {
+            // Document not indexed - start indexing with progress tracking
+            // Requirements: 18.6, 19.3
+            console.log('[PDFChatLayout] Starting indexing for document:', docId);
+            
+            // Initialize indexing state to show progress indicator
+            setIndexingState({
+              documentId: docId,
+              documentName: fileName,
+              progress: 0,
+              isIndexing: true,
+              error: null,
+              isComplete: false,
+            });
+            
+            // Start indexing in background (non-blocking)
+            // The IPC handlers will send progress events that update the UI
+            window.ipcRenderer?.invoke('pdf:index', docId).catch(err => {
+              console.error('[PDFChatLayout] Indexing failed:', err);
+              setIndexingState(prev => {
+                if (prev && prev.documentId === docId) {
+                  return {
+                    ...prev,
+                    isIndexing: false,
+                    error: err instanceof Error ? err.message : String(err),
+                  };
+                }
+                return prev;
+              });
+            });
           }
         } catch (err) {
           console.warn('[PDFChatLayout] Could not check index status:', err);
@@ -301,55 +513,74 @@ export function PDFChatLayout({
       }
     } catch (error) {
       console.error('[PDFChatLayout] Failed to load document:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isPdfJsInitFailure =
+        errorMessage.includes('Failed to initialize pdf.js') ||
+        errorMessage.includes("Cannot find module 'canvas'");
+      if (isPdfJsInitFailure) {
+        const fallbackDocId = filePath;
+        const fileName = filePath.split(/[/\\]/).pop() || 'Document';
+        setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
+          const newMap = new Map(prev);
+          if (!newMap.has(fallbackDocId)) {
+            newMap.set(fallbackDocId, {
+              id: fallbackDocId,
+              name: fileName,
+              isIndexed: false,
+            });
+          }
+          return newMap;
+        });
+        setActiveDocumentId(fallbackDocId);
+        setCurrentPage(1);
+        setZoomLevel(100);
+        setHighlightedCitations([]);
+        setSelectedText(null);
+        setIndexingState(null);
+        return;
+      }
     }
-  }, [loadedDocuments]);
+  }, [loadedDocuments, setActiveDocumentId, setLoadedDocuments]);
 
   /**
    * Handle tab selection - switch to a different document
+   * Called when document is switched via sidebar
    * Requirements: 13.2
    */
   const handleTabSelect = useCallback((documentId: string) => {
-    if (loadedDocuments.has(documentId)) {
+    if (loadedDocuments.some(d => d.id === documentId)) {
       setActiveDocumentId(documentId);
       // Reset page to 1 when switching documents (could be enhanced to remember per-doc state)
       setCurrentPage(1);
       setHighlightedCitations([]);
     }
-  }, [loadedDocuments]);
+  }, [loadedDocuments, setActiveDocumentId]);
 
   /**
    * Handle tab close - remove a document from the session
+   * Called when document is closed via sidebar
    * Requirements: 13.1
    */
   const handleTabClose = useCallback((documentId: string) => {
-    // Remove from loaded documents
-    setLoadedDocuments(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(documentId);
-      return newMap;
-    });
-    
-    // Remove from document IDs
-    setDocumentIds(prev => prev.filter(id => id !== documentId));
-    
-    // If closing the active document, switch to another one
-    if (activeDocumentId === documentId) {
-      const remainingDocs = Array.from(loadedDocuments.keys()).filter(id => id !== documentId);
-      if (remainingDocs.length > 0) {
-        setActiveDocumentId(remainingDocs[0]);
-      } else {
-        setActiveDocumentId(null);
-      }
-    }
-    
     // Unload document from main process
     window.ipcRenderer?.invoke('pdf:unload', documentId).catch(err => {
       console.warn('[PDFChatLayout] Could not unload document:', err);
     });
-  }, [activeDocumentId, loadedDocuments]);
+
+    // If closing the active document, switch to another one
+    if (activeDocumentId === documentId) {
+      const remainingDocs = loadedDocuments.filter(d => d.id !== documentId);
+      if (remainingDocs.length > 0) {
+        setActiveDocumentId(remainingDocs[0].id);
+      } else {
+        setActiveDocumentId(null);
+      }
+    }
+  }, [activeDocumentId, loadedDocuments, setActiveDocumentId]);
 
   /**
    * Handle add document button click
+   * Triggered via event from sidebar
    * Requirements: 13.1
    */
   const handleAddDocument = useCallback(() => {
@@ -372,14 +603,40 @@ export function PDFChatLayout({
     }
   }, [loadDocument]);
 
-  // Convert loaded documents map to array for tabs
-  const documentTabsArray = Array.from(loadedDocuments.values());
+  // Listen for document events from sidebar
+  useEffect(() => {
+    const handleSwitchDocument = (e: Event) => {
+      const customEvent = e as CustomEvent<{ documentId: string }>;
+      const { documentId } = customEvent.detail;
+      handleTabSelect(documentId);
+    };
+
+    const handleCloseDocument = (e: Event) => {
+      const customEvent = e as CustomEvent<{ documentId: string }>;
+      const { documentId } = customEvent.detail;
+      handleTabClose(documentId);
+    };
+
+    const handleAddDocumentEvent = () => {
+      fileInputRef.current?.click();
+    };
+
+    window.addEventListener('pdf:switch-document', handleSwitchDocument);
+    window.addEventListener('pdf:close-document', handleCloseDocument);
+    window.addEventListener('pdf:add-document', handleAddDocumentEvent);
+
+    return () => {
+      window.removeEventListener('pdf:switch-document', handleSwitchDocument);
+      window.removeEventListener('pdf:close-document', handleCloseDocument);
+      window.removeEventListener('pdf:add-document', handleAddDocumentEvent);
+    };
+  }, [handleTabSelect, handleTabClose]);
 
   // Calculate panel widths
   const rightWidthPercent = 100 - leftWidthPercent;
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`pdf-chat-layout ${isDragging ? 'dragging' : ''}`}
       style={{
@@ -391,15 +648,6 @@ export function PDFChatLayout({
         backgroundColor: 'var(--theme-background)',
       }}
     >
-      {/* Document Tabs Bar (Requirements 13.1, 13.2) */}
-      <DocumentTabs
-        documents={documentTabsArray}
-        activeDocumentId={activeDocumentId}
-        onTabSelect={handleTabSelect}
-        onTabClose={handleTabClose}
-        onAddDocument={handleAddDocument}
-      />
-      
       {/* Hidden file input for adding documents */}
       <input
         ref={fileInputRef}
@@ -425,6 +673,7 @@ export function PDFChatLayout({
             display: 'flex',
             flexDirection: 'column',
             flexShrink: 0,
+            position: 'relative', // For positioning the indexing progress indicator
           }}
         >
           {activeDocumentId ? (
@@ -436,9 +685,25 @@ export function PDFChatLayout({
               currentPage={currentPage}
               zoomLevel={zoomLevel}
               onZoomChange={handleZoomChange}
+              autoFit={true}
+              isStarred={isActiveStarred}
+              onToggleStar={toggleStarForActiveDocument}
             />
           ) : (
             <PDFUploadPrompt onFileSelect={loadDocument} />
+          )}
+          
+          {/* Indexing Progress Indicator (Requirements 18.6, 19.3) */}
+          {indexingState && (
+            <IndexingProgress
+              documentId={indexingState.documentId}
+              documentName={indexingState.documentName}
+              progress={indexingState.progress}
+              isIndexing={indexingState.isIndexing}
+              error={indexingState.error}
+              isComplete={indexingState.isComplete}
+              onDismiss={dismissIndexingProgress}
+            />
           )}
         </div>
 

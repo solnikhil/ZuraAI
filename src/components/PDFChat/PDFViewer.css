@@ -309,6 +309,25 @@
   font-size: 14px;
 }
 
+/* ==== PAGE PLACEHOLDER (Lazy Rendering) ==== */
+
+.pdf-viewer-page-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--theme-surface);
+  border: 1px dashed var(--theme-border);
+  border-radius: 4px;
+  color: var(--theme-text-muted);
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.pdf-viewer-page-placeholder-text {
+  opacity: 0.6;
+  user-select: none;
+}
+
 /* ==== SCROLLBAR ==== */
 
 .pdf-viewer-document-wrapper::-webkit-scrollbar {

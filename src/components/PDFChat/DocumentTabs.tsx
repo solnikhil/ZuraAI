@@ -99,11 +99,11 @@ export function DocumentTabs({
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '6px 12px',
+            padding: '6px 10px',
             borderRadius: '6px',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            color: '#60a5fa',
+            border: 'none',
+            backgroundColor: 'transparent',
+            color: 'var(--theme-text-muted)',
             cursor: addDisabled ? 'not-allowed' : 'pointer',
             fontSize: '0.85rem',
             fontWeight: 500,
@@ -111,6 +111,16 @@ export function DocumentTabs({
             transition: 'all 0.2s',
           }}
           title="Add PDF document"
+          onMouseEnter={(e) => {
+            if (!addDisabled) {
+              e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)';
+              e.currentTarget.style.color = 'var(--theme-text-primary)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = 'var(--theme-text-muted)';
+          }}
         >
           <Plus size={14} />
           Add PDF
@@ -252,11 +262,11 @@ export function DocumentTabs({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '32px',
-          height: '32px',
+          width: '28px',
+          height: '28px',
           margin: '0 8px',
           borderRadius: '6px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          border: 'none',
           backgroundColor: 'transparent',
           color: 'var(--theme-text-muted)',
           cursor: addDisabled ? 'not-allowed' : 'pointer',
@@ -267,14 +277,12 @@ export function DocumentTabs({
         title="Add another PDF document"
         onMouseEnter={(e) => {
           if (!addDisabled) {
-            e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
-            e.currentTarget.style.color = '#60a5fa';
+            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)';
+            e.currentTarget.style.color = 'var(--theme-text-primary)';
           }
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.backgroundColor = 'transparent';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
           e.currentTarget.style.color = 'var(--theme-text-muted)';
         }}
       >

@@ -76,8 +76,13 @@
 .model-selector-trigger.minimal {
   background: transparent;
   border: none;
-  padding: 6px 8px;
+  padding: 6px;
   border-radius: 10px;
+  gap: 0;
+}
+
+.model-selector-trigger.minimal:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .model-selector-trigger:not(.minimal):hover {

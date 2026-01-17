@@ -1,99 +1,101 @@
 // Centralized icon exports from lucide-react
 // Re-exporting icons for consistent usage across the application
 
-export { default as Send } from 'lucide-react/dist/esm/icons/send'
-export { default as Paperclip } from 'lucide-react/dist/esm/icons/paperclip'
-export { default as Sparkles } from 'lucide-react/dist/esm/icons/sparkles'
-export { default as Copy } from 'lucide-react/dist/esm/icons/copy'
-export { default as Check } from 'lucide-react/dist/esm/icons/check'
-export { default as ChevronDown } from 'lucide-react/dist/esm/icons/chevron-down'
-export { default as ChevronUp } from 'lucide-react/dist/esm/icons/chevron-up'
-export { default as ChevronLeft } from 'lucide-react/dist/esm/icons/chevron-left'
-export { default as ChevronRight } from 'lucide-react/dist/esm/icons/chevron-right'
-export { default as RotateCcw } from 'lucide-react/dist/esm/icons/rotate-ccw'
-export { default as Download } from 'lucide-react/dist/esm/icons/download'
-export { default as Share2 } from 'lucide-react/dist/esm/icons/share-2'
-export { default as Globe } from 'lucide-react/dist/esm/icons/globe'
-export { default as FolderOpen } from 'lucide-react/dist/esm/icons/folder-open'
-export { default as Mic } from 'lucide-react/dist/esm/icons/mic'
-export { default as Info } from 'lucide-react/dist/esm/icons/info'
-export { default as Clock } from 'lucide-react/dist/esm/icons/clock'
-export { default as ArrowDown } from 'lucide-react/dist/esm/icons/arrow-down'
-export { default as ArrowUp } from 'lucide-react/dist/esm/icons/arrow-up'
-export { default as ArrowLeft } from 'lucide-react/dist/esm/icons/arrow-left'
-export { default as ArrowRight } from 'lucide-react/dist/esm/icons/arrow-right'
-export { default as Sigma } from 'lucide-react/dist/esm/icons/sigma'
-export { default as Cpu } from 'lucide-react/dist/esm/icons/cpu'
-export { default as Twitter } from 'lucide-react/dist/esm/icons/twitter'
-export { default as MessageCircle } from 'lucide-react/dist/esm/icons/message-circle'
-export { default as MessageSquare } from 'lucide-react/dist/esm/icons/message-square'
-export { default as FlaskConical } from 'lucide-react/dist/esm/icons/flask-conical'
-export { default as Video } from 'lucide-react/dist/esm/icons/video'
-export { default as ShieldCheck } from 'lucide-react/dist/esm/icons/shield-check'
-export { default as Brain } from 'lucide-react/dist/esm/icons/brain'
-export { default as Trash2 } from 'lucide-react/dist/esm/icons/trash-2'
-export { default as Wrench } from 'lucide-react/dist/esm/icons/wrench'
-export { default as X } from 'lucide-react/dist/esm/icons/x'
-export { default as File } from 'lucide-react/dist/esm/icons/file'
-export { default as Image } from 'lucide-react/dist/esm/icons/image'
-export { default as FileText } from 'lucide-react/dist/esm/icons/file-text'
-export { default as Bot } from 'lucide-react/dist/esm/icons/bot'
-export { default as Square } from 'lucide-react/dist/esm/icons/square'
-export { default as Zap } from 'lucide-react/dist/esm/icons/zap'
-export { default as TrendingUp } from 'lucide-react/dist/esm/icons/trending-up'
-export { default as Database } from 'lucide-react/dist/esm/icons/database'
-export { default as Plus } from 'lucide-react/dist/esm/icons/plus'
-export { default as Search } from 'lucide-react/dist/esm/icons/search'
-export { default as SettingsIcon } from 'lucide-react/dist/esm/icons/settings'
-export { default as PanelLeft } from 'lucide-react/dist/esm/icons/panel-left'
-export { default as LayoutDashboard } from 'lucide-react/dist/esm/icons/layout-dashboard'
-export { default as User } from 'lucide-react/dist/esm/icons/user'
-export { default as LogOut } from 'lucide-react/dist/esm/icons/log-out'
-export { default as ChartNoAxesCombined } from 'lucide-react/dist/esm/icons/chart-no-axes-combined'
-export { default as Key } from 'lucide-react/dist/esm/icons/key'
-export { default as Github } from 'lucide-react/dist/esm/icons/github'
-export { default as Star } from 'lucide-react/dist/esm/icons/star'
-export { default as FileEdit } from 'lucide-react/dist/esm/icons/file-edit'
-export { default as Crown } from 'lucide-react/dist/esm/icons/crown'
-export { default as RefreshCw } from 'lucide-react/dist/esm/icons/refresh-cw'
-export { default as Edit2 } from 'lucide-react/dist/esm/icons/edit-2'
-export { default as Eye } from 'lucide-react/dist/esm/icons/eye'
-export { default as EyeOff } from 'lucide-react/dist/esm/icons/eye-off'
-export { default as Box } from 'lucide-react/dist/esm/icons/box'
-export { default as HardDrive } from 'lucide-react/dist/esm/icons/hard-drive'
-export { default as BarChart } from 'lucide-react/dist/esm/icons/bar-chart'
-export { default as AlignLeft } from 'lucide-react/dist/esm/icons/align-left'
-export { default as CheckSquare } from 'lucide-react/dist/esm/icons/check-square'
-export { default as ListTodo } from 'lucide-react/dist/esm/icons/list-todo'
-export { default as MousePointer } from 'lucide-react/dist/esm/icons/mouse-pointer'
-export { default as Keyboard } from 'lucide-react/dist/esm/icons/keyboard'
-export { default as Monitor } from 'lucide-react/dist/esm/icons/monitor'
-export { default as Shield } from 'lucide-react/dist/esm/icons/shield'
-export { default as Workflow } from 'lucide-react/dist/esm/icons/workflow'
-export { default as Filter } from 'lucide-react/dist/esm/icons/filter'
-export { default as Cloud } from 'lucide-react/dist/esm/icons/cloud'
-export { default as Grid } from 'lucide-react/dist/esm/icons/grid'
-export { default as LayoutGrid } from 'lucide-react/dist/esm/icons/layout-grid'
-export { default as Expand } from 'lucide-react/dist/esm/icons/expand'
-export { default as CheckCircle } from 'lucide-react/dist/esm/icons/check-circle'
-export { default as XCircle } from 'lucide-react/dist/esm/icons/x-circle'
-export { default as AlertCircle } from 'lucide-react/dist/esm/icons/alert-circle'
-export { default as AlertTriangle } from 'lucide-react/dist/esm/icons/alert-triangle'
-export { default as Bug } from 'lucide-react/dist/esm/icons/bug'
-export { default as Lightbulb } from 'lucide-react/dist/esm/icons/lightbulb'
-export { default as Loader2 } from 'lucide-react/dist/esm/icons/loader-2'
-export { default as Plug } from 'lucide-react/dist/esm/icons/plug'
-export { default as ExternalLink } from 'lucide-react/dist/esm/icons/external-link'
-export { default as Calculator } from 'lucide-react/dist/esm/icons/calculator'
-export { default as Clipboard } from 'lucide-react/dist/esm/icons/clipboard'
-export { default as Command } from 'lucide-react/dist/esm/icons/command'
-export { default as CornerDownLeft } from 'lucide-react/dist/esm/icons/corner-down-left'
-export { default as Settings } from 'lucide-react/dist/esm/icons/settings'
-export { default as ShieldOff } from 'lucide-react/dist/esm/icons/shield-off'
-export { default as BookOpen } from 'lucide-react/dist/esm/icons/book-open'
-export { default as ThumbsUp } from 'lucide-react/dist/esm/icons/thumbs-up'
-export { default as ThumbsDown } from 'lucide-react/dist/esm/icons/thumbs-down'
-export { default as Flag } from 'lucide-react/dist/esm/icons/flag'
+export {
+  Send,
+  Paperclip,
+  Sparkles,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Download,
+  Share2,
+  Globe,
+  FolderOpen,
+  Mic,
+  Info,
+  Clock,
+  ArrowDown,
+  ArrowUp,
+  ArrowLeft,
+  ArrowRight,
+  Sigma,
+  Cpu,
+  Twitter,
+  MessageCircle,
+  MessageSquare,
+  FlaskConical,
+  Video,
+  ShieldCheck,
+  Brain,
+  Trash2,
+  Wrench,
+  X,
+  File,
+  Image,
+  FileText,
+  Bot,
+  Square,
+  Zap,
+  TrendingUp,
+  Database,
+  Plus,
+  Search,
+  Settings as SettingsIcon,
+  PanelLeft,
+  LayoutDashboard,
+  User,
+  LogOut,
+  ChartNoAxesCombined,
+  Key,
+  Github,
+  Star,
+  FileEdit,
+  Crown,
+  RefreshCw,
+  Edit2,
+  Eye,
+  EyeOff,
+  Box,
+  HardDrive,
+  BarChart,
+  AlignLeft,
+  CheckSquare,
+  ListTodo,
+  MousePointer,
+  Keyboard,
+  Monitor,
+  Shield,
+  Workflow,
+  Filter,
+  Cloud,
+  Grid,
+  LayoutGrid,
+  Expand,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  AlertTriangle,
+  Bug,
+  Lightbulb,
+  Loader2,
+  Plug,
+  ExternalLink,
+  Calculator,
+  Clipboard,
+  Command,
+  CornerDownLeft,
+  Settings,
+  ShieldOff,
+  BookOpen,
+  ThumbsUp,
+  ThumbsDown,
+  Flag,
+} from 'lucide-react'
 
 // Animated icons
 export { default as SendIcon } from './SendIcon'
@@ -103,4 +105,3 @@ export { default as TrashIcon } from './TrashIcon'
 export { default as EyeIcon } from './EyeIcon'
 export { default as EyeOffIcon } from './EyeOffIcon'
 export type { AnimatedIconHandle, AnimatedIconProps } from './types'
-

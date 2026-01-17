@@ -6,10 +6,13 @@ import {
 } from '../icons'
 import { MessageCircleIcon, MagnifierIcon, TrashIcon } from '../icons'
 import type { AnimatedIconHandle } from '../icons'
+
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
-import type { RecentDocument, PDFChatSession } from '../../types/pdf'
+import { usePDFDocuments } from '../../contexts/PDFDocumentContext'
+import type { PDFChatSession } from '../../types/pdf'
+import { DocumentTabs, type DocumentTabInfo } from '../PDFChat/DocumentTabs'
 
 
 interface SidebarProps {
@@ -17,6 +20,7 @@ interface SidebarProps {
     onOpenSettings: () => void
     onCloseSettings: () => void
     onNavigateToPDF: () => void
+    onNavigateToChat?: () => void
     onLoadRecentPDF?: (filePath: string) => void
     onSwitchPDFSession?: (sessionId: string) => void
     activePDFSessionId?: string | null
@@ -25,18 +29,19 @@ interface SidebarProps {
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToPDF, onLoadRecentPDF, onSwitchPDFSession, activePDFSessionId, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToPDF, onNavigateToChat, onLoadRecentPDF, onSwitchPDFSession, activePDFSessionId, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
-    const [isRecentPDFsExpanded, setIsRecentPDFsExpanded] = useState(true)
+    const [isStarredPDFsExpanded, setIsStarredPDFsExpanded] = useState(true)
     const [isPDFSessionsExpanded, setIsPDFSessionsExpanded] = useState(true)
-    const [recentPDFs, setRecentPDFs] = useState<RecentDocument[]>([])
+    const [starredPDFs, setStarredPDFs] = useState<Array<{ filePath: string; fileName: string; starredAt: number }>>([])
     const [pdfSessions, setPdfSessions] = useState<PDFChatSession[]>([])
-    const [isLoadingRecentPDFs, setIsLoadingRecentPDFs] = useState(false)
+    const [isLoadingStarredPDFs, setIsLoadingStarredPDFs] = useState(false)
     const [isLoadingPDFSessions, setIsLoadingPDFSessions] = useState(false)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
-    const { settings, resetSettings, updateSettings } = useSettings()
+    const { settings, updateSettings } = useSettings()
+    const { loadedDocuments: pdfDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId } = usePDFDocuments()
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
@@ -45,27 +50,40 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     const newChatIconRef = useRef<AnimatedIconHandle>(null)
     // Search icon animation ref
     const searchIconRef = useRef<AnimatedIconHandle>(null)
-    // PDF icon animation ref
-    const pdfIconRef = useRef<AnimatedIconHandle>(null)
+    const startIconAnimation = (iconRef: React.RefObject<AnimatedIconHandle>) => {
+        iconRef.current?.startAnimation?.()
+    }
 
-    // Fetch recent PDF documents when in PDF mode
+    const stopIconAnimation = (iconRef: React.RefObject<AnimatedIconHandle>) => {
+        iconRef.current?.stopAnimation?.()
+    }
+
+
+
+    // Fetch starred PDF documents when in PDF mode
     useEffect(() => {
-        const fetchRecentPDFs = async () => {
-            if (view === 'pdf' && window.ipcRenderer) {
-                setIsLoadingRecentPDFs(true)
+        const fetchStarredPDFs = () => {
+            if (view === 'pdf') {
+                setIsLoadingStarredPDFs(true)
                 try {
-                    const docs = await window.ipcRenderer.invoke('pdf-chat:get-recent-documents', 10)
-                    setRecentPDFs(docs || [])
+                    const raw = localStorage.getItem('zura-pdf-starred-v1')
+                    const parsed = raw ? JSON.parse(raw) : []
+                    const docs = Array.isArray(parsed) ? parsed : []
+                    setStarredPDFs(docs)
                 } catch (error) {
-                    console.error('[Sidebar] Error fetching recent PDFs:', error)
-                    setRecentPDFs([])
+                    console.error('[Sidebar] Error fetching starred PDFs:', error)
+                    setStarredPDFs([])
                 } finally {
-                    setIsLoadingRecentPDFs(false)
+                    setIsLoadingStarredPDFs(false)
                 }
             }
         }
-        
-        fetchRecentPDFs()
+
+        fetchStarredPDFs()
+
+        const handleStarredUpdate = () => fetchStarredPDFs()
+        window.addEventListener('pdf-starred-updated', handleStarredUpdate)
+        return () => window.removeEventListener('pdf-starred-updated', handleStarredUpdate)
     }, [view])
 
     // Fetch PDF chat sessions when in PDF mode
@@ -121,11 +139,11 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
-            opacity: view === 'chat' ? 1 : 0,
-            transform: view === 'chat' ? 'translateX(0)' : 'translateX(-20px)',
+            opacity: (view === 'chat' || view === 'pdf') ? 1 : 0,
+            transform: (view === 'chat' || view === 'pdf') ? 'translateX(0)' : 'translateX(-20px)',
             transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
-            pointerEvents: view === 'chat' ? 'all' : 'none',
-            position: view === 'chat' ? 'relative' : 'absolute',
+            pointerEvents: (view === 'chat' || view === 'pdf') ? 'all' : 'none',
+            position: (view === 'chat' || view === 'pdf') ? 'relative' : 'absolute',
             width: '100%'
         }}>
             {/* Header */}
@@ -139,7 +157,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 overflow: 'hidden'
             }}>
 
-                {/* Quick Actions - Search & New Chat (stacked, grey icons) */}
+                {/* Quick Actions - Search & New Chat (stacked, grey icons) - Hidden in PDF mode */}
+                {view !== 'pdf' && (
                 <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -171,12 +190,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            newChatIconRef.current?.startAnimation()
+                            startIconAnimation(newChatIconRef)
+
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            newChatIconRef.current?.stopAnimation()
+                            stopIconAnimation(newChatIconRef)
+
                         }}
                         title={isCollapsed ? 'New Chat' : ''}
                     >
@@ -192,56 +213,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>New Chat</span>}
                     </button>
 
-                    {/* PDF Chat Button */}
-                    <button
-                        onClick={onNavigateToPDF}
-                        className="quick-action-btn"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '8px 8px',
-                            background: view === 'pdf' ? 'var(--theme-accent-muted)' : 'transparent',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            color: view === 'pdf' ? 'var(--theme-accent)' : 'var(--theme-text-primary)',
-                            fontSize: '0.85rem',
-                            fontWeight: 500,
-                            width: '100%',
-                            justifyContent: 'flex-start',
-                            minWidth: 0,
-                            overflow: 'hidden',
-                            borderLeft: view === 'pdf' ? '2px solid var(--theme-accent)' : '2px solid transparent'
-                        }}
-                        onMouseEnter={e => {
-                            if (view !== 'pdf') {
-                                e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                                e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            }
-                            pdfIconRef.current?.startAnimation()
-                        }}
-                        onMouseLeave={e => {
-                            if (view !== 'pdf') {
-                                e.currentTarget.style.background = 'transparent'
-                                e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            }
-                            pdfIconRef.current?.stopAnimation()
-                        }}
-                        title={isCollapsed ? 'PDF Chat' : ''}
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <FileText ref={pdfIconRef} size={16} strokeWidth={2} />
-                        </div>
-                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>PDF Chat</span>}
-                    </button>
 
                     {/* Search Button */}
                     <button
@@ -271,12 +242,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         onMouseEnter={e => {
                             e.currentTarget.style.background = 'var(--theme-surface-hover)'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            searchIconRef.current?.startAnimation()
+                            startIconAnimation(searchIconRef)
+
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent'
                             e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            searchIconRef.current?.stopAnimation()
+                            stopIconAnimation(searchIconRef)
+
                         }}
                         title={isCollapsed ? 'Search chats' : ''}
                     >
@@ -292,8 +265,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Search chats</span>}
                     </button>
                 </div>
+                )}
 
-                {/* Hidden search input for focus trigger */}
+                {/* Hidden search input for focus trigger - Only visible in chat mode */}
+                {view !== 'pdf' && (
                 <input
                     type="text"
                     className="sidebar-search-input"
@@ -317,7 +292,40 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         zIndex: 10
                     }}
                 />
+                )}
             </div>
+
+            {/* Document Tabs - Only visible in PDF mode */}
+            {view === 'pdf' && (
+                <div style={{
+                    borderBottom: '1px solid var(--theme-border)',
+                    backgroundColor: 'var(--theme-surface)',
+                }}>
+                    <DocumentTabs
+                        documents={pdfDocuments}
+                        activeDocumentId={activeDocumentId}
+                        onTabSelect={(docId) => {
+                            setActiveDocumentId(docId)
+                            // Notify PDFChatLayout to switch documents
+                            window.dispatchEvent(new CustomEvent('pdf:switch-document', { detail: { documentId: docId } }))
+                        }}
+                        onTabClose={(docId) => {
+                            // Update the loaded documents map
+                            setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
+                                const updated = new Map(prev);
+                                updated.delete(docId);
+                                return updated;
+                            });
+                            // Notify PDFChatLayout to unload the document
+                            window.dispatchEvent(new CustomEvent('pdf:close-document', { detail: { documentId: docId } }));
+                        }}
+                        onAddDocument={() => {
+                            // Trigger file picker via event
+                            window.dispatchEvent(new CustomEvent('pdf:add-document'))
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Chat History List */}
             <div style={{
@@ -329,11 +337,11 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 gap: '1px',
                 minWidth: 0
             }}>
-                {/* Recent PDFs Section - Only visible in PDF mode */}
+                {/* Starred PDFs Section - Only visible in PDF mode */}
                 {view === 'pdf' && !isCollapsed && (
                     <>
                         <div
-                            onClick={() => setIsRecentPDFsExpanded(!isRecentPDFsExpanded)}
+                            onClick={() => setIsStarredPDFsExpanded(!isStarredPDFsExpanded)}
                             onMouseEnter={e => {
                                 const chevron = e.currentTarget.querySelector('.chevron-icon-pdf') as HTMLElement
                                 if (chevron) chevron.style.opacity = '1'
@@ -356,13 +364,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                 letterSpacing: '0.5px'
                             }}
                         >
-                            <span>Recent PDFs</span>
+                            <span>Starred PDFs</span>
                             <ChevronDown
                                 className="chevron-icon-pdf"
                                 size={12}
                                 style={{
                                     transition: 'transform 0.2s, opacity 0.2s',
-                                    transform: isRecentPDFsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                    transform: isStarredPDFsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
                                     opacity: 0,
                                     marginLeft: 'auto'
                                 }}
@@ -370,13 +378,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         </div>
 
                         <div style={{
-                            display: isRecentPDFsExpanded ? 'flex' : 'none',
+                            display: isStarredPDFsExpanded ? 'flex' : 'none',
                             flexDirection: 'column',
                             gap: '1px',
                             minWidth: 0,
                             marginBottom: '8px'
                         }}>
-                            {isLoadingRecentPDFs ? (
+                            {isLoadingStarredPDFs ? (
                                 <div style={{
                                     padding: '8px 12px',
                                     fontSize: '0.8rem',
@@ -385,19 +393,19 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                 }}>
                                     Loading...
                                 </div>
-                            ) : recentPDFs.length === 0 ? (
+                            ) : starredPDFs.length === 0 ? (
                                 <div style={{
                                     padding: '8px 12px',
                                     fontSize: '0.8rem',
                                     color: 'var(--theme-text-muted)',
                                     fontStyle: 'italic'
                                 }}>
-                                    No recent documents
+                                    No starred documents
                                 </div>
                             ) : (
-                                recentPDFs.map((doc, index) => (
+                                starredPDFs.map((doc, index) => (
                                     <div
-                                        key={doc.id}
+                                        key={doc.filePath}
                                         onClick={() => onLoadRecentPDF?.(doc.filePath)}
                                         className="session-item animate-sidebar-item"
                                         title={doc.filePath}
@@ -437,19 +445,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                             textOverflow: 'ellipsis',
                                             minWidth: 0
                                         }}>{doc.fileName}</span>
-                                        {doc.isIndexed && (
-                                            <div
-                                                title="Indexed"
-                                                style={{
-                                                    width: '6px',
-                                                    height: '6px',
-                                                    borderRadius: '50%',
-                                                    backgroundColor: 'var(--theme-accent)',
-                                                    flexShrink: 0,
-                                                    marginRight: '8px'
-                                                }}
-                                            />
-                                        )}
+                                        <Star size={12} style={{ color: '#facc15', marginRight: '8px' }} />
                                     </div>
                                 ))
                             )}
@@ -590,7 +586,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     </>
                 )}
 
-                {!isCollapsed && filteredSessions.length > 0 && (
+                {!isCollapsed && filteredSessions.length > 0 && view !== 'pdf' && (
                     <div
                         onClick={() => setIsListExpanded(!isListExpanded)}
                         onMouseEnter={e => {
@@ -630,7 +626,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 )}
 
                 <div style={{
-                    display: isListExpanded && !isCollapsed ? 'flex' : 'none',
+                    display: isListExpanded && !isCollapsed && view !== 'pdf' ? 'flex' : 'none',
                     flexDirection: 'column',
                     gap: '1px',
                     minWidth: 0
@@ -693,7 +689,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 </div>
             </div>
 
-            {/* Footer - Settings Button */}
+            {/* Footer - Settings Button or Back to LLM Chat */}
             <div style={{
                 marginTop: 'auto',
                 borderTop: '1px solid var(--theme-border)',
@@ -703,45 +699,89 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 alignItems: 'stretch',
                 minWidth: 0
             }}>
-                <button
-                    onClick={onOpenSettings}
-                    title="Settings"
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'var(--theme-text-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-start',
-                        gap: '10px',
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        transition: 'all 0.2s ease',
-                        minWidth: 0,
-                        overflow: 'hidden'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
-                >
-                    <div style={{
-                        width: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                    }}>
-                        <SettingsIcon size={18} strokeWidth={2} />
-                    </div>
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
-                </button>
+                {view === 'pdf' ? (
+                    /* Back to LLM Chat Button - Only in PDF mode */
+                    <button
+                        onClick={onNavigateToChat}
+                        title="Back to LLM Chat"
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--theme-text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            gap: '10px',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            transition: 'all 0.2s ease',
+                            minWidth: 0,
+                            overflow: 'hidden'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                    >
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <MessageCircleIcon size={18} strokeWidth={2} />
+                        </div>
+                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to LLM Chat</span>}
+                    </button>
+                ) : (
+                    /* Settings Button - Chat mode */
+                    <button
+                        onClick={onOpenSettings}
+                        title="Settings"
+                        style={{
+                            width: '100%',
+                            padding: '8px',
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--theme-text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            gap: '10px',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            transition: 'all 0.2s ease',
+                            minWidth: 0,
+                            overflow: 'hidden'
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.backgroundColor = 'transparent'
+                        }}
+                    >
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <SettingsIcon size={18} strokeWidth={2} />
+                        </div>
+                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
+                    </button>
+                )}
             </div>
         </div>
     )

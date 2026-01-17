@@ -77,7 +77,9 @@ function getModelDescription(model: ModelWithProvider): string {
     return 'Running locally on your machine'
   }
 
-  return `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} model`
+  // Fallback for any unhandled provider
+  const providerName = model.provider as string
+  return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
 }
 
 /**

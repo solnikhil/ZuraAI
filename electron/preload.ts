@@ -1,20 +1,10 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-import { writeFileSync, existsSync, mkdirSync } from 'fs'
 
-contextBridge.exposeInMainWorld('ipcRenderer', {
-    on: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
-        ipcRenderer.on(channel, listener)
-    },
-    off: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
-        ipcRenderer.off(channel, listener)
-    },
-    send: (channel: string, ...args: any[]) => {
-        ipcRenderer.send(channel, ...args)
-    },
-    invoke: (channel: string, ...args: any[]) => {
-        return ipcRenderer.invoke(channel, ...args)
-    },
-})
+const preloadLog = (message: string) => {
+  console.log(`[PRELOAD] ${message}`)
+}
+
+preloadLog('Preload script STARTED')
 
 // Window controls API (custom title bar)
 contextBridge.exposeInMainWorld('windowControls', {
@@ -30,7 +20,7 @@ contextBridge.exposeInMainWorld('windowControls', {
         return () => ipcRenderer.removeListener('window-controls:state', listener)
     },
 })
-preloadLog('Preload script STARTED')
+
 
 // ----------------------------------------------------------------------------
 // IPC hardening
@@ -76,6 +66,7 @@ const INVOKE_CHANNELS = new Set<string>([
 
   // PDF Loading & Parsing
   'pdf:load',
+  'pdf:get-file-data',
   'pdf:get-page',
   'pdf:search-text',
   'pdf:get-outline',

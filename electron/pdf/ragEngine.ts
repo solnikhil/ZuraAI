@@ -228,14 +228,27 @@ export class RAGEngine implements IRAGEngine {
    * 
    * Orchestrates: parsing → chunking → embedding → indexing
    * 
-   * Implements Requirements 6.1, 6.4
+   * Implements Requirements 6.1, 6.4, 18.6, 19.3
    * 
    * @param docId - Document ID to index
    * @param options - Indexing options
+   * @param onProgress - Optional callback for progress updates (0-100)
    * @returns Index result with statistics
    */
-  async indexDocument(docId: string, options: IndexOptions = {}): Promise<IndexResult> {
+  async indexDocument(
+    docId: string, 
+    options: IndexOptions = {},
+    onProgress?: (progress: number) => void
+  ): Promise<IndexResult> {
     const startTime = Date.now();
+    
+    // Helper to update progress both internally and via callback
+    const reportProgress = (progress: number) => {
+      this.updateIndexingProgress(docId, progress);
+      if (onProgress) {
+        onProgress(progress);
+      }
+    };
     
     // Update status to indexing
     this.indexingStatus.set(docId, {
@@ -244,6 +257,7 @@ export class RAGEngine implements IRAGEngine {
       isIndexing: true,
       indexingProgress: 0,
     });
+    reportProgress(0);
 
     try {
       // Step 1: Ensure vector store is initialized
@@ -262,6 +276,7 @@ export class RAGEngine implements IRAGEngine {
             isIndexing: false,
           };
           this.indexingStatus.set(docId, status);
+          reportProgress(100);
           
           return {
             success: true,
@@ -273,7 +288,7 @@ export class RAGEngine implements IRAGEngine {
       }
 
       // Step 3: Extract text from document
-      this.updateIndexingProgress(docId, 10);
+      reportProgress(10);
       const textBlocks = await this.pdfParser.extractAllText(docId);
       
       if (textBlocks.length === 0) {
@@ -281,7 +296,7 @@ export class RAGEngine implements IRAGEngine {
       }
 
       // Step 4: Create chunks
-      this.updateIndexingProgress(docId, 30);
+      reportProgress(30);
       const chunkingOptions: ChunkingOptions = {
         chunkSize: options.chunkSize ?? this.settings.chunkSize,
         chunkOverlap: options.chunkOverlap ?? this.settings.chunkOverlap,
@@ -296,12 +311,12 @@ export class RAGEngine implements IRAGEngine {
       }
 
       // Step 5: Generate embeddings
-      this.updateIndexingProgress(docId, 50);
+      reportProgress(50);
       const chunkTexts = chunks.map(c => c.content);
       const embeddings = await this.embedService.generateEmbeddings(chunkTexts);
 
       // Step 6: Prepare chunk records for storage
-      this.updateIndexingProgress(docId, 70);
+      reportProgress(70);
       const chunkRecords: ChunkRecord[] = chunks.map((chunk, i) => ({
         id: chunk.id,
         documentId: chunk.documentId,
@@ -316,7 +331,7 @@ export class RAGEngine implements IRAGEngine {
       }));
 
       // Step 7: Store chunks in vector store
-      this.updateIndexingProgress(docId, 85);
+      reportProgress(85);
       await this.vecStore.addChunks(chunkRecords);
 
       // Step 8: Store document record
@@ -375,7 +390,7 @@ export class RAGEngine implements IRAGEngine {
       await this.vecStore.addDocument(docRecord);
 
       // Step 9: Update status
-      this.updateIndexingProgress(docId, 100);
+      reportProgress(100);
       const finalStatus: IndexStatus = {
         isIndexed: true,
         chunkCount: chunks.length,

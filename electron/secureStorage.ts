@@ -15,6 +15,8 @@ interface SecureData {
     geminiApiKey?: string
     groqApiKey?: string
     tavilyApiKey?: string
+    minimaxApiKey?: string
+    voyageApiKey?: string
 }
 
 interface StorageStatus {

@@ -71,6 +71,7 @@ export default function DashboardLayout() {
                 onOpenSettings={() => setView('settings')}
                 onCloseSettings={() => handleNavigate(() => setView('chat'))}
                 onNavigateToPDF={() => handleNavigate(() => setView('pdf'))}
+                onNavigateToChat={() => setView('chat')}
                 activeSettingsSection={activeSettingsSection}
                 onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
                 hasUnsavedSettings={hasUnsavedSettings}

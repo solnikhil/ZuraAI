@@ -119,7 +119,12 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+        <motion.path
+          stroke="none"
+          d="M0 0h24v24H0z"
+          fill="none"
+        />
+
 
         <motion.path
           d="M4 7l16 0"

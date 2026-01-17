@@ -1156,7 +1156,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     // Set tool choice for mandatory research mode to force web_search
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0
-    let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
+    let initialToolChoice: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } } | undefined
     if (initialForceToolUse) {
       initialToolChoice = { type: 'function', function: { name: 'web_search' } }
     }

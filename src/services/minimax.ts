@@ -1,4 +1,4 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage, ToolCall, StreamingToolCall } from './types'
+import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage, ToolCall, StreamingToolCall, APIErrorResponse } from './types'
 
 /**
  * MiniMax API Service
@@ -509,7 +509,7 @@ export interface MiniMaxRequestBody {
  * MiniMax uses base_resp.status_msg for error messages
  */
 function extractMiniMaxError(
-    errorData: MiniMaxResponse | MiniMaxStreamChunk | Record<string, unknown>,
+    errorData: MiniMaxResponse | MiniMaxStreamChunk | Record<string, unknown> | APIErrorResponse,
     fallbackText: string,
     status: number,
     statusText: string

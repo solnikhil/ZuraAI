@@ -86,6 +86,12 @@ export interface PDFViewerProps {
   zoomLevel?: number;
   /** Callback when zoom changes */
   onZoomChange?: (zoom: number) => void;
+  /** Auto-fit pages to container width */
+  autoFit?: boolean;
+  /** Whether the current document is starred */
+  isStarred?: boolean;
+  /** Toggle starred state for the current document */
+  onToggleStar?: () => void;
 }
 
 /**

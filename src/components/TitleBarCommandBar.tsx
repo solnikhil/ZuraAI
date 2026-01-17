@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
-  ChartNoAxesCombined, Cpu, Box, Key, Command
+  ChartNoAxesCombined, Cpu, Box, Key, Command, FileText
 } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -22,6 +22,7 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconC
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-pdf') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Settings section actions
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
@@ -225,9 +226,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const commandBar = settings.commandBar
 
   const commandBarStyle = useMemo(() => {
-    const width = commandBar.size === 'medium'
-      ? 'clamp(260px, 36vw, 460px)'
-      : 'clamp(220px, 30vw, 380px)'
+    const width = '512px'
 
     return {
       ['--commandbar-width' as any]: width,
@@ -236,7 +235,9 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       ['--commandbar-dropdown-surface' as any]: `${commandBar.dropdownSurface}%`,
       ['--commandbar-dropdown-blur' as any]: commandBar.enableBlur ? `${commandBar.blurPx}px` : '0px',
     } as React.CSSProperties
-  }, [commandBar.blurPx, commandBar.dropdownSurface, commandBar.enableBlur, commandBar.fieldSurface, commandBar.fieldSurfaceFocused, commandBar.size])
+  }, [commandBar.blurPx, commandBar.dropdownSurface, commandBar.enableBlur, commandBar.fieldSurface, commandBar.fieldSurfaceFocused])
+
+
 
   const maxSuggestions = Math.max(3, Math.min(commandBar.maxSuggestions, 12))
   const showRecents = commandBar.showRecents

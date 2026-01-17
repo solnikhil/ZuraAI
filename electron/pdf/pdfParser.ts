@@ -129,14 +129,182 @@ export class PDFParserService implements IPDFParserService {
     }
 
     try {
-      // Dynamic import of pdfjs-dist for Node.js environment
-      const pdfjsLib = await import('pdfjs-dist');
+      // Add Node.js polyfills for browser APIs that pdf.js requires
+      // These are needed because pdf.js expects browser environment
+      // IMPORTANT: These must be set before importing pdf.js
+      
+      // Polyfill for Promise.withResolvers (added in Node.js 22, but Electron 25 uses Node 18)
+      // pdf.js v5 uses this feature
+      if (typeof (Promise as any).withResolvers === 'undefined') {
+        (Promise as any).withResolvers = function<T>(): {
+          promise: Promise<T>;
+          resolve: (value: T | PromiseLike<T>) => void;
+          reject: (reason?: any) => void;
+        } {
+          let resolve!: (value: T | PromiseLike<T>) => void;
+          let reject!: (reason?: any) => void;
+          const promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        };
+      }
+      
+      // Polyfill for URL.parse (added in Node.js 22.1.0)
+      // Returns URL object if valid, null if invalid
+      if (typeof (URL as any).parse === 'undefined') {
+        (URL as any).parse = function(url: string, base?: string): URL | null {
+          try {
+            return new URL(url, base);
+          } catch {
+            return null;
+          }
+        };
+      }
+      
+      if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+        // Simple DOMMatrix polyfill for Node.js
+        (globalThis as any).DOMMatrix = class DOMMatrix {
+          a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+          m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+          m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+          m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+          m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+          is2D = true;
+          isIdentity = true;
+          
+          constructor(init?: number[] | string) {
+            if (Array.isArray(init) && init.length === 6) {
+              [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+              this.m11 = this.a; this.m12 = this.b;
+              this.m21 = this.c; this.m22 = this.d;
+              this.m41 = this.e; this.m42 = this.f;
+            }
+          }
+          
+          static fromMatrix(other?: any): any {
+            return new (globalThis as any).DOMMatrix();
+          }
+          
+          static fromFloat32Array(array: Float32Array): any {
+            return new (globalThis as any).DOMMatrix(Array.from(array));
+          }
+          
+          static fromFloat64Array(array: Float64Array): any {
+            return new (globalThis as any).DOMMatrix(Array.from(array));
+          }
+          
+          multiply(): any { return new (globalThis as any).DOMMatrix(); }
+          translate(): any { return new (globalThis as any).DOMMatrix(); }
+          scale(): any { return new (globalThis as any).DOMMatrix(); }
+          rotate(): any { return new (globalThis as any).DOMMatrix(); }
+          inverse(): any { return new (globalThis as any).DOMMatrix(); }
+          transformPoint(point?: any): any { return { x: 0, y: 0, z: 0, w: 1 }; }
+          toFloat32Array(): Float32Array { return new Float32Array(16); }
+          toFloat64Array(): Float64Array { return new Float64Array(16); }
+        };
+      }
+      
+      if (typeof (globalThis as any).Path2D === 'undefined') {
+        // Simple Path2D polyfill for Node.js
+        (globalThis as any).Path2D = class Path2D {
+          private _commands: string[] = [];
+          
+          constructor(path?: Path2D | string) {}
+          
+          addPath(path: Path2D): void {}
+          closePath(): void {}
+          moveTo(x: number, y: number): void {}
+          lineTo(x: number, y: number): void {}
+          bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void {}
+          quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void {}
+          arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void {}
+          arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void {}
+          ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void {}
+          rect(x: number, y: number, w: number, h: number): void {}
+        };
+      }
+      
+      // Additional polyfills that pdf.js may need
+      if (typeof (globalThis as any).ImageData === 'undefined') {
+        (globalThis as any).ImageData = class ImageData {
+          width: number;
+          height: number;
+          data: Uint8ClampedArray;
+          colorSpace: string = 'srgb';
+          
+          constructor(dataOrWidth: Uint8ClampedArray | number, widthOrHeight: number, height?: number) {
+            if (typeof dataOrWidth === 'number') {
+              this.width = dataOrWidth;
+              this.height = widthOrHeight;
+              this.data = new Uint8ClampedArray(this.width * this.height * 4);
+            } else {
+              this.data = dataOrWidth;
+              this.width = widthOrHeight;
+              this.height = height || (dataOrWidth.length / 4 / widthOrHeight);
+            }
+          }
+        };
+      }
+      
+      // Use the legacy build of pdf.js which has better Node.js compatibility
+      // pdfjs-dist v3.x uses .js files, v5.x uses .mjs files
+      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
       this.pdfjs = pdfjsLib;
       
-      // Configure pdf.js for Node.js environment
-      // Disable worker in Node.js as it's not needed and can cause issues
-      if (this.pdfjs.GlobalWorkerOptions) {
-        this.pdfjs.GlobalWorkerOptions.workerSrc = '';
+      // For Node.js/Electron main process, we need to configure the web worker properly.
+      // pdf.js v5 requires GlobalWorkerOptions.workerSrc to be set to a valid path.
+      // 
+      // On Windows, the path must be a file:// URL for the ESM loader.
+      // We use pathToFileURL to convert the resolved path to a proper file URL.
+      try {
+        const { createRequire } = await import('module');
+        const { pathToFileURL } = await import('url');
+        const require = createRequire(import.meta.url);
+        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
+        
+        // Convert the absolute path to a file:// URL for Windows compatibility
+        const workerUrl = pathToFileURL(workerPath).href;
+        
+        if (this.pdfjs.GlobalWorkerOptions) {
+          this.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+        }
+      } catch (workerError) {
+        // If we can't resolve the worker path, try an alternative approach
+        console.warn('Failed to resolve pdf.js worker path, trying alternative:', workerError);
+        
+        // Try using the path relative to this module
+        // This is a fallback for bundled environments
+        try {
+          const { fileURLToPath, pathToFileURL } = await import('url');
+          const { dirname, join } = await import('path');
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = dirname(__filename);
+          
+          // In the bundled Electron app, the worker should be in node_modules
+          // relative to the app root. pdfjs-dist v3.x uses .js files
+          const possiblePaths = [
+            join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
+            join(__dirname, '../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
+            join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
+          ];
+          
+          const { existsSync } = await import('fs');
+          for (const workerPath of possiblePaths) {
+            if (existsSync(workerPath)) {
+              // Convert to file:// URL for Windows compatibility
+              const workerUrl = pathToFileURL(workerPath).href;
+              if (this.pdfjs.GlobalWorkerOptions) {
+                this.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+              }
+              break;
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('Failed to set pdf.js worker path:', fallbackError);
+          // Continue without worker - pdf.js will attempt to use fake worker
+        }
       }
       
       this.initialized = true;
@@ -245,7 +413,13 @@ export class PDFParserService implements IPDFParserService {
     
     try {
       const data = new Uint8Array(fs.readFileSync(filePath));
-      const loadingTask = this.pdfjs.getDocument({ data });
+      const loadingTask = this.pdfjs.getDocument({ 
+        data,
+        disableFontFace: true,
+        isEvalSupported: false,
+        useSystemFonts: false,
+        useWorkerFetch: false,
+      });
       
       try {
         await loadingTask.promise;
@@ -312,7 +486,13 @@ export class PDFParserService implements IPDFParserService {
     try {
       await this.initializePdfJs();
       const data = new Uint8Array(fs.readFileSync(filePath));
-      const loadingTask = this.pdfjs.getDocument({ data });
+      const loadingTask = this.pdfjs.getDocument({ 
+        data,
+        disableFontFace: true,
+        isEvalSupported: false,
+        useSystemFonts: false,
+        useWorkerFetch: false,
+      });
       
       try {
         const doc = await loadingTask.promise;
@@ -372,8 +552,17 @@ export class PDFParserService implements IPDFParserService {
     // Read file data
     const data = new Uint8Array(fs.readFileSync(filePath));
 
-    // Prepare loading options
-    const loadingOptions: any = { data };
+    // Prepare loading options with Node.js-specific settings
+    const loadingOptions: any = { 
+      data,
+      // Disable features that require browser APIs not available in Node.js
+      disableFontFace: true,
+      isEvalSupported: false,
+      // Use standard fonts which are built into pdf.js
+      useSystemFonts: false,
+      // Disable worker fetch to avoid network requests for worker
+      useWorkerFetch: false,
+    };
     if (password) {
       loadingOptions.password = password;
     }

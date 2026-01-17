@@ -10,6 +10,19 @@ export default defineConfig({
             {
                 // Main-Process entry file of the Electron App.
                 entry: 'electron/main.ts',
+                vite: {
+                    build: {
+                        rollupOptions: {
+                            external: [
+                                // Externalize native modules that can't be bundled
+                                'canvas',
+                                // LanceDB native modules (expected to fail in dev)
+                                '@lancedb/lancedb',
+                                'apache-arrow',
+                            ],
+                        },
+                    },
+                },
             },
             {
                 entry: 'electron/preload.ts',

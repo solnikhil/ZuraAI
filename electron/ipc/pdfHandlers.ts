@@ -377,8 +377,8 @@ function registerPDFIndexingHandlers(): void {
         }
       };
       
-      // Start indexing
-      const result = await ragEngine.indexDocument(docId, options);
+      // Start indexing with progress callback
+      const result = await ragEngine.indexDocument(docId, options, progressCallback);
       
       // Send completion event
       if (senderWindow && !senderWindow.isDestroyed()) {

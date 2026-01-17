@@ -9,8 +9,9 @@
  * - Metadata filtering (page range, section, document)
  * - Confidence scoring and low-confidence warnings
  * - BM25-only fallback when embeddings are unavailable (Requirement 18.2)
+ * - LRU chunk caching for frequently accessed chunks (Requirement 19.5, 19.6)
  * 
- * Requirements: 7.3, 7.5, 7.6, 10.2, 10.5, 18.2
+ * Requirements: 7.3, 7.5, 7.6, 10.2, 10.5, 18.2, 19.5, 19.6
  */
 
 import type {
@@ -66,6 +67,11 @@ const DEFAULT_RRF_PARAMS: RRFParams = {
 
 /** Low confidence threshold (default) */
 const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.5;
+
+/** Chunk cache configuration (Requirements 19.5, 19.6) */
+const CHUNK_CACHE_MAX_SIZE = 500; // Maximum number of chunks to cache
+const CHUNK_CACHE_MAX_MEMORY_MB = 50; // Maximum memory usage in MB before clearing cache
+const CHUNK_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL for cached chunks
 
 /** View-relative reference patterns */
 const VIEW_REFERENCE_PATTERNS = [
@@ -224,6 +230,249 @@ function calculateConfidence(results: RetrievalResult[]): number {
 }
 
 // =============================================================================
+// LRU Chunk Cache (Requirements 19.5, 19.6)
+// =============================================================================
+
+/**
+ * Cache entry with metadata for LRU eviction
+ */
+interface CacheEntry {
+  chunk: ChunkRecord;
+  lastAccessed: number;
+  accessCount: number;
+  sizeBytes: number;
+}
+
+/**
+ * LRU Cache for frequently accessed chunks
+ * 
+ * Implements Requirements 19.5, 19.6:
+ * - 19.5: Cache frequently accessed chunks in memory for faster retrieval
+ * - 19.6: Release cache on memory pressure
+ */
+class ChunkCache {
+  private cache: Map<string, CacheEntry> = new Map();
+  private maxSize: number;
+  private maxMemoryBytes: number;
+  private ttlMs: number;
+  private currentMemoryBytes: number = 0;
+
+  constructor(
+    maxSize: number = CHUNK_CACHE_MAX_SIZE,
+    maxMemoryMB: number = CHUNK_CACHE_MAX_MEMORY_MB,
+    ttlMs: number = CHUNK_CACHE_TTL_MS
+  ) {
+    this.maxSize = maxSize;
+    this.maxMemoryBytes = maxMemoryMB * 1024 * 1024;
+    this.ttlMs = ttlMs;
+  }
+
+  /**
+   * Estimate memory size of a chunk record
+   */
+  private estimateSize(chunk: ChunkRecord): number {
+    // Rough estimate: content length + vector size + metadata overhead
+    const contentSize = (chunk.content?.length || 0) * 2; // UTF-16
+    const vectorSize = (chunk.vector?.length || 0) * 4; // Float32
+    const metadataSize = 500; // Approximate overhead for other fields
+    return contentSize + vectorSize + metadataSize;
+  }
+
+  /**
+   * Get a chunk from cache
+   */
+  get(chunkId: string): ChunkRecord | null {
+    const entry = this.cache.get(chunkId);
+    
+    if (!entry) {
+      return null;
+    }
+
+    // Check TTL
+    const now = Date.now();
+    if (now - entry.lastAccessed > this.ttlMs) {
+      this.delete(chunkId);
+      return null;
+    }
+
+    // Update access metadata
+    entry.lastAccessed = now;
+    entry.accessCount++;
+
+    return entry.chunk;
+  }
+
+  /**
+   * Get multiple chunks from cache
+   * Returns found chunks and list of missing IDs
+   */
+  getMany(chunkIds: string[]): { found: ChunkRecord[]; missing: string[] } {
+    const found: ChunkRecord[] = [];
+    const missing: string[] = [];
+
+    for (const id of chunkIds) {
+      const chunk = this.get(id);
+      if (chunk) {
+        found.push(chunk);
+      } else {
+        missing.push(id);
+      }
+    }
+
+    return { found, missing };
+  }
+
+  /**
+   * Add a chunk to cache
+   */
+  set(chunk: ChunkRecord): void {
+    const size = this.estimateSize(chunk);
+
+    // Check if adding this chunk would exceed memory limit
+    if (this.currentMemoryBytes + size > this.maxMemoryBytes) {
+      this.evictLRU(size);
+    }
+
+    // Check if cache is at max size
+    if (this.cache.size >= this.maxSize) {
+      this.evictLRU(0);
+    }
+
+    // Remove existing entry if present
+    if (this.cache.has(chunk.id)) {
+      this.delete(chunk.id);
+    }
+
+    // Add new entry
+    this.cache.set(chunk.id, {
+      chunk,
+      lastAccessed: Date.now(),
+      accessCount: 1,
+      sizeBytes: size,
+    });
+    this.currentMemoryBytes += size;
+  }
+
+  /**
+   * Add multiple chunks to cache
+   */
+  setMany(chunks: ChunkRecord[]): void {
+    for (const chunk of chunks) {
+      this.set(chunk);
+    }
+  }
+
+  /**
+   * Delete a chunk from cache
+   */
+  delete(chunkId: string): boolean {
+    const entry = this.cache.get(chunkId);
+    if (entry) {
+      this.currentMemoryBytes -= entry.sizeBytes;
+      return this.cache.delete(chunkId);
+    }
+    return false;
+  }
+
+  /**
+   * Evict least recently used entries to free up space
+   */
+  private evictLRU(requiredBytes: number): void {
+    // Sort entries by last accessed time (oldest first)
+    const entries = Array.from(this.cache.entries())
+      .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+
+    let freedBytes = 0;
+    let evictedCount = 0;
+
+    for (const [id, entry] of entries) {
+      // Stop if we've freed enough space and cache is under max size
+      if (freedBytes >= requiredBytes && this.cache.size - evictedCount < this.maxSize) {
+        break;
+      }
+
+      this.cache.delete(id);
+      freedBytes += entry.sizeBytes;
+      this.currentMemoryBytes -= entry.sizeBytes;
+      evictedCount++;
+    }
+
+    if (evictedCount > 0) {
+      console.log(`[ChunkCache] Evicted ${evictedCount} entries, freed ${Math.round(freedBytes / 1024)}KB`);
+    }
+  }
+
+  /**
+   * Clear all cached chunks for a document
+   */
+  clearDocument(documentId: string): number {
+    let cleared = 0;
+    for (const [id, entry] of this.cache.entries()) {
+      if (entry.chunk.documentId === documentId) {
+        this.delete(id);
+        cleared++;
+      }
+    }
+    return cleared;
+  }
+
+  /**
+   * Clear entire cache (for memory pressure)
+   * Implements Requirement 19.6
+   */
+  clear(): void {
+    const size = this.cache.size;
+    this.cache.clear();
+    this.currentMemoryBytes = 0;
+    console.log(`[ChunkCache] Cleared ${size} entries`);
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getStats(): {
+    size: number;
+    maxSize: number;
+    memoryBytes: number;
+    maxMemoryBytes: number;
+    hitRate: number;
+  } {
+    let totalAccesses = 0;
+    let totalHits = 0;
+
+    for (const entry of this.cache.values()) {
+      totalAccesses += entry.accessCount;
+      totalHits += entry.accessCount - 1; // First access is a miss
+    }
+
+    return {
+      size: this.cache.size,
+      maxSize: this.maxSize,
+      memoryBytes: this.currentMemoryBytes,
+      maxMemoryBytes: this.maxMemoryBytes,
+      hitRate: totalAccesses > 0 ? totalHits / totalAccesses : 0,
+    };
+  }
+
+  /**
+   * Check if memory pressure is high and clear cache if needed
+   * Implements Requirement 19.6
+   */
+  checkMemoryPressure(): boolean {
+    // Check if we're using more than 80% of max memory
+    if (this.currentMemoryBytes > this.maxMemoryBytes * 0.8) {
+      console.log('[ChunkCache] Memory pressure detected, clearing cache');
+      this.clear();
+      return true;
+    }
+    return false;
+  }
+}
+
+// Global chunk cache instance
+const chunkCache = new ChunkCache();
+
+// =============================================================================
 // Cross-Encoder Reranker
 // =============================================================================
 
@@ -344,6 +593,7 @@ class CrossEncoderReranker {
  * - Reranking
  * - Metadata filtering
  * - Confidence scoring
+ * - Chunk caching for performance (Requirements 19.5, 19.6)
  */
 export class RetrievalService implements IRetrievalService {
   private vectorStore: IVectorStore;
@@ -352,6 +602,7 @@ export class RetrievalService implements IRetrievalService {
   private rerankerConfig: RerankerConfig;
   private rrfParams: RRFParams;
   private lowConfidenceThreshold: number;
+  private cache: ChunkCache;
 
   constructor(
     vs: IVectorStore = vectorStore,
@@ -366,6 +617,7 @@ export class RetrievalService implements IRetrievalService {
     this.rerankerConfig = rerankerConfig;
     this.rrfParams = rrfParams;
     this.lowConfidenceThreshold = lowConfidenceThreshold;
+    this.cache = chunkCache; // Use global cache instance
   }
 
   /**
@@ -492,9 +744,23 @@ export class RetrievalService implements IRetrievalService {
       }
     }
 
-    // Fetch full chunk records
+    // Fetch full chunk records (with caching - Requirements 19.5, 19.6)
     const chunkIds = searchResults.map(r => r.id);
-    const chunkRecords = await this.vectorStore.getChunks(chunkIds);
+    
+    // Check cache first
+    const { found: cachedChunks, missing: missingIds } = this.cache.getMany(chunkIds);
+    
+    // Fetch missing chunks from vector store
+    let fetchedChunks: ChunkRecord[] = [];
+    if (missingIds.length > 0) {
+      fetchedChunks = await this.vectorStore.getChunks(missingIds);
+      // Add fetched chunks to cache
+      this.cache.setMany(fetchedChunks);
+    }
+    
+    // Combine cached and fetched chunks
+    const allChunks = [...cachedChunks, ...fetchedChunks];
+    const chunkRecords = allChunks;
 
     // Create a map for quick lookup
     const chunkMap = new Map(chunkRecords.map(c => [c.id, c]));
@@ -795,6 +1061,57 @@ export class RetrievalService implements IRetrievalService {
       rrfParams: { ...this.rrfParams },
       lowConfidenceThreshold: this.lowConfidenceThreshold,
     };
+  }
+
+  // ===========================================================================
+  // Cache Management (Requirements 19.5, 19.6)
+  // ===========================================================================
+
+  /**
+   * Get cache statistics
+   * 
+   * Implements Requirement 19.5
+   */
+  getCacheStats(): {
+    size: number;
+    maxSize: number;
+    memoryBytes: number;
+    maxMemoryBytes: number;
+    hitRate: number;
+  } {
+    return this.cache.getStats();
+  }
+
+  /**
+   * Clear cache for a specific document
+   * 
+   * Implements Requirement 19.6
+   * 
+   * @param documentId - Document ID to clear from cache
+   * @returns Number of entries cleared
+   */
+  clearDocumentCache(documentId: string): number {
+    return this.cache.clearDocument(documentId);
+  }
+
+  /**
+   * Clear entire chunk cache
+   * 
+   * Implements Requirement 19.6: Release cache on memory pressure
+   */
+  clearCache(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * Check memory pressure and clear cache if needed
+   * 
+   * Implements Requirement 19.6
+   * 
+   * @returns Whether cache was cleared due to memory pressure
+   */
+  checkMemoryPressure(): boolean {
+    return this.cache.checkMemoryPressure();
   }
 }
 

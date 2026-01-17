@@ -1,5 +1,5 @@
 export type CommandBarAction =
-  | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
+  | { type: 'open_dashboard_view'; view: 'chat' | 'pdf' | 'settings' }
   | { type: 'open_settings_section'; section: string }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
@@ -146,6 +146,13 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       subtitle: 'Dashboard',
       keywords: ['dashboard', 'home', 'conversation'],
       action: { type: 'open_dashboard_view', view: 'chat' }
+    },
+    {
+      id: 'go-pdf',
+      title: 'Go to PDF',
+      subtitle: 'Document chat',
+      keywords: ['pdf', 'document', 'file', 'reader', 'docs'],
+      action: { type: 'open_dashboard_view', view: 'pdf' }
     },
     {
       id: 'go-settings',

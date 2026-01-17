@@ -11,6 +11,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
 import StarBorder from '../StarBorder';
+import ModelSelector from '../Dashboard/ModelSelector';
+import { useSettings } from '../../contexts/SettingsContext';
 import type { 
   Citation, 
   PDFChatMessage, 
@@ -26,6 +28,13 @@ import type {
 import type { PDFChatAreaProps } from './types';
 import { CitationLink } from './CitationLink';
 import { SourcesPanel } from './SourcesPanel';
+import type { ChatMessage } from '../../services/types';
+import { generateOpenRouterCompletion } from '../../services/openrouter';
+import { generateGroqCompletion } from '../../services/groq';
+import { generateGeminiCompletion } from '../../services/gemini';
+import { generatePerplexityCompletion, cleanSonarResponse } from '../../services/perplexity';
+import { generateOllamaCompletion } from '../../services/ollama';
+import { generateMiniMaxCompletion } from '../../services/minimax';
 import { 
   exportAndCopy, 
   exportAndDownload, 
@@ -787,7 +796,7 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
 
   // Render assistant message with citations
   return (
-    <div style={{ marginBottom: '16px' }}>
+    <div style={{ marginBottom: '16px', overflow: 'visible' }}>
       {/* Message content with inline citations */}
       <div className="markdown-content" style={{ 
         color: '#e0e0e0', 
@@ -809,7 +818,10 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
         display: 'flex', 
         alignItems: 'center', 
         gap: '8px', 
-        marginTop: '8px' 
+        rowGap: '6px',
+        flexWrap: 'wrap',
+        marginTop: '8px',
+        overflow: 'visible'
       }}>
         {/* Feedback buttons - Requirement 17.1 */}
         {!isStreaming && sessionId && onFeedback && (
@@ -1264,6 +1276,7 @@ export function PDFChatArea({
   groundedMode = false,
   onGroundedModeChange
 }: PDFChatAreaProps) {
+  const { settings } = useSettings();
   // State
   const [messages, setMessages] = useState<PDFChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -1386,6 +1399,86 @@ export function PDFChatArea({
     }
   };
 
+  const buildFallbackMessages = useCallback((userContent: string): ChatMessage[] => {
+    const history = [...messages, { role: 'user', content: userContent }];
+    const trimmedHistory = history
+      .filter(m => typeof m.content === 'string' && m.content.trim().length > 0)
+      .slice(-8)
+      .map(m => ({ role: m.role, content: String(m.content) }));
+    const systemPrompt = settings.systemPrompt?.trim();
+    return systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...trimmedHistory]
+      : trimmedHistory;
+  }, [messages, settings.systemPrompt]);
+
+  const generateFallbackResponse = useCallback(async (userContent: string): Promise<string> => {
+    const fallbackMessages = buildFallbackMessages(userContent);
+    const model = settings.aiModel;
+    const temperature = settings.temperature;
+    const maxTokens = settings.maxTokens;
+
+    switch (settings.modelProvider) {
+      case 'groq': {
+        const res = await generateGroqCompletion(settings.groqApiKey, model, fallbackMessages, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+      case 'gemini': {
+        const res = await generateGeminiCompletion(settings.geminiApiKey, model, fallbackMessages, {
+          temperature,
+          maxOutputTokens: maxTokens,
+          systemInstruction: settings.systemPrompt
+        });
+        return res.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
+      }
+      case 'perplexity': {
+        const res = await generatePerplexityCompletion(settings.perplexityApiKey, model, fallbackMessages, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        const content = res.choices?.[0]?.message?.content || '';
+        return cleanSonarResponse(content, res.citations, res.search_results);
+      }
+      case 'ollama': {
+        const res = await generateOllamaCompletion(settings.ollamaUrl, model, fallbackMessages, {
+          temperature,
+          num_ctx: maxTokens
+        });
+        return res?.message?.content || '';
+      }
+      case 'minimax': {
+        const res = await generateMiniMaxCompletion(settings.minimaxApiKey, model, fallbackMessages, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+      case 'openrouter':
+      default: {
+        const res = await generateOpenRouterCompletion(settings.openRouterApiKey, model, fallbackMessages, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+    }
+  }, [
+    buildFallbackMessages,
+    settings.aiModel,
+    settings.temperature,
+    settings.maxTokens,
+    settings.modelProvider,
+    settings.groqApiKey,
+    settings.geminiApiKey,
+    settings.systemPrompt,
+    settings.perplexityApiKey,
+    settings.ollamaUrl,
+    settings.minimaxApiKey,
+    settings.openRouterApiKey
+  ]);
+
 
   /**
    * Send a message and get RAG response
@@ -1449,6 +1542,28 @@ export function PDFChatArea({
       }
     } catch (error) {
       console.error('[PDFChatArea] Query failed:', error);
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const shouldFallback = errorMessage.includes('PDF features are currently unavailable');
+      if (shouldFallback) {
+        try {
+          const fallbackContent = await generateFallbackResponse(userMessage.content);
+          if (fallbackContent) {
+            setLastConfidence(1);
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: fallbackContent
+                  }
+                : msg
+            ));
+            return;
+          }
+        } catch (fallbackError) {
+          console.error('[PDFChatArea] Fallback response failed:', fallbackError);
+        }
+      }
       
       // Update with error message
       setMessages(prev => prev.map(msg => 
@@ -1462,7 +1577,7 @@ export function PDFChatArea({
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, documentIds, groundedMode, attachedSelection]);
+  }, [input, isLoading, documentIds, groundedMode, attachedSelection, generateFallbackResponse, settings.modelProvider, settings.aiModel]);
 
 
   /**
@@ -1817,7 +1932,8 @@ export function PDFChatArea({
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
-              justifyContent: 'space-between' 
+              justifyContent: 'space-between',
+              gap: '12px'
             }}>
               {/* Left side: Grounded mode toggle + Summarize + Session export */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1874,43 +1990,46 @@ export function PDFChatArea({
                 )}
               </div>
 
-              {/* Send button */}
-              <button
-                onClick={sendMessage}
-                disabled={isLoading || !input.trim()}
-                style={{
-                  background: input.trim() && !isLoading 
-                    ? 'var(--theme-accent)' 
-                    : 'rgba(255, 255, 255, 0.03)',
-                  border: input.trim() && !isLoading 
-                    ? 'none' 
-                    : '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '10px',
-                  width: '36px',
-                  height: '36px',
-                  color: input.trim() && !isLoading ? '#000' : '#888',
-                  cursor: input.trim() && !isLoading ? 'pointer' : 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  padding: 0,
-                  opacity: isLoading ? 0.5 : 1
-                }}
-              >
-                {isLoading ? (
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: '#fff',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                ) : (
-                  <Send size={18} />
-                )}
-              </button>
+              {/* Right side: Model selector + Send button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ModelSelector minimal />
+                <button
+                  onClick={sendMessage}
+                  disabled={isLoading || !input.trim()}
+                  style={{
+                    background: input.trim() && !isLoading 
+                      ? 'var(--theme-accent)' 
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: input.trim() && !isLoading 
+                      ? 'none' 
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '10px',
+                    width: '36px',
+                    height: '36px',
+                    color: input.trim() && !isLoading ? '#000' : '#888',
+                    cursor: input.trim() && !isLoading ? 'pointer' : 'default',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    padding: 0,
+                    opacity: isLoading ? 0.5 : 1
+                  }}
+                >
+                  {isLoading ? (
+                    <div style={{
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTopColor: '#fff',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite'
+                    }} />
+                  ) : (
+                    <Send size={18} />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </StarBorder>

@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { PanelLeft } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
+import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
 import './TitleBar.css'
+
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
@@ -34,10 +36,12 @@ function getModelDisplayName(settings: Settings): string {
 
 export default function TitleBar() {
     const location = useLocation()
+    const navigate = useNavigate()
     const { settings } = useSettings()
     const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
+        setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
@@ -45,6 +49,8 @@ export default function TitleBar() {
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
+    const { showToast } = useToast()
+
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const isSettingsRoute = location.pathname === '/settings'
@@ -83,9 +89,34 @@ export default function TitleBar() {
     }, [centerTitle, modelDisplayName, settings.titleBarShowModel])
 
     const density = settings.titleBarDensity || 'comfortable'
-    const showAppName = settings.titleBarShowAppName !== false
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
+
+    const handleDashboardTabChange = (nextView: 'chat' | 'pdf') => {
+        if (dashboardView === nextView) return
+
+        if (hasUnsavedSettings && dashboardView === 'settings') {
+            showToast('You have unsaved settings changes', 'warning')
+            return
+        }
+
+        if (nextView === 'chat') {
+            setDashboardView('chat')
+            if (!isDashboardRoute) {
+                navigate('/dashboard')
+            }
+            return
+        }
+
+        if (nextView === 'pdf') {
+            setDashboardView('pdf')
+            if (!isDashboardRoute) {
+                navigate('/dashboard')
+            }
+        }
+    }
+
+    const showDashboardTabs = (isDashboardRoute || isLegacyChatRoute) && dashboardView !== 'settings'
 
     return (
         <div
@@ -122,6 +153,39 @@ export default function TitleBar() {
                 )}
             </div>
 
+            <div className="app-titlebar__middle">
+                {showDashboardTabs && (
+                    <div className="app-titlebar__tab-group no-drag" role="tablist" aria-label="Dashboard views">
+                        <button
+                            type="button"
+                            className={[
+                                'app-titlebar__tab',
+                                dashboardView === 'chat' ? 'app-titlebar__tab--active' : null,
+                            ].filter(Boolean).join(' ')}
+                            role="tab"
+                            aria-selected={dashboardView === 'chat'}
+                            aria-label="Chat"
+                            onClick={() => handleDashboardTabChange('chat')}
+                        >
+                            Chat
+                        </button>
+                        <button
+                            type="button"
+                            className={[
+                                'app-titlebar__tab',
+                                dashboardView === 'pdf' ? 'app-titlebar__tab--active' : null,
+                            ].filter(Boolean).join(' ')}
+                            role="tab"
+                            aria-selected={dashboardView === 'pdf'}
+                            aria-label="PDF"
+                            onClick={() => handleDashboardTabChange('pdf')}
+                        >
+                            PDF
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <div className="app-titlebar__center">
                 <TitleBarCommandBar idlePlaceholder={showTitle ? centerTitle : undefined} />
             </div>
@@ -136,3 +200,4 @@ export default function TitleBar() {
         </div>
     )
 }
+

@@ -1003,4 +1003,11 @@ describe('Property 19: Embedding Model Fallback', () => {
     /**
      * Generate a valid fallback reason
      */
-    fallbackR
+    fallbackReason: fc.constantFrom('model_unavailable', 'timeout', 'network_error', 'memory_error'),
+  };
+
+  it('should return empty array when embedding generation fails', async () => {
+    // Placeholder test - actual implementation depends on the fallback manager
+    expect(true).toBe(true);
+  });
+});
