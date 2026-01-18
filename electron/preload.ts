@@ -8,17 +8,17 @@ preloadLog('Preload script STARTED')
 
 // Window controls API (custom title bar)
 contextBridge.exposeInMainWorld('windowControls', {
-    minimize: () => ipcRenderer.invoke('window-controls:minimize'),
-    toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
-    close: () => ipcRenderer.invoke('window-controls:close'),
-    isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
-    onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
-        const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
-            callback(state)
-        }
-        ipcRenderer.on('window-controls:state', listener)
-        return () => ipcRenderer.removeListener('window-controls:state', listener)
-    },
+  minimize: () => ipcRenderer.invoke('window-controls:minimize'),
+  toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
+  close: () => ipcRenderer.invoke('window-controls:close'),
+  isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
+  onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
+    const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
+      callback(state)
+    }
+    ipcRenderer.on('window-controls:state', listener)
+    return () => ipcRenderer.removeListener('window-controls:state', listener)
+  },
 })
 
 
@@ -140,17 +140,18 @@ const ON_CHANNELS = new Set<string>([
   'pdf:index-progress',
   'pdf:index-complete',
   'pdf:index-error',
-  
+  'pdf:index-log',
+
   // PDF Re-indexing Events (Requirement 21.6)
   'pdf:reindex-progress',
-  
+
   // PDF Model Download Events (Requirement 21.7)
   'pdf:model-download-progress',
   'pdf:model-download-complete',
-  
+
   // PDF Embedding Fallback Events (Requirement 18.2)
   'pdf:embedding-fallback-status',
-  
+
   // PDF Index Rebuild Events (Requirement 18.4)
   'pdf:rebuild-progress',
 ])

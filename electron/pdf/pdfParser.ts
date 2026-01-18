@@ -2033,21 +2033,21 @@ export class PDFParserService implements IPDFParserService {
     textBlocks: TextBlock[]
   ): Promise<ImageBlock[]> {
     const images: ImageBlock[] = [];
-    
+
     try {
       // Get operator list to find image operations
       const operatorList = await pdfPage.getOperatorList();
       const OPS = this.pdfjs.OPS;
-      
+
       let imageId = 0;
-      
+
       for (let i = 0; i < operatorList.fnArray.length; i++) {
         const fn = operatorList.fnArray[i];
-        
+
         // Check for image painting operations
         if (fn === OPS.paintImageXObject || fn === OPS.paintJpegXObject) {
           const args = operatorList.argsArray[i];
-          
+
           // Try to get image info
           try {
             // Get the current transformation matrix to determine position
@@ -2059,8 +2059,10 @@ export class PDFParserService implements IPDFParserService {
               y1: viewport.height,
               pageNumber,
             };
-            
-            // Try to get more accurate bounds from the image object
+
+            let imageData: string | undefined;
+
+            // Try to get more accurate bounds and extract image data
             if (args && args[0]) {
               const imgName = args[0];
               try {
@@ -2070,33 +2072,150 @@ export class PDFParserService implements IPDFParserService {
                   // Note: Actual positioning requires matrix transformation
                   imageBbox.x1 = Math.min(img.width, viewport.width);
                   imageBbox.y1 = Math.min(img.height, viewport.height);
+
+                  // Extract image data as base64
+                  imageData = await this.renderImageToBase64(img);
                 }
-              } catch {
-                // Ignore errors getting image object
+              } catch (imgErr) {
+                // Log but continue - some images may not be extractable
+                console.debug(`Could not extract image data for ${imgName}:`, imgErr);
               }
             }
-            
+
             const imageBlock: ImageBlock = {
               id: `image_${pageNumber}_${imageId++}`,
               bbox: imageBbox,
+              imageData, // Now populated with base64 data
             };
-            
+
             images.push(imageBlock);
           } catch {
             // Skip images that can't be processed
           }
         }
       }
-      
+
       // Associate figure captions with images
       this.associateFigureCaptions(images, textBlocks);
-      
+
     } catch (error) {
       // Log error but continue - image extraction is optional
       console.warn(`Failed to extract images from page ${pageNumber}:`, error);
     }
-    
+
     return images;
+  }
+
+  /**
+   * Render a pdf.js image object to base64 PNG
+   *
+   * @param imgData - Image data from pdf.js
+   * @returns Base64 encoded image (without data URL prefix)
+   */
+  private async renderImageToBase64(imgData: any): Promise<string | undefined> {
+    try {
+      // Dynamically import canvas to avoid loading it unless needed
+      const { createCanvas } = await import('canvas');
+
+      const width = imgData.width;
+      const height = imgData.height;
+
+      // Skip very small images (likely icons or decorations)
+      if (width < 50 || height < 50) {
+        return undefined;
+      }
+
+      // Skip very large images to avoid memory issues
+      const maxDimension = 2048;
+      if (width > maxDimension || height > maxDimension) {
+        // Scale down
+        const scale = maxDimension / Math.max(width, height);
+        const scaledWidth = Math.round(width * scale);
+        const scaledHeight = Math.round(height * scale);
+
+        const canvas = createCanvas(scaledWidth, scaledHeight);
+        const ctx = canvas.getContext('2d');
+
+        // Create a temporary canvas at original size
+        const tempCanvas = createCanvas(width, height);
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Put the image data on temp canvas
+        const imageDataObj = tempCtx.createImageData(width, height);
+        this.copyImageData(imgData, imageDataObj);
+        tempCtx.putImageData(imageDataObj, 0, 0);
+
+        // Draw scaled to final canvas
+        ctx.drawImage(tempCanvas as any, 0, 0, scaledWidth, scaledHeight);
+
+        // Convert to base64 (remove data URL prefix)
+        return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+      }
+
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext('2d');
+
+      // Create ImageData and copy pixel data
+      const imageDataObj = ctx.createImageData(width, height);
+      this.copyImageData(imgData, imageDataObj);
+      ctx.putImageData(imageDataObj, 0, 0);
+
+      // Convert to base64 (remove data URL prefix)
+      return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+    } catch (error) {
+      console.debug('Failed to render image to base64:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Copy pixel data from pdf.js image format to canvas ImageData
+   */
+  private copyImageData(imgData: any, imageDataObj: any): void {
+    const src = imgData.data;
+    const dest = imageDataObj.data;
+    const width = imgData.width;
+    const height = imgData.height;
+
+    // Determine source format
+    const srcLength = src.length;
+    const expectedRGBA = width * height * 4;
+    const expectedRGB = width * height * 3;
+
+    if (srcLength === expectedRGBA) {
+      // RGBA format - direct copy
+      for (let i = 0; i < dest.length; i++) {
+        dest[i] = src[i];
+      }
+    } else if (srcLength === expectedRGB) {
+      // RGB format - add alpha channel
+      for (let i = 0, j = 0; i < dest.length; i += 4, j += 3) {
+        dest[i] = src[j];         // R
+        dest[i + 1] = src[j + 1]; // G
+        dest[i + 2] = src[j + 2]; // B
+        dest[i + 3] = 255;        // A (fully opaque)
+      }
+    } else if (imgData.kind === 1) {
+      // Grayscale image
+      const srcPixels = width * height;
+      for (let i = 0, j = 0; i < srcPixels; i++, j += 4) {
+        const gray = src[i];
+        dest[j] = gray;     // R
+        dest[j + 1] = gray; // G
+        dest[j + 2] = gray; // B
+        dest[j + 3] = 255;  // A
+      }
+    } else {
+      // Unknown format - try RGBA-like copy
+      const pixelCount = Math.min(src.length / 4, dest.length / 4);
+      for (let i = 0; i < pixelCount * 4; i++) {
+        dest[i] = src[i] || 0;
+      }
+      // Ensure alpha is set
+      for (let i = 3; i < dest.length; i += 4) {
+        if (dest[i] === 0) dest[i] = 255;
+      }
+    }
   }
 
   /**

@@ -11,10 +11,7 @@
 
 import { ipcMain } from 'electron';
 import * as fs from 'fs';
-import { PDFParserService } from '../pdf/pdfParser';
-
-// Singleton instance of PDF parser service
-const pdfParserService = new PDFParserService();
+import { pdfParserService } from '../pdf/pdfParser';
 
 // Track registered handlers for cleanup
 const registeredChannels: string[] = [];
@@ -51,7 +48,7 @@ export function registerPDFCoreHandlers(): void {
     if (docIdOrPath.startsWith('doc_')) {
       const loadedDoc = pdfParserService.getLoadedDocument(docIdOrPath);
       if (loadedDoc) {
-        filePath = loadedDoc.filePath;
+        filePath = loadedDoc.document.filePath;
       } else {
         throw new Error(`Document not loaded: ${docIdOrPath}`);
       }
@@ -118,6 +115,85 @@ export function registerPDFCoreHandlers(): void {
     }
   });
   registeredChannels.push('pdf:unload');
+
+  // =============================================================================
+  // Image Processing Handlers
+  // =============================================================================
+
+  // Lazy load image processor to avoid loading Tesseract unless needed
+  let imageProcessorModule: typeof import('../pdf/imageProcessor') | null = null;
+
+  const getImageProcessor = async () => {
+    if (!imageProcessorModule) {
+      imageProcessorModule = await import('../pdf/imageProcessor');
+    }
+    return imageProcessorModule;
+  };
+
+  // pdf:check-vision-availability - Check if vision model is available
+  ipcMain.handle('pdf:check-vision-availability', async (_event, modelId?: string) => {
+    try {
+      const { imageProcessorService } = await getImageProcessor();
+      return await imageProcessorService.isVisionModelAvailable(modelId);
+    } catch (error) {
+      console.error('[PDFCoreHandlers] Error checking vision availability:', error);
+      return false;
+    }
+  });
+  registeredChannels.push('pdf:check-vision-availability');
+
+  // pdf:get-vision-models - Get list of available vision models with status
+  ipcMain.handle('pdf:get-vision-models', async () => {
+    try {
+      const { imageProcessorService } = await getImageProcessor();
+      return await imageProcessorService.getAvailableModels();
+    } catch (error) {
+      console.error('[PDFCoreHandlers] Error getting vision models:', error);
+      return [];
+    }
+  });
+  registeredChannels.push('pdf:get-vision-models');
+
+  // pdf:get-image-fallback-state - Get current image processing fallback state
+  ipcMain.handle('pdf:get-image-fallback-state', async () => {
+    try {
+      const { imageProcessorService } = await getImageProcessor();
+      return imageProcessorService.getFallbackState();
+    } catch (error) {
+      console.error('[PDFCoreHandlers] Error getting fallback state:', error);
+      return {
+        isActive: false,
+        failureCount: 0,
+        canRecover: true,
+      };
+    }
+  });
+  registeredChannels.push('pdf:get-image-fallback-state');
+
+  // pdf:attempt-image-recovery - Attempt to recover from fallback mode
+  ipcMain.handle('pdf:attempt-image-recovery', async () => {
+    try {
+      const { imageProcessorService } = await getImageProcessor();
+      return await imageProcessorService.attemptRecovery();
+    } catch (error) {
+      console.error('[PDFCoreHandlers] Error attempting recovery:', error);
+      return false;
+    }
+  });
+  registeredChannels.push('pdf:attempt-image-recovery');
+
+  // pdf:update-image-config - Update image processing configuration
+  ipcMain.handle('pdf:update-image-config', async (_event, config: any) => {
+    try {
+      const { imageProcessorService } = await getImageProcessor();
+      imageProcessorService.updateConfig(config);
+      return imageProcessorService.getConfig();
+    } catch (error) {
+      console.error('[PDFCoreHandlers] Error updating image config:', error);
+      throw error;
+    }
+  });
+  registeredChannels.push('pdf:update-image-config');
 
   console.log('[IPC] PDF core handlers registered successfully (no LanceDB required)');
 }

@@ -248,6 +248,15 @@ export interface RAGResponse {
   confidence: number;
   /** Whether grounded mode was enabled */
   groundedMode: boolean;
+  /** PDF-aware system prompt for AI (optional, added by handlers) */
+  pdfSystemPrompt?: string;
+  /** Document metadata for context (optional, added by handlers) */
+  documentMetadata?: Array<{
+    id: string;
+    fileName: string;
+    pageCount: number;
+    title?: string;
+  }>;
 }
 
 /**
@@ -341,7 +350,7 @@ export interface PDFRAGSettings {
   chunkOverlap: number;
   /** Strategy for creating chunks */
   chunkingStrategy: 'fixed' | 'semantic' | 'paragraph';
-  
+
   // Embedding settings
   /** Type of embedding model to use */
   embeddingModel: 'local' | 'openai' | 'voyage';
@@ -349,7 +358,7 @@ export interface PDFRAGSettings {
   localEmbeddingModel?: string;
   /** Dimension of embedding vectors */
   embeddingDimensions: number;
-  
+
   // Retrieval settings
   /** Number of top results to retrieve (default: 5) */
   topK: number;
@@ -363,7 +372,7 @@ export interface PDFRAGSettings {
   useReranker: boolean;
   /** Maximum number of sources to include in context */
   maxSourcesInContext: number;
-  
+
   // Grounding settings
   /** Whether grounded mode is enabled by default */
   groundedModeEnabled: boolean;
@@ -371,6 +380,16 @@ export interface PDFRAGSettings {
   showLowConfidenceWarning: boolean;
   /** Threshold below which to show low confidence warning */
   lowConfidenceThreshold: number;
+
+  // Image processing settings
+  /** Whether to process images during indexing */
+  processImages: boolean;
+  /** Vision model to use for image description (e.g., 'llava', 'bakllava') */
+  visionModel: string;
+  /** Whether to enable OCR fallback when vision model unavailable */
+  enableOCRFallback: boolean;
+  /** Prefer vision model over OCR when both available */
+  preferVisionOverOCR: boolean;
 }
 
 // =============================================================================
@@ -390,7 +409,7 @@ export interface DocumentRetrievalSettings {
   documentName: string;
   /** Whether custom settings are enabled for this document */
   enabled: boolean;
-  
+
   // Chunking overrides (optional - uses global if not set)
   /** Custom chunk size for this document */
   chunkSize?: number;
@@ -398,7 +417,7 @@ export interface DocumentRetrievalSettings {
   chunkOverlap?: number;
   /** Custom chunking strategy for this document */
   chunkingStrategy?: 'fixed' | 'semantic' | 'paragraph';
-  
+
   // Retrieval overrides (optional - uses global if not set)
   /** Custom top-K results for this document */
   topK?: number;
@@ -412,7 +431,7 @@ export interface DocumentRetrievalSettings {
   useReranker?: boolean;
   /** Custom max sources in context for this document */
   maxSourcesInContext?: number;
-  
+
   // Grounding overrides (optional - uses global if not set)
   /** Custom grounded mode setting for this document */
   groundedModeEnabled?: boolean;
@@ -420,7 +439,7 @@ export interface DocumentRetrievalSettings {
   showLowConfidenceWarning?: boolean;
   /** Custom low confidence threshold for this document */
   lowConfidenceThreshold?: number;
-  
+
   /** Timestamp when settings were last updated */
   updatedAt: number;
 }
@@ -449,6 +468,8 @@ export interface IndexOptions {
   chunkOverlap?: number;
   /** Chunking strategy to use */
   chunkingStrategy?: 'fixed' | 'semantic' | 'paragraph';
+  /** Override embedding model for this document */
+  embeddingModel?: string;
 }
 
 /**
@@ -465,6 +486,10 @@ export interface IndexResult {
   indexingTimeMs: number;
   /** Error message if indexing failed */
   error?: string;
+  /** Storage path where the index is stored */
+  storagePath?: string;
+  /** Size of the index in bytes */
+  storageSizeBytes?: number;
 }
 
 /**
@@ -794,12 +819,12 @@ export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   chunkSize: 512,
   chunkOverlap: 128,
   chunkingStrategy: 'semantic',
-  
+
   // Embedding
   embeddingModel: 'local',
   localEmbeddingModel: 'nomic-embed-text',
   embeddingDimensions: 768,
-  
+
   // Retrieval
   topK: 5,
   minConfidenceScore: 0.5,
@@ -807,11 +832,17 @@ export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   hybridAlpha: 0.7,
   useReranker: true,
   maxSourcesInContext: 8,
-  
+
   // Grounding
   groundedModeEnabled: false,
   showLowConfidenceWarning: true,
   lowConfidenceThreshold: 0.5,
+
+  // Image processing
+  processImages: true,
+  visionModel: 'qwen2-vl:2b',
+  enableOCRFallback: true,
+  preferVisionOverOCR: true,
 };
 
 // =============================================================================
@@ -855,16 +886,16 @@ export const PDF_IPC_CHANNELS = {
   GET_OUTLINE: 'pdf:get-outline',
   GET_MAJOR_SECTIONS: 'pdf:get-major-sections',
   UNLOAD: 'pdf:unload',
-  
+
   // Indexing
   INDEX: 'pdf:index',
   GET_INDEX_STATUS: 'pdf:get-index-status',
   DELETE_INDEX: 'pdf:delete-index',
-  
+
   // RAG Query
   QUERY: 'pdf:query',
   GET_CHUNKS: 'pdf:get-chunks',
-  
+
   // Session Management
   CREATE_SESSION: 'pdf-chat:create-session',
   GET_SESSIONS: 'pdf-chat:get-sessions',
@@ -872,47 +903,54 @@ export const PDF_IPC_CHANNELS = {
   SAVE_SESSION: 'pdf-chat:save-session',
   DELETE_SESSION: 'pdf-chat:delete-session',
   GET_RECENT_DOCUMENTS: 'pdf-chat:get-recent-documents',
-  
+
   // Settings
   GET_SETTINGS: 'pdf:get-settings',
   UPDATE_SETTINGS: 'pdf:update-settings',
-  
+
   // Per-Document Settings (Requirement 16.7)
   GET_DOCUMENT_SETTINGS: 'pdf:get-document-settings',
   UPDATE_DOCUMENT_SETTINGS: 'pdf:update-document-settings',
   DELETE_DOCUMENT_SETTINGS: 'pdf:delete-document-settings',
   GET_ALL_DOCUMENT_SETTINGS: 'pdf:get-all-document-settings',
-  
+
   // Embedding Model Management (Requirement 21.6)
   CHECK_MODEL_CHANGE: 'pdf:check-model-change',
   GET_DOCUMENTS_NEEDING_REINDEX: 'pdf:get-documents-needing-reindex',
   GET_INDEXED_DOCUMENTS: 'pdf:get-indexed-documents',
   REINDEX_DOCUMENTS: 'pdf:reindex-documents',
-  
+
   // Model Caching (Requirement 21.7)
   GET_MODEL_CACHE_STATUS: 'pdf:get-model-cache-status',
   GET_ALL_MODELS_STATUS: 'pdf:get-all-models-status',
   DOWNLOAD_MODEL: 'pdf:download-model',
   CLEAR_MODEL_CACHE: 'pdf:clear-model-cache',
   REFRESH_MODEL_STATUS: 'pdf:refresh-model-status',
-  
+
   // Embedding Fallback (Requirement 18.2)
   GET_EMBEDDING_FALLBACK_STATE: 'pdf:get-embedding-fallback-state',
   ATTEMPT_EMBEDDING_RECOVERY: 'pdf:attempt-embedding-recovery',
   GET_EMBEDDING_FALLBACK_NOTIFICATION: 'pdf:get-embedding-fallback-notification',
   CHECK_EMBEDDING_AVAILABILITY: 'pdf:check-embedding-availability',
-  
+
   // Index Corruption Recovery (Requirement 18.4)
   CHECK_INDEX_CORRUPTION: 'pdf:check-index-corruption',
   REBUILD_CORRUPTED_INDEX: 'pdf:rebuild-corrupted-index',
   CLEANUP_ORPHANED_CHUNKS: 'pdf:cleanup-orphaned-chunks',
   REPAIR_CHUNK_COUNTS: 'pdf:repair-chunk-counts',
   GET_DOCUMENTS_NEEDING_REBUILD: 'pdf:get-documents-needing-rebuild',
-  
+
+  // Image Processing
+  CHECK_VISION_AVAILABILITY: 'pdf:check-vision-availability',
+  GET_VISION_MODELS: 'pdf:get-vision-models',
+  GET_IMAGE_FALLBACK_STATE: 'pdf:get-image-fallback-state',
+  ATTEMPT_IMAGE_RECOVERY: 'pdf:attempt-image-recovery',
+  UPDATE_IMAGE_CONFIG: 'pdf:update-image-config',
+
   // Feedback
   SAVE_FEEDBACK: 'pdf:save-feedback',
   GET_FEEDBACK: 'pdf:get-feedback',
-  
+
   // Events (for ON_CHANNELS)
   INDEX_PROGRESS: 'pdf:index-progress',
   INDEX_COMPLETE: 'pdf:index-complete',
@@ -1008,6 +1046,8 @@ export interface ModelCacheStatus {
   requiresApiKey: boolean;
   /** Whether the required API key is configured */
   hasApiKey?: boolean;
+  /** Embedding dimensions for this model */
+  dimensions?: number;
 }
 
 /**
@@ -1057,7 +1097,7 @@ export interface AllModelsStatus {
  * 
  * Implements Requirement 18.2: Fall back to BM25 when embeddings unavailable
  */
-export type EmbeddingFallbackReason = 
+export type EmbeddingFallbackReason =
   | 'model_unavailable'      // Embedding model is not available (Ollama not running, API key missing)
   | 'generation_failed'      // Embedding generation failed (network error, timeout)
   | 'rate_limited'           // API rate limit exceeded

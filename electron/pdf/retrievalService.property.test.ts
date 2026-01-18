@@ -83,6 +83,7 @@ const createMockEmbeddingService = (): IEmbeddingService => ({
   getModelInfo: mockGetModelInfo,
   setModel: mockSetModel,
   isModelAvailable: mockIsModelAvailable,
+  getCurrentModelId: vi.fn().mockReturnValue('local-gemma'),
 });
 
 // =============================================================================

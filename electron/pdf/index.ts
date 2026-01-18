@@ -34,6 +34,15 @@ export { RetrievalService, retrievalService } from './retrievalService';
 // RAG Engine
 export { RAGEngine, ragEngine } from './ragEngine';
 
+// PDF Chat Instructions
+export {
+  generatePDFSystemPrompt,
+  generateFallbackPrompt,
+  expandQueryForRetrieval,
+  buildPDFChatErrorMessage,
+} from './pdfChatInstructions';
+export type { PDFChatContext } from './pdfChatInstructions';
+
 // PDF Chat Store
 // export { PDFChatStore } from './pdfChatStore';
 

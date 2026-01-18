@@ -1120,6 +1120,16 @@ export class RetrievalService implements IRetrievalService {
 // =============================================================================
 
 /**
- * Singleton instance of the retrieval service
+ * Singleton instance of the retrieval service using global registry
  */
-export const retrievalService = new RetrievalService();
+export const retrievalService = (() => {
+  const globalKey = Symbol.for('zura.retrievalService');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new RetrievalService();
+  }
+  
+  return globalRegistry[globalKey] as RetrievalService;
+})();
+

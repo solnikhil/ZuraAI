@@ -44,6 +44,13 @@ import { getSecureValue } from '../secureStorage';
  */
 export const EMBEDDING_MODELS: EmbeddingModelInfo[] = [
   {
+    id: 'local-gemma',
+    name: 'EmbeddingGemma (Local)',
+    provider: 'local',
+    dimensions: 512,
+    maxTokens: 512,
+  },
+  {
     id: 'local-nomic',
     name: 'Nomic Embed Text (Local)',
     provider: 'local',
@@ -88,6 +95,7 @@ export const EMBEDDING_MODELS: EmbeddingModelInfo[] = [
  * Map of model ID to Ollama model name
  */
 const OLLAMA_MODEL_MAP: Record<string, string> = {
+  'local-gemma': 'embeddinggemma',
   'local-nomic': 'nomic-embed-text',
   'local-mxbai': 'mxbai-embed-large',
   'local-all-minilm': 'all-minilm',
@@ -209,7 +217,7 @@ export class EmbeddingService implements IEmbeddingService {
   private modelAvailabilityCache: Map<string, { available: boolean; checkedAt: number }>;
   private readonly availabilityCacheTTL = 30000; // 30 seconds
 
-  constructor(modelId: string = 'local-nomic', ollamaBaseUrl: string = DEFAULT_OLLAMA_URL) {
+  constructor(modelId: string = 'local-gemma', ollamaBaseUrl: string = DEFAULT_OLLAMA_URL) {
     this.currentModelId = modelId;
     this.currentModelInfo = this.getModelInfoById(modelId);
     this.ollamaBaseUrl = ollamaBaseUrl;
@@ -415,13 +423,26 @@ export class EmbeddingService implements IEmbeddingService {
 
   /**
    * Generate embedding using Ollama
-   * 
+   *
    * Implements Requirement 21.2, 21.4
    */
   private async generateOllamaEmbedding(text: string): Promise<number[]> {
     const ollamaModelName = OLLAMA_MODEL_MAP[this.currentModelId];
     if (!ollamaModelName) {
       throw new Error(`Unknown Ollama model for ID: ${this.currentModelId}`);
+    }
+
+    // Check Ollama availability first with better error message
+    const isAvailable = await this.isModelAvailable(this.currentModelId);
+    if (!isAvailable) {
+      throw new Error(
+        'Ollama is not running or the embedding model is not available.\n\n' +
+        `Required model: ${ollamaModelName}\n\n` +
+        'To fix this:\n' +
+        '1. Make sure Ollama is running: https://ollama.com/download\n' +
+        `2. Install the embedding model: ollama pull ${ollamaModelName}\n` +
+        `3. Or switch to a different embedding model in settings`
+      );
     }
 
     try {
@@ -443,7 +464,7 @@ export class EmbeddingService implements IEmbeddingService {
       }
 
       const data = await response.json();
-      
+
       if (!data.embedding || !Array.isArray(data.embedding)) {
         throw new Error('Invalid embedding response from Ollama');
       }
@@ -451,8 +472,9 @@ export class EmbeddingService implements IEmbeddingService {
       return data.embedding;
     } catch (error: any) {
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        throw new Error('Ollama embedding request timed out');
+        throw new Error('Ollama embedding request timed out. The document may be too large or Ollama may be overloaded.');
       }
+      // Re-throw our custom error message
       throw error;
     }
   }
@@ -662,9 +684,19 @@ export interface ModelChangeInfo {
 }
 
 /**
- * Singleton instance of the embedding service
+ * Singleton instance of the embedding service using global registry
  */
-export const embeddingService = new EmbeddingService();
+export const embeddingService = (() => {
+  const globalKey = Symbol.for('zura.embeddingService');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new EmbeddingService();
+  }
+  
+  return globalRegistry[globalKey] as EmbeddingService;
+})();
+
 
 // =============================================================================
 // Embedding Fallback Support (Requirement 18.2)
@@ -1077,6 +1109,7 @@ export async function getModelCacheStatus(
     isDownloading: false,
     lastCheckedAt: Date.now(),
     requiresApiKey: modelInfo.provider !== 'local',
+    dimensions: modelInfo.dimensions,
   };
 
   try {

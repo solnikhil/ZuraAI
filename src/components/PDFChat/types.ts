@@ -135,6 +135,66 @@ export interface PDFControlsProps {
 /**
  * Props for the PDF Chat Area component
  */
+/**
+ * Indexing progress state
+ * Shared between PDFChatLayout and PDFChatArea
+ */
+export interface IndexingState {
+  /** Document ID being indexed */
+  documentId: string;
+  /** Document name for display */
+  documentName: string;
+  /** Progress percentage (0-100) */
+  progress: number;
+  /** Whether indexing is in progress */
+  isIndexing: boolean;
+  /** Whether indexing is complete */
+  isComplete: boolean;
+  /** Error message if indexing failed */
+  error?: string;
+  /** Storage path of the index */
+  storagePath?: string;
+  /** Size of the index in bytes */
+  storageSizeBytes?: number;
+}
+
+/**
+ * Document loading state
+ * Shows when a document is being initially loaded
+ */
+export interface DocumentLoadingState {
+  /** Document ID being loaded */
+  documentId: string;
+  /** Document name for display */
+  documentName: string;
+  /** Whether loading is in progress */
+  isLoading: boolean;
+}
+
+/**
+ * State for pending indexing prompt (shown as inline chat message)
+ */
+export interface IndexingPromptState {
+  /** Document ID to index */
+  documentId: string;
+  /** Document name for display */
+  documentName: string;
+  /** Page count of the document */
+  pageCount: number;
+}
+
+/**
+ * Indexing log entry for displaying progress details
+ */
+export interface IndexingLogEntry {
+  /** Timestamp of the log entry */
+  timestamp: number;
+  /** Log level */
+  level: 'info' | 'progress' | 'error' | 'success' | 'warning';
+  /** Log message */
+  message: string;
+}
+
 export interface PDFChatAreaProps {
   /** Current session ID */
   sessionId: string;
@@ -146,6 +206,22 @@ export interface PDFChatAreaProps {
   groundedMode?: boolean;
   /** Callback to toggle grounded mode */
   onGroundedModeChange?: (enabled: boolean) => void;
+  /** Current indexing state (optional) */
+  indexingState?: IndexingState | null;
+  /** Loaded document info for context display */
+  loadedDocuments?: Map<string, { name: string; isIndexed: boolean }>;
+  /** Document loading state (optional) */
+  documentLoadingState?: DocumentLoadingState | null;
+  /** Callback to dismiss indexing notification */
+  onDismissIndexingNotification?: () => void;
+  /** Pending indexing prompt (shown as inline chat message) */
+  indexingPrompt?: IndexingPromptState | null;
+  /** Callback when user confirms indexing */
+  onConfirmIndexing?: (documentId: string, modelId?: string) => void;
+  /** Callback when user skips indexing */
+  onSkipIndexing?: (documentId: string) => void;
+  /** Indexing logs for display */
+  indexingLogs?: IndexingLogEntry[];
 }
 
 /**

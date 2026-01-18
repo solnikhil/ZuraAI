@@ -96,6 +96,9 @@ export {
   ThumbsDown,
   Flag,
   Ellipsis,
+  MoreVertical,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 
 // Animated icons

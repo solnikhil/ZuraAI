@@ -401,6 +401,7 @@ export interface IEmbeddingService {
   getModelInfo(): EmbeddingModelInfo;
   setModel(modelId: string): Promise<void>;
   isModelAvailable(modelId: string): Promise<boolean>;
+  getCurrentModelId(): string;
 }
 
 /**
@@ -418,6 +419,8 @@ export interface IVectorStore {
   getChunks(chunkIds: string[]): Promise<ChunkRecord[]>;
   deleteDocument(docId: string): Promise<void>;
   getCollectionStats(): Promise<{ documentCount: number; chunkCount: number; sizeBytes: number }>;
+  /** Get the storage path for the vector store */
+  getStoragePath(): string;
 }
 
 /**

@@ -796,6 +796,16 @@ export class ChunkManager implements IChunkManager {
 }
 
 /**
- * Singleton instance of the chunk manager
+ * Singleton instance of the chunk manager using global registry
  */
-export const chunkManager = new ChunkManager();
+export const chunkManager = (() => {
+  const globalKey = Symbol.for('zura.chunkManager');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new ChunkManager();
+  }
+  
+  return globalRegistry[globalKey] as ChunkManager;
+})();
+
