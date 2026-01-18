@@ -1637,6 +1637,12 @@ export function PDFChatArea({
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading || documentIds.length === 0) return;
 
+    // Check if any documents are indexed
+    const hasIndexedDocuments = documentIds.some(docId => {
+      const doc = loadedDocuments?.get(docId);
+      return doc?.isIndexed === true;
+    });
+
     const userMessage: PDFChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -1660,6 +1666,20 @@ export function PDFChatArea({
       timestamp: Date.now()
     };
     setMessages(prev => [...prev, assistantMessage]);
+
+    // If no documents are indexed, show a helpful message
+    if (!hasIndexedDocuments) {
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+            ...msg,
+            content: 'This document needs to be indexed before I can search and answer questions about its content. Please click "Index Document" above to enable document search and chat features.'
+          }
+          : msg
+      ));
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // Get RAG context via IPC (retrieves relevant chunks and builds PDF system prompt)
@@ -1764,7 +1784,7 @@ export function PDFChatArea({
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, documentIds, groundedMode, attachedSelection, messages, generateFallbackResponse, generatePDFAwareResponse]);
+  }, [input, isLoading, documentIds, groundedMode, attachedSelection, messages, generateFallbackResponse, generatePDFAwareResponse, loadedDocuments]);
 
 
   /**

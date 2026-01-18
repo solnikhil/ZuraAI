@@ -24,12 +24,23 @@
   min-width: 0;
 }
 
-.pdf-viewer-container :is(.react-pdf__Page__canvas, .react-pdf__Page__textContent, .react-pdf__Page__annotations) {
+/* react-pdf / pdfjs layers
+   - Canvas/annotations are display-only
+   - Text layer stays interactive for selection */
+.pdf-viewer-container :is(.react-pdf__Page__canvas, .react-pdf__Page__annotations) {
   pointer-events: none;
 }
 
 .pdf-viewer-container .react-pdf__Page__textContent {
+  pointer-events: auto;
   user-select: text;
+}
+
+/* If TextLayer.css doesn't load or gets overridden, spans can become visible as
+   "white lines". Force them back to invisible while preserving selection. */
+.pdf-viewer-container .react-pdf__Page__textContent span {
+  color: transparent !important;
+  text-shadow: none !important;
 }
 
 
@@ -343,6 +354,13 @@
   user-select: text;
   cursor: text;
 }
+
+/* Match the global fix for "white lines" in the page text layer. */
+.pdf-viewer-page .react-pdf__Page__textContent span {
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
 
 .pdf-viewer-page .react-pdf__Page__textContent span::selection {
   background: var(--theme-accent-muted);

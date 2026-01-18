@@ -12,6 +12,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -21,25 +22,26 @@ import { Star, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from '../icons';
 import './PDFViewer.css';
 
 // Polyfill Promise.withResolvers for pdfjs-dist v5.x
-  if (typeof Promise.withResolvers === 'undefined') {
-    if (typeof window !== 'undefined') {
-      // @ts-expect-error Polyfill
-      window.Promise.withResolvers = function () {
-        let resolve: (value?: unknown) => void;
-        let reject: (reason?: unknown) => void;
-        const promise = new Promise<unknown>((res, rej) => {
-          resolve = res;
-          reject = rej;
-        });
-        return { promise, resolve, reject };
-      };
-    }
+if (typeof Promise.withResolvers === 'undefined') {
+  if (typeof window !== 'undefined') {
+    // @ts-expect-error Polyfill
+    window.Promise.withResolvers = function () {
+      let resolve!: (value?: unknown) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<unknown>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    };
   }
+}
 
 
-// Configure PDF.js worker in the same module as Document/Page
-// Use legacy worker to include Promise.withResolvers polyfill for Electron
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
+
+// Configure PDF.js worker in the same module as Document/Page.
+// Use bundler-resolved URL (works in Electron + Vite).
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 // Constants
 export const MIN_ZOOM = 25;
@@ -60,36 +62,42 @@ export function PDFViewer({
   onToggleStar,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0);
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const pdfFile = useMemo(() => (pdfData ? { data: pdfData } : null), [pdfData]);
+  // react-pdf + pdf.js can transfer ArrayBuffers to the worker (detaching them).
+  // Using an object URL avoids structured-clone of buffers entirely.
+  const pdfFile = useMemo(() => pdfObjectUrl, [pdfObjectUrl]);
 
   // Load PDF Data
   useEffect(() => {
     let isMounted = true;
-    setPdfData(null);
+    setPdfBlob(null);
+    setPdfObjectUrl(null);
     setError(null);
 
-    async function loadPdf() {
-      try {
-        const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
-        if (isMounted && result) {
-          // Fix DataCloneError: Copy buffer to prevent "ArrayBuffer is detached" issues
-          const rawData = result.data || result;
-          const buffer = new Uint8Array(rawData);
-          const bufferCopy = new Uint8Array(buffer.length);
-          bufferCopy.set(buffer);
-          setPdfData(bufferCopy);
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('Failed to load PDF data:', err);
-          setError(err instanceof Error ? err : new Error('Failed to load PDF'));
-        }
-      }
-    }
+     async function loadPdf() {
+       try {
+         const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
+         if (isMounted && result) {
+           // In dev, pdf.js may transfer ArrayBuffers to the worker (detaching them).
+           // Copy to a new buffer and wrap in a Blob to keep it stable.
+           const rawData = result.data || result;
+           const buffer = new Uint8Array(rawData);
+           const bufferCopy = new Uint8Array(buffer.length);
+           bufferCopy.set(buffer);
+           setPdfBlob(new Blob([bufferCopy], { type: 'application/pdf' }));
+         }
+       } catch (err) {
+         if (isMounted) {
+           console.error('Failed to load PDF data:', err);
+           setError(err instanceof Error ? err : new Error('Failed to load PDF'));
+         }
+       }
+     }
+
 
     if (documentId) {
       loadPdf();
@@ -99,6 +107,16 @@ export function PDFViewer({
       isMounted = false;
     };
   }, [documentId]);
+
+  // Turn the loaded Blob into an object URL for react-pdf.
+  useEffect(() => {
+    if (!pdfBlob) return;
+    const url = URL.createObjectURL(pdfBlob);
+    setPdfObjectUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [pdfBlob]);
 
   // Options for correct font rendering
   const options = useMemo(() => ({
@@ -116,6 +134,7 @@ export function PDFViewer({
 
   function onDocumentLoadError(err: Error) {
     console.error('PDF Load Error:', err);
+    // Surface this in the UI so we don't end up with a silent blank viewer.
     setError(err);
   }
 
@@ -139,7 +158,7 @@ export function PDFViewer({
     );
   }
 
-  if (!pdfData) {
+  if (!pdfObjectUrl) {
     return (
       <div className="pdf-viewer-loading">
         <div className="pdf-viewer-spinner" />

@@ -744,9 +744,11 @@ export class RetrievalService implements IRetrievalService {
       }
     }
 
+    console.log('[RetrievalService] Search results:', searchResults.length, 'chunks found');
+
     // Fetch full chunk records (with caching - Requirements 19.5, 19.6)
     const chunkIds = searchResults.map(r => r.id);
-    
+
     // Check cache first
     const { found: cachedChunks, missing: missingIds } = this.cache.getMany(chunkIds);
     

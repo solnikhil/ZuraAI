@@ -1334,11 +1334,13 @@ export class RAGEngine implements IRAGEngine {
     }
 
     // Retrieve with confidence from all specified documents
+    console.log('[RAGEngine] Retrieving context for query:', processedQuery, 'docIds:', docIds);
     const retrievalResult = await this.retrieval.retrieveWithConfidence(
       processedQuery,
       docIds,
       queryOpts
     );
+    console.log('[RAGEngine] Retrieval result:', retrievalResult.results.length, 'chunks, confidence:', retrievalResult.confidence);
 
     // Build document name map for cross-document scenarios
     const documentNameMap = await this.buildDocumentNameMap(docIds, retrievalResult.results);

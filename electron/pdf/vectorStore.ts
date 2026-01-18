@@ -349,8 +349,14 @@ export class VectorStore implements IVectorStore {
       query = query.where(`(${docFilter})`);
     }
 
+    // Debug: Check what's in the table first
+    const allRows = await this.chunksTable.query().limit(5).toArray();
+    console.log('[VectorStore] Debug - Sample rows in table:', allRows.length, 'first docId:', allRows[0]?.documentId);
+
     // Execute search
+    console.log('[VectorStore] Vector search - limit:', limit, 'minScore:', minScore, 'documentIds:', documentIds);
     const results = await query.toArray();
+    console.log('[VectorStore] Vector search raw results:', results.length);
 
     // Process results
     const processed: Array<{ id: string; score: number }> = [];
@@ -363,6 +369,7 @@ export class VectorStore implements IVectorStore {
 
       // Apply minimum score filter
       if (minScore !== undefined && score < minScore) {
+        console.log('[VectorStore] Filtered out chunk due to minScore:', score, '<', minScore);
         continue;
       }
 
@@ -408,6 +415,8 @@ export class VectorStore implements IVectorStore {
       // Check if FTS index exists, create if not
       await this.ensureFTSIndex();
 
+      console.log('[VectorStore] BM25 search - queryText:', queryText.substring(0, 100), 'limit:', limit, 'documentIds:', documentIds);
+
       // Build query with full-text search
       let query = this.chunksTable.query().nearestToText(queryText).limit(limit);
 
@@ -419,6 +428,7 @@ export class VectorStore implements IVectorStore {
 
       // Execute search
       const results = await query.toArray();
+      console.log('[VectorStore] BM25 search raw results:', results.length);
 
       // Process results
       const processed: Array<{ id: string; score: number }> = [];

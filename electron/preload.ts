@@ -81,6 +81,7 @@ const INVOKE_CHANNELS = new Set<string>([
   // PDF RAG Query
   'pdf:query',
   'pdf:get-chunks',
+  'pdf:get-context',
   'pdf:summarize-document',
 
   // PDF Session Management

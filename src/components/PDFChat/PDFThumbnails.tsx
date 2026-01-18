@@ -13,6 +13,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 import type { PDFThumbnailsProps } from './types';
 import { generateThumbnailPages } from './thumbnailUtils';
@@ -22,13 +23,13 @@ import './PDFThumbnails.css';
 export { generateThumbnailPages } from './thumbnailUtils';
 
 // Configure PDF.js worker (same as PDFViewer)
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/legacy/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 
 // Thumbnail configuration
 const THUMBNAIL_WIDTH = 120;
 
-type ThumbnailDocumentFile = string | { data: Uint8Array };
+type ThumbnailDocumentFile = string;
 
 const DOCUMENT_LOAD_OPTIONS = {
   disableAutoFetch: true,
@@ -187,24 +188,29 @@ export function PDFThumbnails({
       setDocumentFile(documentId);
       return;
     }
-    let cancelled = false;
-    async function loadPdfBytes() {
-      try {
-        const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
-        if (cancelled) return;
-        const rawData = result?.data ? new Uint8Array(result.data) : new Uint8Array(result);
-        const data = new Uint8Array(rawData.length);
-        data.set(rawData);
-        setDocumentFile({ data });
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load thumbnails');
-      }
-    }
-    loadPdfBytes();
-    return () => {
-      cancelled = true;
-    };
+     let cancelled = false;
+     let objectUrl: string | null = null;
+     async function loadPdfBytes() {
+       try {
+         const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
+         if (cancelled) return;
+         const rawData = result?.data ? new Uint8Array(result.data) : new Uint8Array(result);
+         const data = new Uint8Array(rawData.length);
+         data.set(rawData);
+         const blob = new Blob([data], { type: 'application/pdf' });
+         objectUrl = URL.createObjectURL(blob);
+         setDocumentFile(objectUrl);
+       } catch (err) {
+         if (cancelled) return;
+         setError(err instanceof Error ? err.message : 'Failed to load thumbnails');
+       }
+     }
+     loadPdfBytes();
+     return () => {
+       cancelled = true;
+       if (objectUrl) URL.revokeObjectURL(objectUrl);
+     };
+
   }, [documentId, isRemoteUrl]);
 
   // Generate thumbnail pages array
