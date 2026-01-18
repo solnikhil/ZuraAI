@@ -22,10 +22,9 @@ import { Star } from '../icons';
 import './PDFViewer.css';
 
 // Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url,
-).toString();
+// In Vite, we import the worker from node_modules and get its URL
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Constants for zoom bounds (Requirements 3.8)
 export const MIN_ZOOM = 25;
@@ -307,46 +306,16 @@ export function PDFViewer({
   }, [numPages]);
 
   // Load PDF data from main process
+  // Note: The actual PDF bytes are loaded via pdf:get-file-data below
+  // This effect only validates that a document ID was provided
   useEffect(() => {
     if (!documentId) {
       setError('No document ID provided');
       setIsLoading(false);
       return;
     }
-
-    let cancelled = false;
-
-    async function loadPDF() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Get page data from main process to get the file path
-        const page = await window.ipcRenderer.invoke('pdf:get-page', documentId, 1);
-        
-        if (cancelled) return;
-
-        // For now, we'll use the document ID to construct a file URL
-        // The main process should provide the actual file data
-        // This is a simplified approach - in production, you'd want to
-        // stream the PDF data through IPC or use a file:// URL
-        
-        setIsLoading(false);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('[PDFViewer] Error loading PDF:', err);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadPDF();
-
-    return () => {
-      cancelled = true;
-    };
+    // Clear error when we have a valid documentId
+    setError(null);
   }, [documentId]);
 
   // Observe container width for responsive sizing

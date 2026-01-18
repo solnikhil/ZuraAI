@@ -226,7 +226,9 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const commandBar = settings.commandBar
 
   const commandBarStyle = useMemo(() => {
-    const width = '512px'
+    const width = commandBar.size === 'medium'
+      ? 'clamp(420px, 44vw, 540px)'
+      : 'clamp(360px, 40vw, 480px)'
 
     return {
       ['--commandbar-width' as any]: width,
@@ -235,8 +237,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       ['--commandbar-dropdown-surface' as any]: `${commandBar.dropdownSurface}%`,
       ['--commandbar-dropdown-blur' as any]: commandBar.enableBlur ? `${commandBar.blurPx}px` : '0px',
     } as React.CSSProperties
-  }, [commandBar.blurPx, commandBar.dropdownSurface, commandBar.enableBlur, commandBar.fieldSurface, commandBar.fieldSurfaceFocused])
-
+  }, [commandBar.blurPx, commandBar.dropdownSurface, commandBar.enableBlur, commandBar.fieldSurface, commandBar.fieldSurfaceFocused, commandBar.size])
 
 
   const maxSuggestions = Math.max(3, Math.min(commandBar.maxSuggestions, 12))

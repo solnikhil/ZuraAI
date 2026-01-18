@@ -95,6 +95,7 @@ export {
   ThumbsUp,
   ThumbsDown,
   Flag,
+  Ellipsis,
 } from 'lucide-react'
 
 // Animated icons

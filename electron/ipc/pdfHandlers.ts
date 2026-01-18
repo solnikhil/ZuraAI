@@ -48,6 +48,7 @@ import type {
   DocumentRetrievalSettings,
   ModelChangeInfo,
   IndexedDocumentInfo,
+  RetrievalResult,
 } from '../../src/types/pdf';
 
 // =============================================================================
@@ -532,9 +533,97 @@ function registerRAGQueryHandlers(): void {
   });
 
   /**
+   * Get RAG context for a query (without generating AI response)
+   * Channel: pdf:get-context
+   *
+   * Returns the retrieved context, sources, and citations for the renderer
+   * to generate the AI response. This allows the renderer to use its own
+   * AI services rather than requiring AI generation in the main process.
+   */
+  ipcMain.handle('pdf:get-context', async (
+    _event,
+    query: string,
+    docIds: string[],
+    options?: QueryOptions,
+    conversationContext?: {
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+      viewState?: { currentPage: number; visibleText: string };
+    }
+  ): Promise<{
+    contextString: string;
+    sources: RetrievalResult[];
+    confidence: number;
+    isLowConfidence: boolean;
+    warning?: string;
+    documentNameMap?: Map<string, string>;
+  }> => {
+    console.log('[PDFHandlers] Getting RAG context:', query, docIds);
+
+    try {
+      if (!query || typeof query !== 'string') {
+        throw new Error('Invalid query');
+      }
+
+      if (!Array.isArray(docIds) || docIds.length === 0) {
+        throw new Error('No documents specified for context retrieval');
+      }
+
+      // Build query options
+      const queryOpts: QueryOptions = {
+        topK: options?.topK ?? 5,
+        minScore: options?.minScore ?? 0.5,
+        useHybrid: options?.useHybrid ?? true,
+        useReranker: options?.useReranker ?? true,
+        pageFilter: options?.pageFilter,
+        sectionFilter: options?.sectionFilter,
+      };
+
+      // Apply view context filter if query references current view
+      if (conversationContext?.viewState) {
+        const viewRefPatterns = [
+          /\bthis page\b/i,
+          /\bcurrent page\b/i,
+          /\bthe table above\b/i,
+          /\bthe figure above\b/i,
+          /\bthis section\b/i,
+          /\bhere\b/i,
+        ];
+        const hasViewRef = viewRefPatterns.some(pattern => pattern.test(query));
+        if (hasViewRef) {
+          queryOpts.pageFilter = {
+            start: conversationContext.viewState.currentPage,
+            end: conversationContext.viewState.currentPage,
+          };
+        }
+      }
+
+      // Build proper conversation context for RAG engine
+      const ragConversationContext = conversationContext ? {
+        messages: conversationContext.messages || [],
+        documentIds: docIds,
+        viewState: conversationContext.viewState,
+      } : undefined;
+
+      // Get context from RAG engine
+      const ragContext = await ragEngine.getContextForQuery(
+        query,
+        docIds,
+        queryOpts,
+        ragConversationContext
+      );
+
+      console.log('[PDFHandlers] RAG context retrieved, sources:', ragContext.sources.length);
+      return ragContext;
+    } catch (error) {
+      console.error('[PDFHandlers] Error getting RAG context:', error);
+      throw error;
+    }
+  });
+
+  /**
    * Generate section-by-section document summary
    * Channel: pdf:summarize-document
-   * 
+   *
    * Implements Requirements 12.1, 12.3, 12.4:
    * - 12.1: Generate document summary
    * - 12.3: Section-by-section summarization
@@ -1954,43 +2043,48 @@ function registerSettingsAndFeedbackHandlers(): void {
 
 /**
  * Register all PDF IPC handlers
+ *
+ * Note: PDF Loading handlers (pdf:load, pdf:get-page, etc.) are registered
+ * separately by pdfCoreHandlers to avoid conflicts and ensure basic PDF
+ * functionality works even when RAG features are unavailable.
  */
 export function registerPDFHandlers(): void {
   console.log('[PDFHandlers] Registering PDF IPC handlers');
-  
-  registerPDFLoadingHandlers();
+
+  // Skip registerPDFLoadingHandlers() - those are registered by pdfCoreHandlers
+  // This prevents "Attempted to register a second handler" errors
+  // registerPDFLoadingHandlers();
   registerPDFIndexingHandlers();
   registerRAGQueryHandlers();
   registerSessionManagementHandlers();
   registerSettingsAndFeedbackHandlers();
-  
+
   console.log('[PDFHandlers] All PDF IPC handlers registered');
 }
 
 /**
  * Unregister all PDF IPC handlers
+ *
+ * Note: PDF Loading handlers (pdf:load, pdf:get-page, etc.) are unregistered
+ * separately by pdfCoreHandlers. We only unregister the RAG-specific handlers here.
  */
 export function unregisterPDFHandlers(): void {
   console.log('[PDFHandlers] Unregistering PDF IPC handlers');
-  
-  // PDF Loading
-  ipcMain.removeHandler('pdf:load');
-  ipcMain.removeHandler('pdf:get-page');
-  ipcMain.removeHandler('pdf:search-text');
-  ipcMain.removeHandler('pdf:get-outline');
-  ipcMain.removeHandler('pdf:get-major-sections');
-  ipcMain.removeHandler('pdf:unload');
-  
+
+  // PDF Loading handlers are managed by pdfCoreHandlers, skip them here
+  // This prevents errors when those handlers don't exist in our registry
+
   // PDF Indexing
   ipcMain.removeHandler('pdf:index');
   ipcMain.removeHandler('pdf:get-index-status');
   ipcMain.removeHandler('pdf:delete-index');
-  
+
   // RAG Query
   ipcMain.removeHandler('pdf:query');
+  ipcMain.removeHandler('pdf:get-context');
   ipcMain.removeHandler('pdf:get-chunks');
   ipcMain.removeHandler('pdf:summarize-document');
-  
+
   // Session Management
   ipcMain.removeHandler('pdf-chat:create-session');
   ipcMain.removeHandler('pdf-chat:get-sessions');
@@ -1998,45 +2092,45 @@ export function unregisterPDFHandlers(): void {
   ipcMain.removeHandler('pdf-chat:save-session');
   ipcMain.removeHandler('pdf-chat:delete-session');
   ipcMain.removeHandler('pdf-chat:get-recent-documents');
-  
+
   // Settings and Feedback
   ipcMain.removeHandler('pdf:get-settings');
   ipcMain.removeHandler('pdf:update-settings');
   ipcMain.removeHandler('pdf:save-feedback');
   ipcMain.removeHandler('pdf:get-feedback');
-  
+
   // Per-Document Settings (Requirement 16.7)
   ipcMain.removeHandler('pdf:get-document-settings');
   ipcMain.removeHandler('pdf:update-document-settings');
   ipcMain.removeHandler('pdf:delete-document-settings');
   ipcMain.removeHandler('pdf:get-all-document-settings');
-  
+
   // Embedding Model Management (Requirement 21.6)
   ipcMain.removeHandler('pdf:check-model-change');
   ipcMain.removeHandler('pdf:get-indexed-documents');
   ipcMain.removeHandler('pdf:get-documents-needing-reindex');
   ipcMain.removeHandler('pdf:reindex-documents');
-  
+
   // Model Caching (Requirement 21.7)
   ipcMain.removeHandler('pdf:get-model-cache-status');
   ipcMain.removeHandler('pdf:get-all-models-status');
   ipcMain.removeHandler('pdf:download-model');
   ipcMain.removeHandler('pdf:clear-model-cache');
   ipcMain.removeHandler('pdf:refresh-model-status');
-  
+
   // Embedding Fallback (Requirement 18.2)
   ipcMain.removeHandler('pdf:get-embedding-fallback-state');
   ipcMain.removeHandler('pdf:attempt-embedding-recovery');
   ipcMain.removeHandler('pdf:get-embedding-fallback-notification');
   ipcMain.removeHandler('pdf:check-embedding-availability');
-  
+
   // Index Corruption Recovery (Requirement 18.4)
   ipcMain.removeHandler('pdf:check-index-corruption');
   ipcMain.removeHandler('pdf:rebuild-corrupted-index');
   ipcMain.removeHandler('pdf:cleanup-orphaned-chunks');
   ipcMain.removeHandler('pdf:repair-chunk-counts');
   ipcMain.removeHandler('pdf:get-documents-needing-rebuild');
-  
+
   console.log('[PDFHandlers] All PDF IPC handlers unregistered');
 }
 

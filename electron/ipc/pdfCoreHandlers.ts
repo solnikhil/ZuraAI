@@ -38,10 +38,25 @@ export function registerPDFCoreHandlers(): void {
   registeredChannels.push('pdf:load');
 
   // pdf:get-file-data - Read PDF file bytes for renderer display
-  ipcMain.handle('pdf:get-file-data', async (_event, filePath: string) => {
-    if (!filePath || typeof filePath !== 'string') {
-      throw new Error('Invalid file path');
+  // Accepts either a file path or a document ID (will look up the file path)
+  ipcMain.handle('pdf:get-file-data', async (_event, docIdOrPath: string) => {
+    if (!docIdOrPath || typeof docIdOrPath !== 'string') {
+      throw new Error('Invalid file path or document ID');
     }
+
+    // Check if this is a document ID (starts with 'doc_') or a file path
+    let filePath = docIdOrPath;
+
+    // If it looks like a doc ID, try to look up the actual file path
+    if (docIdOrPath.startsWith('doc_')) {
+      const loadedDoc = pdfParserService.getLoadedDocument(docIdOrPath);
+      if (loadedDoc) {
+        filePath = loadedDoc.filePath;
+      } else {
+        throw new Error(`Document not loaded: ${docIdOrPath}`);
+      }
+    }
+
     const data = await fs.promises.readFile(filePath);
     return { data, byteLength: data.byteLength };
   });

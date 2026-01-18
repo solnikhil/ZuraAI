@@ -4,8 +4,7 @@ import {
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
     Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command, FileText
 } from '../icons'
-import { MessageCircleIcon, MagnifierIcon, TrashIcon } from '../icons'
-import type { AnimatedIconHandle } from '../icons'
+import { MessageCircleIcon, TrashIcon } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
@@ -45,19 +44,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
-
-    // New Chat icon animation ref
-    const newChatIconRef = useRef<AnimatedIconHandle>(null)
-    // Search icon animation ref
-    const searchIconRef = useRef<AnimatedIconHandle>(null)
-    const startIconAnimation = (iconRef: React.RefObject<AnimatedIconHandle>) => {
-        iconRef.current?.startAnimation?.()
-    }
-
-    const stopIconAnimation = (iconRef: React.RefObject<AnimatedIconHandle>) => {
-        iconRef.current?.stopAnimation?.()
-    }
-
 
 
     // Fetch starred PDF documents when in PDF mode
@@ -146,155 +132,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             position: (view === 'chat' || view === 'pdf') ? 'relative' : 'absolute',
             width: '100%'
         }}>
-            {/* Header */}
-            <div style={{
-                padding: '12px 8px 8px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                borderBottom: '1px solid var(--theme-border)',
-                minWidth: 0,
-                overflow: 'hidden'
-            }}>
-
-                {/* Quick Actions - Search & New Chat (stacked, grey icons) - Hidden in PDF mode */}
-                {view !== 'pdf' && (
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    padding: '0'
-                }}>
-                    {/* New Chat Button */}
-                    <button
-                        onClick={() => clearCurrentSession()}
-                        className="quick-action-btn"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '8px 8px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            color: 'var(--theme-text-primary)',
-                            fontSize: '0.85rem',
-                            fontWeight: 500,
-                            width: '100%',
-                            justifyContent: 'flex-start',
-                            minWidth: 0,
-                            overflow: 'hidden'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                            e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            startIconAnimation(newChatIconRef)
-
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            stopIconAnimation(newChatIconRef)
-
-                        }}
-                        title={isCollapsed ? 'New Chat' : ''}
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <MessageCircleIcon ref={newChatIconRef} size={16} strokeWidth={2} />
-                        </div>
-                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>New Chat</span>}
-                    </button>
-
-
-                    {/* Search Button */}
-                    <button
-                        onClick={() => {
-                            const searchInput = document.querySelector('.sidebar-search-input') as HTMLInputElement
-                            searchInput?.focus()
-                        }}
-                        className="quick-action-btn"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '8px 8px',
-                            background: 'transparent',
-                            border: 'none',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            color: 'var(--theme-text-primary)',
-                            fontSize: '0.85rem',
-                            fontWeight: 500,
-                            width: '100%',
-                            justifyContent: 'flex-start',
-                            minWidth: 0,
-                            overflow: 'hidden'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                            e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            startIconAnimation(searchIconRef)
-
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.background = 'transparent'
-                            e.currentTarget.style.color = 'var(--theme-text-primary)'
-                            stopIconAnimation(searchIconRef)
-
-                        }}
-                        title={isCollapsed ? 'Search chats' : ''}
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <MagnifierIcon ref={searchIconRef} size={16} strokeWidth={2} />
-                        </div>
-                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Search chats</span>}
-                    </button>
-                </div>
-                )}
-
-                {/* Hidden search input for focus trigger - Only visible in chat mode */}
-                {view !== 'pdf' && (
-                <input
-                    type="text"
-                    className="sidebar-search-input"
-                    placeholder="Search chats..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                        opacity: 0,
-                        position: 'absolute',
-                        pointerEvents: searchQuery ? 'all' : 'none',
-                        background: searchQuery ? 'rgba(255,255,255,0.04)' : 'transparent',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: '8px',
-                        padding: '8px 12px',
-                        color: 'var(--theme-text-primary)',
-                        fontSize: '0.9rem',
-                        outline: 'none',
-                        width: isCollapsed ? 'calc(100% - 32px)' : 'calc(100% - 32px)',
-                        top: searchQuery ? (isCollapsed ? '90px' : '125px') : '0',
-                        left: isCollapsed ? '14px' : '16px',
-                        zIndex: 10
-                    }}
-                />
-                )}
-            </div>
-
             {/* Document Tabs - Only visible in PDF mode */}
             {view === 'pdf' && (
                 <div style={{
@@ -325,6 +162,42 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         }}
                     />
                 </div>
+            )}
+
+            {/* New PDF Button - Only visible in PDF mode */}
+            {view === 'pdf' && (
+                <button
+                    onClick={() => {
+                        window.dispatchEvent(new CustomEvent('pdf:add-document'))
+                    }}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        padding: '10px 12px',
+                        margin: '8px',
+                        background: 'var(--theme-surface-active)',
+                        border: '1px solid var(--theme-border)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        color: 'var(--theme-text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
+                        transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                        e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'var(--theme-surface-active)'
+                        e.currentTarget.style.borderColor = 'var(--theme-border)'
+                    }}
+                >
+                    <Plus size={16} />
+                    New PDF
+                </button>
             )}
 
             {/* Chat History List */}

@@ -9,7 +9,13 @@
       "Bash(npx tsc:*)",
       "Bash(npm test:*)",
       "Bash(npx vitest run:*)",
-      "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)"
+      "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)",
+      "Bash(git log:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(test:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm install)",
+      "Bash(npm info react-pdf versions --json:*)"
     ]
   }
 }

@@ -119,6 +119,13 @@ export class PDFParserService implements IPDFParserService {
   /** Whether pdf.js has been initialized */
   private initialized: boolean = false;
 
+  /** Unique instance ID for debugging */
+  public readonly instanceId: string = `parser_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  constructor() {
+    console.log(`[PDFParser] Creating new instance with ID: ${this.instanceId}`);
+  }
+
   /**
    * Initialize pdf.js library
    * This is done lazily to avoid loading the library until needed
@@ -248,48 +255,45 @@ export class PDFParserService implements IPDFParserService {
         };
       }
       
-      // Use the legacy build of pdf.js which has better Node.js compatibility
-      // pdfjs-dist v3.x uses .js files, v5.x uses .mjs files
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+      // Use pdf.js v4+ which has better Node.js compatibility and doesn't require canvas
+      // pdfjs-dist v4.x uses .mjs files by default
+      const pdfjsLib = await import('pdfjs-dist');
       this.pdfjs = pdfjsLib;
-      
-      // For Node.js/Electron main process, we need to configure the web worker properly.
-      // pdf.js v5 requires GlobalWorkerOptions.workerSrc to be set to a valid path.
-      // 
-      // On Windows, the path must be a file:// URL for the ESM loader.
-      // We use pathToFileURL to convert the resolved path to a proper file URL.
+
+      // For Node.js/Electron main process, configure the worker
+      // pdf.js v4+ requires GlobalWorkerOptions.workerSrc to be set
       try {
         const { createRequire } = await import('module');
         const { pathToFileURL } = await import('url');
         const require = createRequire(import.meta.url);
-        const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.js');
-        
+
+        // In pdf.js v4+, the worker is in a different location
+        const workerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+
         // Convert the absolute path to a file:// URL for Windows compatibility
         const workerUrl = pathToFileURL(workerPath).href;
-        
+
         if (this.pdfjs.GlobalWorkerOptions) {
           this.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
         }
       } catch (workerError) {
         // If we can't resolve the worker path, try an alternative approach
         console.warn('Failed to resolve pdf.js worker path, trying alternative:', workerError);
-        
+
         // Try using the path relative to this module
-        // This is a fallback for bundled environments
         try {
           const { fileURLToPath, pathToFileURL } = await import('url');
           const { dirname, join } = await import('path');
           const __filename = fileURLToPath(import.meta.url);
           const __dirname = dirname(__filename);
-          
-          // In the bundled Electron app, the worker should be in node_modules
-          // relative to the app root. pdfjs-dist v3.x uses .js files
+
+          // In pdf.js v4+, the worker file is .mjs
           const possiblePaths = [
-            join(__dirname, '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
-            join(__dirname, '../../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
-            join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.js'),
+            join(__dirname, '../../node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+            join(__dirname, '../../../node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+            join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
           ];
-          
+
           const { existsSync } = await import('fs');
           for (const workerPath of possiblePaths) {
             if (existsSync(workerPath)) {
@@ -614,6 +618,10 @@ export class PDFParserService implements IPDFParserService {
       isFullyLoaded: false,
     };
     this.loadedDocuments.set(docId, loadedPDF);
+    
+    console.log(`[PDFParser] Document loaded and stored with ID: ${docId}`);
+    console.log(`[PDFParser] Instance ID: ${this.instanceId}`);
+    console.log(`[PDFParser] Current loaded documents count: ${this.loadedDocuments.size}`);
 
     return document;
   }
@@ -1351,6 +1359,9 @@ export class PDFParserService implements IPDFParserService {
    * @returns Promise resolving to array of TextBlock
    */
   async extractAllText(docId: string, options?: Partial<TextExtractionOptions>): Promise<TextBlock[]> {
+    console.log(`[PDFParser] extractAllText called for docId: ${docId}`);
+    console.log(`[PDFParser] Current loaded documents: ${Array.from(this.loadedDocuments.keys()).join(', ')}`);
+    
     const loaded = this.loadedDocuments.get(docId);
     if (!loaded) {
       throw new Error(`Document not loaded: ${docId}`);
@@ -2140,10 +2151,14 @@ export class PDFParserService implements IPDFParserService {
    * Check if a document is loaded
    * 
    * @param docId - Document ID
-   * @returns True if document is loaded
+   * @returns boolean
    */
   isDocumentLoaded(docId: string): boolean {
-    return this.loadedDocuments.has(docId);
+    const isLoaded = this.loadedDocuments.has(docId);
+    console.log(`[PDFParser] isDocumentLoaded check for ${docId}: ${isLoaded}`);
+    console.log(`[PDFParser] Instance ID: ${this.instanceId}`);
+    console.log(`[PDFParser] All loaded document IDs: ${Array.from(this.loadedDocuments.keys()).join(', ')}`);
+    return isLoaded;
   }
 
   /**
@@ -2190,5 +2205,18 @@ export class PDFParserService implements IPDFParserService {
   }
 }
 
-// Export singleton instance
-export const pdfParserService = new PDFParserService();
+// Export singleton instance using global registry to prevent multiple instances
+// during Vite code splitting (see issue with multiple chunks creating duplicate instances)
+export const pdfParserService = (() => {
+  const globalKey = Symbol.for('zura.pdfParserService');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new PDFParserService();
+    console.log(`[PDFParser] Created singleton instance via global registry`);
+  } else {
+    console.log(`[PDFParser] Returning existing singleton instance from global registry`);
+  }
+  
+  return globalRegistry[globalKey] as PDFParserService;
+})();

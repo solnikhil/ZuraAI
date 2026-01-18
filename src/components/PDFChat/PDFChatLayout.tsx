@@ -1,24 +1,23 @@
 /**
  * PDFChatLayout - Split-screen layout for PDF viewer and chat
- *
+ * 
  * Implements a split-screen interface with:
  * - PDF viewer on the left (55% initial width)
  * - Chat area on the right (45% initial width)
  * - Draggable divider for resizing panels
  * - Shared state management for citations and navigation
- * - Multi-document support with tabs managed in sidebar (Requirements 13.1, 13.2)
- *
+ * - Multi-document support with tabs (Requirements 13.1, 13.2)
+ * 
  * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 13.1, 13.2
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { PDFViewer } from './PDFViewer';
 import { PDFChatArea } from './PDFChatArea';
+import { DocumentTabs, type DocumentTabInfo } from './DocumentTabs';
 import { IndexingProgress } from './IndexingProgress';
 import type { PDFChatLayoutProps } from './types';
 import type { Citation, TextSelection, PDFDocument, IndexResult } from '../../types/pdf';
-import { usePDFDocuments } from '../../contexts/PDFDocumentContext';
-import type { DocumentTabInfo } from './DocumentTabs';
 
 // =============================================================================
 // Indexing Progress State Type
@@ -71,45 +70,49 @@ const STARRED_PDFS_KEY = 'zura-pdf-starred-v1';
  * @param sessionId - Optional session ID to load existing chat
  * @param initialDocumentPath - Optional path to initially load a document
  */
-export function PDFChatLayout({
+export function PDFChatLayout({ 
   sessionId,
-  initialDocumentPath
+  initialDocumentPath 
 }: PDFChatLayoutProps) {
-  // PDF document state from context (managed by sidebar)
-  const { loadedDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId } = usePDFDocuments();
-
-  // Local state for document IDs array (derived from loadedDocuments)
-  const documentIds = loadedDocuments.map(doc => doc.id);
-
   // Layout state
   const [leftWidthPercent, setLeftWidthPercent] = useState(INITIAL_LEFT_WIDTH_PERCENT);
-
+  
   // Divider drag state (Requirements 2.3, 2.4)
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-
+  
+  // Multi-document state (Requirements 13.1, 13.2)
+  const [loadedDocuments, setLoadedDocuments] = useState<Map<string, DocumentTabInfo>>(new Map());
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  const [documentIds, setDocumentIds] = useState<string[]>([]);
+  
+  // Mapping from file paths to backend-generated document IDs
+  // This is necessary because the backend generates IDs like doc_[hash]_[timestamp]
+  // but we need to track which file path corresponds to which document ID
+  const [filePathToDocId, setFilePathToDocId] = useState<Map<string, string>>(new Map());
+  
   // File input ref for adding documents
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   // PDF viewer state (per-document state could be added for more advanced use)
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
-
+  
   // Citation and selection state
   const [highlightedCitations, setHighlightedCitations] = useState<Citation[]>([]);
   const [selectedText, setSelectedText] = useState<TextSelection | null>(null);
-
+  
   // Grounded mode state
   const [groundedMode, setGroundedMode] = useState(false);
-
+  
   // Session state
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId);
-
+  
   // Indexing progress state (Requirements 18.6, 19.3)
   const [indexingState, setIndexingState] = useState<IndexingState | null>(null);
 
   const [starredPdfs, setStarredPdfs] = useState<StarredPdf[]>([]);
-
+  
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
@@ -225,6 +228,17 @@ export function PDFChatLayout({
       document.body.style.cursor = '';
     };
   }, [handleDragMove, handleDragEnd]);
+
+  /**
+   * Listen for pdf:add-document event from sidebar
+   */
+  useEffect(() => {
+    const handleAddDocumentEvent = () => {
+      handleAddDocument();
+    };
+    window.addEventListener('pdf:add-document', handleAddDocumentEvent);
+    return () => window.removeEventListener('pdf:add-document', handleAddDocumentEvent);
+  }, [handleAddDocument]);
 
   /**
    * Setup IPC listeners for indexing progress events
@@ -400,14 +414,13 @@ export function PDFChatLayout({
     if (!activeDocumentId) return;
     setStarredPdfs(prev => {
       const exists = prev.some(pdf => pdf.filePath === activeDocumentId);
-      const doc = loadedDocuments.find(d => d.id === activeDocumentId);
       const next = exists
         ? prev.filter(pdf => pdf.filePath !== activeDocumentId)
         : [
             ...prev,
             {
               filePath: activeDocumentId,
-              fileName: doc?.name || activeDocumentId.split(/[/\\]/).pop() || 'Document',
+              fileName: loadedDocuments.get(activeDocumentId)?.name || activeDocumentId.split(/[/\\]/).pop() || 'Document',
               starredAt: Date.now()
             }
           ];
@@ -422,10 +435,12 @@ export function PDFChatLayout({
    */
   const loadDocument = useCallback(async (filePath: string) => {
     try {
-      // Check if document is already loaded
-      if (loadedDocuments.some(d => d.id === filePath)) {
+      // Check if we've already loaded this file path
+      const existingDocId = filePathToDocId.get(filePath);
+      if (existingDocId && loadedDocuments.has(existingDocId)) {
         // Just switch to the existing document
-        setActiveDocumentId(filePath);
+        console.log('[PDFChatLayout] Document already loaded, switching to:', existingDocId);
+        setActiveDocumentId(existingDocId);
         return;
       }
 
@@ -437,9 +452,20 @@ export function PDFChatLayout({
         throw invokeError;
       }
       if (doc) {
-        const docId = doc.filePath || filePath;
+        // Use the generated document ID from the backend
+        // The pdfParserService stores documents using this generated ID as the key
+        const docId = doc.id || doc.filePath || filePath;
         const fileName = doc.fileName || filePath.split(/[/\\]/).pop() || 'Document';
-
+        
+        console.log(`[PDFChatLayout] Document loaded with ID: ${docId} for file: ${filePath}`);
+        
+        // Store mapping from file path to document ID
+        setFilePathToDocId(prev => {
+          const newMap = new Map(prev);
+          newMap.set(filePath, docId);
+          return newMap;
+        });
+        
         // Create document tab info
         const tabInfo: DocumentTabInfo = {
           id: docId,
@@ -447,14 +473,22 @@ export function PDFChatLayout({
           isIndexed: false,
           pageCount: doc.pageCount,
         };
-
-        // Add to loaded documents (using the Map-based setter for compatibility with context)
-        setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
+        
+        // Add to loaded documents
+        setLoadedDocuments(prev => {
           const newMap = new Map(prev);
           newMap.set(docId, tabInfo);
           return newMap;
         });
-
+        
+        // Update document IDs array
+        setDocumentIds(prev => {
+          if (!prev.includes(docId)) {
+            return [...prev, docId];
+          }
+          return prev;
+        });
+        
         // Set as active document
         setActiveDocumentId(docId);
         
@@ -520,7 +554,7 @@ export function PDFChatLayout({
       if (isPdfJsInitFailure) {
         const fallbackDocId = filePath;
         const fileName = filePath.split(/[/\\]/).pop() || 'Document';
-        setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
+        setLoadedDocuments(prev => {
           const newMap = new Map(prev);
           if (!newMap.has(fallbackDocId)) {
             newMap.set(fallbackDocId, {
@@ -531,6 +565,7 @@ export function PDFChatLayout({
           }
           return newMap;
         });
+        setDocumentIds(prev => (prev.includes(fallbackDocId) ? prev : [...prev, fallbackDocId]));
         setActiveDocumentId(fallbackDocId);
         setCurrentPage(1);
         setZoomLevel(100);
@@ -540,47 +575,63 @@ export function PDFChatLayout({
         return;
       }
     }
-  }, [loadedDocuments, setActiveDocumentId, setLoadedDocuments]);
+  }, [loadedDocuments, filePathToDocId]);
+
+  // Load initial document if provided via props
+  // This must be placed after loadDocument is defined
+  useEffect(() => {
+    if (initialDocumentPath) {
+      console.log('[PDFChatLayout] Loading initial document:', initialDocumentPath);
+      loadDocument(initialDocumentPath);
+    }
+  }, [initialDocumentPath, loadDocument]);
 
   /**
    * Handle tab selection - switch to a different document
-   * Called when document is switched via sidebar
    * Requirements: 13.2
    */
   const handleTabSelect = useCallback((documentId: string) => {
-    if (loadedDocuments.some(d => d.id === documentId)) {
+    if (loadedDocuments.has(documentId)) {
       setActiveDocumentId(documentId);
       // Reset page to 1 when switching documents (could be enhanced to remember per-doc state)
       setCurrentPage(1);
       setHighlightedCitations([]);
     }
-  }, [loadedDocuments, setActiveDocumentId]);
+  }, [loadedDocuments]);
 
   /**
    * Handle tab close - remove a document from the session
-   * Called when document is closed via sidebar
    * Requirements: 13.1
    */
   const handleTabClose = useCallback((documentId: string) => {
-    // Unload document from main process
-    window.ipcRenderer?.invoke('pdf:unload', documentId).catch(err => {
-      console.warn('[PDFChatLayout] Could not unload document:', err);
+    // Remove from loaded documents
+    setLoadedDocuments(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(documentId);
+      return newMap;
     });
-
+    
+    // Remove from document IDs
+    setDocumentIds(prev => prev.filter(id => id !== documentId));
+    
     // If closing the active document, switch to another one
     if (activeDocumentId === documentId) {
-      const remainingDocs = loadedDocuments.filter(d => d.id !== documentId);
+      const remainingDocs = Array.from(loadedDocuments.keys()).filter(id => id !== documentId);
       if (remainingDocs.length > 0) {
-        setActiveDocumentId(remainingDocs[0].id);
+        setActiveDocumentId(remainingDocs[0]);
       } else {
         setActiveDocumentId(null);
       }
     }
-  }, [activeDocumentId, loadedDocuments, setActiveDocumentId]);
+    
+    // Unload document from main process
+    window.ipcRenderer?.invoke('pdf:unload', documentId).catch(err => {
+      console.warn('[PDFChatLayout] Could not unload document:', err);
+    });
+  }, [activeDocumentId, loadedDocuments]);
 
   /**
    * Handle add document button click
-   * Triggered via event from sidebar
    * Requirements: 13.1
    */
   const handleAddDocument = useCallback(() => {
@@ -603,40 +654,14 @@ export function PDFChatLayout({
     }
   }, [loadDocument]);
 
-  // Listen for document events from sidebar
-  useEffect(() => {
-    const handleSwitchDocument = (e: Event) => {
-      const customEvent = e as CustomEvent<{ documentId: string }>;
-      const { documentId } = customEvent.detail;
-      handleTabSelect(documentId);
-    };
-
-    const handleCloseDocument = (e: Event) => {
-      const customEvent = e as CustomEvent<{ documentId: string }>;
-      const { documentId } = customEvent.detail;
-      handleTabClose(documentId);
-    };
-
-    const handleAddDocumentEvent = () => {
-      fileInputRef.current?.click();
-    };
-
-    window.addEventListener('pdf:switch-document', handleSwitchDocument);
-    window.addEventListener('pdf:close-document', handleCloseDocument);
-    window.addEventListener('pdf:add-document', handleAddDocumentEvent);
-
-    return () => {
-      window.removeEventListener('pdf:switch-document', handleSwitchDocument);
-      window.removeEventListener('pdf:close-document', handleCloseDocument);
-      window.removeEventListener('pdf:add-document', handleAddDocumentEvent);
-    };
-  }, [handleTabSelect, handleTabClose]);
+  // Convert loaded documents map to array for tabs
+  const documentTabsArray = Array.from(loadedDocuments.values());
 
   // Calculate panel widths
   const rightWidthPercent = 100 - leftWidthPercent;
 
   return (
-    <div
+    <div 
       ref={containerRef}
       className={`pdf-chat-layout ${isDragging ? 'dragging' : ''}`}
       style={{
@@ -648,6 +673,15 @@ export function PDFChatLayout({
         backgroundColor: 'var(--theme-background)',
       }}
     >
+      {/* Document Tabs Bar (Requirements 13.1, 13.2) */}
+      <DocumentTabs
+        documents={documentTabsArray}
+        activeDocumentId={activeDocumentId}
+        onTabSelect={handleTabSelect}
+        onTabClose={handleTabClose}
+        onAddDocument={handleAddDocument}
+      />
+      
       {/* Hidden file input for adding documents */}
       <input
         ref={fileInputRef}

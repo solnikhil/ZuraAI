@@ -31,20 +31,21 @@
 
 .app-titlebar__middle {
     position: absolute;
-    left: calc(env(titlebar-area-x, 0px) + 326px);
+    left: calc(env(titlebar-area-x, 0px) + 120px);
     top: 0;
     height: 44px;
-    transform: translateX(-50%);
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-width: 0;
     pointer-events: none;
+    /* Responsive: shrink tab group instead of repositioning */
+    max-width: calc(100% - 600px);
 }
 
 .app-titlebar__center {
     position: absolute;
-    left: 50vw;
+    left: 50%;
     top: 0;
     height: 44px;
     transform: translateX(-50%);
@@ -53,6 +54,9 @@
     justify-content: center;
     min-width: 0;
     pointer-events: none;
+    /* Responsive width: shrink based on available space, not reposition */
+    width: clamp(200px, 40vw, 512px);
+    max-width: calc(100% - 400px);
 }
 
 .app-titlebar__middle .app-titlebar__tab-group,
@@ -89,6 +93,9 @@
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
     pointer-events: auto;
     -webkit-app-region: no-drag;
+    /* Responsive: allow shrinking */
+    min-width: 0;
+    flex-shrink: 1;
 }
 
 .app-titlebar__tab {
@@ -102,8 +109,13 @@
     cursor: pointer;
     transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
     -webkit-app-region: no-drag;
-    min-width: 78px;
+    min-width: 50px;
     min-height: 23px;
+    /* Responsive: allow shrinking */
+    flex-shrink: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .app-titlebar__tab:hover {
@@ -182,6 +194,13 @@
     -webkit-app-region: no-drag;
 }
 
+/* Hide model viewer on small windows */
+@media (max-width: 1000px) {
+    .app-titlebar__model {
+        display: none;
+    }
+}
+
 .app-titlebar__unsaved {
     width: 8px;
     height: 8px;
@@ -196,8 +215,8 @@
 }
 
 .app-titlebar__commandbar {
-    width: var(--commandbar-width, 512px);
-    max-width: var(--commandbar-max-width, 70vw);
+    width: 100%;
+    max-width: var(--commandbar-max-width, 512px);
     position: relative;
     z-index: 20;
     pointer-events: auto;
@@ -514,6 +533,14 @@
 .app-titlebar--compact .app-titlebar__middle,
 .app-titlebar--compact .app-titlebar__center {
     height: 36px;
+}
+
+.app-titlebar--compact .app-titlebar__middle {
+    max-width: calc(100% - 500px);
+}
+
+.app-titlebar--compact .app-titlebar__center {
+    max-width: calc(100% - 320px);
 }
 
 .app-titlebar--compact .app-titlebar__tab-group {

@@ -287,8 +287,18 @@ export class RAGEngine implements IRAGEngine {
         }
       }
 
-      // Step 3: Extract text from document
+      // Step 3: Verify document is loaded before indexing
       reportProgress(10);
+      
+      // Check if document is loaded in the parser
+      if (!this.pdfParser.isDocumentLoaded(docId)) {
+        throw new Error(
+          `Document not loaded: ${docId}. ` +
+          `Please ensure the document is loaded via 'pdf:load' before calling 'pdf:index'.`
+        );
+      }
+      
+      // Extract text from document
       const textBlocks = await this.pdfParser.extractAllText(docId);
       
       if (textBlocks.length === 0) {

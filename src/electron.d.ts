@@ -93,6 +93,18 @@ export interface PDFIndexingAPI {
 export interface PDFQueryAPI {
     /** Query documents using RAG */
     query: (query: string, docIds: string[], options?: QueryOptions) => Promise<RAGResponse>
+    /** Get RAG context for a query (without generating AI response) */
+    getContext: (query: string, docIds: string[], options?: QueryOptions, conversationContext?: {
+        messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+        viewState?: { currentPage: number; visibleText: string };
+    }) => Promise<{
+        contextString: string;
+        sources: import('./types/pdf').RetrievalResult[];
+        confidence: number;
+        isLowConfidence: boolean;
+        warning?: string;
+        documentNameMap?: Map<string, string>;
+    }>
     /** Get specific chunks by ID */
     getChunks: (docId: string, chunkIds: string[]) => Promise<Chunk[]>
     /** Generate section-by-section document summary (Requirements 12.1, 12.3, 12.4) */

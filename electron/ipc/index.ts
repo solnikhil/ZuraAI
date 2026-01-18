@@ -3,12 +3,31 @@ import { registerSecureStorageHandlers, unregisterSecureStorageHandlers } from '
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 import { registerPDFCoreHandlers, unregisterPDFCoreHandlers } from './pdfCoreHandlers'
 
-// PDF handlers are loaded dynamically due to native module dependencies (LanceDB)
-// that may fail to load in some environments
+// PDF handlers are loaded as a regular import
+// This allows vite to bundle them properly
+// Native module failures will be caught at runtime
 let pdfHandlersLoaded = false
 let pdfCoreHandlersLoaded = false
-let registerPDFHandlers: (() => void) | undefined
-let unregisterPDFHandlers: (() => void) | undefined
+
+// Import PDF handlers - this lets vite bundle them properly
+// Any native module errors will be caught when registerPDFHandlers() is called
+import * as PDFHandlersModule from './pdfHandlers'
+
+let pdfHandlersImportError: Error | null = null
+
+// Check if PDF handlers module loaded successfully at module load time
+// If there's a native module issue, it will show up when we try to use it
+let pdfHandlersModuleAvailable = true
+try {
+    // Test if the module has the expected exports
+    if (typeof PDFHandlersModule.registerPDFHandlers !== 'function') {
+        pdfHandlersModuleAvailable = false
+        pdfHandlersImportError = new Error('PDF handlers module does not export registerPDFHandlers')
+    }
+} catch (error) {
+    pdfHandlersModuleAvailable = false
+    pdfHandlersImportError = error instanceof Error ? error : new Error(String(error))
+}
 
 /**
  * Register all IPC handlers for the main process
@@ -32,24 +51,29 @@ export function registerAllHandlers(): void {
     
     // Try to register full PDF handlers - these depend on LanceDB native module
     // which may fail to load in some environments (dev mode, missing binaries, etc.)
-    try {
-        // Dynamic import to isolate the failure
-        const pdfHandlersModule = require('./pdfHandlers')
-        registerPDFHandlers = pdfHandlersModule.registerPDFHandlers
-        unregisterPDFHandlers = pdfHandlersModule.unregisterPDFHandlers
-        
-        if (registerPDFHandlers) {
-            registerPDFHandlers()
-            pdfHandlersLoaded = true
-            console.log('[IPC] PDF handlers registered successfully')
-        }
-    } catch (error) {
-        console.warn('[IPC] Failed to load PDF handlers (PDF RAG features will be unavailable):', 
-            error instanceof Error ? error.message : String(error))
+    if (pdfHandlersImportError) {
+        console.warn('[IPC] Failed to load PDF handlers (PDF RAG features will be unavailable):',
+            pdfHandlersImportError.message)
         pdfHandlersLoaded = false
-        
+
         // Register stub handlers for RAG-specific operations
         // Core handlers are already registered above
+        registerPDFStubHandlers()
+    } else if (pdfHandlersModuleAvailable) {
+        try {
+            PDFHandlersModule.registerPDFHandlers()
+            pdfHandlersLoaded = true
+            console.log('[IPC] PDF handlers registered successfully')
+        } catch (error) {
+            console.warn('[IPC] Failed to register PDF handlers (PDF RAG features will be unavailable):',
+                error instanceof Error ? error.message : String(error))
+            pdfHandlersLoaded = false
+
+            // Register stub handlers for RAG-specific operations
+            registerPDFStubHandlers()
+        }
+    } else {
+        console.warn('[IPC] PDF handlers module not available (PDF RAG features will be unavailable)')
         registerPDFStubHandlers()
     }
 }
@@ -231,13 +255,13 @@ export function unregisterAllHandlers(): void {
     unregisterChatStoreHandlers()
     unregisterSecureStorageHandlers()
     unregisterSystemHandlers()
-    
+
     if (pdfCoreHandlersLoaded) {
         unregisterPDFCoreHandlers()
     }
-    
-    if (pdfHandlersLoaded && unregisterPDFHandlers) {
-        unregisterPDFHandlers()
+
+    if (pdfHandlersLoaded && pdfHandlersModuleAvailable) {
+        PDFHandlersModule.unregisterPDFHandlers()
     }
 }
 
