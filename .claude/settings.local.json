@@ -16,7 +16,12 @@
       "Bash(npm ls:*)",
       "Bash(npm install)",
       "Bash(npm info react-pdf versions --json:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(node -e:*)",
+      "Bash(npm run build:electron:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

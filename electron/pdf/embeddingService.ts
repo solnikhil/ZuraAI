@@ -1177,6 +1177,8 @@ async function checkOllamaModelStatus(
   const timeout = options.timeoutMs || 5000;
 
   try {
+    console.log(`[EmbeddingService] Checking Ollama model '${ollamaModelName}' at ${ollamaUrl}`);
+
     // First check if Ollama is running
     const tagsResponse = await fetch(`${ollamaUrl}/api/tags`, {
       method: 'GET',
@@ -1184,6 +1186,7 @@ async function checkOllamaModelStatus(
     });
 
     if (!tagsResponse.ok) {
+      console.log(`[EmbeddingService] Ollama not accessible: HTTP ${tagsResponse.status}`);
       return {
         isAvailable: false,
         isCached: false,
@@ -1195,12 +1198,16 @@ async function checkOllamaModelStatus(
     const tagsData = await tagsResponse.json();
     const models = tagsData.models || [];
 
+    console.log(`[EmbeddingService] Found ${models.length} models in Ollama`);
+    console.log(`[EmbeddingService] Searching for '${ollamaModelName}' or '${ollamaModelName}:*'`);
+
     // Check if the model is installed
-    const installedModel = models.find((m: { name: string; size?: number }) => 
+    const installedModel = models.find((m: { name: string; size?: number }) =>
       m.name === ollamaModelName || m.name.startsWith(`${ollamaModelName}:`)
     );
 
     if (installedModel) {
+      console.log(`[EmbeddingService] Model found: ${installedModel.name} (${installedModel.size} bytes)`);
       return {
         isAvailable: true,
         isCached: true,
@@ -1209,9 +1216,10 @@ async function checkOllamaModelStatus(
       };
     }
 
-    // Model not installed - check if it's being downloaded
-    // Note: Ollama doesn't have a direct API for download progress,
-    // but we can check the /api/pull endpoint status
+    // Model not installed
+    console.log(`[EmbeddingService] Model '${ollamaModelName}' not found in installed models`);
+    console.log(`[EmbeddingService] Available models: ${models.map((m: any) => m.name).join(', ')}`);
+
     return {
       isAvailable: false,
       isCached: false,
@@ -1219,6 +1227,8 @@ async function checkOllamaModelStatus(
       errorMessage: `Model '${ollamaModelName}' is not installed. Run: ollama pull ${ollamaModelName}`,
     };
   } catch (error: any) {
+    console.error(`[EmbeddingService] Error checking Ollama model:`, error);
+
     if (error.name === 'AbortError' || error.name === 'TimeoutError') {
       return {
         isAvailable: false,

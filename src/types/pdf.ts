@@ -358,6 +358,8 @@ export interface PDFRAGSettings {
   localEmbeddingModel?: string;
   /** Dimension of embedding vectors */
   embeddingDimensions: number;
+  /** Ollama base URL for local embeddings (default: http://localhost:11434) */
+  ollamaBaseUrl?: string;
 
   // Retrieval settings
   /** Number of top results to retrieve (default: 5) */
@@ -824,6 +826,7 @@ export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   embeddingModel: 'local',
   localEmbeddingModel: 'nomic-embed-text',
   embeddingDimensions: 768,
+  ollamaBaseUrl: 'http://localhost:11434',
 
   // Retrieval
   topK: 5,

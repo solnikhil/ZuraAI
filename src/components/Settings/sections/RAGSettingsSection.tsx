@@ -252,6 +252,46 @@ function SelectInput({
 }
 
 /**
+ * Text input with label and description
+ */
+interface TextInputProps {
+  label: string
+  description?: string
+  value: string
+  placeholder?: string
+  onChange: (value: string) => void
+}
+
+function TextInput({
+  label,
+  description,
+  value,
+  placeholder,
+  onChange
+}: TextInputProps): React.ReactElement {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>
+        {label}
+      </label>
+      {description && (
+        <div className="section-desc" style={{ marginBottom: 8, fontSize: '0.8rem' }}>
+          {description}
+        </div>
+      )}
+      <input
+        type="text"
+        className="setting-input-scira"
+        value={value}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        style={{ width: '100%' }}
+      />
+    </div>
+  )
+}
+
+/**
  * Toggle switch with label
  */
 interface ToggleInputProps {
@@ -1946,30 +1986,39 @@ export function RAGSettingsSection({
         />
 
         {settings.embeddingModel === 'local' && (
-          <div style={{
-            padding: '12px 16px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.2)',
-            borderRadius: 8,
-            marginTop: 12,
-            fontSize: '0.85rem',
-            color: 'var(--theme-text-secondary)'
-          }}>
-            <Info size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-            Make sure Ollama is running with the <code style={{ 
-              background: 'rgba(0,0,0,0.2)', 
-              padding: '2px 6px', 
-              borderRadius: 4 
-            }}>nomic-embed-text</code> model installed.
-            <br />
-            <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>
-              Run: <code style={{ 
-                background: 'rgba(0,0,0,0.2)', 
-                padding: '2px 6px', 
-                borderRadius: 4 
-              }}>ollama pull nomic-embed-text</code>
-            </span>
-          </div>
+          <>
+            <TextInput
+              label="Ollama Base URL"
+              description="URL where Ollama server is running (default: http://localhost:11434)"
+              value={settings.ollamaBaseUrl || 'http://localhost:11434'}
+              placeholder="http://localhost:11434"
+              onChange={v => updateSetting('ollamaBaseUrl', v || 'http://localhost:11434')}
+            />
+            <div style={{
+              padding: '12px 16px',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              borderRadius: 8,
+              marginTop: 12,
+              fontSize: '0.85rem',
+              color: 'var(--theme-text-secondary)'
+            }}>
+              <Info size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
+              Make sure Ollama is running with the <code style={{
+                background: 'rgba(0,0,0,0.2)',
+                padding: '2px 6px',
+                borderRadius: 4
+              }}>nomic-embed-text</code> model installed.
+              <br />
+              <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.8rem' }}>
+                Run: <code style={{
+                  background: 'rgba(0,0,0,0.2)',
+                  padding: '2px 6px',
+                  borderRadius: 4
+                }}>ollama pull nomic-embed-text</code>
+              </span>
+            </div>
+          </>
         )}
 
         <div style={{ 

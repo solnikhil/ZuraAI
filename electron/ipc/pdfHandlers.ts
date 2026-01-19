@@ -376,6 +376,12 @@ function registerPDFIndexingHandlers(): void {
         throw new Error('Invalid document ID');
       }
 
+      // Get Ollama URL from settings and update embedding service
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+      const { embeddingService } = await import('../pdf/embeddingService');
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
       // Get the sender window for progress events
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
 
@@ -1473,8 +1479,15 @@ function registerSettingsAndFeedbackHandlers(): void {
         throw new Error('Invalid model ID');
       }
 
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+
       // Import the model caching functions
-      const { getModelCacheStatus } = await import('../pdf/embeddingService');
+      const { getModelCacheStatus, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
 
       const status = await getModelCacheStatus(modelId, options);
       console.log('[PDFHandlers] Model cache status:', modelId, status.isAvailable ? 'available' : 'unavailable');
@@ -1502,8 +1515,15 @@ function registerSettingsAndFeedbackHandlers(): void {
     console.log('[PDFHandlers] Getting all models status');
 
     try {
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+
       // Import the model caching functions
-      const { getAllModelsStatus } = await import('../pdf/embeddingService');
+      const { getAllModelsStatus, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
 
       const status = await getAllModelsStatus(options);
       console.log('[PDFHandlers] All models status:', status.models.length, 'models,',
@@ -1538,8 +1558,15 @@ function registerSettingsAndFeedbackHandlers(): void {
 
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
 
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+
       // Import the model caching functions
-      const { downloadModel } = await import('../pdf/embeddingService');
+      const { downloadModel, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
 
       // Set up progress callback
       const onProgress = (progress: number, status: string) => {
