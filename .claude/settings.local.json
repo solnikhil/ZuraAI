@@ -21,7 +21,14 @@
       "Bash(python -m json.tool:*)",
       "Bash(node -e:*)",
       "Bash(npm run build:electron:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node test-model-detection.js:*)",
+      "Bash(del test-model-detection.js)",
+      "Bash(npx vite build)",
+      "Bash(where /R \"C:\\\\Users\\\\Nikhil\\\\AppData\" sessions.json)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(grep:*)"
     ]
   }
 }

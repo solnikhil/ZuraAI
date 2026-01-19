@@ -38,6 +38,8 @@ export function IndexingPromptMessage({
     const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
     const [showLogs, setShowLogs] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [ollamaConnected, setOllamaConnected] = useState<boolean | null>(null);
 
     // Verification state
     const [isVerifying, setIsVerifying] = useState(false);
@@ -54,23 +56,38 @@ export function IndexingPromptMessage({
 
     // Fetch available models on mount
     useEffect(() => {
-        const fetchModels = async () => {
-            try {
-                const status = await window.ipcRenderer?.invoke('pdf:get-all-models-status', { forceRefresh: true });
-                setModelsStatus(status);
-                // Auto-select first available local model
-                const availableLocal = status?.models?.find((m: ModelCacheStatus) => m.provider === 'local' && m.isAvailable);
-                if (availableLocal) {
-                    setSelectedModelId(availableLocal.modelId);
-                }
-            } catch (error) {
-                console.error('[IndexingPromptMessage] Failed to fetch models:', error);
-            } finally {
-                setIsLoadingModels(false);
-            }
-        };
         fetchModels();
     }, []);
+
+    const fetchModels = async () => {
+        try {
+            const status = await window.ipcRenderer?.invoke('pdf:get-all-models-status', { forceRefresh: true });
+            setModelsStatus(status);
+
+            // Check if Ollama is connected by looking for any local models
+            const hasLocalModels = status?.models?.some((m: ModelCacheStatus) => m.provider === 'local');
+            const hasAvailableLocal = status?.models?.some((m: ModelCacheStatus) => m.provider === 'local' && m.isAvailable);
+            setOllamaConnected(hasLocalModels);
+
+            // Auto-select first available local model
+            const availableLocal = status?.models?.find((m: ModelCacheStatus) => m.provider === 'local' && m.isAvailable);
+            if (availableLocal) {
+                setSelectedModelId(availableLocal.modelId);
+            }
+
+            console.log('[IndexingPromptMessage] Fetched models:', status?.models?.map((m: ModelCacheStatus) => ({
+                id: m.modelId,
+                name: m.modelName,
+                available: m.isAvailable
+            })));
+        } catch (error) {
+            console.error('[IndexingPromptMessage] Failed to fetch models:', error);
+            setOllamaConnected(false);
+        } finally {
+            setIsLoadingModels(false);
+            setIsRefreshing(false);
+        }
+    };
 
     // Download a model
     const downloadModel = async (modelId: string) => {
@@ -465,14 +482,51 @@ export function IndexingPromptMessage({
                     border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
                     <div style={{
-                        fontSize: '0.75rem',
-                        fontWeight: 500,
-                        color: 'var(--theme-text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
                         marginBottom: '8px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.3px',
                     }}>
-                        Embedding Model
+                        <div style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            color: 'var(--theme-text-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                        }}>
+                            Embedding Model
+                        </div>
+                        <button
+                            onClick={() => {
+                                setIsRefreshing(true);
+                                setIsLoadingModels(true);
+                                fetchModels();
+                            }}
+                            disabled={isLoadingModels || isRefreshing}
+                            style={{
+                                padding: '2px 8px',
+                                fontSize: '0.7rem',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(96, 165, 250, 0.3)',
+                                background: 'transparent',
+                                color: '#60a5fa',
+                                cursor: (isLoadingModels || isRefreshing) ? 'wait' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                            }}
+                        >
+                            <span style={{
+                                display: 'inline-block',
+                                width: '10px',
+                                height: '10px',
+                                border: '2px solid #60a5fa',
+                                borderTopColor: 'transparent',
+                                borderRadius: '50%',
+                                animation: (isLoadingModels || isRefreshing) ? 'spin 1s linear infinite' : 'none',
+                            }} />
+                            Refresh
+                        </button>
                     </div>
 
                     {isLoadingModels ? (
@@ -580,9 +634,39 @@ export function IndexingPromptMessage({
                                 <div style={{
                                     fontSize: '0.85rem',
                                     color: 'var(--theme-text-muted)',
-                                    padding: '4px',
+                                    padding: '8px',
+                                    background: 'rgba(239, 68, 68, 0.08)',
+                                    borderRadius: '4px',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)',
                                 }}>
-                                    No embedding models found. Make sure Ollama is running.
+                                    {ollamaConnected === false ? (
+                                        <>
+                                            <div style={{ marginBottom: '4px', fontWeight: 500 }}>
+                                                ⚠️ Cannot connect to Ollama
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>
+                                                Make sure Ollama is running at <code style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    padding: '1px 4px',
+                                                    borderRadius: '2px',
+                                                }}>http://localhost:11434</code>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ marginBottom: '4px', fontWeight: 500 }}>
+                                                No embedding models found
+                                            </div>
+                                            <div style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>
+                                                Install a model like: <code style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    padding: '1px 4px',
+                                                    borderRadius: '2px',
+                                                    marginLeft: '2px',
+                                                }}>ollama pull nomic-embed-text</code>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -36,11 +36,22 @@
   user-select: text;
 }
 
+.pdf-viewer-container .react-pdf__Page__canvas {
+  display: block;
+  max-width: 100%;
+  height: auto !important;
+}
+
 /* If TextLayer.css doesn't load or gets overridden, spans can become visible as
    "white lines". Force them back to invisible while preserving selection. */
 .pdf-viewer-container .react-pdf__Page__textContent span {
   color: transparent !important;
   text-shadow: none !important;
+  opacity: 0;
+}
+
+.pdf-viewer-container .react-pdf__Page__textContent {
+  mix-blend-mode: normal;
 }
 
 
@@ -349,6 +360,12 @@
   display: block;
 }
 
+.pdf-viewer-page .react-pdf__Page__canvas {
+  display: block;
+  max-width: 100%;
+  height: auto !important;
+}
+
 /* Text layer styling for selection */
 .pdf-viewer-page .react-pdf__Page__textContent {
   user-select: text;
@@ -359,12 +376,18 @@
 .pdf-viewer-page .react-pdf__Page__textContent span {
   color: transparent !important;
   text-shadow: none !important;
+  opacity: 0;
+}
+
+.pdf-viewer-page .react-pdf__Page__textContent {
+  mix-blend-mode: normal;
 }
 
 
 .pdf-viewer-page .react-pdf__Page__textContent span::selection {
   background: var(--theme-accent-muted);
 }
+
 
 /* ==== CITATION HIGHLIGHTS ==== */
 

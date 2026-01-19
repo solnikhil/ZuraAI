@@ -354,10 +354,10 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isFocused])
 
-  const ensureDashboardView = (view: 'chat' | 'settings') => {
+  const ensureDashboardView = (view: 'chat' | 'pdf' | 'settings') => {
     if (dashboardView === view) return
 
-    if (hasUnsavedSettings && dashboardView === 'settings' && view === 'chat') {
+    if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {
       showToast('You have unsaved settings changes', 'warning')
       return
     }

@@ -228,7 +228,7 @@ export function PDFViewer({
                 pageNumber={index + 1}
                 scale={zoomLevel / 100}
                 className="pdf-viewer-page"
-                renderTextLayer={true}
+                renderTextLayer={false}
                 renderAnnotationLayer={true}
                 onMouseDown={() => onPageChange?.(index + 1)}
                 loading={

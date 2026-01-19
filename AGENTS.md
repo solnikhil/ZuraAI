@@ -131,6 +131,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `execute-tool`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
   - `pdf:get-file-data` (read PDF bytes for renderer display)
+- `pdf:list-ollama-models` (list local Ollama models)
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
 

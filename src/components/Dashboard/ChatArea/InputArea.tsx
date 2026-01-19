@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { Send, Paperclip, Globe, Brain, MessageCircle, Check, Image, X, Info, Zap, Clock, ChevronDown } from '../../icons'
+import { Send, Paperclip, Search, Brain, MessageCircle, Check, Image, X, Info, Zap, Clock, ChevronDown } from '../../icons'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -341,7 +341,7 @@ export function InputArea({
                     height: '100%'
                   }}
                 >
-                  <Globe size={16} />
+                  <Search size={16} />
                 </button>
               </div>
 

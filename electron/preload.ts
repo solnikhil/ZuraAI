@@ -114,6 +114,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'pdf:download-model',
   'pdf:clear-model-cache',
   'pdf:refresh-model-status',
+  'pdf:list-ollama-models',
 
   // PDF Embedding Fallback (Requirement 18.2)
   'pdf:get-embedding-fallback-state',

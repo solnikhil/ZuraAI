@@ -70,9 +70,12 @@
     gap: 10px;
 }
 
+
+
 .app-titlebar__left {
     gap: 8px;
 }
+
 
 
 .app-titlebar__controls {
@@ -536,11 +539,11 @@
 }
 
 .app-titlebar--compact .app-titlebar__middle {
-    max-width: calc(100% - 500px);
+    max-width: calc(100% - 600px);
 }
 
 .app-titlebar--compact .app-titlebar__center {
-    max-width: calc(100% - 320px);
+    max-width: calc(100% - 440px);
 }
 
 .app-titlebar--compact .app-titlebar__tab-group {

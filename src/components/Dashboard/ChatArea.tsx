@@ -8,7 +8,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import { useSettings } from '../../contexts/SettingsContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
@@ -22,8 +21,7 @@ import type { AttachedFile } from './ChatArea/FileUploadHandler'
 import type { PastedContentChunk as PastedContentChunkType } from './ChatArea/types'
 
 export default function ChatArea() {
-  const { sessions, currentSessionId, deleteSession, clearAllSessions } = useChatHistory()
-  const { settings } = useSettings()
+  const { sessions, currentSessionId } = useChatHistory()
   const { showToast } = useToast()
   const { toolState } = useToolCalling()
 

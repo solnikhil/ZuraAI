@@ -9,7 +9,6 @@ import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
 import './TitleBar.css'
 
-
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
     models: 'Models',
@@ -50,7 +49,6 @@ export default function TitleBar() {
         toggleSidebarHidden,
     } = useAppShell()
     const { showToast } = useToast()
-
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const isSettingsRoute = location.pathname === '/settings'
@@ -200,4 +198,3 @@ export default function TitleBar() {
         </div>
     )
 }
-

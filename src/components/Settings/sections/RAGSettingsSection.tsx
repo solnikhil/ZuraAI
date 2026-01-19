@@ -17,6 +17,7 @@ import {
   RecentDocument,
   IndexedDocumentInfo,
   ModelCacheStatus,
+  OllamaModelInfo,
 } from '../../../types/pdf'
 
 /**
@@ -1756,6 +1757,9 @@ export function RAGSettingsSection({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ollamaModels, setOllamaModels] = useState<OllamaModelInfo[]>([])
+  const [ollamaModelsLoading, setOllamaModelsLoading] = useState(false)
+  const [ollamaModelsError, setOllamaModelsError] = useState<string | null>(null)
   
   // Model change warning state (Requirement 21.6)
   const [showModelChangeWarning, setShowModelChangeWarning] = useState(false)
@@ -1780,10 +1784,33 @@ export function RAGSettingsSection({
     }
   }, [])
 
+  const loadOllamaModels = useCallback(async () => {
+    if (!window.ipcRenderer) return
+    setOllamaModelsLoading(true)
+    setOllamaModelsError(null)
+    try {
+      const models = await window.ipcRenderer.invoke(PDF_IPC_CHANNELS.LIST_OLLAMA_MODELS, settings.ollamaBaseUrl)
+      const safeModels = Array.isArray(models) ? models : []
+      setOllamaModels(safeModels)
+    } catch (err) {
+      console.error('[RAGSettings] Failed to load Ollama models:', err)
+      setOllamaModelsError('Failed to fetch Ollama models')
+      setOllamaModels([])
+    } finally {
+      setOllamaModelsLoading(false)
+    }
+  }, [settings.ollamaBaseUrl])
+
   // Load settings on mount
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
+
+  useEffect(() => {
+    if (settings.embeddingModel === 'local') {
+      void loadOllamaModels()
+    }
+  }, [settings.embeddingModel, loadOllamaModels])
 
   // Track unsaved changes
   const hasChanges = JSON.stringify(settings) !== JSON.stringify(originalSettings)
@@ -1832,6 +1859,14 @@ export function RAGSettingsSection({
     value: PDFRAGSettings[K]
   ) => {
     setSettings(prev => ({ ...prev, [key]: value }))
+  }
+
+  const formatSize = (bytes?: number): string => {
+    if (!bytes) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
   }
 
   // Update embedding dimensions when model changes (Requirement 21.6)
@@ -1989,11 +2024,63 @@ export function RAGSettingsSection({
           <>
             <TextInput
               label="Ollama Base URL"
-              description="URL where Ollama server is running (default: http://localhost:11434)"
-              value={settings.ollamaBaseUrl || 'http://localhost:11434'}
-              placeholder="http://localhost:11434"
-              onChange={v => updateSetting('ollamaBaseUrl', v || 'http://localhost:11434')}
+              description="URL where Ollama server is running. Use 127.0.0.1 instead of localhost to avoid IPv6 connection issues."
+              value={settings.ollamaBaseUrl || 'http://127.0.0.1:11434'}
+              placeholder="http://127.0.0.1:11434"
+              onChange={v => updateSetting('ollamaBaseUrl', v || 'http://127.0.0.1:11434')}
             />
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="label-small">Ollama Embedding Model</label>
+                <button
+                  onClick={() => void loadOllamaModels()}
+                  disabled={ollamaModelsLoading}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--theme-text-muted)',
+                    cursor: ollamaModelsLoading ? 'default' : 'pointer',
+                    padding: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: '0.75rem',
+                  }}
+                  title="Refresh Ollama models"
+                >
+                  <RefreshCw size={12} style={ollamaModelsLoading ? { animation: 'spin 1s linear infinite' } : undefined} />
+                  Refresh
+                </button>
+              </div>
+              {ollamaModelsLoading ? (
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  Checking Ollama models...
+                </div>
+              ) : ollamaModels.length > 0 ? (
+                <SelectInput
+                  label="Local Model"
+                  description="Select the Ollama model to use for embeddings."
+                  value={settings.localEmbeddingModel || ollamaModels[0].name}
+                  options={ollamaModels.map(model => ({
+                    value: model.name,
+                    label: model.name,
+                    description: model.size ? `Size: ${formatSize(model.size)}` : undefined,
+                  }))}
+                  onChange={v => updateSetting('localEmbeddingModel', v)}
+                />
+              ) : (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: 6,
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  color: '#ef4444',
+                  fontSize: '0.8rem',
+                }}>
+                  {ollamaModelsError || 'No Ollama models found. Make sure Ollama is running and models are installed.'}
+                </div>
+              )}
+            </div>
             <div style={{
               padding: '12px 16px',
               background: 'rgba(59, 130, 246, 0.1)',

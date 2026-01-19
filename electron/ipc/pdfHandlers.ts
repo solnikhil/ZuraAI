@@ -55,6 +55,65 @@ import type {
 } from '../../src/types/pdf';
 
 // =============================================================================
+// Embedding Model Resolution
+// =============================================================================
+
+const LOCAL_MODEL_PREFERENCE_ORDER = [
+  'local-nomic',
+  'local-gemma',
+  'local-mxbai',
+  'local-all-minilm',
+] as const;
+
+async function resolveEmbeddingModelId(
+  requestedModelId: string,
+  settings: PDFRAGSettings
+): Promise<{ resolvedModelId: string | null; usedFallback: boolean }> {
+  const { getEmbeddingModelById, resolveLocalModelIdFromOllamaName } = await import('../pdf/embeddingService');
+
+  // If it's already a known model ID, keep it
+  if (getEmbeddingModelById(requestedModelId)) {
+    return { resolvedModelId: requestedModelId, usedFallback: false };
+  }
+
+  if (requestedModelId === 'openai') {
+    return { resolvedModelId: 'openai-small', usedFallback: false };
+  }
+
+  if (requestedModelId === 'local') {
+    const preferredLocalId =
+      resolveLocalModelIdFromOllamaName(settings.localEmbeddingModel) || 'local-nomic';
+
+    let resolved = preferredLocalId;
+    let usedFallback = false;
+
+    try {
+      const preferredAvailable = await embeddingService.isModelAvailable(preferredLocalId);
+      if (!preferredAvailable) {
+        for (const candidate of LOCAL_MODEL_PREFERENCE_ORDER) {
+          if (await embeddingService.isModelAvailable(candidate)) {
+            resolved = candidate;
+            usedFallback = candidate !== preferredLocalId;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Keep preferred if availability checks fail
+    }
+
+    return { resolvedModelId: resolved, usedFallback };
+  }
+
+  // Voyage is not currently supported in embeddingService
+  if (requestedModelId === 'voyage') {
+    return { resolvedModelId: null, usedFallback: false };
+  }
+
+  return { resolvedModelId: null, usedFallback: false };
+}
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -378,7 +437,7 @@ function registerPDFIndexingHandlers(): void {
 
       // Get Ollama URL from settings and update embedding service
       const store = getStore();
-      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
       const { embeddingService } = await import('../pdf/embeddingService');
       embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
 
@@ -1013,6 +1072,20 @@ function registerSettingsAndFeedbackHandlers(): void {
       // Also update RAG engine settings
       ragEngine.updateSettings(store.settings);
 
+      // Resolve and apply embedding model when possible
+      const { resolvedModelId } = await resolveEmbeddingModelId(store.settings.embeddingModel, store.settings);
+      if (resolvedModelId) {
+        try {
+          await embeddingService.setModel(resolvedModelId);
+        } catch (error) {
+          console.warn('[PDFHandlers] Failed to apply embedding model:', resolvedModelId, error);
+        }
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'pdfHandlers.ts:update-settings-resolve',message:'pdf-update-settings-resolve',data:{resolvedModelId,requestedModel:store.settings.embeddingModel,localEmbeddingModel:store.settings.localEmbeddingModel},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+
       persistStore();
       console.log('[PDFHandlers] Settings updated');
     } catch (error) {
@@ -1481,7 +1554,7 @@ function registerSettingsAndFeedbackHandlers(): void {
 
       // Get Ollama URL from settings
       const store = getStore();
-      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
 
       // Import the model caching functions
       const { getModelCacheStatus, embeddingService } = await import('../pdf/embeddingService');
@@ -1489,12 +1562,49 @@ function registerSettingsAndFeedbackHandlers(): void {
       // Update embedding service with current Ollama URL
       embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
 
-      const status = await getModelCacheStatus(modelId, options);
-      console.log('[PDFHandlers] Model cache status:', modelId, status.isAvailable ? 'available' : 'unavailable');
+      const { resolvedModelId, usedFallback } = await resolveEmbeddingModelId(modelId, store.settings);
+
+      if (!resolvedModelId) {
+        return {
+          modelId,
+          modelName: modelId,
+          provider: (modelId === 'openai' || modelId === 'voyage') ? modelId : 'local',
+          isAvailable: false,
+          isCached: false,
+          isDownloading: false,
+          lastCheckedAt: Date.now(),
+          errorMessage: 'Unsupported embedding model',
+          requiresApiKey: false,
+        };
+      }
+
+      const status = await getModelCacheStatus(resolvedModelId, options);
+      console.log('[PDFHandlers] Model cache status:', resolvedModelId, status.isAvailable ? 'available' : 'unavailable');
 
       return status;
     } catch (error) {
       console.error('[PDFHandlers] Error getting model cache status:', error);
+      throw error;
+    }
+  });
+
+  /**
+   * List Ollama models available on the local server
+   * Channel: pdf:list-ollama-models
+   */
+  ipcMain.handle('pdf:list-ollama-models', async (_event, url?: string): Promise<Array<{ name: string; size?: number }>> => {
+    console.log('[PDFHandlers] Listing Ollama models', url ? `at ${url}` : '');
+
+    try {
+      const store = getStore();
+      const ollamaBaseUrl = url || store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+
+      const { listOllamaModels, embeddingService } = await import('../pdf/embeddingService');
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
+      return await listOllamaModels(ollamaBaseUrl);
+    } catch (error) {
+      console.error('[PDFHandlers] Error listing Ollama models:', error);
       throw error;
     }
   });
@@ -1517,7 +1627,7 @@ function registerSettingsAndFeedbackHandlers(): void {
     try {
       // Get Ollama URL from settings
       const store = getStore();
-      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
 
       // Import the model caching functions
       const { getAllModelsStatus, embeddingService } = await import('../pdf/embeddingService');
@@ -1560,7 +1670,7 @@ function registerSettingsAndFeedbackHandlers(): void {
 
       // Get Ollama URL from settings
       const store = getStore();
-      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://localhost:11434';
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
 
       // Import the model caching functions
       const { downloadModel, embeddingService } = await import('../pdf/embeddingService');
@@ -2210,6 +2320,7 @@ export function unregisterPDFHandlers(): void {
   ipcMain.removeHandler('pdf:download-model');
   ipcMain.removeHandler('pdf:clear-model-cache');
   ipcMain.removeHandler('pdf:refresh-model-status');
+  ipcMain.removeHandler('pdf:list-ollama-models');
 
   // Embedding Fallback (Requirement 18.2)
   ipcMain.removeHandler('pdf:get-embedding-fallback-state');

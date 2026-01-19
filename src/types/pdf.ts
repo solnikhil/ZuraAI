@@ -394,6 +394,16 @@ export interface PDFRAGSettings {
   preferVisionOverOCR: boolean;
 }
 
+/**
+ * Ollama model info for local embeddings.
+ */
+export interface OllamaModelInfo {
+  /** Model name as reported by Ollama (e.g., embeddinggemma:300m) */
+  name: string;
+  /** Size on disk in bytes (if available) */
+  size?: number;
+}
+
 // =============================================================================
 // Per-Document Settings Types
 // =============================================================================
@@ -826,7 +836,7 @@ export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   embeddingModel: 'local',
   localEmbeddingModel: 'nomic-embed-text',
   embeddingDimensions: 768,
-  ollamaBaseUrl: 'http://localhost:11434',
+  ollamaBaseUrl: 'http://127.0.0.1:11434',
 
   // Retrieval
   topK: 5,
@@ -929,6 +939,7 @@ export const PDF_IPC_CHANNELS = {
   DOWNLOAD_MODEL: 'pdf:download-model',
   CLEAR_MODEL_CACHE: 'pdf:clear-model-cache',
   REFRESH_MODEL_STATUS: 'pdf:refresh-model-status',
+  LIST_OLLAMA_MODELS: 'pdf:list-ollama-models',
 
   // Embedding Fallback (Requirement 18.2)
   GET_EMBEDDING_FALLBACK_STATE: 'pdf:get-embedding-fallback-state',

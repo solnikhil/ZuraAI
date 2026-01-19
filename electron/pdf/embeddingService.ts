@@ -102,6 +102,57 @@ const OLLAMA_MODEL_MAP: Record<string, string> = {
 };
 
 /**
+ * Map of model ID to common name variations/aliases
+ * Used to detect models installed with alternative names
+ */
+const OLLAMA_MODEL_ALIASES: Record<string, string[]> = {
+  'local-gemma': ['embeddinggemma', 'gemma', 'embedding-gemma'],
+  'local-nomic': ['nomic-embed-text', 'nomic', 'nomic-embed'],
+  'local-mxbai': ['mxbai-embed-large', 'mxbai', 'mxbai-embed'],
+  'local-all-minilm': ['all-minilm', 'minilm', 'all-minilm-l6-v2'],
+};
+
+/**
+ * Resolve a local model ID from an Ollama model name.
+ * Supports version tags like "embeddinggemma:300m".
+ */
+export function resolveLocalModelIdFromOllamaName(ollamaName?: string): string | null {
+  if (!ollamaName) return null;
+  const normalized = ollamaName.toLowerCase().trim();
+  const baseName = normalized.split(':')[0];
+
+  for (const [modelId, aliases] of Object.entries(OLLAMA_MODEL_ALIASES)) {
+    for (const alias of aliases) {
+      const target = alias.toLowerCase();
+      if (baseName === target || normalized === target || normalized.startsWith(`${target}:`)) {
+        return modelId;
+      }
+    }
+  }
+
+  return null;
+}
+
+export async function listOllamaModels(ollamaBaseUrl: string): Promise<Array<{ name: string; size?: number }>> {
+  const response = await fetch(`${ollamaBaseUrl}/api/tags`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama API returned status ${response.status}`);
+  }
+
+  const data = await response.json();
+  const models = Array.isArray(data?.models) ? data.models : [];
+
+  return models.map((model: { name: string; size?: number }) => ({
+    name: model.name,
+    size: model.size,
+  }));
+}
+
+/**
  * Map of model ID to OpenAI model name
  */
 const OPENAI_MODEL_MAP: Record<string, string> = {
@@ -111,8 +162,9 @@ const OPENAI_MODEL_MAP: Record<string, string> = {
 
 /**
  * Default Ollama base URL
+ * Using 127.0.0.1 instead of localhost to avoid IPv6 (::1) connection issues
  */
-const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 
 // =============================================================================
 // Rate Limiter
@@ -230,11 +282,24 @@ export class EmbeddingService implements IEmbeddingService {
    */
   private getModelInfoById(modelId: string): EmbeddingModelInfo {
     const model = EMBEDDING_MODELS.find(m => m.id === modelId);
-    if (!model) {
-      // Default to local-nomic if model not found
-      return EMBEDDING_MODELS[0];
+    if (model) {
+      return model;
     }
-    return model;
+    
+    // Handle dynamic Ollama models (e.g., "ollama-embeddinggemma:300m")
+    if (modelId.startsWith('ollama-')) {
+      const ollamaModelName = modelId.replace(/^ollama-/, '');
+      return {
+        id: modelId,
+        name: ollamaModelName,
+        provider: 'local',
+        dimensions: 768, // Default, will be determined at runtime
+        maxTokens: 512,
+      };
+    }
+    
+    // Default to local-nomic if model not found
+    return EMBEDDING_MODELS[0];
   }
 
   /**
@@ -268,15 +333,21 @@ export class EmbeddingService implements IEmbeddingService {
 
   /**
    * Check if a model is available
-   * 
+   *
    * @param modelId - ID of the model to check
+   * @param forceRefresh - Force a fresh check, bypassing cache
    * @returns Whether the model is available
    */
-  async isModelAvailable(modelId: string): Promise<boolean> {
-    // Check cache first
-    const cached = this.modelAvailabilityCache.get(modelId);
-    if (cached && Date.now() - cached.checkedAt < this.availabilityCacheTTL) {
-      return cached.available;
+  async isModelAvailable(modelId: string, forceRefresh: boolean = false): Promise<boolean> {
+    // Check cache first (unless forceRefresh is true)
+    if (!forceRefresh) {
+      const cached = this.modelAvailabilityCache.get(modelId);
+      if (cached && Date.now() - cached.checkedAt < this.availabilityCacheTTL) {
+        console.log(`[EmbeddingService] Using cached availability for ${modelId}: ${cached.available}`);
+        return cached.available;
+      }
+    } else {
+      console.log(`[EmbeddingService] Force refresh enabled, bypassing cache for ${modelId}`);
     }
 
     const modelInfo = this.getModelInfoById(modelId);
@@ -310,27 +381,73 @@ export class EmbeddingService implements IEmbeddingService {
       // First check if Ollama is running
       const response = await fetch(`${this.ollamaBaseUrl}/api/tags`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(10000), // Increased timeout to 10s
       });
 
       if (!response.ok) {
+        console.log(`[EmbeddingService] Ollama API returned status ${response.status}`);
         return false;
       }
 
       const data = await response.json();
       const models = data.models || [];
-      const ollamaModelName = OLLAMA_MODEL_MAP[modelId];
+      
+      // Handle dynamic Ollama models (e.g., "ollama-embeddinggemma:300m")
+      let ollamaModelName: string | undefined;
+      if (modelId.startsWith('ollama-')) {
+        ollamaModelName = modelId.replace(/^ollama-/, '');
+      } else {
+        ollamaModelName = OLLAMA_MODEL_MAP[modelId];
+      }
 
       if (!ollamaModelName) {
+        console.log(`[EmbeddingService] No Ollama mapping found for model ID: ${modelId}`);
         return false;
       }
 
-      // Check if the model is installed
-      return models.some((m: { name: string }) => 
-        m.name === ollamaModelName || m.name.startsWith(`${ollamaModelName}:`)
-      );
+      // Get aliases for this model
+      const aliases = OLLAMA_MODEL_ALIASES[modelId] || [ollamaModelName];
+
+      // Log available models for debugging
+      console.log(`[EmbeddingService] Checking for model "${ollamaModelName}" (ID: ${modelId})`);
+      console.log(`[EmbeddingService] Also checking aliases:`, aliases);
+      console.log(`[EmbeddingService] Available Ollama models:`, models.map((m: any) => m.name));
+      console.log(`[EmbeddingService] Total models found in Ollama: ${models.length}`);
+
+      // Check if the model is installed with improved matching
+      const isAvailable = models.some((m: { name: string }) => {
+        // Normalize model name: convert to lowercase, keep colons for version tags
+        const modelName = m.name.toLowerCase().trim();
+
+        // Check against all possible names (primary + aliases)
+        const matches = aliases.some(alias => {
+          const targetName = alias.toLowerCase();
+          // Match exact name OR name with version tag (e.g., "embeddinggemma:latest")
+          const exactMatch = modelName === targetName;
+          const tagMatch = modelName.startsWith(`${targetName}:`);
+
+          if (exactMatch || tagMatch) {
+            console.log(`[EmbeddingService] ✓ Matched "${modelName}" against alias "${targetName}"`);
+          }
+
+          return exactMatch || tagMatch;
+        });
+
+        if (matches) {
+          console.log(`[EmbeddingService] ✓ Found matching model: ${m.name}`);
+        }
+
+        return matches;
+      });
+
+      if (!isAvailable) {
+        console.log(`[EmbeddingService] ✗ Model "${ollamaModelName}" not found in available models`);
+      }
+
+      return isAvailable;
     } catch (error) {
       // Ollama not running or network error
+      console.error(`[EmbeddingService] Error checking Ollama model availability:`, error);
       return false;
     }
   }
@@ -427,7 +544,14 @@ export class EmbeddingService implements IEmbeddingService {
    * Implements Requirement 21.2, 21.4
    */
   private async generateOllamaEmbedding(text: string): Promise<number[]> {
-    const ollamaModelName = OLLAMA_MODEL_MAP[this.currentModelId];
+    // Handle dynamic Ollama models (e.g., "ollama-embeddinggemma:300m")
+    let ollamaModelName: string;
+    if (this.currentModelId.startsWith('ollama-')) {
+      ollamaModelName = this.currentModelId.replace(/^ollama-/, '');
+    } else {
+      ollamaModelName = OLLAMA_MODEL_MAP[this.currentModelId];
+    }
+    
     if (!ollamaModelName) {
       throw new Error(`Unknown Ollama model for ID: ${this.currentModelId}`);
     }
@@ -1174,16 +1298,21 @@ async function checkOllamaModelStatus(
   }
 
   const ollamaUrl = embeddingService.getOllamaBaseUrl();
-  const timeout = options.timeoutMs || 5000;
+  const timeout = options.timeoutMs || 10000; // Increased to 10s for slower responses
 
   try {
-    console.log(`[EmbeddingService] Checking Ollama model '${ollamaModelName}' at ${ollamaUrl}`);
+    console.log(`[EmbeddingService] ========================================`);
+    console.log(`[EmbeddingService] Checking Ollama model '${ollamaModelName}' (ID: ${modelId})`);
+    console.log(`[EmbeddingService] Ollama URL: ${ollamaUrl}`);
+    console.log(`[EmbeddingService] Timeout: ${timeout}ms`);
 
     // First check if Ollama is running
     const tagsResponse = await fetch(`${ollamaUrl}/api/tags`, {
       method: 'GET',
       signal: AbortSignal.timeout(timeout),
     });
+
+    console.log(`[EmbeddingService] Ollama API response status: ${tagsResponse.status}`);
 
     if (!tagsResponse.ok) {
       console.log(`[EmbeddingService] Ollama not accessible: HTTP ${tagsResponse.status}`);
@@ -1198,16 +1327,36 @@ async function checkOllamaModelStatus(
     const tagsData = await tagsResponse.json();
     const models = tagsData.models || [];
 
+    // Get aliases for this model
+    const aliases = OLLAMA_MODEL_ALIASES[modelId] || [ollamaModelName];
+
     console.log(`[EmbeddingService] Found ${models.length} models in Ollama`);
     console.log(`[EmbeddingService] Searching for '${ollamaModelName}' or '${ollamaModelName}:*'`);
+    console.log(`[EmbeddingService] Also checking aliases:`, aliases);
 
-    // Check if the model is installed
-    const installedModel = models.find((m: { name: string; size?: number }) =>
-      m.name === ollamaModelName || m.name.startsWith(`${ollamaModelName}:`)
-    );
+    // Check if the model is installed with improved matching
+    const installedModel = models.find((m: { name: string; size?: number }) => {
+      // Normalize model name: convert to lowercase, keep colons for version tags
+      const modelName = m.name.toLowerCase().trim();
+
+      // Check against all possible names (primary + aliases)
+      return aliases.some(alias => {
+        const targetName = alias.toLowerCase();
+        // Match exact name OR name with version tag (e.g., "embeddinggemma:latest")
+        const exactMatch = modelName === targetName;
+        const tagMatch = modelName.startsWith(`${targetName}:`);
+
+        if (exactMatch || tagMatch) {
+          console.log(`[EmbeddingService] ✓ Matched "${modelName}" against alias "${targetName}"`);
+        }
+
+        return exactMatch || tagMatch;
+      });
+    });
 
     if (installedModel) {
-      console.log(`[EmbeddingService] Model found: ${installedModel.name} (${installedModel.size} bytes)`);
+      console.log(`[EmbeddingService] ✓ Model found: ${installedModel.name} (${installedModel.size} bytes)`);
+      console.log(`[EmbeddingService] ========================================`);
       return {
         isAvailable: true,
         isCached: true,
@@ -1217,8 +1366,9 @@ async function checkOllamaModelStatus(
     }
 
     // Model not installed
-    console.log(`[EmbeddingService] Model '${ollamaModelName}' not found in installed models`);
+    console.log(`[EmbeddingService] ✗ Model '${ollamaModelName}' not found in installed models`);
     console.log(`[EmbeddingService] Available models: ${models.map((m: any) => m.name).join(', ')}`);
+    console.log(`[EmbeddingService] ========================================`);
 
     return {
       isAvailable: false,
@@ -1259,13 +1409,46 @@ export async function getAllModelsStatus(
 ): Promise<AllModelsStatus> {
   const models: ModelCacheStatus[] = [];
   
-  // Check all models in parallel
+  // Check all predefined models in parallel
   const statusPromises = EMBEDDING_MODELS.map(model => 
     getModelCacheStatus(model.id, options)
   );
   
   const statuses = await Promise.all(statusPromises);
   models.push(...statuses);
+
+  // Also fetch dynamically installed Ollama models
+  try {
+    const ollamaModels = await listOllamaModels();
+    const knownModelNames = new Set(models.map(m => m.modelName.toLowerCase()));
+    
+    for (const ollamaModel of ollamaModels) {
+      // Skip if this model is already in the list (matched by name)
+      const normalizedName = ollamaModel.name.toLowerCase();
+      const baseName = normalizedName.split(':')[0];
+      const alreadyListed = Array.from(knownModelNames).some(known => 
+        known.includes(baseName) || baseName.includes(known.split(' ')[0].toLowerCase())
+      );
+      
+      if (!alreadyListed) {
+        // Create a dynamic model entry for this Ollama model
+        models.push({
+          modelId: `ollama-${ollamaModel.name}`,
+          modelName: ollamaModel.name,
+          provider: 'local',
+          dimensions: 768, // Default, will be determined at runtime
+          isAvailable: true, // It's in the Ollama list, so it's available
+          isCached: true,
+          needsDownload: false,
+          lastCheckedAt: Date.now(),
+          sizeBytes: ollamaModel.size,
+        });
+      }
+    }
+  } catch (error) {
+    console.warn('[EmbeddingService] Failed to fetch dynamic Ollama models:', error);
+    // Continue with just the static list if Ollama query fails
+  }
 
   const currentModelId = embeddingService.getCurrentModelId();
   const hasAvailableModel = models.some(m => m.isAvailable);

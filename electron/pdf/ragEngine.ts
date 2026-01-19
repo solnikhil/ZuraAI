@@ -1210,6 +1210,10 @@ export class RAGEngine implements IRAGEngine {
    */
   updateSettings(settings: Partial<PDFRAGSettings>): void {
     this.settings = { ...this.settings, ...settings };
+    
+    if (settings.ollamaBaseUrl) {
+      this.embedService.setOllamaBaseUrl(settings.ollamaBaseUrl);
+    }
   }
 
   /**

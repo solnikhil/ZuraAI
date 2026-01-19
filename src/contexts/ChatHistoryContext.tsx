@@ -222,23 +222,53 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }, [loadSessions])
 
     const createSession = useCallback((firstMessage?: string) => {
-        const initialMessages: Message[] = firstMessage ? [{
-            id: crypto.randomUUID(),
-            role: 'user',
-            content: firstMessage,
-            timestamp: Date.now()
-        }] : []
+        const now = Date.now()
+        const normalizedFirstMessage = typeof firstMessage === 'string' ? firstMessage.trim() : ''
 
-        const newSession: ChatSession = {
-            id: crypto.randomUUID(),
-            title: firstMessage ? (firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '')) : 'New Chat',
-            messages: initialMessages,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-        }
-        setSessions(prev => [newSession, ...prev])
-        setCurrentSessionId(newSession.id)
-        return newSession.id
+        let nextSessionId = ''
+
+        setSessions(prev => {
+            // If no first message is provided, try to reuse an existing empty "New Chat"
+            // session instead of creating a pile of empty chats.
+            if (!normalizedFirstMessage) {
+                const existingIndex = prev.findIndex(s => s.title === 'New Chat' && (!s.messages || s.messages.length === 0))
+                if (existingIndex >= 0) {
+                    const existing = prev[existingIndex]
+                    nextSessionId = existing.id
+
+                    const updatedExisting: ChatSession = {
+                        ...existing,
+                        updatedAt: now,
+                    }
+
+                    // Move the reused empty session to the top for a consistent UX.
+                    return [updatedExisting, ...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)]
+                }
+            }
+
+            const initialMessages: Message[] = normalizedFirstMessage ? [{
+                id: crypto.randomUUID(),
+                role: 'user',
+                content: normalizedFirstMessage,
+                timestamp: now
+            }] : []
+
+            const newSession: ChatSession = {
+                id: crypto.randomUUID(),
+                title: normalizedFirstMessage
+                    ? (normalizedFirstMessage.slice(0, 30) + (normalizedFirstMessage.length > 30 ? '...' : ''))
+                    : 'New Chat',
+                messages: initialMessages,
+                createdAt: now,
+                updatedAt: now
+            }
+
+            nextSessionId = newSession.id
+            return [newSession, ...prev]
+        })
+
+        setCurrentSessionId(nextSessionId)
+        return nextSessionId
     }, [])
 
     const switchSession = useCallback((id: string) => {

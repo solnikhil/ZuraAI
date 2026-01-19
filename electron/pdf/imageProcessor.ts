@@ -182,7 +182,7 @@ const VISION_MODEL_MAP: Record<string, string> = Object.fromEntries(
 /**
  * Default Ollama base URL
  */
-const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+const DEFAULT_OLLAMA_URL = 'http://127.0.0.1:11434';
 
 /**
  * Default configuration for image processing
