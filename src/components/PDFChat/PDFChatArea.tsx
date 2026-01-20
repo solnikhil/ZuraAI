@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings, MoreVertical } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
 import StarBorder from '../StarBorder';
@@ -1300,6 +1301,7 @@ export function PDFChatArea({
   const actionMenuRef = useRef<HTMLDivElement>(null);
   const actionMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [actionMenuPosition, setActionMenuPosition] = useState<'top' | 'bottom'>('top');
+  const [actionMenuCoords, setActionMenuCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   // Feedback state - tracks thumbs up/down for each message - Requirement 17.1
   const [feedbackState, setFeedbackState] = useState<Record<string, 'thumbs_up' | 'thumbs_down'>>({});
   // Embedding fallback state - Requirement 18.2
@@ -1330,7 +1332,10 @@ export function PDFChatArea({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isOutsideMenu = actionMenuRef.current && !actionMenuRef.current.contains(target);
+      const isOutsideButton = actionMenuButtonRef.current && !actionMenuButtonRef.current.contains(target);
+      if (isOutsideMenu && isOutsideButton) {
         setIsActionMenuOpen(false);
       }
     };
@@ -1349,23 +1354,29 @@ export function PDFChatArea({
     const rect = actionMenuButtonRef.current.getBoundingClientRect();
     const spaceAbove = rect.top;
     const spaceBelow = window.innerHeight - rect.bottom;
-    setActionMenuPosition(spaceAbove > spaceBelow ? 'top' : 'bottom');
+    const openAbove = spaceAbove > spaceBelow;
+    setActionMenuPosition(openAbove ? 'top' : 'bottom');
+    
+    // Calculate fixed position for portal
+    const menuHeight = 200; // Approximate menu height
+    setActionMenuCoords({
+      top: openAbove ? rect.top - menuHeight - 6 : rect.bottom + 6,
+      left: rect.right - 230 // Align right edge with button, menu is 230px wide
+    });
   }, [isActionMenuOpen]);
 
   const actionMenuStyles = useMemo(() => ({
-    position: 'absolute' as const,
-    [actionMenuPosition === 'top' ? 'bottom' : 'top']: '100%',
-    right: 0,
-    marginTop: actionMenuPosition === 'bottom' ? '6px' : undefined,
-    marginBottom: actionMenuPosition === 'top' ? '6px' : undefined,
+    position: 'fixed' as const,
+    top: actionMenuCoords.top,
+    left: actionMenuCoords.left,
     backgroundColor: 'var(--theme-surface)',
     border: '1px solid var(--theme-border)',
     borderRadius: '10px',
     boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)',
-    zIndex: 100,
+    zIndex: 9999,
     minWidth: '230px',
     overflow: 'hidden'
-  }), [actionMenuPosition]);
+  }), [actionMenuCoords]);
 
   useEffect(() => {
     if (!isActionMenuOpen) return;
@@ -1374,7 +1385,15 @@ export function PDFChatArea({
       const rect = actionMenuButtonRef.current.getBoundingClientRect();
       const spaceAbove = rect.top;
       const spaceBelow = window.innerHeight - rect.bottom;
-      setActionMenuPosition(spaceAbove > spaceBelow ? 'top' : 'bottom');
+      const openAbove = spaceAbove > spaceBelow;
+      setActionMenuPosition(openAbove ? 'top' : 'bottom');
+      
+      // Update fixed position for portal
+      const menuHeight = 200;
+      setActionMenuCoords({
+        top: openAbove ? rect.top - menuHeight - 6 : rect.bottom + 6,
+        left: rect.right - 230
+      });
     };
 
     window.addEventListener('resize', handleScrollOrResize);
@@ -2499,8 +2518,8 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
                     }} />
                   </button>
 
-                  {isActionMenuOpen && (
-                    <div style={actionMenuStyles}>
+                  {isActionMenuOpen && createPortal(
+                    <div ref={actionMenuRef} style={actionMenuStyles}>
                       {onGroundedModeChange && (
                         <button
                           onClick={() => {
@@ -2594,7 +2613,8 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
                           </div>
                         </div>
                       )}
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </div>
