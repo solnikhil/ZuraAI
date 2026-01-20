@@ -23,6 +23,10 @@ interface IndexingPromptMessageProps {
     indexingState?: IndexingState | null;
     /** Indexing logs */
     indexingLogs?: IndexingLogEntry[];
+    /** Callback when user requests to delete the index */
+    onDeleteIndex?: (documentId: string) => void;
+    /** Callback when user requests to re-index */
+    onReindex?: (documentId: string, modelId?: string) => void;
 }
 
 export function IndexingPromptMessage({
@@ -31,6 +35,8 @@ export function IndexingPromptMessage({
     onSkip,
     indexingState,
     indexingLogs: rawLogs = [],
+    onDeleteIndex,
+    onReindex,
 }: IndexingPromptMessageProps) {
     const indexingLogs = rawLogs || [];
     const [modelsStatus, setModelsStatus] = useState<AllModelsStatus | null>(null);
@@ -48,6 +54,11 @@ export function IndexingPromptMessage({
         chunkCount: number;
         documentCount: number;
     } | null>(null);
+
+    // Delete/Reindex state
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isReindexing, setIsReindexing] = useState(false);
+    const [showReindexOptions, setShowReindexOptions] = useState(false);
 
     // Check if indexing is active for this document
     const isIndexing = indexingState?.documentId === prompt.documentId && indexingState?.isIndexing;
@@ -163,6 +174,29 @@ export function IndexingPromptMessage({
         }
     };
 
+    // Delete index handler
+    const handleDeleteIndex = async () => {
+        if (!onDeleteIndex) return;
+        setIsDeleting(true);
+        try {
+            await onDeleteIndex(prompt.documentId);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // Re-index handler
+    const handleReindex = async () => {
+        if (!onReindex) return;
+        setIsReindexing(true);
+        try {
+            await onReindex(prompt.documentId, selectedModelId || undefined);
+            setShowReindexOptions(false);
+        } finally {
+            setIsReindexing(false);
+        }
+    };
+
     // Get available local models
     const localModels = modelsStatus?.models?.filter(m => m.provider === 'local') || [];
     const availableLocalModels = localModels.filter(m => m.isAvailable);
@@ -190,6 +224,268 @@ export function IndexingPromptMessage({
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
+
+    // If document is already indexed, show status with management options
+    if (prompt.isAlreadyIndexed && !isIndexing && !isComplete) {
+        return (
+            <div style={messageWrapperStyle}>
+                <div className="markdown-content" style={contentStyle}>
+                    <p style={{ margin: '0 0 8px 0' }}>
+                        <strong style={{ color: '#22c55e' }}>✓ Document Indexed</strong>
+                    </p>
+                    <p style={{ margin: '0 0 12px 0', color: 'var(--theme-text-secondary)' }}>
+                        <strong>"{prompt.documentName}"</strong> is already indexed and ready for AI-powered search.
+                        You can ask me questions about the document and I'll find relevant information with page citations.
+                    </p>
+
+                    {/* Index Info */}
+                    <div style={{
+                        fontSize: '0.8rem',
+                        color: 'var(--theme-text-muted)',
+                        padding: '8px 12px',
+                        background: 'rgba(34, 197, 94, 0.05)',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(34, 197, 94, 0.15)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        marginBottom: '12px',
+                    }}>
+                        {prompt.chunkCount !== undefined && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Searchable Chunks:</span>
+                                <span style={{ color: 'var(--theme-text-primary)' }}>
+                                    {prompt.chunkCount}
+                                </span>
+                            </div>
+                        )}
+                        {prompt.embeddingModel && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Embedding Model:</span>
+                                <span style={{ color: 'var(--theme-text-primary)' }}>
+                                    {prompt.embeddingModel}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Management Actions */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Re-index button */}
+                        {!showReindexOptions ? (
+                            <button
+                                onClick={() => setShowReindexOptions(true)}
+                                disabled={isDeleting}
+                                style={{
+                                    padding: '7px 14px',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(96, 165, 250, 0.4)',
+                                    background: 'rgba(96, 165, 250, 0.1)',
+                                    color: '#60a5fa',
+                                    cursor: isDeleting ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 500,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    opacity: isDeleting ? 0.5 : 1,
+                                }}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/>
+                                </svg>
+                                Re-index
+                            </button>
+                        ) : null}
+
+                        {/* Delete index button */}
+                        <button
+                            onClick={handleDeleteIndex}
+                            disabled={isDeleting || isReindexing}
+                            style={{
+                                padding: '7px 14px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                color: '#ef4444',
+                                cursor: (isDeleting || isReindexing) ? 'wait' : 'pointer',
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                opacity: (isDeleting || isReindexing) ? 0.5 : 1,
+                            }}
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <span style={{
+                                        display: 'inline-block',
+                                        width: '14px',
+                                        height: '14px',
+                                        border: '2px solid #ef4444',
+                                        borderTopColor: 'transparent',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite',
+                                    }} />
+                                    Deleting...
+                                </>
+                            ) : (
+                                <>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    </svg>
+                                    Delete Index
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Re-index options panel */}
+                    {showReindexOptions && (
+                        <div style={{
+                            marginTop: '12px',
+                            padding: '12px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}>
+                            <div style={{
+                                fontSize: '0.85rem',
+                                fontWeight: 500,
+                                color: 'var(--theme-text-secondary)',
+                                marginBottom: '10px',
+                            }}>
+                                Re-index with a different model:
+                            </div>
+
+                            {isLoadingModels ? (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    color: 'var(--theme-text-muted)',
+                                    fontSize: '0.85rem',
+                                }}>
+                                    <div style={{
+                                        width: '12px',
+                                        height: '12px',
+                                        border: '2px solid rgba(255,255,255,0.1)',
+                                        borderTopColor: '#60a5fa',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite',
+                                    }} />
+                                    Checking models...
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Model selection */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
+                                        {availableLocalModels.map((model) => (
+                                            <label
+                                                key={model.modelId}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '6px 8px',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer',
+                                                    background: selectedModelId === model.modelId
+                                                        ? 'rgba(96, 165, 250, 0.12)'
+                                                        : 'transparent',
+                                                    transition: 'background 0.15s',
+                                                }}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="reindexModel"
+                                                    checked={selectedModelId === model.modelId}
+                                                    onChange={() => setSelectedModelId(model.modelId)}
+                                                    style={{ accentColor: '#60a5fa', margin: 0 }}
+                                                />
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>
+                                                    {model.modelName}
+                                                </span>
+                                                <span style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
+                                                    ({model.dimensions}d)
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+
+                                    {/* Action buttons */}
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={handleReindex}
+                                            disabled={!selectedModelId || isReindexing}
+                                            style={{
+                                                padding: '6px 12px',
+                                                borderRadius: '6px',
+                                                border: 'none',
+                                                background: (!selectedModelId || isReindexing)
+                                                    ? 'rgba(96, 165, 250, 0.3)'
+                                                    : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                                color: 'white',
+                                                cursor: (!selectedModelId || isReindexing) ? 'not-allowed' : 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 500,
+                                                opacity: (!selectedModelId || isReindexing) ? 0.5 : 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                            }}
+                                        >
+                                            {isReindexing ? (
+                                                <>
+                                                    <span style={{
+                                                        display: 'inline-block',
+                                                        width: '12px',
+                                                        height: '12px',
+                                                        border: '2px solid white',
+                                                        borderTopColor: 'transparent',
+                                                        borderRadius: '50%',
+                                                        animation: 'spin 1s linear infinite',
+                                                    }} />
+                                                    Re-indexing...
+                                                </>
+                                            ) : (
+                                                'Start Re-index'
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => setShowReindexOptions(false)}
+                                            disabled={isReindexing}
+                                            style={{
+                                                padding: '6px 12px',
+                                                borderRadius: '6px',
+                                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                                background: 'transparent',
+                                                color: 'var(--theme-text-secondary)',
+                                                cursor: isReindexing ? 'not-allowed' : 'pointer',
+                                                fontSize: '0.8rem',
+                                                opacity: isReindexing ? 0.5 : 1,
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Spin animation */}
+                <style>{`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+            </div>
+        );
+    }
 
     // If indexing is complete, show success message
     if (isComplete) {

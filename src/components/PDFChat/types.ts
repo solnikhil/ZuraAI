@@ -181,6 +181,12 @@ export interface IndexingPromptState {
   documentName: string;
   /** Page count of the document */
   pageCount: number;
+  /** Whether document is already indexed (show status message instead of prompt) */
+  isAlreadyIndexed?: boolean;
+  /** Chunk count if already indexed */
+  chunkCount?: number;
+  /** Embedding model used if already indexed */
+  embeddingModel?: string;
 }
 
 /**
@@ -220,6 +226,10 @@ export interface PDFChatAreaProps {
   onConfirmIndexing?: (documentId: string, modelId?: string) => void;
   /** Callback when user skips indexing */
   onSkipIndexing?: (documentId: string) => void;
+  /** Callback when user requests to delete the index */
+  onDeleteIndex?: (documentId: string) => void;
+  /** Callback when user requests to re-index */
+  onReindex?: (documentId: string, modelId?: string) => void;
   /** Indexing logs for display */
   indexingLogs?: IndexingLogEntry[];
 }

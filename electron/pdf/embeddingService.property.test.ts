@@ -494,16 +494,14 @@ describe('Embedding Service Property Tests', () => {
       dimensions: number,
       requestLog: NetworkRequest[]
     ): typeof fetch {
-      return vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      return vi.fn().mockImplementation(async (url: string | URL, options?: RequestInit) => {
         // Log the request
+        const urlStr = typeof url === 'string' ? url : url.toString();
         requestLog.push({
-          url: typeof url === 'string' ? url : url.toString(),
+          url: urlStr,
           method: options?.method || 'GET',
           timestamp: Date.now(),
         });
-
-        // Parse the URL
-        const urlStr = typeof url === 'string' ? url : url.toString();
         
         // Handle Ollama endpoints (local)
         if (urlStr.includes('/api/tags')) {

@@ -382,8 +382,8 @@ export function PDFChatLayout({
   /**
    * Start indexing a document (called from confirmation dialog)
    */
-  const startIndexing = useCallback((docId: string, docName: string, modelId?: string) => {
-    console.log('[PDFChatLayout] Starting indexing for document:', docId, 'with model:', modelId);
+  const startIndexing = useCallback((docId: string, docName: string, modelId?: string, forceReindex?: boolean) => {
+    console.log('[PDFChatLayout] Starting indexing for document:', docId, 'with model:', modelId, 'forceReindex:', forceReindex);
 
     // Clear previous logs
     setIndexingLogs([]);
@@ -392,7 +392,9 @@ export function PDFChatLayout({
     setIndexingLogs(prev => [...prev, {
       timestamp: Date.now(),
       level: 'info',
-      message: `Starting indexing for "${docName}"...`,
+      message: forceReindex 
+        ? `Re-indexing "${docName}" (existing index will be replaced)...`
+        : `Starting indexing for "${docName}"...`,
     }]);
 
     // Initialize indexing state to show progress indicator
@@ -408,12 +410,14 @@ export function PDFChatLayout({
     // Note: Keep the indexingPrompt visible to show progress inline
     // It will be dismissed when indexing completes
 
-    // Prepare indexing options with model if specified
-    const indexOptions = modelId ? { embeddingModel: modelId } : undefined;
+    // Prepare indexing options with model and forceReindex flag
+    const indexOptions: { embeddingModel?: string; forceReindex?: boolean } = {};
+    if (modelId) indexOptions.embeddingModel = modelId;
+    if (forceReindex) indexOptions.forceReindex = true;
 
     // Start indexing in background (non-blocking)
     // The IPC handlers will send progress events that update the UI
-    window.ipcRenderer?.invoke('pdf:index', docId, indexOptions).catch(err => {
+    window.ipcRenderer?.invoke('pdf:index', docId, Object.keys(indexOptions).length > 0 ? indexOptions : undefined).catch(err => {
       console.error('[PDFChatLayout] Indexing failed:', err);
       setIndexingLogs(prev => [...prev, {
         timestamp: Date.now(),
@@ -441,6 +445,52 @@ export function PDFChatLayout({
     console.log('[PDFChatLayout] User skipped indexing for:', docId);
     setIndexingPrompt(null);
   }, []);
+
+  /**
+   * Delete index for a document
+   */
+  const deleteIndex = useCallback(async (docId: string) => {
+    console.log('[PDFChatLayout] Deleting index for document:', docId);
+    try {
+      await window.ipcRenderer?.invoke('pdf:delete-index', docId);
+      console.log('[PDFChatLayout] Index deleted successfully');
+
+      // Update document tab to show not indexed
+      setLoadedDocuments(prev => {
+        if (!prev) return new Map();
+        const newMap = new Map(prev);
+        const existing = newMap.get(docId);
+        if (existing) {
+          newMap.set(docId, { ...existing, isIndexed: false });
+        }
+        return newMap;
+      });
+
+      // Clear the indexing prompt and show the "not indexed" prompt
+      const docInfo = loadedDocuments.get(docId);
+      setIndexingPrompt({
+        documentId: docId,
+        documentName: docInfo?.name || 'Document',
+        pageCount: docInfo?.pageCount || 0,
+        isAlreadyIndexed: false,
+      });
+    } catch (error) {
+      console.error('[PDFChatLayout] Failed to delete index:', error);
+    }
+  }, [loadedDocuments]);
+
+  /**
+   * Re-index a document (delete existing and re-create)
+   */
+  const reindexDocument = useCallback(async (docId: string, modelId?: string) => {
+    console.log('[PDFChatLayout] Re-indexing document:', docId, 'with model:', modelId);
+
+    const docInfo = loadedDocuments.get(docId);
+    const docName = docInfo?.name || 'Document';
+
+    // Start indexing with forceReindex flag (this will delete existing before re-indexing)
+    startIndexing(docId, docName, modelId, true);
+  }, [loadedDocuments, startIndexing]);
 
   /**
    * Create a new PDF chat session
@@ -628,6 +678,17 @@ export function PDFChatLayout({
                 newMap.set(docId, { ...existing, isIndexed: true });
               }
               return newMap;
+            });
+
+            // Show "already indexed" status message in chat area with management options
+            console.log('[PDFChatLayout] Document already indexed, showing status:', docId, indexStatus);
+            setIndexingPrompt({
+              documentId: docId,
+              documentName: fileName,
+              pageCount: doc.pageCount,
+              isAlreadyIndexed: true,
+              chunkCount: indexStatus.chunkCount,
+              embeddingModel: indexStatus.embeddingModel,
             });
           } else {
             // Document not indexed - show inline prompt in chat area
@@ -962,6 +1023,8 @@ export function PDFChatLayout({
             indexingPrompt={indexingPrompt}
             onConfirmIndexing={(docId, modelId) => startIndexing(docId, indexingPrompt?.documentName || 'Document', modelId)}
             onSkipIndexing={skipIndexing}
+            onDeleteIndex={deleteIndex}
+            onReindex={reindexDocument}
             indexingLogs={indexingLogs}
           />
         </div>

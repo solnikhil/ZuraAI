@@ -9,7 +9,7 @@ import { ProviderLogo } from '../shared'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
 }
 
 type ViewMode = 'favorites' | 'all'

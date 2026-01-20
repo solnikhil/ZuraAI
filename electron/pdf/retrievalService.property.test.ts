@@ -74,7 +74,10 @@ const createMockVectorStore = (): IVectorStore => ({
   getChunk: vi.fn().mockResolvedValue(null),
   getChunks: mockGetChunks,
   deleteDocument: vi.fn().mockResolvedValue(undefined),
+  deleteChunksForDocument: vi.fn().mockResolvedValue(0),
   getCollectionStats: vi.fn().mockResolvedValue({ documentCount: 0, chunkCount: 0, sizeBytes: 0 }),
+  getStoragePath: vi.fn().mockReturnValue('/mock/path'),
+  getAllDocuments: vi.fn().mockResolvedValue([]),
 });
 
 const createMockEmbeddingService = (): IEmbeddingService => ({
@@ -84,6 +87,7 @@ const createMockEmbeddingService = (): IEmbeddingService => ({
   setModel: mockSetModel,
   isModelAvailable: mockIsModelAvailable,
   getCurrentModelId: vi.fn().mockReturnValue('local-gemma'),
+  setOllamaBaseUrl: vi.fn(),
 });
 
 // =============================================================================

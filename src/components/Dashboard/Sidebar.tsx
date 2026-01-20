@@ -30,6 +30,7 @@ interface SidebarProps {
 
 export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToPDF, onNavigateToChat, onLoadRecentPDF, onSwitchPDFSession, activePDFSessionId, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
+    const [isSearching, setIsSearching] = useState(false)
     const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
     const [isStarredPDFsExpanded, setIsStarredPDFsExpanded] = useState(true)
@@ -38,7 +39,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     const [pdfSessions, setPdfSessions] = useState<PDFChatSession[]>([])
     const [isLoadingStarredPDFs, setIsLoadingStarredPDFs] = useState(false)
     const [isLoadingPDFSessions, setIsLoadingPDFSessions] = useState(false)
-    const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession } = useChatHistory()
+    const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession, createSession } = useChatHistory()
     const { settings, updateSettings } = useSettings()
     const { loadedDocuments: pdfDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId } = usePDFDocuments()
 
@@ -198,6 +199,91 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     <Plus size={16} />
                     New PDF
                 </button>
+            )}
+
+            {/* Chat Actions - Chat mode only */}
+            {view === 'chat' && !isCollapsed && (
+                <div style={{
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                }}>
+                    {/* New Chat - navigates to home screen only */}
+                    <button
+                        onClick={() => clearCurrentSession()}
+                        className="nav-item"
+                        title="New Chat"
+                    >
+                        <div style={{
+                            width: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <MessageSquare size={18} />
+                        </div>
+                        <span>New chat</span>
+                    </button>
+
+                    {/* Search Chat - toggles search input */}
+                    {isSearching || searchQuery ? (
+                        <div style={{ padding: '4px 0' }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: 'var(--theme-surface-active)',
+                                border: '1px solid var(--theme-border)',
+                                borderRadius: '6px',
+                                padding: '6px 8px',
+                                gap: '6px'
+                            }}>
+                                <Search size={14} style={{ color: 'var(--theme-text-muted)' }} />
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onBlur={() => { if (!searchQuery) setIsSearching(false) }}
+                                    placeholder="Search chats..."
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'var(--theme-text-primary)',
+                                        fontSize: '0.85rem',
+                                        width: '100%',
+                                        outline: 'none'
+                                    }}
+                                />
+                                {searchQuery && (
+                                    <X 
+                                        size={14} 
+                                        style={{ cursor: 'pointer', color: 'var(--theme-text-muted)' }}
+                                        onClick={() => { setSearchQuery(''); setIsSearching(false) }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsSearching(true)}
+                            className="nav-item"
+                            title="Search Chat"
+                        >
+                            <div style={{
+                                width: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}>
+                                <Search size={18} />
+                            </div>
+                            <span>Search Chat</span>
+                        </button>
+                    )}
+                </div>
             )}
 
             {/* Chat History List */}
@@ -693,7 +779,12 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     {navItems.map((item, index) => (
                         <button
                             key={item.id}
-                            onClick={() => onNavigateSettings(item.id)}
+                            onClick={() => {
+                                // #region agent log
+                                fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Sidebar.tsx:settings-nav-click',message:'settings-nav-click',data:{itemId:item.id,view,activeSettingsSection,hasUnsavedSettings:!!hasUnsavedSettings},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+                                // #endregion
+                                onNavigateSettings(item.id)
+                            }}
                             className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
                                 padding: isCollapsed ? '8px' : '10px 12px',

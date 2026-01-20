@@ -1283,6 +1283,8 @@ export function PDFChatArea({
   indexingPrompt,
   onConfirmIndexing,
   onSkipIndexing,
+  onDeleteIndex,
+  onReindex,
   indexingLogs,
 }: PDFChatAreaProps) {
   const { settings } = useSettings();
@@ -2091,6 +2093,8 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
             onSkip={() => onSkipIndexing(indexingPrompt.documentId)}
             indexingState={indexingState}
             indexingLogs={indexingLogs}
+            onDeleteIndex={onDeleteIndex}
+            onReindex={onReindex}
           />
         )}
 

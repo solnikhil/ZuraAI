@@ -428,7 +428,10 @@ function registerPDFIndexingHandlers(): void {
    * This handler supports background indexing with progress events
    */
   ipcMain.handle('pdf:index', async (event, docId: string, options?: IndexOptions): Promise<IndexResult> => {
-    console.log('[PDFHandlers] Indexing document:', docId, options);
+    console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
+    console.log('[PDFHandlers] 📥 IPC: pdf:index');
+    console.log('[PDFHandlers]    Document ID: ' + docId);
+    console.log('[PDFHandlers]    Options:', JSON.stringify(options || {}));
 
     try {
       if (!docId || typeof docId !== 'string') {
@@ -480,10 +483,17 @@ function registerPDFIndexingHandlers(): void {
         persistStore();
       }
 
-      console.log('[PDFHandlers] Indexing complete:', docId, result.success);
+      console.log('[PDFHandlers] 📤 IPC RESPONSE: pdf:index');
+      console.log('[PDFHandlers]    Success: ' + result.success);
+      console.log('[PDFHandlers]    Chunks created: ' + result.chunkCount);
+      console.log('[PDFHandlers]    Time: ' + result.indexingTimeMs + 'ms');
+      if (result.error) {
+        console.log('[PDFHandlers]    ❌ Error: ' + result.error);
+      }
+      console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
       return result;
     } catch (error) {
-      console.error('[PDFHandlers] Error indexing document:', error);
+      console.error('[PDFHandlers] ❌ Error indexing document:', error);
 
       // Send error event
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -529,28 +539,40 @@ function registerPDFIndexingHandlers(): void {
   /**
    * Delete the index for a document
    * Channel: pdf:delete-index
+   * Supports backward-compatible document ID lookup
    */
-  ipcMain.handle('pdf:delete-index', async (_event, docId: string): Promise<void> => {
-    console.log('[PDFHandlers] Deleting index:', docId);
+  ipcMain.handle('pdf:delete-index', async (_event, docId: string): Promise<{ success: boolean; deletedId?: string; error?: string }> => {
+    console.log('[PDFHandlers] 🗑️ Deleting index:', docId);
 
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
 
-      await ragEngine.deleteIndex(docId);
+      // Try to find the actual document ID (may be different due to legacy format)
+      const actualDocId = await ragEngine.findDocumentIdByHashPrefix(docId);
+
+      if (!actualDocId) {
+        console.log('[PDFHandlers]    No index found for document');
+        return { success: true, deletedId: docId }; // Nothing to delete
+      }
+
+      console.log('[PDFHandlers]    Actual document ID to delete:', actualDocId);
+      await ragEngine.deleteIndex(actualDocId);
 
       // Update recent documents
       const store = getStore();
-      const recentDoc = store.recentDocuments.find(d => d.id === docId);
+      const recentDoc = store.recentDocuments.find(d => d.id === docId || d.id === actualDocId);
       if (recentDoc) {
         recentDoc.isIndexed = false;
       }
       persistStore();
 
-      console.log('[PDFHandlers] Index deleted:', docId);
+      console.log('[PDFHandlers] ✓ Index deleted:', actualDocId);
+      return { success: true, deletedId: actualDocId };
     } catch (error) {
       console.error('[PDFHandlers] Error deleting index:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
       throw error;
     }
   });
@@ -644,7 +666,11 @@ function registerRAGQueryHandlers(): void {
       title?: string;
     }>;
   }> => {
-    console.log('[PDFHandlers] Getting RAG context:', query, docIds);
+    console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
+    console.log('[PDFHandlers] 📨 IPC: pdf:get-context');
+    console.log('[PDFHandlers]    Query: "' + (query?.substring(0, 80) || '') + (query?.length > 80 ? '...' : '') + '"');
+    console.log('[PDFHandlers]    Document IDs:', docIds);
+    console.log('[PDFHandlers]    Options:', JSON.stringify(options || {}));
 
     try {
       if (!query || typeof query !== 'string') {
@@ -737,8 +763,15 @@ function registerRAGQueryHandlers(): void {
 
       const pdfSystemPrompt = generatePDFSystemPrompt(pdfChatContext);
 
-      console.log('[PDFHandlers] RAG context retrieved, sources:', ragContext.sources.length);
-      console.log('[PDFHandlers] Generated PDF system prompt with context');
+      console.log('[PDFHandlers] 📤 IPC RESPONSE: pdf:get-context');
+      console.log('[PDFHandlers]    Sources retrieved: ' + ragContext.sources.length);
+      console.log('[PDFHandlers]    Confidence: ' + (ragContext.confidence * 100).toFixed(1) + '%');
+      console.log('[PDFHandlers]    Context length: ' + ragContext.contextString.length + ' chars');
+      console.log('[PDFHandlers]    System prompt length: ' + pdfSystemPrompt.length + ' chars');
+      if (ragContext.sources.length === 0) {
+        console.log('[PDFHandlers]    ⚠️ NO SOURCES FOUND - AI will have no document context');
+      }
+      console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
 
       return {
         ...ragContext,
@@ -746,7 +779,7 @@ function registerRAGQueryHandlers(): void {
         documentMetadata,
       };
     } catch (error) {
-      console.error('[PDFHandlers] Error getting RAG context:', error);
+      console.error('[PDFHandlers] ❌ Error getting RAG context:', error);
       throw error;
     }
   });
@@ -1081,10 +1114,6 @@ function registerSettingsAndFeedbackHandlers(): void {
           console.warn('[PDFHandlers] Failed to apply embedding model:', resolvedModelId, error);
         }
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'pdfHandlers.ts:update-settings-resolve',message:'pdf-update-settings-resolve',data:{resolvedModelId,requestedModel:store.settings.embeddingModel,localEmbeddingModel:store.settings.localEmbeddingModel},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
 
       persistStore();
       console.log('[PDFHandlers] Settings updated');

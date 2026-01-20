@@ -83,6 +83,30 @@ const PRONOUN_PATTERNS = [
   /\bthose\b/gi,
 ];
 
+/** 
+ * Overview/summary query patterns - queries that ask about the document as a whole
+ * These should retrieve from early pages (intro/abstract) with lower score thresholds
+ */
+const OVERVIEW_QUERY_PATTERNS = [
+  /what is this (document|pdf|file|paper) about/i,
+  /what does this (document|pdf|file|paper) (cover|contain|discuss|describe|explain)/i,
+  /summarize (this|the) (document|pdf|file|paper)/i,
+  /give (me )?(a |an )?(brief )?(summary|overview|synopsis)/i,
+  /^(summary|overview|synopsis|abstract)$/i,
+  /what('s| is) the (main|key) (topic|subject|point|idea)/i,
+  /tell me about this (document|pdf|file|paper)/i,
+  /^what is this about\??$/i,
+  /describe (this|the) (document|pdf|file|paper)/i,
+];
+
+/**
+ * Check if query is asking for a document overview/summary
+ */
+function isOverviewQuery(query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  return OVERVIEW_QUERY_PATTERNS.some(pattern => pattern.test(normalizedQuery));
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -292,9 +316,10 @@ export class RAGEngine implements IRAGEngine {
       await this.vecStore.initialize();
 
       // Step 2: Check if document is already indexed (unless force reindex)
-      if (!options.forceReindex) {
-        const existingDoc = await this.vecStore.getDocument(docId);
-        if (existingDoc) {
+      const existingDoc = await this.vecStore.getDocument(docId);
+      if (existingDoc) {
+        if (!options.forceReindex) {
+          // Document already indexed and no force reindex - return existing
           const status: IndexStatus = {
             isIndexed: true,
             chunkCount: existingDoc.chunkCount,
@@ -312,6 +337,17 @@ export class RAGEngine implements IRAGEngine {
             chunkCount: existingDoc.chunkCount,
             indexingTimeMs: Date.now() - startTime,
           };
+        } else {
+          // Force reindex requested - delete existing index first to prevent duplicates
+          log('info', 'Force reindex requested. Removing existing index...');
+          try {
+            await this.vecStore.deleteDocument(docId);
+            this.chunkMgr.deleteChunksForDocument(docId);
+            this.indexingStatus.delete(docId);
+            log('success', 'Existing index removed successfully');
+          } catch (deleteError: any) {
+            log('warning', `Could not remove existing index: ${deleteError.message?.substring(0, 50) || 'Unknown error'}`);
+          }
         }
       }
 
@@ -708,20 +744,61 @@ export class RAGEngine implements IRAGEngine {
 
   /**
    * Get index status asynchronously (checks vector store)
+   * Includes backward compatibility for old document ID formats
    */
   async getIndexStatusAsync(docId: string): Promise<IndexStatus> {
+    console.log('[RAGEngine] 🔍 getIndexStatusAsync called for:', docId);
+
     // Check in-memory status first
     const memStatus = this.indexingStatus.get(docId);
     if (memStatus?.isIndexed || memStatus?.isIndexing) {
+      console.log('[RAGEngine]    Found in-memory status:', memStatus.isIndexed ? 'indexed' : 'indexing');
       return memStatus;
     }
 
     // Check vector store
     try {
       await this.vecStore.initialize();
-      const doc = await this.vecStore.getDocument(docId);
+
+      // First try exact document ID match
+      let doc = await this.vecStore.getDocument(docId);
+      console.log('[RAGEngine]    Exact match result:', doc ? 'found' : 'not found');
+
+      // If not found, try backward-compatible lookup by hash prefix
+      // Old format: doc_{hash16chars}_{timestamp}
+      // New format: doc_{hash32chars}
+      // Both share the same hash prefix
+      if (!doc) {
+        const hashMatch = docId.match(/^doc_([a-f0-9]+)/);
+        if (hashMatch) {
+          const hashPrefix = hashMatch[1].substring(0, 16);
+          console.log('[RAGEngine]    Trying backward-compatible lookup with hash prefix:', hashPrefix);
+
+          // Get all documents and find one matching the hash prefix
+          const allDocs = await this.vecStore.getAllDocuments();
+          console.log('[RAGEngine]    Total documents in vector store:', allDocs.length);
+
+          if (allDocs.length > 0) {
+            console.log('[RAGEngine]    Document IDs in store:', allDocs.map(d => d.id).join(', '));
+          }
+
+          for (const candidate of allDocs) {
+            // Check if this document's ID starts with the same hash prefix
+            const candidateMatch = candidate.id.match(/^doc_([a-f0-9]+)/);
+            if (candidateMatch) {
+              const candidatePrefix = candidateMatch[1].substring(0, 16);
+              if (candidatePrefix === hashPrefix) {
+                console.log('[RAGEngine]    ✓ Found indexed document with legacy ID:', candidate.id);
+                doc = candidate;
+                break;
+              }
+            }
+          }
+        }
+      }
 
       if (doc) {
+        console.log('[RAGEngine]    ✓ Document is indexed with', doc.chunkCount, 'chunks');
         const status: IndexStatus = {
           isIndexed: true,
           chunkCount: doc.chunkCount,
@@ -733,6 +810,8 @@ export class RAGEngine implements IRAGEngine {
         this.indexingStatus.set(docId, status);
         return status;
       }
+
+      console.log('[RAGEngine]    ✗ Document not found in vector store');
     } catch (error) {
       console.error('[RAGEngine] Error checking index status:', error);
     }
@@ -742,6 +821,37 @@ export class RAGEngine implements IRAGEngine {
       chunkCount: 0,
       isIndexing: false,
     };
+  }
+
+  /**
+   * Find document by hash prefix (backward compatible)
+   * Returns the actual document ID used in the vector store
+   */
+  async findDocumentIdByHashPrefix(docId: string): Promise<string | null> {
+    try {
+      await this.vecStore.initialize();
+
+      // First check exact match
+      const doc = await this.vecStore.getDocument(docId);
+      if (doc) return docId;
+
+      // Try prefix match
+      const hashMatch = docId.match(/^doc_([a-f0-9]+)/);
+      if (!hashMatch) return null;
+
+      const hashPrefix = hashMatch[1].substring(0, 16);
+      const allDocs = await this.vecStore.getAllDocuments();
+
+      for (const candidate of allDocs) {
+        const candidateMatch = candidate.id.match(/^doc_([a-f0-9]+)/);
+        if (candidateMatch && candidateMatch[1].substring(0, 16) === hashPrefix) {
+          return candidate.id;
+        }
+      }
+    } catch (error) {
+      console.error('[RAGEngine] Error finding document by hash:', error);
+    }
+    return null;
   }
 
   /**
@@ -1316,10 +1426,13 @@ export class RAGEngine implements IRAGEngine {
     // Ensure vector store is initialized
     await this.vecStore.initialize();
 
+    // Check if this is an overview/summary query
+    const isOverview = isOverviewQuery(query);
+
     // Rewrite query with context
     const processedQuery = this.rewriteQuery(query, context);
 
-    // Build query options
+    // Build query options with special handling for overview queries
     const queryOpts: QueryOptions = {
       topK: options.topK ?? this.settings.topK,
       minScore: options.minScore ?? this.settings.minConfidenceScore,
@@ -1329,8 +1442,19 @@ export class RAGEngine implements IRAGEngine {
       sectionFilter: options.sectionFilter,
     };
 
-    // Apply view context filter
-    if (context?.viewState && hasViewReference(query)) {
+    // Special handling for overview queries: prioritize first pages and lower threshold
+    if (isOverview) {
+      console.log('[RAGEngine] 📋 Overview query detected - using first-pages strategy');
+      // For overview queries, prioritize first 5 pages (intro/abstract)
+      queryOpts.pageFilter = { start: 1, end: 5 };
+      // Lower minScore for overview queries since we want broad coverage
+      queryOpts.minScore = Math.min(queryOpts.minScore ?? 0.3, 0.2);
+      // Increase topK for overview to get more context
+      queryOpts.topK = Math.max(queryOpts.topK ?? 8, 10);
+    }
+
+    // Apply view context filter (but not for overview queries)
+    if (!isOverview && context?.viewState && hasViewReference(query)) {
       queryOpts.pageFilter = {
         start: context.viewState.currentPage,
         end: context.viewState.currentPage,
@@ -1338,13 +1462,43 @@ export class RAGEngine implements IRAGEngine {
     }
 
     // Retrieve with confidence from all specified documents
-    console.log('[RAGEngine] Retrieving context for query:', processedQuery, 'docIds:', docIds);
-    const retrievalResult = await this.retrieval.retrieveWithConfidence(
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
+    console.log('[RAGEngine] 🔍 RETRIEVAL START');
+    console.log('[RAGEngine]    Query: "' + query.substring(0, 80) + (query.length > 80 ? '...' : '') + '"');
+    console.log('[RAGEngine]    Processed query: "' + processedQuery.substring(0, 80) + (processedQuery.length > 80 ? '...' : '') + '"');
+    console.log('[RAGEngine]    Document IDs:', docIds);
+    console.log('[RAGEngine]    Options: topK=' + queryOpts.topK + ', minScore=' + queryOpts.minScore + ', hybrid=' + queryOpts.useHybrid);
+    if (isOverview) {
+      console.log('[RAGEngine]    📋 Overview mode: pageFilter=1-5, lowered minScore');
+    }
+
+    let retrievalResult = await this.retrieval.retrieveWithConfidence(
       processedQuery,
       docIds,
       queryOpts
     );
-    console.log('[RAGEngine] Retrieval result:', retrievalResult.results.length, 'chunks, confidence:', retrievalResult.confidence);
+
+    // If overview query got no results from first pages, retry without page filter
+    if (isOverview && retrievalResult.results.length === 0) {
+      console.log('[RAGEngine] ⚠️ Overview query found no results in first pages, retrying without page filter');
+      const retryOpts = { ...queryOpts, pageFilter: undefined };
+      retrievalResult = await this.retrieval.retrieveWithConfidence(
+        processedQuery,
+        docIds,
+        retryOpts
+      );
+    }
+
+    console.log('[RAGEngine] 📊 RETRIEVAL RESULTS');
+    console.log('[RAGEngine]    Chunks found: ' + retrievalResult.results.length);
+    console.log('[RAGEngine]    Confidence: ' + (retrievalResult.confidence * 100).toFixed(1) + '%');
+    console.log('[RAGEngine]    Low confidence: ' + retrievalResult.isLowConfidence);
+    if (retrievalResult.warning) {
+      console.log('[RAGEngine]    ⚠️ Warning: ' + retrievalResult.warning);
+    }
+    if (retrievalResult.results.length > 0) {
+      console.log('[RAGEngine]    Top chunk scores:', retrievalResult.results.slice(0, 3).map(r => r.score.toFixed(3)).join(', '));
+    }
 
     // Build document name map for cross-document scenarios
     const documentNameMap = await this.buildDocumentNameMap(docIds, retrievalResult.results);
@@ -1358,6 +1512,12 @@ export class RAGEngine implements IRAGEngine {
     };
 
     const builtContext = this.buildContext(retrievalResult.results, contextOptions);
+
+    console.log('[RAGEngine] 📝 CONTEXT BUILT');
+    console.log('[RAGEngine]    Sources included: ' + builtContext.includedSources.length);
+    console.log('[RAGEngine]    Context tokens: ~' + builtContext.tokenCount);
+    console.log('[RAGEngine]    Context length: ' + builtContext.contextString.length + ' chars');
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
 
     return {
       contextString: builtContext.contextString,

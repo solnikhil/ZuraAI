@@ -829,7 +829,7 @@ export interface ExportResult {
 export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   // Chunking
   chunkSize: 512,
-  chunkOverlap: 128,
+  chunkOverlap: 192, // Increased from 128 for better context preservation at chunk boundaries
   chunkingStrategy: 'semantic',
 
   // Embedding
@@ -839,17 +839,17 @@ export const DEFAULT_PDF_RAG_SETTINGS: PDFRAGSettings = {
   ollamaBaseUrl: 'http://127.0.0.1:11434',
 
   // Retrieval
-  topK: 5,
-  minConfidenceScore: 0.5,
+  topK: 8, // Increased from 5 for broader coverage on vague queries
+  minConfidenceScore: 0.3, // Lowered from 0.5 to reduce aggressive filtering of marginal matches
   useHybridSearch: true,
   hybridAlpha: 0.7,
   useReranker: true,
-  maxSourcesInContext: 8,
+  maxSourcesInContext: 10, // Increased from 8 to support higher topK
 
   // Grounding
   groundedModeEnabled: false,
   showLowConfidenceWarning: true,
-  lowConfidenceThreshold: 0.5,
+  lowConfidenceThreshold: 0.4, // Lowered from 0.5 to show warning earlier
 
   // Image processing
   processImages: true,
@@ -1046,18 +1046,22 @@ export interface ModelCacheStatus {
   isAvailable: boolean;
   /** Whether the model is cached locally (for local models) */
   isCached: boolean;
+  /** Whether the model needs to be downloaded before use */
+  needsDownload?: boolean;
   /** Whether the model is currently being downloaded */
   isDownloading: boolean;
   /** Download progress (0-100) if downloading */
   downloadProgress?: number;
   /** Size of the cached model in bytes (for local models) */
   cacheSizeBytes?: number;
+  /** Alternative size field (for compatibility) */
+  sizeBytes?: number;
   /** Timestamp when availability was last checked */
   lastCheckedAt: number;
   /** Error message if model is unavailable */
   errorMessage?: string;
   /** Whether the model requires an API key */
-  requiresApiKey: boolean;
+  requiresApiKey?: boolean;
   /** Whether the required API key is configured */
   hasApiKey?: boolean;
   /** Embedding dimensions for this model */

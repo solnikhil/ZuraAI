@@ -275,6 +275,9 @@ export class VectorStore implements IVectorStore {
    * 
    * Implements Requirements 6.5, 6.6
    * 
+   * Note: This method will delete any existing chunks for the same document(s)
+   * before adding the new chunks to prevent duplication.
+   * 
    * @param chunks - Array of chunk records to add
    */
   async addChunks(chunks: ChunkRecord[]): Promise<void> {
@@ -297,6 +300,9 @@ export class VectorStore implements IVectorStore {
       }
     }
 
+    // Get unique document IDs from the chunks being added
+    const documentIds = [...new Set(chunks.map(c => c.documentId))];
+
     // Prepare records
     const records = chunks.map(chunk => ({
       id: chunk.id,
@@ -317,9 +323,20 @@ export class VectorStore implements IVectorStore {
       this.chunksTable = await this.db.createTable(CHUNKS_TABLE, records, { schema });
       console.log('[VectorStore] Created chunks table with', records.length, 'chunks');
     } else {
-      // Add to existing table
+      // Delete existing chunks for these documents first to prevent duplicates
+      // This is a safety mechanism - the RAGEngine should already delete before re-indexing,
+      // but this ensures no duplicates even if that step is skipped
+      for (const docId of documentIds) {
+        try {
+          await this.chunksTable.delete(`"documentId" = '${docId}'`);
+        } catch {
+          // Ignore errors - document may not have existing chunks
+        }
+      }
+      
+      // Add new chunks
       await this.chunksTable.add(records);
-      console.log('[VectorStore] Added', records.length, 'chunks');
+      console.log('[VectorStore] Added', records.length, 'chunks for', documentIds.length, 'document(s)');
     }
   }
 
@@ -343,20 +360,72 @@ export class VectorStore implements IVectorStore {
     // Build query
     let query = this.chunksTable.query().nearestTo(queryVector).limit(limit);
 
-    // Apply document filter
+    // Apply document filter with backward compatibility for old ID formats
+    // Old format: doc_{hash16chars}_{timestamp}
+    // New format: doc_{hash32chars}
+    // Both share the same hash prefix, so we match by prefix for compatibility
     if (documentIds && documentIds.length > 0) {
-      const docFilter = documentIds.map(id => `"documentId" = '${id}'`).join(' OR ');
+      // Extract hash prefixes from document IDs for backward-compatible matching
+      const hashPrefixes = documentIds.map(id => {
+        // Extract the hash portion (after "doc_")
+        const match = id.match(/^doc_([a-f0-9]+)/);
+        if (match) {
+          // Use first 16 chars of hash as common prefix (shared between old and new formats)
+          return match[1].substring(0, 16);
+        }
+        return null;
+      }).filter((p): p is string => p !== null);
+
+      // Build filter that matches both exact IDs and prefix-based matches
+      const exactMatches = documentIds.map(id => `"documentId" = '${id}'`);
+      const prefixMatches = hashPrefixes.map(prefix => `"documentId" LIKE 'doc_${prefix}%'`);
+      const allFilters = [...exactMatches, ...prefixMatches];
+      const docFilter = [...new Set(allFilters)].join(' OR '); // Remove duplicates
       query = query.where(`(${docFilter})`);
+      console.log('[VectorStore]    Using backward-compatible document filter');
     }
 
-    // Debug: Check what's in the table first
-    const allRows = await this.chunksTable.query().limit(5).toArray();
-    console.log('[VectorStore] Debug - Sample rows in table:', allRows.length, 'first docId:', allRows[0]?.documentId);
+    // Debug: Check what's in the table and what document IDs exist
+    const allRows = await this.chunksTable.query().limit(100).toArray();
+    const uniqueDocIds = [...new Set(allRows.map(r => r.documentId))];
+    console.log('[VectorStore] 📊 Database state:');
+    console.log('[VectorStore]    Total chunks in sample: ' + allRows.length);
+    console.log('[VectorStore]    Document IDs in DB: ' + uniqueDocIds.join(', '));
+    console.log('[VectorStore]    Document IDs requested: ' + (documentIds?.join(', ') || 'ALL'));
+
+    // Check if requested IDs match what's in the DB (exact or prefix match)
+    if (documentIds && documentIds.length > 0) {
+      const matchingIds = documentIds.filter(id => uniqueDocIds.includes(id));
+      const missingIds = documentIds.filter(id => !uniqueDocIds.includes(id));
+
+      // Also check for prefix matches (backward compatibility)
+      const prefixMatches: string[] = [];
+      for (const reqId of missingIds) {
+        const match = reqId.match(/^doc_([a-f0-9]+)/);
+        if (match) {
+          const prefix = match[1].substring(0, 16);
+          const matchedInDb = uniqueDocIds.filter(dbId => dbId.startsWith(`doc_${prefix}`));
+          if (matchedInDb.length > 0) {
+            prefixMatches.push(`${reqId} → ${matchedInDb.join(', ')}`);
+          }
+        }
+      }
+
+      if (matchingIds.length > 0) {
+        console.log('[VectorStore]    ✓ Exact matches found:', matchingIds);
+      }
+      if (prefixMatches.length > 0) {
+        console.log('[VectorStore]    ✓ Prefix matches found (backward compat):', prefixMatches);
+      }
+      if (missingIds.length > 0 && prefixMatches.length === 0) {
+        console.log('[VectorStore]    ⚠️ MISMATCH: No exact or prefix matches for:', missingIds);
+      }
+    }
 
     // Execute search
-    console.log('[VectorStore] Vector search - limit:', limit, 'minScore:', minScore, 'documentIds:', documentIds);
+    console.log('[VectorStore]    Executing vector search with limit=' + limit + ', minScore=' + minScore);
     const results = await query.toArray();
-    console.log('[VectorStore] Vector search raw results:', results.length);
+    console.log('[VectorStore]    Raw results returned: ' + results.length);
 
     // Process results
     const processed: Array<{ id: string; score: number }> = [];
@@ -415,20 +484,36 @@ export class VectorStore implements IVectorStore {
       // Check if FTS index exists, create if not
       await this.ensureFTSIndex();
 
-      console.log('[VectorStore] BM25 search - queryText:', queryText.substring(0, 100), 'limit:', limit, 'documentIds:', documentIds);
+      console.log('[VectorStore] 📝 BM25 SEARCH');
+      console.log('[VectorStore]    Query text: "' + queryText.substring(0, 60) + (queryText.length > 60 ? '...' : '') + '"');
+      console.log('[VectorStore]    Document IDs requested: ' + (documentIds?.join(', ') || 'ALL'));
 
       // Build query with full-text search
       let query = this.chunksTable.query().nearestToText(queryText).limit(limit);
 
-      // Apply document filter
+      // Apply document filter with backward compatibility for old ID formats
       if (documentIds && documentIds.length > 0) {
-        const docFilter = documentIds.map(id => `"documentId" = '${id}'`).join(' OR ');
+        // Extract hash prefixes from document IDs for backward-compatible matching
+        const hashPrefixes = documentIds.map(id => {
+          const match = id.match(/^doc_([a-f0-9]+)/);
+          if (match) {
+            return match[1].substring(0, 16);
+          }
+          return null;
+        }).filter((p): p is string => p !== null);
+
+        // Build filter that matches both exact IDs and prefix-based matches
+        const exactMatches = documentIds.map(id => `"documentId" = '${id}'`);
+        const prefixMatches = hashPrefixes.map(prefix => `"documentId" LIKE 'doc_${prefix}%'`);
+        const allFilters = [...exactMatches, ...prefixMatches];
+        const docFilter = [...new Set(allFilters)].join(' OR ');
         query = query.where(`(${docFilter})`);
+        console.log('[VectorStore]    BM25: Using backward-compatible document filter');
       }
 
       // Execute search
       const results = await query.toArray();
-      console.log('[VectorStore] BM25 search raw results:', results.length);
+      console.log('[VectorStore]    BM25 results returned: ' + results.length);
 
       // Process results
       const processed: Array<{ id: string; score: number }> = [];
@@ -696,6 +781,43 @@ export class VectorStore implements IVectorStore {
       } catch (error) {
         console.error('[VectorStore] Error deleting document:', error);
       }
+    }
+  }
+
+  /**
+   * Delete only the chunks for a document (keeps the document record)
+   * 
+   * Useful for re-indexing where you want to replace chunks but keep
+   * the document metadata intact until new chunks are ready.
+   * 
+   * @param docId - Document ID whose chunks should be deleted
+   * @returns Number of chunks deleted (0 if none found or error)
+   */
+  async deleteChunksForDocument(docId: string): Promise<number> {
+    await this.ensureInitialized();
+
+    if (!this.chunksTable) {
+      return 0;
+    }
+
+    try {
+      // Get count before deletion for logging
+      const beforeCount = await this.chunksTable
+        .query()
+        .where(`"documentId" = '${docId}'`)
+        .toArray();
+      
+      const deleteCount = beforeCount.length;
+      
+      if (deleteCount > 0) {
+        await this.chunksTable.delete(`"documentId" = '${docId}'`);
+        console.log(`[VectorStore] Deleted ${deleteCount} chunks for document:`, docId);
+      }
+      
+      return deleteCount;
+    } catch (error) {
+      console.error('[VectorStore] Error deleting chunks for document:', error);
+      return 0;
     }
   }
 

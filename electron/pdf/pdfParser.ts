@@ -335,16 +335,18 @@ export class PDFParserService implements IPDFParserService {
   }
 
   /**
-   * Generate a unique document ID
-   * Uses a combination of file hash and timestamp for uniqueness
-   * 
+   * Generate a deterministic document ID
+   * Uses only the file hash to ensure the same document always gets the same ID.
+   * This is critical for RAG retrieval - indexed chunks use the document ID,
+   * so if the ID changes on reload, retrieval will fail.
+   *
    * @param fileHash - SHA-256 hash of the file
-   * @returns Unique document ID
+   * @returns Deterministic document ID
    */
   private generateDocumentId(fileHash: string): string {
-    // Use first 16 characters of hash + timestamp for uniqueness
-    const timestamp = Date.now().toString(36);
-    return `doc_${fileHash.substring(0, 16)}_${timestamp}`;
+    // Use only the file hash for deterministic IDs
+    // This ensures the same file always gets the same ID, even after app restart
+    return `doc_${fileHash.substring(0, 32)}`;
   }
 
   /**
@@ -544,11 +546,14 @@ export class PDFParserService implements IPDFParserService {
 
     // Calculate file hash for cache validation (Requirement 6.7)
     const fileHash = await this.calculateFileHash(filePath);
+    console.log(`[PDFParser] 📄 Loading document: ${path.basename(filePath)}`);
+    console.log(`[PDFParser]    File hash: ${fileHash.substring(0, 16)}...`);
 
     // Check if document is already loaded with same hash
     for (const [docId, loaded] of this.loadedDocuments) {
       if (loaded.document.fileHash === fileHash) {
         // Return existing document
+        console.log(`[PDFParser] ✓ Document already loaded in memory with ID: ${docId}`);
         return loaded.document;
       }
     }
@@ -618,10 +623,12 @@ export class PDFParserService implements IPDFParserService {
       isFullyLoaded: false,
     };
     this.loadedDocuments.set(docId, loadedPDF);
-    
-    console.log(`[PDFParser] Document loaded and stored with ID: ${docId}`);
-    console.log(`[PDFParser] Instance ID: ${this.instanceId}`);
-    console.log(`[PDFParser] Current loaded documents count: ${this.loadedDocuments.size}`);
+
+    console.log(`[PDFParser] ✓ Document loaded successfully`);
+    console.log(`[PDFParser]    Document ID: ${docId}`);
+    console.log(`[PDFParser]    Pages: ${document.pageCount}`);
+    console.log(`[PDFParser]    Title: ${metadata.title || '(none)'}`);
+    console.log(`[PDFParser]    Loaded documents in memory: ${this.loadedDocuments.size}`);
 
     return document;
   }

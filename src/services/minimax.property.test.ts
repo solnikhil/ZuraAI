@@ -277,7 +277,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should preserve tool call IDs when accumulating across chunks', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     toolCallIdArb,
                     functionNameArb,
                     jsonArgumentsArb,
@@ -320,7 +320,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should accumulate partial arguments into complete JSON', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     toolCallIdArb,
                     functionNameArb,
                     jsonArgumentsArb,
@@ -363,7 +363,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should handle multiple concurrent tool calls with different indices', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(
                         fc.record({
                             id: toolCallIdArb,
@@ -414,7 +414,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should correctly identify tool_calls finish reason', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.constantFrom('tool_calls', 'stop', 'length', 'content_filter', null, undefined),
                     (finishReason) => {
                         const result = isToolCallsFinishReason(finishReason)
@@ -433,7 +433,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should filter out incomplete tool calls (missing id or name)', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(
                         fc.record({
                             hasId: fc.boolean(),
@@ -534,7 +534,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should extract text content from reasoning details', async () => {
             await fc.assert(
-                fc.asyncProperty(reasoningDetailsArb, (reasoningDetails) => {
+                fc.property(reasoningDetailsArb, (reasoningDetails) => {
                     // Create a mock chunk with reasoning details
                     const chunk: MiniMaxStreamChunk = {
                         id: 'test-chunk',
@@ -559,7 +559,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should map reasoning_details[].text to combined reasoning string', async () => {
             await fc.assert(
-                fc.asyncProperty(reasoningDetailsArb, (reasoningDetails) => {
+                fc.property(reasoningDetailsArb, (reasoningDetails) => {
                     // Extract reasoning text
                     const reasoningText = extractReasoningText(reasoningDetails)
                     
@@ -576,7 +576,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should correctly identify chunks with reasoning content', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.boolean(),
                     reasoningDetailsArb,
                     (hasReasoning, reasoningDetails) => {
@@ -603,7 +603,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should accumulate reasoning incrementally across chunks', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(reasoningTextArb, { minLength: 2, maxLength: 10 }),
                     (textParts) => {
                         const accumulator = new ReasoningAccumulator()
@@ -630,7 +630,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should preserve order when accumulating reasoning with different indices', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(
                         fc.record({
                             index: reasoningIndexArb,
@@ -679,7 +679,7 @@ describe('MiniMax Service Property Tests', () => {
             // MiniMax sends delta text in each chunk (incremental)
             // Each chunk's reasoning_details[].text contains only the NEW text
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(reasoningTextArb, { minLength: 2, maxLength: 5 }),
                     (textParts) => {
                         const accumulator = new ReasoningAccumulator()
@@ -705,7 +705,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should return empty string when no reasoning accumulated', async () => {
             await fc.assert(
-                fc.asyncProperty(fc.constant(null), () => {
+                fc.property(fc.constant(null), () => {
                     const accumulator = new ReasoningAccumulator()
                     
                     // Property: Empty accumulator should return empty string
@@ -718,7 +718,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should handle undefined and null reasoning details gracefully', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.constantFrom(undefined, null, []),
                     (invalidInput) => {
                         // Test extractReasoningText with invalid input
@@ -734,7 +734,7 @@ describe('MiniMax Service Property Tests', () => {
 
         it('should handle reasoning details with missing text field', async () => {
             await fc.assert(
-                fc.asyncProperty(
+                fc.property(
                     fc.array(
                         fc.record({
                             type: fc.constant('reasoning.text'),

@@ -65,8 +65,8 @@ const DEFAULT_RRF_PARAMS: RRFParams = {
   bm25Weight: 0.3,
 };
 
-/** Low confidence threshold (default) */
-const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.5;
+/** Low confidence threshold (default) - lowered from 0.5 for better retrieval coverage */
+const DEFAULT_LOW_CONFIDENCE_THRESHOLD = 0.4;
 
 /** Chunk cache configuration (Requirements 19.5, 19.6) */
 const CHUNK_CACHE_MAX_SIZE = 500; // Maximum number of chunks to cache
@@ -639,6 +639,17 @@ export class RetrievalService implements IRetrievalService {
       expanded = expandQueryWithContext(original, context);
     }
 
+    // For short queries (< 4 words), add common document-related terms to improve matching
+    const wordCount = original.split(/\s+/).length;
+    if (wordCount < 4 && !hasViewRef) {
+      // Add generic document terms to help with broad queries
+      const shortQueryExpansion = this.expandShortQuery(original);
+      if (shortQueryExpansion !== original) {
+        expanded = shortQueryExpansion;
+        console.log('[RetrievalService] 📝 Short query expanded: "' + original + '" → "' + expanded + '"');
+      }
+    }
+
     // Extract keywords for BM25 search
     const keywords = extractKeywords(expanded);
 
@@ -663,6 +674,46 @@ export class RetrievalService implements IRetrievalService {
   }
 
   /**
+   * Expand short/vague queries with additional context for better matching
+   * 
+   * @param query - Original short query
+   * @returns Expanded query with additional terms
+   */
+  private expandShortQuery(query: string): string {
+    const normalized = query.toLowerCase().trim();
+    
+    // Patterns for common short queries and their expansions
+    const expansions: Array<{ pattern: RegExp; expansion: string }> = [
+      // Document overview queries
+      { pattern: /^(what|about|overview|summary)$/i, expansion: `${query} document content main topic` },
+      { pattern: /^tell me$/i, expansion: `${query} about document content` },
+      // Topic queries
+      { pattern: /^(topic|subject|theme)$/i, expansion: `main ${query} content discusses` },
+      // Author/metadata queries  
+      { pattern: /^(author|writer|by whom)$/i, expansion: `${query} written published created` },
+      // Date queries
+      { pattern: /^(date|when|year)$/i, expansion: `${query} published created written` },
+      // Conclusion/findings
+      { pattern: /^(conclusion|result|finding)s?$/i, expansion: `${query} summary main points outcome` },
+      // Introduction
+      { pattern: /^(intro|introduction|beginning)$/i, expansion: `${query} overview abstract purpose` },
+    ];
+
+    for (const { pattern, expansion } of expansions) {
+      if (pattern.test(normalized)) {
+        return expansion;
+      }
+    }
+
+    // For other short queries, add generic document context
+    if (normalized.length < 20) {
+      return `${query} document content`;
+    }
+
+    return query;
+  }
+
+  /**
    * Retrieve relevant chunks for a query
    * 
    * Implements Requirements 7.1, 7.2, 7.3, 7.5, 7.6, 18.2
@@ -678,23 +729,32 @@ export class RetrievalService implements IRetrievalService {
     options: QueryOptions = {}
   ): Promise<RetrievalResult[]> {
     const opts = { ...DEFAULT_QUERY_OPTIONS, ...options };
-    
+
+    console.log('[RetrievalService] ───────────────────────────────────────────────');
+    console.log('[RetrievalService] 🔎 SEARCH START');
+    console.log('[RetrievalService]    Query: "' + query.substring(0, 60) + (query.length > 60 ? '...' : '') + '"');
+    console.log('[RetrievalService]    Document IDs to search:', docIds);
+
     // Process the query
     const processedQuery = await this.processQuery(query);
-    
+    console.log('[RetrievalService]    Expanded query: "' + processedQuery.expanded.substring(0, 60) + '"');
+    console.log('[RetrievalService]    Keywords:', processedQuery.keywords.slice(0, 5).join(', '));
+
     // Check if we should use fallback mode (BM25-only)
     const useFallback = embeddingFallbackManager.isInFallbackMode();
-    
+
     // Determine search limit (get more candidates for reranking)
-    const searchLimit = opts.useReranker 
+    const searchLimit = opts.useReranker
       ? Math.max(opts.topK * 4, this.rerankerConfig.topN)
       : opts.topK;
 
     let searchResults: Array<{ id: string; score: number }>;
+    let searchMethod = 'unknown';
 
     if (useFallback) {
       // Fallback mode: BM25-only search (Requirement 18.2)
-      console.log('[RetrievalService] Using BM25-only fallback mode');
+      searchMethod = 'BM25-only (fallback)';
+      console.log('[RetrievalService]    ⚠️ Using BM25-only fallback mode');
       searchResults = await this.vectorStore.bm25Search({
         queryText: processedQuery.expanded,
         limit: searchLimit,
@@ -703,11 +763,13 @@ export class RetrievalService implements IRetrievalService {
       });
     } else {
       // Try to generate query embedding
+      console.log('[RetrievalService]    Generating query embedding...');
       const queryEmbedding = await generateEmbeddingWithFallback(processedQuery.expanded);
-      
+
       if (queryEmbedding === null) {
         // Embedding failed, use BM25-only fallback
-        console.log('[RetrievalService] Embedding generation failed, falling back to BM25-only');
+        searchMethod = 'BM25-only (embedding failed)';
+        console.log('[RetrievalService]    ⚠️ Embedding generation failed, falling back to BM25-only');
         searchResults = await this.vectorStore.bm25Search({
           queryText: processedQuery.expanded,
           limit: searchLimit,
@@ -716,6 +778,9 @@ export class RetrievalService implements IRetrievalService {
         });
       } else if (opts.useHybrid) {
         // Hybrid search: vector + BM25 with RRF
+        searchMethod = 'Hybrid (vector + BM25)';
+        console.log('[RetrievalService]    Using hybrid search (vector + BM25)');
+        console.log('[RetrievalService]    Embedding dimensions:', queryEmbedding.length);
         searchResults = await this.vectorStore.hybridSearch(
           {
             queryVector: queryEmbedding,
@@ -734,6 +799,8 @@ export class RetrievalService implements IRetrievalService {
         );
       } else {
         // Vector-only search
+        searchMethod = 'Vector-only';
+        console.log('[RetrievalService]    Using vector-only search');
         searchResults = await this.vectorStore.vectorSearch({
           queryVector: queryEmbedding,
           limit: searchLimit,
@@ -744,7 +811,36 @@ export class RetrievalService implements IRetrievalService {
       }
     }
 
-    console.log('[RetrievalService] Search results:', searchResults.length, 'chunks found');
+    console.log('[RetrievalService] 📦 SEARCH RESULTS');
+    console.log('[RetrievalService]    Method: ' + searchMethod);
+    console.log('[RetrievalService]    Chunks found: ' + searchResults.length);
+    if (searchResults.length > 0) {
+      console.log('[RetrievalService]    Top scores:', searchResults.slice(0, 5).map(r => r.score.toFixed(3)).join(', '));
+    } else {
+      console.log('[RetrievalService]    ⚠️ NO CHUNKS FOUND - check if document IDs match indexed documents');
+    }
+
+    // BM25 fallback: If hybrid/vector search returned no results, try BM25-only with lower threshold
+    let usedBM25Fallback = false;
+    if (searchResults.length === 0 && !useFallback && searchMethod !== 'BM25-only (embedding failed)') {
+      console.log('[RetrievalService] 🔄 Attempting BM25 fallback search...');
+      const bm25Results = await this.vectorStore.bm25Search({
+        queryText: processedQuery.expanded,
+        limit: searchLimit,
+        documentIds: docIds.length > 0 ? docIds : undefined,
+        pageRange: opts.pageFilter,
+      });
+      
+      if (bm25Results.length > 0) {
+        searchResults = bm25Results;
+        searchMethod = 'BM25-only (fallback after empty results)';
+        usedBM25Fallback = true;
+        console.log('[RetrievalService] ✅ BM25 fallback found ' + bm25Results.length + ' results');
+        console.log('[RetrievalService]    Top scores:', bm25Results.slice(0, 5).map(r => r.score.toFixed(3)).join(', '));
+      } else {
+        console.log('[RetrievalService] ⚠️ BM25 fallback also found no results');
+      }
+    }
 
     // Fetch full chunk records (with caching - Requirements 19.5, 19.6)
     const chunkIds = searchResults.map(r => r.id);
@@ -770,6 +866,7 @@ export class RetrievalService implements IRetrievalService {
 
     // Build retrieval results
     let results: RetrievalResult[] = [];
+    const isBM25Mode = useFallback || usedBM25Fallback;
     
     for (const searchResult of searchResults) {
       const chunkRecord = chunkMap.get(searchResult.id);
@@ -782,8 +879,8 @@ export class RetrievalService implements IRetrievalService {
       results.push({
         chunk,
         score: searchResult.score,
-        vectorScore: useFallback ? undefined : searchResult.score, // Will be updated if hybrid
-        bm25Score: useFallback ? searchResult.score : undefined,
+        vectorScore: isBM25Mode ? undefined : searchResult.score, // Will be updated if hybrid
+        bm25Score: isBM25Mode ? searchResult.score : undefined,
         rerankerScore: undefined,
       });
     }
@@ -792,8 +889,8 @@ export class RetrievalService implements IRetrievalService {
     results = this.applyMetadataFilters(results, opts);
 
     // Apply reranking if enabled and not in fallback mode
-    // Note: Reranking requires embeddings, so skip in fallback mode
-    if (opts.useReranker && this.rerankerConfig.enabled && !useFallback) {
+    // Note: Reranking requires embeddings, so skip in BM25 fallback mode
+    if (opts.useReranker && this.rerankerConfig.enabled && !isBM25Mode) {
       results = await this.reranker.rerank(query, results, this.rerankerConfig);
     }
 

@@ -1419,7 +1419,7 @@ export async function getAllModelsStatus(
 
   // Also fetch dynamically installed Ollama models
   try {
-    const ollamaModels = await listOllamaModels();
+    const ollamaModels = await listOllamaModels(embeddingService.getOllamaBaseUrl());
     const knownModelNames = new Set(models.map(m => m.modelName.toLowerCase()));
     
     for (const ollamaModel of ollamaModels) {
@@ -1439,6 +1439,7 @@ export async function getAllModelsStatus(
           dimensions: 768, // Default, will be determined at runtime
           isAvailable: true, // It's in the Ollama list, so it's available
           isCached: true,
+          isDownloading: false,
           needsDownload: false,
           lastCheckedAt: Date.now(),
           sizeBytes: ollamaModel.size,
