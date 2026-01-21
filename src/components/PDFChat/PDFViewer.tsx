@@ -1,49 +1,17 @@
 /**
- * PDF Viewer Component using react-pdf v10.x
- * 
- * Features:
- * - Proper worker version matching
- * - Promise.withResolvers polyfill
- * - CMap configuration for font rendering
- * - DataCloneError prevention
- * - Lazy loading pages
- * - Zoom and Navigation
+ * PDF Viewer - Minimal Test Version
  */
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
 
 import type { PDFViewerProps } from './types';
-import type { BoundingBox, Citation, TextSelection } from '../../types/pdf';
-import { Star, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from '../icons';
+import { Star, ZoomIn, ZoomOut } from '../icons';
 import './PDFViewer.css';
 
-// Polyfill Promise.withResolvers for pdfjs-dist v5.x
-if (typeof Promise.withResolvers === 'undefined') {
-  if (typeof window !== 'undefined') {
-    // @ts-expect-error Polyfill
-    window.Promise.withResolvers = function () {
-      let resolve!: (value?: unknown) => void;
-      let reject!: (reason?: unknown) => void;
-      const promise = new Promise<unknown>((res, rej) => {
-        resolve = res;
-        reject = rej;
-      });
-      return { promise, resolve, reject };
-    };
-  }
-}
-
-
-
-// Configure PDF.js worker in the same module as Document/Page.
-// Use bundler-resolved URL (works in Electron + Vite).
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
-// Constants
 export const MIN_ZOOM = 25;
 export const MAX_ZOOM = 400;
 export const DEFAULT_ZOOM = 100;
@@ -51,192 +19,248 @@ export const ZOOM_STEP = 25;
 
 export function PDFViewer({
   documentId,
-  onTextSelect,
-  highlightedCitations,
   onPageChange,
   currentPage = 1,
   zoomLevel = DEFAULT_ZOOM,
   onZoomChange,
-  autoFit = true,
   isStarred,
   onToggleStar,
 }: PDFViewerProps) {
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
-  const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [numPages, setNumPages] = useState(0);
+  const [documentFile, setDocumentFile] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const documentWrapperRef = useRef<HTMLDivElement | null>(null);
+  
+  // Middle mouse button panning state
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
 
-  // react-pdf + pdf.js can transfer ArrayBuffers to the worker (detaching them).
-  // Using an object URL avoids structured-clone of buffers entirely.
-  const pdfFile = useMemo(() => pdfObjectUrl, [pdfObjectUrl]);
-
-  // Load PDF Data
+  // Load PDF
   useEffect(() => {
-    let isMounted = true;
-    setPdfBlob(null);
-    setPdfObjectUrl(null);
-    setError(null);
+    let cancelled = false;
+    let objectUrl: string | null = null;
 
-     async function loadPdf() {
-       try {
-         const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
-         if (isMounted && result) {
-           // In dev, pdf.js may transfer ArrayBuffers to the worker (detaching them).
-           // Copy to a new buffer and wrap in a Blob to keep it stable.
-           const rawData = result.data || result;
-           const buffer = new Uint8Array(rawData);
-           const bufferCopy = new Uint8Array(buffer.length);
-           bufferCopy.set(buffer);
-           setPdfBlob(new Blob([bufferCopy], { type: 'application/pdf' }));
-         }
-       } catch (err) {
-         if (isMounted) {
-           console.error('Failed to load PDF data:', err);
-           setError(err instanceof Error ? err : new Error('Failed to load PDF'));
-         }
-       }
-     }
+    async function loadPdf() {
+      setIsLoading(true);
+      setError(null);
 
+      try {
+        const result = await window.ipcRenderer.invoke('pdf:get-file-data', documentId);
+        if (cancelled || !result) return;
 
-    if (documentId) {
-      loadPdf();
+        const rawData = result?.data ? new Uint8Array(result.data) : new Uint8Array(result);
+        const data = new Uint8Array(rawData.length);
+        data.set(rawData);
+
+        const blob = new Blob([data], { type: 'application/pdf' });
+        objectUrl = URL.createObjectURL(blob);
+
+        // Get page count
+        const loadingTask = pdfjs.getDocument({ data: data.slice() });
+        const pdf = await loadingTask.promise;
+
+        if (cancelled) {
+          pdf.destroy();
+          return;
+        }
+
+        setNumPages(pdf.numPages);
+        setDocumentFile(objectUrl);
+        setIsLoading(false);
+        pdf.destroy();
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load');
+          setIsLoading(false);
+        }
+      }
     }
 
+    loadPdf();
     return () => {
-      isMounted = false;
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [documentId]);
 
-  // Turn the loaded Blob into an object URL for react-pdf.
-  useEffect(() => {
-    if (!pdfBlob) return;
-    const url = URL.createObjectURL(pdfBlob);
-    setPdfObjectUrl(url);
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [pdfBlob]);
+  const handleZoomIn = useCallback(() => {
+    onZoomChange?.(Math.min(zoomLevel + ZOOM_STEP, MAX_ZOOM));
+  }, [zoomLevel, onZoomChange]);
 
-  // Options for correct font rendering
-  const options = useMemo(() => ({
-    cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-    cMapPacked: true,
-    standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-    disableAutoFetch: true,
-    disableStream: true,
-  }), []);
+  const handleZoomOut = useCallback(() => {
+    onZoomChange?.(Math.max(zoomLevel - ZOOM_STEP, MIN_ZOOM));
+  }, [zoomLevel, onZoomChange]);
 
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
-    setNumPages(numPages);
-    setError(null);
-  }
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      const wrapper = documentWrapperRef.current;
+      if (!wrapper) return;
 
-  function onDocumentLoadError(err: Error) {
-    console.error('PDF Load Error:', err);
-    // Surface this in the UI so we don't end up with a silent blank viewer.
-    setError(err);
-  }
+      if (event.ctrlKey) {
+        event.preventDefault();
+        const delta = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+        const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel + delta));
+        if (nextZoom !== zoomLevel) {
+          onZoomChange?.(nextZoom);
+        }
+        return;
+      }
 
-  // Handle zoom changes
-  const handleZoomIn = () => {
-    const newZoom = Math.min(zoomLevel + ZOOM_STEP, MAX_ZOOM);
-    onZoomChange?.(newZoom);
-  };
+      if (event.altKey) {
+        event.preventDefault();
+        // Use deltaY for horizontal scrolling (Alt+scroll converts vertical to horizontal)
+        wrapper.scrollLeft += event.deltaY;
+        return;
+      }
 
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoomLevel - ZOOM_STEP, MIN_ZOOM);
-    onZoomChange?.(newZoom);
-  };
+      if (event.shiftKey) {
+        event.preventDefault();
+        // On Windows/some browsers, Shift+scroll may already set deltaX
+        // Use whichever delta is non-zero, preferring deltaY for consistency
+        // Note: deltaY > 0 = scroll down = pan right, deltaY < 0 = scroll up = pan left
+        const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+        wrapper.scrollLeft += delta;
+      }
+    },
+    [zoomLevel, onZoomChange]
+  );
 
-  if (error) {
+  // Middle mouse button panning handlers
+  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    // Middle mouse button (button === 1)
+    if (event.button === 1) {
+      event.preventDefault();
+      const wrapper = documentWrapperRef.current;
+      if (!wrapper) return;
+      
+      setIsPanning(true);
+      panStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: wrapper.scrollLeft,
+        scrollTop: wrapper.scrollTop,
+      };
+      wrapper.style.cursor = 'grabbing';
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning || !panStartRef.current) return;
+    
+    const wrapper = documentWrapperRef.current;
+    if (!wrapper) return;
+
+    event.preventDefault();
+    const deltaX = event.clientX - panStartRef.current.x;
+    const deltaY = event.clientY - panStartRef.current.y;
+    
+    wrapper.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+    wrapper.scrollTop = panStartRef.current.scrollTop - deltaY;
+  }, [isPanning]);
+
+  const handleMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button === 1 || isPanning) {
+      setIsPanning(false);
+      panStartRef.current = null;
+      const wrapper = documentWrapperRef.current;
+      if (wrapper) {
+        wrapper.style.cursor = '';
+      }
+    }
+  }, [isPanning]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPanning) {
+      setIsPanning(false);
+      panStartRef.current = null;
+      const wrapper = documentWrapperRef.current;
+      if (wrapper) {
+        wrapper.style.cursor = '';
+      }
+    }
+  }, [isPanning]);
+
+  if (isLoading) {
     return (
-      <div className="pdf-viewer-error">
-        <p>Failed to load PDF</p>
-        <p>{error.message}</p>
+      <div className="pdf-viewer-container">
+        <div className="pdf-viewer-loading">
+          <div className="pdf-viewer-loading-spinner" />
+          <span>Loading...</span>
+        </div>
       </div>
     );
   }
 
-  if (!pdfObjectUrl) {
+  if (error || !documentFile) {
     return (
-      <div className="pdf-viewer-loading">
-        <div className="pdf-viewer-spinner" />
-        <span>Loading PDF...</span>
+      <div className="pdf-viewer-container">
+        <div className="pdf-viewer-error">
+          <p>{error || 'No document'}</p>
+        </div>
       </div>
     );
   }
+
+  const pageWidth = Math.round(700 * (zoomLevel / 100));
 
   return (
-    <div className="pdf-viewer-container" ref={containerRef}>
-      {/* Toolbar */}
+    <div className="pdf-viewer-container">
+      {/* Controls */}
       <div className="pdf-viewer-controls">
         <button
           className="pdf-viewer-star-button"
           onClick={onToggleStar}
-          title={isStarred ? "Remove Star" : "Star Document"}
           aria-pressed={isStarred}
+          type="button"
         >
-          <Star fill={isStarred ? "currentColor" : "none"} size={20} />
+          <Star fill={isStarred ? 'currentColor' : 'none'} size={20} />
         </button>
 
         <div className="pdf-viewer-zoom">
-          <button className="pdf-viewer-zoom-button" onClick={handleZoomOut} disabled={zoomLevel <= MIN_ZOOM}>
+          <button className="pdf-viewer-zoom-button" onClick={handleZoomOut} disabled={zoomLevel <= MIN_ZOOM} type="button">
             <ZoomOut size={18} />
           </button>
           <span className="pdf-viewer-zoom-level">{zoomLevel}%</span>
-          <button className="pdf-viewer-zoom-button" onClick={handleZoomIn} disabled={zoomLevel >= MAX_ZOOM}>
+          <button className="pdf-viewer-zoom-button" onClick={handleZoomIn} disabled={zoomLevel >= MAX_ZOOM} type="button">
             <ZoomIn size={18} />
           </button>
         </div>
 
         <div className="pdf-viewer-page-info">
-          <span>Page</span>
-          <span className="pdf-viewer-page-total">
-            {currentPage} of {numPages || '--'}
-          </span>
+          Page {currentPage} of {numPages}
         </div>
       </div>
 
-      {/* Document Area */}
-      <div className="pdf-viewer-document-wrapper">
+      {/* Single Document with all pages - like how react-pdf is designed */}
+      <div
+        className="pdf-viewer-document-wrapper"
+        ref={documentWrapperRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
         <Document
-          file={pdfFile}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          options={options}
-          className="pdf-viewer-document"
-          loading={
-            <div className="pdf-viewer-loading">
-              <div className="pdf-viewer-loading-spinner" />
-            </div>
-          }
-          error={
-            <div className="pdf-viewer-error">
-              Failed to render PDF document.
-            </div>
-          }
+          file={documentFile}
+          onLoadSuccess={(pdf) => console.log('[PDFViewer] Document loaded:', pdf.numPages)}
+          onLoadError={(err) => console.error('[PDFViewer] Document error:', err)}
+          loading={<div>Loading document...</div>}
+          error={<div>Error loading document</div>}
         >
-          {Array.from(new Array(numPages), (el, index) => (
-            <div
-              key={`page_${index + 1}`}
-              id={`page_${index + 1}`}
-              className="pdf-viewer-page-container"
-              style={{ margin: '20px auto' }}
-            >
+          {Array.from({ length: numPages }, (_, i) => (
+            <div key={i + 1} className="pdf-viewer-page-container" style={{ marginBottom: 16 }}>
               <Page
-                pageNumber={index + 1}
-                scale={zoomLevel / 100}
-                className="pdf-viewer-page"
+                pageNumber={i + 1}
+                width={pageWidth}
                 renderTextLayer={false}
-                renderAnnotationLayer={true}
-                onMouseDown={() => onPageChange?.(index + 1)}
-                loading={
-                  <div className="pdf-viewer-page-loading">
-                    <div className="pdf-viewer-loading-spinner" />
-                  </div>
-                }
-                error={<div className="pdf-viewer-page-error">Failed to load page.</div>}
+                renderAnnotationLayer={false}
+                onLoadSuccess={() => console.log(`[PDFViewer] Page ${i + 1} loaded`)}
+                onRenderSuccess={() => console.log(`[PDFViewer] Page ${i + 1} rendered`)}
+                onRenderError={(err) => console.error(`[PDFViewer] Page ${i + 1} render error:`, err)}
+                loading={<div style={{ width: pageWidth, height: pageWidth * 1.3, background: '#eee' }}>Loading page {i + 1}...</div>}
+                error={<div style={{ width: pageWidth, height: pageWidth * 1.3, background: '#fee' }}>Error page {i + 1}</div>}
               />
             </div>
           ))}

@@ -28,7 +28,8 @@
       "Bash(where /R \"C:\\\\Users\\\\Nikhil\\\\AppData\" sessions.json)",
       "Bash(findstr:*)",
       "Bash(dir:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find:*)"
     ]
   }
 }
