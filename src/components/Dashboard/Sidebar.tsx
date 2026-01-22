@@ -779,12 +779,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     {navItems.map((item, index) => (
                         <button
                             key={item.id}
-                            onClick={() => {
-                                // #region agent log
-                                fetch('http://127.0.0.1:7242/ingest/a06d2b6c-5514-4a1c-82da-b1c2599514d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Sidebar.tsx:settings-nav-click',message:'settings-nav-click',data:{itemId:item.id,view,activeSettingsSection,hasUnsavedSettings:!!hasUnsavedSettings},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-                                // #endregion
-                                onNavigateSettings(item.id)
-                            }}
+                            onClick={() => onNavigateSettings(item.id)}
                             className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
                                 padding: isCollapsed ? '8px' : '10px 12px',

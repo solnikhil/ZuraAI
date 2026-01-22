@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/TextLayer.css';
 import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 import type { PDFViewerProps } from './types';
@@ -25,6 +26,7 @@ export function PDFViewer({
   onZoomChange,
   isStarred,
   onToggleStar,
+  onTextSelect,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState(0);
   const [documentFile, setDocumentFile] = useState<string | null>(null);
@@ -34,7 +36,44 @@ export function PDFViewer({
   
   // Middle mouse button panning state
   const [isPanning, setIsPanning] = useState(false);
+  const [isPanMode, setIsPanMode] = useState(false);
   const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsPanMode(true);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        setIsPanMode(false);
+      }
+    };
+
+    const handleBlur = () => {
+      setIsPanMode(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // Load PDF
   useEffect(() => {
@@ -126,60 +165,75 @@ export function PDFViewer({
     [zoomLevel, onZoomChange]
   );
 
+  const endPanning = useCallback(() => {
+    setIsPanning(false);
+    panStartRef.current = null;
+  }, []);
+
   // Middle mouse button panning handlers
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    // Middle mouse button (button === 1)
-    if (event.button === 1) {
-      event.preventDefault();
+    const isMiddleClick = event.button === 1;
+    const isPanClick = event.button === 0 && isPanMode;
+
+    if (!isMiddleClick && !isPanClick) {
+      return;
+    }
+
+    event.preventDefault();
+    const wrapper = documentWrapperRef.current;
+    if (!wrapper) return;
+
+    setIsPanning(true);
+    panStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      scrollLeft: wrapper.scrollLeft,
+      scrollTop: wrapper.scrollTop,
+    };
+  }, [isPanMode]);
+
+  useEffect(() => {
+    if (!isPanning) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!panStartRef.current) {
+        return;
+      }
+
       const wrapper = documentWrapperRef.current;
       if (!wrapper) return;
-      
-      setIsPanning(true);
+
+      event.preventDefault();
+      const deltaX = event.clientX - panStartRef.current.x;
+      const deltaY = event.clientY - panStartRef.current.y;
+
+      wrapper.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+      wrapper.scrollTop = panStartRef.current.scrollTop - deltaY;
+
       panStartRef.current = {
         x: event.clientX,
         y: event.clientY,
         scrollLeft: wrapper.scrollLeft,
         scrollTop: wrapper.scrollTop,
       };
-      wrapper.style.cursor = 'grabbing';
-    }
-  }, []);
+    };
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPanning || !panStartRef.current) return;
-    
-    const wrapper = documentWrapperRef.current;
-    if (!wrapper) return;
-
-    event.preventDefault();
-    const deltaX = event.clientX - panStartRef.current.x;
-    const deltaY = event.clientY - panStartRef.current.y;
-    
-    wrapper.scrollLeft = panStartRef.current.scrollLeft - deltaX;
-    wrapper.scrollTop = panStartRef.current.scrollTop - deltaY;
-  }, [isPanning]);
-
-  const handleMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.button === 1 || isPanning) {
-      setIsPanning(false);
-      panStartRef.current = null;
-      const wrapper = documentWrapperRef.current;
-      if (wrapper) {
-        wrapper.style.cursor = '';
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.button === 0 || event.button === 1) {
+        endPanning();
       }
-    }
-  }, [isPanning]);
+    };
 
-  const handleMouseLeave = useCallback(() => {
-    if (isPanning) {
-      setIsPanning(false);
-      panStartRef.current = null;
-      const wrapper = documentWrapperRef.current;
-      if (wrapper) {
-        wrapper.style.cursor = '';
-      }
-    }
-  }, [isPanning]);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isPanning, endPanning]);
 
   if (isLoading) {
     return (
@@ -234,13 +288,16 @@ export function PDFViewer({
 
       {/* Single Document with all pages - like how react-pdf is designed */}
       <div
-        className="pdf-viewer-document-wrapper"
+        className={[
+          'pdf-viewer-document-wrapper',
+          isPanMode ? 'is-pan-mode' : '',
+          isPanning ? 'is-panning' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         ref={documentWrapperRef}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
       >
         <Document
           file={documentFile}
@@ -254,7 +311,7 @@ export function PDFViewer({
               <Page
                 pageNumber={i + 1}
                 width={pageWidth}
-                renderTextLayer={false}
+                renderTextLayer={true}
                 renderAnnotationLayer={false}
                 onLoadSuccess={() => console.log(`[PDFViewer] Page ${i + 1} loaded`)}
                 onRenderSuccess={() => console.log(`[PDFViewer] Page ${i + 1} rendered`)}

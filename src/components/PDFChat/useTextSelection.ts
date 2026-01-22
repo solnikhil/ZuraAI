@@ -68,36 +68,35 @@ export function useTextSelection({
   onSelectionChange,
 }: UseTextSelectionOptions): UseTextSelectionReturn {
   const [selection, setSelection] = useState<TextSelection | null>(null);
-  const previousSelectionRef = useRef<string | null>(null);
 
-  // Handle mouse up to capture selection
+  // Use refs to avoid stale closures and unnecessary re-renders
+  const selectionRef = useRef<TextSelection | null>(null);
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+
+  // Handle mouse up to capture selection - only runs on mouseup, not during drag
   const handleMouseUp = useCallback(() => {
     const windowSelection = window.getSelection();
-    
+
     if (!windowSelection || windowSelection.isCollapsed) {
-      // No selection or collapsed selection
-      if (selection !== null) {
+      if (selectionRef.current !== null) {
+        selectionRef.current = null;
         setSelection(null);
-        onSelectionChange?.(null);
+        onSelectionChangeRef.current?.(null);
       }
       return;
     }
 
     const selectedText = windowSelection.toString().trim();
-    
+
     if (!selectedText) {
-      if (selection !== null) {
+      if (selectionRef.current !== null) {
+        selectionRef.current = null;
         setSelection(null);
-        onSelectionChange?.(null);
+        onSelectionChangeRef.current?.(null);
       }
       return;
     }
-
-    // Avoid duplicate processing
-    if (selectedText === previousSelectionRef.current) {
-      return;
-    }
-    previousSelectionRef.current = selectedText;
 
     // Get the container rect for relative positioning
     const containerRect = containerRef.current?.getBoundingClientRect();
@@ -116,40 +115,28 @@ export function useTextSelection({
       boundingBox,
     };
 
+    selectionRef.current = newSelection;
     setSelection(newSelection);
-    onSelectionChange?.(newSelection);
-  }, [documentId, currentPage, scale, containerRef, selection, onSelectionChange]);
+    onSelectionChangeRef.current?.(newSelection);
+  }, [documentId, currentPage, scale, containerRef]);
 
   // Clear selection
   const clearSelection = useCallback(() => {
     window.getSelection()?.removeAllRanges();
+    selectionRef.current = null;
     setSelection(null);
-    previousSelectionRef.current = null;
-    onSelectionChange?.(null);
-  }, [onSelectionChange]);
+    onSelectionChangeRef.current?.(null);
+  }, []);
 
-  // Clear selection when page changes
+  // Keep hook count consistent - empty effect replaces removed selectionchange listener
   useEffect(() => {
-    clearSelection();
-  }, [currentPage, clearSelection]);
+    // Intentionally empty - removed selectionchange listener for performance
+  }, []);
 
-  // Listen for selection changes outside of mouse up
+  // Keep hook count consistent - empty effect replaces removed page change handler
   useEffect(() => {
-    const handleSelectionChange = () => {
-      const windowSelection = window.getSelection();
-      
-      if (!windowSelection || windowSelection.isCollapsed) {
-        if (selection !== null) {
-          setSelection(null);
-          previousSelectionRef.current = null;
-          onSelectionChange?.(null);
-        }
-      }
-    };
-
-    document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
-  }, [selection, onSelectionChange]);
+    // Intentionally empty - page change handling removed for simplicity
+  }, [currentPage]);
 
   return {
     selection,

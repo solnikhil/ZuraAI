@@ -372,6 +372,7 @@ export class RAGEngine implements IRAGEngine {
 
       // Process pages one at a time to avoid context length issues
       const allChunkRecords: ChunkRecord[] = [];
+      let imageChunkIndex = 0;
       const chunkingOptions: ChunkingOptions = {
         chunkSize: options.chunkSize ?? this.settings.chunkSize,
         chunkOverlap: options.chunkOverlap ?? this.settings.chunkOverlap,
@@ -390,60 +391,121 @@ export class RAGEngine implements IRAGEngine {
         try {
           // Extract text for this page only
           const pageData = await this.pdfParser.getPage(docId, pageNum);
-          if (!pageData || !pageData.textContent || pageData.textContent.length === 0) {
+          if (!pageData) {
+            log('warning', `Page ${pageNum}: No page data found`);
+            continue;
+          }
+
+          const hasTextContent = pageData.textContent && pageData.textContent.length > 0;
+          if (!hasTextContent) {
             log('warning', `Page ${pageNum}: No text content found`);
-            continue;
           }
 
-          // Create chunks for this page
-          const pageChunks = this.chunkMgr.createChunks(docId, pageData.textContent, chunkingOptions);
+          if (hasTextContent) {
+            // Create chunks for this page
+            const pageChunks = this.chunkMgr.createChunks(docId, pageData.textContent, chunkingOptions);
 
-          if (pageChunks.length === 0) {
-            log('warning', `Page ${pageNum}: No chunks created`);
-            continue;
-          }
+            if (pageChunks.length === 0) {
+              log('warning', `Page ${pageNum}: No chunks created`);
+            } else {
+              // Generate embeddings one chunk at a time to avoid context length issues
+              const pageChunkRecords: ChunkRecord[] = [];
+              for (let i = 0; i < pageChunks.length; i++) {
+                const chunk = pageChunks[i];
+                try {
+                  // Truncate content if too long (max 500 chars for embedding)
+                  const contentToEmbed = chunk.content.length > 500
+                    ? chunk.content.substring(0, 500)
+                    : chunk.content;
 
-          // Generate embeddings one chunk at a time to avoid context length issues
-          const pageChunkRecords: ChunkRecord[] = [];
-          for (let i = 0; i < pageChunks.length; i++) {
-            const chunk = pageChunks[i];
-            try {
-              // Truncate content if too long (max 500 chars for embedding)
-              const contentToEmbed = chunk.content.length > 500
-                ? chunk.content.substring(0, 500)
-                : chunk.content;
+                  const embedding = await this.embedService.generateEmbedding(contentToEmbed);
 
-              const embedding = await this.embedService.generateEmbedding(contentToEmbed);
+                  pageChunkRecords.push({
+                    id: chunk.id,
+                    documentId: chunk.documentId,
+                    content: chunk.content,
+                    pageNumbers: chunk.metadata.pageNumbers,
+                    boundingBoxes: JSON.stringify(chunk.metadata.boundingBoxes),
+                    sectionHeader: chunk.metadata.sectionHeader || null,
+                    chunkIndex: chunk.metadata.chunkIndex,
+                    tokenCount: chunk.metadata.tokenCount,
+                    blockType: chunk.metadata.blockType,
+                    vector: embedding,
+                  });
+                } catch (embedError: any) {
+                  log('warning', `Page ${pageNum}, chunk ${i + 1}: Embedding failed - ${embedError.message?.substring(0, 50) || 'Unknown error'}`);
+                  // Continue with other chunks
+                }
+              }
 
-              pageChunkRecords.push({
-                id: chunk.id,
-                documentId: chunk.documentId,
-                content: chunk.content,
-                pageNumbers: chunk.metadata.pageNumbers,
-                boundingBoxes: JSON.stringify(chunk.metadata.boundingBoxes),
-                sectionHeader: chunk.metadata.sectionHeader || null,
-                chunkIndex: chunk.metadata.chunkIndex,
-                tokenCount: chunk.metadata.tokenCount,
-                blockType: chunk.metadata.blockType,
-                vector: embedding,
-              });
-            } catch (embedError: any) {
-              log('warning', `Page ${pageNum}, chunk ${i + 1}: Embedding failed - ${embedError.message?.substring(0, 50) || 'Unknown error'}`);
-              // Continue with other chunks
+              allChunkRecords.push(...pageChunkRecords);
+              log('success', `Page ${pageNum}: Created ${pageChunkRecords.length} searchable chunks`);
             }
           }
 
-          allChunkRecords.push(...pageChunkRecords);
-          log('success', `Page ${pageNum}: Created ${pageChunkRecords.length} searchable chunks`);
-
           // Process images for this page (if enabled)
           if (this.settings.processImages && pageData.images && pageData.images.length > 0) {
-            try {
-              log('info', `Page ${pageNum}: Processing ${pageData.images.length} image(s)...`);
-              // Image processing would go here - simplified for now
-              log('info', `Page ${pageNum}: Image processing complete`);
-            } catch (imgError: any) {
-              log('warning', `Page ${pageNum}: Image processing failed - ${imgError.message?.substring(0, 50) || 'Unknown error'}`);
+            const imagesWithData = pageData.images.filter(image => image.imageData);
+
+            if (imagesWithData.length === 0) {
+              log('info', `Page ${pageNum}: Images found but no extractable data`);
+            } else {
+              try {
+                log('info', `Page ${pageNum}: Processing ${imagesWithData.length} image(s)...`);
+
+                const results = await imageProcessorService.processImages(
+                  imagesWithData.map(image => ({
+                    base64: image.imageData!,
+                    id: image.id,
+                  }))
+                );
+
+                let pageImageChunks = 0;
+
+                for (let i = 0; i < results.length; i++) {
+                  const result = results[i];
+                  const image = imagesWithData[i];
+
+                  if (!result.success || !result.description || result.description.trim().length === 0) {
+                    log('warning', `Page ${pageNum}, image ${i + 1}: Processing failed - ${result.error || 'No description generated'}`);
+                    continue;
+                  }
+
+                  const content = this.buildImageChunkContent(image, result);
+                  const contentToEmbed = content.length > 500
+                    ? content.substring(0, 500)
+                    : content;
+
+                  try {
+                    const embedding = await this.embedService.generateEmbedding(contentToEmbed);
+                    const pageNumber = image.bbox?.pageNumber || pageNum;
+
+                    allChunkRecords.push({
+                      id: `img_chunk_${image.id}`,
+                      documentId: docId,
+                      content,
+                      pageNumbers: [pageNumber],
+                      boundingBoxes: JSON.stringify([image.bbox]),
+                      sectionHeader: image.caption || null,
+                      chunkIndex: imageChunkIndex,
+                      tokenCount: this.chunkMgr.countTokens(content),
+                      blockType: 'figure',
+                      vector: embedding,
+                    });
+
+                    imageChunkIndex += 1;
+                    pageImageChunks += 1;
+                  } catch (embedError: any) {
+                    log('warning', `Page ${pageNum}, image ${i + 1}: Embedding failed - ${embedError.message?.substring(0, 50) || 'Unknown error'}`);
+                  }
+                }
+
+                if (pageImageChunks > 0) {
+                  log('success', `Page ${pageNum}: Created ${pageImageChunks} image chunk(s)`);
+                }
+              } catch (imgError: any) {
+                log('warning', `Page ${pageNum}: Image processing failed - ${imgError.message?.substring(0, 50) || 'Unknown error'}`);
+              }
             }
           }
 
@@ -1776,4 +1838,3 @@ export const ragEngine = (() => {
 
   return globalRegistry[globalKey] as RAGEngine;
 })();
-

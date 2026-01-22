@@ -131,6 +131,14 @@
   background: var(--theme-background);
 }
 
+.pdf-viewer-document-wrapper.is-pan-mode {
+  cursor: grab;
+}
+
+.pdf-viewer-document-wrapper.is-panning {
+  cursor: grabbing;
+}
+
 .pdf-viewer-document {
   display: flex;
   flex-direction: column;
@@ -220,6 +228,26 @@
 .pdf-viewer-document-wrapper::-webkit-scrollbar-thumb {
   background: var(--theme-border);
   border-radius: 4px;
+}
+
+/* ==== TEXT LAYER / SELECTION ==== */
+
+.react-pdf__Page__textContent {
+  user-select: text;
+  cursor: text;
+}
+
+.pdf-viewer-document-wrapper.is-pan-mode .react-pdf__Page__textContent {
+  user-select: none;
+  cursor: grab;
+}
+
+.pdf-viewer-document-wrapper.is-panning .react-pdf__Page__textContent {
+  cursor: grabbing;
+}
+
+.react-pdf__Page__textContent span::selection {
+  background: rgba(0, 123, 255, 0.3);
 }
 
 /* ==== RESPONSIVE ==== */
