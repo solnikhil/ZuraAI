@@ -32,7 +32,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         height: options?.height ?? 800,
         minWidth: 900,
         minHeight: 600,
-        title: 'Zura',
+        title: 'Zura AI - Dashboard',
         icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         ...(isWindows ? {
             titleBarStyle: 'hidden',
@@ -49,6 +49,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             sandbox: false, // Required for preload to use Node.js APIs like fs
             devTools: options?.devTools ?? !isProduction,
             spellcheck: false,
+            additionalArguments: ['--process-name=Zura-Dashboard'],
         },
         autoHideMenuBar: true,
         backgroundColor: '#14120B',

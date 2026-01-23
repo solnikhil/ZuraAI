@@ -13,7 +13,14 @@
  * - Recovery from fallback mode
  */
 
-import * as Tesseract from 'tesseract.js';
+// Tesseract is imported dynamically to avoid worker path issues at module load time
+// import * as Tesseract from 'tesseract.js';
+import { join } from 'path';
+import { app } from 'electron';
+
+// Type-only import for Tesseract
+type TesseractModule = typeof import('tesseract.js');
+type TesseractWorker = import('tesseract.js').Worker;
 
 // =============================================================================
 // Types
@@ -454,8 +461,9 @@ export class ImageFallbackManager {
 export class ImageProcessorService {
   private config: ImageProcessingConfig;
   private fallbackManager: ImageFallbackManager;
-  private tesseractWorker: Tesseract.Worker | null = null;
+  private tesseractWorker: TesseractWorker | null = null;
   private tesseractInitPromise: Promise<void> | null = null;
+  private tesseractModule: TesseractModule | null = null;
   private modelAvailabilityCache: Map<string, { available: boolean; checkedAt: number }>;
   private readonly availabilityCacheTTL = 30000; // 30 seconds
 
@@ -815,12 +823,45 @@ export class ImageProcessorService {
     this.tesseractInitPromise = (async () => {
       console.log('[ImageProcessor] Initializing Tesseract worker...');
 
-      this.tesseractWorker = await Tesseract.createWorker(
+      // Dynamic import to avoid worker path resolution at module load time
+      if (!this.tesseractModule) {
+        console.log('[ImageProcessor] Loading Tesseract module dynamically...');
+        this.tesseractModule = await import('tesseract.js');
+      }
+
+      // Determine the correct paths for Tesseract worker files
+      // In production, app.getAppPath() points to resources/app.asar
+      // In development, it points to the project root
+      const appPath = app?.getAppPath() || process.cwd();
+      const isPackaged = app?.isPackaged ?? false;
+
+      // Worker and core paths - use node_modules in dev, unpacked in prod
+      let workerPath: string;
+      let corePath: string;
+
+      if (isPackaged) {
+        // In packaged app, use unpacked resources
+        const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
+        workerPath = join(unpackedPath, 'node_modules', 'tesseract.js', 'dist', 'worker.min.js');
+        corePath = join(unpackedPath, 'node_modules', 'tesseract.js-core');
+      } else {
+        // In development
+        workerPath = join(appPath, 'node_modules', 'tesseract.js', 'dist', 'worker.min.js');
+        corePath = join(appPath, 'node_modules', 'tesseract.js-core');
+      }
+
+      console.log('[ImageProcessor] Tesseract worker path:', workerPath);
+      console.log('[ImageProcessor] Tesseract core path:', corePath);
+
+      this.tesseractWorker = await this.tesseractModule.createWorker(
         this.config.ocrLanguages,
         1, // OEM.LSTM_ONLY
         {
           // Use CDN for language data
           langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+          // Explicitly set worker and core paths for Electron
+          workerPath,
+          corePath,
         }
       );
 

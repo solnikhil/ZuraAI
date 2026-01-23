@@ -1821,6 +1821,31 @@ export function PDFChatArea({
     setIsActionMenuOpen(false);
     setIsSummarizing(true);
 
+    // Helper to check if API key is configured for current provider
+    const hasApiKey = (): boolean => {
+      switch (settings.modelProvider) {
+        case 'groq': return !!settings.groqApiKey;
+        case 'gemini': return !!settings.geminiApiKey;
+        case 'perplexity': return !!settings.perplexityApiKey;
+        case 'minimax': return !!settings.minimaxApiKey;
+        case 'ollama': return true; // Ollama doesn't need API key
+        case 'openrouter':
+        default: return !!settings.openRouterApiKey;
+      }
+    };
+
+    // Get provider display name
+    const getProviderName = (): string => {
+      switch (settings.modelProvider) {
+        case 'groq': return 'Groq';
+        case 'gemini': return 'Gemini';
+        case 'perplexity': return 'Perplexity';
+        case 'minimax': return 'MiniMax';
+        case 'ollama': return 'Ollama';
+        case 'openrouter':
+        default: return 'OpenRouter';
+      }
+    };
 
     // Add user message indicating summarization request
     const userMessage: PDFChatMessage = {
@@ -1841,6 +1866,21 @@ export function PDFChatArea({
     };
     setMessages(prev => [...prev, assistantMessage]);
 
+    // Pre-flight validation: Check if API key is configured
+    if (!hasApiKey()) {
+      const providerName = getProviderName();
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+            ...msg,
+            content: `**Cannot generate summary: No API key configured**\n\nTo generate AI-powered summaries, please configure your ${providerName} API key in **Settings**.\n\nCurrent provider: ${providerName}\n\n*Go to Settings > AI Provider to add your API key.*`,
+          }
+          : msg
+      ));
+      setIsSummarizing(false);
+      return;
+    }
+
     try {
       // Get document summary via IPC
       const summary: DocumentSummary = await window.ipcRenderer?.invoke(
@@ -1850,6 +1890,10 @@ export function PDFChatArea({
       );
 
       if (summary) {
+        // Track successful summaries for overall summary generation
+        const successfulSummaries: Array<{ title: string; summary: string }> = [];
+        let failedSections = 0;
+
         // Format the summary content with section summaries
         let summaryContent = `# Document Summary: ${summary.documentName}\n\n`;
         summaryContent += `📊 **${summary.pageCount} pages** | **${summary.sectionCount} sections**\n\n`;
@@ -1888,16 +1932,23 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
 
               if (sectionAIResponse && sectionAIResponse.trim().length > 0) {
                 summaryContent += `${indent}${sectionAIResponse.trim()}\n\n`;
+                // Track successful summary for overall summary generation
+                successfulSummaries.push({
+                  title: sectionSummary.sectionTitle,
+                  summary: sectionAIResponse.trim()
+                });
               } else {
-                // Fallback to context preview if AI fails
+                // Fallback to context preview if AI returns empty - show clear indicator
                 const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
-                summaryContent += `${indent}${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+                summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+                failedSections++;
               }
             } catch (sectionError) {
               console.warn(`[PDFChatArea] Failed to generate AI summary for section ${i}:`, sectionError);
-              // Fallback to context preview
+              // Fallback to context preview with warning indicator
               const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
-              summaryContent += `${indent}${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+              summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+              failedSections++;
             }
           } else {
             summaryContent += `${indent}*No text content could be extracted from this section. It may contain images or non-text elements.*\n\n`;
@@ -1922,12 +1973,63 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
           ));
         }
 
+        // Generate overall executive summary if we have successful section summaries
+        let overallSummary = '';
+        if (successfulSummaries.length > 0) {
+          try {
+            // Update UI to show we're generating overall summary
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId
+                ? {
+                  ...msg,
+                  content: `Generating executive summary...\n\n${summaryContent}`,
+                }
+                : msg
+            ));
+
+            // Combine section summaries for overall summary generation
+            const combinedSummaries = successfulSummaries
+              .map(s => `**${s.title}:** ${s.summary}`)
+              .join('\n\n');
+
+            const overallPrompt = `Based on these section summaries from the document "${summary.documentName}", provide a concise executive summary (3-5 sentences) that captures the main themes and key takeaways:\n\n${combinedSummaries.substring(0, 3000)}`;
+
+            overallSummary = await generatePDFAwareResponse(
+              'Generate an executive summary of this document.',
+              overallPrompt
+            );
+          } catch (overallError) {
+            console.warn('[PDFChatArea] Failed to generate overall summary:', overallError);
+          }
+        }
+
+        // Build final content with executive summary at the top
+        let finalContent = `# Document Summary: ${summary.documentName}\n\n`;
+        finalContent += `📊 **${summary.pageCount} pages** | **${summary.sectionCount} sections**`;
+
+        // Add warning if some sections failed
+        if (failedSections > 0) {
+          finalContent += ` | ⚠️ *${failedSections} section(s) showing preview only*`;
+        }
+        finalContent += `\n\n`;
+
+        // Add executive summary if generated
+        if (overallSummary && overallSummary.trim().length > 0) {
+          finalContent += `## Executive Summary\n\n${overallSummary.trim()}\n\n---\n\n`;
+        }
+
+        finalContent += `---\n\n`;
+
+        // Add section summaries (skip the header we already added)
+        const sectionContent = summaryContent.split('---\n\n').slice(1).join('---\n\n');
+        finalContent += sectionContent;
+
         // Update assistant message with final summary
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
               ...msg,
-              content: summaryContent,
+              content: finalContent,
               citations: summary.citations,
               sources: summary.sectionSummaries.flatMap(s => s.sources),
             }
@@ -1952,7 +2054,7 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
     } finally {
       setIsSummarizing(false);
     }
-  }, [isSummarizing, isLoading, documentIds, generatePDFAwareResponse]);
+  }, [isSummarizing, isLoading, documentIds, generatePDFAwareResponse, settings.modelProvider, settings.groqApiKey, settings.geminiApiKey, settings.perplexityApiKey, settings.minimaxApiKey, settings.openRouterApiKey]);
 
 
   /**

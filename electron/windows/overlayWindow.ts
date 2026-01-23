@@ -35,6 +35,7 @@ export function createOverlayWindow(showImmediately = false): BrowserWindow | nu
         height,
         x,
         y,
+        title: 'Zura AI - Screenshot Overlay',
         transparent: true,
         frame: false,
         alwaysOnTop: true,
@@ -49,6 +50,7 @@ export function createOverlayWindow(showImmediately = false): BrowserWindow | nu
             devTools: !isProduction,
             spellcheck: false,
             backgroundThrottling: false,
+            additionalArguments: ['--process-name=Zura-Overlay'],
         },
     })
 

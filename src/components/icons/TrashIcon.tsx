@@ -23,55 +23,77 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
   ) => {
     const [scope, animate] = useAnimate();
 
+    const runAnimate = useCallback(
+      (
+        target: Parameters<typeof animate>[0],
+        keyframes: Parameters<typeof animate>[1],
+        options?: Parameters<typeof animate>[2],
+      ) => {
+        if (!scope.current) {
+          return Promise.resolve();
+        }
+        if (typeof target === "string") {
+          const matches = scope.current.querySelectorAll(target);
+          if (matches.length === 0) {
+            return Promise.resolve();
+          }
+        }
+        return animate(target as any, keyframes, options);
+      },
+      [animate, scope],
+    );
+
     const openLid = useCallback(async () => {
       await Promise.all([
-        animate(
+        runAnimate(
           ".trash-lid-lower",
           { rotate: -25, y: -4 },
           { duration: 0.25, ease: "easeOut" },
         ),
-        animate(
+        runAnimate(
           ".trash-lid-upper",
           { rotate: -35, y: -6, x: -2 },
           { duration: 0.25, ease: "easeOut" },
         ),
       ]);
-    }, [animate]);
+    }, [runAnimate]);
 
     const closeLid = useCallback(async () => {
       await Promise.all([
-        animate(
+        runAnimate(
           ".trash-lid-lower",
           { rotate: 0, y: 0 },
           { duration: 0.2, ease: "easeInOut" },
         ),
-        animate(
+        runAnimate(
           ".trash-lid-upper",
           { rotate: 0, y: 0, x: 0 },
           { duration: 0.2, ease: "easeInOut" },
         ),
       ]);
-    }, [animate]);
+    }, [runAnimate]);
 
     const dangerHoverAnimation = useCallback(async () => {
       if (!dangerHover) return;
+      if (!scope.current) return;
 
-      await animate(
-        "svg",
+      await runAnimate(
+        scope.current,
         { stroke: "#ef4444" },
         { duration: 0.2, delay: 0.1, ease: "easeInOut" },
       );
-    }, [animate, dangerHover]);
+    }, [dangerHover, runAnimate, scope]);
 
     const resetColor = useCallback(async () => {
       if (!dangerHover) return;
+      if (!scope.current) return;
 
-      await animate(
-        "svg",
+      await runAnimate(
+        scope.current,
         { stroke: "currentColor" },
         { duration: 0.2, ease: "easeInOut" },
       );
-    }, [animate, dangerHover]);
+    }, [dangerHover, runAnimate, scope]);
 
     const hoverAnimation = useCallback(async () => {
       await openLid();
@@ -84,9 +106,9 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
     }, [resetColor, closeLid]);
 
     const clickAnimation = useCallback(async () => {
-      if (shakeOnClick) {
-        await animate(
-          ".trash-icon",
+      if (shakeOnClick && scope.current) {
+        await runAnimate(
+          scope.current,
           { x: [0, -2, 2, -1, 0] },
           { duration: 0.25, ease: "easeInOut" },
         );
@@ -95,7 +117,7 @@ const TrashIcon = forwardRef<AnimatedIconHandle, TrashIconProps>(
       if (keepOpenOnDelete) {
         await openLid();
       }
-    }, [shakeOnClick, keepOpenOnDelete, animate, openLid]);
+    }, [shakeOnClick, keepOpenOnDelete, openLid, runAnimate, scope]);
 
     useImperativeHandle(ref, () => ({
       startAnimation: openLid,

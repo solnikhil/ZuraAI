@@ -27,7 +27,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 
 // Thumbnail configuration
-const THUMBNAIL_WIDTH = 120;
+const THUMBNAIL_WIDTH = 100;
 
 type ThumbnailDocumentFile = string;
 

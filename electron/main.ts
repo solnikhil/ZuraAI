@@ -1,4 +1,4 @@
-import { app, globalShortcut, protocol } from 'electron'
+import { app, globalShortcut, protocol, BrowserWindow } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
@@ -39,11 +39,17 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 // Disable window animations
 app.commandLine.appendSwitch('wm-window-animations-disabled')
 
-// Set App Name explicitly
+// Add process identifier for Task Manager (visible in "Command line" column)
+app.commandLine.appendSwitch('process-name', 'Zura-Main')
+
+// Set App Name explicitly for Windows Task Manager
 if (process.platform === 'win32') {
-    app.setAppUserModelId('com.zura.ai')
+    app.setAppUserModelId('Zura AI')
 }
-app.setName('Zura')
+app.setName('Zura AI')
+
+// Set process title for main process (shows in Task Manager)
+process.title = 'Zura AI - Main'
 
 // ==================== APP LIFECYCLE ====================
 
@@ -121,6 +127,20 @@ app.whenReady().then(async () => {
 
     // Open main window on start
     createMainWindow()
+
+    // Register Shift+Esc to log process metrics to console
+    globalShortcut.register('Shift+Escape', () => {
+        const metrics = app.getAppMetrics()
+        console.log('\n╔══════════════════════════════════════════════════════════╗')
+        console.log('║              ELECTRON PROCESS METRICS                     ║')
+        console.log('╠══════════════════════════════════════════════════════════╣')
+        metrics.forEach((metric) => {
+            const memMB = (metric.memory.workingSetSize / 1024).toFixed(1)
+            const cpuPercent = metric.cpu.percentCPUUsage.toFixed(1)
+            console.log(`║  PID ${String(metric.pid).padEnd(6)} │ ${metric.type.padEnd(16)} │ ${cpuPercent.padStart(5)}% │ ${memMB.padStart(7)} MB  ║`)
+        })
+        console.log('╚══════════════════════════════════════════════════════════╝\n')
+    })
 
     // Overlay is now lazy-loaded - only created when first needed
     // This saves ~100-200MB RAM when overlay is not being used

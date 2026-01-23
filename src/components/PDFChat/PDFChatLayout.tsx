@@ -13,10 +13,10 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { PDFViewer } from './PDFViewer';
-import { PDFThumbnails } from './PDFThumbnails';
 import { PDFChatArea } from './PDFChatArea';
 import { DocumentTabs, type DocumentTabInfo } from './DocumentTabs';
 import { IndexingProgress } from './IndexingProgress';
+import { usePDFDocuments } from '../../contexts/PDFDocumentContext';
 import type { PDFChatLayoutProps, IndexingState, DocumentLoadingState, IndexingPromptState, IndexingLogEntry } from './types';
 import type { Citation, TextSelection, PDFDocument, IndexResult } from '../../types/pdf';
 
@@ -63,9 +63,17 @@ export function PDFChatLayout({
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
 
-  // Multi-document state (Requirements 13.1, 13.2)
-  const [loadedDocuments, setLoadedDocuments] = useState<Map<string, DocumentTabInfo>>(new Map());
-  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  // Get shared document state from context (shared with Sidebar)
+  const {
+    loadedDocumentsMap: loadedDocuments,
+    setLoadedDocuments,
+    activeDocumentId,
+    setActiveDocumentId,
+    currentPage,
+    setCurrentPage,
+  } = usePDFDocuments();
+
+  // Track document IDs for session management
   const [documentIds, setDocumentIds] = useState<string[]>([]);
 
   // Mapping from file paths to backend-generated document IDs
@@ -77,7 +85,6 @@ export function PDFChatLayout({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // PDF viewer state (per-document state could be added for more advanced use)
-  const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
 
   // Citation and selection state
@@ -103,6 +110,7 @@ export function PDFChatLayout({
   const [indexingLogs, setIndexingLogs] = useState<IndexingLogEntry[]>([]);
 
   const [starredPdfs, setStarredPdfs] = useState<StarredPdf[]>([]);
+  const [hasHydratedStarredPdfs, setHasHydratedStarredPdfs] = useState(false);
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,8 +145,24 @@ export function PDFChatLayout({
   }, [documentIds]);
 
   useEffect(() => {
+    const ids = Array.from(loadedDocuments.keys());
+    setDocumentIds(prev => {
+      if (prev.length === ids.length && ids.every(id => prev.includes(id))) {
+        return prev;
+      }
+      return ids;
+    });
+  }, [loadedDocuments]);
+
+  useEffect(() => {
     setStarredPdfs(loadStarredPdfs());
+    setHasHydratedStarredPdfs(true);
   }, [loadStarredPdfs]);
+
+  useEffect(() => {
+    if (!hasHydratedStarredPdfs) return;
+    persistStarredPdfs(starredPdfs);
+  }, [hasHydratedStarredPdfs, persistStarredPdfs, starredPdfs]);
 
   /**
    * Handle divider drag start (Requirements 2.3)
@@ -566,20 +590,19 @@ export function PDFChatLayout({
     if (!activeDocumentId) return;
     setStarredPdfs(prev => {
       const exists = prev.some(pdf => pdf.filePath === activeDocumentId);
-      const next = exists
-        ? prev.filter(pdf => pdf.filePath !== activeDocumentId)
-        : [
-          ...prev,
-          {
-            filePath: activeDocumentId,
-            fileName: loadedDocuments.get(activeDocumentId)?.name || activeDocumentId.split(/[/\\]/).pop() || 'Document',
-            starredAt: Date.now()
-          }
-        ];
-      persistStarredPdfs(next);
-      return next;
+      if (exists) {
+        return prev.filter(pdf => pdf.filePath !== activeDocumentId);
+      }
+      return [
+        ...prev,
+        {
+          filePath: activeDocumentId,
+          fileName: loadedDocuments.get(activeDocumentId)?.name || activeDocumentId.split(/[/\\]/).pop() || 'Document',
+          starredAt: Date.now()
+        }
+      ];
     });
-  }, [activeDocumentId, loadedDocuments, persistStarredPdfs]);
+  }, [activeDocumentId, loadedDocuments]);
 
   /**
    * Load a document into the viewer (supports multi-document)
@@ -886,26 +909,18 @@ export function PDFChatLayout({
           }}
         >
           {activeDocumentId ? (
-            <div style={{ display: 'flex', flex: 1, minHeight: 0, minWidth: 0 }}>
-              <PDFThumbnails
-                documentId={activeDocumentId}
-                pageCount={loadedDocuments.get(activeDocumentId)?.pageCount || 0}
-                currentPage={currentPage}
-                onPageSelect={handlePageChange}
-              />
-              <PDFViewer
-                documentId={activeDocumentId}
-                onTextSelect={handleTextSelect}
-                highlightedCitations={highlightedCitations}
-                onPageChange={handlePageChange}
-                currentPage={currentPage}
-                zoomLevel={zoomLevel}
-                onZoomChange={handleZoomChange}
-                autoFit={true}
-                isStarred={isActiveStarred}
-                onToggleStar={toggleStarForActiveDocument}
-              />
-            </div>
+            <PDFViewer
+              documentId={activeDocumentId}
+              onTextSelect={handleTextSelect}
+              highlightedCitations={highlightedCitations}
+              onPageChange={handlePageChange}
+              currentPage={currentPage}
+              zoomLevel={zoomLevel}
+              onZoomChange={handleZoomChange}
+              autoFit={true}
+              isStarred={isActiveStarred}
+              onToggleStar={toggleStarForActiveDocument}
+            />
           ) : (
             <PDFUploadPrompt onFileSelect={loadDocument} />
           )}

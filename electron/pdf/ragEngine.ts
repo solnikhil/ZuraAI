@@ -1626,7 +1626,7 @@ export class RAGEngine implements IRAGEngine {
     // Retrieve chunks for this section using page filter
     const queryOpts: QueryOptions = {
       topK: 10, // Get more chunks for summarization
-      minScore: 0.3, // Lower threshold for summarization
+      minScore: 0.2, // Lower threshold for summarization (was 0.3)
       useHybrid: this.settings.useHybridSearch,
       useReranker: false, // Don't rerank for summarization
       pageFilter: {
@@ -1637,11 +1637,31 @@ export class RAGEngine implements IRAGEngine {
 
     // Use section title as query to get relevant chunks
     // Note: Using just the title instead of "Summary of ${title}" for better matching
-    const retrievalResult = await this.retrieval.retrieveWithConfidence(
+    let retrievalResult = await this.retrieval.retrieveWithConfidence(
       section.title,
       [docId],
       queryOpts
     );
+
+    // Check if retrieval returned poor results - try broader query
+    const hasGoodResults = retrievalResult.results.length > 0 &&
+      retrievalResult.results.some(r => r.score >= 0.2);
+
+    if (!hasGoodResults) {
+      console.log(`[RAGEngine] Poor results for section "${section.title}", trying broader content query...`);
+
+      // Try with a more generic query about the content on those pages
+      const broaderQuery = `content from pages ${section.startPage} to ${section.endPage > 0 ? section.endPage : section.startPage + 5}`;
+      retrievalResult = await this.retrieval.retrieveWithConfidence(
+        broaderQuery,
+        [docId],
+        {
+          ...queryOpts,
+          minScore: 0.1, // Even lower threshold for fallback
+          topK: 15, // Get more results
+        }
+      );
+    }
 
     // Build context from retrieved chunks
     const contextOptions: ContextBuildOptions = {
@@ -1651,7 +1671,31 @@ export class RAGEngine implements IRAGEngine {
       format: 'markdown',
     };
 
-    const builtContext = this.buildContext(retrievalResult.results, contextOptions);
+    let builtContext = this.buildContext(retrievalResult.results, contextOptions);
+
+    // Final fallback: If still no context, try to get direct page content
+    if (!builtContext.contextString || builtContext.contextString.trim().length < 50) {
+      console.log(`[RAGEngine] Retrieval failed for section "${section.title}", falling back to direct page extraction...`);
+
+      try {
+        const directContent = await this.getDirectPageContent(
+          docId,
+          section.startPage,
+          section.endPage > 0 ? Math.min(section.endPage, section.startPage + 5) : section.startPage + 3
+        );
+
+        if (directContent && directContent.trim().length > 0) {
+          builtContext = {
+            contextString: directContent,
+            includedSources: [], // No vector store sources for direct extraction
+            tokenCount: Math.ceil(directContent.length / 4),
+            citationMap: new Map(), // No citations for direct extraction
+          };
+        }
+      } catch (fallbackError) {
+        console.warn(`[RAGEngine] Direct page extraction failed for section "${section.title}":`, fallbackError);
+      }
+    }
 
     // Build citations for this section
     const citations = this.buildCitations(builtContext.includedSources);
@@ -1667,6 +1711,44 @@ export class RAGEngine implements IRAGEngine {
       sources: builtContext.includedSources,
       contextString: builtContext.contextString,
     };
+  }
+
+  /**
+   * Get direct page content as a fallback when vector retrieval fails
+   *
+   * @param docId - Document ID
+   * @param startPage - Start page number
+   * @param endPage - End page number
+   * @returns Combined text content from the pages
+   */
+  private async getDirectPageContent(
+    docId: string,
+    startPage: number,
+    endPage: number
+  ): Promise<string> {
+    const textParts: string[] = [];
+
+    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+      try {
+        const page = await this.pdfParser.getPage(docId, pageNum);
+
+        if (page.textContent && page.textContent.length > 0) {
+          // Extract text from text blocks
+          const pageText = page.textContent
+            .map(block => block.text)
+            .filter(text => text && text.trim().length > 0)
+            .join(' ');
+
+          if (pageText.trim().length > 0) {
+            textParts.push(`[Page ${pageNum}]\n${pageText}`);
+          }
+        }
+      } catch (pageError) {
+        console.warn(`[RAGEngine] Failed to extract text from page ${pageNum}:`, pageError);
+      }
+    }
+
+    return textParts.join('\n\n');
   }
 
   /**

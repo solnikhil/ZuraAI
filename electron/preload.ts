@@ -56,6 +56,9 @@ const INVOKE_CHANNELS = new Set<string>([
   'capture-screen',
   'crop-screenshot',
 
+  // Process metrics
+  'get-process-metrics',
+
   // Tools
   'execute-tool',
 

@@ -10,9 +10,10 @@ import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { usePDFDocuments } from '../../contexts/PDFDocumentContext'
-import type { PDFChatSession } from '../../types/pdf'
 import { DocumentTabs, type DocumentTabInfo } from '../PDFChat/DocumentTabs'
+import { PDFThumbnails } from '../PDFChat/PDFThumbnails'
 
+type PDFSidebarTab = 'pages' | 'pdfs'
 
 interface SidebarProps {
     view: 'chat' | 'pdf' | 'settings'
@@ -33,15 +34,12 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     const [isSearching, setIsSearching] = useState(false)
     const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
-    const [isStarredPDFsExpanded, setIsStarredPDFsExpanded] = useState(true)
-    const [isPDFSessionsExpanded, setIsPDFSessionsExpanded] = useState(true)
+    const [pdfSidebarTab, setPdfSidebarTab] = useState<PDFSidebarTab>('pages')
     const [starredPDFs, setStarredPDFs] = useState<Array<{ filePath: string; fileName: string; starredAt: number }>>([])
-    const [pdfSessions, setPdfSessions] = useState<PDFChatSession[]>([])
     const [isLoadingStarredPDFs, setIsLoadingStarredPDFs] = useState(false)
-    const [isLoadingPDFSessions, setIsLoadingPDFSessions] = useState(false)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession, createSession } = useChatHistory()
     const { settings, updateSettings } = useSettings()
-    const { loadedDocuments: pdfDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId } = usePDFDocuments()
+    const { loadedDocuments: pdfDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId, currentPage, setCurrentPage, activeDocumentPageCount } = usePDFDocuments()
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
@@ -72,39 +70,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         window.addEventListener('pdf-starred-updated', handleStarredUpdate)
         return () => window.removeEventListener('pdf-starred-updated', handleStarredUpdate)
     }, [view])
-
-    // Fetch PDF chat sessions when in PDF mode
-    useEffect(() => {
-        const fetchPDFSessions = async () => {
-            if (view === 'pdf' && window.ipcRenderer) {
-                setIsLoadingPDFSessions(true)
-                try {
-                    const sessions = await window.ipcRenderer.invoke('pdf-chat:get-sessions')
-                    setPdfSessions(sessions || [])
-                } catch (error) {
-                    console.error('[Sidebar] Error fetching PDF sessions:', error)
-                    setPdfSessions([])
-                } finally {
-                    setIsLoadingPDFSessions(false)
-                }
-            }
-        }
-        
-        fetchPDFSessions()
-    }, [view])
-
-    // Handler to delete a PDF session
-    const handleDeletePDFSession = async (sessionId: string, e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (window.ipcRenderer) {
-            try {
-                await window.ipcRenderer.invoke('pdf-chat:delete-session', sessionId)
-                setPdfSessions(prev => prev.filter(s => s.id !== sessionId))
-            } catch (error) {
-                console.error('[Sidebar] Error deleting PDF session:', error)
-            }
-        }
-    }
 
     // Settings navigation items
     const navItems = [
@@ -165,40 +130,50 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 </div>
             )}
 
-            {/* New PDF Button - Only visible in PDF mode */}
-            {view === 'pdf' && (
-                <button
-                    onClick={() => {
-                        window.dispatchEvent(new CustomEvent('pdf:add-document'))
-                    }}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        padding: '10px 12px',
-                        margin: '8px',
-                        background: 'var(--theme-surface-active)',
-                        border: '1px solid var(--theme-border)',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        color: 'var(--theme-text-primary)',
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        transition: 'all 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                        e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'var(--theme-surface-active)'
-                        e.currentTarget.style.borderColor = 'var(--theme-border)'
-                    }}
-                >
-                    <Plus size={16} />
-                    New PDF
-                </button>
+            {/* PDF Sidebar Tabs - Pages | PDFs toggle */}
+            {view === 'pdf' && !isCollapsed && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px',
+                    gap: '4px',
+                    borderBottom: '1px solid var(--theme-border)',
+                }}>
+                    <button
+                        onClick={() => setPdfSidebarTab('pages')}
+                        style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: pdfSidebarTab === 'pages' ? 'var(--theme-surface-active)' : 'transparent',
+                            color: pdfSidebarTab === 'pages' ? 'var(--theme-text-primary)' : 'var(--theme-text-muted)',
+                            fontSize: '0.8rem',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                        }}
+                    >
+                        Pages
+                    </button>
+                    <button
+                        onClick={() => setPdfSidebarTab('pdfs')}
+                        style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: pdfSidebarTab === 'pdfs' ? 'var(--theme-surface-active)' : 'transparent',
+                            color: pdfSidebarTab === 'pdfs' ? 'var(--theme-text-primary)' : 'var(--theme-text-muted)',
+                            fontSize: '0.8rem',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                        }}
+                    >
+                        PDFs
+                    </button>
+                </div>
             )}
 
             {/* Chat Actions - Chat mode only */}
@@ -286,63 +261,102 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 </div>
             )}
 
-            {/* Chat History List */}
-            <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '4px 8px 0',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1px',
-                minWidth: 0
-            }}>
-                {/* Starred PDFs Section - Only visible in PDF mode */}
-                {view === 'pdf' && !isCollapsed && (
-                    <>
-                        <div
-                            onClick={() => setIsStarredPDFsExpanded(!isStarredPDFsExpanded)}
-                            onMouseEnter={e => {
-                                const chevron = e.currentTarget.querySelector('.chevron-icon-pdf') as HTMLElement
-                                if (chevron) chevron.style.opacity = '1'
-                            }}
-                            onMouseLeave={e => {
-                                const chevron = e.currentTarget.querySelector('.chevron-icon-pdf') as HTMLElement
-                                if (chevron) chevron.style.opacity = '0'
-                            }}
-                            style={{
+            {/* PDF Sidebar Content - Pages or PDFs tab */}
+            {view === 'pdf' && !isCollapsed && (
+                <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                }}>
+                    {/* Pages Tab Content - PDF Thumbnails */}
+                    {pdfSidebarTab === 'pages' && (
+                        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+                            {activeDocumentId && activeDocumentPageCount > 0 ? (
+                                <div className="sidebar-thumbnails-container" style={{ height: '100%', overflow: 'hidden' }}>
+                                    <PDFThumbnails
+                                        documentId={activeDocumentId}
+                                        pageCount={activeDocumentPageCount}
+                                        currentPage={currentPage}
+                                        onPageSelect={(page) => setCurrentPage(page)}
+                                    />
+                                </div>
+                            ) : (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    height: '100%',
+                                    color: 'var(--theme-text-muted)',
+                                    fontSize: '0.85rem',
+                                    padding: '20px',
+                                    textAlign: 'center',
+                                }}>
+                                    No PDF loaded
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* PDFs Tab Content - Starred PDFs */}
+                    {pdfSidebarTab === 'pdfs' && (
+                        <div style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '8px',
+                        }}>
+                            {/* New PDF Button */}
+                            <button
+                                onClick={() => {
+                                    window.dispatchEvent(new CustomEvent('pdf:add-document'))
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    padding: '10px 12px',
+                                    marginBottom: '12px',
+                                    width: '100%',
+                                    background: 'var(--theme-surface-active)',
+                                    border: '1px solid var(--theme-border)',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    color: 'var(--theme-text-primary)',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 500,
+                                    transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'var(--theme-surface-active)'
+                                    e.currentTarget.style.borderColor = 'var(--theme-border)'
+                                }}
+                            >
+                                <Plus size={16} />
+                                New PDF
+                            </button>
+
+                            {/* Starred PDFs Header */}
+                            <div style={{
                                 fontSize: '0.75rem',
                                 color: 'var(--theme-text-muted)',
-                                padding: '6px 0 4px 9px',
-                                marginBottom: '2px',
+                                padding: '4px 4px 8px',
+                                fontWeight: 500,
+                                letterSpacing: '0.5px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                fontWeight: 500,
-                                letterSpacing: '0.5px'
-                            }}
-                        >
-                            <span>Starred PDFs</span>
-                            <ChevronDown
-                                className="chevron-icon-pdf"
-                                size={12}
-                                style={{
-                                    transition: 'transform 0.2s, opacity 0.2s',
-                                    transform: isStarredPDFsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                    opacity: 0,
-                                    marginLeft: 'auto'
-                                }}
-                            />
-                        </div>
+                                gap: '6px',
+                            }}>
+                                <Star size={12} style={{ color: '#facc15' }} />
+                                Starred PDFs
+                            </div>
 
-                        <div style={{
-                            display: isStarredPDFsExpanded ? 'flex' : 'none',
-                            flexDirection: 'column',
-                            gap: '1px',
-                            minWidth: 0,
-                            marginBottom: '8px'
-                        }}>
+                            {/* Starred PDFs List */}
                             {isLoadingStarredPDFs ? (
                                 <div style={{
                                     padding: '8px 12px',
@@ -354,196 +368,67 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                 </div>
                             ) : starredPDFs.length === 0 ? (
                                 <div style={{
-                                    padding: '8px 12px',
+                                    padding: '12px',
                                     fontSize: '0.8rem',
                                     color: 'var(--theme-text-muted)',
-                                    fontStyle: 'italic'
+                                    fontStyle: 'italic',
+                                    textAlign: 'center',
                                 }}>
-                                    No starred documents
+                                    No starred documents yet
                                 </div>
                             ) : (
-                                starredPDFs.map((doc, index) => (
-                                    <div
-                                        key={doc.filePath}
-                                        onClick={() => onLoadRecentPDF?.(doc.filePath)}
-                                        className="session-item animate-sidebar-item"
-                                        title={doc.filePath}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '4px 0 4px 6px',
-                                            cursor: 'pointer',
-                                            borderRadius: '4px',
-                                            fontSize: '0.8rem',
-                                            color: 'var(--theme-text-primary)',
-                                            backgroundColor: 'transparent',
-                                            borderLeft: '2px solid transparent',
-                                            transition: 'all 0.15s ease',
-                                            justifyContent: 'flex-start',
-                                            animationDelay: `${index * 0.05}s`,
-                                            minWidth: 0,
-                                            overflow: 'hidden'
-                                        }}
-                                    >
-                                        <div style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0,
-                                            color: 'var(--theme-text-muted)'
-                                        }}>
-                                            <FileText size={14} strokeWidth={2} />
-                                        </div>
-                                        <span style={{
-                                            flex: 1,
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            minWidth: 0
-                                        }}>{doc.fileName}</span>
-                                        <Star size={12} style={{ color: '#facc15', marginRight: '8px' }} />
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {/* PDF Sessions Section - Only visible in PDF mode */}
-                {view === 'pdf' && !isCollapsed && (
-                    <>
-                        <div
-                            onClick={() => setIsPDFSessionsExpanded(!isPDFSessionsExpanded)}
-                            onMouseEnter={e => {
-                                const chevron = e.currentTarget.querySelector('.chevron-icon-sessions') as HTMLElement
-                                if (chevron) chevron.style.opacity = '1'
-                            }}
-                            onMouseLeave={e => {
-                                const chevron = e.currentTarget.querySelector('.chevron-icon-sessions') as HTMLElement
-                                if (chevron) chevron.style.opacity = '0'
-                            }}
-                            style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--theme-text-muted)',
-                                padding: '6px 0 4px 9px',
-                                marginBottom: '2px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                userSelect: 'none',
-                                fontWeight: 500,
-                                letterSpacing: '0.5px'
-                            }}
-                        >
-                            <span>PDF Sessions</span>
-                            <ChevronDown
-                                className="chevron-icon-sessions"
-                                size={12}
-                                style={{
-                                    transition: 'transform 0.2s, opacity 0.2s',
-                                    transform: isPDFSessionsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                    opacity: 0,
-                                    marginLeft: 'auto'
-                                }}
-                            />
-                        </div>
-
-                        <div style={{
-                            display: isPDFSessionsExpanded ? 'flex' : 'none',
-                            flexDirection: 'column',
-                            gap: '1px',
-                            minWidth: 0,
-                            marginBottom: '8px'
-                        }}>
-                            {isLoadingPDFSessions ? (
                                 <div style={{
-                                    padding: '8px 12px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--theme-text-muted)',
-                                    fontStyle: 'italic'
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '2px',
                                 }}>
-                                    Loading...
-                                </div>
-                            ) : pdfSessions.length === 0 ? (
-                                <div style={{
-                                    padding: '8px 12px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--theme-text-muted)',
-                                    fontStyle: 'italic'
-                                }}>
-                                    No sessions
-                                </div>
-                            ) : (
-                                pdfSessions.map((session, index) => (
-                                    <div
-                                        key={session.id}
-                                        onClick={() => onSwitchPDFSession?.(session.id)}
-                                        className="session-item animate-sidebar-item"
-                                        data-active={activePDFSessionId === session.id ? "true" : "false"}
-                                        title={session.title}
-                                        style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            padding: '4px 0 4px 6px',
-                                            cursor: 'pointer',
-                                            borderRadius: '4px',
-                                            fontSize: '0.8rem',
-                                            color: 'var(--theme-text-primary)',
-                                            backgroundColor: activePDFSessionId === session.id ? 'var(--theme-accent-muted)' : 'transparent',
-                                            borderLeft: activePDFSessionId === session.id ? '2px solid var(--theme-accent)' : '2px solid transparent',
-                                            transition: 'all 0.15s ease',
-                                            justifyContent: 'flex-start',
-                                            animationDelay: `${index * 0.05}s`,
-                                            minWidth: 0,
-                                            overflow: 'hidden'
-                                        }}
-                                    >
-                                        <div style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            flexShrink: 0,
-                                            color: activePDFSessionId === session.id ? 'var(--theme-accent)' : 'var(--theme-text-muted)'
-                                        }}>
-                                            <MessageSquare size={14} strokeWidth={2} />
-                                        </div>
-                                        <span style={{
-                                            flex: 1,
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            minWidth: 0
-                                        }}>{session.title}</span>
+                                    {starredPDFs.map((doc, index) => (
                                         <div
-                                            className="delete-btn"
-                                            onClick={(e) => handleDeletePDFSession(session.id, e)}
+                                            key={doc.filePath}
+                                            onClick={() => onLoadRecentPDF?.(doc.filePath)}
+                                            className="session-item animate-sidebar-item"
+                                            title={doc.filePath}
                                             style={{
-                                                opacity: 0,
-                                                padding: '8px',
-                                                borderRadius: '6px',
-                                                flexShrink: 0,
-                                                transition: 'opacity 0.15s ease',
-                                                marginRight: '8px',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                justifyContent: 'center'
+                                                gap: '8px',
+                                                padding: '8px 10px',
+                                                cursor: 'pointer',
+                                                borderRadius: '6px',
+                                                fontSize: '0.8rem',
+                                                color: 'var(--theme-text-primary)',
+                                                backgroundColor: 'transparent',
+                                                transition: 'all 0.15s ease',
+                                                animationDelay: `${index * 0.05}s`,
                                             }}
                                         >
-                                            <TrashIcon size={16} dangerHover />
+                                            <FileText size={16} strokeWidth={2} style={{ color: 'var(--theme-text-muted)', flexShrink: 0 }} />
+                                            <span style={{
+                                                flex: 1,
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                            }}>{doc.fileName}</span>
+                                            <Star size={12} style={{ color: '#facc15', flexShrink: 0 }} />
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+                                </div>
                             )}
                         </div>
-                    </>
-                )}
+                    )}
+                </div>
+            )}
+
+            {/* Chat History List */}
+            <div style={{
+                flex: view === 'pdf' ? 0 : 1,
+                overflowY: 'auto',
+                padding: view === 'pdf' ? '0' : '4px 8px 0',
+                display: view === 'pdf' ? 'none' : 'flex',
+                flexDirection: 'column',
+                gap: '1px',
+                minWidth: 0
+            }}>
 
                 {!isCollapsed && filteredSessions.length > 0 && view !== 'pdf' && (
                     <div

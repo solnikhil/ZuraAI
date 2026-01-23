@@ -29,7 +29,9 @@
       "Bash(findstr:*)",
       "Bash(dir:*)",
       "Bash(grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx eslint:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }
