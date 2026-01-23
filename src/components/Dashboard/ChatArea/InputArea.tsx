@@ -7,8 +7,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { Send, Paperclip, Globe, Brain, MessageCircle, Check, Image, X, Info, Zap, Clock, ChevronDown } from '../../icons'
-import StarBorder from '../../StarBorder'
+import { Send, Paperclip, Search, Brain, MessageCircle, Check, Image, X, Info, Zap, Clock, ChevronDown } from '../../icons'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -234,16 +233,12 @@ export function InputArea({
 
   return (
     <>
-      <StarBorder
-        as="div"
+      <div
         className="input-bar-container"
-        color={isFocused || isDragging ? "cyan" : "#444"}
-        speed="10s"
         style={{
           borderRadius: '12px',
           padding: '0',
           transition: 'all 0.3s ease',
-          border: isDragging ? '2px dashed #60a5fa' : undefined,
           minHeight: '110px',
           width: '100%'
         }}
@@ -346,7 +341,7 @@ export function InputArea({
                     height: '100%'
                   }}
                 >
-                  <Globe size={16} />
+                  <Search size={16} />
                 </button>
               </div>
 
@@ -698,7 +693,7 @@ export function InputArea({
             </div>
           </div>
         </div>
-      </StarBorder>
+      </div>
 
       {/* Image Modal */}
       {showImageModal && imageFiles.length > 0 && (

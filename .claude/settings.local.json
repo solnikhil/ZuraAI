@@ -10,7 +10,28 @@
       "Bash(npm test:*)",
       "Bash(npx vitest run:*)",
       "Bash(dir C:UsersNikhilDesktopZuraZuraAIpublicprovider-logos)",
-      "Bash(git add:*)"
+      "Bash(git log:*)",
+      "Bash(npm rebuild:*)",
+      "Bash(test:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm install)",
+      "Bash(npm info react-pdf versions --json:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool:*)",
+      "Bash(node -e:*)",
+      "Bash(npm run build:electron:*)",
+      "Bash(npm run:*)",
+      "Bash(node test-model-detection.js:*)",
+      "Bash(del test-model-detection.js)",
+      "Bash(npx vite build)",
+      "Bash(where /R \"C:\\\\Users\\\\Nikhil\\\\AppData\" sessions.json)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(npx eslint:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

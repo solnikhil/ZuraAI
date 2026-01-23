@@ -7,11 +7,13 @@
  * Requirements: 2.1, 8.2, 8.7, 8.8, 10.1, 10.2, 10.3, 10.4, 10.6, 12.1, 12.3, 12.4, 17.1, 17.2, 18.2
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings } from '../icons';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings, MoreVertical } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
 import StarBorder from '../StarBorder';
-import { useSettings } from '../../../contexts/SettingsContext';
+import ModelSelector from '../Dashboard/ModelSelector';
+import { useSettings } from '../../contexts/SettingsContext';
 import type {
   Citation,
   PDFChatMessage,
@@ -24,9 +26,17 @@ import type {
   EmbeddingFallbackState,
   EmbeddingFallbackNotification
 } from '../../types/pdf';
-import type { PDFChatAreaProps } from './types';
+import type { PDFChatAreaProps, IndexingState, DocumentLoadingState, IndexingPromptState, IndexingLogEntry } from './types';
 import { CitationLink } from './CitationLink';
 import { SourcesPanel } from './SourcesPanel';
+import { IndexingPromptMessage } from './IndexingPromptMessage';
+import type { ChatMessage } from '../../services/types';
+import { generateOpenRouterCompletion } from '../../services/openrouter';
+import { generateGroqCompletion } from '../../services/groq';
+import { generateGeminiCompletion } from '../../services/gemini';
+import { generatePerplexityCompletion, cleanSonarResponse } from '../../services/perplexity';
+import { generateOllamaCompletion } from '../../services/ollama';
+import { generateMiniMaxCompletion } from '../../services/minimax';
 import {
   exportAndCopy,
   exportAndDownload,
@@ -57,7 +67,7 @@ export function parseCitations(
     const chunkId = match[1];
     const pageNumber = parseInt(match[2], 10);
     const chunkInfo = chunkMap.get(chunkId);
-    
+
     citations.push({
       id: `citation-${citationIndex++}`,
       chunkId,
@@ -219,7 +229,7 @@ function ExportMenu({ message, previousMessage, onExportComplete }: ExportMenuPr
         }}
       >
         {getButtonIcon()}
-        <ChevronDown size={12} style={{ 
+        <ChevronDown size={12} style={{
           transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
           transition: 'transform 0.2s'
         }} />
@@ -267,8 +277,8 @@ function ExportMenu({ message, previousMessage, onExportComplete }: ExportMenuPr
             </div>
           </button>
 
-          <div style={{ 
-            height: '1px', 
+          <div style={{
+            height: '1px',
             backgroundColor: 'var(--theme-border)',
             margin: '0 8px'
           }} />
@@ -323,7 +333,7 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
 
   // Filter to only include messages with content (skip empty assistant placeholders)
   const exportableMessages = messages.filter(m => m.content && m.content.trim().length > 0);
-  
+
   // Count assistant messages with citations for display
   const responsesWithCitations = exportableMessages.filter(
     m => m.role === 'assistant' && m.citations && m.citations.length > 0
@@ -362,7 +372,7 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
       const title = sessionTitle || 'PDF Chat Brief';
       const content = exportBriefToMarkdown(exportableMessages, title);
       const success = await copyToClipboard(content);
-      
+
       if (success) {
         setExportStatus('success');
         onExportComplete?.(true, 'copy');
@@ -385,7 +395,7 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
       const content = exportBriefToMarkdown(exportableMessages, title);
       const filename = generateExportFilename('pdf-chat-brief', 'md');
       downloadAsFile(content, filename);
-      
+
       setExportStatus('success');
       onExportComplete?.(true, 'download');
     } catch (error) {
@@ -457,7 +467,7 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
       >
         {getButtonIcon()}
         <span>Export Session</span>
-        <ChevronDown size={12} style={{ 
+        <ChevronDown size={12} style={{
           transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
           transition: 'transform 0.2s'
         }} />
@@ -483,17 +493,17 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
             borderBottom: '1px solid var(--theme-border)',
             backgroundColor: 'rgba(59, 130, 246, 0.05)'
           }}>
-            <div style={{ 
-              fontSize: '0.85rem', 
-              fontWeight: 600, 
+            <div style={{
+              fontSize: '0.85rem',
+              fontWeight: 600,
               color: 'var(--theme-text-primary)',
               marginBottom: '4px'
             }}>
               Export Session Brief
             </div>
-            <div style={{ 
-              fontSize: '0.75rem', 
-              color: 'var(--theme-text-muted)' 
+            <div style={{
+              fontSize: '0.75rem',
+              color: 'var(--theme-text-muted)'
             }}>
               {exportableMessages.length} message{exportableMessages.length !== 1 ? 's' : ''}
               {responsesWithCitations > 0 && ` • ${responsesWithCitations} with citations`}
@@ -528,8 +538,8 @@ function SessionExportMenu({ messages, sessionTitle, onExportComplete }: Session
             </div>
           </button>
 
-          <div style={{ 
-            height: '1px', 
+          <div style={{
+            height: '1px',
             backgroundColor: 'var(--theme-border)',
             margin: '0 8px'
           }} />
@@ -598,9 +608,9 @@ function FeedbackButtons({ messageId, sessionId, onFeedback, currentFeedback }: 
 
   const handleFeedback = async (type: 'thumbs_up' | 'thumbs_down') => {
     if (isSubmitting || feedback === type) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // Create feedback object
       const feedbackData: ResponseFeedback = {
@@ -612,11 +622,11 @@ function FeedbackButtons({ messageId, sessionId, onFeedback, currentFeedback }: 
 
       // Save feedback via IPC
       await window.ipcRenderer?.invoke('pdf:save-feedback', feedbackData);
-      
+
       // Update local state
       setFeedback(type);
       onFeedback(messageId, type);
-      
+
       console.log('[FeedbackButtons] Feedback submitted:', type, 'for message:', messageId);
     } catch (error) {
       console.error('[FeedbackButtons] Failed to submit feedback:', error);
@@ -637,14 +647,14 @@ function FeedbackButtons({ messageId, sessionId, onFeedback, currentFeedback }: 
         disabled={isSubmitting}
         title={feedback === 'thumbs_up' ? 'You found this helpful' : 'This was helpful'}
         style={{
-          background: feedback === 'thumbs_up' 
-            ? 'rgba(34, 197, 94, 0.15)' 
+          background: feedback === 'thumbs_up'
+            ? 'rgba(34, 197, 94, 0.15)'
             : 'transparent',
           border: feedback === 'thumbs_up'
             ? '1px solid rgba(34, 197, 94, 0.4)'
             : '1px solid transparent',
-          color: feedback === 'thumbs_up' 
-            ? '#22c55e' 
+          color: feedback === 'thumbs_up'
+            ? '#22c55e'
             : 'var(--theme-text-muted)',
           cursor: isSubmitting ? 'wait' : 'pointer',
           display: 'flex',
@@ -677,14 +687,14 @@ function FeedbackButtons({ messageId, sessionId, onFeedback, currentFeedback }: 
         disabled={isSubmitting}
         title={feedback === 'thumbs_down' ? 'You found this unhelpful' : 'This was not helpful'}
         style={{
-          background: feedback === 'thumbs_down' 
-            ? 'rgba(239, 68, 68, 0.15)' 
+          background: feedback === 'thumbs_down'
+            ? 'rgba(239, 68, 68, 0.15)'
             : 'transparent',
           border: feedback === 'thumbs_down'
             ? '1px solid rgba(239, 68, 68, 0.4)'
             : '1px solid transparent',
-          color: feedback === 'thumbs_down' 
-            ? '#ef4444' 
+          color: feedback === 'thumbs_down'
+            ? '#ef4444'
             : 'var(--theme-text-muted)',
           cursor: isSubmitting ? 'wait' : 'pointer',
           display: 'flex',
@@ -756,7 +766,7 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
             <div style={{ fontWeight: 500, marginBottom: '4px' }}>
               Selected from page {message.attachedSelection.pageNumber}:
             </div>
-            <div style={{ 
+            <div style={{
               color: 'var(--theme-text-secondary)',
               fontStyle: 'italic',
               overflow: 'hidden',
@@ -769,7 +779,7 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
             </div>
           </div>
         )}
-        
+
         {/* Message content */}
         <div style={{
           padding: '12px 18px',
@@ -788,14 +798,14 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
 
   // Render assistant message with citations
   return (
-    <div style={{ marginBottom: '16px' }}>
+    <div style={{ marginBottom: '16px', overflow: 'visible' }}>
       {/* Message content with inline citations */}
-      <div className="markdown-content" style={{ 
-        color: '#e0e0e0', 
-        lineHeight: '1.7', 
-        fontSize: '0.95rem' 
+      <div className="markdown-content" style={{
+        color: '#e0e0e0',
+        lineHeight: '1.7',
+        fontSize: '0.95rem'
       }}>
-        <MessageWithCitations 
+        <MessageWithCitations
           content={message.content}
           citations={message.citations || []}
           onCitationClick={onCitationClick}
@@ -806,11 +816,14 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
       </div>
 
       {/* Action bar */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: '8px', 
-        marginTop: '8px' 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        rowGap: '6px',
+        flexWrap: 'wrap',
+        marginTop: '8px',
+        overflow: 'visible'
       }}>
         {/* Feedback buttons - Requirement 17.1 */}
         {!isStreaming && sessionId && onFeedback && (
@@ -857,8 +870,8 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
 
         {/* Export button - Requirements: 14.1, 14.4 */}
         {!isStreaming && (
-          <ExportMenu 
-            message={message} 
+          <ExportMenu
+            message={message}
             previousMessage={previousMessage}
           />
         )}
@@ -927,9 +940,9 @@ interface MessageWithCitationsProps {
  * Render message content with clickable inline citations
  * Requirements: 8.2, 8.7, 8.8, 17.2
  */
-function MessageWithCitations({ 
-  content, 
-  citations, 
+function MessageWithCitations({
+  content,
+  citations,
   onCitationClick,
   isStreaming,
   responseId,
@@ -959,7 +972,7 @@ function MessageWithCitations({
     // Add citation link
     const citationNum = parseInt(match[1], 10) - 1;
     const citation = citations[citationNum];
-    
+
     if (citation) {
       parts.push(
         <CitationLink
@@ -1016,7 +1029,7 @@ function LowConfidenceWarning({ confidence, threshold }: LowConfidenceWarningPro
     }}>
       <AlertTriangle size={16} />
       <span>
-        Low confidence ({Math.round(confidence * 100)}%). 
+        Low confidence ({Math.round(confidence * 100)}%).
         The retrieved information may not fully answer your question.
       </span>
     </div>
@@ -1038,11 +1051,11 @@ interface EmbeddingFallbackBannerProps {
   onDismiss?: () => void;
 }
 
-function EmbeddingFallbackBanner({ 
-  fallbackState, 
-  onRetry, 
-  onConfigure, 
-  onDismiss 
+function EmbeddingFallbackBanner({
+  fallbackState,
+  onRetry,
+  onConfigure,
+  onDismiss
 }: EmbeddingFallbackBannerProps) {
   const [isRecovering, setIsRecovering] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
@@ -1053,7 +1066,7 @@ function EmbeddingFallbackBanner({
 
   const handleRetry = async () => {
     if (isRecovering) return;
-    
+
     setIsRecovering(true);
     try {
       onRetry?.();
@@ -1097,8 +1110,8 @@ function EmbeddingFallbackBanner({
       fontSize: '0.85rem',
     }}>
       {/* Icon */}
-      <div style={{ 
-        color: style.color, 
+      <div style={{
+        color: style.color,
         flexShrink: 0,
         marginTop: '2px'
       }}>
@@ -1107,14 +1120,14 @@ function EmbeddingFallbackBanner({
 
       {/* Content */}
       <div style={{ flex: 1 }}>
-        <div style={{ 
-          fontWeight: 600, 
+        <div style={{
+          fontWeight: 600,
           color: style.color,
           marginBottom: '4px'
         }}>
           Using Keyword Search Only
         </div>
-        <div style={{ 
+        <div style={{
           color: 'var(--theme-text-secondary)',
           lineHeight: 1.5
         }}>
@@ -1122,9 +1135,9 @@ function EmbeddingFallbackBanner({
         </div>
 
         {/* Actions */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           gap: '8px',
           marginTop: '10px'
         }}>
@@ -1149,11 +1162,11 @@ function EmbeddingFallbackBanner({
                 transition: 'all 0.2s'
               }}
             >
-              <RefreshCw 
-                size={14} 
-                style={{ 
-                  animation: isRecovering ? 'spin 1s linear infinite' : 'none' 
-                }} 
+              <RefreshCw
+                size={14}
+                style={{
+                  animation: isRecovering ? 'spin 1s linear infinite' : 'none'
+                }}
               />
               {isRecovering ? 'Checking...' : 'Retry'}
             </button>
@@ -1224,8 +1237,8 @@ function GroundedModeToggle({ enabled, onChange }: GroundedModeToggleProps) {
   return (
     <button
       onClick={() => onChange(!enabled)}
-      title={enabled 
-        ? "Grounded mode: Only answers from document content" 
+      title={enabled
+        ? "Grounded mode: Only answers from document content"
         : "Standard mode: May include general knowledge"
       }
       style={{
@@ -1234,11 +1247,11 @@ function GroundedModeToggle({ enabled, onChange }: GroundedModeToggleProps) {
         gap: '6px',
         padding: '6px 10px',
         borderRadius: '8px',
-        border: enabled 
-          ? '1px solid rgba(34, 197, 94, 0.5)' 
+        border: enabled
+          ? '1px solid rgba(34, 197, 94, 0.5)'
           : '1px solid rgba(255, 255, 255, 0.1)',
-        background: enabled 
-          ? 'rgba(34, 197, 94, 0.1)' 
+        background: enabled
+          ? 'rgba(34, 197, 94, 0.1)'
           : 'rgba(255, 255, 255, 0.03)',
         color: enabled ? '#22c55e' : '#888',
         cursor: 'pointer',
@@ -1263,11 +1276,19 @@ export function PDFChatArea({
   documentIds,
   onCitationClick,
   groundedMode = false,
-  onGroundedModeChange
+  onGroundedModeChange,
+  indexingState,
+  loadedDocuments,
+  documentLoadingState,
+  onDismissIndexingNotification,
+  indexingPrompt,
+  onConfirmIndexing,
+  onSkipIndexing,
+  onDeleteIndex,
+  onReindex,
+  indexingLogs,
 }: PDFChatAreaProps) {
-  // Get settings from context - uses currently selected model
   const { settings } = useSettings();
-
   // State
   const [messages, setMessages] = useState<PDFChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -1276,6 +1297,11 @@ export function PDFChatArea({
   const [lastConfidence, setLastConfidence] = useState<number>(1);
   const [attachedSelection, setAttachedSelection] = useState<TextSelection | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const actionMenuRef = useRef<HTMLDivElement>(null);
+  const actionMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const [actionMenuPosition, setActionMenuPosition] = useState<'top' | 'bottom'>('top');
+  const [actionMenuCoords, setActionMenuCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   // Feedback state - tracks thumbs up/down for each message - Requirement 17.1
   const [feedbackState, setFeedbackState] = useState<Record<string, 'thumbs_up' | 'thumbs_down'>>({});
   // Embedding fallback state - Requirement 18.2
@@ -1303,6 +1329,81 @@ export function PDFChatArea({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isOutsideMenu = actionMenuRef.current && !actionMenuRef.current.contains(target);
+      const isOutsideButton = actionMenuButtonRef.current && !actionMenuButtonRef.current.contains(target);
+      if (isOutsideMenu && isOutsideButton) {
+        setIsActionMenuOpen(false);
+      }
+    };
+
+    if (isActionMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isActionMenuOpen]);
+
+  useEffect(() => {
+    if (!isActionMenuOpen || !actionMenuButtonRef.current) return;
+    const rect = actionMenuButtonRef.current.getBoundingClientRect();
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openAbove = spaceAbove > spaceBelow;
+    setActionMenuPosition(openAbove ? 'top' : 'bottom');
+    
+    // Calculate fixed position for portal
+    const menuHeight = 200; // Approximate menu height
+    setActionMenuCoords({
+      top: openAbove ? rect.top - menuHeight - 6 : rect.bottom + 6,
+      left: rect.right - 230 // Align right edge with button, menu is 230px wide
+    });
+  }, [isActionMenuOpen]);
+
+  const actionMenuStyles = useMemo(() => ({
+    position: 'fixed' as const,
+    top: actionMenuCoords.top,
+    left: actionMenuCoords.left,
+    backgroundColor: 'var(--theme-surface)',
+    border: '1px solid var(--theme-border)',
+    borderRadius: '10px',
+    boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)',
+    zIndex: 9999,
+    minWidth: '230px',
+    overflow: 'hidden'
+  }), [actionMenuCoords]);
+
+  useEffect(() => {
+    if (!isActionMenuOpen) return;
+    const handleScrollOrResize = () => {
+      if (!actionMenuButtonRef.current) return;
+      const rect = actionMenuButtonRef.current.getBoundingClientRect();
+      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openAbove = spaceAbove > spaceBelow;
+      setActionMenuPosition(openAbove ? 'top' : 'bottom');
+      
+      // Update fixed position for portal
+      const menuHeight = 200;
+      setActionMenuCoords({
+        top: openAbove ? rect.top - menuHeight - 6 : rect.bottom + 6,
+        left: rect.right - 230
+      });
+    };
+
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+
+    return () => {
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+    };
+  }, [isActionMenuOpen]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -1372,7 +1473,7 @@ export function PDFChatArea({
       if (session?.messages) {
         setMessages(session.messages);
       }
-      
+
       // Load persisted feedback for this session - Requirement 17.4
       const feedback = await window.ipcRenderer?.invoke('pdf:get-feedback', { sessionId: sid });
       if (feedback && Array.isArray(feedback)) {
@@ -1390,425 +1491,165 @@ export function PDFChatArea({
     }
   };
 
-  /**
-   * Stream AI response from the configured provider
-   * Supports: Ollama, Perplexity, Gemini, Groq, MiniMax, OpenRouter
-   */
-  const streamAIResponse = async (
-    provider: string,
-    settings: any,
-    messages: any[],
-    messageId: string,
-    ragContext: any
-  ) => {
-    let accumulatedContent = '';
-    let lastUpdateTime = Date.now();
-    const UPDATE_INTERVAL = 100;
+  const buildFallbackMessages = useCallback((userContent: string): Array<{ role: string; content: string }> => {
+    const history = [...messages, { role: 'user', content: userContent }];
+    const trimmedHistory = history
+      .filter(m => typeof m.content === 'string' && m.content.trim().length > 0)
+      .slice(-8)
+      .map(m => ({ role: m.role, content: String(m.content) }));
+    const systemPrompt = settings.systemPrompt?.trim();
+    return systemPrompt
+      ? [{ role: 'system', content: systemPrompt }, ...trimmedHistory]
+      : trimmedHistory;
+  }, [messages, settings.systemPrompt]);
 
-    const updateContent = (content: string) => {
-      setMessages(prev => prev.map(msg =>
-        msg.id === messageId
-          ? { ...msg, content }
-          : msg
-      ));
-    };
+  const generateFallbackResponse = useCallback(async (userContent: string): Promise<string> => {
+    const fallbackMessages = buildFallbackMessages(userContent);
+    const model = settings.aiModel;
+    const temperature = settings.temperature;
+    const maxTokens = settings.maxTokens;
 
-    try {
-      switch (provider) {
-        case 'ollama':
-          await streamOllamaResponse(settings, messages, (chunk: string) => {
-            accumulatedContent += chunk;
-            const now = Date.now();
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateContent(accumulatedContent);
-              lastUpdateTime = now;
-            }
-          });
-          break;
-
-        case 'perplexity':
-          await streamPerplexityResponse(settings, messages, (chunk: string) => {
-            accumulatedContent += chunk;
-            const now = Date.now();
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateContent(accumulatedContent);
-              lastUpdateTime = now;
-            }
-          });
-          break;
-
-        case 'gemini':
-          await streamGeminiResponse(settings, messages, (chunk: string) => {
-            accumulatedContent = chunk; // Gemini returns full content
-            updateContent(accumulatedContent);
-          });
-          break;
-
-        case 'groq':
-          await streamGroqResponse(settings, messages, (chunk: string) => {
-            accumulatedContent += chunk;
-            const now = Date.now();
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateContent(accumulatedContent);
-              lastUpdateTime = now;
-            }
-          });
-          break;
-
-        case 'minimax':
-          await streamMiniMaxResponse(settings, messages, (chunk: string) => {
-            accumulatedContent += chunk;
-            const now = Date.now();
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateContent(accumulatedContent);
-              lastUpdateTime = now;
-            }
-          });
-          break;
-
-        default:
-          // OpenRouter as default
-          await streamOpenRouterResponse(settings, messages, (chunk: string) => {
-            accumulatedContent += chunk;
-            const now = Date.now();
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-              updateContent(accumulatedContent);
-              lastUpdateTime = now;
-            }
-          });
-          break;
+    switch (settings.modelProvider) {
+      case 'groq': {
+        const res = await generateGroqCompletion(settings.groqApiKey, model, fallbackMessages, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
       }
-
-      // Final update with citations and sources
-      setMessages(prev => prev.map(msg =>
-        msg.id === messageId
-          ? {
-              ...msg,
-              content: accumulatedContent,
-              citations: ragContext.citations,
-              sources: ragContext.sources
-            }
-          : msg
-      ));
-
-      // Save session after completion
-      await saveSession();
-
-    } catch (error: any) {
-      console.error('[PDFChatArea] AI streaming failed:', error);
-      throw error;
-    }
-  };
-
-  /**
-   * Stream response from Ollama
-   */
-  const streamOllamaResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    const response = await fetch(`${settings.ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: settings.aiModel,
-        messages: messages,
-        stream: true,
-        options: { temperature: settings.temperature || 0.7 }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const json = JSON.parse(line);
-            const content = json.message?.content || '';
-            if (content) onChunk(content);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
+      case 'gemini': {
+        const res = await generateGeminiCompletion(settings.geminiApiKey, model, fallbackMessages, {
+          temperature,
+          maxOutputTokens: maxTokens,
+          systemInstruction: settings.systemPrompt
+        });
+        return res.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
+      }
+      case 'perplexity': {
+        const res = await generatePerplexityCompletion(settings.perplexityApiKey, model, fallbackMessages, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        const content = res.choices?.[0]?.message?.content || '';
+        return cleanSonarResponse(content, res.citations, res.search_results);
+      }
+      case 'ollama': {
+        const res = await generateOllamaCompletion(settings.ollamaUrl, model, fallbackMessages, {
+          temperature,
+          num_ctx: maxTokens
+        });
+        return res?.message?.content || '';
+      }
+      case 'minimax': {
+        const res = await generateMiniMaxCompletion(settings.minimaxApiKey, model, fallbackMessages, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+      case 'openrouter':
+      default: {
+        const res = await generateOpenRouterCompletion(settings.openRouterApiKey, model, fallbackMessages, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
       }
     }
-  };
+  }, [
+    buildFallbackMessages,
+    settings.aiModel,
+    settings.temperature,
+    settings.maxTokens,
+    settings.modelProvider,
+    settings.groqApiKey,
+    settings.geminiApiKey,
+    settings.systemPrompt,
+    settings.perplexityApiKey,
+    settings.ollamaUrl,
+    settings.minimaxApiKey,
+    settings.openRouterApiKey
+  ]);
 
   /**
-   * Stream response from Perplexity
+   * Generate AI response with PDF context awareness
+   * 
+   * This function uses the PDF system prompt from the RAG engine
+   * to generate responses that are grounded in the PDF content.
    */
-  const streamPerplexityResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.perplexityApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: settings.aiModel,
-        messages: messages,
-        stream: true,
-        temperature: settings.temperature || 0.7
-      })
-    });
+  const generatePDFAwareResponse = useCallback(async (
+    userContent: string,
+    pdfSystemPrompt: string
+  ): Promise<string> => {
+    // Build messages array with PDF system prompt
+    const messagesForAI: Array<{ role: string; content: string }> = [
+      { role: 'system', content: pdfSystemPrompt },
+      { role: 'user', content: userContent }
+    ];
 
-    if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.statusText}`);
-    }
+    const model = settings.aiModel;
+    const temperature = settings.temperature;
+    const maxTokens = settings.maxTokens;
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim() && line.startsWith('data:')) {
-          try {
-            const json = JSON.parse(line.slice(5));
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) onChunk(content);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
+    switch (settings.modelProvider) {
+      case 'groq': {
+        const res = await generateGroqCompletion(settings.groqApiKey, model, messagesForAI, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+      case 'gemini': {
+        const res = await generateGeminiCompletion(settings.geminiApiKey, model, messagesForAI, {
+          temperature,
+          maxOutputTokens: maxTokens,
+          systemInstruction: pdfSystemPrompt
+        });
+        return res.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
+      }
+      case 'perplexity': {
+        const res = await generatePerplexityCompletion(settings.perplexityApiKey, model, messagesForAI, {
+          temperature,
+          max_tokens: maxTokens
+        });
+        const content = res.choices?.[0]?.message?.content || '';
+        return cleanSonarResponse(content, res.citations, res.search_results);
+      }
+      case 'ollama': {
+        const res = await generateOllamaCompletion(settings.ollamaUrl, model, messagesForAI, {
+          temperature,
+          num_ctx: maxTokens
+        });
+        return res?.message?.content || '';
+      }
+      case 'minimax': {
+        const res = await generateMiniMaxCompletion(settings.minimaxApiKey, model, messagesForAI, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
+      }
+      case 'openrouter':
+      default: {
+        const res = await generateOpenRouterCompletion(settings.openRouterApiKey, model, messagesForAI, {
+          temperature,
+          maxTokens
+        });
+        return res.choices?.[0]?.message?.content || '';
       }
     }
-  };
-
-  /**
-   * Stream response from Gemini
-   */
-  const streamGeminiResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    // Remove system message for Gemini and convert format
-    const geminiMessages = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${settings.aiModel}:streamGenerateContent?key=${settings.geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: geminiMessages,
-        generationConfig: {
-          temperature: settings.temperature || 0.7,
-          maxOutputTokens: settings.maxTokens || 4096
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let accumulatedContent = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim() && line.startsWith('data:')) {
-          try {
-            const json = JSON.parse(line.slice(5));
-            const content = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            accumulatedContent = content;
-            onChunk(accumulatedContent);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-  };
-
-  /**
-   * Stream response from Groq
-   */
-  const streamGroqResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.groqApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: settings.aiModel,
-        messages: messages,
-        stream: true,
-        temperature: settings.temperature || 0.7,
-        max_tokens: settings.maxTokens || 4096
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Groq API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const json = JSON.parse(line);
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) onChunk(content);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-  };
-
-  /**
-   * Stream response from MiniMax
-   */
-  const streamMiniMaxResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    const response = await fetch('https://api.minimax.chat/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.minimaxApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: settings.aiModel,
-        messages: messages,
-        stream: true,
-        temperature: settings.temperature || 0.7,
-        max_tokens: settings.maxTokens || 4096
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`MiniMax API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const json = JSON.parse(line);
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) onChunk(content);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-  };
-
-  /**
-   * Stream response from OpenRouter
-   */
-  const streamOpenRouterResponse = async (settings: any, messages: any[], onChunk: (chunk: string) => void) => {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.openRouterApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'ZuraAI',
-        'X-Title': 'ZuraAI'
-      },
-      body: JSON.stringify({
-        model: settings.aiModel,
-        messages: messages,
-        stream: true,
-        temperature: settings.temperature || 0.7,
-        max_tokens: settings.maxTokens || 4096
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            const json = JSON.parse(line);
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) onChunk(content);
-          } catch (e) {
-            // Skip invalid JSON
-          }
-        }
-      }
-    }
-  };
+  }, [
+    settings.aiModel,
+    settings.temperature,
+    settings.maxTokens,
+    settings.modelProvider,
+    settings.groqApiKey,
+    settings.geminiApiKey,
+    settings.perplexityApiKey,
+    settings.ollamaUrl,
+    settings.minimaxApiKey,
+    settings.openRouterApiKey
+  ]);
 
 
   /**
@@ -1821,6 +1662,12 @@ export function PDFChatArea({
    */
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading || documentIds.length === 0) return;
+
+    // Check if any documents are indexed
+    const hasIndexedDocuments = documentIds.some(docId => {
+      const doc = loadedDocuments?.get(docId);
+      return doc?.isIndexed === true;
+    });
 
     const userMessage: PDFChatMessage = {
       id: `msg-${Date.now()}`,
@@ -1846,65 +1693,124 @@ export function PDFChatArea({
     };
     setMessages(prev => [...prev, assistantMessage]);
 
+    // If no documents are indexed, show a helpful message
+    if (!hasIndexedDocuments) {
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+            ...msg,
+            content: 'This document needs to be indexed before I can search and answer questions about its content. Please click "Index Document" above to enable document search and chat features.'
+          }
+          : msg
+      ));
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      // Step 1: Get RAG context from PDF documents
+      // Get RAG context via IPC (retrieves relevant chunks and builds PDF system prompt)
       const ragContext = await window.ipcRenderer?.invoke('pdf:get-context',
         userMessage.content,
         documentIds,
         {
           groundedMode,
-          attachedSelection: attachedSelection || undefined
+          topK: 5,
+          minScore: groundedMode ? 0.6 : 0.4,
+          useHybrid: true,
+          useReranker: true
         },
         {
           messages: messages.map(m => ({ role: m.role, content: m.content })),
+          viewState: undefined // Could be populated with current page view state
         }
       );
 
-      if (!ragContext) {
-        throw new Error('Failed to retrieve context from documents');
+      if (ragContext && ragContext.pdfSystemPrompt) {
+        // Update confidence from RAG retrieval
+        setLastConfidence(ragContext.confidence || 1);
+
+        // Generate AI response using the PDF-aware system prompt
+        const aiResponse = await generatePDFAwareResponse(
+          userMessage.content,
+          ragContext.pdfSystemPrompt
+        );
+
+        // Build citations from sources
+        const citations: Citation[] = (ragContext.sources || []).map((source: RetrievalResult, idx: number) => ({
+          id: `citation-${idx}`,
+          chunkId: source.chunk.id,
+          pageNumber: source.chunk.metadata.pageNumbers?.[0] || 1,
+          documentName: ragContext.documentMetadata?.find((d: { id: string }) => d.id === source.chunk.documentId)?.fileName || 'Document',
+          quotedText: source.chunk.content?.substring(0, 200) || '',
+          boundingBoxes: source.chunk.metadata.boundingBoxes || [],
+        }));
+
+        // Update assistant message with response
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId
+            ? {
+              ...msg,
+              content: aiResponse,
+              citations,
+              sources: ragContext.sources
+            }
+            : msg
+        ));
+
+        // Save session
+        await saveSession();
+      } else {
+        // Fallback if no context was retrieved
+        console.warn('[PDFChatArea] No PDF context available, using fallback response');
+        const fallbackContent = await generateFallbackResponse(userMessage.content);
+        setLastConfidence(0.5);
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId
+            ? {
+              ...msg,
+              content: fallbackContent || 'I could not find relevant information in the document to answer your question.'
+            }
+            : msg
+        ));
       }
-
-      // Update confidence
-      setLastConfidence(ragContext.confidence);
-
-      // Step 2: Prepare messages for AI model with PDF system prompt and context
-      const { getPDFSystemPrompt } = await import('../../prompts/pdfSystemPrompt');
-      const systemPrompt = getPDFSystemPrompt(ragContext.contextString);
-
-      // Build conversation history for AI
-      const conversationHistory = messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
-      const messagesForAI = [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
-        { role: 'user', content: userMessage.content }
-      ];
-
-      // Step 3: Use the currently selected model from settings and stream response
-      const modelProvider = settings.modelProvider || 'openrouter';
-
-      // Stream response from AI provider
-      await streamAIResponse(modelProvider, settings, messagesForAI, assistantMessageId, ragContext);
-
-    } catch (error: any) {
+    } catch (error) {
       console.error('[PDFChatArea] Query failed:', error);
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const shouldFallback = errorMessage.includes('PDF features are currently unavailable');
+      if (shouldFallback) {
+        try {
+          const fallbackContent = await generateFallbackResponse(userMessage.content);
+          if (fallbackContent) {
+            setLastConfidence(1);
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId
+                ? {
+                  ...msg,
+                  content: fallbackContent
+                }
+                : msg
+            ));
+            return;
+          }
+        } catch (fallbackError) {
+          console.error('[PDFChatArea] Fallback response failed:', fallbackError);
+        }
+      }
 
       // Update with error message
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
           ? {
-              ...msg,
-              content: `Sorry, I encountered an error: ${error?.message || 'Unknown error'}. Please try again.`
-            }
+            ...msg,
+            content: 'Sorry, I encountered an error while processing your question. Please try again.'
+          }
           : msg
       ));
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, documentIds, groundedMode, attachedSelection, messages, settings]);
+  }, [input, isLoading, documentIds, groundedMode, attachedSelection, messages, generateFallbackResponse, generatePDFAwareResponse, loadedDocuments]);
 
 
   /**
@@ -1916,9 +1822,35 @@ export function PDFChatArea({
    * - 12.4: Include section citations in summary
    */
   const summarizeDocument = useCallback(async () => {
-    if (isSummarizing || isLoading || documentIds.length === 0) return;
-
+    if (documentIds.length === 0 || isSummarizing) return;
+    setIsActionMenuOpen(false);
     setIsSummarizing(true);
+
+    // Helper to check if API key is configured for current provider
+    const hasApiKey = (): boolean => {
+      switch (settings.modelProvider) {
+        case 'groq': return !!settings.groqApiKey;
+        case 'gemini': return !!settings.geminiApiKey;
+        case 'perplexity': return !!settings.perplexityApiKey;
+        case 'minimax': return !!settings.minimaxApiKey;
+        case 'ollama': return true; // Ollama doesn't need API key
+        case 'openrouter':
+        default: return !!settings.openRouterApiKey;
+      }
+    };
+
+    // Get provider display name
+    const getProviderName = (): string => {
+      switch (settings.modelProvider) {
+        case 'groq': return 'Groq';
+        case 'gemini': return 'Gemini';
+        case 'perplexity': return 'Perplexity';
+        case 'minimax': return 'MiniMax';
+        case 'ollama': return 'Ollama';
+        case 'openrouter':
+        default: return 'OpenRouter';
+      }
+    };
 
     // Add user message indicating summarization request
     const userMessage: PDFChatMessage = {
@@ -1934,10 +1866,25 @@ export function PDFChatArea({
     const assistantMessage: PDFChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
-      content: '',
+      content: 'Generating summary...',
       timestamp: Date.now(),
     };
     setMessages(prev => [...prev, assistantMessage]);
+
+    // Pre-flight validation: Check if API key is configured
+    if (!hasApiKey()) {
+      const providerName = getProviderName();
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+            ...msg,
+            content: `**Cannot generate summary: No API key configured**\n\nTo generate AI-powered summaries, please configure your ${providerName} API key in **Settings**.\n\nCurrent provider: ${providerName}\n\n*Go to Settings > AI Provider to add your API key.*`,
+          }
+          : msg
+      ));
+      setIsSummarizing(false);
+      return;
+    }
 
     try {
       // Get document summary via IPC
@@ -1948,48 +1895,149 @@ export function PDFChatArea({
       );
 
       if (summary) {
+        // Track successful summaries for overall summary generation
+        const successfulSummaries: Array<{ title: string; summary: string }> = [];
+        let failedSections = 0;
+
         // Format the summary content with section summaries
         let summaryContent = `# Document Summary: ${summary.documentName}\n\n`;
         summaryContent += `📊 **${summary.pageCount} pages** | **${summary.sectionCount} sections**\n\n`;
         summaryContent += `---\n\n`;
 
-        // Add each section summary with citations
-        for (const sectionSummary of summary.sectionSummaries) {
+        // Generate AI summaries for each section
+        for (let i = 0; i < summary.sectionSummaries.length; i++) {
+          const sectionSummary = summary.sectionSummaries[i];
           const indent = '  '.repeat(sectionSummary.level);
-          const pageRange = sectionSummary.endPage > 0 
+          const pageRange = sectionSummary.endPage > 0
             ? `(pp. ${sectionSummary.startPage}-${sectionSummary.endPage})`
             : `(p. ${sectionSummary.startPage})`;
-          
+
           summaryContent += `${indent}## ${sectionSummary.sectionTitle} ${pageRange}\n\n`;
-          
-          // Add context string as the summary content (to be processed by AI)
-          // For now, we'll show a placeholder that indicates the section's content
-          if (sectionSummary.contextString) {
-            // Extract key points from the context
-            const contextPreview = sectionSummary.contextString.substring(0, 500);
-            summaryContent += `${indent}${contextPreview}${sectionSummary.contextString.length > 500 ? '...' : ''}\n\n`;
+
+          // Generate AI summary for this section if we have context
+          if (sectionSummary.contextString && sectionSummary.contextString.trim().length > 0) {
+            try {
+              // Build a concise summarization prompt
+              const summarizationPrompt = `You are summarizing a section of a PDF document.
+
+Section Title: "${sectionSummary.sectionTitle}"
+Pages: ${sectionSummary.startPage}${sectionSummary.endPage > 0 ? `-${sectionSummary.endPage}` : ''}
+
+Section Content:
+---
+${sectionSummary.contextString.substring(0, 2000)}${sectionSummary.contextString.length > 2000 ? '...' : ''}
+---
+
+Provide a concise summary (2-4 sentences) of the key points in this section. Focus on the main ideas and important details. Do not use phrases like "This section discusses" - just state the content directly.`;
+
+              const sectionAIResponse = await generatePDFAwareResponse(
+                'Summarize this section concisely.',
+                summarizationPrompt
+              );
+
+              if (sectionAIResponse && sectionAIResponse.trim().length > 0) {
+                summaryContent += `${indent}${sectionAIResponse.trim()}\n\n`;
+                // Track successful summary for overall summary generation
+                successfulSummaries.push({
+                  title: sectionSummary.sectionTitle,
+                  summary: sectionAIResponse.trim()
+                });
+              } else {
+                // Fallback to context preview if AI returns empty - show clear indicator
+                const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
+                summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+                failedSections++;
+              }
+            } catch (sectionError) {
+              console.warn(`[PDFChatArea] Failed to generate AI summary for section ${i}:`, sectionError);
+              // Fallback to context preview with warning indicator
+              const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
+              summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
+              failedSections++;
+            }
           } else {
-            summaryContent += `${indent}*No content available for this section*\n\n`;
+            summaryContent += `${indent}*No text content could be extracted from this section. It may contain images or non-text elements.*\n\n`;
           }
 
           // Add citations for this section
           if (sectionSummary.citations.length > 0) {
             const citationRefs = sectionSummary.citations
-              .map((c, i) => `[[cite:${c.chunkId}:p${c.pageNumber}]]`)
+              .map((c) => `[[cite:${c.chunkId}:p${c.pageNumber}]]`)
               .join(' ');
             summaryContent += `${indent}*Sources: ${citationRefs}*\n\n`;
           }
+
+          // Update progress in the UI
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? {
+                ...msg,
+                content: `Generating summary... (${i + 1}/${summary.sectionSummaries.length} sections)\n\n${summaryContent}`,
+              }
+              : msg
+          ));
         }
 
-        // Update assistant message with summary
+        // Generate overall executive summary if we have successful section summaries
+        let overallSummary = '';
+        if (successfulSummaries.length > 0) {
+          try {
+            // Update UI to show we're generating overall summary
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId
+                ? {
+                  ...msg,
+                  content: `Generating executive summary...\n\n${summaryContent}`,
+                }
+                : msg
+            ));
+
+            // Combine section summaries for overall summary generation
+            const combinedSummaries = successfulSummaries
+              .map(s => `**${s.title}:** ${s.summary}`)
+              .join('\n\n');
+
+            const overallPrompt = `Based on these section summaries from the document "${summary.documentName}", provide a concise executive summary (3-5 sentences) that captures the main themes and key takeaways:\n\n${combinedSummaries.substring(0, 3000)}`;
+
+            overallSummary = await generatePDFAwareResponse(
+              'Generate an executive summary of this document.',
+              overallPrompt
+            );
+          } catch (overallError) {
+            console.warn('[PDFChatArea] Failed to generate overall summary:', overallError);
+          }
+        }
+
+        // Build final content with executive summary at the top
+        let finalContent = `# Document Summary: ${summary.documentName}\n\n`;
+        finalContent += `📊 **${summary.pageCount} pages** | **${summary.sectionCount} sections**`;
+
+        // Add warning if some sections failed
+        if (failedSections > 0) {
+          finalContent += ` | ⚠️ *${failedSections} section(s) showing preview only*`;
+        }
+        finalContent += `\n\n`;
+
+        // Add executive summary if generated
+        if (overallSummary && overallSummary.trim().length > 0) {
+          finalContent += `## Executive Summary\n\n${overallSummary.trim()}\n\n---\n\n`;
+        }
+
+        finalContent += `---\n\n`;
+
+        // Add section summaries (skip the header we already added)
+        const sectionContent = summaryContent.split('---\n\n').slice(1).join('---\n\n');
+        finalContent += sectionContent;
+
+        // Update assistant message with final summary
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
-                ...msg,
-                content: summaryContent,
-                citations: summary.citations,
-                sources: summary.sectionSummaries.flatMap(s => s.sources),
-              }
+              ...msg,
+              content: finalContent,
+              citations: summary.citations,
+              sources: summary.sectionSummaries.flatMap(s => s.sources),
+            }
             : msg
         ));
 
@@ -2003,15 +2051,15 @@ export function PDFChatArea({
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
           ? {
-              ...msg,
-              content: 'Sorry, I encountered an error while generating the document summary. Please try again.',
-            }
+            ...msg,
+            content: 'Sorry, I encountered an error while generating the document summary. Please try again.',
+          }
           : msg
       ));
     } finally {
       setIsSummarizing(false);
     }
-  }, [isSummarizing, isLoading, documentIds]);
+  }, [isSummarizing, isLoading, documentIds, generatePDFAwareResponse, settings.modelProvider, settings.groqApiKey, settings.geminiApiKey, settings.perplexityApiKey, settings.minimaxApiKey, settings.openRouterApiKey]);
 
 
   /**
@@ -2019,7 +2067,7 @@ export function PDFChatArea({
    */
   const saveSession = async () => {
     if (!sessionId) return;
-    
+
     try {
       await window.ipcRenderer?.invoke('pdf-chat:save-session', {
         id: sessionId,
@@ -2100,12 +2148,12 @@ export function PDFChatArea({
       background: 'var(--theme-background)'
     }}>
       {/* Messages container */}
-      <div 
+      <div
         ref={messagesContainerRef}
-        style={{ 
-          flex: 1, 
-          overflowY: 'auto', 
-          padding: '16px' 
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px'
         }}
       >
         {/* Embedding fallback warning - Requirement 18.2 */}
@@ -2125,13 +2173,299 @@ export function PDFChatArea({
           <LowConfidenceWarning confidence={lastConfidence} threshold={0.5} />
         )}
 
+        {/* Document Loading Indicator */}
+        {documentLoadingState && documentLoadingState.isLoading && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 16px',
+            margin: '0 16px 12px 16px',
+            background: 'rgba(168, 85, 247, 0.1)',
+            border: '1px solid rgba(168, 85, 247, 0.3)',
+            borderRadius: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #a855f7',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: 'var(--theme-text-primary)',
+              }}>
+                Loading PDF...
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--theme-text-muted)',
+              }}>
+                {documentLoadingState.documentName}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Indexing Prompt - Inline indexing experience */}
+        {indexingPrompt && onConfirmIndexing && onSkipIndexing && (
+          <IndexingPromptMessage
+            prompt={indexingPrompt}
+            onConfirm={(modelId) => onConfirmIndexing(indexingPrompt.documentId, modelId)}
+            onSkip={() => onSkipIndexing(indexingPrompt.documentId)}
+            indexingState={indexingState}
+            indexingLogs={indexingLogs}
+            onDeleteIndex={onDeleteIndex}
+            onReindex={onReindex}
+          />
+        )}
+
+        {/* Legacy Indexing Status Indicator (only shown if no prompt) */}
+        {!indexingPrompt && indexingState && indexingState.isIndexing && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 16px',
+            margin: '0 16px 12px 16px',
+            background: 'rgba(96, 165, 250, 0.1)',
+            border: '1px solid rgba(96, 165, 250, 0.3)',
+            borderRadius: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #60a5fa',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: 'var(--theme-text-primary)',
+                marginBottom: '2px',
+              }}>
+                Indexing {indexingState.documentName}...
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--theme-text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                  <div style={{
+                    width: `${indexingState.progress}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #60a5fa, #3b82f6)',
+                    borderRadius: '2px',
+                    transition: 'width 0.3s ease',
+                  }} />
+                </div>
+                <span>{indexingState.progress}%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Legacy Indexing Complete Notification (only shown if no prompt) */}
+        {!indexingPrompt && indexingState && indexingState.isComplete && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 16px',
+            margin: '0 16px 12px 16px',
+            background: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            borderRadius: '12px',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              background: 'rgba(34, 197, 94, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <div style={{
+              fontSize: '0.9rem',
+              color: 'var(--theme-text-primary)',
+              flex: 1,
+            }}>
+              <span style={{ fontWeight: 500 }}>Indexing complete!</span> {indexingState.documentName} is now ready for search.
+            </div>
+            {onDismissIndexingNotification && (
+              <button
+                onClick={onDismissIndexingNotification}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--theme-text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.6,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseOut={(e) => e.currentTarget.style.opacity = '0.6'}
+                title="Dismiss"
+              >
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>×</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Legacy Indexing Error (only shown if no prompt) */}
+        {!indexingPrompt && indexingState && indexingState.error && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 16px',
+            margin: '0 16px 12px 16px',
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '12px',
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12" y2="16" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                color: 'var(--theme-text-primary)',
+                marginBottom: '2px',
+              }}>
+                Indexing failed
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--theme-text-muted)',
+              }}>
+                {indexingState.error}
+              </div>
+            </div>
+            {onDismissIndexingNotification && (
+              <button
+                onClick={onDismissIndexingNotification}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--theme-text-muted)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.6,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = '1'}
+                onMouseOut={(e) => e.currentTarget.style.opacity = '0.6'}
+                title="Dismiss"
+              >
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>×</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* PDF Context Indicator */}
+        {loadedDocuments && loadedDocuments.size > 0 && (
+          <div style={{
+            padding: '8px 16px',
+            margin: '0 16px 12px 16px',
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid var(--theme-border)',
+            borderRadius: '8px',
+            fontSize: '0.75rem',
+            color: 'var(--theme-text-muted)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span style={{ fontWeight: 500 }}>Loaded Documents</span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {Array.from(loadedDocuments.entries()).map(([id, info]) => (
+                <div
+                  key={id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 8px',
+                    background: info.isIndexed
+                      ? 'rgba(34, 197, 94, 0.1)'
+                      : 'rgba(251, 191, 36, 0.1)',
+                    border: info.isIndexed
+                      ? '1px solid rgba(34, 197, 94, 0.3)'
+                      : '1px solid rgba(251, 191, 36, 0.3)',
+                    borderRadius: '6px',
+                  }}
+                  title={info.isIndexed ? 'Indexed - ready for search' : 'Not indexed - limited search'}
+                >
+                  <span style={{
+                    maxWidth: '150px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {info.name}
+                  </span>
+                  {info.isIndexed ? (
+                    <span style={{ color: '#22c55e', fontSize: '10px' }}>●</span>
+                  ) : (
+                    <span style={{ color: '#fbbf24', fontSize: '10px' }}>○</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         {messages.map((msg, idx) => {
           // Find the previous user message for assistant responses (for export context)
-          const previousMessage = msg.role === 'assistant' && idx > 0 
-            ? messages[idx - 1] 
+          const previousMessage = msg.role === 'assistant' && idx > 0
+            ? messages[idx - 1]
             : undefined;
-          
+
           return (
             <PDFMessage
               key={msg.id}
@@ -2186,7 +2520,7 @@ export function PDFChatArea({
           }}>
             <div style={{ color: '#60a5fa', flex: 1, overflow: 'hidden' }}>
               <span style={{ fontWeight: 500 }}>Selected text (p.{attachedSelection.pageNumber}): </span>
-              <span style={{ 
+              <span style={{
                 color: 'var(--theme-text-secondary)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -2256,103 +2590,182 @@ export function PDFChatArea({
 
 
             {/* Bottom row */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between' 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
             }}>
-              {/* Left side: Grounded mode toggle + Summarize + Session export */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {/* Grounded mode toggle */}
-                {onGroundedModeChange && (
-                  <GroundedModeToggle
-                    enabled={groundedMode}
-                    onChange={onGroundedModeChange}
-                  />
-                )}
+                <div ref={actionMenuRef} style={{ position: 'relative' }}>
+                  <button
+                    ref={actionMenuButtonRef}
+                    onClick={() => setIsActionMenuOpen(prev => !prev)}
+                    title="Chat actions"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      color: 'var(--theme-text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <MoreVertical size={14} />
+                    <span>Actions</span>
+                    <ChevronDown size={12} style={{
+                      transform: isActionMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s'
+                    }} />
+                  </button>
 
-                {/* Summarize Document button - Requirements: 12.1, 12.3, 12.4 */}
+                  {isActionMenuOpen && createPortal(
+                    <div ref={actionMenuRef} style={actionMenuStyles}>
+                      {onGroundedModeChange && (
+                        <button
+                          onClick={() => {
+                            setIsActionMenuOpen(false);
+                            onGroundedModeChange?.(!groundedMode);
+                          }}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 14px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: groundedMode ? '#22c55e' : 'var(--theme-text-secondary)',
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            textAlign: 'left',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          {groundedMode ? <Shield size={16} /> : <ShieldOff size={16} />}
+                          <div>
+                            <div style={{ fontWeight: 500 }}>Grounded Mode</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
+                              {groundedMode ? 'On - answers from document' : 'Off - allow general knowledge'}
+                            </div>
+                          </div>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={summarizeDocument}
+                        disabled={isSummarizing || isLoading || documentIds.length === 0}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '10px 14px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: isSummarizing ? '#a78bfa' : 'var(--theme-text-secondary)',
+                          cursor: isSummarizing || isLoading ? 'not-allowed' : 'pointer',
+                          fontSize: '0.85rem',
+                          textAlign: 'left',
+                          transition: 'background 0.15s',
+                          opacity: isSummarizing || isLoading ? 0.6 : 1
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        {isSummarizing ? (
+                          <div style={{
+                            width: '14px',
+                            height: '14px',
+                            border: '2px solid rgba(167, 139, 250, 0.3)',
+                            borderTopColor: '#c084fc',
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                        ) : (
+                          <BookOpen size={16} />
+                        )}
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{isSummarizing ? 'Summarizing...' : 'Summarize Document'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>Section-by-section overview</div>
+                        </div>
+                      </button>
+
+                      {messages.length > 0 && !isLoading && (
+                        <div style={{
+                          borderTop: '1px solid var(--theme-border)'
+                        }}>
+                          <div style={{
+                            padding: '10px 14px 6px',
+                            fontSize: '0.75rem',
+                            color: 'var(--theme-text-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em'
+                          }}>
+                            Session Export
+                          </div>
+                          <div style={{ padding: '0 10px 10px' }}>
+                            <SessionExportMenu
+                              messages={messages}
+                              sessionTitle={`PDF Chat - ${new Date().toLocaleDateString()}`}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>,
+                    document.body
+                  )}
+                </div>
+              </div>
+
+              {/* Right side: Model selector + Send button */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ModelSelector minimal />
                 <button
-                  onClick={summarizeDocument}
-                  disabled={isSummarizing || isLoading || documentIds.length === 0}
-                  title="Generate section-by-section document summary"
+                  onClick={sendMessage}
+                  disabled={isLoading || !input.trim()}
                   style={{
+                    background: input.trim() && !isLoading
+                      ? 'var(--theme-accent)'
+                      : 'rgba(255, 255, 255, 0.03)',
+                    border: input.trim() && !isLoading
+                      ? 'none'
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '10px',
+                    width: '36px',
+                    height: '36px',
+                    color: input.trim() && !isLoading ? '#000' : '#888',
+                    cursor: input.trim() && !isLoading ? 'pointer' : 'default',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(147, 51, 234, 0.5)',
-                    background: 'rgba(147, 51, 234, 0.1)',
-                    color: isSummarizing ? '#a78bfa' : '#c084fc',
-                    cursor: isSummarizing || isLoading ? 'not-allowed' : 'pointer',
-                    fontSize: '0.8rem',
-                    fontWeight: 500,
+                    justifyContent: 'center',
                     transition: 'all 0.2s',
-                    opacity: isSummarizing || isLoading ? 0.6 : 1,
+                    padding: 0,
+                    opacity: isLoading ? 0.5 : 1
                   }}
                 >
-                  {isSummarizing ? (
+                  {isLoading ? (
                     <div style={{
-                      width: '14px',
-                      height: '14px',
-                      border: '2px solid rgba(167, 139, 250, 0.3)',
-                      borderTopColor: '#c084fc',
+                      width: '16px',
+                      height: '16px',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                      borderTopColor: '#fff',
                       borderRadius: '50%',
                       animation: 'spin 1s linear infinite'
                     }} />
                   ) : (
-                    <BookOpen size={14} />
+                    <Send size={18} />
                   )}
-                  <span>{isSummarizing ? 'Summarizing...' : 'Summarize'}</span>
                 </button>
-                
-                {/* Session export button - Requirements: 14.5 */}
-                {messages.length > 0 && !isLoading && (
-                  <SessionExportMenu 
-                    messages={messages}
-                    sessionTitle={`PDF Chat - ${new Date().toLocaleDateString()}`}
-                  />
-                )}
               </div>
-
-              {/* Send button */}
-              <button
-                onClick={sendMessage}
-                disabled={isLoading || !input.trim()}
-                style={{
-                  background: input.trim() && !isLoading 
-                    ? 'var(--theme-accent)' 
-                    : 'rgba(255, 255, 255, 0.03)',
-                  border: input.trim() && !isLoading 
-                    ? 'none' 
-                    : '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '10px',
-                  width: '36px',
-                  height: '36px',
-                  color: input.trim() && !isLoading ? '#000' : '#888',
-                  cursor: input.trim() && !isLoading ? 'pointer' : 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  padding: 0,
-                  opacity: isLoading ? 0.5 : 1
-                }}
-              >
-                {isLoading ? (
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: '#fff',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                ) : (
-                  <Send size={18} />
-                )}
-              </button>
             </div>
           </div>
         </StarBorder>

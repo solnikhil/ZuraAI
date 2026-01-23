@@ -48,7 +48,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
         onClick={toggleOpen}
         aria-haspopup="dialog"
         aria-expanded={state.isOpen}
-        title={`${currentName} — ${settings.modelProvider || 'auto'}`}
+        title={minimal ? `${currentName} — ${settings.modelProvider || 'auto'}` : `${currentName} — ${settings.modelProvider || 'auto'}`}
         className={triggerClass}
       >
         {currentModel ? (
@@ -56,12 +56,14 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
             model={currentModel}
             icon={getModelAttributes(currentModel).icon}
             color={getModelAttributes(currentModel).color}
-            size={16}
+            size={minimal ? 18 : 16}
           />
         ) : <Cpu size={14} />}
-        <span className="truncate" style={{ maxWidth: minimal ? '110px' : '120px', fontSize: minimal ? '0.8rem' : '0.85rem' }}>
-          {currentName}
-        </span>
+        {!minimal && (
+          <span className="truncate" style={{ maxWidth: '120px', fontSize: '0.85rem' }}>
+            {currentName}
+          </span>
+        )}
         <ChevronDown size={14} style={{ opacity: 0.5, transform: state.isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
       </button>
 

@@ -77,8 +77,8 @@ function createDocumentsSchema(): arrow.Schema {
     new arrow.Field('fileName', new arrow.Utf8(), false),
     new arrow.Field('fileHash', new arrow.Utf8(), false),
     new arrow.Field('pageCount', new arrow.Int32(), false),
-    new arrow.Field('title', new arrow.Utf8(), true),
-    new arrow.Field('author', new arrow.Utf8(), true),
+    new arrow.Field('title', new arrow.Utf8(), false),  // Changed to non-nullable, will use empty string
+    new arrow.Field('author', new arrow.Utf8(), false), // Changed to non-nullable, will use empty string
     new arrow.Field('indexedAt', new arrow.Int64(), false),
     new arrow.Field('chunkCount', new arrow.Int32(), false),
     new arrow.Field('embeddingModel', new arrow.Utf8(), false),
@@ -96,7 +96,7 @@ function createChunksSchema(dimensions: number): arrow.Schema {
     new arrow.Field('content', new arrow.Utf8(), false),
     new arrow.Field('pageNumbers', new arrow.List(new arrow.Field('item', new arrow.Int32(), true)), false),
     new arrow.Field('boundingBoxes', new arrow.Utf8(), false), // JSON serialized
-    new arrow.Field('sectionHeader', new arrow.Utf8(), true),
+    new arrow.Field('sectionHeader', new arrow.Utf8(), false), // Changed to non-nullable, will use empty string
     new arrow.Field('chunkIndex', new arrow.Int32(), false),
     new arrow.Field('tokenCount', new arrow.Int32(), false),
     new arrow.Field('blockType', new arrow.Utf8(), false),
@@ -162,7 +162,7 @@ export class VectorStore implements IVectorStore {
     }
 
     this.initPromise = this._doInitialize();
-    
+
     try {
       await this.initPromise;
     } finally {
@@ -174,23 +174,37 @@ export class VectorStore implements IVectorStore {
     try {
       ensureVectorStoreDir();
       const dbPath = getVectorStoreDir();
-      
+
       // Connect to LanceDB
       this.db = await lancedb.connect(dbPath);
-      
+
       // Get existing tables
       const tableNames = await this.db.tableNames();
-      
+
       // Initialize documents table
       if (tableNames.includes(DOCUMENTS_TABLE)) {
-        this.documentsTable = await this.db.openTable(DOCUMENTS_TABLE);
+        try {
+          this.documentsTable = await this.db.openTable(DOCUMENTS_TABLE);
+        } catch (err) {
+          // If opening fails (schema mismatch), drop and recreate
+          console.warn('[VectorStore] Failed to open documents table, recreating:', err);
+          await this.db.dropTable(DOCUMENTS_TABLE);
+          this.documentsTable = null;
+        }
       }
-      
+
       // Initialize chunks table
       if (tableNames.includes(CHUNKS_TABLE)) {
-        this.chunksTable = await this.db.openTable(CHUNKS_TABLE);
+        try {
+          this.chunksTable = await this.db.openTable(CHUNKS_TABLE);
+        } catch (err) {
+          // If opening fails (schema mismatch), drop and recreate
+          console.warn('[VectorStore] Failed to open chunks table, recreating:', err);
+          await this.db.dropTable(CHUNKS_TABLE);
+          this.chunksTable = null;
+        }
       }
-      
+
       this.isInitialized = true;
       console.log('[VectorStore] Initialized successfully at:', dbPath);
     } catch (error) {
@@ -217,7 +231,7 @@ export class VectorStore implements IVectorStore {
    */
   async addDocument(doc: DocumentRecord): Promise<void> {
     await this.ensureInitialized();
-    
+
     if (!this.db) {
       throw new Error('Vector store not initialized');
     }
@@ -228,16 +242,17 @@ export class VectorStore implements IVectorStore {
       fileName: doc.fileName,
       fileHash: doc.fileHash,
       pageCount: doc.pageCount,
-      title: doc.title || null,
-      author: doc.author || null,
+      title: doc.title || '',
+      author: doc.author || '',
       indexedAt: doc.indexedAt,
       chunkCount: doc.chunkCount,
       embeddingModel: doc.embeddingModel,
     };
 
     if (!this.documentsTable) {
-      // Create table with first document
-      this.documentsTable = await this.db.createTable(DOCUMENTS_TABLE, [record]);
+      // Create table with first document - use explicit schema to avoid type inference issues
+      const schema = createDocumentsSchema();
+      this.documentsTable = await this.db.createTable(DOCUMENTS_TABLE, [record], { schema });
       console.log('[VectorStore] Created documents table');
     } else {
       // Check if document already exists
@@ -260,11 +275,14 @@ export class VectorStore implements IVectorStore {
    * 
    * Implements Requirements 6.5, 6.6
    * 
+   * Note: This method will delete any existing chunks for the same document(s)
+   * before adding the new chunks to prevent duplication.
+   * 
    * @param chunks - Array of chunk records to add
    */
   async addChunks(chunks: ChunkRecord[]): Promise<void> {
     await this.ensureInitialized();
-    
+
     if (!this.db) {
       throw new Error('Vector store not initialized');
     }
@@ -282,6 +300,9 @@ export class VectorStore implements IVectorStore {
       }
     }
 
+    // Get unique document IDs from the chunks being added
+    const documentIds = [...new Set(chunks.map(c => c.documentId))];
+
     // Prepare records
     const records = chunks.map(chunk => ({
       id: chunk.id,
@@ -289,7 +310,7 @@ export class VectorStore implements IVectorStore {
       content: chunk.content,
       pageNumbers: chunk.pageNumbers,
       boundingBoxes: chunk.boundingBoxes, // Already JSON serialized
-      sectionHeader: chunk.sectionHeader || null,
+      sectionHeader: chunk.sectionHeader || '',
       chunkIndex: chunk.chunkIndex,
       tokenCount: chunk.tokenCount,
       blockType: chunk.blockType,
@@ -302,9 +323,20 @@ export class VectorStore implements IVectorStore {
       this.chunksTable = await this.db.createTable(CHUNKS_TABLE, records, { schema });
       console.log('[VectorStore] Created chunks table with', records.length, 'chunks');
     } else {
-      // Add to existing table
+      // Delete existing chunks for these documents first to prevent duplicates
+      // This is a safety mechanism - the RAGEngine should already delete before re-indexing,
+      // but this ensures no duplicates even if that step is skipped
+      for (const docId of documentIds) {
+        try {
+          await this.chunksTable.delete(`"documentId" = '${docId}'`);
+        } catch {
+          // Ignore errors - document may not have existing chunks
+        }
+      }
+      
+      // Add new chunks
       await this.chunksTable.add(records);
-      console.log('[VectorStore] Added', records.length, 'chunks');
+      console.log('[VectorStore] Added', records.length, 'chunks for', documentIds.length, 'document(s)');
     }
   }
 
@@ -318,7 +350,7 @@ export class VectorStore implements IVectorStore {
    */
   async vectorSearch(params: VectorSearchParams): Promise<Array<{ id: string; score: number }>> {
     await this.ensureInitialized();
-    
+
     if (!this.chunksTable) {
       return [];
     }
@@ -328,26 +360,85 @@ export class VectorStore implements IVectorStore {
     // Build query
     let query = this.chunksTable.query().nearestTo(queryVector).limit(limit);
 
-    // Apply document filter
+    // Apply document filter with backward compatibility for old ID formats
+    // Old format: doc_{hash16chars}_{timestamp}
+    // New format: doc_{hash32chars}
+    // Both share the same hash prefix, so we match by prefix for compatibility
     if (documentIds && documentIds.length > 0) {
-      const docFilter = documentIds.map(id => `documentId = '${id}'`).join(' OR ');
+      // Extract hash prefixes from document IDs for backward-compatible matching
+      const hashPrefixes = documentIds.map(id => {
+        // Extract the hash portion (after "doc_")
+        const match = id.match(/^doc_([a-f0-9]+)/);
+        if (match) {
+          // Use first 16 chars of hash as common prefix (shared between old and new formats)
+          return match[1].substring(0, 16);
+        }
+        return null;
+      }).filter((p): p is string => p !== null);
+
+      // Build filter that matches both exact IDs and prefix-based matches
+      const exactMatches = documentIds.map(id => `"documentId" = '${id}'`);
+      const prefixMatches = hashPrefixes.map(prefix => `"documentId" LIKE 'doc_${prefix}%'`);
+      const allFilters = [...exactMatches, ...prefixMatches];
+      const docFilter = [...new Set(allFilters)].join(' OR '); // Remove duplicates
       query = query.where(`(${docFilter})`);
+      console.log('[VectorStore]    Using backward-compatible document filter');
+    }
+
+    // Debug: Check what's in the table and what document IDs exist
+    const allRows = await this.chunksTable.query().limit(100).toArray();
+    const uniqueDocIds = [...new Set(allRows.map(r => r.documentId))];
+    console.log('[VectorStore] 📊 Database state:');
+    console.log('[VectorStore]    Total chunks in sample: ' + allRows.length);
+    console.log('[VectorStore]    Document IDs in DB: ' + uniqueDocIds.join(', '));
+    console.log('[VectorStore]    Document IDs requested: ' + (documentIds?.join(', ') || 'ALL'));
+
+    // Check if requested IDs match what's in the DB (exact or prefix match)
+    if (documentIds && documentIds.length > 0) {
+      const matchingIds = documentIds.filter(id => uniqueDocIds.includes(id));
+      const missingIds = documentIds.filter(id => !uniqueDocIds.includes(id));
+
+      // Also check for prefix matches (backward compatibility)
+      const prefixMatches: string[] = [];
+      for (const reqId of missingIds) {
+        const match = reqId.match(/^doc_([a-f0-9]+)/);
+        if (match) {
+          const prefix = match[1].substring(0, 16);
+          const matchedInDb = uniqueDocIds.filter(dbId => dbId.startsWith(`doc_${prefix}`));
+          if (matchedInDb.length > 0) {
+            prefixMatches.push(`${reqId} → ${matchedInDb.join(', ')}`);
+          }
+        }
+      }
+
+      if (matchingIds.length > 0) {
+        console.log('[VectorStore]    ✓ Exact matches found:', matchingIds);
+      }
+      if (prefixMatches.length > 0) {
+        console.log('[VectorStore]    ✓ Prefix matches found (backward compat):', prefixMatches);
+      }
+      if (missingIds.length > 0 && prefixMatches.length === 0) {
+        console.log('[VectorStore]    ⚠️ MISMATCH: No exact or prefix matches for:', missingIds);
+      }
     }
 
     // Execute search
+    console.log('[VectorStore]    Executing vector search with limit=' + limit + ', minScore=' + minScore);
     const results = await query.toArray();
+    console.log('[VectorStore]    Raw results returned: ' + results.length);
 
     // Process results
     const processed: Array<{ id: string; score: number }> = [];
-    
+
     for (const row of results) {
       // LanceDB returns _distance for vector search
       // Convert distance to similarity score (1 / (1 + distance))
       const distance = row._distance ?? 0;
       const score = 1 / (1 + distance);
-      
+
       // Apply minimum score filter
       if (minScore !== undefined && score < minScore) {
+        console.log('[VectorStore] Filtered out chunk due to minScore:', score, '<', minScore);
         continue;
       }
 
@@ -382,7 +473,7 @@ export class VectorStore implements IVectorStore {
    */
   async bm25Search(params: BM25SearchParams): Promise<Array<{ id: string; score: number }>> {
     await this.ensureInitialized();
-    
+
     if (!this.chunksTable) {
       return [];
     }
@@ -393,27 +484,46 @@ export class VectorStore implements IVectorStore {
       // Check if FTS index exists, create if not
       await this.ensureFTSIndex();
 
+      console.log('[VectorStore] 📝 BM25 SEARCH');
+      console.log('[VectorStore]    Query text: "' + queryText.substring(0, 60) + (queryText.length > 60 ? '...' : '') + '"');
+      console.log('[VectorStore]    Document IDs requested: ' + (documentIds?.join(', ') || 'ALL'));
+
       // Build query with full-text search
       let query = this.chunksTable.query().nearestToText(queryText).limit(limit);
 
-      // Apply document filter
+      // Apply document filter with backward compatibility for old ID formats
       if (documentIds && documentIds.length > 0) {
-        const docFilter = documentIds.map(id => `documentId = '${id}'`).join(' OR ');
+        // Extract hash prefixes from document IDs for backward-compatible matching
+        const hashPrefixes = documentIds.map(id => {
+          const match = id.match(/^doc_([a-f0-9]+)/);
+          if (match) {
+            return match[1].substring(0, 16);
+          }
+          return null;
+        }).filter((p): p is string => p !== null);
+
+        // Build filter that matches both exact IDs and prefix-based matches
+        const exactMatches = documentIds.map(id => `"documentId" = '${id}'`);
+        const prefixMatches = hashPrefixes.map(prefix => `"documentId" LIKE 'doc_${prefix}%'`);
+        const allFilters = [...exactMatches, ...prefixMatches];
+        const docFilter = [...new Set(allFilters)].join(' OR ');
         query = query.where(`(${docFilter})`);
+        console.log('[VectorStore]    BM25: Using backward-compatible document filter');
       }
 
       // Execute search
       const results = await query.toArray();
+      console.log('[VectorStore]    BM25 results returned: ' + results.length);
 
       // Process results
       const processed: Array<{ id: string; score: number }> = [];
-      
+
       for (let i = 0; i < results.length; i++) {
         const row = results[i];
-        
+
         // BM25 score is typically returned as _score or we use rank-based scoring
         const score = row._score ?? (1 / (i + 1)); // Fallback to rank-based score
-        
+
         // Apply page range filter
         if (pageRange) {
           const pageNumbers: number[] = row.pageNumbers || [];
@@ -518,7 +628,7 @@ export class VectorStore implements IVectorStore {
 
     // Sort by score descending and limit
     fusedResults.sort((a, b) => b.score - a.score);
-    
+
     const limit = Math.max(vectorParams.limit, bm25Params.limit);
     return fusedResults.slice(0, limit);
   }
@@ -531,7 +641,7 @@ export class VectorStore implements IVectorStore {
    */
   async getDocument(docId: string): Promise<DocumentRecord | null> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return null;
     }
@@ -574,7 +684,7 @@ export class VectorStore implements IVectorStore {
    */
   async getChunk(chunkId: string): Promise<ChunkRecord | null> {
     await this.ensureInitialized();
-    
+
     if (!this.chunksTable) {
       return null;
     }
@@ -605,7 +715,7 @@ export class VectorStore implements IVectorStore {
    */
   async getChunks(chunkIds: string[]): Promise<ChunkRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.chunksTable || chunkIds.length === 0) {
       return [];
     }
@@ -656,7 +766,7 @@ export class VectorStore implements IVectorStore {
     // Delete chunks first
     if (this.chunksTable) {
       try {
-        await this.chunksTable.delete(`documentId = '${docId}'`);
+        await this.chunksTable.delete(`"documentId" = '${docId}'`);
         console.log('[VectorStore] Deleted chunks for document:', docId);
       } catch (error) {
         console.error('[VectorStore] Error deleting chunks:', error);
@@ -671,6 +781,43 @@ export class VectorStore implements IVectorStore {
       } catch (error) {
         console.error('[VectorStore] Error deleting document:', error);
       }
+    }
+  }
+
+  /**
+   * Delete only the chunks for a document (keeps the document record)
+   * 
+   * Useful for re-indexing where you want to replace chunks but keep
+   * the document metadata intact until new chunks are ready.
+   * 
+   * @param docId - Document ID whose chunks should be deleted
+   * @returns Number of chunks deleted (0 if none found or error)
+   */
+  async deleteChunksForDocument(docId: string): Promise<number> {
+    await this.ensureInitialized();
+
+    if (!this.chunksTable) {
+      return 0;
+    }
+
+    try {
+      // Get count before deletion for logging
+      const beforeCount = await this.chunksTable
+        .query()
+        .where(`"documentId" = '${docId}'`)
+        .toArray();
+      
+      const deleteCount = beforeCount.length;
+      
+      if (deleteCount > 0) {
+        await this.chunksTable.delete(`"documentId" = '${docId}'`);
+        console.log(`[VectorStore] Deleted ${deleteCount} chunks for document:`, docId);
+      }
+      
+      return deleteCount;
+    } catch (error) {
+      console.error('[VectorStore] Error deleting chunks for document:', error);
+      return 0;
     }
   }
 
@@ -706,22 +853,29 @@ export class VectorStore implements IVectorStore {
   }
 
   /**
+   * Get the storage path for the vector store
+   */
+  getStoragePath(): string {
+    return getVectorStoreDir();
+  }
+
+  /**
    * Get directory size recursively
    */
   private getDirectorySize(dirPath: string): number {
     let size = 0;
-    
+
     try {
       if (!fs.existsSync(dirPath)) {
         return 0;
       }
 
       const files = fs.readdirSync(dirPath);
-      
+
       for (const file of files) {
         const filePath = path.join(dirPath, file);
         const stat = fs.statSync(filePath);
-        
+
         if (stat.isDirectory()) {
           size += this.getDirectorySize(filePath);
         } else {
@@ -743,7 +897,7 @@ export class VectorStore implements IVectorStore {
    */
   async getChunksForDocument(docId: string): Promise<ChunkRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.chunksTable) {
       return [];
     }
@@ -751,7 +905,7 @@ export class VectorStore implements IVectorStore {
     try {
       const results = await this.chunksTable
         .query()
-        .where(`documentId = '${docId}'`)
+        .where(`"documentId" = '${docId}'`)
         .toArray();
 
       return results.map(row => this.rowToChunkRecord(row));
@@ -772,7 +926,7 @@ export class VectorStore implements IVectorStore {
    */
   async getDocumentByHash(fileHash: string): Promise<DocumentRecord | null> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return null;
     }
@@ -822,7 +976,7 @@ export class VectorStore implements IVectorStore {
     try {
       // Drop tables if they exist
       const tableNames = await this.db.tableNames();
-      
+
       if (tableNames.includes(CHUNKS_TABLE)) {
         await this.db.dropTable(CHUNKS_TABLE);
         this.chunksTable = null;
@@ -887,7 +1041,7 @@ export class VectorStore implements IVectorStore {
    */
   async getDocumentsByEmbeddingModel(embeddingModel: string): Promise<DocumentRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return [];
     }
@@ -926,7 +1080,7 @@ export class VectorStore implements IVectorStore {
    */
   async getDocumentsNeedingReindex(newModelId: string): Promise<DocumentRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return [];
     }
@@ -965,7 +1119,7 @@ export class VectorStore implements IVectorStore {
    */
   async getUsedEmbeddingModels(): Promise<string[]> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return [];
     }
@@ -998,7 +1152,7 @@ export class VectorStore implements IVectorStore {
    */
   async getAllDocuments(): Promise<DocumentRecord[]> {
     await this.ensureInitialized();
-    
+
     if (!this.documentsTable) {
       return [];
     }
@@ -1078,7 +1232,7 @@ export interface IndexCorruptionCheckResult {
  * THEN THE System SHALL offer to rebuild the index
  */
 export class VectorStoreWithRecovery extends VectorStore {
-  
+
   /**
    * Check the index for corruption
    * 
@@ -1096,12 +1250,12 @@ export class VectorStoreWithRecovery extends VectorStore {
     const issues: CorruptionIssue[] = [];
     let documentsChecked = 0;
     let chunksChecked = 0;
-    
+
     console.log('[VectorStore] Starting index corruption check...');
-    
+
     try {
       await this.ensureInitialized();
-      
+
       // Check 1: Verify tables exist
       const tablesExist = await this.checkTablesExist();
       if (!tablesExist.documentsTable) {
@@ -1113,7 +1267,7 @@ export class VectorStoreWithRecovery extends VectorStore {
           suggestedAction: 'Rebuild the entire index from source PDFs',
         });
       }
-      
+
       if (!tablesExist.chunksTable) {
         issues.push({
           type: 'missing_table',
@@ -1123,22 +1277,22 @@ export class VectorStoreWithRecovery extends VectorStore {
           suggestedAction: 'Rebuild the entire index from source PDFs',
         });
       }
-      
+
       // If tables are missing, we can't do further checks
       if (!tablesExist.documentsTable || !tablesExist.chunksTable) {
         return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
       }
-      
+
       // Check 2: Get all documents and chunks
       const allDocuments = await this.getAllDocuments();
       const stats = await this.getCollectionStats();
       documentsChecked = allDocuments.length;
       chunksChecked = stats.chunkCount;
-      
+
       // Check 3: Verify document-chunk consistency
       const consistencyIssues = await this.checkDocumentChunkConsistency(allDocuments);
       issues.push(...consistencyIssues);
-      
+
       // Check 4: Check for orphaned chunks
       const orphanedChunks = await this.checkOrphanedChunks(allDocuments);
       if (orphanedChunks.length > 0) {
@@ -1151,22 +1305,22 @@ export class VectorStoreWithRecovery extends VectorStore {
           suggestedAction: 'Clean up orphaned chunks or rebuild affected documents',
         });
       }
-      
+
       // Check 5: Validate embedding dimensions
       const embeddingIssues = await this.checkEmbeddingDimensions(allDocuments);
       issues.push(...embeddingIssues);
-      
+
       // Check 6: Check for data inconsistencies
       const dataIssues = await this.checkDataIntegrity(allDocuments);
       issues.push(...dataIssues);
-      
+
       console.log('[VectorStore] Corruption check complete. Issues found:', issues.length);
-      
+
       return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
-      
+
     } catch (error) {
       console.error('[VectorStore] Error during corruption check:', error);
-      
+
       // If we can't even check, assume file corruption
       issues.push({
         type: 'file_corruption',
@@ -1175,11 +1329,11 @@ export class VectorStoreWithRecovery extends VectorStore {
         canAutoRepair: false,
         suggestedAction: 'Clear the index and rebuild from source PDFs',
       });
-      
+
       return this.buildCorruptionResult(issues, documentsChecked, chunksChecked);
     }
   }
-  
+
   /**
    * Check if required tables exist
    */
@@ -1188,7 +1342,7 @@ export class VectorStoreWithRecovery extends VectorStore {
       if (!this.db) {
         return { documentsTable: false, chunksTable: false };
       }
-      
+
       const tableNames = await this.db.tableNames();
       return {
         documentsTable: tableNames.includes(DOCUMENTS_TABLE),
@@ -1199,7 +1353,7 @@ export class VectorStoreWithRecovery extends VectorStore {
       return { documentsTable: false, chunksTable: false };
     }
   }
-  
+
   /**
    * Check document-chunk consistency
    */
@@ -1207,16 +1361,16 @@ export class VectorStoreWithRecovery extends VectorStore {
     const issues: CorruptionIssue[] = [];
     const documentsWithMissingChunks: string[] = [];
     const documentsWithWrongCount: string[] = [];
-    
+
     for (const doc of documents) {
       try {
         const chunks = await this.getChunksForDocument(doc.id);
-        
+
         // Check if document has no chunks but claims to have some
         if (doc.chunkCount > 0 && chunks.length === 0) {
           documentsWithMissingChunks.push(doc.id);
         }
-        
+
         // Check if chunk count matches
         if (chunks.length !== doc.chunkCount) {
           documentsWithWrongCount.push(doc.id);
@@ -1226,7 +1380,7 @@ export class VectorStoreWithRecovery extends VectorStore {
         documentsWithMissingChunks.push(doc.id);
       }
     }
-    
+
     if (documentsWithMissingChunks.length > 0) {
       issues.push({
         type: 'missing_chunks',
@@ -1238,7 +1392,7 @@ export class VectorStoreWithRecovery extends VectorStore {
         suggestedAction: 'Rebuild the index for affected documents',
       });
     }
-    
+
     if (documentsWithWrongCount.length > 0) {
       issues.push({
         type: 'data_inconsistency',
@@ -1250,26 +1404,26 @@ export class VectorStoreWithRecovery extends VectorStore {
         suggestedAction: 'Update document metadata or rebuild affected documents',
       });
     }
-    
+
     return issues;
   }
-  
+
   /**
    * Check for orphaned chunks (chunks without documents)
    */
   private async checkOrphanedChunks(documents: DocumentRecord[]): Promise<string[]> {
     const orphanedChunkIds: string[] = [];
-    
+
     try {
       if (!this.chunksTable) {
         return [];
       }
-      
+
       const documentIds = new Set(documents.map(d => d.id));
-      
+
       // Get all unique document IDs from chunks
       const allChunks = await this.chunksTable.query().toArray();
-      
+
       for (const chunk of allChunks) {
         if (!documentIds.has(chunk.documentId)) {
           orphanedChunkIds.push(chunk.id);
@@ -1278,23 +1432,23 @@ export class VectorStoreWithRecovery extends VectorStore {
     } catch (error) {
       console.error('[VectorStore] Error checking orphaned chunks:', error);
     }
-    
+
     return orphanedChunkIds;
   }
-  
+
   /**
    * Check embedding dimensions consistency
    */
   private async checkEmbeddingDimensions(documents: DocumentRecord[]): Promise<CorruptionIssue[]> {
     const issues: CorruptionIssue[] = [];
     const documentsWithWrongDimensions: string[] = [];
-    
+
     const expectedDimensions = this.getEmbeddingDimensions();
-    
+
     for (const doc of documents) {
       try {
         const chunks = await this.getChunksForDocument(doc.id);
-        
+
         for (const chunk of chunks) {
           if (chunk.vector && chunk.vector.length !== expectedDimensions) {
             documentsWithWrongDimensions.push(doc.id);
@@ -1305,7 +1459,7 @@ export class VectorStoreWithRecovery extends VectorStore {
         console.error(`[VectorStore] Error checking embeddings for document ${doc.id}:`, error);
       }
     }
-    
+
     if (documentsWithWrongDimensions.length > 0) {
       issues.push({
         type: 'invalid_embeddings',
@@ -1317,37 +1471,37 @@ export class VectorStoreWithRecovery extends VectorStore {
         suggestedAction: 'Rebuild the index for affected documents with the current embedding model',
       });
     }
-    
+
     return issues;
   }
-  
+
   /**
    * Check data integrity
    */
   private async checkDataIntegrity(documents: DocumentRecord[]): Promise<CorruptionIssue[]> {
     const issues: CorruptionIssue[] = [];
     const documentsWithInvalidData: string[] = [];
-    
+
     for (const doc of documents) {
       // Check for required fields
       if (!doc.id || !doc.filePath || !doc.fileName || !doc.fileHash) {
         documentsWithInvalidData.push(doc.id || 'unknown');
       }
-      
+
       // Check for valid timestamps
       if (doc.indexedAt <= 0 || doc.indexedAt > Date.now() + 86400000) { // Allow 1 day future
         documentsWithInvalidData.push(doc.id);
       }
-      
+
       // Check for valid page count
       if (doc.pageCount <= 0) {
         documentsWithInvalidData.push(doc.id);
       }
     }
-    
+
     // Remove duplicates
     const uniqueInvalid = [...new Set(documentsWithInvalidData)];
-    
+
     if (uniqueInvalid.length > 0) {
       issues.push({
         type: 'data_inconsistency',
@@ -1359,10 +1513,10 @@ export class VectorStoreWithRecovery extends VectorStore {
         suggestedAction: 'Rebuild the index for affected documents',
       });
     }
-    
+
     return issues;
   }
-  
+
   /**
    * Build the corruption check result
    */
@@ -1376,7 +1530,7 @@ export class VectorStoreWithRecovery extends VectorStore {
     const isCorrupted = hasCritical || hasError;
     const isHealthy = issues.length === 0;
     const rebuildRecommended = hasCritical || issues.filter(i => i.severity === 'error').length >= 2;
-    
+
     let summary: string;
     if (isHealthy) {
       summary = 'Index is healthy. No corruption detected.';
@@ -1387,7 +1541,7 @@ export class VectorStoreWithRecovery extends VectorStore {
     } else {
       summary = `Minor issues detected. ${issues.length} warning(s) found. Index is functional but may benefit from cleanup.`;
     }
-    
+
     return {
       isCorrupted,
       isHealthy,
@@ -1399,7 +1553,7 @@ export class VectorStoreWithRecovery extends VectorStore {
       summary,
     };
   }
-  
+
   /**
    * Clean up orphaned chunks
    * 
@@ -1409,21 +1563,21 @@ export class VectorStoreWithRecovery extends VectorStore {
   async cleanupOrphanedChunks(): Promise<{ removed: number; errors: string[] }> {
     const errors: string[] = [];
     let removed = 0;
-    
+
     try {
       await this.ensureInitialized();
-      
+
       if (!this.chunksTable || !this.documentsTable) {
         return { removed: 0, errors: ['Tables not initialized'] };
       }
-      
+
       // Get all document IDs
       const documents = await this.getAllDocuments();
       const documentIds = new Set(documents.map(d => d.id));
-      
+
       // Get all chunks
       const allChunks = await this.chunksTable.query().toArray();
-      
+
       // Find and delete orphaned chunks
       for (const chunk of allChunks) {
         if (!documentIds.has(chunk.documentId)) {
@@ -1435,17 +1589,17 @@ export class VectorStoreWithRecovery extends VectorStore {
           }
         }
       }
-      
+
       console.log(`[VectorStore] Cleaned up ${removed} orphaned chunks`);
-      
+
     } catch (error) {
       console.error('[VectorStore] Error cleaning up orphaned chunks:', error);
       errors.push(`Cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
+
     return { removed, errors };
   }
-  
+
   /**
    * Repair document chunk count metadata
    * 
@@ -1454,21 +1608,21 @@ export class VectorStoreWithRecovery extends VectorStore {
   async repairChunkCounts(): Promise<{ repaired: number; errors: string[] }> {
     const errors: string[] = [];
     let repaired = 0;
-    
+
     try {
       await this.ensureInitialized();
-      
+
       if (!this.documentsTable || !this.chunksTable) {
         return { repaired: 0, errors: ['Tables not initialized'] };
       }
-      
+
       const documents = await this.getAllDocuments();
-      
+
       for (const doc of documents) {
         try {
           const chunks = await this.getChunksForDocument(doc.id);
           const actualCount = chunks.length;
-          
+
           if (actualCount !== doc.chunkCount) {
             await this.documentsTable.update({
               where: `id = '${doc.id}'`,
@@ -1481,46 +1635,46 @@ export class VectorStoreWithRecovery extends VectorStore {
           errors.push(`Failed to repair ${doc.id}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
-      
+
       console.log(`[VectorStore] Repaired chunk counts for ${repaired} documents`);
-      
+
     } catch (error) {
       console.error('[VectorStore] Error repairing chunk counts:', error);
       errors.push(`Repair failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
+
     return { repaired, errors };
   }
-  
+
   /**
    * Get documents that need rebuilding based on corruption check
    */
   async getDocumentsNeedingRebuild(): Promise<DocumentRecord[]> {
     const corruptionResult = await this.checkIndexCorruption();
-    
+
     if (corruptionResult.isHealthy) {
       return [];
     }
-    
+
     // Collect all affected document IDs
     const affectedIds = new Set<string>();
-    
+
     for (const issue of corruptionResult.issues) {
       if (issue.affectedDocuments) {
         issue.affectedDocuments.forEach(id => affectedIds.add(id));
       }
     }
-    
+
     // If critical issues, return all documents
     if (corruptionResult.issues.some(i => i.severity === 'critical')) {
       return this.getAllDocuments();
     }
-    
+
     // Return only affected documents
     const allDocs = await this.getAllDocuments();
     return allDocs.filter(doc => affectedIds.has(doc.id));
   }
-  
+
   /**
    * Ensure initialized - expose for recovery operations
    */
@@ -1536,7 +1690,17 @@ export class VectorStoreWithRecovery extends VectorStore {
 // =============================================================================
 
 /**
- * Singleton instance of the vector store with recovery capabilities
+ * Singleton instance of the vector store with recovery capabilities using global registry
  */
-export const vectorStore = new VectorStoreWithRecovery();
+export const vectorStore = (() => {
+  const globalKey = Symbol.for('zura.vectorStore');
+  const globalRegistry = global as any;
+
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new VectorStoreWithRecovery();
+  }
+
+  return globalRegistry[globalKey] as VectorStoreWithRecovery;
+})();
+
 

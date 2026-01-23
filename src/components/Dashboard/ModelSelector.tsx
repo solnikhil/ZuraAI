@@ -9,7 +9,7 @@ import { ProviderLogo } from '../shared'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
 }
 
 type ViewMode = 'favorites' | 'all'
@@ -21,6 +21,7 @@ const providers = [
     { key: 'perplexity', title: 'Perplexity', icon: <Globe />, color: '#22c55e', logo: true },
     { key: 'groq', title: 'Groq', icon: <Zap />, color: '#f97316', logo: true },
     { key: 'ollama', title: 'Ollama', icon: <Database />, color: '#339af0', logo: true },
+    { key: 'minimax', title: 'MiniMax', icon: <Brain />, color: '#6366f1', logo: true },
 ] as const
 
 // Helper function to convert hex to rgb
@@ -172,6 +173,9 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         if (settings.groqModels) {
             settings.groqModels.forEach(m => allModels.push({ ...m, provider: 'groq' }))
         }
+        if (settings.minimaxModels) {
+            settings.minimaxModels.forEach(m => allModels.push({ ...m, provider: 'minimax' }))
+        }
         return allModels
     }
 
@@ -267,7 +271,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
             openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
             gemini: filteredModels.filter(m => m.provider === 'gemini'),
-            groq: filteredModels.filter(m => m.provider === 'groq')
+            groq: filteredModels.filter(m => m.provider === 'groq'),
+            minimax: filteredModels.filter(m => m.provider === 'minimax')
         }
     }, [filteredModels])
 
@@ -626,37 +631,29 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 onClick={toggleOpen}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
-                title={`${currentName} — ${settings.modelProvider || 'auto'}`}
+                title={minimal ? `${currentName} — ${settings.modelProvider || 'auto'}` : `${currentName} — ${settings.modelProvider || 'auto'}`}
                 style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '6px',
-                    background: minimal ? 'transparent' : 'rgba(255,255,255,0.05)',
-                    border: minimal ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
                     cursor: 'pointer',
-                    padding: minimal ? '6px 8px' : '6px 12px',
-                    borderRadius: minimal ? '10px' : '12px',
+                    padding: minimal ? '6px' : '6px 12px',
+                    borderRadius: '8px',
                     transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
                     color: '#e0e0e0',
-                    height: '100%'
+                    width: minimal ? '32px' : 'auto',
+                    height: '32px'
                 }}
                 onMouseEnter={e => {
-                    if (!minimal) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'
-                    } else {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                    }
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
                 }}
                 onMouseLeave={e => {
-                    if (!minimal) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                    } else {
-                        e.currentTarget.style.background = 'transparent'
-                    }
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
                 }}
             >
                 {currentModel ? (
@@ -664,19 +661,23 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         model={currentModel}
                         icon={getModelAttributes(currentModel).icon}
                         color={getModelAttributes(currentModel).color}
-                        size={16}
+                        size={minimal ? 18 : 16}
                     />
                 ) : <Cpu size={14} />}
-                <span
-                    className="truncate"
-                    style={{
-                        maxWidth: minimal ? '110px' : '120px',
-                        fontSize: minimal ? '0.8rem' : '0.85rem',
-                    }}
-                >
-                    {currentName}
-                </span>
-                <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                {!minimal && (
+                    <>
+                        <span
+                            className="truncate"
+                            style={{
+                                maxWidth: '120px',
+                                fontSize: '0.85rem',
+                            }}
+                        >
+                            {currentName}
+                        </span>
+                        <ChevronDown size={14} style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </>
+                )}
             </button>
 
             {/* Model Picker Overlay */}

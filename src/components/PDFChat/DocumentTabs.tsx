@@ -74,49 +74,9 @@ export function DocumentTabs({
     }
   }, [activeDocumentId]);
 
-  // If no documents, show minimal state
+  // If no documents, render nothing
   if (documents.length === 0) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--theme-border)',
-        backgroundColor: 'var(--theme-surface)',
-        minHeight: '44px',
-      }}>
-        <span style={{
-          color: 'var(--theme-text-muted)',
-          fontSize: '0.85rem',
-        }}>
-          No documents loaded
-        </span>
-        <button
-          onClick={onAddDocument}
-          disabled={addDisabled}
-          style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-            color: '#60a5fa',
-            cursor: addDisabled ? 'not-allowed' : 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            opacity: addDisabled ? 0.5 : 1,
-            transition: 'all 0.2s',
-          }}
-          title="Add PDF document"
-        >
-          <Plus size={14} />
-          Add PDF
-        </button>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -252,11 +212,11 @@ export function DocumentTabs({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '32px',
-          height: '32px',
+          width: '28px',
+          height: '28px',
           margin: '0 8px',
           borderRadius: '6px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          border: 'none',
           backgroundColor: 'transparent',
           color: 'var(--theme-text-muted)',
           cursor: addDisabled ? 'not-allowed' : 'pointer',
@@ -267,14 +227,12 @@ export function DocumentTabs({
         title="Add another PDF document"
         onMouseEnter={(e) => {
           if (!addDisabled) {
-            e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
-            e.currentTarget.style.color = '#60a5fa';
+            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)';
+            e.currentTarget.style.color = 'var(--theme-text-primary)';
           }
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.backgroundColor = 'transparent';
-          e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
           e.currentTarget.style.color = 'var(--theme-text-muted)';
         }}
       >

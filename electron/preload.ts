@@ -1,36 +1,26 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-import { writeFileSync, existsSync, mkdirSync } from 'fs'
 
-contextBridge.exposeInMainWorld('ipcRenderer', {
-    on: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
-        ipcRenderer.on(channel, listener)
-    },
-    off: (channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void) => {
-        ipcRenderer.off(channel, listener)
-    },
-    send: (channel: string, ...args: any[]) => {
-        ipcRenderer.send(channel, ...args)
-    },
-    invoke: (channel: string, ...args: any[]) => {
-        return ipcRenderer.invoke(channel, ...args)
-    },
-})
+const preloadLog = (message: string) => {
+  console.log(`[PRELOAD] ${message}`)
+}
+
+preloadLog('Preload script STARTED')
 
 // Window controls API (custom title bar)
 contextBridge.exposeInMainWorld('windowControls', {
-    minimize: () => ipcRenderer.invoke('window-controls:minimize'),
-    toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
-    close: () => ipcRenderer.invoke('window-controls:close'),
-    isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
-    onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
-        const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
-            callback(state)
-        }
-        ipcRenderer.on('window-controls:state', listener)
-        return () => ipcRenderer.removeListener('window-controls:state', listener)
-    },
+  minimize: () => ipcRenderer.invoke('window-controls:minimize'),
+  toggleMaximize: () => ipcRenderer.invoke('window-controls:toggle-maximize'),
+  close: () => ipcRenderer.invoke('window-controls:close'),
+  isMaximized: () => ipcRenderer.invoke('window-controls:is-maximized'),
+  onWindowState: (callback: (state: { isMaximized: boolean }) => void) => {
+    const listener = (_event: IpcRendererEvent, state: { isMaximized: boolean }) => {
+      callback(state)
+    }
+    ipcRenderer.on('window-controls:state', listener)
+    return () => ipcRenderer.removeListener('window-controls:state', listener)
+  },
 })
-preloadLog('Preload script STARTED')
+
 
 // ----------------------------------------------------------------------------
 // IPC hardening
@@ -66,6 +56,9 @@ const INVOKE_CHANNELS = new Set<string>([
   'capture-screen',
   'crop-screenshot',
 
+  // Process metrics
+  'get-process-metrics',
+
   // Tools
   'execute-tool',
 
@@ -76,6 +69,7 @@ const INVOKE_CHANNELS = new Set<string>([
 
   // PDF Loading & Parsing
   'pdf:load',
+  'pdf:get-file-data',
   'pdf:get-page',
   'pdf:search-text',
   'pdf:get-outline',
@@ -90,6 +84,7 @@ const INVOKE_CHANNELS = new Set<string>([
   // PDF RAG Query
   'pdf:query',
   'pdf:get-chunks',
+  'pdf:get-context',
   'pdf:summarize-document',
 
   // PDF Session Management
@@ -122,6 +117,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'pdf:download-model',
   'pdf:clear-model-cache',
   'pdf:refresh-model-status',
+  'pdf:list-ollama-models',
 
   // PDF Embedding Fallback (Requirement 18.2)
   'pdf:get-embedding-fallback-state',
@@ -149,17 +145,18 @@ const ON_CHANNELS = new Set<string>([
   'pdf:index-progress',
   'pdf:index-complete',
   'pdf:index-error',
-  
+  'pdf:index-log',
+
   // PDF Re-indexing Events (Requirement 21.6)
   'pdf:reindex-progress',
-  
+
   // PDF Model Download Events (Requirement 21.7)
   'pdf:model-download-progress',
   'pdf:model-download-complete',
-  
+
   // PDF Embedding Fallback Events (Requirement 18.2)
   'pdf:embedding-fallback-status',
-  
+
   // PDF Index Rebuild Events (Requirement 18.4)
   'pdf:rebuild-progress',
 ])

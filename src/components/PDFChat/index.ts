@@ -10,9 +10,11 @@
 export { PDFChatLayout } from './PDFChatLayout';
 export { DocumentTabs } from './DocumentTabs';
 export type { DocumentTabInfo } from './DocumentTabs';
+export { IndexingProgress } from './IndexingProgress';
+export type { IndexingProgressProps } from './IndexingProgress';
 
 // PDF Viewer Components
-export { PDFViewer, clampZoom, clampPage, MIN_ZOOM, MAX_ZOOM, DEFAULT_ZOOM, ZOOM_STEP } from './PDFViewer';
+export { PDFViewer } from './PDFViewer';
 export { PDFThumbnails, generateThumbnailPages } from './PDFThumbnails';
 export { PDFControls, ZOOM_PRESETS } from './PDFControls';
 

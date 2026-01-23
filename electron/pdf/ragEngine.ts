@@ -44,6 +44,7 @@ import { chunkManager } from './chunkManager';
 import { embeddingService } from './embeddingService';
 import { vectorStore } from './vectorStore';
 import { retrievalService } from './retrievalService';
+import { imageProcessorService, type ImageProcessingResult } from './imageProcessor';
 
 // =============================================================================
 // Constants
@@ -82,6 +83,30 @@ const PRONOUN_PATTERNS = [
   /\bthose\b/gi,
 ];
 
+/** 
+ * Overview/summary query patterns - queries that ask about the document as a whole
+ * These should retrieve from early pages (intro/abstract) with lower score thresholds
+ */
+const OVERVIEW_QUERY_PATTERNS = [
+  /what is this (document|pdf|file|paper) about/i,
+  /what does this (document|pdf|file|paper) (cover|contain|discuss|describe|explain)/i,
+  /summarize (this|the) (document|pdf|file|paper)/i,
+  /give (me )?(a |an )?(brief )?(summary|overview|synopsis)/i,
+  /^(summary|overview|synopsis|abstract)$/i,
+  /what('s| is) the (main|key) (topic|subject|point|idea)/i,
+  /tell me about this (document|pdf|file|paper)/i,
+  /^what is this about\??$/i,
+  /describe (this|the) (document|pdf|file|paper)/i,
+];
+
+/**
+ * Check if query is asking for a document overview/summary
+ */
+function isOverviewQuery(query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  return OVERVIEW_QUERY_PATTERNS.some(pattern => pattern.test(normalizedQuery));
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -111,7 +136,7 @@ function truncateToTokens(text: string, maxTokens: number): string {
   if (currentTokens <= maxTokens) {
     return text;
   }
-  
+
   // Approximate words to keep
   const wordsToKeep = Math.floor(maxTokens / 1.3);
   const words = text.split(/\s+/);
@@ -181,10 +206,10 @@ export class RAGEngine implements IRAGEngine {
   private embedService: IEmbeddingService;
   private vecStore: IVectorStore;
   private retrieval: IRetrievalService;
-  
+
   /** Map of document IDs to their indexing status */
   private indexingStatus: Map<string, IndexStatus> = new Map();
-  
+
   /** Settings for RAG operations */
   private settings: PDFRAGSettings;
 
@@ -201,11 +226,11 @@ export class RAGEngine implements IRAGEngine {
     this.embedService = embedder;
     this.vecStore = store;
     this.retrieval = retriever;
-    
+
     // Import default settings dynamically to avoid circular dependency
     this.settings = {
-      chunkSize: 512,
-      chunkOverlap: 128,
+      chunkSize: 256,  // Smaller chunks to fit within embedding model context
+      chunkOverlap: 64,
       chunkingStrategy: 'semantic',
       embeddingModel: 'local',
       localEmbeddingModel: 'nomic-embed-text',
@@ -219,6 +244,11 @@ export class RAGEngine implements IRAGEngine {
       groundedModeEnabled: false,
       showLowConfidenceWarning: true,
       lowConfidenceThreshold: 0.5,
+      // Image processing settings
+      processImages: true,
+      visionModel: 'qwen2-vl:2b',
+      enableOCRFallback: true,
+      preferVisionOverOCR: true,
       ...settings,
     };
   }
@@ -228,15 +258,38 @@ export class RAGEngine implements IRAGEngine {
    * 
    * Orchestrates: parsing → chunking → embedding → indexing
    * 
-   * Implements Requirements 6.1, 6.4
+   * Implements Requirements 6.1, 6.4, 18.6, 19.3
    * 
    * @param docId - Document ID to index
    * @param options - Indexing options
+   * @param onProgress - Optional callback for progress updates (0-100)
+   * @param onLog - Optional callback for detailed log messages
    * @returns Index result with statistics
    */
-  async indexDocument(docId: string, options: IndexOptions = {}): Promise<IndexResult> {
+  async indexDocument(
+    docId: string,
+    options: IndexOptions = {},
+    onProgress?: (progress: number) => void,
+    onLog?: (level: 'info' | 'success' | 'warning' | 'error', message: string) => void
+  ): Promise<IndexResult> {
     const startTime = Date.now();
-    
+
+    // Helper to update progress both internally and via callback
+    const reportProgress = (progress: number) => {
+      this.updateIndexingProgress(docId, progress);
+      if (onProgress) {
+        onProgress(progress);
+      }
+    };
+
+    // Helper to log messages
+    const log = (level: 'info' | 'success' | 'warning' | 'error', message: string) => {
+      console.log(`[RAGEngine] [${level.toUpperCase()}] ${message}`);
+      if (onLog) {
+        onLog(level, message);
+      }
+    };
+
     // Update status to indexing
     this.indexingStatus.set(docId, {
       isIndexed: false,
@@ -244,15 +297,29 @@ export class RAGEngine implements IRAGEngine {
       isIndexing: true,
       indexingProgress: 0,
     });
+    reportProgress(0);
+    log('info', 'Starting document indexing...');
+
+    // Store original model to restore later if a custom model is specified
+    const originalModelId = this.embedService.getCurrentModelId();
+    let customModelRestored = false;
 
     try {
+      // If a custom embedding model is specified, temporarily switch to it
+      if (options.embeddingModel && options.embeddingModel !== originalModelId) {
+        console.log('[RAGEngine] Switching to custom embedding model:', options.embeddingModel);
+        await this.embedService.setModel(options.embeddingModel);
+        customModelRestored = true;
+      }
+
       // Step 1: Ensure vector store is initialized
       await this.vecStore.initialize();
-      
+
       // Step 2: Check if document is already indexed (unless force reindex)
-      if (!options.forceReindex) {
-        const existingDoc = await this.vecStore.getDocument(docId);
-        if (existingDoc) {
+      const existingDoc = await this.vecStore.getDocument(docId);
+      if (existingDoc) {
+        if (!options.forceReindex) {
+          // Document already indexed and no force reindex - return existing
           const status: IndexStatus = {
             isIndexed: true,
             chunkCount: existingDoc.chunkCount,
@@ -262,62 +329,203 @@ export class RAGEngine implements IRAGEngine {
             isIndexing: false,
           };
           this.indexingStatus.set(docId, status);
-          
+          reportProgress(100);
+
           return {
             success: true,
             documentId: docId,
             chunkCount: existingDoc.chunkCount,
             indexingTimeMs: Date.now() - startTime,
           };
+        } else {
+          // Force reindex requested - delete existing index first to prevent duplicates
+          log('info', 'Force reindex requested. Removing existing index...');
+          try {
+            await this.vecStore.deleteDocument(docId);
+            this.chunkMgr.deleteChunksForDocument(docId);
+            this.indexingStatus.delete(docId);
+            log('success', 'Existing index removed successfully');
+          } catch (deleteError: any) {
+            log('warning', `Could not remove existing index: ${deleteError.message?.substring(0, 50) || 'Unknown error'}`);
+          }
         }
       }
 
-      // Step 3: Extract text from document
-      this.updateIndexingProgress(docId, 10);
-      const textBlocks = await this.pdfParser.extractAllText(docId);
-      
-      if (textBlocks.length === 0) {
-        throw new Error('No text content extracted from document');
+      // Step 3: Verify document is loaded before indexing
+      reportProgress(10);
+      log('info', 'Verifying document is loaded...');
+
+      // Check if document is loaded in the parser
+      if (!this.pdfParser.isDocumentLoaded(docId)) {
+        throw new Error(
+          `Document not loaded: ${docId}. ` +
+          `Please ensure the document is loaded via 'pdf:load' before calling 'pdf:index'.`
+        );
       }
 
-      // Step 4: Create chunks
-      this.updateIndexingProgress(docId, 30);
+      // Get document info for page count
+      const loadedDocs = (this.pdfParser as any).loadedDocuments;
+      const loadedDoc = loadedDocs?.get(docId);
+      const pageCount = loadedDoc?.document?.pageCount || 1;
+
+      log('info', `Document has ${pageCount} page(s). Processing page-by-page...`);
+
+      // Process pages one at a time to avoid context length issues
+      const allChunkRecords: ChunkRecord[] = [];
+      let imageChunkIndex = 0;
       const chunkingOptions: ChunkingOptions = {
         chunkSize: options.chunkSize ?? this.settings.chunkSize,
         chunkOverlap: options.chunkOverlap ?? this.settings.chunkOverlap,
         strategy: options.chunkingStrategy ?? this.settings.chunkingStrategy,
         preserveSections: true,
       };
-      
-      const chunks = this.chunkMgr.createChunks(docId, textBlocks, chunkingOptions);
-      
-      if (chunks.length === 0) {
-        throw new Error('No chunks created from document');
+
+      // Calculate progress allocation: 10-80% for pages, 80-100% for storage
+      const progressPerPage = 70 / pageCount;
+
+      for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+        const pageStartProgress = 10 + (pageNum - 1) * progressPerPage;
+        reportProgress(Math.round(pageStartProgress));
+        log('info', `Processing page ${pageNum}/${pageCount}...`);
+
+        try {
+          // Extract text for this page only
+          const pageData = await this.pdfParser.getPage(docId, pageNum);
+          if (!pageData) {
+            log('warning', `Page ${pageNum}: No page data found`);
+            continue;
+          }
+
+          const hasTextContent = pageData.textContent && pageData.textContent.length > 0;
+          if (!hasTextContent) {
+            log('warning', `Page ${pageNum}: No text content found`);
+          }
+
+          if (hasTextContent) {
+            // Create chunks for this page
+            const pageChunks = this.chunkMgr.createChunks(docId, pageData.textContent, chunkingOptions);
+
+            if (pageChunks.length === 0) {
+              log('warning', `Page ${pageNum}: No chunks created`);
+            } else {
+              // Generate embeddings one chunk at a time to avoid context length issues
+              const pageChunkRecords: ChunkRecord[] = [];
+              for (let i = 0; i < pageChunks.length; i++) {
+                const chunk = pageChunks[i];
+                try {
+                  // Truncate content if too long (max 500 chars for embedding)
+                  const contentToEmbed = chunk.content.length > 500
+                    ? chunk.content.substring(0, 500)
+                    : chunk.content;
+
+                  const embedding = await this.embedService.generateEmbedding(contentToEmbed);
+
+                  pageChunkRecords.push({
+                    id: chunk.id,
+                    documentId: chunk.documentId,
+                    content: chunk.content,
+                    pageNumbers: chunk.metadata.pageNumbers,
+                    boundingBoxes: JSON.stringify(chunk.metadata.boundingBoxes),
+                    sectionHeader: chunk.metadata.sectionHeader || null,
+                    chunkIndex: chunk.metadata.chunkIndex,
+                    tokenCount: chunk.metadata.tokenCount,
+                    blockType: chunk.metadata.blockType,
+                    vector: embedding,
+                  });
+                } catch (embedError: any) {
+                  log('warning', `Page ${pageNum}, chunk ${i + 1}: Embedding failed - ${embedError.message?.substring(0, 50) || 'Unknown error'}`);
+                  // Continue with other chunks
+                }
+              }
+
+              allChunkRecords.push(...pageChunkRecords);
+              log('success', `Page ${pageNum}: Created ${pageChunkRecords.length} searchable chunks`);
+            }
+          }
+
+          // Process images for this page (if enabled)
+          if (this.settings.processImages && pageData.images && pageData.images.length > 0) {
+            const imagesWithData = pageData.images.filter(image => image.imageData);
+
+            if (imagesWithData.length === 0) {
+              log('info', `Page ${pageNum}: Images found but no extractable data`);
+            } else {
+              try {
+                log('info', `Page ${pageNum}: Processing ${imagesWithData.length} image(s)...`);
+
+                const results = await imageProcessorService.processImages(
+                  imagesWithData.map(image => ({
+                    base64: image.imageData!,
+                    id: image.id,
+                  }))
+                );
+
+                let pageImageChunks = 0;
+
+                for (let i = 0; i < results.length; i++) {
+                  const result = results[i];
+                  const image = imagesWithData[i];
+
+                  if (!result.success || !result.description || result.description.trim().length === 0) {
+                    log('warning', `Page ${pageNum}, image ${i + 1}: Processing failed - ${result.error || 'No description generated'}`);
+                    continue;
+                  }
+
+                  const content = this.buildImageChunkContent(image, result);
+                  const contentToEmbed = content.length > 500
+                    ? content.substring(0, 500)
+                    : content;
+
+                  try {
+                    const embedding = await this.embedService.generateEmbedding(contentToEmbed);
+                    const pageNumber = image.bbox?.pageNumber || pageNum;
+
+                    allChunkRecords.push({
+                      id: `img_chunk_${image.id}`,
+                      documentId: docId,
+                      content,
+                      pageNumbers: [pageNumber],
+                      boundingBoxes: JSON.stringify([image.bbox]),
+                      sectionHeader: image.caption || null,
+                      chunkIndex: imageChunkIndex,
+                      tokenCount: this.chunkMgr.countTokens(content),
+                      blockType: 'figure',
+                      vector: embedding,
+                    });
+
+                    imageChunkIndex += 1;
+                    pageImageChunks += 1;
+                  } catch (embedError: any) {
+                    log('warning', `Page ${pageNum}, image ${i + 1}: Embedding failed - ${embedError.message?.substring(0, 50) || 'Unknown error'}`);
+                  }
+                }
+
+                if (pageImageChunks > 0) {
+                  log('success', `Page ${pageNum}: Created ${pageImageChunks} image chunk(s)`);
+                }
+              } catch (imgError: any) {
+                log('warning', `Page ${pageNum}: Image processing failed - ${imgError.message?.substring(0, 50) || 'Unknown error'}`);
+              }
+            }
+          }
+
+        } catch (pageError: any) {
+          log('error', `Page ${pageNum}: Failed - ${pageError.message?.substring(0, 100) || 'Unknown error'}`);
+          // Continue with other pages
+        }
       }
 
-      // Step 5: Generate embeddings
-      this.updateIndexingProgress(docId, 50);
-      const chunkTexts = chunks.map(c => c.content);
-      const embeddings = await this.embedService.generateEmbeddings(chunkTexts);
+      if (allChunkRecords.length === 0) {
+        throw new Error('No chunks created from document. The document may be empty or all pages failed to process.');
+      }
 
-      // Step 6: Prepare chunk records for storage
-      this.updateIndexingProgress(docId, 70);
-      const chunkRecords: ChunkRecord[] = chunks.map((chunk, i) => ({
-        id: chunk.id,
-        documentId: chunk.documentId,
-        content: chunk.content,
-        pageNumbers: chunk.metadata.pageNumbers,
-        boundingBoxes: JSON.stringify(chunk.metadata.boundingBoxes),
-        sectionHeader: chunk.metadata.sectionHeader || null,
-        chunkIndex: chunk.metadata.chunkIndex,
-        tokenCount: chunk.metadata.tokenCount,
-        blockType: chunk.metadata.blockType,
-        vector: embeddings[i],
-      }));
+      log('success', `Created ${allChunkRecords.length} total chunks across ${pageCount} page(s)`);
 
       // Step 7: Store chunks in vector store
-      this.updateIndexingProgress(docId, 85);
-      await this.vecStore.addChunks(chunkRecords);
+      reportProgress(85);
+      log('info', 'Storing chunks in vector database...');
+      await this.vecStore.addChunks(allChunkRecords);
+      const chunks = allChunkRecords; // For compatibility with existing code below
 
       // Step 8: Store document record
       // Get document info from parser (if loaded)
@@ -326,7 +534,7 @@ export class RAGEngine implements IRAGEngine {
         // Try to get document info - this requires the document to be loaded
         const loadedDocs = (this.pdfParser as any).loadedDocuments;
         const loadedDoc = loadedDocs?.get(docId);
-        
+
         if (loadedDoc?.document) {
           const doc = loadedDoc.document;
           docRecord = {
@@ -371,11 +579,14 @@ export class RAGEngine implements IRAGEngine {
           embeddingModel: this.embedService.getModelInfo().id,
         };
       }
-      
+
       await this.vecStore.addDocument(docRecord);
+      log('success', 'Document record saved to database');
 
       // Step 9: Update status
-      this.updateIndexingProgress(docId, 100);
+      reportProgress(100);
+      log('success', `Indexing complete! ${chunks.length} chunks indexed in ${Math.round((Date.now() - startTime) / 1000)}s`);
+
       const finalStatus: IndexStatus = {
         isIndexed: true,
         chunkCount: chunks.length,
@@ -386,11 +597,16 @@ export class RAGEngine implements IRAGEngine {
       };
       this.indexingStatus.set(docId, finalStatus);
 
+      // Get storage stats
+      const storageStats = await this.vecStore.getCollectionStats();
+
       return {
         success: true,
         documentId: docId,
         chunkCount: chunks.length,
         indexingTimeMs: Date.now() - startTime,
+        storagePath: this.vecStore.getStoragePath(),
+        storageSizeBytes: storageStats.sizeBytes,
       };
     } catch (error) {
       // Update status on failure
@@ -408,6 +624,16 @@ export class RAGEngine implements IRAGEngine {
         indexingTimeMs: Date.now() - startTime,
         error: error instanceof Error ? error.message : String(error),
       };
+    } finally {
+      // Restore original embedding model if we temporarily switched
+      if (customModelRestored && originalModelId) {
+        try {
+          console.log('[RAGEngine] Restoring original embedding model:', originalModelId);
+          await this.embedService.setModel(originalModelId);
+        } catch (restoreError) {
+          console.error('[RAGEngine] Failed to restore original embedding model:', restoreError);
+        }
+      }
     }
   }
 
@@ -422,6 +648,139 @@ export class RAGEngine implements IRAGEngine {
         indexingProgress: progress,
       });
     }
+  }
+
+  /**
+   * Extract and process images from a document
+   *
+   * @param docId - Document ID
+   * @param onProgress - Progress callback (0-100)
+   * @returns Array of Chunk objects created from image descriptions
+   */
+  private async extractAndProcessImages(
+    docId: string,
+    onProgress?: (progress: number) => void
+  ): Promise<Chunk[]> {
+    const chunks: Chunk[] = [];
+
+    try {
+      // Get loaded document info
+      // Cast to access the getLoadedDocument method which exists on the implementation
+      const loadedDoc = (this.pdfParser as any).getLoadedDocument?.(docId);
+      if (!loadedDoc) {
+        console.warn(`[RAGEngine] Document ${docId} not loaded for image processing`);
+        return chunks;
+      }
+
+      const pageCount = loadedDoc.document.pageCount;
+
+      // Collect all images from all pages
+      const allImages: Array<{
+        image: { id: string; imageData?: string; caption?: string; bbox: any };
+        pageNum: number;
+      }> = [];
+
+      for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+        try {
+          const page = await this.pdfParser.getPage(docId, pageNum);
+          if (page.images && page.images.length > 0) {
+            for (const img of page.images) {
+              // Only include images that have extracted data
+              if (img.imageData) {
+                allImages.push({ image: img, pageNum });
+              }
+            }
+          }
+        } catch (pageErr) {
+          console.debug(`[RAGEngine] Could not get page ${pageNum} for image extraction:`, pageErr);
+        }
+      }
+
+      if (allImages.length === 0) {
+        console.log(`[RAGEngine] No processable images found in document ${docId}`);
+        return chunks;
+      }
+
+      console.log(`[RAGEngine] Found ${allImages.length} images to process`);
+
+      // Process images in batches
+      const batchSize = 3; // Process 3 images at a time
+      let processedCount = 0;
+
+      for (let i = 0; i < allImages.length; i += batchSize) {
+        const batch = allImages.slice(i, i + batchSize);
+
+        // Process batch
+        const results = await imageProcessorService.processImages(
+          batch.map(item => ({
+            base64: item.image.imageData!,
+            id: item.image.id,
+          }))
+        );
+
+        // Create chunks from successful results
+        for (let j = 0; j < results.length; j++) {
+          const result = results[j];
+          const item = batch[j];
+
+          if (result.success && result.description && result.description.trim().length > 0) {
+            const content = this.buildImageChunkContent(item.image, result);
+
+            const chunk: Chunk = {
+              id: `img_chunk_${item.image.id}`,
+              documentId: docId,
+              content,
+              metadata: {
+                pageNumbers: [item.pageNum],
+                boundingBoxes: [item.image.bbox],
+                sectionHeader: item.image.caption || undefined,
+                chunkIndex: chunks.length,
+                tokenCount: this.chunkMgr.countTokens(content),
+                blockType: 'figure',
+              },
+            };
+
+            chunks.push(chunk);
+          }
+        }
+
+        // Update progress
+        processedCount += batch.length;
+        if (onProgress) {
+          const progress = Math.round((processedCount / allImages.length) * 100);
+          onProgress(progress);
+        }
+      }
+
+      console.log(`[RAGEngine] Created ${chunks.length} image chunks from ${allImages.length} images`);
+    } catch (error) {
+      console.error('[RAGEngine] Error processing images:', error);
+      // Continue without image chunks - text indexing still works
+    }
+
+    return chunks;
+  }
+
+  /**
+   * Build chunk content from image and processing result
+   */
+  private buildImageChunkContent(
+    image: { caption?: string },
+    result: ImageProcessingResult
+  ): string {
+    let content = '[Figure]';
+
+    if (image.caption) {
+      content += `\nCaption: ${image.caption}`;
+    }
+
+    content += `\nDescription: ${result.description}`;
+
+    if (result.extractedText) {
+      content += `\nText in image: ${result.extractedText}`;
+    }
+
+    return content;
   }
 
   /**
@@ -447,20 +806,61 @@ export class RAGEngine implements IRAGEngine {
 
   /**
    * Get index status asynchronously (checks vector store)
+   * Includes backward compatibility for old document ID formats
    */
   async getIndexStatusAsync(docId: string): Promise<IndexStatus> {
+    console.log('[RAGEngine] 🔍 getIndexStatusAsync called for:', docId);
+
     // Check in-memory status first
     const memStatus = this.indexingStatus.get(docId);
     if (memStatus?.isIndexed || memStatus?.isIndexing) {
+      console.log('[RAGEngine]    Found in-memory status:', memStatus.isIndexed ? 'indexed' : 'indexing');
       return memStatus;
     }
 
     // Check vector store
     try {
       await this.vecStore.initialize();
-      const doc = await this.vecStore.getDocument(docId);
-      
+
+      // First try exact document ID match
+      let doc = await this.vecStore.getDocument(docId);
+      console.log('[RAGEngine]    Exact match result:', doc ? 'found' : 'not found');
+
+      // If not found, try backward-compatible lookup by hash prefix
+      // Old format: doc_{hash16chars}_{timestamp}
+      // New format: doc_{hash32chars}
+      // Both share the same hash prefix
+      if (!doc) {
+        const hashMatch = docId.match(/^doc_([a-f0-9]+)/);
+        if (hashMatch) {
+          const hashPrefix = hashMatch[1].substring(0, 16);
+          console.log('[RAGEngine]    Trying backward-compatible lookup with hash prefix:', hashPrefix);
+
+          // Get all documents and find one matching the hash prefix
+          const allDocs = await this.vecStore.getAllDocuments();
+          console.log('[RAGEngine]    Total documents in vector store:', allDocs.length);
+
+          if (allDocs.length > 0) {
+            console.log('[RAGEngine]    Document IDs in store:', allDocs.map(d => d.id).join(', '));
+          }
+
+          for (const candidate of allDocs) {
+            // Check if this document's ID starts with the same hash prefix
+            const candidateMatch = candidate.id.match(/^doc_([a-f0-9]+)/);
+            if (candidateMatch) {
+              const candidatePrefix = candidateMatch[1].substring(0, 16);
+              if (candidatePrefix === hashPrefix) {
+                console.log('[RAGEngine]    ✓ Found indexed document with legacy ID:', candidate.id);
+                doc = candidate;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       if (doc) {
+        console.log('[RAGEngine]    ✓ Document is indexed with', doc.chunkCount, 'chunks');
         const status: IndexStatus = {
           isIndexed: true,
           chunkCount: doc.chunkCount,
@@ -472,6 +872,8 @@ export class RAGEngine implements IRAGEngine {
         this.indexingStatus.set(docId, status);
         return status;
       }
+
+      console.log('[RAGEngine]    ✗ Document not found in vector store');
     } catch (error) {
       console.error('[RAGEngine] Error checking index status:', error);
     }
@@ -481,6 +883,37 @@ export class RAGEngine implements IRAGEngine {
       chunkCount: 0,
       isIndexing: false,
     };
+  }
+
+  /**
+   * Find document by hash prefix (backward compatible)
+   * Returns the actual document ID used in the vector store
+   */
+  async findDocumentIdByHashPrefix(docId: string): Promise<string | null> {
+    try {
+      await this.vecStore.initialize();
+
+      // First check exact match
+      const doc = await this.vecStore.getDocument(docId);
+      if (doc) return docId;
+
+      // Try prefix match
+      const hashMatch = docId.match(/^doc_([a-f0-9]+)/);
+      if (!hashMatch) return null;
+
+      const hashPrefix = hashMatch[1].substring(0, 16);
+      const allDocs = await this.vecStore.getAllDocuments();
+
+      for (const candidate of allDocs) {
+        const candidateMatch = candidate.id.match(/^doc_([a-f0-9]+)/);
+        if (candidateMatch && candidateMatch[1].substring(0, 16) === hashPrefix) {
+          return candidate.id;
+        }
+      }
+    } catch (error) {
+      console.error('[RAGEngine] Error finding document by hash:', error);
+    }
+    return null;
   }
 
   /**
@@ -563,7 +996,7 @@ export class RAGEngine implements IRAGEngine {
       includeCitationMarkers: true,
       format: 'markdown',
     };
-    
+
     const builtContext = this.buildContext(retrievalResult.results, contextOptions);
 
     // Build citations from sources with document names
@@ -593,7 +1026,7 @@ export class RAGEngine implements IRAGEngine {
     results: RetrievalResult[]
   ): Promise<Map<string, string>> {
     const documentNameMap = new Map<string, string>();
-    
+
     // Collect all unique document IDs from both input and results
     const allDocIds = new Set<string>(docIds);
     for (const result of results) {
@@ -634,12 +1067,12 @@ export class RAGEngine implements IRAGEngine {
    * @returns Built context with citation mapping
    */
   buildContext(
-    results: RetrievalResult[], 
+    results: RetrievalResult[],
     options: ContextBuildOptions = DEFAULT_CONTEXT_OPTIONS,
     documentNameMap?: Map<string, string>
   ): BuiltContext {
     const { maxTokens, maxSources, includeCitationMarkers, format } = options;
-    
+
     const includedSources: RetrievalResult[] = [];
     const citationMap = new Map<string, string>();
     let contextParts: string[] = [];
@@ -651,20 +1084,20 @@ export class RAGEngine implements IRAGEngine {
     for (let i = 0; i < sortedResults.length && i < maxSources; i++) {
       const result = sortedResults[i];
       const chunk = result.chunk;
-      
+
       // Estimate tokens for this chunk
       const chunkTokens = estimateTokens(chunk.content);
-      
+
       // Check if adding this chunk would exceed limit
       if (totalTokens + chunkTokens > maxTokens) {
         // Try to truncate the chunk to fit
         const remainingTokens = maxTokens - totalTokens;
         if (remainingTokens > 50) { // Only include if we can fit meaningful content
           const truncatedContent = truncateToTokens(chunk.content, remainingTokens);
-          const citationMarker = includeCitationMarkers 
+          const citationMarker = includeCitationMarkers
             ? `[[cite:${chunk.id}:p${chunk.metadata.pageNumbers[0] || 1}]]`
             : '';
-          
+
           contextParts.push(this.formatChunkForContext(
             truncatedContent,
             chunk,
@@ -673,7 +1106,7 @@ export class RAGEngine implements IRAGEngine {
             i + 1,
             documentNameMap
           ));
-          
+
           citationMap.set(chunk.id, citationMarker);
           includedSources.push(result);
           totalTokens += estimateTokens(truncatedContent);
@@ -682,10 +1115,10 @@ export class RAGEngine implements IRAGEngine {
       }
 
       // Add full chunk
-      const citationMarker = includeCitationMarkers 
+      const citationMarker = includeCitationMarkers
         ? `[[cite:${chunk.id}:p${chunk.metadata.pageNumbers[0] || 1}]]`
         : '';
-      
+
       contextParts.push(this.formatChunkForContext(
         chunk.content,
         chunk,
@@ -694,7 +1127,7 @@ export class RAGEngine implements IRAGEngine {
         i + 1,
         documentNameMap
       ));
-      
+
       citationMap.set(chunk.id, citationMarker);
       includedSources.push(result);
       totalTokens += chunkTokens;
@@ -734,14 +1167,14 @@ export class RAGEngine implements IRAGEngine {
     const pageInfo = chunk.metadata.pageNumbers.length > 0
       ? `Page ${chunk.metadata.pageNumbers.join(', ')}`
       : 'Unknown page';
-    
+
     const sectionInfo = chunk.metadata.sectionHeader
       ? ` - ${chunk.metadata.sectionHeader}`
       : '';
 
     // Get document name for cross-document scenarios
     const docName = documentNameMap?.get(chunk.documentId) || chunk.documentId.substring(0, 20);
-    const docInfo = documentNameMap && documentNameMap.size > 1 
+    const docInfo = documentNameMap && documentNameMap.size > 1
       ? ` from "${docName}"`
       : '';
 
@@ -762,14 +1195,14 @@ export class RAGEngine implements IRAGEngine {
    * @param sources - Retrieval results
    * @param documentNameMap - Map of document IDs to document names
    */
-  public buildCitations(
+  private buildCitations(
     sources: RetrievalResult[],
     documentNameMap?: Map<string, string>
   ): Citation[] {
     return sources.map((source, index) => {
       const chunk = source.chunk;
       const pageNumber = chunk.metadata.pageNumbers[0] || 1;
-      
+
       // Get document name from map, or fall back to document ID
       // This ensures cross-document retrieval includes proper document identifiers
       let docName = documentNameMap?.get(chunk.documentId);
@@ -780,9 +1213,9 @@ export class RAGEngine implements IRAGEngine {
           ? chunk.documentId.split(/[/\\]/).pop() || chunk.documentId
           : chunk.documentId.substring(0, 20);
       }
-      
+
       // Extract a short quote from the content
-      const quotedText = chunk.content.substring(0, 150) + 
+      const quotedText = chunk.content.substring(0, 150) +
         (chunk.content.length > 150 ? '...' : '');
 
       return {
@@ -862,15 +1295,15 @@ export class RAGEngine implements IRAGEngine {
   ): string {
     // Get recent messages for context
     const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
-    
+
     // Extract key terms from recent conversation
     const contextText = recentMessages
       .map(m => m.content)
       .join(' ')
       .substring(0, 1000);
-    
+
     const keyTerms = extractKeyTerms(contextText, 3);
-    
+
     if (keyTerms.length === 0) {
       return query;
     }
@@ -903,14 +1336,14 @@ export class RAGEngine implements IRAGEngine {
     const recentUserMessages = messages
       .filter(m => m.role === 'user')
       .slice(-3);
-    
+
     if (recentUserMessages.length === 0) {
       return query;
     }
 
     // Check if this looks like a follow-up question
     const isFollowUp = this.isFollowUpQuestion(query);
-    
+
     if (!isFollowUp) {
       return query;
     }
@@ -920,9 +1353,9 @@ export class RAGEngine implements IRAGEngine {
       .map(m => m.content)
       .join(' ')
       .substring(0, 500);
-    
+
     const keyTerms = extractKeyTerms(previousContext, 3);
-    
+
     if (keyTerms.length > 0) {
       // Append context terms to improve retrieval
       return `${query} ${keyTerms.join(' ')}`;
@@ -949,6 +1382,10 @@ export class RAGEngine implements IRAGEngine {
    */
   updateSettings(settings: Partial<PDFRAGSettings>): void {
     this.settings = { ...this.settings, ...settings };
+    
+    if (settings.ollamaBaseUrl) {
+      this.embedService.setOllamaBaseUrl(settings.ollamaBaseUrl);
+    }
   }
 
   /**
@@ -1051,10 +1488,13 @@ export class RAGEngine implements IRAGEngine {
     // Ensure vector store is initialized
     await this.vecStore.initialize();
 
+    // Check if this is an overview/summary query
+    const isOverview = isOverviewQuery(query);
+
     // Rewrite query with context
     const processedQuery = this.rewriteQuery(query, context);
 
-    // Build query options
+    // Build query options with special handling for overview queries
     const queryOpts: QueryOptions = {
       topK: options.topK ?? this.settings.topK,
       minScore: options.minScore ?? this.settings.minConfidenceScore,
@@ -1064,8 +1504,19 @@ export class RAGEngine implements IRAGEngine {
       sectionFilter: options.sectionFilter,
     };
 
-    // Apply view context filter
-    if (context?.viewState && hasViewReference(query)) {
+    // Special handling for overview queries: prioritize first pages and lower threshold
+    if (isOverview) {
+      console.log('[RAGEngine] 📋 Overview query detected - using first-pages strategy');
+      // For overview queries, prioritize first 5 pages (intro/abstract)
+      queryOpts.pageFilter = { start: 1, end: 5 };
+      // Lower minScore for overview queries since we want broad coverage
+      queryOpts.minScore = Math.min(queryOpts.minScore ?? 0.3, 0.2);
+      // Increase topK for overview to get more context
+      queryOpts.topK = Math.max(queryOpts.topK ?? 8, 10);
+    }
+
+    // Apply view context filter (but not for overview queries)
+    if (!isOverview && context?.viewState && hasViewReference(query)) {
       queryOpts.pageFilter = {
         start: context.viewState.currentPage,
         end: context.viewState.currentPage,
@@ -1073,11 +1524,43 @@ export class RAGEngine implements IRAGEngine {
     }
 
     // Retrieve with confidence from all specified documents
-    const retrievalResult = await this.retrieval.retrieveWithConfidence(
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
+    console.log('[RAGEngine] 🔍 RETRIEVAL START');
+    console.log('[RAGEngine]    Query: "' + query.substring(0, 80) + (query.length > 80 ? '...' : '') + '"');
+    console.log('[RAGEngine]    Processed query: "' + processedQuery.substring(0, 80) + (processedQuery.length > 80 ? '...' : '') + '"');
+    console.log('[RAGEngine]    Document IDs:', docIds);
+    console.log('[RAGEngine]    Options: topK=' + queryOpts.topK + ', minScore=' + queryOpts.minScore + ', hybrid=' + queryOpts.useHybrid);
+    if (isOverview) {
+      console.log('[RAGEngine]    📋 Overview mode: pageFilter=1-5, lowered minScore');
+    }
+
+    let retrievalResult = await this.retrieval.retrieveWithConfidence(
       processedQuery,
       docIds,
       queryOpts
     );
+
+    // If overview query got no results from first pages, retry without page filter
+    if (isOverview && retrievalResult.results.length === 0) {
+      console.log('[RAGEngine] ⚠️ Overview query found no results in first pages, retrying without page filter');
+      const retryOpts = { ...queryOpts, pageFilter: undefined };
+      retrievalResult = await this.retrieval.retrieveWithConfidence(
+        processedQuery,
+        docIds,
+        retryOpts
+      );
+    }
+
+    console.log('[RAGEngine] 📊 RETRIEVAL RESULTS');
+    console.log('[RAGEngine]    Chunks found: ' + retrievalResult.results.length);
+    console.log('[RAGEngine]    Confidence: ' + (retrievalResult.confidence * 100).toFixed(1) + '%');
+    console.log('[RAGEngine]    Low confidence: ' + retrievalResult.isLowConfidence);
+    if (retrievalResult.warning) {
+      console.log('[RAGEngine]    ⚠️ Warning: ' + retrievalResult.warning);
+    }
+    if (retrievalResult.results.length > 0) {
+      console.log('[RAGEngine]    Top chunk scores:', retrievalResult.results.slice(0, 3).map(r => r.score.toFixed(3)).join(', '));
+    }
 
     // Build document name map for cross-document scenarios
     const documentNameMap = await this.buildDocumentNameMap(docIds, retrievalResult.results);
@@ -1089,8 +1572,14 @@ export class RAGEngine implements IRAGEngine {
       includeCitationMarkers: true,
       format: 'markdown',
     };
-    
+
     const builtContext = this.buildContext(retrievalResult.results, contextOptions);
+
+    console.log('[RAGEngine] 📝 CONTEXT BUILT');
+    console.log('[RAGEngine]    Sources included: ' + builtContext.includedSources.length);
+    console.log('[RAGEngine]    Context tokens: ~' + builtContext.tokenCount);
+    console.log('[RAGEngine]    Context length: ' + builtContext.contextString.length + ' chars');
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
 
     return {
       contextString: builtContext.contextString,
@@ -1137,7 +1626,7 @@ export class RAGEngine implements IRAGEngine {
     // Retrieve chunks for this section using page filter
     const queryOpts: QueryOptions = {
       topK: 10, // Get more chunks for summarization
-      minScore: 0.3, // Lower threshold for summarization
+      minScore: 0.2, // Lower threshold for summarization (was 0.3)
       useHybrid: this.settings.useHybridSearch,
       useReranker: false, // Don't rerank for summarization
       pageFilter: {
@@ -1147,11 +1636,32 @@ export class RAGEngine implements IRAGEngine {
     };
 
     // Use section title as query to get relevant chunks
-    const retrievalResult = await this.retrieval.retrieveWithConfidence(
-      `Summary of ${section.title}`,
+    // Note: Using just the title instead of "Summary of ${title}" for better matching
+    let retrievalResult = await this.retrieval.retrieveWithConfidence(
+      section.title,
       [docId],
       queryOpts
     );
+
+    // Check if retrieval returned poor results - try broader query
+    const hasGoodResults = retrievalResult.results.length > 0 &&
+      retrievalResult.results.some(r => r.score >= 0.2);
+
+    if (!hasGoodResults) {
+      console.log(`[RAGEngine] Poor results for section "${section.title}", trying broader content query...`);
+
+      // Try with a more generic query about the content on those pages
+      const broaderQuery = `content from pages ${section.startPage} to ${section.endPage > 0 ? section.endPage : section.startPage + 5}`;
+      retrievalResult = await this.retrieval.retrieveWithConfidence(
+        broaderQuery,
+        [docId],
+        {
+          ...queryOpts,
+          minScore: 0.1, // Even lower threshold for fallback
+          topK: 15, // Get more results
+        }
+      );
+    }
 
     // Build context from retrieved chunks
     const contextOptions: ContextBuildOptions = {
@@ -1161,7 +1671,31 @@ export class RAGEngine implements IRAGEngine {
       format: 'markdown',
     };
 
-    const builtContext = this.buildContext(retrievalResult.results, contextOptions);
+    let builtContext = this.buildContext(retrievalResult.results, contextOptions);
+
+    // Final fallback: If still no context, try to get direct page content
+    if (!builtContext.contextString || builtContext.contextString.trim().length < 50) {
+      console.log(`[RAGEngine] Retrieval failed for section "${section.title}", falling back to direct page extraction...`);
+
+      try {
+        const directContent = await this.getDirectPageContent(
+          docId,
+          section.startPage,
+          section.endPage > 0 ? Math.min(section.endPage, section.startPage + 5) : section.startPage + 3
+        );
+
+        if (directContent && directContent.trim().length > 0) {
+          builtContext = {
+            contextString: directContent,
+            includedSources: [], // No vector store sources for direct extraction
+            tokenCount: Math.ceil(directContent.length / 4),
+            citationMap: new Map(), // No citations for direct extraction
+          };
+        }
+      } catch (fallbackError) {
+        console.warn(`[RAGEngine] Direct page extraction failed for section "${section.title}":`, fallbackError);
+      }
+    }
 
     // Build citations for this section
     const citations = this.buildCitations(builtContext.includedSources);
@@ -1177,6 +1711,44 @@ export class RAGEngine implements IRAGEngine {
       sources: builtContext.includedSources,
       contextString: builtContext.contextString,
     };
+  }
+
+  /**
+   * Get direct page content as a fallback when vector retrieval fails
+   *
+   * @param docId - Document ID
+   * @param startPage - Start page number
+   * @param endPage - End page number
+   * @returns Combined text content from the pages
+   */
+  private async getDirectPageContent(
+    docId: string,
+    startPage: number,
+    endPage: number
+  ): Promise<string> {
+    const textParts: string[] = [];
+
+    for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
+      try {
+        const page = await this.pdfParser.getPage(docId, pageNum);
+
+        if (page.textContent && page.textContent.length > 0) {
+          // Extract text from text blocks
+          const pageText = page.textContent
+            .map(block => block.text)
+            .filter(text => text && text.trim().length > 0)
+            .join(' ');
+
+          if (pageText.trim().length > 0) {
+            textParts.push(`[Page ${pageNum}]\n${pageText}`);
+          }
+        }
+      } catch (pageError) {
+        console.warn(`[RAGEngine] Failed to extract text from page ${pageNum}:`, pageError);
+      }
+    }
+
+    return textParts.join('\n\n');
   }
 
   /**
@@ -1202,7 +1774,7 @@ export class RAGEngine implements IRAGEngine {
 
     // Step 1: Get major sections (Requirement 12.2)
     const sections = await this.getMajorSections(docId);
-    
+
     if (sections.length === 0) {
       // If no sections found, create a single "full document" section
       const docInfo = await this.getDocumentInfo(docId);
@@ -1219,7 +1791,7 @@ export class RAGEngine implements IRAGEngine {
 
     // Step 2: Flatten sections if including subsections
     let sectionsToSummarize: import('../../src/types/pdf').MajorSection[] = [];
-    
+
     if (includeSubsections) {
       const flattenSections = (
         secs: import('../../src/types/pdf').MajorSection[]
@@ -1244,7 +1816,7 @@ export class RAGEngine implements IRAGEngine {
 
     // Step 3: Generate summary for each section (Requirement 12.3)
     const sectionSummaries: import('../../src/types/pdf').SectionSummary[] = [];
-    
+
     for (const section of sectionsToSummarize) {
       try {
         const summary = await this.summarizeSection(docId, section);
@@ -1268,7 +1840,7 @@ export class RAGEngine implements IRAGEngine {
     // Step 4: Collect all citations (Requirement 12.4)
     const allCitations: import('../../src/types/pdf').Citation[] = [];
     const seenChunkIds = new Set<string>();
-    
+
     for (const summary of sectionSummaries) {
       for (const citation of summary.citations) {
         if (!seenChunkIds.has(citation.chunkId)) {
@@ -1306,7 +1878,7 @@ export class RAGEngine implements IRAGEngine {
     // Try loaded documents first
     const loadedDocs = (this.pdfParser as any).loadedDocuments;
     const loadedDoc = loadedDocs?.get(docId);
-    
+
     if (loadedDoc?.document) {
       return {
         fileName: loadedDoc.document.fileName,
@@ -1336,6 +1908,15 @@ export class RAGEngine implements IRAGEngine {
 // =============================================================================
 
 /**
- * Singleton instance of the RAG engine
+ * Singleton instance of the RAG engine using global registry
  */
-export const ragEngine = new RAGEngine();
+export const ragEngine = (() => {
+  const globalKey = Symbol.for('zura.ragEngine');
+  const globalRegistry = global as any;
+
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new RAGEngine();
+  }
+
+  return globalRegistry[globalKey] as RAGEngine;
+})();

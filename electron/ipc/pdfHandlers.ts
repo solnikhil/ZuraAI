@@ -24,7 +24,10 @@ import {
   chunkManager,
   vectorStore,
   embeddingService,
+  generatePDFSystemPrompt,
+  buildPDFChatErrorMessage,
 } from '../pdf';
+import type { PDFChatContext } from '../pdf';
 
 // Import types
 import type {
@@ -49,8 +52,66 @@ import type {
   ModelChangeInfo,
   IndexedDocumentInfo,
   RetrievalResult,
-  Citation,
 } from '../../src/types/pdf';
+
+// =============================================================================
+// Embedding Model Resolution
+// =============================================================================
+
+const LOCAL_MODEL_PREFERENCE_ORDER = [
+  'local-nomic',
+  'local-gemma',
+  'local-mxbai',
+  'local-all-minilm',
+] as const;
+
+async function resolveEmbeddingModelId(
+  requestedModelId: string,
+  settings: PDFRAGSettings
+): Promise<{ resolvedModelId: string | null; usedFallback: boolean }> {
+  const { getEmbeddingModelById, resolveLocalModelIdFromOllamaName } = await import('../pdf/embeddingService');
+
+  // If it's already a known model ID, keep it
+  if (getEmbeddingModelById(requestedModelId)) {
+    return { resolvedModelId: requestedModelId, usedFallback: false };
+  }
+
+  if (requestedModelId === 'openai') {
+    return { resolvedModelId: 'openai-small', usedFallback: false };
+  }
+
+  if (requestedModelId === 'local') {
+    const preferredLocalId =
+      resolveLocalModelIdFromOllamaName(settings.localEmbeddingModel) || 'local-nomic';
+
+    let resolved = preferredLocalId;
+    let usedFallback = false;
+
+    try {
+      const preferredAvailable = await embeddingService.isModelAvailable(preferredLocalId);
+      if (!preferredAvailable) {
+        for (const candidate of LOCAL_MODEL_PREFERENCE_ORDER) {
+          if (await embeddingService.isModelAvailable(candidate)) {
+            resolved = candidate;
+            usedFallback = candidate !== preferredLocalId;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Keep preferred if availability checks fail
+    }
+
+    return { resolvedModelId: resolved, usedFallback };
+  }
+
+  // Voyage is not currently supported in embeddingService
+  if (requestedModelId === 'voyage') {
+    return { resolvedModelId: null, usedFallback: false };
+  }
+
+  return { resolvedModelId: null, usedFallback: false };
+}
 
 // =============================================================================
 // Utility Functions
@@ -92,6 +153,11 @@ const DEFAULT_SETTINGS: PDFRAGSettings = {
   groundedModeEnabled: false,
   showLowConfidenceWarning: true,
   lowConfidenceThreshold: 0.5,
+  // Image processing settings
+  processImages: true,
+  visionModel: 'qwen2-vl:2b',
+  enableOCRFallback: true,
+  preferVisionOverOCR: true,
 };
 
 /**
@@ -100,12 +166,12 @@ const DEFAULT_SETTINGS: PDFRAGSettings = {
 function getPDFChatStorePath(): string {
   const userDataPath = app.getPath('userData');
   const pdfChatDir = path.join(userDataPath, 'pdf-chat');
-  
+
   // Ensure directory exists
   if (!fs.existsSync(pdfChatDir)) {
     fs.mkdirSync(pdfChatDir, { recursive: true });
   }
-  
+
   return path.join(pdfChatDir, 'sessions.json');
 }
 
@@ -114,7 +180,7 @@ function getPDFChatStorePath(): string {
  */
 function loadPDFChatStore(): PDFChatStoreData {
   const storePath = getPDFChatStorePath();
-  
+
   try {
     if (fs.existsSync(storePath)) {
       const data = fs.readFileSync(storePath, 'utf-8');
@@ -130,7 +196,7 @@ function loadPDFChatStore(): PDFChatStoreData {
   } catch (error) {
     console.error('[PDFHandlers] Error loading PDF chat store:', error);
   }
-  
+
   return {
     sessions: [],
     recentDocuments: [],
@@ -145,7 +211,7 @@ function loadPDFChatStore(): PDFChatStoreData {
  */
 function savePDFChatStore(data: PDFChatStoreData): void {
   const storePath = getPDFChatStorePath();
-  
+
   try {
     fs.writeFileSync(storePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
@@ -186,20 +252,20 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:load', async (_event, filePath: string, password?: string): Promise<PDFDocument> => {
     console.log('[PDFHandlers] Loading PDF:', filePath);
-    
+
     try {
       // Validate file path
       if (!filePath || typeof filePath !== 'string') {
         throw new Error('Invalid file path');
       }
-      
+
       // Load document using PDF parser service
       const document = await pdfParserService.loadDocument(filePath, password);
-      
+
       // Update recent documents
       const store = getStore();
       const existingIndex = store.recentDocuments.findIndex(d => d.filePath === filePath);
-      
+
       const recentDoc: RecentDocument = {
         id: document.id,
         filePath: document.filePath,
@@ -208,7 +274,7 @@ function registerPDFLoadingHandlers(): void {
         isIndexed: false, // Will be updated when indexed
         pageCount: document.pageCount,
       };
-      
+
       if (existingIndex >= 0) {
         store.recentDocuments[existingIndex] = recentDoc;
       } else {
@@ -218,9 +284,9 @@ function registerPDFLoadingHandlers(): void {
           store.recentDocuments = store.recentDocuments.slice(0, 20);
         }
       }
-      
+
       persistStore();
-      
+
       console.log('[PDFHandlers] PDF loaded successfully:', document.id);
       return document;
     } catch (error) {
@@ -235,16 +301,16 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:get-page', async (_event, docId: string, pageNum: number): Promise<PDFPage> => {
     console.log('[PDFHandlers] Getting page:', docId, pageNum);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       if (typeof pageNum !== 'number' || pageNum < 1) {
         throw new Error('Invalid page number');
       }
-      
+
       const page = await pdfParserService.getPage(docId, pageNum);
       return page;
     } catch (error) {
@@ -259,16 +325,16 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:search-text', async (_event, docId: string, query: string): Promise<TextSearchResult[]> => {
     console.log('[PDFHandlers] Searching text:', docId, query);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       if (!query || typeof query !== 'string') {
         return [];
       }
-      
+
       const results = await pdfParserService.searchText(docId, query);
       return results;
     } catch (error) {
@@ -283,12 +349,12 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:get-outline', async (_event, docId: string): Promise<OutlineItem[]> => {
     console.log('[PDFHandlers] Getting outline:', docId);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       const outline = await pdfParserService.getDocumentOutline(docId);
       return outline;
     } catch (error) {
@@ -308,12 +374,12 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:get-major-sections', async (_event, docId: string): Promise<MajorSection[]> => {
     console.log('[PDFHandlers] Getting major sections:', docId);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       const sections = await pdfParserService.getMajorSections(docId);
       console.log('[PDFHandlers] Found', sections.length, 'major sections');
       return sections;
@@ -329,12 +395,12 @@ function registerPDFLoadingHandlers(): void {
    */
   ipcMain.handle('pdf:unload', async (_event, docId: string): Promise<void> => {
     console.log('[PDFHandlers] Unloading document:', docId);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       pdfParserService.unloadDocument(docId);
       console.log('[PDFHandlers] Document unloaded:', docId);
     } catch (error) {
@@ -362,26 +428,42 @@ function registerPDFIndexingHandlers(): void {
    * This handler supports background indexing with progress events
    */
   ipcMain.handle('pdf:index', async (event, docId: string, options?: IndexOptions): Promise<IndexResult> => {
-    console.log('[PDFHandlers] Indexing document:', docId, options);
-    
+    console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
+    console.log('[PDFHandlers] 📥 IPC: pdf:index');
+    console.log('[PDFHandlers]    Document ID: ' + docId);
+    console.log('[PDFHandlers]    Options:', JSON.stringify(options || {}));
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
+      // Get Ollama URL from settings and update embedding service
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      const { embeddingService } = await import('../pdf/embeddingService');
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
       // Get the sender window for progress events
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      
+
       // Set up progress callback
       const progressCallback = (progress: number) => {
         if (senderWindow && !senderWindow.isDestroyed()) {
           senderWindow.webContents.send('pdf:index-progress', docId, progress);
         }
       };
-      
-      // Start indexing
-      const result = await ragEngine.indexDocument(docId, options);
-      
+
+      // Set up log callback for detailed progress messages
+      const logCallback = (level: 'info' | 'success' | 'warning' | 'error', message: string) => {
+        if (senderWindow && !senderWindow.isDestroyed()) {
+          senderWindow.webContents.send('pdf:index-log', docId, { level, message, timestamp: Date.now() });
+        }
+      };
+
+      // Start indexing with progress and log callbacks
+      const result = await ragEngine.indexDocument(docId, options, progressCallback, logCallback);
+
       // Send completion event
       if (senderWindow && !senderWindow.isDestroyed()) {
         if (result.success) {
@@ -390,7 +472,7 @@ function registerPDFIndexingHandlers(): void {
           senderWindow.webContents.send('pdf:index-error', docId, result.error || 'Unknown error');
         }
       }
-      
+
       // Update recent documents with indexed status
       if (result.success) {
         const store = getStore();
@@ -400,18 +482,25 @@ function registerPDFIndexingHandlers(): void {
         }
         persistStore();
       }
-      
-      console.log('[PDFHandlers] Indexing complete:', docId, result.success);
+
+      console.log('[PDFHandlers] 📤 IPC RESPONSE: pdf:index');
+      console.log('[PDFHandlers]    Success: ' + result.success);
+      console.log('[PDFHandlers]    Chunks created: ' + result.chunkCount);
+      console.log('[PDFHandlers]    Time: ' + result.indexingTimeMs + 'ms');
+      if (result.error) {
+        console.log('[PDFHandlers]    ❌ Error: ' + result.error);
+      }
+      console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
       return result;
     } catch (error) {
-      console.error('[PDFHandlers] Error indexing document:', error);
-      
+      console.error('[PDFHandlers] ❌ Error indexing document:', error);
+
       // Send error event
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
       if (senderWindow && !senderWindow.isDestroyed()) {
         senderWindow.webContents.send('pdf:index-error', docId, error instanceof Error ? error.message : String(error));
       }
-      
+
       return {
         success: false,
         documentId: docId,
@@ -428,12 +517,12 @@ function registerPDFIndexingHandlers(): void {
    */
   ipcMain.handle('pdf:get-index-status', async (_event, docId: string): Promise<IndexStatus> => {
     console.log('[PDFHandlers] Getting index status:', docId);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       // Use async version to check vector store
       const status = await ragEngine.getIndexStatusAsync(docId);
       return status;
@@ -450,28 +539,40 @@ function registerPDFIndexingHandlers(): void {
   /**
    * Delete the index for a document
    * Channel: pdf:delete-index
+   * Supports backward-compatible document ID lookup
    */
-  ipcMain.handle('pdf:delete-index', async (_event, docId: string): Promise<void> => {
-    console.log('[PDFHandlers] Deleting index:', docId);
-    
+  ipcMain.handle('pdf:delete-index', async (_event, docId: string): Promise<{ success: boolean; deletedId?: string; error?: string }> => {
+    console.log('[PDFHandlers] 🗑️ Deleting index:', docId);
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
-      await ragEngine.deleteIndex(docId);
-      
+
+      // Try to find the actual document ID (may be different due to legacy format)
+      const actualDocId = await ragEngine.findDocumentIdByHashPrefix(docId);
+
+      if (!actualDocId) {
+        console.log('[PDFHandlers]    No index found for document');
+        return { success: true, deletedId: docId }; // Nothing to delete
+      }
+
+      console.log('[PDFHandlers]    Actual document ID to delete:', actualDocId);
+      await ragEngine.deleteIndex(actualDocId);
+
       // Update recent documents
       const store = getStore();
-      const recentDoc = store.recentDocuments.find(d => d.id === docId);
+      const recentDoc = store.recentDocuments.find(d => d.id === docId || d.id === actualDocId);
       if (recentDoc) {
         recentDoc.isIndexed = false;
       }
       persistStore();
-      
-      console.log('[PDFHandlers] Index deleted:', docId);
+
+      console.log('[PDFHandlers] ✓ Index deleted:', actualDocId);
+      return { success: true, deletedId: actualDocId };
     } catch (error) {
       console.error('[PDFHandlers] Error deleting index:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
       throw error;
     }
   });
@@ -505,26 +606,26 @@ function registerRAGQueryHandlers(): void {
     }
   ): Promise<RAGResponse> => {
     console.log('[PDFHandlers] RAG query:', query, docIds);
-    
+
     try {
       if (!query || typeof query !== 'string') {
         throw new Error('Invalid query');
       }
-      
+
       if (!Array.isArray(docIds) || docIds.length === 0) {
         throw new Error('No documents specified for query');
       }
-      
+
       // Build conversation context if provided
       const context = conversationContext ? {
         messages: conversationContext.messages || [],
         documentIds: docIds,
         viewState: conversationContext.viewState,
       } : undefined;
-      
+
       // Execute RAG query
       const response = await ragEngine.query(query, docIds, options, context);
-      
+
       console.log('[PDFHandlers] RAG query complete, sources:', response.sources.length);
       return response;
     } catch (error) {
@@ -534,11 +635,12 @@ function registerRAGQueryHandlers(): void {
   });
 
   /**
-   * Get RAG context for AI generation
+   * Get RAG context for a query (without generating AI response)
    * Channel: pdf:get-context
    *
-   * Returns the formatted context string and sources for use with AI model.
-   * This separates retrieval from generation, allowing the frontend to call AI providers.
+   * Returns the retrieved context, sources, and citations for the renderer
+   * to generate the AI response. This allows the renderer to use its own
+   * AI services rather than requiring AI generation in the main process.
    */
   ipcMain.handle('pdf:get-context', async (
     _event,
@@ -555,10 +657,20 @@ function registerRAGQueryHandlers(): void {
     confidence: number;
     isLowConfidence: boolean;
     warning?: string;
-    citations: Citation[];
-    documentNameMap: Record<string, string>;
+    documentNameMap?: Map<string, string>;
+    pdfSystemPrompt: string;
+    documentMetadata: Array<{
+      id: string;
+      fileName: string;
+      pageCount: number;
+      title?: string;
+    }>;
   }> => {
-    console.log('[PDFHandlers] Getting RAG context:', query, docIds);
+    console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
+    console.log('[PDFHandlers] 📨 IPC: pdf:get-context');
+    console.log('[PDFHandlers]    Query: "' + (query?.substring(0, 80) || '') + (query?.length > 80 ? '...' : '') + '"');
+    console.log('[PDFHandlers]    Document IDs:', docIds);
+    console.log('[PDFHandlers]    Options:', JSON.stringify(options || {}));
 
     try {
       if (!query || typeof query !== 'string') {
@@ -566,47 +678,108 @@ function registerRAGQueryHandlers(): void {
       }
 
       if (!Array.isArray(docIds) || docIds.length === 0) {
-        throw new Error('No documents specified for query');
+        throw new Error('No documents specified for context retrieval');
       }
 
-      // Build conversation context if provided
-      const context = conversationContext ? {
+      // Build query options
+      const queryOpts: QueryOptions = {
+        topK: options?.topK ?? 5,
+        minScore: options?.minScore ?? 0.5,
+        useHybrid: options?.useHybrid ?? true,
+        useReranker: options?.useReranker ?? true,
+        pageFilter: options?.pageFilter,
+        sectionFilter: options?.sectionFilter,
+      };
+
+      // Apply view context filter if query references current view
+      if (conversationContext?.viewState) {
+        const viewRefPatterns = [
+          /\bthis page\b/i,
+          /\bcurrent page\b/i,
+          /\bthe table above\b/i,
+          /\bthe figure above\b/i,
+          /\bthis section\b/i,
+          /\bhere\b/i,
+        ];
+        const hasViewRef = viewRefPatterns.some(pattern => pattern.test(query));
+        if (hasViewRef) {
+          queryOpts.pageFilter = {
+            start: conversationContext.viewState.currentPage,
+            end: conversationContext.viewState.currentPage,
+          };
+        }
+      }
+
+      // Build proper conversation context for RAG engine
+      const ragConversationContext = conversationContext ? {
         messages: conversationContext.messages || [],
         documentIds: docIds,
         viewState: conversationContext.viewState,
       } : undefined;
 
       // Get context from RAG engine
-      const result = await ragEngine.getContextForQuery(query, docIds, options, context);
+      const ragContext = await ragEngine.getContextForQuery(
+        query,
+        docIds,
+        queryOpts,
+        ragConversationContext
+      );
 
-      // Build citations from sources
-      const citations = ragEngine.buildCitations(result.sources, result.documentNameMap);
+      // Gather document metadata
+      const documentMetadata: Array<{
+        id: string;
+        fileName: string;
+        pageCount: number;
+        title?: string;
+      }> = [];
 
-      // Convert Map to plain object for JSON serialization
-      const documentNameMapObj: Record<string, string> = {};
-      if (result.documentNameMap) {
-        result.documentNameMap.forEach((value, key) => {
-          documentNameMapObj[key] = value;
-        });
+      let totalPageCount = 0;
+      const documentNames: string[] = [];
+
+      for (const docId of docIds) {
+        const loadedDoc = pdfParserService.getLoadedDocument(docId);
+        if (loadedDoc) {
+          const doc = loadedDoc.document;
+          documentMetadata.push({
+            id: docId,
+            fileName: doc.fileName,
+            pageCount: doc.pageCount,
+            title: doc.metadata?.title,
+          });
+          totalPageCount += doc.pageCount;
+          documentNames.push(doc.fileName);
+        }
       }
 
-      console.log('[PDFHandlers] Context retrieved:', {
-        contextLength: result.contextString.length,
-        sourceCount: result.sources.length,
-        confidence: result.confidence
-      });
+      // Generate PDF-aware system prompt
+      const pdfChatContext: PDFChatContext = {
+        documentNames,
+        pageCount: totalPageCount,
+        currentPage: conversationContext?.viewState?.currentPage,
+        hasMultipleDocuments: docIds.length > 1,
+        retrievedContext: ragContext.contextString,
+        groundedMode: options?.minScore ? options.minScore > 0.5 : false,
+      };
+
+      const pdfSystemPrompt = generatePDFSystemPrompt(pdfChatContext);
+
+      console.log('[PDFHandlers] 📤 IPC RESPONSE: pdf:get-context');
+      console.log('[PDFHandlers]    Sources retrieved: ' + ragContext.sources.length);
+      console.log('[PDFHandlers]    Confidence: ' + (ragContext.confidence * 100).toFixed(1) + '%');
+      console.log('[PDFHandlers]    Context length: ' + ragContext.contextString.length + ' chars');
+      console.log('[PDFHandlers]    System prompt length: ' + pdfSystemPrompt.length + ' chars');
+      if (ragContext.sources.length === 0) {
+        console.log('[PDFHandlers]    ⚠️ NO SOURCES FOUND - AI will have no document context');
+      }
+      console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
 
       return {
-        contextString: result.contextString,
-        sources: result.sources,
-        confidence: result.confidence,
-        isLowConfidence: result.isLowConfidence,
-        warning: result.warning,
-        citations,
-        documentNameMap: documentNameMapObj
+        ...ragContext,
+        pdfSystemPrompt,
+        documentMetadata,
       };
     } catch (error) {
-      console.error('[PDFHandlers] Error getting RAG context:', error);
+      console.error('[PDFHandlers] ❌ Error getting RAG context:', error);
       throw error;
     }
   });
@@ -629,21 +802,21 @@ function registerRAGQueryHandlers(): void {
     }
   ): Promise<import('../../src/types/pdf').DocumentSummary> => {
     console.log('[PDFHandlers] Generating document summary:', docId, options);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       // Generate document summary using RAG engine
       const summary = await ragEngine.generateDocumentSummary(docId, options);
-      
+
       console.log('[PDFHandlers] Document summary generated:', {
         documentId: summary.documentId,
         sectionCount: summary.sectionCount,
         citationCount: summary.citations.length,
       });
-      
+
       return summary;
     } catch (error) {
       console.error('[PDFHandlers] Error generating document summary:', error);
@@ -657,31 +830,31 @@ function registerRAGQueryHandlers(): void {
    */
   ipcMain.handle('pdf:get-chunks', async (_event, docId: string, chunkIds: string[]): Promise<Chunk[]> => {
     console.log('[PDFHandlers] Getting chunks:', docId, chunkIds.length);
-    
+
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       if (!Array.isArray(chunkIds)) {
         throw new Error('Invalid chunk IDs');
       }
-      
+
       // Get chunks from chunk manager or vector store
       const chunks: Chunk[] = [];
-      
+
       for (const chunkId of chunkIds) {
         const chunk = chunkManager.getChunk(chunkId);
         if (chunk) {
           chunks.push(chunk);
         }
       }
-      
+
       // If not found in memory, try vector store
       if (chunks.length < chunkIds.length) {
         const missingIds = chunkIds.filter(id => !chunks.find(c => c.id === id));
         const storedChunks = await vectorStore.getChunks(missingIds);
-        
+
         for (const record of storedChunks) {
           // Convert ChunkRecord to Chunk
           let boundingBoxes = [];
@@ -690,7 +863,7 @@ function registerRAGQueryHandlers(): void {
           } catch {
             boundingBoxes = [];
           }
-          
+
           chunks.push({
             id: record.id,
             documentId: record.documentId,
@@ -707,7 +880,7 @@ function registerRAGQueryHandlers(): void {
           });
         }
       }
-      
+
       return chunks;
     } catch (error) {
       console.error('[PDFHandlers] Error getting chunks:', error);
@@ -733,23 +906,23 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:create-session', async (_event, docIds: string[]): Promise<PDFChatSession> => {
     console.log('[PDFHandlers] Creating session for documents:', docIds);
-    
+
     try {
       if (!Array.isArray(docIds) || docIds.length === 0) {
         throw new Error('No documents specified for session');
       }
-      
+
       const store = getStore();
-      
+
       // Generate session title from document names
       const docNames = docIds.map(id => {
         const recentDoc = store.recentDocuments.find(d => d.id === id);
         return recentDoc?.fileName || id;
       });
-      const title = docNames.length === 1 
-        ? docNames[0] 
+      const title = docNames.length === 1
+        ? docNames[0]
         : `${docNames[0]} + ${docNames.length - 1} more`;
-      
+
       const session: PDFChatSession = {
         id: generateUUID(),
         title,
@@ -758,10 +931,10 @@ function registerSessionManagementHandlers(): void {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      
+
       store.sessions.unshift(session);
       persistStore();
-      
+
       console.log('[PDFHandlers] Session created:', session.id);
       return session;
     } catch (error) {
@@ -776,7 +949,7 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:get-sessions', async (): Promise<PDFChatSession[]> => {
     console.log('[PDFHandlers] Getting all sessions');
-    
+
     try {
       const store = getStore();
       return store.sessions;
@@ -792,12 +965,12 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:get-session', async (_event, sessionId: string): Promise<PDFChatSession | null> => {
     console.log('[PDFHandlers] Getting session:', sessionId);
-    
+
     try {
       if (!sessionId || typeof sessionId !== 'string') {
         throw new Error('Invalid session ID');
       }
-      
+
       const store = getStore();
       const session = store.sessions.find(s => s.id === sessionId);
       return session || null;
@@ -813,24 +986,24 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:save-session', async (_event, session: PDFChatSession): Promise<void> => {
     console.log('[PDFHandlers] Saving session:', session.id);
-    
+
     try {
       if (!session || !session.id) {
         throw new Error('Invalid session');
       }
-      
+
       const store = getStore();
       const existingIndex = store.sessions.findIndex(s => s.id === session.id);
-      
+
       // Update timestamp
       session.updatedAt = Date.now();
-      
+
       if (existingIndex >= 0) {
         store.sessions[existingIndex] = session;
       } else {
         store.sessions.unshift(session);
       }
-      
+
       persistStore();
       console.log('[PDFHandlers] Session saved:', session.id);
     } catch (error) {
@@ -845,15 +1018,15 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:delete-session', async (_event, sessionId: string): Promise<void> => {
     console.log('[PDFHandlers] Deleting session:', sessionId);
-    
+
     try {
       if (!sessionId || typeof sessionId !== 'string') {
         throw new Error('Invalid session ID');
       }
-      
+
       const store = getStore();
       const index = store.sessions.findIndex(s => s.id === sessionId);
-      
+
       if (index >= 0) {
         store.sessions.splice(index, 1);
         persistStore();
@@ -874,14 +1047,14 @@ function registerSessionManagementHandlers(): void {
    */
   ipcMain.handle('pdf-chat:get-recent-documents', async (_event, limit?: number): Promise<RecentDocument[]> => {
     console.log('[PDFHandlers] Getting recent documents, limit:', limit);
-    
+
     try {
       const store = getStore();
       const maxDocs = limit && typeof limit === 'number' ? Math.min(limit, 20) : 10;
-      
+
       // Return the most recent documents, limited to maxDocs
       const recentDocs = store.recentDocuments.slice(0, maxDocs);
-      
+
       console.log('[PDFHandlers] Returning', recentDocs.length, 'recent documents');
       return recentDocs;
     } catch (error) {
@@ -908,7 +1081,7 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-settings', async (): Promise<PDFRAGSettings> => {
     console.log('[PDFHandlers] Getting settings');
-    
+
     try {
       const store = getStore();
       return store.settings;
@@ -924,14 +1097,24 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:update-settings', async (_event, settings: Partial<PDFRAGSettings>): Promise<void> => {
     console.log('[PDFHandlers] Updating settings:', settings);
-    
+
     try {
       const store = getStore();
       store.settings = { ...store.settings, ...settings };
-      
+
       // Also update RAG engine settings
       ragEngine.updateSettings(store.settings);
-      
+
+      // Resolve and apply embedding model when possible
+      const { resolvedModelId } = await resolveEmbeddingModelId(store.settings.embeddingModel, store.settings);
+      if (resolvedModelId) {
+        try {
+          await embeddingService.setModel(resolvedModelId);
+        } catch (error) {
+          console.warn('[PDFHandlers] Failed to apply embedding model:', resolvedModelId, error);
+        }
+      }
+
       persistStore();
       console.log('[PDFHandlers] Settings updated');
     } catch (error) {
@@ -951,19 +1134,19 @@ function registerSettingsAndFeedbackHandlers(): void {
    * Implements Requirement 16.7: Support per-collection retrieval settings
    */
   ipcMain.handle('pdf:get-document-settings', async (
-    _event, 
+    _event,
     documentId: string
   ): Promise<DocumentRetrievalSettings | null> => {
     console.log('[PDFHandlers] Getting document settings:', documentId);
-    
+
     try {
       if (!documentId || typeof documentId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       const store = getStore();
       const settings = store.documentSettings.find(s => s.documentId === documentId);
-      
+
       return settings || null;
     } catch (error) {
       console.error('[PDFHandlers] Error getting document settings:', error);
@@ -978,30 +1161,30 @@ function registerSettingsAndFeedbackHandlers(): void {
    * Implements Requirement 16.7: Support per-collection retrieval settings
    */
   ipcMain.handle('pdf:update-document-settings', async (
-    _event, 
+    _event,
     settings: DocumentRetrievalSettings
   ): Promise<void> => {
     console.log('[PDFHandlers] Updating document settings:', settings.documentId);
-    
+
     try {
       if (!settings || !settings.documentId) {
         throw new Error('Invalid document settings');
       }
-      
+
       const store = getStore();
       const existingIndex = store.documentSettings.findIndex(
         s => s.documentId === settings.documentId
       );
-      
+
       // Update timestamp
       settings.updatedAt = Date.now();
-      
+
       if (existingIndex >= 0) {
         store.documentSettings[existingIndex] = settings;
       } else {
         store.documentSettings.push(settings);
       }
-      
+
       persistStore();
       console.log('[PDFHandlers] Document settings updated:', settings.documentId);
     } catch (error) {
@@ -1017,19 +1200,19 @@ function registerSettingsAndFeedbackHandlers(): void {
    * Implements Requirement 16.7: Support per-collection retrieval settings
    */
   ipcMain.handle('pdf:delete-document-settings', async (
-    _event, 
+    _event,
     documentId: string
   ): Promise<void> => {
     console.log('[PDFHandlers] Deleting document settings:', documentId);
-    
+
     try {
       if (!documentId || typeof documentId !== 'string') {
         throw new Error('Invalid document ID');
       }
-      
+
       const store = getStore();
       const index = store.documentSettings.findIndex(s => s.documentId === documentId);
-      
+
       if (index >= 0) {
         store.documentSettings.splice(index, 1);
         persistStore();
@@ -1049,7 +1232,7 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-all-document-settings', async (): Promise<DocumentRetrievalSettings[]> => {
     console.log('[PDFHandlers] Getting all document settings');
-    
+
     try {
       const store = getStore();
       return store.documentSettings;
@@ -1072,37 +1255,37 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:save-feedback', async (_event, feedback: ResponseFeedback | CitationFeedback): Promise<void> => {
     console.log('[PDFHandlers] Saving feedback:', feedback);
-    
+
     try {
       if (!feedback) {
         throw new Error('Invalid feedback');
       }
-      
+
       // Validate required fields based on feedback type
       if (!feedback.sessionId || !feedback.responseId || !feedback.type || !feedback.timestamp) {
         throw new Error('Feedback missing required fields: sessionId, responseId, type, timestamp');
       }
-      
+
       // For citation feedback, validate citationId
       if ('citationId' in feedback && !feedback.citationId) {
         throw new Error('Citation feedback missing required field: citationId');
       }
-      
+
       const store = getStore();
-      
+
       // Add the feedback with a unique ID if not present
       const feedbackWithId = {
         ...feedback,
         id: feedback.responseId + '_' + feedback.timestamp, // Create a unique ID
       };
-      
+
       store.feedback.push(feedbackWithId);
-      
+
       // Keep only last 1000 feedback entries to prevent unbounded growth
       if (store.feedback.length > 1000) {
         store.feedback = store.feedback.slice(-1000);
       }
-      
+
       persistStore();
       console.log('[PDFHandlers] Feedback saved successfully:', feedbackWithId.id);
     } catch (error) {
@@ -1124,34 +1307,34 @@ function registerSettingsAndFeedbackHandlers(): void {
    * - 17.4: Persist feedback across sessions (retrieval after restart)
    */
   ipcMain.handle('pdf:get-feedback', async (
-    _event, 
-    options?: { 
-      sessionId?: string; 
+    _event,
+    options?: {
+      sessionId?: string;
       responseId?: string;
       limit?: number;
     }
   ): Promise<Array<ResponseFeedback | CitationFeedback>> => {
     console.log('[PDFHandlers] Getting feedback:', options);
-    
+
     try {
       const store = getStore();
       let feedback = [...store.feedback];
-      
+
       // Filter by session ID if provided
       if (options?.sessionId) {
         feedback = feedback.filter(f => f.sessionId === options.sessionId);
       }
-      
+
       // Filter by response ID if provided
       if (options?.responseId) {
         feedback = feedback.filter(f => f.responseId === options.responseId);
       }
-      
+
       // Apply limit if provided (return most recent)
       if (options?.limit && options.limit > 0) {
         feedback = feedback.slice(-options.limit);
       }
-      
+
       console.log('[PDFHandlers] Returning', feedback.length, 'feedback entries');
       return feedback;
     } catch (error) {
@@ -1176,25 +1359,25 @@ function registerSettingsAndFeedbackHandlers(): void {
   ipcMain.handle('pdf:check-model-change', async (
     _event,
     newModelId: string
-  ): Promise<{ 
+  ): Promise<{
     documentsNeedingReindex: IndexedDocumentInfo[];
     currentModelId: string;
     newModelId: string;
     hasDocumentsToReindex: boolean;
   }> => {
     console.log('[PDFHandlers] Checking model change to:', newModelId);
-    
+
     try {
       if (!newModelId || typeof newModelId !== 'string') {
         throw new Error('Invalid model ID');
       }
-      
+
       // Get all indexed documents
       const allDocuments = await vectorStore.getAllDocuments();
-      
+
       // Get current model ID from embedding service
       const currentModelId = embeddingService.getCurrentModelId();
-      
+
       // Find documents that need re-indexing (indexed with different model)
       const documentsNeedingReindex: IndexedDocumentInfo[] = allDocuments
         .filter(doc => doc.embeddingModel !== newModelId)
@@ -1208,9 +1391,9 @@ function registerSettingsAndFeedbackHandlers(): void {
           needsReindex: true,
           currentModelId: newModelId,
         }));
-      
+
       console.log('[PDFHandlers] Documents needing reindex:', documentsNeedingReindex.length);
-      
+
       return {
         documentsNeedingReindex,
         currentModelId,
@@ -1234,14 +1417,14 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-indexed-documents', async (): Promise<IndexedDocumentInfo[]> => {
     console.log('[PDFHandlers] Getting indexed documents');
-    
+
     try {
       // Get all indexed documents from vector store
       const allDocuments = await vectorStore.getAllDocuments();
-      
+
       // Get current model ID
       const currentModelId = embeddingService.getCurrentModelId();
-      
+
       // Map to IndexedDocumentInfo with needsReindex flag
       const indexedDocs: IndexedDocumentInfo[] = allDocuments.map(doc => ({
         id: doc.id,
@@ -1253,7 +1436,7 @@ function registerSettingsAndFeedbackHandlers(): void {
         needsReindex: doc.embeddingModel !== currentModelId,
         currentModelId,
       }));
-      
+
       console.log('[PDFHandlers] Returning', indexedDocs.length, 'indexed documents');
       return indexedDocs;
     } catch (error) {
@@ -1273,14 +1456,14 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-documents-needing-reindex', async (): Promise<IndexedDocumentInfo[]> => {
     console.log('[PDFHandlers] Getting documents needing reindex');
-    
+
     try {
       // Get current model ID
       const currentModelId = embeddingService.getCurrentModelId();
-      
+
       // Get documents that need re-indexing
       const documentsNeedingReindex = await vectorStore.getDocumentsNeedingReindex(currentModelId);
-      
+
       // Map to IndexedDocumentInfo
       const result: IndexedDocumentInfo[] = documentsNeedingReindex.map(doc => ({
         id: doc.id,
@@ -1292,7 +1475,7 @@ function registerSettingsAndFeedbackHandlers(): void {
         needsReindex: true,
         currentModelId,
       }));
-      
+
       console.log('[PDFHandlers] Documents needing reindex:', result.length);
       return result;
     } catch (error) {
@@ -1313,39 +1496,39 @@ function registerSettingsAndFeedbackHandlers(): void {
   ipcMain.handle('pdf:reindex-documents', async (
     event,
     documentIds: string[]
-  ): Promise<{ 
-    success: boolean; 
+  ): Promise<{
+    success: boolean;
     results: Array<{ documentId: string; success: boolean; error?: string }>;
   }> => {
     console.log('[PDFHandlers] Re-indexing documents:', documentIds);
-    
+
     try {
       if (!Array.isArray(documentIds) || documentIds.length === 0) {
         throw new Error('No documents specified for re-indexing');
       }
-      
+
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
       const results: Array<{ documentId: string; success: boolean; error?: string }> = [];
-      
+
       for (const docId of documentIds) {
         try {
           // Send progress event
           if (senderWindow && !senderWindow.isDestroyed()) {
             senderWindow.webContents.send('pdf:reindex-progress', docId, 'starting');
           }
-          
+
           // Delete existing index
           await ragEngine.deleteIndex(docId);
-          
+
           // Re-index the document
           const indexResult = await ragEngine.indexDocument(docId, { forceReindex: true });
-          
+
           results.push({
             documentId: docId,
             success: indexResult.success,
             error: indexResult.error,
           });
-          
+
           // Send completion event
           if (senderWindow && !senderWindow.isDestroyed()) {
             senderWindow.webContents.send('pdf:reindex-progress', docId, indexResult.success ? 'complete' : 'error');
@@ -1359,10 +1542,10 @@ function registerSettingsAndFeedbackHandlers(): void {
           });
         }
       }
-      
+
       const allSuccess = results.every(r => r.success);
       console.log('[PDFHandlers] Re-indexing complete. All success:', allSuccess);
-      
+
       return {
         success: allSuccess,
         results,
@@ -1392,21 +1575,65 @@ function registerSettingsAndFeedbackHandlers(): void {
     options?: { forceRefresh?: boolean; timeoutMs?: number }
   ): Promise<import('../../src/types/pdf').ModelCacheStatus> => {
     console.log('[PDFHandlers] Getting model cache status:', modelId);
-    
+
     try {
       if (!modelId || typeof modelId !== 'string') {
         throw new Error('Invalid model ID');
       }
-      
+
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+
       // Import the model caching functions
-      const { getModelCacheStatus } = await import('../pdf/embeddingService');
-      
-      const status = await getModelCacheStatus(modelId, options);
-      console.log('[PDFHandlers] Model cache status:', modelId, status.isAvailable ? 'available' : 'unavailable');
-      
+      const { getModelCacheStatus, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
+      const { resolvedModelId, usedFallback } = await resolveEmbeddingModelId(modelId, store.settings);
+
+      if (!resolvedModelId) {
+        return {
+          modelId,
+          modelName: modelId,
+          provider: (modelId === 'openai' || modelId === 'voyage') ? modelId : 'local',
+          isAvailable: false,
+          isCached: false,
+          isDownloading: false,
+          lastCheckedAt: Date.now(),
+          errorMessage: 'Unsupported embedding model',
+          requiresApiKey: false,
+        };
+      }
+
+      const status = await getModelCacheStatus(resolvedModelId, options);
+      console.log('[PDFHandlers] Model cache status:', resolvedModelId, status.isAvailable ? 'available' : 'unavailable');
+
       return status;
     } catch (error) {
       console.error('[PDFHandlers] Error getting model cache status:', error);
+      throw error;
+    }
+  });
+
+  /**
+   * List Ollama models available on the local server
+   * Channel: pdf:list-ollama-models
+   */
+  ipcMain.handle('pdf:list-ollama-models', async (_event, url?: string): Promise<Array<{ name: string; size?: number }>> => {
+    console.log('[PDFHandlers] Listing Ollama models', url ? `at ${url}` : '');
+
+    try {
+      const store = getStore();
+      const ollamaBaseUrl = url || store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+
+      const { listOllamaModels, embeddingService } = await import('../pdf/embeddingService');
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
+      return await listOllamaModels(ollamaBaseUrl);
+    } catch (error) {
+      console.error('[PDFHandlers] Error listing Ollama models:', error);
       throw error;
     }
   });
@@ -1425,15 +1652,22 @@ function registerSettingsAndFeedbackHandlers(): void {
     options?: { forceRefresh?: boolean; timeoutMs?: number }
   ): Promise<import('../../src/types/pdf').AllModelsStatus> => {
     console.log('[PDFHandlers] Getting all models status');
-    
+
     try {
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+
       // Import the model caching functions
-      const { getAllModelsStatus } = await import('../pdf/embeddingService');
-      
+      const { getAllModelsStatus, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
       const status = await getAllModelsStatus(options);
-      console.log('[PDFHandlers] All models status:', status.models.length, 'models,', 
+      console.log('[PDFHandlers] All models status:', status.models.length, 'models,',
         status.models.filter(m => m.isAvailable).length, 'available');
-      
+
       return status;
     } catch (error) {
       console.error('[PDFHandlers] Error getting all models status:', error);
@@ -1455,31 +1689,38 @@ function registerSettingsAndFeedbackHandlers(): void {
     modelId: string
   ): Promise<import('../../src/types/pdf').ModelDownloadResult> => {
     console.log('[PDFHandlers] Downloading model:', modelId);
-    
+
     try {
       if (!modelId || typeof modelId !== 'string') {
         throw new Error('Invalid model ID');
       }
-      
+
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      
+
+      // Get Ollama URL from settings
+      const store = getStore();
+      const ollamaBaseUrl = store.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+
       // Import the model caching functions
-      const { downloadModel } = await import('../pdf/embeddingService');
-      
+      const { downloadModel, embeddingService } = await import('../pdf/embeddingService');
+
+      // Update embedding service with current Ollama URL
+      embeddingService.setOllamaBaseUrl(ollamaBaseUrl);
+
       // Set up progress callback
       const onProgress = (progress: number, status: string) => {
         if (senderWindow && !senderWindow.isDestroyed()) {
           senderWindow.webContents.send('pdf:model-download-progress', modelId, progress, status);
         }
       };
-      
+
       const result = await downloadModel(modelId, onProgress);
-      
+
       // Send completion event
       if (senderWindow && !senderWindow.isDestroyed()) {
         senderWindow.webContents.send('pdf:model-download-complete', modelId, result);
       }
-      
+
       console.log('[PDFHandlers] Model download complete:', modelId, result.success ? 'success' : 'failed');
       return result;
     } catch (error) {
@@ -1498,11 +1739,11 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:clear-model-cache', async (): Promise<void> => {
     console.log('[PDFHandlers] Clearing model cache');
-    
+
     try {
       // Import the model caching functions
       const { clearModelCache } = await import('../pdf/embeddingService');
-      
+
       clearModelCache();
       console.log('[PDFHandlers] Model cache cleared');
     } catch (error) {
@@ -1524,18 +1765,18 @@ function registerSettingsAndFeedbackHandlers(): void {
     modelId: string
   ): Promise<import('../../src/types/pdf').ModelCacheStatus> => {
     console.log('[PDFHandlers] Refreshing model status:', modelId);
-    
+
     try {
       if (!modelId || typeof modelId !== 'string') {
         throw new Error('Invalid model ID');
       }
-      
+
       // Import the model caching functions
       const { refreshModelStatus } = await import('../pdf/embeddingService');
-      
+
       const status = await refreshModelStatus(modelId);
       console.log('[PDFHandlers] Model status refreshed:', modelId, status.isAvailable ? 'available' : 'unavailable');
-      
+
       return status;
     } catch (error) {
       console.error('[PDFHandlers] Error refreshing model status:', error);
@@ -1558,11 +1799,11 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-embedding-fallback-state', async (): Promise<import('../../src/types/pdf').EmbeddingFallbackState> => {
     console.log('[PDFHandlers] Getting embedding fallback state');
-    
+
     try {
       const { embeddingFallbackManager } = await import('../pdf/embeddingService');
       const state = embeddingFallbackManager.getState();
-      
+
       console.log('[PDFHandlers] Fallback state:', state.isActive ? 'active' : 'inactive');
       return state;
     } catch (error) {
@@ -1590,13 +1831,13 @@ function registerSettingsAndFeedbackHandlers(): void {
     state: import('../../src/types/pdf').EmbeddingFallbackState;
   }> => {
     console.log('[PDFHandlers] Attempting embedding recovery');
-    
+
     try {
       const { embeddingFallbackManager } = await import('../pdf/embeddingService');
-      
+
       const success = await embeddingFallbackManager.attemptRecovery();
       const state = embeddingFallbackManager.getState();
-      
+
       console.log('[PDFHandlers] Recovery attempt:', success ? 'successful' : 'failed');
       return { success, state };
     } catch (error) {
@@ -1624,11 +1865,11 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-embedding-fallback-notification', async (): Promise<import('../../src/types/pdf').EmbeddingFallbackNotification | null> => {
     console.log('[PDFHandlers] Getting embedding fallback notification');
-    
+
     try {
       const { embeddingFallbackManager } = await import('../pdf/embeddingService');
       const notification = embeddingFallbackManager.createNotification();
-      
+
       return notification;
     } catch (error) {
       console.error('[PDFHandlers] Error getting fallback notification:', error);
@@ -1650,13 +1891,13 @@ function registerSettingsAndFeedbackHandlers(): void {
     state: import('../../src/types/pdf').EmbeddingFallbackState;
   }> => {
     console.log('[PDFHandlers] Checking embedding availability');
-    
+
     try {
       const { checkEmbeddingAvailability, embeddingFallbackManager } = await import('../pdf/embeddingService');
-      
+
       const available = await checkEmbeddingAvailability();
       const state = embeddingFallbackManager.getState();
-      
+
       console.log('[PDFHandlers] Embedding availability:', available ? 'available' : 'unavailable');
       return { available, state };
     } catch (error) {
@@ -1690,20 +1931,20 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:check-index-corruption', async (): Promise<import('../../src/types/pdf').IndexCorruptionCheckResult> => {
     console.log('[PDFHandlers] Checking index for corruption');
-    
+
     try {
       const result = await vectorStore.checkIndexCorruption();
-      
+
       console.log('[PDFHandlers] Corruption check complete:', {
         isCorrupted: result.isCorrupted,
         issueCount: result.issues.length,
         rebuildRecommended: result.rebuildRecommended,
       });
-      
+
       return result;
     } catch (error) {
       console.error('[PDFHandlers] Error checking index corruption:', error);
-      
+
       // Return a result indicating we couldn't check
       return {
         isCorrupted: true,
@@ -1738,22 +1979,22 @@ function registerSettingsAndFeedbackHandlers(): void {
     options?: import('../../src/types/pdf').IndexRebuildOptions
   ): Promise<import('../../src/types/pdf').IndexRebuildResult> => {
     console.log('[PDFHandlers] Rebuilding corrupted index:', options);
-    
+
     const startTime = Date.now();
     const rebuiltDocuments: string[] = [];
     const failedDocuments: Array<{ documentId: string; error: string }> = [];
     let totalChunksCreated = 0;
-    
+
     try {
       const senderWindow = BrowserWindow.fromWebContents(event.sender);
-      
+
       // Send progress update helper
       const sendProgress = (progress: import('../../src/types/pdf').IndexRebuildProgress) => {
         if (senderWindow && !senderWindow.isDestroyed()) {
           senderWindow.webContents.send('pdf:rebuild-progress', progress);
         }
       };
-      
+
       // Phase 1: Preparing
       sendProgress({
         phase: 'preparing',
@@ -1763,10 +2004,10 @@ function registerSettingsAndFeedbackHandlers(): void {
         chunksCreated: 0,
         errors: [],
       });
-      
+
       // Determine which documents to rebuild
       let documentsToRebuild: import('../pdf/types').DocumentRecord[];
-      
+
       if (options?.documentIds && options.documentIds.length > 0) {
         // Rebuild specific documents
         const allDocs = await vectorStore.getAllDocuments();
@@ -1774,13 +2015,13 @@ function registerSettingsAndFeedbackHandlers(): void {
       } else {
         // Rebuild all documents that need it
         documentsToRebuild = await vectorStore.getDocumentsNeedingRebuild();
-        
+
         // If no documents need rebuild but force is set, rebuild all
         if (documentsToRebuild.length === 0 && options?.force) {
           documentsToRebuild = await vectorStore.getAllDocuments();
         }
       }
-      
+
       if (documentsToRebuild.length === 0) {
         return {
           success: true,
@@ -1792,7 +2033,7 @@ function registerSettingsAndFeedbackHandlers(): void {
           summary: 'No documents needed rebuilding.',
         };
       }
-      
+
       // Phase 2: Cleaning (if requested)
       if (options?.cleanupOrphans) {
         sendProgress({
@@ -1803,16 +2044,16 @@ function registerSettingsAndFeedbackHandlers(): void {
           chunksCreated: 0,
           errors: [],
         });
-        
+
         await vectorStore.cleanupOrphanedChunks();
       }
-      
+
       // Phase 3: Reindexing
       const totalDocs = documentsToRebuild.length;
-      
+
       for (let i = 0; i < documentsToRebuild.length; i++) {
         const doc = documentsToRebuild[i];
-        
+
         sendProgress({
           phase: 'reindexing',
           overallProgress: 10 + Math.floor((i / totalDocs) * 80),
@@ -1822,7 +2063,7 @@ function registerSettingsAndFeedbackHandlers(): void {
           chunksCreated: totalChunksCreated,
           errors: failedDocuments,
         });
-        
+
         try {
           // Check if the source file still exists
           if (!fs.existsSync(doc.filePath)) {
@@ -1832,13 +2073,13 @@ function registerSettingsAndFeedbackHandlers(): void {
             });
             continue;
           }
-          
+
           // Delete existing index for this document
           await ragEngine.deleteIndex(doc.id);
-          
+
           // Re-index the document
           const indexResult = await ragEngine.indexDocument(doc.id, { forceReindex: true });
-          
+
           if (indexResult.success) {
             rebuiltDocuments.push(doc.id);
             totalChunksCreated += indexResult.chunkCount;
@@ -1856,7 +2097,7 @@ function registerSettingsAndFeedbackHandlers(): void {
           });
         }
       }
-      
+
       // Phase 4: Verifying
       sendProgress({
         phase: 'verifying',
@@ -1866,10 +2107,10 @@ function registerSettingsAndFeedbackHandlers(): void {
         chunksCreated: totalChunksCreated,
         errors: failedDocuments,
       });
-      
+
       // Verify the rebuild
       const verificationResult = await vectorStore.checkIndexCorruption();
-      
+
       // Phase 5: Complete
       sendProgress({
         phase: 'complete',
@@ -1879,19 +2120,19 @@ function registerSettingsAndFeedbackHandlers(): void {
         chunksCreated: totalChunksCreated,
         errors: failedDocuments,
       });
-      
+
       const success = failedDocuments.length === 0;
       const rebuildTimeMs = Date.now() - startTime;
-      
+
       let summary: string;
       if (success) {
         summary = `Successfully rebuilt ${rebuiltDocuments.length} document(s) with ${totalChunksCreated} chunks in ${Math.round(rebuildTimeMs / 1000)}s.`;
       } else {
         summary = `Rebuilt ${rebuiltDocuments.length} document(s), ${failedDocuments.length} failed. ${totalChunksCreated} chunks created.`;
       }
-      
+
       console.log('[PDFHandlers] Rebuild complete:', summary);
-      
+
       return {
         success,
         rebuiltDocuments,
@@ -1902,10 +2143,10 @@ function registerSettingsAndFeedbackHandlers(): void {
         summary,
         remainingIssues: verificationResult.issues.length > 0 ? verificationResult.issues : undefined,
       };
-      
+
     } catch (error) {
       console.error('[PDFHandlers] Error during index rebuild:', error);
-      
+
       return {
         success: false,
         rebuiltDocuments,
@@ -1936,12 +2177,12 @@ function registerSettingsAndFeedbackHandlers(): void {
     errors: string[];
   }> => {
     console.log('[PDFHandlers] Cleaning up orphaned chunks');
-    
+
     try {
       const result = await vectorStore.cleanupOrphanedChunks();
-      
+
       console.log('[PDFHandlers] Cleanup complete:', result);
-      
+
       return {
         success: result.errors.length === 0,
         removed: result.removed,
@@ -1971,12 +2212,12 @@ function registerSettingsAndFeedbackHandlers(): void {
     errors: string[];
   }> => {
     console.log('[PDFHandlers] Repairing chunk counts');
-    
+
     try {
       const result = await vectorStore.repairChunkCounts();
-      
+
       console.log('[PDFHandlers] Repair complete:', result);
-      
+
       return {
         success: result.errors.length === 0,
         repaired: result.repaired,
@@ -2003,11 +2244,11 @@ function registerSettingsAndFeedbackHandlers(): void {
    */
   ipcMain.handle('pdf:get-documents-needing-rebuild', async (): Promise<import('../../src/types/pdf').IndexedDocumentInfo[]> => {
     console.log('[PDFHandlers] Getting documents needing rebuild');
-    
+
     try {
       const documents = await vectorStore.getDocumentsNeedingRebuild();
       const currentModelId = embeddingService.getCurrentModelId();
-      
+
       const result: import('../../src/types/pdf').IndexedDocumentInfo[] = documents.map(doc => ({
         id: doc.id,
         fileName: doc.fileName,
@@ -2018,7 +2259,7 @@ function registerSettingsAndFeedbackHandlers(): void {
         needsReindex: true,
         currentModelId,
       }));
-      
+
       console.log('[PDFHandlers] Documents needing rebuild:', result.length);
       return result;
     } catch (error) {
@@ -2034,44 +2275,48 @@ function registerSettingsAndFeedbackHandlers(): void {
 
 /**
  * Register all PDF IPC handlers
+ *
+ * Note: PDF Loading handlers (pdf:load, pdf:get-page, etc.) are registered
+ * separately by pdfCoreHandlers to avoid conflicts and ensure basic PDF
+ * functionality works even when RAG features are unavailable.
  */
 export function registerPDFHandlers(): void {
   console.log('[PDFHandlers] Registering PDF IPC handlers');
-  
-  registerPDFLoadingHandlers();
+
+  // Skip registerPDFLoadingHandlers() - those are registered by pdfCoreHandlers
+  // This prevents "Attempted to register a second handler" errors
+  // registerPDFLoadingHandlers();
   registerPDFIndexingHandlers();
   registerRAGQueryHandlers();
   registerSessionManagementHandlers();
   registerSettingsAndFeedbackHandlers();
-  
+
   console.log('[PDFHandlers] All PDF IPC handlers registered');
 }
 
 /**
  * Unregister all PDF IPC handlers
+ *
+ * Note: PDF Loading handlers (pdf:load, pdf:get-page, etc.) are unregistered
+ * separately by pdfCoreHandlers. We only unregister the RAG-specific handlers here.
  */
 export function unregisterPDFHandlers(): void {
   console.log('[PDFHandlers] Unregistering PDF IPC handlers');
-  
-  // PDF Loading
-  ipcMain.removeHandler('pdf:load');
-  ipcMain.removeHandler('pdf:get-page');
-  ipcMain.removeHandler('pdf:search-text');
-  ipcMain.removeHandler('pdf:get-outline');
-  ipcMain.removeHandler('pdf:get-major-sections');
-  ipcMain.removeHandler('pdf:unload');
-  
+
+  // PDF Loading handlers are managed by pdfCoreHandlers, skip them here
+  // This prevents errors when those handlers don't exist in our registry
+
   // PDF Indexing
   ipcMain.removeHandler('pdf:index');
   ipcMain.removeHandler('pdf:get-index-status');
   ipcMain.removeHandler('pdf:delete-index');
-  
+
   // RAG Query
   ipcMain.removeHandler('pdf:query');
   ipcMain.removeHandler('pdf:get-context');
   ipcMain.removeHandler('pdf:get-chunks');
   ipcMain.removeHandler('pdf:summarize-document');
-  
+
   // Session Management
   ipcMain.removeHandler('pdf-chat:create-session');
   ipcMain.removeHandler('pdf-chat:get-sessions');
@@ -2079,45 +2324,46 @@ export function unregisterPDFHandlers(): void {
   ipcMain.removeHandler('pdf-chat:save-session');
   ipcMain.removeHandler('pdf-chat:delete-session');
   ipcMain.removeHandler('pdf-chat:get-recent-documents');
-  
+
   // Settings and Feedback
   ipcMain.removeHandler('pdf:get-settings');
   ipcMain.removeHandler('pdf:update-settings');
   ipcMain.removeHandler('pdf:save-feedback');
   ipcMain.removeHandler('pdf:get-feedback');
-  
+
   // Per-Document Settings (Requirement 16.7)
   ipcMain.removeHandler('pdf:get-document-settings');
   ipcMain.removeHandler('pdf:update-document-settings');
   ipcMain.removeHandler('pdf:delete-document-settings');
   ipcMain.removeHandler('pdf:get-all-document-settings');
-  
+
   // Embedding Model Management (Requirement 21.6)
   ipcMain.removeHandler('pdf:check-model-change');
   ipcMain.removeHandler('pdf:get-indexed-documents');
   ipcMain.removeHandler('pdf:get-documents-needing-reindex');
   ipcMain.removeHandler('pdf:reindex-documents');
-  
+
   // Model Caching (Requirement 21.7)
   ipcMain.removeHandler('pdf:get-model-cache-status');
   ipcMain.removeHandler('pdf:get-all-models-status');
   ipcMain.removeHandler('pdf:download-model');
   ipcMain.removeHandler('pdf:clear-model-cache');
   ipcMain.removeHandler('pdf:refresh-model-status');
-  
+  ipcMain.removeHandler('pdf:list-ollama-models');
+
   // Embedding Fallback (Requirement 18.2)
   ipcMain.removeHandler('pdf:get-embedding-fallback-state');
   ipcMain.removeHandler('pdf:attempt-embedding-recovery');
   ipcMain.removeHandler('pdf:get-embedding-fallback-notification');
   ipcMain.removeHandler('pdf:check-embedding-availability');
-  
+
   // Index Corruption Recovery (Requirement 18.4)
   ipcMain.removeHandler('pdf:check-index-corruption');
   ipcMain.removeHandler('pdf:rebuild-corrupted-index');
   ipcMain.removeHandler('pdf:cleanup-orphaned-chunks');
   ipcMain.removeHandler('pdf:repair-chunk-counts');
   ipcMain.removeHandler('pdf:get-documents-needing-rebuild');
-  
+
   console.log('[PDFHandlers] All PDF IPC handlers unregistered');
 }
 

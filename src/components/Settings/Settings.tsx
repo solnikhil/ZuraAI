@@ -34,6 +34,9 @@ export default function Settings({
   const [pendingSettings, setPendingSettings] = useState(settings)
   const [graphRange, setGraphRange] = useState<GraphRange>('7d')
 
+  useEffect(() => {
+  }, [activeSection])
+
   // Calculate usage statistics
   const usageStats = useMemo(() => {
     const now = Date.now()

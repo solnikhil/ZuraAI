@@ -14,11 +14,12 @@
 .pdf-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  background: var(--theme-surface);
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--theme-bg);
   border-bottom: 1px solid var(--theme-border);
   flex-shrink: 0;
+  backdrop-filter: blur(10px);
 }
 
 /* ==== CONTROL SECTIONS ==== */
@@ -26,7 +27,16 @@
 .pdf-controls-section {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--theme-surface);
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.pdf-controls-section:hover {
+  border-color: var(--theme-border);
 }
 
 /* ==== BUTTONS ==== */
@@ -38,19 +48,24 @@
   min-width: 32px;
   height: 32px;
   padding: 0 8px;
-  border: 1px solid var(--theme-border);
+  border: none;
   border-radius: 6px;
-  background: var(--theme-surface-hover);
-  color: var(--theme-text-primary);
+  background: transparent;
+  color: var(--theme-text-secondary);
   font-size: 16px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .pdf-controls-button:hover:not(:disabled) {
-  background: var(--theme-surface-active);
-  border-color: var(--theme-accent);
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-primary);
+  transform: scale(1.05);
+}
+
+.pdf-controls-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .pdf-controls-button:focus-visible {
@@ -59,75 +74,86 @@
 }
 
 .pdf-controls-button:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
 /* ==== PAGE NAVIGATION ==== */
 
 .pdf-controls-nav {
-  gap: 4px;
+  gap: 2px;
 }
 
 .pdf-controls-page-form {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin: 0 4px;
+  padding: 0 8px;
+  background: var(--theme-surface-hover);
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.pdf-controls-page-form:focus-within {
+  border-color: var(--theme-accent);
+  background: var(--theme-bg);
 }
 
 .pdf-controls-page-input {
-  width: 48px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--theme-border);
-  border-radius: 6px;
-  background: var(--theme-surface-hover);
+  width: 42px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
   color: var(--theme-text-primary);
   font-size: 14px;
+  font-weight: 500;
   text-align: center;
   outline: none;
   transition: all 0.15s ease;
 }
 
-.pdf-controls-page-input:focus {
-  border-color: var(--theme-accent);
-  box-shadow: 0 0 0 2px var(--theme-accent-muted);
-}
-
 .pdf-controls-page-separator {
   color: var(--theme-text-muted);
-  font-size: 14px;
+  font-size: 13px;
+  opacity: 0.5;
 }
 
 .pdf-controls-page-total {
   color: var(--theme-text-secondary);
-  font-size: 14px;
-  min-width: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 24px;
 }
 
 /* ==== ZOOM CONTROLS ==== */
 
 .pdf-controls-zoom {
   position: relative;
+  gap: 2px;
 }
 
 .pdf-controls-zoom-display {
-  min-width: 64px;
+  min-width: 70px;
   height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--theme-border);
+  border: none;
   border-radius: 6px;
   background: var(--theme-surface-hover);
   color: var(--theme-text-primary);
   font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .pdf-controls-zoom-display:hover {
   background: var(--theme-surface-active);
-  border-color: var(--theme-accent);
+  color: var(--theme-accent);
+  transform: scale(1.02);
 }
 
 .pdf-controls-zoom-display:focus-visible {
@@ -139,47 +165,61 @@
 
 .pdf-controls-zoom-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 4px;
-  min-width: 120px;
-  padding: 4px;
+  min-width: 140px;
+  padding: 6px;
   background: var(--theme-surface);
   border: 1px solid var(--theme-border);
-  border-radius: 8px;
-  box-shadow: var(--theme-shadow-lg);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
   z-index: 100;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 .pdf-controls-zoom-option {
   display: block;
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   background: transparent;
   color: var(--theme-text-primary);
   font-size: 13px;
-  text-align: left;
+  font-weight: 500;
+  text-align: center;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .pdf-controls-zoom-option:hover {
   background: var(--theme-surface-hover);
+  transform: translateX(2px);
 }
 
 .pdf-controls-zoom-option.active {
   background: var(--theme-accent-muted);
   color: var(--theme-accent);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .pdf-controls-zoom-divider {
   height: 1px;
-  margin: 4px 0;
+  margin: 6px 8px;
   background: var(--theme-border);
+  opacity: 0.5;
 }
 
 /* ==== OUTLINE/TOC ==== */

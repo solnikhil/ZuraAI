@@ -52,11 +52,16 @@ function countTokensSimple(text: string): number {
 }
 
 /**
- * Generate a unique chunk ID
+ * Generate a deterministic chunk ID
+ * 
+ * Uses document ID and chunk index only (no timestamp) to ensure:
+ * 1. Same document content always produces the same chunk IDs
+ * 2. Re-indexing overwrites existing chunks rather than creating duplicates
+ * 3. Orphaned chunks can be identified and cleaned up by documentId
  */
 function generateChunkId(documentId: string, chunkIndex: number): string {
-  const timestamp = Date.now().toString(36);
-  return `chunk_${documentId.substring(0, 8)}_${chunkIndex}_${timestamp}`;
+  // Use more of the document ID (16 chars) for better uniqueness across documents
+  return `chunk_${documentId.substring(0, 16)}_${chunkIndex}`;
 }
 
 /**
@@ -796,6 +801,16 @@ export class ChunkManager implements IChunkManager {
 }
 
 /**
- * Singleton instance of the chunk manager
+ * Singleton instance of the chunk manager using global registry
  */
-export const chunkManager = new ChunkManager();
+export const chunkManager = (() => {
+  const globalKey = Symbol.for('zura.chunkManager');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new ChunkManager();
+  }
+  
+  return globalRegistry[globalKey] as ChunkManager;
+})();
+

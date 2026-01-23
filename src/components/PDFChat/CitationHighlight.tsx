@@ -37,7 +37,7 @@ interface HighlightBoxProps {
   citation: Citation;
   isHovered: boolean;
   onClick?: () => void;
-  onMouseEnter: () => void;
+  onMouseEnter: (e: React.MouseEvent) => void;
   onMouseLeave: () => void;
 }
 

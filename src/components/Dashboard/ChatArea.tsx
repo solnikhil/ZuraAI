@@ -8,7 +8,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import { useSettings } from '../../contexts/SettingsContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
@@ -22,8 +21,7 @@ import type { AttachedFile } from './ChatArea/FileUploadHandler'
 import type { PastedContentChunk as PastedContentChunkType } from './ChatArea/types'
 
 export default function ChatArea() {
-  const { sessions, currentSessionId, deleteSession, clearAllSessions } = useChatHistory()
-  const { settings } = useSettings()
+  const { sessions, currentSessionId } = useChatHistory()
   const { showToast } = useToast()
   const { toolState } = useToolCalling()
 
@@ -200,15 +198,17 @@ export default function ChatArea() {
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
+        minHeight: 0,
         background: 'var(--theme-background)',
-        padding: '40px 20px'
+        padding: '20px',
+        overflow: 'auto'
       }}>
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: '16px',
-          maxWidth: '600px',
+          maxWidth: 'min(600px, 100%)',
           width: '100%'
         }}>
           {/* zura Title */}
@@ -269,12 +269,13 @@ export default function ChatArea() {
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
+      minHeight: 0,
       background: 'var(--theme-background)',
       position: 'relative'
     }}>
       {/* Messages Container */}
-      <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 20px' }}>
-        <div style={{ width: '100%', maxWidth: '810px', margin: '0 auto' }}>
+      <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', minHeight: 0 }}>
+        <div style={{ width: '100%', maxWidth: 'min(810px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
           {messages.map((msg, idx) => (
             <div key={msg.id} data-message-id={msg.id}>
               {/* Show stored tool results before the message */}
@@ -334,7 +335,7 @@ export default function ChatArea() {
       </div>
 
       {/* Input Area */}
-      <div style={{ width: '100%', maxWidth: '850px', margin: '0 auto', padding: '0 20px 24px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 'min(850px, 100%)', margin: '0 auto', padding: '0 20px 20px 20px', flexShrink: 0 }}>
         <InputArea
           input={input}
           setInput={setInput}

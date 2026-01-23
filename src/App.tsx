@@ -7,6 +7,7 @@ import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
+import { PDFDocumentProvider } from './contexts/PDFDocumentContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 
 // Lazy load PDFChatLayout for memory optimization
@@ -41,24 +42,26 @@ function App() {
             <ToastProvider>
                 <SettingsProvider>
                     <ChatHistoryProvider>
-                        <Router>
-                            <Routes>
-                                <Route element={<AppShellLayout />}>
-                                    <Route path="/" element={<DashboardLayout />} />
-                                    <Route path="/dashboard" element={<DashboardLayout />} />
-                                    <Route path="/settings" element={<Settings />} />
-                                    {/* PDF Chat route - direct access to PDF chat view */}
-                                    <Route path="/pdf-chat" element={
-                                        <Suspense fallback={<PDFChatLoadingFallback />}>
-                                            <PDFChatLayout />
-                                        </Suspense>
-                                    } />
-                                    {/* Legacy chat view now uses DashboardLayout to include sidebar */}
-                                    <Route path="/chat" element={<DashboardLayout />} />
-                                </Route>
-                                <Route path="/overlay" element={<Overlay />} />
-                            </Routes>
-                        </Router>
+                        <PDFDocumentProvider>
+                            <Router>
+                                <Routes>
+                                    <Route element={<AppShellLayout />}>
+                                        <Route path="/" element={<DashboardLayout />} />
+                                        <Route path="/dashboard" element={<DashboardLayout />} />
+                                        <Route path="/settings" element={<Settings />} />
+                                        {/* PDF Chat route - direct access to PDF chat view */}
+                                        <Route path="/pdf-chat" element={
+                                            <Suspense fallback={<PDFChatLoadingFallback />}>
+                                                <PDFChatLayout />
+                                            </Suspense>
+                                        } />
+                                        {/* Legacy chat view now uses DashboardLayout to include sidebar */}
+                                        <Route path="/chat" element={<DashboardLayout />} />
+                                    </Route>
+                                    <Route path="/overlay" element={<Overlay />} />
+                                </Routes>
+                            </Router>
+                        </PDFDocumentProvider>
                     </ChatHistoryProvider>
                 </SettingsProvider>
             </ToastProvider>

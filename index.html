@@ -14,6 +14,33 @@
 
 <body>
   <div id="root"></div>
+  <!-- Polyfills for modern APIs not available in Electron 25's Chromium 114 -->
+  <!-- Must be inline and before any module scripts to ensure they run first -->
+  <script>
+    // Polyfill for Promise.withResolvers (added in ES2024 / Node 22)
+    if (typeof Promise.withResolvers === 'undefined') {
+      Promise.withResolvers = function() {
+        var resolve, reject;
+        var promise = new Promise(function(res, rej) {
+          resolve = res;
+          reject = rej;
+        });
+        return { promise: promise, resolve: resolve, reject: reject };
+      };
+    }
+    
+    // Polyfill for URL.parse (added in Node 22.1.0)
+    // Returns a URL object if valid, null if invalid (unlike new URL which throws)
+    if (typeof URL.parse === 'undefined') {
+      URL.parse = function(url, base) {
+        try {
+          return new URL(url, base);
+        } catch (e) {
+          return null;
+        }
+      };
+    }
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

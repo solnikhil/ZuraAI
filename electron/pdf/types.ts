@@ -401,6 +401,9 @@ export interface IEmbeddingService {
   getModelInfo(): EmbeddingModelInfo;
   setModel(modelId: string): Promise<void>;
   isModelAvailable(modelId: string): Promise<boolean>;
+  getCurrentModelId(): string;
+  /** Set the Ollama base URL */
+  setOllamaBaseUrl(url: string): void;
 }
 
 /**
@@ -417,7 +420,13 @@ export interface IVectorStore {
   getChunk(chunkId: string): Promise<ChunkRecord | null>;
   getChunks(chunkIds: string[]): Promise<ChunkRecord[]>;
   deleteDocument(docId: string): Promise<void>;
+  /** Delete only chunks for a document (keeps document record) */
+  deleteChunksForDocument(docId: string): Promise<number>;
   getCollectionStats(): Promise<{ documentCount: number; chunkCount: number; sizeBytes: number }>;
+  /** Get the storage path for the vector store */
+  getStoragePath(): string;
+  /** Get all indexed documents */
+  getAllDocuments(): Promise<DocumentRecord[]>;
 }
 
 /**

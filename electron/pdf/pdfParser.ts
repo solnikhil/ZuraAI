@@ -119,6 +119,13 @@ export class PDFParserService implements IPDFParserService {
   /** Whether pdf.js has been initialized */
   private initialized: boolean = false;
 
+  /** Unique instance ID for debugging */
+  public readonly instanceId: string = `parser_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+  constructor() {
+    console.log(`[PDFParser] Creating new instance with ID: ${this.instanceId}`);
+  }
+
   /**
    * Initialize pdf.js library
    * This is done lazily to avoid loading the library until needed
@@ -129,15 +136,179 @@ export class PDFParserService implements IPDFParserService {
     }
 
     try {
-      // Use the legacy build for Node.js which doesn't require canvas
-      // This is necessary for text extraction in Electron main process
-      const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      // Add Node.js polyfills for browser APIs that pdf.js requires
+      // These are needed because pdf.js expects browser environment
+      // IMPORTANT: These must be set before importing pdf.js
+      
+      // Polyfill for Promise.withResolvers (added in Node.js 22, but Electron 25 uses Node 18)
+      // pdf.js v5 uses this feature
+      if (typeof (Promise as any).withResolvers === 'undefined') {
+        (Promise as any).withResolvers = function<T>(): {
+          promise: Promise<T>;
+          resolve: (value: T | PromiseLike<T>) => void;
+          reject: (reason?: any) => void;
+        } {
+          let resolve!: (value: T | PromiseLike<T>) => void;
+          let reject!: (reason?: any) => void;
+          const promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        };
+      }
+      
+      // Polyfill for URL.parse (added in Node.js 22.1.0)
+      // Returns URL object if valid, null if invalid
+      if (typeof (URL as any).parse === 'undefined') {
+        (URL as any).parse = function(url: string, base?: string): URL | null {
+          try {
+            return new URL(url, base);
+          } catch {
+            return null;
+          }
+        };
+      }
+      
+      if (typeof (globalThis as any).DOMMatrix === 'undefined') {
+        // Simple DOMMatrix polyfill for Node.js
+        (globalThis as any).DOMMatrix = class DOMMatrix {
+          a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+          m11 = 1; m12 = 0; m13 = 0; m14 = 0;
+          m21 = 0; m22 = 1; m23 = 0; m24 = 0;
+          m31 = 0; m32 = 0; m33 = 1; m34 = 0;
+          m41 = 0; m42 = 0; m43 = 0; m44 = 1;
+          is2D = true;
+          isIdentity = true;
+          
+          constructor(init?: number[] | string) {
+            if (Array.isArray(init) && init.length === 6) {
+              [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+              this.m11 = this.a; this.m12 = this.b;
+              this.m21 = this.c; this.m22 = this.d;
+              this.m41 = this.e; this.m42 = this.f;
+            }
+          }
+          
+          static fromMatrix(other?: any): any {
+            return new (globalThis as any).DOMMatrix();
+          }
+          
+          static fromFloat32Array(array: Float32Array): any {
+            return new (globalThis as any).DOMMatrix(Array.from(array));
+          }
+          
+          static fromFloat64Array(array: Float64Array): any {
+            return new (globalThis as any).DOMMatrix(Array.from(array));
+          }
+          
+          multiply(): any { return new (globalThis as any).DOMMatrix(); }
+          translate(): any { return new (globalThis as any).DOMMatrix(); }
+          scale(): any { return new (globalThis as any).DOMMatrix(); }
+          rotate(): any { return new (globalThis as any).DOMMatrix(); }
+          inverse(): any { return new (globalThis as any).DOMMatrix(); }
+          transformPoint(point?: any): any { return { x: 0, y: 0, z: 0, w: 1 }; }
+          toFloat32Array(): Float32Array { return new Float32Array(16); }
+          toFloat64Array(): Float64Array { return new Float64Array(16); }
+        };
+      }
+      
+      if (typeof (globalThis as any).Path2D === 'undefined') {
+        // Simple Path2D polyfill for Node.js
+        (globalThis as any).Path2D = class Path2D {
+          private _commands: string[] = [];
+          
+          constructor(path?: Path2D | string) {}
+          
+          addPath(path: Path2D): void {}
+          closePath(): void {}
+          moveTo(x: number, y: number): void {}
+          lineTo(x: number, y: number): void {}
+          bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void {}
+          quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void {}
+          arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void {}
+          arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void {}
+          ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void {}
+          rect(x: number, y: number, w: number, h: number): void {}
+        };
+      }
+      
+      // Additional polyfills that pdf.js may need
+      if (typeof (globalThis as any).ImageData === 'undefined') {
+        (globalThis as any).ImageData = class ImageData {
+          width: number;
+          height: number;
+          data: Uint8ClampedArray;
+          colorSpace: string = 'srgb';
+          
+          constructor(dataOrWidth: Uint8ClampedArray | number, widthOrHeight: number, height?: number) {
+            if (typeof dataOrWidth === 'number') {
+              this.width = dataOrWidth;
+              this.height = widthOrHeight;
+              this.data = new Uint8ClampedArray(this.width * this.height * 4);
+            } else {
+              this.data = dataOrWidth;
+              this.width = widthOrHeight;
+              this.height = height || (dataOrWidth.length / 4 / widthOrHeight);
+            }
+          }
+        };
+      }
+      
+      // Use pdf.js v4+ which has better Node.js compatibility and doesn't require canvas
+      // pdfjs-dist v4.x uses .mjs files by default
+      const pdfjsLib = await import('pdfjs-dist');
       this.pdfjs = pdfjsLib;
 
-      // Configure pdf.js for Node.js environment
-      // Disable worker in Node.js as it's not needed and can cause issues
-      if (this.pdfjs.GlobalWorkerOptions) {
-        this.pdfjs.GlobalWorkerOptions.workerSrc = '';
+      // For Node.js/Electron main process, configure the worker
+      // pdf.js v4+ requires GlobalWorkerOptions.workerSrc to be set
+      try {
+        const { createRequire } = await import('module');
+        const { pathToFileURL } = await import('url');
+        const require = createRequire(import.meta.url);
+
+        // In pdf.js v4+, the worker is in a different location
+        const workerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+
+        // Convert the absolute path to a file:// URL for Windows compatibility
+        const workerUrl = pathToFileURL(workerPath).href;
+
+        if (this.pdfjs.GlobalWorkerOptions) {
+          this.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+        }
+      } catch (workerError) {
+        // If we can't resolve the worker path, try an alternative approach
+        console.warn('Failed to resolve pdf.js worker path, trying alternative:', workerError);
+
+        // Try using the path relative to this module
+        try {
+          const { fileURLToPath, pathToFileURL } = await import('url');
+          const { dirname, join } = await import('path');
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = dirname(__filename);
+
+          // In pdf.js v4+, the worker file is .mjs
+          const possiblePaths = [
+            join(__dirname, '../../node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+            join(__dirname, '../../../node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+            join(process.cwd(), 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
+          ];
+
+          const { existsSync } = await import('fs');
+          for (const workerPath of possiblePaths) {
+            if (existsSync(workerPath)) {
+              // Convert to file:// URL for Windows compatibility
+              const workerUrl = pathToFileURL(workerPath).href;
+              if (this.pdfjs.GlobalWorkerOptions) {
+                this.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+              }
+              break;
+            }
+          }
+        } catch (fallbackError) {
+          console.warn('Failed to set pdf.js worker path:', fallbackError);
+          // Continue without worker - pdf.js will attempt to use fake worker
+        }
       }
 
       this.initialized = true;
@@ -164,16 +335,18 @@ export class PDFParserService implements IPDFParserService {
   }
 
   /**
-   * Generate a unique document ID
-   * Uses a combination of file hash and timestamp for uniqueness
-   * 
+   * Generate a deterministic document ID
+   * Uses only the file hash to ensure the same document always gets the same ID.
+   * This is critical for RAG retrieval - indexed chunks use the document ID,
+   * so if the ID changes on reload, retrieval will fail.
+   *
    * @param fileHash - SHA-256 hash of the file
-   * @returns Unique document ID
+   * @returns Deterministic document ID
    */
   private generateDocumentId(fileHash: string): string {
-    // Use first 16 characters of hash + timestamp for uniqueness
-    const timestamp = Date.now().toString(36);
-    return `doc_${fileHash.substring(0, 16)}_${timestamp}`;
+    // Use only the file hash for deterministic IDs
+    // This ensures the same file always gets the same ID, even after app restart
+    return `doc_${fileHash.substring(0, 32)}`;
   }
 
   /**
@@ -246,7 +419,13 @@ export class PDFParserService implements IPDFParserService {
     
     try {
       const data = new Uint8Array(fs.readFileSync(filePath));
-      const loadingTask = this.pdfjs.getDocument({ data });
+      const loadingTask = this.pdfjs.getDocument({ 
+        data,
+        disableFontFace: true,
+        isEvalSupported: false,
+        useSystemFonts: false,
+        useWorkerFetch: false,
+      });
       
       try {
         await loadingTask.promise;
@@ -313,7 +492,13 @@ export class PDFParserService implements IPDFParserService {
     try {
       await this.initializePdfJs();
       const data = new Uint8Array(fs.readFileSync(filePath));
-      const loadingTask = this.pdfjs.getDocument({ data });
+      const loadingTask = this.pdfjs.getDocument({ 
+        data,
+        disableFontFace: true,
+        isEvalSupported: false,
+        useSystemFonts: false,
+        useWorkerFetch: false,
+      });
       
       try {
         const doc = await loadingTask.promise;
@@ -361,11 +546,14 @@ export class PDFParserService implements IPDFParserService {
 
     // Calculate file hash for cache validation (Requirement 6.7)
     const fileHash = await this.calculateFileHash(filePath);
+    console.log(`[PDFParser] 📄 Loading document: ${path.basename(filePath)}`);
+    console.log(`[PDFParser]    File hash: ${fileHash.substring(0, 16)}...`);
 
     // Check if document is already loaded with same hash
     for (const [docId, loaded] of this.loadedDocuments) {
       if (loaded.document.fileHash === fileHash) {
         // Return existing document
+        console.log(`[PDFParser] ✓ Document already loaded in memory with ID: ${docId}`);
         return loaded.document;
       }
     }
@@ -373,8 +561,17 @@ export class PDFParserService implements IPDFParserService {
     // Read file data
     const data = new Uint8Array(fs.readFileSync(filePath));
 
-    // Prepare loading options
-    const loadingOptions: any = { data };
+    // Prepare loading options with Node.js-specific settings
+    const loadingOptions: any = { 
+      data,
+      // Disable features that require browser APIs not available in Node.js
+      disableFontFace: true,
+      isEvalSupported: false,
+      // Use standard fonts which are built into pdf.js
+      useSystemFonts: false,
+      // Disable worker fetch to avoid network requests for worker
+      useWorkerFetch: false,
+    };
     if (password) {
       loadingOptions.password = password;
     }
@@ -426,6 +623,12 @@ export class PDFParserService implements IPDFParserService {
       isFullyLoaded: false,
     };
     this.loadedDocuments.set(docId, loadedPDF);
+
+    console.log(`[PDFParser] ✓ Document loaded successfully`);
+    console.log(`[PDFParser]    Document ID: ${docId}`);
+    console.log(`[PDFParser]    Pages: ${document.pageCount}`);
+    console.log(`[PDFParser]    Title: ${metadata.title || '(none)'}`);
+    console.log(`[PDFParser]    Loaded documents in memory: ${this.loadedDocuments.size}`);
 
     return document;
   }
@@ -1163,6 +1366,9 @@ export class PDFParserService implements IPDFParserService {
    * @returns Promise resolving to array of TextBlock
    */
   async extractAllText(docId: string, options?: Partial<TextExtractionOptions>): Promise<TextBlock[]> {
+    console.log(`[PDFParser] extractAllText called for docId: ${docId}`);
+    console.log(`[PDFParser] Current loaded documents: ${Array.from(this.loadedDocuments.keys()).join(', ')}`);
+    
     const loaded = this.loadedDocuments.get(docId);
     if (!loaded) {
       throw new Error(`Document not loaded: ${docId}`);
@@ -1834,21 +2040,21 @@ export class PDFParserService implements IPDFParserService {
     textBlocks: TextBlock[]
   ): Promise<ImageBlock[]> {
     const images: ImageBlock[] = [];
-    
+
     try {
       // Get operator list to find image operations
       const operatorList = await pdfPage.getOperatorList();
       const OPS = this.pdfjs.OPS;
-      
+
       let imageId = 0;
-      
+
       for (let i = 0; i < operatorList.fnArray.length; i++) {
         const fn = operatorList.fnArray[i];
-        
+
         // Check for image painting operations
         if (fn === OPS.paintImageXObject || fn === OPS.paintJpegXObject) {
           const args = operatorList.argsArray[i];
-          
+
           // Try to get image info
           try {
             // Get the current transformation matrix to determine position
@@ -1860,8 +2066,10 @@ export class PDFParserService implements IPDFParserService {
               y1: viewport.height,
               pageNumber,
             };
-            
-            // Try to get more accurate bounds from the image object
+
+            let imageData: string | undefined;
+
+            // Try to get more accurate bounds and extract image data
             if (args && args[0]) {
               const imgName = args[0];
               try {
@@ -1871,33 +2079,150 @@ export class PDFParserService implements IPDFParserService {
                   // Note: Actual positioning requires matrix transformation
                   imageBbox.x1 = Math.min(img.width, viewport.width);
                   imageBbox.y1 = Math.min(img.height, viewport.height);
+
+                  // Extract image data as base64
+                  imageData = await this.renderImageToBase64(img);
                 }
-              } catch {
-                // Ignore errors getting image object
+              } catch (imgErr) {
+                // Log but continue - some images may not be extractable
+                console.debug(`Could not extract image data for ${imgName}:`, imgErr);
               }
             }
-            
+
             const imageBlock: ImageBlock = {
               id: `image_${pageNumber}_${imageId++}`,
               bbox: imageBbox,
+              imageData, // Now populated with base64 data
             };
-            
+
             images.push(imageBlock);
           } catch {
             // Skip images that can't be processed
           }
         }
       }
-      
+
       // Associate figure captions with images
       this.associateFigureCaptions(images, textBlocks);
-      
+
     } catch (error) {
       // Log error but continue - image extraction is optional
       console.warn(`Failed to extract images from page ${pageNumber}:`, error);
     }
-    
+
     return images;
+  }
+
+  /**
+   * Render a pdf.js image object to base64 PNG
+   *
+   * @param imgData - Image data from pdf.js
+   * @returns Base64 encoded image (without data URL prefix)
+   */
+  private async renderImageToBase64(imgData: any): Promise<string | undefined> {
+    try {
+      // Dynamically import canvas to avoid loading it unless needed
+      const { createCanvas } = await import('canvas');
+
+      const width = imgData.width;
+      const height = imgData.height;
+
+      // Skip very small images (likely icons or decorations)
+      if (width < 50 || height < 50) {
+        return undefined;
+      }
+
+      // Skip very large images to avoid memory issues
+      const maxDimension = 2048;
+      if (width > maxDimension || height > maxDimension) {
+        // Scale down
+        const scale = maxDimension / Math.max(width, height);
+        const scaledWidth = Math.round(width * scale);
+        const scaledHeight = Math.round(height * scale);
+
+        const canvas = createCanvas(scaledWidth, scaledHeight);
+        const ctx = canvas.getContext('2d');
+
+        // Create a temporary canvas at original size
+        const tempCanvas = createCanvas(width, height);
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Put the image data on temp canvas
+        const imageDataObj = tempCtx.createImageData(width, height);
+        this.copyImageData(imgData, imageDataObj);
+        tempCtx.putImageData(imageDataObj, 0, 0);
+
+        // Draw scaled to final canvas
+        ctx.drawImage(tempCanvas as any, 0, 0, scaledWidth, scaledHeight);
+
+        // Convert to base64 (remove data URL prefix)
+        return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+      }
+
+      const canvas = createCanvas(width, height);
+      const ctx = canvas.getContext('2d');
+
+      // Create ImageData and copy pixel data
+      const imageDataObj = ctx.createImageData(width, height);
+      this.copyImageData(imgData, imageDataObj);
+      ctx.putImageData(imageDataObj, 0, 0);
+
+      // Convert to base64 (remove data URL prefix)
+      return canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+    } catch (error) {
+      console.debug('Failed to render image to base64:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Copy pixel data from pdf.js image format to canvas ImageData
+   */
+  private copyImageData(imgData: any, imageDataObj: any): void {
+    const src = imgData.data;
+    const dest = imageDataObj.data;
+    const width = imgData.width;
+    const height = imgData.height;
+
+    // Determine source format
+    const srcLength = src.length;
+    const expectedRGBA = width * height * 4;
+    const expectedRGB = width * height * 3;
+
+    if (srcLength === expectedRGBA) {
+      // RGBA format - direct copy
+      for (let i = 0; i < dest.length; i++) {
+        dest[i] = src[i];
+      }
+    } else if (srcLength === expectedRGB) {
+      // RGB format - add alpha channel
+      for (let i = 0, j = 0; i < dest.length; i += 4, j += 3) {
+        dest[i] = src[j];         // R
+        dest[i + 1] = src[j + 1]; // G
+        dest[i + 2] = src[j + 2]; // B
+        dest[i + 3] = 255;        // A (fully opaque)
+      }
+    } else if (imgData.kind === 1) {
+      // Grayscale image
+      const srcPixels = width * height;
+      for (let i = 0, j = 0; i < srcPixels; i++, j += 4) {
+        const gray = src[i];
+        dest[j] = gray;     // R
+        dest[j + 1] = gray; // G
+        dest[j + 2] = gray; // B
+        dest[j + 3] = 255;  // A
+      }
+    } else {
+      // Unknown format - try RGBA-like copy
+      const pixelCount = Math.min(src.length / 4, dest.length / 4);
+      for (let i = 0; i < pixelCount * 4; i++) {
+        dest[i] = src[i] || 0;
+      }
+      // Ensure alpha is set
+      for (let i = 3; i < dest.length; i += 4) {
+        if (dest[i] === 0) dest[i] = 255;
+      }
+    }
   }
 
   /**
@@ -1952,10 +2277,14 @@ export class PDFParserService implements IPDFParserService {
    * Check if a document is loaded
    * 
    * @param docId - Document ID
-   * @returns True if document is loaded
+   * @returns boolean
    */
   isDocumentLoaded(docId: string): boolean {
-    return this.loadedDocuments.has(docId);
+    const isLoaded = this.loadedDocuments.has(docId);
+    console.log(`[PDFParser] isDocumentLoaded check for ${docId}: ${isLoaded}`);
+    console.log(`[PDFParser] Instance ID: ${this.instanceId}`);
+    console.log(`[PDFParser] All loaded document IDs: ${Array.from(this.loadedDocuments.keys()).join(', ')}`);
+    return isLoaded;
   }
 
   /**
@@ -2002,5 +2331,18 @@ export class PDFParserService implements IPDFParserService {
   }
 }
 
-// Export singleton instance
-export const pdfParserService = new PDFParserService();
+// Export singleton instance using global registry to prevent multiple instances
+// during Vite code splitting (see issue with multiple chunks creating duplicate instances)
+export const pdfParserService = (() => {
+  const globalKey = Symbol.for('zura.pdfParserService');
+  const globalRegistry = global as any;
+  
+  if (!globalRegistry[globalKey]) {
+    globalRegistry[globalKey] = new PDFParserService();
+    console.log(`[PDFParser] Created singleton instance via global registry`);
+  } else {
+    console.log(`[PDFParser] Returning existing singleton instance from global registry`);
+  }
+  
+  return globalRegistry[globalKey] as PDFParserService;
+})();

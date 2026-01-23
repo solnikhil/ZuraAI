@@ -31,12 +31,14 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
     'themes',
     'preferences',
     'commandbar',
+    'rag',
 ])
 
 function normalizeSettingsSection(section: string | null): string | null {
     if (!section) return null
     if (section === 'tools') return 'preferences'
-    return VALID_SETTINGS_SECTIONS.has(section) ? section : null
+    const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
+    return normalized
 }
 
 function readStoredDashboardView(): DashboardView | null {
@@ -47,7 +49,9 @@ function readStoredDashboardView(): DashboardView | null {
 }
 
 function readStoredSettingsSection(): string | null {
-    return normalizeSettingsSection(localStorage.getItem(STORAGE_KEYS.settingsSection))
+    const raw = localStorage.getItem(STORAGE_KEYS.settingsSection)
+    const normalized = normalizeSettingsSection(raw)
+    return normalized
 }
 
 
@@ -104,7 +108,8 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const setActiveSettingsSection = useCallback((section: string) => {
-        setActiveSettingsSectionState(normalizeSettingsSection(section) ?? 'usage')
+        const normalized = normalizeSettingsSection(section) ?? 'usage'
+        setActiveSettingsSectionState(normalized)
     }, [])
 
 

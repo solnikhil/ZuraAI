@@ -3,7 +3,7 @@
     z-index: 50;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
     padding-left: calc(12px + env(titlebar-area-x, 0px));
@@ -14,11 +14,13 @@
     -webkit-app-region: drag;
 }
 
+
 .app-titlebar--compact {
     height: 36px;
 }
 
 .app-titlebar__left,
+.app-titlebar__middle,
 .app-titlebar__center,
 .app-titlebar__right {
     min-width: 0;
@@ -27,8 +29,22 @@
     gap: 10px;
 }
 
+.app-titlebar__middle {
+    position: absolute;
+    left: calc(env(titlebar-area-x, 0px) + 120px);
+    top: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    pointer-events: none;
+    /* Responsive: shrink tab group instead of repositioning */
+    max-width: calc(100% - 600px);
+}
+
 .app-titlebar__center {
-    position: fixed;
+    position: absolute;
     left: 50%;
     top: 0;
     height: 44px;
@@ -36,15 +52,31 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: visible;
+    min-width: 0;
     pointer-events: none;
-    z-index: 51;
+    /* Responsive width: shrink based on available space, not reposition */
+    width: clamp(200px, 40vw, 512px);
+    max-width: calc(100% - 400px);
+}
+
+.app-titlebar__middle .app-titlebar__tab-group,
+.app-titlebar__center .app-titlebar__commandbar {
+    pointer-events: auto;
 }
 
 .app-titlebar__right {
     justify-content: flex-end;
     margin-left: auto;
+    gap: 10px;
 }
+
+
+
+.app-titlebar__left {
+    gap: 8px;
+}
+
+
 
 .app-titlebar__controls {
     display: inline-flex;
@@ -52,6 +84,57 @@
     gap: 6px;
     -webkit-app-region: no-drag;
 }
+
+.app-titlebar__tab-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px;
+    border-radius: 10px;
+    background: #1c1c1c;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    /* Responsive: allow shrinking */
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.app-titlebar__tab {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    -webkit-app-region: no-drag;
+    min-width: 50px;
+    min-height: 23px;
+    /* Responsive: allow shrinking */
+    flex-shrink: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-titlebar__tab:hover {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.app-titlebar__tab--active {
+    color: var(--theme-text-primary);
+    background: #282828;
+}
+
+.app-titlebar__tab:focus-visible {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: 2px;
+}
+
 
 .app-titlebar__icon-btn {
     width: 30px;
@@ -114,6 +197,13 @@
     -webkit-app-region: no-drag;
 }
 
+/* Hide model viewer on small windows */
+@media (max-width: 1000px) {
+    .app-titlebar__model {
+        display: none;
+    }
+}
+
 .app-titlebar__unsaved {
     width: 8px;
     height: 8px;
@@ -128,8 +218,8 @@
 }
 
 .app-titlebar__commandbar {
-    width: var(--commandbar-width, clamp(320px, 40vw, 500px));
-    max-width: var(--commandbar-max-width, 70vw);
+    width: 100%;
+    max-width: var(--commandbar-max-width, 512px);
     position: relative;
     z-index: 20;
     pointer-events: auto;
@@ -140,23 +230,26 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 32px;
+    height: 29px;
     padding: 0 12px;
     border-radius: 10px;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: #292929;
+    border: 1px solid #3c3c3c;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    box-sizing: border-box;
 }
 
 .app-titlebar__commandbar-field--focused {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: #2f2f2f;
+    border-color: #4a4a4a;
+    box-shadow: none;
 }
 
 .app-titlebar__commandbar-icon {
-    color: var(--theme-text-muted);
+    color: rgba(255, 255, 255, 0.55);
     flex-shrink: 0;
 }
+
 
 .app-titlebar__commandbar-input-wrap {
     position: relative;
@@ -173,11 +266,12 @@
     display: flex;
     align-items: center;
     pointer-events: none;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-family: inherit;
     white-space: nowrap;
     overflow: hidden;
 }
+
 
 .app-titlebar__commandbar-ghost-prefix {
     color: transparent;
@@ -199,24 +293,32 @@
     outline: none;
     background: transparent;
     color: var(--theme-text-primary);
-    font-size: 0.85rem;
+    font-size: 0.82rem;
 }
 
 .app-titlebar__commandbar-input::placeholder {
-    color: var(--theme-text-muted);
+    color: rgba(255, 255, 255, 0.5);
 }
 
 .app-titlebar__commandbar-hint {
     font-size: 0.7rem;
     font-weight: 500;
-    color: var(--theme-text-muted);
-    padding: 4px 8px;
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: transparent;
+    border: 1px solid #6d6d6d;
+    background: #363636;
     flex-shrink: 0;
     white-space: nowrap;
+    min-width: 97px;
+    min-height: 19px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 3px;
+    margin-top: 3px;
 }
+
 
 /* === COMMAND BAR DROPDOWN - Premium Redesign === */
 
@@ -423,7 +525,7 @@
 
 
 .app-titlebar--compact .app-titlebar__commandbar-field {
-    height: 30px;
+    height: 28px;
     border-radius: 10px;
 }
 
@@ -431,6 +533,24 @@
     top: calc(100% + 8px);
 }
 
+.app-titlebar--compact .app-titlebar__middle,
 .app-titlebar--compact .app-titlebar__center {
     height: 36px;
+}
+
+.app-titlebar--compact .app-titlebar__middle {
+    max-width: calc(100% - 600px);
+}
+
+.app-titlebar--compact .app-titlebar__center {
+    max-width: calc(100% - 440px);
+}
+
+.app-titlebar--compact .app-titlebar__tab-group {
+    padding: 3px;
+}
+
+.app-titlebar--compact .app-titlebar__tab {
+    padding: 4px 10px;
+    font-size: 0.72rem;
 }

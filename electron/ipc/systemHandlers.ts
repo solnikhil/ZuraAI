@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, desktopCapturer, screen } from 'electron'
+import { ipcMain, BrowserWindow, desktopCapturer, screen, app } from 'electron'
 import { spawn, exec } from 'child_process'
 import {
   setTitleBarOverlay,
@@ -151,6 +151,18 @@ export function registerSystemHandlers(): void {
     createMainWindow()
   })
 
+  // Get app process metrics (CPU, memory usage per subprocess)
+  ipcMain.handle('get-process-metrics', () => {
+    const metrics = app.getAppMetrics()
+    return metrics.map((metric) => ({
+      pid: metric.pid,
+      type: metric.type,
+      cpu: metric.cpu.percentCPUUsage,
+      memory: Math.round(metric.memory.workingSetSize / 1024), // Convert to MB
+      name: metric.name || metric.type,
+    }))
+  })
+
   // Spawn terminal with command handler
   ipcMain.on('spawn-terminal-command', (_event, command, args) => {
     console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
@@ -199,5 +211,6 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('close-overlay')
   ipcMain.removeAllListeners('set-ignore-mouse-events')
   ipcMain.removeAllListeners('open-settings')
+  ipcMain.removeHandler('get-process-metrics')
   ipcMain.removeAllListeners('spawn-terminal-command')
 }
