@@ -1653,7 +1653,12 @@ export function PDFChatArea({
 
 
   /**
-   * Send a message and get RAG response
+   * Send a message and get AI response with PDF RAG context
+   *
+   * This function:
+   * 1. Gets relevant context from PDF documents via RAG
+   * 2. Calls the AI model with the context
+   * 3. Streams the response back to the user
    */
   const sendMessage = useCallback(async () => {
     if (!input.trim() || isLoading || documentIds.length === 0) return;

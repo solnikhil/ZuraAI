@@ -310,7 +310,7 @@ export class PDFParserService implements IPDFParserService {
           // Continue without worker - pdf.js will attempt to use fake worker
         }
       }
-      
+
       this.initialized = true;
     } catch (error) {
       throw new Error(`Failed to initialize pdf.js: ${error instanceof Error ? error.message : String(error)}`);
