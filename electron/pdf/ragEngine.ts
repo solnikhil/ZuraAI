@@ -1770,13 +1770,21 @@ export class RAGEngine implements IRAGEngine {
       includeSubsections?: boolean;
     } = {}
   ): Promise<import('../../src/types/pdf').DocumentSummary> {
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
+    console.log('[RAGEngine] 📄 generateDocumentSummary START');
+    console.log('[RAGEngine]    Document ID:', docId);
+    console.log('[RAGEngine]    Options:', JSON.stringify(options));
+
     const { maxSectionsToSummarize = 20, includeSubsections = false } = options;
 
     // Step 1: Get major sections (Requirement 12.2)
+    console.log('[RAGEngine] 📑 Step 1: Getting major sections...');
     const sections = await this.getMajorSections(docId);
+    console.log('[RAGEngine]    Found', sections.length, 'major sections');
 
     if (sections.length === 0) {
       // If no sections found, create a single "full document" section
+      console.log('[RAGEngine]    ⚠️ No sections found, creating full document section');
       const docInfo = await this.getDocumentInfo(docId);
       const fullDocSection: import('../../src/types/pdf').MajorSection = {
         title: 'Full Document',
@@ -1787,9 +1795,15 @@ export class RAGEngine implements IRAGEngine {
         isTopLevel: true,
       };
       sections.push(fullDocSection);
+    } else {
+      console.log('[RAGEngine]    Sections found:');
+      sections.forEach((s, idx) => {
+        console.log(`[RAGEngine]       [${idx}] "${s.title}" (pp. ${s.startPage}-${s.endPage}), level: ${s.level}, isTopLevel: ${s.isTopLevel}`);
+      });
     }
 
     // Step 2: Flatten sections if including subsections
+    console.log('[RAGEngine] 📑 Step 2: Filtering/flattening sections...');
     let sectionsToSummarize: import('../../src/types/pdf').MajorSection[] = [];
 
     if (includeSubsections) {
@@ -1813,16 +1827,21 @@ export class RAGEngine implements IRAGEngine {
 
     // Limit number of sections
     sectionsToSummarize = sectionsToSummarize.slice(0, maxSectionsToSummarize);
+    console.log('[RAGEngine]    Sections to summarize:', sectionsToSummarize.length);
 
     // Step 3: Generate summary for each section (Requirement 12.3)
+    console.log('[RAGEngine] 📑 Step 3: Generating section summaries...');
     const sectionSummaries: import('../../src/types/pdf').SectionSummary[] = [];
 
-    for (const section of sectionsToSummarize) {
+    for (let i = 0; i < sectionsToSummarize.length; i++) {
+      const section = sectionsToSummarize[i];
+      console.log(`[RAGEngine]    Processing section ${i + 1}/${sectionsToSummarize.length}: "${section.title}"`);
       try {
         const summary = await this.summarizeSection(docId, section);
+        console.log(`[RAGEngine]       ✅ Summary generated - context length: ${summary.contextString?.length || 0}, citations: ${summary.citations?.length || 0}`);
         sectionSummaries.push(summary);
       } catch (error) {
-        console.warn(`[RAGEngine] Failed to summarize section "${section.title}":`, error);
+        console.error(`[RAGEngine]       ❌ Failed to summarize section "${section.title}":`, error);
         // Add placeholder for failed section
         sectionSummaries.push({
           sectionTitle: section.title,
@@ -1838,6 +1857,7 @@ export class RAGEngine implements IRAGEngine {
     }
 
     // Step 4: Collect all citations (Requirement 12.4)
+    console.log('[RAGEngine] 📑 Step 4: Collecting citations...');
     const allCitations: import('../../src/types/pdf').Citation[] = [];
     const seenChunkIds = new Set<string>();
 
@@ -1849,9 +1869,17 @@ export class RAGEngine implements IRAGEngine {
         }
       }
     }
+    console.log('[RAGEngine]    Total unique citations:', allCitations.length);
 
     // Get document info for the summary
     const docInfo = await this.getDocumentInfo(docId);
+
+    console.log('[RAGEngine] 📄 generateDocumentSummary COMPLETE');
+    console.log('[RAGEngine]    Document name:', docInfo?.fileName || docId);
+    console.log('[RAGEngine]    Page count:', docInfo?.pageCount || 0);
+    console.log('[RAGEngine]    Sections summarized:', sectionSummaries.length);
+    console.log('[RAGEngine]    Total citations:', allCitations.length);
+    console.log('[RAGEngine] ═══════════════════════════════════════════════════════');
 
     return {
       documentId: docId,

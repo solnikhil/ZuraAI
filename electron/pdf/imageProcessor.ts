@@ -15,6 +15,7 @@
 
 // Tesseract is imported dynamically to avoid worker path issues at module load time
 // import * as Tesseract from 'tesseract.js';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
 
@@ -835,19 +836,29 @@ export class ImageProcessorService {
       const appPath = app?.getAppPath() || process.cwd();
       const isPackaged = app?.isPackaged ?? false;
 
-      // Worker and core paths - use node_modules in dev, unpacked in prod
+      // Worker and core paths - use Node worker script for the main process
+      const workerRelativePath = join('node_modules', 'tesseract.js', 'src', 'worker-script', 'node', 'index.js');
+      const coreRelativePath = join('node_modules', 'tesseract.js-core');
       let workerPath: string;
       let corePath: string;
 
       if (isPackaged) {
-        // In packaged app, use unpacked resources
+        // Prefer unpacked resources if available, fallback to asar path
         const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-        workerPath = join(unpackedPath, 'node_modules', 'tesseract.js', 'dist', 'worker.min.js');
-        corePath = join(unpackedPath, 'node_modules', 'tesseract.js-core');
+        const unpackedWorkerPath = join(unpackedPath, workerRelativePath);
+        const unpackedCorePath = join(unpackedPath, coreRelativePath);
+
+        if (existsSync(unpackedWorkerPath)) {
+          workerPath = unpackedWorkerPath;
+          corePath = unpackedCorePath;
+        } else {
+          workerPath = join(appPath, workerRelativePath);
+          corePath = join(appPath, coreRelativePath);
+        }
       } else {
         // In development
-        workerPath = join(appPath, 'node_modules', 'tesseract.js', 'dist', 'worker.min.js');
-        corePath = join(appPath, 'node_modules', 'tesseract.js-core');
+        workerPath = join(appPath, workerRelativePath);
+        corePath = join(appPath, coreRelativePath);
       }
 
       console.log('[ImageProcessor] Tesseract worker path:', workerPath);

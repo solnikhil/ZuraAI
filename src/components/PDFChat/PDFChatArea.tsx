@@ -1581,6 +1581,12 @@ export function PDFChatArea({
     userContent: string,
     pdfSystemPrompt: string
   ): Promise<string> => {
+    console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+    console.log('[PDFChatArea] 🤖 generatePDFAwareResponse START');
+    console.log('[PDFChatArea]    User content:', userContent.substring(0, 100) + (userContent.length > 100 ? '...' : ''));
+    console.log('[PDFChatArea]    System prompt length:', pdfSystemPrompt.length, 'chars');
+    console.log('[PDFChatArea]    System prompt preview:', pdfSystemPrompt.substring(0, 200) + '...');
+
     // Build messages array with PDF system prompt
     const messagesForAI: Array<{ role: string; content: string }> = [
       { role: 'system', content: pdfSystemPrompt },
@@ -1591,53 +1597,90 @@ export function PDFChatArea({
     const temperature = settings.temperature;
     const maxTokens = settings.maxTokens;
 
-    switch (settings.modelProvider) {
-      case 'groq': {
-        const res = await generateGroqCompletion(settings.groqApiKey, model, messagesForAI, {
-          temperature,
-          max_tokens: maxTokens
-        });
-        return res.choices?.[0]?.message?.content || '';
+    console.log('[PDFChatArea]    Provider:', settings.modelProvider);
+    console.log('[PDFChatArea]    Model:', model);
+    console.log('[PDFChatArea]    Temperature:', temperature);
+    console.log('[PDFChatArea]    Max tokens:', maxTokens);
+
+    let aiResponse = '';
+    try {
+      switch (settings.modelProvider) {
+        case 'groq': {
+          console.log('[PDFChatArea]    Calling Groq API...');
+          const res = await generateGroqCompletion(settings.groqApiKey, model, messagesForAI, {
+            temperature,
+            max_tokens: maxTokens
+          });
+          console.log('[PDFChatArea]    Groq raw response:', JSON.stringify(res).substring(0, 500));
+          aiResponse = res.choices?.[0]?.message?.content || '';
+          break;
+        }
+        case 'gemini': {
+          console.log('[PDFChatArea]    Calling Gemini API...');
+          const res = await generateGeminiCompletion(settings.geminiApiKey, model, messagesForAI, {
+            temperature,
+            maxOutputTokens: maxTokens,
+            systemInstruction: pdfSystemPrompt
+          });
+          console.log('[PDFChatArea]    Gemini raw response:', JSON.stringify(res).substring(0, 500));
+          aiResponse = res.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
+          break;
+        }
+        case 'perplexity': {
+          console.log('[PDFChatArea]    Calling Perplexity API...');
+          const res = await generatePerplexityCompletion(settings.perplexityApiKey, model, messagesForAI, {
+            temperature,
+            max_tokens: maxTokens
+          });
+          console.log('[PDFChatArea]    Perplexity raw response:', JSON.stringify(res).substring(0, 500));
+          const content = res.choices?.[0]?.message?.content || '';
+          aiResponse = cleanSonarResponse(content, res.citations, res.search_results);
+          break;
+        }
+        case 'ollama': {
+          console.log('[PDFChatArea]    Calling Ollama API at:', settings.ollamaUrl);
+          const res = await generateOllamaCompletion(settings.ollamaUrl, model, messagesForAI, {
+            temperature,
+            num_ctx: maxTokens
+          });
+          console.log('[PDFChatArea]    Ollama raw response:', JSON.stringify(res).substring(0, 500));
+          aiResponse = res?.message?.content || '';
+          break;
+        }
+        case 'minimax': {
+          console.log('[PDFChatArea]    Calling MiniMax API...');
+          const res = await generateMiniMaxCompletion(settings.minimaxApiKey, model, messagesForAI, {
+            temperature,
+            maxTokens
+          });
+          console.log('[PDFChatArea]    MiniMax raw response:', JSON.stringify(res).substring(0, 500));
+          aiResponse = res.choices?.[0]?.message?.content || '';
+          break;
+        }
+        case 'openrouter':
+        default: {
+          console.log('[PDFChatArea]    Calling OpenRouter API...');
+          const res = await generateOpenRouterCompletion(settings.openRouterApiKey, model, messagesForAI, {
+            temperature,
+            maxTokens
+          });
+          console.log('[PDFChatArea]    OpenRouter raw response:', JSON.stringify(res).substring(0, 500));
+          aiResponse = res.choices?.[0]?.message?.content || '';
+          break;
+        }
       }
-      case 'gemini': {
-        const res = await generateGeminiCompletion(settings.geminiApiKey, model, messagesForAI, {
-          temperature,
-          maxOutputTokens: maxTokens,
-          systemInstruction: pdfSystemPrompt
-        });
-        return res.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
-      }
-      case 'perplexity': {
-        const res = await generatePerplexityCompletion(settings.perplexityApiKey, model, messagesForAI, {
-          temperature,
-          max_tokens: maxTokens
-        });
-        const content = res.choices?.[0]?.message?.content || '';
-        return cleanSonarResponse(content, res.citations, res.search_results);
-      }
-      case 'ollama': {
-        const res = await generateOllamaCompletion(settings.ollamaUrl, model, messagesForAI, {
-          temperature,
-          num_ctx: maxTokens
-        });
-        return res?.message?.content || '';
-      }
-      case 'minimax': {
-        const res = await generateMiniMaxCompletion(settings.minimaxApiKey, model, messagesForAI, {
-          temperature,
-          maxTokens
-        });
-        return res.choices?.[0]?.message?.content || '';
-      }
-      case 'openrouter':
-      default: {
-        const res = await generateOpenRouterCompletion(settings.openRouterApiKey, model, messagesForAI, {
-          temperature,
-          maxTokens
-        });
-        return res.choices?.[0]?.message?.content || '';
-      }
+    } catch (apiError) {
+      console.error('[PDFChatArea]    ❌ API call failed:', apiError);
+      throw apiError;
     }
+
+    console.log('[PDFChatArea] 📝 AI Response received');
+    console.log('[PDFChatArea]    Response length:', aiResponse.length, 'chars');
+    console.log('[PDFChatArea]    Response preview:', aiResponse.substring(0, 300) + (aiResponse.length > 300 ? '...' : ''));
+    console.log('[PDFChatArea]    Response is empty:', !aiResponse || aiResponse.trim().length === 0);
+    console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+
+    return aiResponse;
   }, [
     settings.aiModel,
     settings.temperature,
@@ -1656,13 +1699,24 @@ export function PDFChatArea({
    * Send a message and get RAG response
    */
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || isLoading || documentIds.length === 0) return;
+    console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+    console.log('[PDFChatArea] 💬 sendMessage START');
+    console.log('[PDFChatArea]    Input:', input.substring(0, 100) + (input.length > 100 ? '...' : ''));
+    console.log('[PDFChatArea]    isLoading:', isLoading);
+    console.log('[PDFChatArea]    documentIds:', documentIds);
+
+    if (!input.trim() || isLoading || documentIds.length === 0) {
+      console.log('[PDFChatArea]    ⚠️ Early return - input empty, loading, or no documents');
+      return;
+    }
 
     // Check if any documents are indexed
     const hasIndexedDocuments = documentIds.some(docId => {
       const doc = loadedDocuments?.get(docId);
+      console.log('[PDFChatArea]    Document', docId, 'indexed:', doc?.isIndexed);
       return doc?.isIndexed === true;
     });
+    console.log('[PDFChatArea]    hasIndexedDocuments:', hasIndexedDocuments);
 
     const userMessage: PDFChatMessage = {
       id: `msg-${Date.now()}`,
@@ -1703,6 +1757,11 @@ export function PDFChatArea({
     }
 
     try {
+      console.log('[PDFChatArea] 🔍 Calling pdf:get-context IPC...');
+      console.log('[PDFChatArea]    Query:', userMessage.content);
+      console.log('[PDFChatArea]    Document IDs:', documentIds);
+      console.log('[PDFChatArea]    Grounded mode:', groundedMode);
+
       // Get RAG context via IPC (retrieves relevant chunks and builds PDF system prompt)
       const ragContext = await window.ipcRenderer?.invoke('pdf:get-context',
         userMessage.content,
@@ -1720,15 +1779,46 @@ export function PDFChatArea({
         }
       );
 
+      console.log('[PDFChatArea] 📊 RAG Context received:');
+      console.log('[PDFChatArea]    Has context:', !!ragContext);
+      console.log('[PDFChatArea]    Has pdfSystemPrompt:', !!ragContext?.pdfSystemPrompt);
+      console.log('[PDFChatArea]    pdfSystemPrompt length:', ragContext?.pdfSystemPrompt?.length || 0);
+      console.log('[PDFChatArea]    Confidence:', ragContext?.confidence);
+      console.log('[PDFChatArea]    Sources count:', ragContext?.sources?.length || 0);
+      console.log('[PDFChatArea]    Is low confidence:', ragContext?.isLowConfidence);
+      console.log('[PDFChatArea]    Warning:', ragContext?.warning);
+      console.log('[PDFChatArea]    Context string length:', ragContext?.contextString?.length || 0);
+      console.log('[PDFChatArea]    Context string preview:', ragContext?.contextString?.substring(0, 200) || 'EMPTY/NO CONTEXT');
+
+      if (ragContext?.sources?.length === 0) {
+        console.error('[PDFChatArea] ❌❌❌ NO SOURCES FOUND - RAG RETRIEVAL FAILED ❌❌❌');
+        console.error('[PDFChatArea]    This usually means:');
+        console.error('[PDFChatArea]    1. Document is NOT INDEXED - Click "Index Document" button');
+        console.error('[PDFChatArea]    2. Query has no matching content in the document');
+        console.error('[PDFChatArea]    3. Document ID mismatch between loaded and indexed');
+      }
+
+      if (ragContext?.sources?.length > 0) {
+        console.log('[PDFChatArea]    ✅ Sources details:');
+        ragContext.sources.slice(0, 3).forEach((source: RetrievalResult, idx: number) => {
+          console.log(`[PDFChatArea]       [${idx}] Score: ${source.score?.toFixed(3)}, Page: ${source.chunk?.metadata?.pageNumbers?.[0]}, Content preview: ${source.chunk?.content?.substring(0, 100)}...`);
+        });
+      }
+
       if (ragContext && ragContext.pdfSystemPrompt) {
         // Update confidence from RAG retrieval
         setLastConfidence(ragContext.confidence || 1);
 
+        console.log('[PDFChatArea] 🤖 Generating AI response...');
         // Generate AI response using the PDF-aware system prompt
         const aiResponse = await generatePDFAwareResponse(
           userMessage.content,
           ragContext.pdfSystemPrompt
         );
+
+        console.log('[PDFChatArea] ✅ AI Response generated');
+        console.log('[PDFChatArea]    Response length:', aiResponse?.length || 0);
+        console.log('[PDFChatArea]    Response preview:', aiResponse?.substring(0, 200) + '...');
 
         // Build citations from sources
         const citations: Citation[] = (ragContext.sources || []).map((source: RetrievalResult, idx: number) => ({
@@ -1739,6 +1829,8 @@ export function PDFChatArea({
           quotedText: source.chunk.content?.substring(0, 200) || '',
           boundingBoxes: source.chunk.metadata.boundingBoxes || [],
         }));
+
+        console.log('[PDFChatArea]    Citations built:', citations.length);
 
         // Update assistant message with response
         setMessages(prev => prev.map(msg =>
@@ -1752,11 +1844,15 @@ export function PDFChatArea({
             : msg
         ));
 
+        console.log('[PDFChatArea] 💬 sendMessage COMPLETE');
+        console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+
         // Save session
         await saveSession();
       } else {
         // Fallback if no context was retrieved
-        console.warn('[PDFChatArea] No PDF context available, using fallback response');
+        console.warn('[PDFChatArea] ⚠️ No PDF context available, using fallback response');
+        console.log('[PDFChatArea]    ragContext:', ragContext);
         const fallbackContent = await generateFallbackResponse(userMessage.content);
         setLastConfidence(0.5);
         setMessages(prev => prev.map(msg =>
@@ -1817,7 +1913,15 @@ export function PDFChatArea({
    * - 12.4: Include section citations in summary
    */
   const summarizeDocument = useCallback(async () => {
-    if (documentIds.length === 0 || isSummarizing) return;
+    console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+    console.log('[PDFChatArea] 📄 summarizeDocument START');
+    console.log('[PDFChatArea]    documentIds:', documentIds);
+    console.log('[PDFChatArea]    isSummarizing:', isSummarizing);
+
+    if (documentIds.length === 0 || isSummarizing) {
+      console.log('[PDFChatArea]    ⚠️ Early return - no documents or already summarizing');
+      return;
+    }
     setIsActionMenuOpen(false);
     setIsSummarizing(true);
 
@@ -1882,12 +1986,29 @@ export function PDFChatArea({
     }
 
     try {
+      console.log('[PDFChatArea] 🔍 Calling pdf:summarize-document IPC...');
+      console.log('[PDFChatArea]    Document ID:', documentIds[0]);
+
       // Get document summary via IPC
       const summary: DocumentSummary = await window.ipcRenderer?.invoke(
         'pdf:summarize-document',
         documentIds[0], // Summarize the first document
         { maxSectionsToSummarize: 15, includeSubsections: false }
       );
+
+      console.log('[PDFChatArea] 📊 Summary received from IPC:');
+      console.log('[PDFChatArea]    Has summary:', !!summary);
+      console.log('[PDFChatArea]    Document name:', summary?.documentName);
+      console.log('[PDFChatArea]    Page count:', summary?.pageCount);
+      console.log('[PDFChatArea]    Section count:', summary?.sectionCount);
+      console.log('[PDFChatArea]    Section summaries count:', summary?.sectionSummaries?.length);
+
+      if (summary?.sectionSummaries?.length > 0) {
+        console.log('[PDFChatArea]    Section summaries details:');
+        summary.sectionSummaries.forEach((s, idx) => {
+          console.log(`[PDFChatArea]       [${idx}] "${s.sectionTitle}" (pp. ${s.startPage}-${s.endPage}), context length: ${s.contextString?.length || 0}, citations: ${s.citations?.length || 0}`);
+        });
+      }
 
       if (summary) {
         // Track successful summaries for overall summary generation
@@ -1907,11 +2028,16 @@ export function PDFChatArea({
             ? `(pp. ${sectionSummary.startPage}-${sectionSummary.endPage})`
             : `(p. ${sectionSummary.startPage})`;
 
+          console.log(`[PDFChatArea] 📝 Processing section ${i + 1}/${summary.sectionSummaries.length}: "${sectionSummary.sectionTitle}"`);
+          console.log(`[PDFChatArea]    Context string length: ${sectionSummary.contextString?.length || 0}`);
+          console.log(`[PDFChatArea]    Context preview: ${sectionSummary.contextString?.substring(0, 150) || 'NONE'}...`);
+
           summaryContent += `${indent}## ${sectionSummary.sectionTitle} ${pageRange}\n\n`;
 
           // Generate AI summary for this section if we have context
           if (sectionSummary.contextString && sectionSummary.contextString.trim().length > 0) {
             try {
+              console.log(`[PDFChatArea]    🤖 Generating AI summary for section "${sectionSummary.sectionTitle}"...`);
               // Build a concise summarization prompt
               const summarizationPrompt = `You are summarizing a section of a PDF document.
 
@@ -1930,6 +2056,11 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
                 summarizationPrompt
               );
 
+              console.log(`[PDFChatArea]    ✅ Section AI response received`);
+              console.log(`[PDFChatArea]       Response length: ${sectionAIResponse?.length || 0}`);
+              console.log(`[PDFChatArea]       Response preview: ${sectionAIResponse?.substring(0, 100) || 'EMPTY'}...`);
+              console.log(`[PDFChatArea]       Response is empty: ${!sectionAIResponse || sectionAIResponse.trim().length === 0}`);
+
               if (sectionAIResponse && sectionAIResponse.trim().length > 0) {
                 summaryContent += `${indent}${sectionAIResponse.trim()}\n\n`;
                 // Track successful summary for overall summary generation
@@ -1937,14 +2068,16 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
                   title: sectionSummary.sectionTitle,
                   summary: sectionAIResponse.trim()
                 });
+                console.log(`[PDFChatArea]    ✅ Section "${sectionSummary.sectionTitle}" summarized successfully`);
               } else {
                 // Fallback to context preview if AI returns empty - show clear indicator
+                console.log(`[PDFChatArea]    ⚠️ AI returned empty response for section "${sectionSummary.sectionTitle}", using preview`);
                 const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
                 summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
                 failedSections++;
               }
             } catch (sectionError) {
-              console.warn(`[PDFChatArea] Failed to generate AI summary for section ${i}:`, sectionError);
+              console.error(`[PDFChatArea] ❌ Failed to generate AI summary for section ${i}:`, sectionError);
               // Fallback to context preview with warning indicator
               const contextPreview = sectionSummary.contextString.substring(0, 300).trim();
               summaryContent += `${indent}> *Preview:* ${contextPreview}${sectionSummary.contextString.length > 300 ? '...' : ''}\n\n`;
@@ -1973,10 +2106,16 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
           ));
         }
 
+        console.log('[PDFChatArea] 📊 Section processing complete');
+        console.log(`[PDFChatArea]    Successful sections: ${successfulSummaries.length}`);
+        console.log(`[PDFChatArea]    Failed sections: ${failedSections}`);
+
         // Generate overall executive summary if we have successful section summaries
         let overallSummary = '';
         if (successfulSummaries.length > 0) {
           try {
+            console.log('[PDFChatArea] 🤖 Generating executive summary...');
+
             // Update UI to show we're generating overall summary
             setMessages(prev => prev.map(msg =>
               msg.id === assistantMessageId
@@ -1992,15 +2131,23 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
               .map(s => `**${s.title}:** ${s.summary}`)
               .join('\n\n');
 
+            console.log(`[PDFChatArea]    Combined summaries length: ${combinedSummaries.length}`);
+
             const overallPrompt = `Based on these section summaries from the document "${summary.documentName}", provide a concise executive summary (3-5 sentences) that captures the main themes and key takeaways:\n\n${combinedSummaries.substring(0, 3000)}`;
 
             overallSummary = await generatePDFAwareResponse(
               'Generate an executive summary of this document.',
               overallPrompt
             );
+
+            console.log(`[PDFChatArea]    ✅ Executive summary generated`);
+            console.log(`[PDFChatArea]       Length: ${overallSummary?.length || 0}`);
+            console.log(`[PDFChatArea]       Preview: ${overallSummary?.substring(0, 150) || 'EMPTY'}...`);
           } catch (overallError) {
-            console.warn('[PDFChatArea] Failed to generate overall summary:', overallError);
+            console.error('[PDFChatArea] ❌ Failed to generate overall summary:', overallError);
           }
+        } else {
+          console.log('[PDFChatArea]    ⚠️ No successful summaries, skipping executive summary');
         }
 
         // Build final content with executive summary at the top
@@ -2024,6 +2171,10 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
         const sectionContent = summaryContent.split('---\n\n').slice(1).join('---\n\n');
         finalContent += sectionContent;
 
+        console.log('[PDFChatArea] 📄 Final summary built');
+        console.log(`[PDFChatArea]    Final content length: ${finalContent.length}`);
+        console.log(`[PDFChatArea]    Has executive summary: ${!!(overallSummary && overallSummary.trim().length > 0)}`);
+
         // Update assistant message with final summary
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
@@ -2036,11 +2187,16 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
             : msg
         ));
 
+        console.log('[PDFChatArea] 📄 summarizeDocument COMPLETE');
+        console.log('[PDFChatArea] ═══════════════════════════════════════════════════════');
+
         // Save session
         await saveSession();
+      } else {
+        console.log('[PDFChatArea] ⚠️ No summary received from IPC');
       }
     } catch (error) {
-      console.error('[PDFChatArea] Summarization failed:', error);
+      console.error('[PDFChatArea] ❌ Summarization failed:', error);
 
       // Update with error message
       setMessages(prev => prev.map(msg =>

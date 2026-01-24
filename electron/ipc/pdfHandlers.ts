@@ -801,25 +801,40 @@ function registerRAGQueryHandlers(): void {
       includeSubsections?: boolean;
     }
   ): Promise<import('../../src/types/pdf').DocumentSummary> => {
-    console.log('[PDFHandlers] Generating document summary:', docId, options);
+    console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
+    console.log('[PDFHandlers] 📄 IPC: pdf:summarize-document');
+    console.log('[PDFHandlers]    Document ID:', docId);
+    console.log('[PDFHandlers]    Options:', JSON.stringify(options || {}));
 
     try {
       if (!docId || typeof docId !== 'string') {
         throw new Error('Invalid document ID');
       }
 
+      console.log('[PDFHandlers]    Calling ragEngine.generateDocumentSummary...');
+
       // Generate document summary using RAG engine
       const summary = await ragEngine.generateDocumentSummary(docId, options);
 
-      console.log('[PDFHandlers] Document summary generated:', {
-        documentId: summary.documentId,
-        sectionCount: summary.sectionCount,
-        citationCount: summary.citations.length,
+      console.log('[PDFHandlers] 📤 IPC RESPONSE: pdf:summarize-document');
+      console.log('[PDFHandlers]    Document ID:', summary.documentId);
+      console.log('[PDFHandlers]    Document Name:', summary.documentName);
+      console.log('[PDFHandlers]    Page Count:', summary.pageCount);
+      console.log('[PDFHandlers]    Section Count:', summary.sectionCount);
+      console.log('[PDFHandlers]    Citation Count:', summary.citations?.length || 0);
+      console.log('[PDFHandlers]    Section Summaries:');
+      summary.sectionSummaries?.forEach((s, idx) => {
+        console.log(`[PDFHandlers]       [${idx}] "${s.sectionTitle}" (pp. ${s.startPage}-${s.endPage})`);
+        console.log(`[PDFHandlers]           Context length: ${s.contextString?.length || 0}`);
+        console.log(`[PDFHandlers]           Context preview: ${s.contextString?.substring(0, 100) || 'NONE'}...`);
+        console.log(`[PDFHandlers]           Citations: ${s.citations?.length || 0}`);
+        console.log(`[PDFHandlers]           Sources: ${s.sources?.length || 0}`);
       });
+      console.log('[PDFHandlers] ════════════════════════════════════════════════════════');
 
       return summary;
     } catch (error) {
-      console.error('[PDFHandlers] Error generating document summary:', error);
+      console.error('[PDFHandlers] ❌ Error generating document summary:', error);
       throw error;
     }
   });
