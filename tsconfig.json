@@ -7,6 +7,10 @@
             "DOM.Iterable",
             "ESNext"
         ],
+        "types": [
+            "vitest/globals",
+            "@testing-library/jest-dom"
+        ],
         "allowJs": false,
         "skipLibCheck": true,
         "esModuleInterop": true,
