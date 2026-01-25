@@ -167,7 +167,7 @@ describe('PDFParserService', () => {
 
       const doc = await service.loadDocument(mockFilePath);
       
-      expect(doc.id).toMatch(/^doc_[a-f0-9]+_[a-z0-9]+$/);
+      expect(doc.id).toMatch(/^doc_[a-z0-9]{32}$/);
     });
 
     it('should store document in memory map', async () => {

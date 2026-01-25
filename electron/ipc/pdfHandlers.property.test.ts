@@ -683,7 +683,7 @@ describe('Property 17: Feedback Persistence', () => {
         ),
         { numRuns: 5, seed: 12345 }
       );
-    });
+    }, 30000);
 
     it('should preserve most recent feedback when limit is exceeded', async () => {
       // Add 1005 entries

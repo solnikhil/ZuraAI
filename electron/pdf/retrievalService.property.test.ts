@@ -46,6 +46,11 @@ vi.mock('./embeddingService', () => ({
     setModel: vi.fn().mockResolvedValue(undefined),
     isModelAvailable: vi.fn().mockResolvedValue(true),
   },
+  embeddingFallbackManager: {
+    isInFallbackMode: vi.fn().mockReturnValue(false),
+    getState: vi.fn().mockReturnValue({ isActive: false, reason: null, activatedAt: null }),
+    attemptRecovery: vi.fn().mockResolvedValue(false),
+  },
 }));
 
 

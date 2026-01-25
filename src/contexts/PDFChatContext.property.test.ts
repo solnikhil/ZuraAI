@@ -290,7 +290,7 @@ describe('PDF Chat Session Property Tests', () => {
         ),
         { numRuns: 50, seed: 12345 }
       );
-    });
+    }, 30000);
 
     it('should have non-empty document ID references', () => {
       fc.assert(

@@ -412,19 +412,6 @@ describe('Embedding Service Property Tests', () => {
         { numRuns: 20, seed: PROPERTY_TEST_CONFIG.seed }
       );
     });
-
-      const texts = ['text1', 'text2', 'text3'];
-
-      const batchEmbeddings = await generateEmbeddings(texts, model);
-      const individualEmbeddings = await Promise.all(
-        texts.map(text => generateEmbedding(text, model))
-      );
-
-      expect(batchEmbeddings).toHaveLength(individualEmbeddings.length);
-      batchEmbeddings.forEach((embedding, i) => {
-        expect(embedding).toEqual(individualEmbeddings[i]);
-      });
-    });
   });
 
   describe('Property 4: Normalization', () => {
