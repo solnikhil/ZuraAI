@@ -1,13 +1,19 @@
 /**
  * ApiKeysSection component for Settings
  * Manages API keys and tool configurations
- * 
+ *
  * @module ApiKeysSection
  * Requirements: 2.4
  */
 
 import React, { useState, useEffect } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 
 /**
  * Props for ApiKeysSection component
@@ -56,46 +62,24 @@ function ApiKeyInput({ label, value, placeholder, onChange }: ApiKeyInputProps):
   const [showKey, setShowKey] = useState(false)
 
   return (
-    <div>
-      <label className="label-small" style={{ display: 'block', marginBottom: 6 }}>
-        {label}
-      </label>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <input
+    <div className="space-y-2">
+      <Label className="text-sm text-muted-foreground">{label}</Label>
+      <div className="flex gap-2">
+        <Input
           type={showKey ? 'text' : 'password'}
-          className="setting-input-scira"
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          style={{ flex: 1, minWidth: 0 }}
+          className="flex-1 bg-secondary border-border"
         />
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={() => setShowKey(!showKey)}
-          style={{
-            padding: '0 14px',
-            background: 'var(--theme-surface)',
-            border: '1px solid var(--theme-border)',
-            color: 'var(--theme-text-muted)',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
-            e.currentTarget.style.color = 'var(--theme-text-secondary)'
-            e.currentTarget.style.background = 'var(--theme-surface-hover)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.borderColor = 'var(--theme-border)'
-            e.currentTarget.style.color = 'var(--theme-text-muted)'
-            e.currentTarget.style.background = 'var(--theme-surface)'
-          }}
+          className="shrink-0"
         >
           {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -175,103 +159,49 @@ function OllamaSection({ ollamaUrl, onChange }: OllamaSectionProps): React.React
   }, [ollamaUrl])
 
   return (
-    <div className="settings-section-card" style={{ marginTop: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <h3 className="section-head" style={{ marginBottom: 0 }}>Ollama (Local)</h3>
+    <Card className="settings-section-card mt-6">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="section-head mb-0">Ollama (Local)</h3>
         {status === 'connected' && (
-          <span style={{
-            fontSize: '0.75rem',
-            padding: '4px 10px',
-            background: 'rgba(34, 197, 94, 0.15)',
-            color: '#22c55e',
-            borderRadius: 12,
-            fontWeight: 500
-          }}>
-            ●  Connected • {modelCount} models
-          </span>
+          <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
+            Connected • {modelCount} models
+          </Badge>
         )}
         {status === 'checking' && (
-          <span style={{
-            fontSize: '0.75rem',
-            padding: '4px 10px',
-            background: 'rgba(59, 130, 246, 0.15)',
-            color: '#60a5fa',
-            borderRadius: 12,
-            fontWeight: 500
-          }}>
-            ●  Checking...
-          </span>
+          <Badge variant="outline" className="bg-blue-500/15 text-blue-400 border-blue-500/30">
+            Checking...
+          </Badge>
         )}
         {status === 'error' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{
-              fontSize: '0.75rem',
-              padding: '4px 10px',
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: '#ef4444',
-              borderRadius: 12,
-              fontWeight: 500
-            }}>
-              ●  {errorMessage}
-            </span>
-            <button
-              onClick={handleAutoRunOllama}
-              style={{
-                fontSize: '0.7rem',
-                padding: '4px 10px',
-                background: 'var(--theme-surface)',
-                border: '1px solid var(--theme-border)',
-                color: 'var(--theme-text-secondary)',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'var(--theme-surface)'
-                e.currentTarget.style.borderColor = 'var(--theme-border)'
-              }}
-            >
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-red-500/15 text-red-500 border-red-500/30">
+              {errorMessage}
+            </Badge>
+            <Button variant="outline" size="sm" onClick={handleAutoRunOllama}>
               Auto-Run Ollama
-            </button>
+            </Button>
           </div>
         )}
       </div>
-      <div className="section-desc" style={{ marginBottom: 12 }}>
+      <div className="section-desc mb-3">
         Connect to your local Ollama instance. Make sure Ollama is running.
       </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <input
+      <div className="flex gap-2">
+        <Input
           type="text"
-          className="setting-input-scira"
           value={ollamaUrl}
           onChange={e => onChange({ ollamaUrl: e.target.value })}
           placeholder="http://localhost:11434"
-          style={{ flex: 1 }}
+          className="flex-1 bg-secondary border-border"
         />
-        <button
+        <Button
           onClick={checkConnection}
           disabled={status === 'checking'}
-          style={{
-            padding: '0 16px',
-            background: status === 'checking' ? 'var(--theme-surface)' : 'var(--theme-accent)',
-            border: 'none',
-            color: '#fff',
-            borderRadius: '10px',
-            cursor: status === 'checking' ? 'default' : 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            transition: 'all 0.2s ease',
-            opacity: status === 'checking' ? 0.7 : 1
-          }}
         >
           {status === 'checking' ? 'Checking...' : 'Check'}
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -305,7 +235,7 @@ export function ApiKeysSection({
       </div>
 
       {/* API Keys Section */}
-      <div className="settings-section-card">
+      <Card className="settings-section-card">
         <h3 className="section-head">Provider Credentials</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <ApiKeyInput
@@ -339,52 +269,48 @@ export function ApiKeysSection({
             onChange={value => onChange({ minimaxApiKey: value })}
           />
         </div>
-      </div>
+      </Card>
 
       {/* Ollama Section */}
       <OllamaSection ollamaUrl={ollamaUrl} onChange={onChange} />
 
       {/* Tools Toggle */}
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Card className="settings-section-card mt-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h3 className="section-head" style={{ marginBottom: 4 }}>Enable Tools</h3>
+            <h3 className="section-head mb-1">Enable Tools</h3>
             <div className="section-desc">Allow AI to use web search.</div>
           </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={toolsEnabled}
-              onChange={(e) => onChange({ toolsEnabled: e.target.checked })}
-            />
-            <span className="toggle-slider"></span>
-          </label>
+          <Switch
+            checked={toolsEnabled}
+            onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
+            aria-label="Enable tools"
+          />
         </div>
 
         {toolsEnabled && (
-          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--theme-border)' }}>
-            <h3 className="section-head" style={{ marginBottom: '16px' }}>Web Search API</h3>
-            <div className="section-desc" style={{ marginBottom: '12px' }}>
+          <div className="mt-6 pt-6 border-t border-border">
+            <h3 className="section-head mb-4">Web Search API</h3>
+            <div className="section-desc mb-3">
               Get your Tavily key at{' '}
-              <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>
+              <a href="https://tavily.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
                 tavily.com
               </a>
             </div>
-            <input
+            <Input
               type="password"
-              className="setting-input-scira"
               placeholder="tvly-..."
               value={tavilyApiKey}
               onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
-              style={{ width: '100%' }}
+              className="w-full bg-secondary border-border"
             />
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Available Tools List */}
       {toolsEnabled && (
-        <div className="settings-section-card" style={{ marginTop: 24 }}>
+        <Card className="settings-section-card" style={{ marginTop: 24 }}>
           <h3 className="section-head">Available Tools</h3>
           <div className="section-desc" style={{ marginBottom: '16px' }}>
             All tools enabled
@@ -413,7 +339,7 @@ export function ApiKeysSection({
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )

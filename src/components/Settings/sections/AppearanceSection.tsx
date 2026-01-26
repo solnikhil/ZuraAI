@@ -8,6 +8,8 @@
 
 import React, { useLayoutEffect, useState } from 'react'
 import { PanelLeft, Box } from '../../icons'
+import { Card } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import ThemesPage from '../../ThemesPage'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { getThemeById, getDefaultTheme } from '../../../themes/themeRegistry'
@@ -94,7 +96,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
       {activeTab === 'themes' ? (
         <ThemesPage />
       ) : (
-        <div className="settings-section-card" style={{
+        <Card className="settings-section-card" style={{
           background: 'var(--theme-surface)',
           border: '1px solid var(--theme-border)',
           borderRadius: '12px',
@@ -181,38 +183,11 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                 Display the application name in the titlebar
               </p>
             </div>
-            <label className="toggle-switch" style={{
-              width: '48px',
-              height: '26px',
-              background: settings.titleBarShowAppName ? 'var(--theme-accent)' : 'var(--theme-background)',
-              borderRadius: '13px',
-              position: 'relative',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              border: '1px solid var(--theme-border)',
-              display: 'inline-flex',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={settings.titleBarShowAppName}
-                onChange={(e) => updateSettings({ titleBarShowAppName: e.target.checked })}
-                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, cursor: 'pointer' }}
-              />
-              <span className="toggle-slider" style={{
-                width: '20px',
-                height: '20px',
-                background: 'var(--theme-text-primary)',
-                borderRadius: '50%',
-                position: 'absolute',
-                top: '50%',
-                left: '3px',
-                transform: `translateY(-50%) ${settings.titleBarShowAppName ? 'translateX(22px)' : ''}`,
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-                pointerEvents: 'none'
-              }} />
-            </label>
+            <Switch
+              checked={settings.titleBarShowAppName}
+              onCheckedChange={(checked) => updateSettings({ titleBarShowAppName: checked })}
+              aria-label="Show app name in titlebar"
+            />
           </div>
 
           {/* Show Chat Title */}
@@ -231,38 +206,11 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                 Display the current chat title in the titlebar
               </p>
             </div>
-            <label className="toggle-switch" style={{
-              width: '48px',
-              height: '26px',
-              background: settings.titleBarShowChatTitle ? 'var(--theme-accent)' : 'var(--theme-background)',
-              borderRadius: '13px',
-              position: 'relative',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              border: '1px solid var(--theme-border)',
-              display: 'inline-flex',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={settings.titleBarShowChatTitle}
-                onChange={(e) => updateSettings({ titleBarShowChatTitle: e.target.checked })}
-                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, cursor: 'pointer' }}
-              />
-              <span className="toggle-slider" style={{
-                width: '20px',
-                height: '20px',
-                background: 'var(--theme-text-primary)',
-                borderRadius: '50%',
-                position: 'absolute',
-                top: '50%',
-                left: '3px',
-                transform: `translateY(-50%) ${settings.titleBarShowChatTitle ? 'translateX(22px)' : ''}`,
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-                pointerEvents: 'none'
-              }} />
-            </label>
+            <Switch
+              checked={settings.titleBarShowChatTitle}
+              onCheckedChange={(checked) => updateSettings({ titleBarShowChatTitle: checked })}
+              aria-label="Show chat title in titlebar"
+            />
           </div>
 
           {/* Show Model */}
@@ -280,40 +228,13 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                 Display the current AI model in the titlebar
               </p>
             </div>
-            <label className="toggle-switch" style={{
-              width: '48px',
-              height: '26px',
-              background: settings.titleBarShowModel ? 'var(--theme-accent)' : 'var(--theme-background)',
-              borderRadius: '13px',
-              position: 'relative',
-              cursor: 'pointer',
-              transition: 'all 0.3s',
-              border: '1px solid var(--theme-border)',
-              display: 'inline-flex',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={settings.titleBarShowModel}
-                onChange={(e) => updateSettings({ titleBarShowModel: e.target.checked })}
-                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, cursor: 'pointer' }}
-              />
-              <span className="toggle-slider" style={{
-                width: '20px',
-                height: '20px',
-                background: 'var(--theme-text-primary)',
-                borderRadius: '50%',
-                position: 'absolute',
-                top: '50%',
-                left: '3px',
-                transform: `translateY(-50%) ${settings.titleBarShowModel ? 'translateX(22px)' : ''}`,
-                transition: 'all 0.3s',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
-                pointerEvents: 'none'
-              }} />
-            </label>
+            <Switch
+              checked={settings.titleBarShowModel}
+              onCheckedChange={(checked) => updateSettings({ titleBarShowModel: checked })}
+              aria-label="Show model in titlebar"
+            />
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )

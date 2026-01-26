@@ -9,16 +9,16 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { useSettings } from '../../../../contexts/SettingsContext';
-import { useToast } from '../../../shared/Toast';
-import { streamOllamaCompletion } from '../../../../services/ollama';
-import { streamPerplexityCompletion } from '../../../../services/perplexity';
-import { streamGeminiCompletion } from '../../../../services/gemini';
-import { streamGroqCompletion } from '../../../../services/groq';
-import { streamOpenRouterCompletion } from '../../../../services/openrouter';
-import { streamMiniMaxCompletion } from '../../../../services/minimax';
-import { getPDFSystemPrompt } from '../../../../prompts/pdfSystemPrompt';
-import type { PDFChatMessage } from '../../../../types/pdf';
+import { useSettings } from '../../../contexts/SettingsContext';
+import { useToast } from '../../shared/Toast';
+import { streamOllamaCompletion } from '../../../services/ollama';
+import { streamPerplexityCompletion } from '../../../services/perplexity';
+import { streamGeminiCompletion } from '../../../services/gemini';
+import { streamGroqCompletion } from '../../../services/groq';
+import { streamOpenRouterCompletion } from '../../../services/openrouter';
+import { streamMiniMaxCompletion } from '../../../services/minimax';
+import { getPDFSystemPrompt } from '../../../prompts/pdfSystemPrompt';
+import type { PDFChatMessage } from '../../../types/pdf';
 
 const UPDATE_INTERVAL = 120; // ms
 
@@ -70,6 +70,102 @@ export function usePDFStreamingChat({ documentIds, messages, onMessageUpdate }: 
       ...conversationHistory,
       { role: 'user', content: userMessage }
     ];
+
+    const throttledUpdate = async () => {
+      const now = Date.now();
+      if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+        onMessageUpdate?.({ content: accumulatedContent } as PDFChatMessage);
+        lastUpdateTime = now;
+        // Small delay to prevent UI blocking
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    };
+
+    const streamOllama = async (messagesForStream: any[]) => {
+      for await (const chunk of streamOllamaCompletion(
+        settings.ollamaUrl,
+        settings.aiModel,
+        messagesForStream,
+        { temperature: settings.temperature }
+      )) {
+        const delta = chunk.message?.content || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
+
+    const streamPerplexity = async (messagesForStream: any[]) => {
+      for await (const chunk of streamPerplexityCompletion(
+        settings.perplexityApiKey,
+        settings.aiModel,
+        messagesForStream,
+        { temperature: settings.temperature, max_tokens: settings.maxTokens }
+      )) {
+        const delta = chunk.choices?.[0]?.delta?.content || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
+
+    const streamGemini = async (messagesForStream: any[]) => {
+      // Remove system message for Gemini (doesn't support it directly)
+      const geminiMessages = messagesForStream.filter((m: any) => m.role !== 'system');
+      for await (const chunk of streamGeminiCompletion(
+        settings.geminiApiKey,
+        settings.aiModel,
+        geminiMessages,
+        { temperature: settings.temperature, maxOutputTokens: settings.maxTokens }
+      )) {
+        const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
+
+    const streamGroq = async (messagesForStream: any[]) => {
+      for await (const chunk of streamGroqCompletion(
+        settings.groqApiKey,
+        settings.aiModel,
+        messagesForStream,
+        { temperature: settings.temperature, max_tokens: settings.maxTokens }
+      )) {
+        const delta = chunk.choices?.[0]?.delta?.content || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
+
+    const streamMiniMax = async (messagesForStream: any[]) => {
+      for await (const chunk of streamMiniMaxCompletion(
+        settings.minimaxApiKey,
+        settings.aiModel,
+        messagesForStream,
+        { temperature: settings.temperature, maxTokens: settings.maxTokens }
+      )) {
+        const delta = chunk.choices?.[0]?.delta?.content || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
+
+    const streamOpenRouter = async (messagesForStream: any[]) => {
+      for await (const chunk of streamOpenRouterCompletion(
+        settings.openRouterApiKey,
+        settings.aiModel,
+        messagesForStream,
+        { temperature: settings.temperature, maxTokens: settings.maxTokens }
+      )) {
+        const delta = chunk.choices?.[0]?.delta?.content || '';
+        if (!firstTokenTime && delta) firstTokenTime = performance.now();
+        accumulatedContent += delta;
+        await throttledUpdate();
+      }
+    };
 
     try {
       // Route to appropriate provider
@@ -126,103 +222,6 @@ export function usePDFStreamingChat({ documentIds, messages, onMessageUpdate }: 
       setIsLoading(false);
     }
   }, [documentIds, messages, settings, isLoading, stopStreaming, showToast]);
-
-  // Provider-specific streaming functions
-  const streamOllama = async (messages: any[]) => {
-    for await (const chunk of streamOllamaCompletion(
-      settings.ollamaUrl,
-      settings.aiModel,
-      messages,
-      { temperature: settings.temperature }
-    )) {
-      const delta = chunk.message?.content || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const streamPerplexity = async (messages: any[]) => {
-    for await (const chunk of streamPerplexityCompletion(
-      settings.perplexityApiKey,
-      settings.aiModel,
-      messages,
-      { temperature: settings.temperature, max_tokens: settings.maxTokens }
-    )) {
-      const delta = chunk.choices?.[0]?.delta?.content || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const streamGemini = async (messages: any[]) => {
-    // Remove system message for Gemini (doesn't support it directly)
-    const geminiMessages = messages.filter(m => m.role !== 'system');
-    for await (const chunk of streamGeminiCompletion(
-      settings.geminiApiKey,
-      settings.aiModel,
-      geminiMessages,
-      { temperature: settings.temperature, maxOutputTokens: settings.maxTokens }
-    )) {
-      const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const streamGroq = async (messages: any[]) => {
-    for await (const chunk of streamGroqCompletion(
-      settings.groqApiKey,
-      settings.aiModel,
-      messages,
-      { temperature: settings.temperature, max_tokens: settings.maxTokens }
-    )) {
-      const delta = chunk.choices?.[0]?.delta?.content || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const streamMiniMax = async (messages: any[]) => {
-    for await (const chunk of streamMiniMaxCompletion(
-      settings.minimaxApiKey,
-      settings.aiModel,
-      messages,
-      { temperature: settings.temperature, maxTokens: settings.maxTokens }
-    )) {
-      const delta = chunk.choices?.[0]?.delta?.content || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const streamOpenRouter = async (messages: any[]) => {
-    for await (const chunk of streamOpenRouterCompletion(
-      settings.openRouterApiKey,
-      settings.aiModel,
-      messages,
-      { temperature: settings.temperature, maxTokens: settings.maxTokens }
-    )) {
-      const delta = chunk.choices?.[0]?.delta?.content || '';
-      if (!firstTokenTime && delta) firstTokenTime = performance.now();
-      accumulatedContent += delta;
-      await throttledUpdate();
-    }
-  };
-
-  const throttledUpdate = async () => {
-    const now = Date.now();
-    if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-      onMessageUpdate?.({ content: accumulatedContent } as any);
-      lastUpdateTime = now;
-      // Small delay to prevent UI blocking
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
-  };
 
   return {
     isLoading,

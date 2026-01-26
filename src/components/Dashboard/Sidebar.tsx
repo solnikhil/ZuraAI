@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
@@ -301,11 +302,12 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
 
                     {/* PDFs Tab Content - Starred PDFs */}
                     {pdfSidebarTab === 'pdfs' && (
-                        <div style={{
-                            flex: 1,
-                            overflowY: 'auto',
-                            padding: '8px',
-                        }}>
+                        <ScrollArea
+                            style={{
+                                flex: 1,
+                            }}
+                            viewportStyle={{ padding: '8px' }}
+                        >
                             {/* New PDF Button */}
                             <button
                                 onClick={() => {
@@ -414,21 +416,25 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                     ))}
                                 </div>
                             )}
-                        </div>
+                        </ScrollArea>
                     )}
                 </div>
             )}
 
             {/* Chat History List */}
-            <div style={{
-                flex: view === 'pdf' ? 0 : 1,
-                overflowY: 'auto',
-                padding: view === 'pdf' ? '0' : '4px 8px 0',
-                display: view === 'pdf' ? 'none' : 'flex',
-                flexDirection: 'column',
-                gap: '1px',
-                minWidth: 0
-            }}>
+            <ScrollArea
+                style={{
+                    flex: view === 'pdf' ? 0 : 1,
+                    display: view === 'pdf' ? 'none' : 'flex',
+                    minWidth: 0
+                }}
+                viewportStyle={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1px',
+                    padding: view === 'pdf' ? '0' : '4px 8px 0'
+                }}
+            >
 
                 {!isCollapsed && filteredSessions.length > 0 && view !== 'pdf' && (
                     <div
@@ -531,7 +537,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         </div>
                     ))}
                 </div>
-            </div>
+            </ScrollArea>
 
             {/* Footer - Settings Button or Back to LLM Chat */}
             <div style={{

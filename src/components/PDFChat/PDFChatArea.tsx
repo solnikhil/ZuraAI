@@ -8,6 +8,8 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { createPortal } from 'react-dom';
 import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings, MoreVertical } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
@@ -2304,13 +2306,12 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
       background: 'var(--theme-background)'
     }}>
       {/* Messages container */}
-      <div
-        ref={messagesContainerRef}
+      <ScrollArea
         style={{
           flex: 1,
-          overflowY: 'auto',
-          padding: '16px'
         }}
+        viewportStyle={{ padding: '16px' }}
+        viewportRef={messagesContainerRef}
       >
         {/* Embedding fallback warning - Requirement 18.2 */}
         {embeddingFallbackState?.isActive && (
@@ -2409,24 +2410,20 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
               }}>
                 Indexing {indexingState.documentName}...
               </div>
-              <div style={{
-                fontSize: '0.75rem',
-                color: 'var(--theme-text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}>
-                <div style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
-                  <div style={{
-                    width: `${indexingState.progress}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #60a5fa, #3b82f6)',
-                    borderRadius: '2px',
-                    transition: 'width 0.3s ease',
-                  }} />
+                <div style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--theme-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  <Progress
+                    value={indexingState.progress}
+                    className="h-1 flex-1 bg-white/10"
+                    indicatorClassName="bg-gradient-to-r from-blue-400 to-blue-600"
+                  />
+                  <span>{indexingState.progress}%</span>
                 </div>
-                <span>{indexingState.progress}%</span>
-              </div>
             </div>
           </div>
         )}
@@ -2656,7 +2653,7 @@ Provide a concise summary (2-4 sentences) of the key points in this section. Foc
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </ScrollArea>
 
 
       {/* Input area */}

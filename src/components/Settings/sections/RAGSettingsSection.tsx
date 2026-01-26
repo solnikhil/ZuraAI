@@ -8,6 +8,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { FileText, Cpu, Search, AlertCircle, RefreshCw, Info, Settings2, Trash2, ChevronDown, ChevronRight, AlertTriangle, Download, CheckCircle, XCircle, Loader } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 import { 
   PDFRAGSettings, 
   DEFAULT_PDF_RAG_SETTINGS,
@@ -309,11 +315,11 @@ function ToggleInput({
   onChange 
 }: ToggleInputProps): React.ReactElement {
   return (
-    <div style={{ 
-      display: 'flex', 
-      alignItems: 'flex-start', 
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-start',
       justifyContent: 'space-between',
-      marginBottom: 16 
+      marginBottom: 16
     }}>
       <div style={{ flex: 1, marginRight: 16 }}>
         <label className="label-small" style={{ display: 'block', marginBottom: 4 }}>
@@ -325,14 +331,11 @@ function ToggleInput({
           </div>
         )}
       </div>
-      <label className="toggle-switch">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={e => onChange(e.target.checked)}
-        />
-        <span className="toggle-slider"></span>
-      </label>
+      <Switch
+        checked={checked}
+        onCheckedChange={(value) => onChange(value)}
+        aria-label={label}
+      />
     </div>
   )
 }
@@ -530,23 +533,22 @@ function ModelCacheStatusDisplay({
         justifyContent: 'space-between',
         marginBottom: downloading ? 12 : 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <StatusIcon size={16} style={{ color: statusColor }} />
-          <span style={{ fontSize: '0.85rem', fontWeight: 500, color: statusColor }}>
-            {isAvailable ? 'Model Available' : 'Model Unavailable'}
-          </span>
-          {status.isCached && status.cacheSizeBytes && (
-            <span style={{
-              fontSize: '0.7rem',
-              padding: '2px 6px',
-              background: 'rgba(59, 130, 246, 0.2)',
-              color: '#3b82f6',
-              borderRadius: 4,
-            }}>
-              Cached: {formatSize(status.cacheSizeBytes)}
-            </span>
-          )}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Badge
+          variant="outline"
+          className={isAvailable
+            ? 'bg-green-500/15 text-green-500 border-green-500/30'
+            : 'bg-red-500/15 text-red-500 border-red-500/30'}
+        >
+          <StatusIcon size={14} style={{ color: statusColor }} />
+          {isAvailable ? 'Model Available' : 'Model Unavailable'}
+        </Badge>
+        {status.isCached && status.cacheSizeBytes && (
+          <Badge variant="outline" className="bg-blue-500/15 text-blue-400 border-blue-500/30">
+            Cached: {formatSize(status.cacheSizeBytes)}
+          </Badge>
+        )}
+      </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {/* Refresh button */}
@@ -608,20 +610,11 @@ function ModelCacheStatusDisplay({
             <span>{downloadStatus || 'Downloading...'}</span>
             <span>{downloadProgress}%</span>
           </div>
-          <div style={{
-            height: 4,
-            background: 'rgba(255,255,255,0.1)',
-            borderRadius: 2,
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              height: '100%',
-              width: `${downloadProgress}%`,
-              background: '#3b82f6',
-              borderRadius: 2,
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
+          <Progress
+            value={downloadProgress}
+            className="h-1 bg-white/10"
+            indicatorClassName="bg-blue-500"
+          />
         </div>
       )}
 
@@ -638,25 +631,16 @@ function ModelCacheStatusDisplay({
 
       {/* API Key Status (for API-based models) */}
       {status.requiresApiKey && (
-        <div style={{
-          marginTop: 8,
-          fontSize: '0.75rem',
-          color: status.hasApiKey ? '#22c55e' : '#fbbf24',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-        }}>
-          {status.hasApiKey ? (
-            <>
-              <CheckCircle size={12} />
-              API key configured
-            </>
-          ) : (
-            <>
-              <AlertTriangle size={12} />
-              API key required - configure in API Keys settings
-            </>
-          )}
+        <div style={{ marginTop: 8 }}>
+          <Badge
+            variant="outline"
+            className={status.hasApiKey
+              ? 'bg-green-500/15 text-green-500 border-green-500/30'
+              : 'bg-amber-500/15 text-amber-500 border-amber-500/30'}
+          >
+            {status.hasApiKey ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
+            {status.hasApiKey ? 'API key configured' : 'API key required - configure in API Keys settings'}
+          </Badge>
         </div>
       )}
     </div>
@@ -814,14 +798,15 @@ function ModelChangeWarning({
       </div>
 
       {/* Document list */}
-      <div style={{
-        background: 'rgba(0,0,0,0.2)',
-        borderRadius: 6,
-        padding: '8px 0',
-        marginBottom: 12,
-        maxHeight: 200,
-        overflowY: 'auto',
-      }}>
+      <ScrollArea
+        style={{
+          background: 'rgba(0,0,0,0.2)',
+          borderRadius: 6,
+          padding: '8px 0',
+          marginBottom: 12,
+          maxHeight: 200,
+        }}
+      >
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -862,7 +847,7 @@ function ModelChangeWarning({
             </button>
           </div>
         </div>
-        
+
         {documentsNeedingReindex.map(doc => (
           <div
             key={doc.id}
@@ -883,20 +868,19 @@ function ModelChangeWarning({
               e.currentTarget.style.background = 'transparent'
             }}
           >
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selectedDocIds.has(doc.id)}
-              onChange={() => toggleDocument(doc.id)}
+              onCheckedChange={() => toggleDocument(doc.id)}
               disabled={reindexing}
-              style={{ cursor: reindexing ? 'default' : 'pointer' }}
+              onClick={(event) => event.stopPropagation()}
             />
             <FileText size={14} style={{ color: 'var(--theme-text-muted)' }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ 
-                fontSize: '0.85rem', 
-                whiteSpace: 'nowrap', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis' 
+              <div style={{
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}>
                 {doc.fileName}
               </div>
@@ -905,29 +889,24 @@ function ModelChangeWarning({
               </div>
             </div>
             {reindexProgress[doc.id] && (
-              <span style={{
-                fontSize: '0.7rem',
-                padding: '2px 6px',
-                borderRadius: 4,
-                background: reindexProgress[doc.id] === 'complete' 
-                  ? 'rgba(34, 197, 94, 0.2)' 
-                  : reindexProgress[doc.id] === 'error'
-                    ? 'rgba(239, 68, 68, 0.2)'
-                    : 'rgba(59, 130, 246, 0.2)',
-                color: reindexProgress[doc.id] === 'complete'
-                  ? '#22c55e'
-                  : reindexProgress[doc.id] === 'error'
-                    ? '#ef4444'
-                    : '#3b82f6',
-              }}>
-                {reindexProgress[doc.id] === 'complete' ? '✓ Done' : 
-                 reindexProgress[doc.id] === 'error' ? '✗ Error' : 
-                 'Re-indexing...'}
-              </span>
+              <Badge
+                variant="outline"
+                className={
+                  reindexProgress[doc.id] === 'complete'
+                    ? 'bg-green-500/15 text-green-500 border-green-500/30'
+                    : reindexProgress[doc.id] === 'error'
+                      ? 'bg-red-500/15 text-red-500 border-red-500/30'
+                      : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+                }
+              >
+                {reindexProgress[doc.id] === 'complete' ? 'Done' :
+                  reindexProgress[doc.id] === 'error' ? 'Error' :
+                    'Re-indexing...'}
+              </Badge>
             )}
           </div>
         ))}
-      </div>
+      </ScrollArea>
 
       {/* Action buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -1057,7 +1036,7 @@ function IndexedDocumentsModelInfo({ currentModelId }: IndexedDocumentsModelInfo
 
   if (loading) {
     return (
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <Cpu size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Indexed Documents
@@ -1065,13 +1044,13 @@ function IndexedDocumentsModelInfo({ currentModelId }: IndexedDocumentsModelInfo
         <div style={{ padding: 20, textAlign: 'center', color: 'var(--theme-text-muted)' }}>
           Loading indexed documents...
         </div>
-      </div>
+      </Card>
     )
   }
 
   if (indexedDocuments.length === 0) {
     return (
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <Cpu size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Indexed Documents
@@ -1089,26 +1068,23 @@ function IndexedDocumentsModelInfo({ currentModelId }: IndexedDocumentsModelInfo
             Load and index a PDF to see embedding model information.
           </div>
         </div>
-      </div>
+      </Card>
     )
   }
 
   return (
-    <div className="settings-section-card" style={{ marginTop: 24 }}>
+    <Card className="settings-section-card" style={{ marginTop: 24 }}>
       <h3 className="section-head">
         <Cpu size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
         Indexed Documents
         {docsNeedingReindex.length > 0 && (
-          <span style={{
-            marginLeft: 8,
-            fontSize: '0.75rem',
-            padding: '2px 8px',
-            background: 'rgba(251, 191, 36, 0.2)',
-            color: '#fbbf24',
-            borderRadius: 10,
-          }}>
+          <Badge
+            variant="outline"
+            className="bg-amber-500/15 text-amber-500 border-amber-500/30"
+            style={{ marginLeft: 8 }}
+          >
             {docsNeedingReindex.length} need re-indexing
-          </span>
+          </Badge>
         )}
       </h3>
       <div className="section-desc" style={{ marginBottom: 16 }}>
@@ -1230,20 +1206,14 @@ function IndexedDocumentsModelInfo({ currentModelId }: IndexedDocumentsModelInfo
             )}
             
             {!doc.needsReindex && (
-              <span style={{
-                fontSize: '0.7rem',
-                padding: '2px 8px',
-                background: 'rgba(34, 197, 94, 0.2)',
-                color: '#22c55e',
-                borderRadius: 4,
-              }}>
-                ✓ Current Model
-              </span>
+              <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
+                Current Model
+              </Badge>
             )}
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -1355,7 +1325,7 @@ function PerDocumentSettingsSection({ globalSettings }: PerDocumentSettingsSecti
 
   if (loading) {
     return (
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <Settings2 size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Per-Document Settings
@@ -1363,12 +1333,12 @@ function PerDocumentSettingsSection({ globalSettings }: PerDocumentSettingsSecti
         <div style={{ padding: 20, textAlign: 'center', color: 'var(--theme-text-muted)' }}>
           Loading document settings...
         </div>
-      </div>
+      </Card>
     )
   }
 
   return (
-    <div className="settings-section-card" style={{ marginTop: 24 }}>
+    <Card className="settings-section-card" style={{ marginTop: 24 }}>
       <h3 className="section-head">
         <Settings2 size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
         Per-Document Settings
@@ -1448,7 +1418,7 @@ function PerDocumentSettingsSection({ globalSettings }: PerDocumentSettingsSecti
           </div>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -1525,15 +1495,9 @@ function DocumentSettingsCard({
           <FileText size={16} style={{ color: 'var(--theme-accent)' }} />
           <span style={{ fontWeight: 500 }}>{settings.documentName}</span>
           {settings.enabled && (
-            <span style={{
-              fontSize: '0.7rem',
-              padding: '2px 6px',
-              background: 'rgba(34, 197, 94, 0.2)',
-              color: '#22c55e',
-              borderRadius: 4,
-            }}>
+            <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">
               Custom
-            </span>
+            </Badge>
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1964,7 +1928,7 @@ export function RAGSettingsSection({
       )}
 
       {/* Chunking Settings - Requirement 16.1 */}
-      <div className="settings-section-card">
+      <Card className="settings-section-card">
         <h3 className="section-head">
           <FileText size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Document Chunking
@@ -2001,10 +1965,10 @@ export function RAGSettingsSection({
           options={CHUNKING_STRATEGY_OPTIONS}
           onChange={v => updateSetting('chunkingStrategy', v as PDFRAGSettings['chunkingStrategy'])}
         />
-      </div>
+      </Card>
 
       {/* Embedding Settings - Requirement 16.2 */}
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <Cpu size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Embedding Model
@@ -2162,10 +2126,10 @@ export function RAGSettingsSection({
             </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Retrieval Settings - Requirement 16.3 */}
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <Search size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Retrieval Parameters
@@ -2229,10 +2193,10 @@ export function RAGSettingsSection({
           checked={settings.useReranker}
           onChange={v => updateSetting('useReranker', v)}
         />
-      </div>
+      </Card>
 
       {/* Grounding Settings */}
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">
           <AlertCircle size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
           Grounding & Confidence
@@ -2266,7 +2230,7 @@ export function RAGSettingsSection({
             onChange={v => updateSetting('lowConfidenceThreshold', v)}
           />
         )}
-      </div>
+      </Card>
 
       {/* Per-Document Settings - Requirement 16.7 */}
       <PerDocumentSettingsSection globalSettings={settings} />

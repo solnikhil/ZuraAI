@@ -7,6 +7,7 @@
 
 import React, { useRef } from 'react'
 import { X, Image, File, FileText } from '../../icons'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export interface AttachedFile {
   id: string
@@ -106,19 +107,18 @@ function ImagePreviewModal({
       }}
       onClick={onClose}
     >
-      <div
+      <ScrollArea
         style={{
           backgroundColor: 'var(--theme-surface)',
           borderRadius: '12px',
-          padding: '24px',
           width: '90%',
           maxWidth: '800px',
           maxHeight: '90%',
-          overflowY: 'auto',
           boxShadow: 'var(--theme-shadow-lg)',
           position: 'relative',
           color: 'var(--theme-text-secondary)'
         }}
+        viewportStyle={{ padding: '24px' }}
         onClick={e => e.stopPropagation()}
       >
         <button
@@ -223,7 +223,7 @@ function ImagePreviewModal({
             </div>
           ))}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

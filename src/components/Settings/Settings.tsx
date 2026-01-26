@@ -4,6 +4,7 @@
  * Requirements: 2.5, 2.6
  */
 import React, { useState, useEffect, useMemo } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
@@ -203,15 +204,15 @@ export default function Settings({
 
   return (
     <div className="settings-container">
-      <div
+      <ScrollArea
         className="settings-main-col"
         style={{
           padding: '0',
-          overflowY: 'auto',
           height: '100%',
-          paddingBottom: hasChanges ? 80 : 0,
-          maxWidth: '100%'
+          maxWidth: '100%',
+          overflow: 'hidden'
         }}
+        viewportStyle={{ paddingBottom: hasChanges ? 80 : 0 }}
       >
         <div style={{
           width: '100%',
@@ -299,7 +300,7 @@ export default function Settings({
           )}
 
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Unsaved Changes Bar */}
       {hasChanges && (

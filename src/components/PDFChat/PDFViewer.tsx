@@ -287,9 +287,12 @@ export function PDFViewer({
     };
   }, [documentId]);
 
-  const handleDocumentLoadSuccess = useCallback((pdf: PDFDocumentProxy) => {
-    setNumPages(pdf.numPages);
-    pdf
+  type DocumentLoadSuccess = NonNullable<React.ComponentProps<typeof Document>['onLoadSuccess']>;
+
+  const handleDocumentLoadSuccess = useCallback<DocumentLoadSuccess>((pdf) => {
+    const document = pdf as unknown as PDFDocumentProxy;
+    setNumPages(document.numPages);
+    document
       .getPage(1)
       .then((firstPage) => {
         const viewport = firstPage.getViewport({ scale: 1 });
@@ -580,6 +583,7 @@ export function PDFViewer({
         ]
           .filter(Boolean)
           .join(' ')}
+        style={{ '--pdf-scale': visualScale } as React.CSSProperties}
         ref={documentWrapperRef}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -588,7 +592,6 @@ export function PDFViewer({
         <Document
           file={documentSource ?? undefined}
           className="pdf-viewer-document"
-          style={{ transform: `scale(${visualScale})` }}
           onLoadSuccess={handleDocumentLoadSuccess}
           onLoadError={handleDocumentLoadError}
           loading={<div>Loading document...</div>}
@@ -697,7 +700,7 @@ function OffscreenPageCanvas({
 
     const renderToCanvas = async () => {
       if (typeof OffscreenCanvas === 'undefined') {
-        const fallbackContext = canvas.getContext('2d', contextOptions as any);
+        const fallbackContext = canvas.getContext('2d', contextOptions as any) as CanvasRenderingContext2D | null;
         if (!fallbackContext) {
           return;
         }
@@ -719,15 +722,15 @@ function OffscreenPageCanvas({
         Math.floor(renderViewport.width),
         Math.floor(renderViewport.height)
       );
-      const offscreenContext = offscreen.getContext('2d', contextOptions as any);
+      const offscreenContext = offscreen.getContext('2d', contextOptions as any) as OffscreenCanvasRenderingContext2D | null;
       if (!offscreenContext) {
         return;
       }
 
       renderTaskRef.current = page.render({
         annotationMode,
-        canvas: offscreen,
-        canvasContext: offscreenContext,
+        canvas: offscreen as unknown as HTMLCanvasElement,
+        canvasContext: offscreenContext as unknown as CanvasRenderingContext2D,
         viewport: renderViewport,
         background: backgroundColor,
       });
@@ -739,7 +742,7 @@ function OffscreenPageCanvas({
       if (bitmapContext) {
         bitmapContext.transferFromImageBitmap(bitmap);
       } else {
-        const fallbackContext = canvas.getContext('2d', contextOptions as any);
+        const fallbackContext = canvas.getContext('2d', contextOptions as any) as CanvasRenderingContext2D | null;
         fallbackContext?.drawImage(bitmap, 0, 0);
       }
       bitmap.close?.();

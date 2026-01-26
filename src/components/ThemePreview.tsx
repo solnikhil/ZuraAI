@@ -1,4 +1,6 @@
 import React from 'react'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { Theme } from '../themes/themeDefinitions'
 import { getThemeCssVariables } from '../themes/themeUtils'
 import './ThemePreview.css'
@@ -155,10 +157,10 @@ export default function ThemePreview({ theme }: ThemePreviewProps) {
             <section className="preview-section">
                 <h4>Badges & Tags</h4>
                 <div className="preview-row">
-                    <span className="preview-badge">Default</span>
-                    <span className="preview-badge preview-badge-success">Success</span>
-                    <span className="preview-badge preview-badge-warning">Warning</span>
-                    <span className="preview-badge preview-badge-error">Error</span>
+                    <Badge>Default</Badge>
+                    <Badge variant="outline" className="bg-green-500/15 text-green-500 border-green-500/30">Success</Badge>
+                    <Badge variant="outline" className="bg-amber-500/15 text-amber-500 border-amber-500/30">Warning</Badge>
+                    <Badge variant="outline" className="bg-red-500/15 text-red-500 border-red-500/30">Error</Badge>
                 </div>
             </section>
 
@@ -166,12 +168,8 @@ export default function ThemePreview({ theme }: ThemePreviewProps) {
             <section className="preview-section">
                 <h4>Progress</h4>
                 <div className="preview-row preview-column">
-                    <div className="preview-progress">
-                        <div className="preview-progress-bar" style={{ width: '60%' }}></div>
-                    </div>
-                    <div className="preview-progress preview-progress-indeterminate">
-                        <div className="preview-progress-bar"></div>
-                    </div>
+                    <Progress value={60} className="h-2" />
+                    <Progress value={35} className="h-2" indicatorClassName="animate-pulse" />
                 </div>
             </section>
 

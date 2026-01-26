@@ -23,7 +23,7 @@ export interface DropdownPosition {
  */
 export interface UseDropdownPositionOptions {
   /** Reference to the trigger element */
-  triggerRef: RefObject<HTMLElement>
+  triggerRef: RefObject<HTMLElement | null>
   /** Whether the dropdown is currently open */
   isOpen: boolean
   /** Preferred width of the dropdown (default: 400) */

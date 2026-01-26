@@ -1,5 +1,9 @@
 {
     "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"]
+        },
         "target": "ES2022",
         "useDefineForClassFields": true,
         "lib": [
@@ -29,5 +33,12 @@
         "src",
         "electron",
         "vite.config.ts"
+    ],
+    "exclude": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.property.test.ts"
     ]
 }

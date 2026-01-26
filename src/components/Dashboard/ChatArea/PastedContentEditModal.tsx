@@ -1,10 +1,20 @@
 /**
  * PastedContentEditModal - Modal overlay for editing pasted content
  * Full-screen overlay with textarea for editing long pasted text
+ * Now using shadcn Dialog
  */
 
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Check, Trash2 } from '../../icons'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 export interface PastedContentEditModalProps {
   content: string
@@ -22,7 +32,7 @@ export function PastedContentEditModal({
   const [editedContent, setEditedContent] = useState(content)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Focus textarea on mount - use requestAnimationFrame to avoid blocking
+  // Focus textarea on mount
   useEffect(() => {
     requestAnimationFrame(() => {
       if (textareaRef.current) {
@@ -47,195 +57,62 @@ export function PastedContentEditModal({
       e.preventDefault()
       handleSave()
     }
-    // Escape to cancel
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-    }
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.85)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-        padding: '20px',
-        willChange: 'transform'
-      }}
-      onClick={onCancel}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
-          borderRadius: '16px',
-          width: '95%',
-          maxWidth: '1000px',
-          height: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-          willChange: 'transform, opacity'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 24px',
-          borderBottom: '1px solid var(--theme-border)'
-        }}>
-          <div>
-            <h2 style={{
-              margin: 0,
-              fontSize: '1.25rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)'
-            }}>
-              Edit Pasted Content
-            </h2>
-            <div style={{
-              fontSize: '0.85rem',
-              color: 'var(--theme-text-secondary)',
-              marginTop: '4px'
-            }}>
-              {formatCharCount(editedContent.length)} chars • Ctrl+Enter to save
+    <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-[1000px] h-[85vh] flex flex-col bg-card border-border p-0">
+        <DialogHeader className="px-6 py-5 border-b border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="text-lg font-semibold">Edit Pasted Content</DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatCharCount(editedContent.length)} chars • Ctrl+Enter to save
+              </p>
             </div>
           </div>
-          <button
-            onClick={onCancel}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--theme-text-secondary)',
-              cursor: 'pointer',
-              padding: '6px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            title="Close (Esc)"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        </DialogHeader>
 
-        {/* Textarea */}
-        <div style={{
-          flex: 1,
-          padding: '20px 24px',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          <textarea
+        <div className="flex-1 p-6 overflow-hidden flex flex-col">
+          <Textarea
             ref={textareaRef}
             value={editedContent}
             onChange={(e) => setEditedContent(e.target.value)}
             onKeyDown={handleKeyDown}
-            style={{
-              width: '100%',
-              height: '100%',
-              backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid var(--theme-border)',
-              borderRadius: '10px',
-              padding: '16px',
-              color: 'var(--theme-text-primary)',
-              fontSize: '1rem',
-              fontFamily: 'inherit',
-              lineHeight: '1.7',
-              resize: 'none',
-              outline: 'none'
-            }}
+            className="w-full h-full bg-secondary/50 border-border resize-none text-base leading-7"
             placeholder="Enter your content..."
           />
         </div>
 
-        {/* Footer */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px 24px',
-          borderTop: '1px solid var(--theme-border)',
-          gap: '16px'
-        }}>
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              style={{
-                background: 'rgba(248, 113, 113, 0.1)',
-                border: '1px solid rgba(248, 113, 113, 0.2)',
-                borderRadius: '10px',
-                padding: '10px 18px',
-                color: '#f87171',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </button>
-          )}
+        <DialogFooter className="px-6 py-5 border-t border-border flex items-center justify-between">
+          <div>
+            {onDelete && (
+              <Button
+                variant="outline"
+                onClick={onDelete}
+                className="text-red-400 border-red-400/20 bg-red-400/10 hover:bg-red-400/20"
+              >
+                <Trash2 size={16} className="mr-2" />
+                Delete
+              </Button>
+            )}
+          </div>
 
-          <div style={{ flex: 1 }} />
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={onCancel}
-              style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '10px',
-                padding: '10px 20px',
-                color: 'var(--theme-text-secondary)',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                fontWeight: 500
-              }}
-            >
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={!editedContent.trim()}
-              style={{
-                background: editedContent.trim() ? 'var(--theme-accent)' : 'rgba(255, 255, 255, 0.03)',
-                border: editedContent.trim() ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '10px',
-                padding: '10px 20px',
-                color: editedContent.trim() ? '#000' : 'var(--theme-text-secondary)',
-                cursor: editedContent.trim() ? 'pointer' : 'default',
-                fontSize: '0.95rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                opacity: editedContent.trim() ? 1 : 0.5
-              }}
             >
-              <Check size={16} />
+              <Check size={16} className="mr-2" />
               Save
-            </button>
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

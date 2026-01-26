@@ -60,8 +60,8 @@ export function ModelIcon({
       background: size === 24 ? `linear-gradient(145deg, ${color}22, transparent)` : 'transparent',
       color: color
     }}>
-      {React.isValidElement(icon) 
-        ? React.cloneElement(icon as React.ReactElement, { size: size === 24 ? 20 : 14 })
+      {React.isValidElement(icon)
+        ? React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: size === 24 ? 20 : 14 })
         : <MessageSquare size={size === 24 ? 20 : 14} />
       }
     </div>

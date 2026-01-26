@@ -10,6 +10,7 @@ import ReactDOM from 'react-dom'
 import { Search, Star, Sparkles, Zap, Globe, Database, Cloud } from 'lucide-react'
 import { ModelList } from './ModelList'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 /**
  * Provider configuration for sidebar
@@ -28,9 +29,9 @@ const PROVIDERS = [
  */
 export interface ModelSelectorDropdownProps {
   /** Reference for the portal container */
-  portalRef: React.RefObject<HTMLDivElement>
+  portalRef: React.RefObject<HTMLDivElement | null>
   /** Reference for the search input */
-  searchInputRef: React.RefObject<HTMLInputElement>
+  searchInputRef: React.RefObject<HTMLInputElement | null>
   /** Dropdown position */
   dropdownPos: { top: number; left: number; showAbove: boolean }
   /** Current search query */
@@ -153,14 +154,13 @@ export function ModelSelectorDropdown({
         />
 
         {/* Right Side: Model List */}
-        <div 
+        <ScrollArea
           className="custom-scrollbar"
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto',
-            paddingLeft: '12px',
+          style={{
+            flex: 1,
             position: 'relative'
           }}
+          viewportStyle={{ paddingLeft: '12px' }}
         >
           {/* Right fade gradient */}
           <div style={{
@@ -189,7 +189,7 @@ export function ModelSelectorDropdown({
             onModelSelect={onModelSelect}
             onToggleFavorite={onToggleFavorite}
           />
-        </div>
+        </ScrollArea>
       </div>
     </div>,
     document.body
@@ -343,7 +343,7 @@ function ProviderSidebar({
                 }} 
               />
             ) : (
-              React.cloneElement(provider.icon as React.ReactElement, { size: 16 })
+              React.cloneElement(provider.icon as React.ReactElement<{ size?: number }>, { size: 16 })
             )}
           </button>
         ))}
@@ -404,7 +404,7 @@ function ModelListHeader({
                 }} 
               />
             ) : (
-              React.cloneElement(provider.icon as React.ReactElement, { size: 12 })
+              React.cloneElement(provider.icon as React.ReactElement<{ size?: number }>, { size: 12 })
             )}
             {provider.title}
           </>

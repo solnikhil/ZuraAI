@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChevronDown, ChevronRight, FileText, ExternalLink, File } from '../icons';
 import type { RetrievalResult } from '../../types/pdf';
 import type { SourcesPanelProps } from './types';
@@ -202,19 +203,20 @@ function SourceItem({ source, index, onClick, showDocumentName = false }: Source
           padding: '0 12px 12px 12px',
           borderTop: '1px solid rgba(255, 255, 255, 0.05)'
         }}>
-          <div style={{
-            marginTop: '10px',
-            padding: '10px',
-            backgroundColor: 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '6px',
-            fontSize: '0.8rem',
-            color: 'var(--theme-text-secondary)',
-            lineHeight: '1.6',
-            maxHeight: '150px',
-            overflowY: 'auto'
-          }}>
+          <ScrollArea
+            style={{
+              marginTop: '10px',
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              color: 'var(--theme-text-secondary)',
+              lineHeight: '1.6',
+              maxHeight: '150px'
+            }}
+            viewportStyle={{ padding: '10px' }}
+          >
             {chunk.content}
-          </div>
+          </ScrollArea>
 
           {/* Score breakdown */}
           {(source.vectorScore !== undefined || source.bm25Score !== undefined) && (

@@ -35,9 +35,9 @@ export interface UseModelSelectorReturn {
   state: ModelSelectorState
   
   // Refs
-  dropdownRef: React.RefObject<HTMLDivElement>
-  portalRef: React.RefObject<HTMLDivElement>
-  searchInputRef: React.RefObject<HTMLInputElement>
+  dropdownRef: React.RefObject<HTMLDivElement | null>
+  portalRef: React.RefObject<HTMLDivElement | null>
+  searchInputRef: React.RefObject<HTMLInputElement | null>
   
   // Computed values
   allModels: ModelWithProvider[]

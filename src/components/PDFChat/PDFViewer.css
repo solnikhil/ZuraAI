@@ -134,6 +134,7 @@
 .pdf-viewer-document-wrapper > .react-pdf__Document {
   margin: 0 auto;
   width: fit-content;
+  transform: scale(var(--pdf-scale, 1));
   transform-origin: center top;
 }
 

@@ -7,6 +7,8 @@
  */
 
 import React, { useState, useMemo } from 'react'
+import { Card } from '@/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChevronDown, Edit2, Trash2, Plus, Type } from 'lucide-react'
 import { getModelAttributes } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
@@ -195,7 +197,7 @@ export function ModelSection({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color }}>
-            {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+            {React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: 18 })}
           </div>
 
           {isEditing ? (
@@ -339,7 +341,7 @@ export function ModelSection({
     const isCollapsed = collapsedGroups[providerKey]
 
     return (
-      <div
+      <Card
         className="settings-section-card"
         style={{
           background: 'var(--theme-surface)',
@@ -476,7 +478,7 @@ export function ModelSection({
             </button>
           </div>
         )}
-      </div>
+      </Card>
     )
   }
 
@@ -489,7 +491,7 @@ export function ModelSection({
 
       <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Title Generation Model Selector */}
-        <div
+        <Card
           className="settings-section-card"
           style={{
             background: 'var(--theme-surface)',
@@ -557,7 +559,7 @@ export function ModelSection({
 
             {/* Dropdown Menu */}
             {titleModelDropdownOpen && (
-              <div
+              <ScrollArea
                 style={{
                   position: 'absolute',
                   top: '100%',
@@ -569,8 +571,7 @@ export function ModelSection({
                   borderRadius: 8,
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                   zIndex: 100,
-                  maxHeight: '300px',
-                  overflowY: 'auto'
+                  maxHeight: '300px'
                 }}
               >
                 {allModelsByProvider.map(group => (
@@ -635,10 +636,10 @@ export function ModelSection({
                     ))}
                   </div>
                 ))}
-              </div>
+              </ScrollArea>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* OpenRouter Models (editable) */}
         {renderProviderGroup('OpenRouter', 'openrouter', configuredModels, true)}

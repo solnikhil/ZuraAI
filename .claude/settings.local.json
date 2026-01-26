@@ -31,7 +31,10 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(npx eslint:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx shadcn@latest add:*)"
     ]
   }
 }

@@ -19,6 +19,5 @@ export {
   ToastProvider,
   ToastContext,
   useToast,
-  type Toast,
   type ToastType
 } from './Toast'

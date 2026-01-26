@@ -13,6 +13,15 @@ import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
 import { PastedContentChunk } from './PastedContentChunk'
 import type { PastedContentChunk as PastedContentChunkType } from './types'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export interface InputAreaProps {
   input: string
@@ -713,19 +722,18 @@ export function InputArea({
           }}
           onClick={() => setShowImageModal(false)}
         >
-          <div
+          <ScrollArea
             style={{
               backgroundColor: 'var(--theme-surface)',
               borderRadius: '12px',
-              padding: '24px',
               width: '90%',
               maxWidth: '800px',
               maxHeight: '90%',
-              overflowY: 'auto',
               boxShadow: 'var(--theme-shadow-lg)',
               position: 'relative',
               color: 'var(--theme-text-secondary)'
             }}
+            viewportStyle={{ padding: '24px' }}
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -825,7 +833,7 @@ export function InputArea({
                 </div>
               ))}
             </div>
-          </div>
+          </ScrollArea>
         </div>
       )}
     </>

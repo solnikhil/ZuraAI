@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Progress } from '@/components/ui/progress';
 import type { IndexingState, IndexingLogEntry, IndexingPromptState } from './types';
 import type { ModelCacheStatus, AllModelsStatus } from '../../types/pdf';
 
@@ -663,21 +664,11 @@ export function IndexingPromptMessage({
                         gap: '12px',
                         marginBottom: '12px',
                     }}>
-                        <div style={{
-                            flex: 1,
-                            height: '6px',
-                            background: 'rgba(255, 255, 255, 0.1)',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                        }}>
-                            <div style={{
-                                width: `${indexingState?.progress || 0}%`,
-                                height: '100%',
-                                background: 'linear-gradient(90deg, #60a5fa, #3b82f6)',
-                                borderRadius: '3px',
-                                transition: 'width 0.3s ease',
-                            }} />
-                        </div>
+                        <Progress
+                            value={indexingState?.progress || 0}
+                            className="h-1.5 flex-1 bg-white/10"
+                            indicatorClassName="bg-gradient-to-r from-blue-400 to-blue-600"
+                        />
                         <span style={{
                             fontSize: '0.85rem',
                             color: 'var(--theme-text-muted)',

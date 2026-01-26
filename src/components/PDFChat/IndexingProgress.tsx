@@ -10,6 +10,7 @@
  */
 
 import React from 'react';
+import { Progress } from '@/components/ui/progress';
 
 export interface IndexingProgressProps {
   /** Document ID being indexed */
@@ -166,24 +167,11 @@ export function IndexingProgress({
       </div>
 
       {/* Progress bar */}
-      <div style={{
-        width: '100%',
-        height: '4px',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderRadius: '2px',
-        overflow: 'hidden',
-        marginBottom: '8px',
-      }}>
-        <div
-          style={{
-            width: `${error ? 100 : progress}%`,
-            height: '100%',
-            backgroundColor: progressColor,
-            borderRadius: '2px',
-            transition: 'width 0.3s ease-out',
-          }}
-        />
-      </div>
+      <Progress
+        value={error ? 100 : progress}
+        className="h-1 bg-white/10 mb-2"
+        indicatorStyle={{ backgroundColor: progressColor }}
+      />
 
       {/* Status message and percentage */}
       <div style={{

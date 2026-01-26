@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useToast } from '../shared/Toast'
@@ -191,18 +192,20 @@ export default function ChatArea() {
   // Empty state (no session selected)
   if (!currentSessionId || messages.length === 0) {
     return (
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        minHeight: 0,
-        background: 'var(--theme-background)',
-        padding: '20px',
-        overflow: 'auto'
-      }}>
+      <ScrollArea
+        className="flex-1"
+        style={{ minHeight: 0 }}
+        viewportStyle={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          minHeight: 0,
+          background: 'var(--theme-background)',
+          padding: '20px'
+        }}
+      >
         <div style={{
           display: 'flex',
           flexDirection: 'column',
@@ -258,7 +261,7 @@ export default function ChatArea() {
             onDelete={() => handleChunkDelete(editingChunk.id)}
           />
         )}
-      </div>
+      </ScrollArea>
     )
   }
 
@@ -274,7 +277,12 @@ export default function ChatArea() {
       position: 'relative'
     }}>
       {/* Messages Container */}
-      <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', minHeight: 0 }}>
+      <ScrollArea
+        className="flex-1"
+        style={{ minHeight: 0 }}
+        viewportRef={messagesContainerRef}
+        viewportStyle={{ padding: '16px 20px', minHeight: 0 }}
+      >
         <div style={{ width: '100%', maxWidth: 'min(810px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
           {messages.map((msg, idx) => (
             <div key={msg.id} data-message-id={msg.id}>
@@ -332,7 +340,7 @@ export default function ChatArea() {
 
           <div ref={messagesEndRef} />
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Input Area */}
       <div style={{ width: '100%', maxWidth: 'min(850px, 100%)', margin: '0 auto', padding: '0 20px 20px 20px', flexShrink: 0 }}>

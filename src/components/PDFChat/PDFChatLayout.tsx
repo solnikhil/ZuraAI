@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { PDFViewer } from './PDFViewer';
 import { PDFChatArea } from './PDFChatArea';
 import { DocumentTabs, type DocumentTabInfo } from './DocumentTabs';
@@ -1320,18 +1321,17 @@ function IndexingConfirmationModal({
         zIndex: 1000,
       }}
     >
-      <div
+      <ScrollArea
         style={{
           backgroundColor: 'var(--theme-surface, #1e1e1e)',
           borderRadius: '16px',
           border: '1px solid var(--theme-border, rgba(255, 255, 255, 0.1))',
-          padding: '24px',
           maxWidth: '480px',
           width: '90%',
           maxHeight: '85vh',
-          overflowY: 'auto',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
         }}
+        viewportStyle={{ padding: '24px' }}
       >
         {/* Icon */}
         <div style={{
@@ -1724,7 +1724,7 @@ function IndexingConfirmationModal({
             to { transform: rotate(360deg); }
           }
         `}</style>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   Wrench, X, File, FileText, RotateCcw, Sparkles, Edit2, Zap, Database,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
@@ -120,17 +121,19 @@ function ToolDetailsModal({ toolResults, onClose }: {
       zIndex: 10000,
       padding: '20px'
     }} onClick={onClose}>
-      <div style={{
-        backgroundColor: 'var(--theme-surface)',
-        borderRadius: '12px',
-        padding: '24px',
-        maxWidth: '800px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        border: '1px solid var(--theme-border)',
-        boxShadow: 'var(--theme-shadow-lg)'
-      }} onClick={(e) => e.stopPropagation()}>
+      <ScrollArea
+        style={{
+          backgroundColor: 'var(--theme-surface)',
+          borderRadius: '12px',
+          maxWidth: '800px',
+          width: '100%',
+          maxHeight: '90vh',
+          border: '1px solid var(--theme-border)',
+          boxShadow: 'var(--theme-shadow-lg)'
+        }}
+        viewportStyle={{ padding: '24px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -207,19 +210,23 @@ function ToolDetailsModal({ toolResults, onClose }: {
                   <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
                     Result:
                   </div>
-                  <pre style={{
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    color: '#4ade80',
-                    overflowX: 'auto',
-                    margin: 0,
-                    maxHeight: '300px',
-                    overflowY: 'auto'
-                  }}>
-                    {JSON.stringify(result.result.data, null, 2)}
-                  </pre>
+                  <ScrollArea
+                    style={{
+                      background: 'rgba(34, 197, 94, 0.1)',
+                      borderRadius: '4px',
+                      maxHeight: '300px'
+                    }}
+                    viewportStyle={{ padding: '8px' }}
+                  >
+                    <pre style={{
+                      fontSize: '0.85rem',
+                      color: '#4ade80',
+                      overflowX: 'auto',
+                      margin: 0
+                    }}>
+                      {JSON.stringify(result.result.data, null, 2)}
+                    </pre>
+                  </ScrollArea>
                 </div>
               ) : (
                 <div>
@@ -241,7 +248,7 @@ function ToolDetailsModal({ toolResults, onClose }: {
             </div>
           ))}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }
