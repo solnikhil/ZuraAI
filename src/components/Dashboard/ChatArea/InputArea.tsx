@@ -172,6 +172,7 @@ export function InputArea({
   }
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0 || pastedChunks.length > 0)
+  const showAttachmentBanner = attachedFiles.length > 0
 
   return (
     <TooltipProvider>
@@ -251,17 +252,13 @@ export function InputArea({
             initial={false}
             animate={{
               boxShadow: isFocused 
-                ? "0 0 0 1px rgba(255, 255, 255, 0.15)" 
-                : "0 0 0 1px rgba(255, 255, 255, 0.08)"
+                ? "0 0 0 1px rgba(255, 255, 255, 0.16)" 
+                : "0 0 0 1px rgba(255, 255, 255, 0.06)"
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            style={{
-              background: 'color-mix(in srgb, var(--theme-surface) 92%, transparent)',
-              backdropFilter: 'blur(8px) saturate(120%)',
-              WebkitBackdropFilter: 'blur(8px) saturate(120%)'
-            }}
             className={cn(
-              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden",
+              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden bg-white/5 p-1.5",
+              showAttachmentBanner ? "pt-3" : "pt-2",
               isDragging && "ring-2 ring-sky-400"
             )}
             onClick={handleContainerClick}
@@ -271,16 +268,35 @@ export function InputArea({
               }
             }}
           >
+            <AnimatePresence initial={false}>
+              {showAttachmentBanner && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="mx-2 mb-2.5 flex items-center gap-2 text-xs"
+                >
+                  <div className="flex flex-1 items-center gap-2">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-semibold text-white/80">
+                      AA
+                    </span>
+                    <span className="text-white/90 tracking-tighter">is free this weekend!</span>
+                  </div>
+                  <span className="text-white/70 tracking-tighter">Ship Now!</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="overflow-y-auto max-h-[200px]">
               <Textarea
                 ref={textareaRef}
                 value={input}
-                placeholder={isDragging ? "Drop files here..." : "Ask anything..."}
+                placeholder={isDragging ? "Drop files here..." : "What can I do for you?"}
                 className={cn(
-                  "w-full rounded-2xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
-                  "bg-transparent dark:bg-transparent",
-                  "text-white",
-                  "placeholder:text-white/40",
+                  "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
+                  "bg-transparent",
+                  "text-white/90",
+                  "placeholder:text-white/60",
                   "transition-colors duration-200"
                 )}
                 onFocus={() => setIsFocused(true)}
@@ -296,7 +312,7 @@ export function InputArea({
             </div>
 
             {/* Bottom Controls Bar - same background as container */}
-            <div className="h-12 rounded-b-2xl relative">
+            <div className="h-12 rounded-b-xl relative bg-transparent">
               {/* Left side controls */}
               <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
                 {/* Model Selector */}
@@ -391,7 +407,7 @@ export function InputArea({
                             )}
                           </motion.button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">
+                        <TooltipContent side="top" className="rounded-full">
                           {imageFiles.length} image{imageFiles.length > 1 ? 's' : ''} attached
                         </TooltipContent>
                       </Tooltip>
@@ -413,25 +429,25 @@ export function InputArea({
                 />
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <motion.label
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={cn(
-                        "cursor-pointer rounded-lg p-2 transition-colors duration-150",
-                        attachedFiles.length > 0
-                          ? "bg-white/10 text-sky-400"
-                          : "text-white/40 hover:text-white/70"
-                      )}
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        fileInputRef.current?.click()
-                      }}
+                      <motion.label
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          "cursor-pointer rounded-lg p-2 transition-colors duration-150 bg-white/5 hover:bg-white/10",
+                          attachedFiles.length > 0
+                            ? "text-white/90"
+                            : "text-white/60 hover:text-white/80"
+                        )}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          fileInputRef.current?.click()
+                        }}
                     >
                       <Paperclip className="w-4 h-4" />
                     </motion.label>
                   </TooltipTrigger>
-                  <TooltipContent side="top">
+                  <TooltipContent side="top" className="rounded-full">
                     {attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files'}
                   </TooltipContent>
                 </Tooltip>
@@ -450,12 +466,12 @@ export function InputArea({
                           e.stopPropagation()
                           onStop?.()
                         }}
-                        className="rounded-lg p-2 transition-all duration-150 bg-white/10 text-white hover:bg-red-500/20 hover:text-red-400"
+                        className="rounded-lg p-2 transition-all duration-150 bg-white/5 text-white hover:bg-red-500/20 hover:text-red-400"
                       >
                         <Square className="w-3.5 h-3.5 fill-current" />
                       </motion.button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">
+                    <TooltipContent side="top" className="rounded-full">
                       Stop generating
                     </TooltipContent>
                   </Tooltip>
@@ -476,14 +492,14 @@ export function InputArea({
                         className={cn(
                           "rounded-lg p-2 transition-all duration-150",
                           canSend
-                            ? "bg-white/10 text-white hover:bg-white/15"
-                            : "text-white/30"
+                            ? "bg-white/5 text-white/90 hover:bg-white/10"
+                            : "bg-white/5 text-white/30"
                         )}
                       >
                         <SendHorizonal className="w-4 h-4" />
                       </motion.button>
                     </TooltipTrigger>
-                    <TooltipContent side="top">
+                    <TooltipContent side="top" className="rounded-full">
                       Send message
                     </TooltipContent>
                   </Tooltip>

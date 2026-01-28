@@ -351,7 +351,7 @@ function ModelItem({
               <Info size={14} />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="left" sideOffset={8} className="model-info-tooltip">
+          <TooltipContent side="left" sideOffset={8} className="rounded-full model-info-tooltip">
             <div className="model-info-tooltip__title">Model info</div>
             <div className="model-info-tooltip__name">{removeEmojis(model.displayName)}</div>
             <div className="model-info-tooltip__description">{description}</div>

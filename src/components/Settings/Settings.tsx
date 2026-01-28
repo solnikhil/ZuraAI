@@ -17,7 +17,7 @@ import { CommandBarSection } from './sections/CommandBarSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { RAGSettingsSection } from './sections/RAGSettingsSection'
 
-import { GraphRange, ActivityData } from './ActivityGraph'
+import { ActivityData } from './ActivityGraph'
 import './Settings.css'
 
 interface SettingsProps {
@@ -33,7 +33,6 @@ export default function Settings({
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
   const [pendingSettings, setPendingSettings] = useState(settings)
-  const [graphRange, setGraphRange] = useState<GraphRange>('7d')
 
   useEffect(() => {
   }, [activeSection])
@@ -54,61 +53,31 @@ export default function Settings({
       })
     })
 
-    // Activity data calculation
-    let activityData: ActivityData[] = []
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    // Activity data calculation - 30 days of token usage
+    const activityData: ActivityData[] = []
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    if (graphRange === '7d') {
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now - i * 24 * 60 * 60 * 1000)
-        activityData.push({ label: days[d.getDay()], value: 0 })
-      }
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          const diffTime = now - msg.timestamp
-          const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
-          if (diffDays >= 0 && diffDays < 7) {
-            activityData[6 - diffDays].value++
-          }
-        })
-      })
-    } else if (graphRange === '30d') {
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(now - i * 24 * 60 * 60 * 1000)
-        activityData.push({ label: d.getDate().toString(), value: 0 })
-      }
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          const diffTime = now - msg.timestamp
-          const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
-          if (diffDays >= 0 && diffDays < 30) {
-            activityData[29 - diffDays].value++
-          }
-        })
-      })
-    } else if (graphRange === '12m') {
-      const currentMonth = new Date().getMonth()
-      for (let i = 11; i >= 0; i--) {
-        const mIndex = (currentMonth - i + 12) % 12
-        activityData.push({ label: months[mIndex], value: 0 })
-      }
-      const oneYearAgo = new Date()
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          if (msg.timestamp >= oneYearAgo.getTime()) {
-            const msgDate = new Date(msg.timestamp)
-            const monthDiff = (new Date().getFullYear() - msgDate.getFullYear()) * 12 +
-              (new Date().getMonth() - msgDate.getMonth())
-            if (monthDiff >= 0 && monthDiff < 12) {
-              activityData[11 - monthDiff].value++
-            }
-          }
-        })
+    // Initialize 30 days with zero tokens
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now - i * 24 * 60 * 60 * 1000)
+      activityData.push({
+        label: `${months[d.getMonth()]} ${d.getDate()}`,
+        date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        tokens: 0
       })
     }
+
+    // Accumulate tokens per day
+    sessions.forEach(session => {
+      session.messages.forEach(msg => {
+        const diffTime = now - msg.timestamp
+        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
+        if (diffDays >= 0 && diffDays < 30 && msg.usage) {
+          const tokenCount = msg.usage.totalTokens || (msg.usage.inputTokens || 0) + (msg.usage.outputTokens || 0)
+          activityData[29 - diffDays].tokens += tokenCount
+        }
+      })
+    })
 
     // Most used model calculation
     let maxModel = 'N/A', maxCount = 0, imagesProcessed = 0, assistantMsgCount = 0, totalAssistantChars = 0
@@ -137,7 +106,7 @@ export default function Settings({
       avgResponseLength: assistantMsgCount > 0 ? Math.round(totalAssistantChars / assistantMsgCount) : 0,
       activeDays: activeDaysSet.size
     }
-  }, [sessions, graphRange])
+  }, [sessions])
 
   // Sync settings when they change externally
   useEffect(() => {
@@ -225,8 +194,6 @@ export default function Settings({
           {activeSection === 'usage' && (
             <UsageSection
               stats={usageStats}
-              graphRange={graphRange}
-              onGraphRangeChange={setGraphRange}
               sessions={sessions}
             />
           )}
