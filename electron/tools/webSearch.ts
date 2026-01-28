@@ -15,6 +15,10 @@ interface SearchResult {
     url: string
     snippet: string
     favicon?: string
+    // LobeHub-compatible metadata fields
+    source?: string // Domain name (e.g., "example.com")
+    displayed_link?: string // Display-friendly link (e.g., "example.com › path")
+    date?: string // Publication date if available
 }
 
 interface ImageResult {
@@ -58,7 +62,7 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
     }
 
     // Fallback to DuckDuckGo Instant Answer API (limited but free)
-    return searchWithDuckDuckGo(enhancedQuery)
+    return searchWithDuckDuckGo(enhancedQuery, num_results)
 }
 
 /**
@@ -70,6 +74,47 @@ function getFaviconUrl(url: string): string {
         return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
     } catch {
         return ''
+    }
+}
+
+/**
+ * Extract domain name (source) from a URL
+ */
+function getSourceFromUrl(url: string): string {
+    try {
+        return new URL(url).hostname.replace(/^www\./, '')
+    } catch {
+        return ''
+    }
+}
+
+/**
+ * Generate displayed_link from URL (LobeHub-style)
+ * Example: "example.com › path › to › page"
+ */
+function getDisplayedLink(url: string): string {
+    try {
+        const urlObj = new URL(url)
+        const hostname = urlObj.hostname.replace(/^www\./, '')
+        const pathname = urlObj.pathname
+        
+        if (pathname === '/' || !pathname) {
+            return hostname
+        }
+        
+        // Clean up pathname and create display-friendly version
+        const pathParts = pathname
+            .split('/')
+            .filter(part => part && part !== 'index.html' && part !== 'index')
+            .slice(0, 2) // Limit to 2 path segments for readability
+        
+        if (pathParts.length === 0) {
+            return hostname
+        }
+        
+        return `${hostname} › ${pathParts.join(' › ')}`
+    } catch {
+        return url
     }
 }
 
@@ -107,12 +152,18 @@ async function searchWithTavily(
 
         const data = await response.json()
 
-        const results: SearchResult[] = (data.results || []).map((r: any) => ({
-            title: r.title,
-            url: r.url,
-            snippet: r.content,
-            favicon: getFaviconUrl(r.url)
-        }))
+        const results: SearchResult[] = (data.results || []).map((r: any) => {
+            const url = r.url || ''
+            return {
+                title: r.title || '',
+                url,
+                snippet: r.content || '',
+                favicon: getFaviconUrl(url),
+                source: getSourceFromUrl(url),
+                displayed_link: getDisplayedLink(url),
+                date: r.published_date || r.date || undefined
+            }
+        })
 
         // Parse image results from Tavily response
         const images: ImageResult[] = (data.images || []).map((img: any) => {
@@ -150,7 +201,7 @@ async function searchWithTavily(
  * Fallback search using DuckDuckGo Instant Answer API
  * Limited functionality but doesn't require API key
  */
-async function searchWithDuckDuckGo(query: string): Promise<ToolResult> {
+async function searchWithDuckDuckGo(query: string, numResults: number = 5): Promise<ToolResult> {
     try {
         const encodedQuery = encodeURIComponent(query)
         const response = await fetch(
@@ -164,42 +215,50 @@ async function searchWithDuckDuckGo(query: string): Promise<ToolResult> {
         const data = await response.json()
         
         const results: SearchResult[] = []
+        const seenUrls = new Set<string>()
+        const maxResults = Math.min(numResults, 10) // Cap at 10 like Tavily
         
-        // Add abstract if available
-        if (data.Abstract) {
+        // Helper to add result with deduplication and metadata
+        const addResult = (title: string, url: string, snippet: string) => {
+            if (!url || seenUrls.has(url) || results.length >= maxResults) {
+                return
+            }
+            seenUrls.add(url)
             results.push({
-                title: data.Heading || query,
-                url: data.AbstractURL || '',
-                snippet: data.Abstract
+                title: title || url,
+                url,
+                snippet: snippet || '',
+                favicon: getFaviconUrl(url),
+                source: getSourceFromUrl(url),
+                displayed_link: getDisplayedLink(url)
             })
         }
         
-        // Add related topics (web results)
+        // Add abstract if available (prioritize it)
+        if (data.Abstract && data.AbstractURL) {
+            addResult(data.Heading || query, data.AbstractURL, data.Abstract)
+        }
+        
+        // Add related topics (web results) - prioritize those with FirstURL
         if (data.RelatedTopics) {
             for (const topic of data.RelatedTopics) {
+                if (results.length >= maxResults) break
                 // Skip if it's not a web result topic (has no FirstURL)
                 if (!topic.FirstURL) continue
                 if (topic.Text) {
-                    results.push({
-                        title: topic.Text.split(' - ')[0] || topic.Text.slice(0, 80),
-                        url: topic.FirstURL,
-                        snippet: topic.Text
-                    })
+                    const title = topic.Text.split(' - ')[0] || topic.Text.slice(0, 80)
+                    addResult(title, topic.FirstURL, topic.Text)
                 }
-                // Limit to 8 results
-                if (results.length >= 8) break
             }
         }
         
         // Add results from data.Results if available
         if (data.Results && data.Results.length > 0) {
             for (const result of data.Results) {
-                results.push({
-                    title: result.Text || result.FirstURL,
-                    url: result.FirstURL,
-                    snippet: result.Text || ''
-                })
-                if (results.length >= 8) break
+                if (results.length >= maxResults) break
+                if (result.FirstURL) {
+                    addResult(result.Text || result.FirstURL, result.FirstURL, result.Text || '')
+                }
             }
         }
         

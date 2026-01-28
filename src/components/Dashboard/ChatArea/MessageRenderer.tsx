@@ -5,7 +5,7 @@
  * Requirements: 1.3
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import {
   Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
@@ -18,6 +18,7 @@ import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { WebSource } from './WebSourceCitation'
 
 export interface MessageRendererProps {
   message: Message & {
@@ -254,6 +255,169 @@ function ToolDetailsModal({ toolResults, onClose }: {
 }
 
 /**
+ * Web Search Image Carousel Component
+ */
+function WebSearchImageCarousel({ images }: { images: Array<{ url: string; description?: string }> }) {
+  const [startIndex, setStartIndex] = useState(0)
+  const imagesPerPage = 4
+  const totalPages = Math.ceil(images.length / imagesPerPage)
+  const currentPage = Math.floor(startIndex / imagesPerPage)
+  const visibleImages = images.slice(startIndex, startIndex + imagesPerPage)
+
+  const handlePrev = () => {
+    setStartIndex(prev => {
+      const newIndex = prev - imagesPerPage
+      return newIndex < 0 ? (totalPages - 1) * imagesPerPage : newIndex
+    })
+  }
+
+  const handleNext = () => {
+    setStartIndex(prev => {
+      const newIndex = prev + imagesPerPage
+      return newIndex >= images.length ? 0 : newIndex
+    })
+  }
+
+  if (images.length === 0) return null
+
+  return (
+    <div style={{
+      marginBottom: '16px',
+      padding: '12px',
+      background: 'rgba(255, 255, 255, 0.02)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderRadius: '12px'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '8px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          color: 'var(--theme-text-secondary)',
+          fontSize: '0.85rem'
+        }}>
+          <span>Web Search Images</span>
+          <span style={{ color: 'var(--theme-text-muted)' }}>
+            ({images.length} {images.length === 1 ? 'image' : 'images'})
+          </span>
+        </div>
+        {images.length > imagesPerPage && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <button
+              onClick={handlePrev}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                color: 'var(--theme-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span style={{
+              color: 'var(--theme-text-muted)',
+              fontSize: '0.75rem',
+              minWidth: '40px',
+              textAlign: 'center'
+            }}>
+              {currentPage + 1}/{totalPages}
+            </span>
+            <button
+              onClick={handleNext}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                color: 'var(--theme-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '8px'
+      }}>
+        {visibleImages.map((img, idx) => (
+          <a
+            key={`${startIndex + idx}-${img.url}`}
+            href={img.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              aspectRatio: '16/10',
+              overflow: 'hidden',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'block',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.02)'
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <img
+              src={img.url}
+              alt={img.description || `Search result image ${startIndex + idx + 1}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block'
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none'
+              }}
+            />
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
  * User Message Bubble
  */
 function UserMessageBubble({ message }: { message: MessageRendererProps['message'] }) {
@@ -427,6 +591,55 @@ export function MessageRenderer({
 
   const displayMessage = getVersionContent()
   const processedContent = convertUrlsToMarkdownLinks(displayMessage?.content || '')
+
+  // Build web source map from tool results
+  const webSourceMap = useMemo(() => {
+    const map = new Map<string, WebSource>()
+    if (!message.toolResults) return map
+    for (const tr of message.toolResults) {
+      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+        const results = tr.result.data.results || tr.result.data
+        if (Array.isArray(results)) {
+          for (const entry of results) {
+            if (entry.url) {
+              map.set(entry.url, {
+                title: entry.title || '',
+                url: entry.url,
+                snippet: entry.snippet || entry.description || '',
+                favicon: entry.favicon || ''
+              })
+            }
+          }
+        }
+      }
+    }
+    return map
+  }, [message.toolResults])
+
+  // Extract all images from web_search tool results
+  const webSearchImages = useMemo(() => {
+    const images: Array<{ url: string; description?: string }> = []
+    if (!message.toolResults) return images
+    for (const tr of message.toolResults) {
+      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+        const resultImages = tr.result.data.images || []
+        if (Array.isArray(resultImages)) {
+          for (const img of resultImages) {
+            if (typeof img === 'string') {
+              images.push({ url: img })
+            } else if (img?.url) {
+              images.push({
+                url: img.url,
+                description: img.description || img.alt || undefined
+              })
+            }
+          }
+        }
+      }
+    }
+    return images
+  }, [message.toolResults])
+
   const isUser = message.role === 'user'
   const hasThinking = typeof (message as any).thinking === 'string' && (message as any).thinking.trim().length > 0
   const showThinkingSpinner = isStreaming && !hasThinking
@@ -566,10 +779,15 @@ export function MessageRenderer({
         </div>
       )}
 
+      {/* Web Search Image Carousel - shown after thinking ends, before message content */}
+      {!isStreaming && webSearchImages.length > 0 && (
+        <WebSearchImageCarousel images={webSearchImages} />
+      )}
+
       {/* Message content - only show when not streaming or when content has arrived */}
       {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
-        <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-          <LazyMarkdown content={processedContent} />
+        <div className="markdown-content">
+          <LazyMarkdown content={processedContent} webSources={webSourceMap} />
         </div>
       )}
 

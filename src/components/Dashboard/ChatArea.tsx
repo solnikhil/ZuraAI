@@ -192,10 +192,9 @@ export default function ChatArea() {
   // Empty state (no session selected)
   if (!currentSessionId || messages.length === 0) {
     return (
-      <ScrollArea
-        className="flex-1"
-        style={{ minHeight: 0 }}
-        viewportStyle={{
+      <div
+        style={{
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -210,9 +209,10 @@ export default function ChatArea() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          justifyContent: 'center',
           gap: '16px',
-          maxWidth: 'min(600px, 100%)',
-          width: '100%'
+          maxWidth: 'min(720px, 100%)',
+          width: '100%',
         }}>
           {/* zura Title */}
           <div style={{ textAlign: 'center' }}>
@@ -227,11 +227,12 @@ export default function ChatArea() {
           </div>
 
           {/* Input Area */}
-          <div style={{ width: '100%', maxWidth: '600px' }}>
+          <div style={{ width: '100%' }}>
             <InputArea
               input={input}
               setInput={setInput}
               onSend={handleSendMessage}
+              onStop={stopStreaming}
               isLoading={isLoading}
               attachedFiles={attachedFiles}
               onFilesChange={setAttachedFiles}
@@ -261,7 +262,7 @@ export default function ChatArea() {
             onDelete={() => handleChunkDelete(editingChunk.id)}
           />
         )}
-      </ScrollArea>
+      </div>
     )
   }
 
@@ -281,9 +282,9 @@ export default function ChatArea() {
         className="flex-1"
         style={{ minHeight: 0 }}
         viewportRef={messagesContainerRef}
-        viewportStyle={{ padding: '16px 20px', minHeight: 0 }}
+        viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
       >
-        <div style={{ width: '100%', maxWidth: 'min(810px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
           {messages.map((msg, idx) => (
             <div key={msg.id} data-message-id={msg.id}>
               {/* Show stored tool results before the message */}
@@ -343,20 +344,22 @@ export default function ChatArea() {
       </ScrollArea>
 
       {/* Input Area */}
-      <div style={{ width: '100%', maxWidth: 'min(850px, 100%)', margin: '0 auto', padding: '0 20px 20px 20px', flexShrink: 0 }}>
-        <InputArea
-          input={input}
-          setInput={setInput}
-          onSend={handleSendMessage}
-          isLoading={isLoading}
-          attachedFiles={attachedFiles}
-          onFilesChange={setAttachedFiles}
-          pastedChunks={pastedChunks}
-          onChunkEdit={(chunk) => setEditingChunk(chunk)}
-          onChunkDelete={handleChunkDelete}
-          onChunkCreate={handleChunkCreate}
-          onError={(msg) => showToast(msg, 'error')}
-        />
+      <div className="chat-input-overlay">
+        <div className="chat-input-overlay__inner">
+          <InputArea
+            input={input}
+            setInput={setInput}
+            onSend={handleSendMessage}
+            isLoading={isLoading}
+            attachedFiles={attachedFiles}
+            onFilesChange={setAttachedFiles}
+            pastedChunks={pastedChunks}
+            onChunkEdit={(chunk) => setEditingChunk(chunk)}
+            onChunkDelete={handleChunkDelete}
+            onChunkCreate={handleChunkCreate}
+            onError={(msg) => showToast(msg, 'error')}
+          />
+        </div>
       </div>
 
       {/* Styles */}
@@ -383,6 +386,21 @@ export default function ChatArea() {
           font-weight: 600;
           color: var(--theme-text-primary);
           margin-bottom: 8px;
+        }
+        .chat-input-overlay {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          padding: 0 20px 20px;
+          pointer-events: none;
+          background: transparent;
+        }
+        .chat-input-overlay__inner {
+          width: 100%;
+          max-width: min(900px, 100%);
+          margin: 0 auto;
+          pointer-events: auto;
         }
         @keyframes spin {
           to { transform: rotate(360deg); }

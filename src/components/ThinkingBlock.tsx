@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { ChevronRight } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
+import AITextLoading from './AITextLoading'
 
 interface ThinkingBlockProps {
     thinking: string
@@ -74,7 +75,7 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
 }
 
 export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, completedBlocks = [] }: ThinkingBlockProps) {
-    const [isExpanded, setIsExpanded] = useState(true) // Auto-expand by default
+    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching) // Expand only for active state
     const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
     // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
     const [finalTime, setFinalTime] = useState<number | null>(
@@ -82,26 +83,24 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     )
     const thinkingStartRef = useRef<number | null>(null)
 
-    // Live timer effect - runs while isThinking is true
-    // Start timer when thinking content appears
+    // Start timer immediately when isThinking becomes true
     useEffect(() => {
-        if (isThinking && thinking && thinking.length > 0 && !thinkingStartRef.current) {
+        if (isThinking && !thinkingStartRef.current) {
             thinkingStartRef.current = Date.now()
             setFinalTime(null)
+            setElapsedTime(0)
         }
-    }, [isThinking, thinking])
+    }, [isThinking])
 
     // Live timer effect - runs while isThinking is true
     useEffect(() => {
         let interval: NodeJS.Timeout
 
-        if (isThinking) {
+        if (isThinking && thinkingStartRef.current) {
             interval = setInterval(() => {
-                if (thinkingStartRef.current) {
-                    setElapsedTime((Date.now() - thinkingStartRef.current) / 1000)
-                }
-            }, 50)
-        } else if (thinkingStartRef.current) {
+                setElapsedTime((Date.now() - thinkingStartRef.current!) / 1000)
+            }, 100) // Update every 100ms for smoother display
+        } else if (!isThinking && thinkingStartRef.current) {
             // isThinking just became false - capture final time
             const elapsed = (Date.now() - thinkingStartRef.current) / 1000
             setFinalTime(elapsed)
@@ -114,12 +113,12 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isThinking])
 
-    // Auto-expand when thinking content exists
+    // Auto-expand only while actively thinking
     useEffect(() => {
-        if (thinking && thinking.trim().length > 0) {
+        if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
         }
-    }, [thinking])
+    }, [isThinking, thinking])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
@@ -140,7 +139,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                 <CompletedBlock
                     key={`completed-${index}-${block.timestamp}`}
                     block={block}
-                    defaultExpanded={block.type === 'thinking'}
+                    defaultExpanded={false}
                 />
             ))}
 
@@ -149,22 +148,31 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                 <div className={`thinking-block ${isExpanded ? 'expanded' : ''}`}>
                     <div className={`thinking-header ${isSearching ? 'searching' : ''}`} onClick={handleToggle}>
                         <div className="thinking-label">
-                            {isSearching && !hasThinkingContent ? (
-                                <>
-                                    <span className="thinking-dot searching-dot"><span className="middle-dot"></span></span>
-                                    <span className="thinking-text">
-                                        Tool: Web Search req{searchQuery ? ` "${searchQuery}"` : ''}
-                                    </span>
-                                </>
+                            {isSearching ? (
+                                <span className="thinking-text">
+                                    <AITextLoading 
+                                        text={`Searching web${searchQuery ? `: "${searchQuery}"` : ''}`}
+                                        animationKey="searching"
+                                    />
+                                </span>
                             ) : isThinking ? (
-                                <>
-                                    {!hasThinkingContent && <span className="thinking-dot"><span className="middle-dot"></span></span>}
-                                    <span className="thinking-text">Thinking {elapsedTime.toFixed(3)} seconds</span>
-                                </>
+                                <span className="thinking-text">
+                                    {elapsedTime < 0.5 ? (
+                                        <AITextLoading text="Connecting" animationKey="connecting" />
+                                    ) : (
+                                        <AITextLoading 
+                                            text={`Thinking for ${elapsedTime.toFixed(1)} seconds`}
+                                            animationKey="thinking"
+                                        />
+                                    )}
+                                </span>
                             ) : (
                                 <>
                                     <span className="thinking-text">
-                                        Thought for {displayTime > 0.1 ? `${displayTime.toFixed(3)} seconds` : 'a moment'}
+                                        <AITextLoading 
+                                            text={`Thought For ${displayTime.toFixed(1)} Seconds`}
+                                            animationKey="completed"
+                                        />
                                     </span>
                                     <ChevronRight
                                         size={14}

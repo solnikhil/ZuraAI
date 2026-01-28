@@ -543,6 +543,7 @@ export async function* streamMiniMaxCompletion(
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: MiniMaxStreamChunk) => void
+        signal?: AbortSignal
     }
 ): AsyncGenerator<MiniMaxStreamChunk, void, unknown> {
     if (!apiKey) {
@@ -574,7 +575,8 @@ export async function* streamMiniMaxCompletion(
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {

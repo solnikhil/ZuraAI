@@ -478,7 +478,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 <div style={{
                     display: isListExpanded && !isCollapsed && view !== 'pdf' ? 'flex' : 'none',
                     flexDirection: 'column',
-                    gap: '1px',
+                    gap: '4px',
                     minWidth: 0
                 }}>
                     {filteredSessions.map((session, index) => (
@@ -492,16 +492,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                padding: '4px 0 4px 6px',
+                                padding: '6px 10px',
                                 cursor: 'pointer',
-                                borderRadius: '4px',
+                                borderRadius: '10px',
                                 fontSize: '0.8rem',
                                 color: 'var(--theme-text-primary)',
-                                backgroundColor: currentSessionId === session.id ? 'var(--theme-accent-muted)' : 'transparent',
-                                borderLeft: currentSessionId === session.id ? '2px solid var(--theme-accent)' : '2px solid transparent',
+                                backgroundColor: 'transparent',
                                 transition: 'all 0.15s ease',
                                 justifyContent: 'flex-start',
                                 animationDelay: `${index * 0.05}s`,
+                                width: '100%',
                                 minWidth: 0,
                                 overflow: 'hidden'
                             }}
@@ -773,7 +773,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
 
             <style>{`
                 .session-item:hover { background-color: var(--theme-surface-hover); }
-                .session-item[style*="accent-muted"]:hover { background-color: var(--theme-accent-muted) !important; }
+                .session-item[data-active="true"] {
+                    background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+                }
+                .session-item[data-active="true"]:hover { background-color: color-mix(in srgb, var(--theme-accent) 18%, transparent); }
                 .session-item:hover .delete-btn { opacity: 1 !important; }
                 .delete-btn:hover { background-color: var(--theme-surface-active) !important; }
 

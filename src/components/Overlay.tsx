@@ -434,9 +434,10 @@ export default function Overlay() {
         }
 
         // Add tools if enabled
+        // Don't set tool_choice - let OpenRouter use provider defaults
+        // Some providers don't support 'auto', so we omit it to avoid errors
         if (tools && Array.isArray(tools) && tools.length > 0) {
             requestBody.tools = tools
-            requestBody.tool_choice = 'auto'
         }
 
         const startTime = performance.now()

@@ -209,12 +209,6 @@ export function IndexingPromptMessage({
         overflow: 'visible',
     };
 
-    // Content style matching assistant message
-    const contentStyle: React.CSSProperties = {
-        color: '#e0e0e0',
-        lineHeight: '1.7',
-        fontSize: '0.95rem',
-    };
 
     // Format bytes to human readable string
     const formatBytes = (bytes?: number) => {
@@ -230,7 +224,7 @@ export function IndexingPromptMessage({
     if (prompt.isAlreadyIndexed && !isIndexing && !isComplete) {
         return (
             <div style={messageWrapperStyle}>
-                <div className="markdown-content" style={contentStyle}>
+                <div className="markdown-content">
                     <p style={{ margin: '0 0 8px 0' }}>
                         <strong style={{ color: '#22c55e' }}>✓ Document Indexed</strong>
                     </p>
@@ -492,7 +486,7 @@ export function IndexingPromptMessage({
     if (isComplete) {
         return (
             <div style={messageWrapperStyle}>
-                <div className="markdown-content" style={contentStyle}>
+                <div className="markdown-content">
                     <p style={{ margin: '0 0 8px 0' }}>
                         <strong style={{ color: '#22c55e' }}>✓ Indexing Complete!</strong>
                     </p>
@@ -621,7 +615,7 @@ export function IndexingPromptMessage({
     if (hasError) {
         return (
             <div style={messageWrapperStyle}>
-                <div className="markdown-content" style={contentStyle}>
+                <div className="markdown-content">
                     <p style={{ margin: '0 0 8px 0' }}>
                         <strong style={{ color: '#ef4444' }}>❌ Indexing Failed</strong>
                     </p>
@@ -652,7 +646,7 @@ export function IndexingPromptMessage({
     if (isIndexing) {
         return (
             <div style={messageWrapperStyle}>
-                <div className="markdown-content" style={contentStyle}>
+                <div className="markdown-content">
                     <p style={{ margin: '0 0 12px 0' }}>
                         <strong>Indexing "{prompt.documentName}"...</strong>
                     </p>
@@ -752,7 +746,7 @@ export function IndexingPromptMessage({
     // Default state - show indexing prompt as assistant message
     return (
         <div style={messageWrapperStyle}>
-            <div className="markdown-content" style={contentStyle}>
+            <div className="markdown-content">
                 <p style={{ margin: '0 0 12px 0' }}>
                     I've loaded <strong>"{prompt.documentName}"</strong>
                     {prompt.pageCount > 0 && ` (${prompt.pageCount} pages)`}.

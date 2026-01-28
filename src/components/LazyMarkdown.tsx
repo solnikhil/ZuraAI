@@ -2,6 +2,8 @@
 // Only loads when markdown content is actually displayed
 import React, { Suspense, useState, useEffect } from 'react'
 import { lazy } from 'react'
+import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
+import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 
 // Lazy load markdown dependencies
 const ReactMarkdown = lazy(() => import('react-markdown'))
@@ -12,6 +14,7 @@ const prismStylesPromise = import('react-syntax-highlighter/dist/esm/styles/pris
 interface LazyMarkdownProps {
     content: string
     className?: string
+    webSources?: Map<string, WebSource>
 }
 
 // Remark plugin wrapper
@@ -26,7 +29,7 @@ async function getPrismStyles() {
     return mod.vscDarkPlus
 }
 
-function MarkdownContent({ content }: { content: string }) {
+function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
     const [remarkPlugin, setRemarkPlugin] = React.useState<any>(null)
     const [syntaxHighlighter, setSyntaxHighlighter] = React.useState<any>(null)
     const [prismStyle, setPrismStyle] = React.useState<any>(null)
@@ -48,7 +51,7 @@ function MarkdownContent({ content }: { content: string }) {
     }, [])
 
     if (!remarkPlugin || !syntaxHighlighter || !prismStyle) {
-        return <div style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem', whiteSpace: 'pre-wrap' }}>{content}</div>
+        return <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
     }
 
     const SyntaxHighlighter = syntaxHighlighter
@@ -121,9 +124,7 @@ function MarkdownContent({ content }: { content: string }) {
                         borderLeft: '4px solid #f59e0b',
                         background: 'rgba(255,255,255,0.05)',
                         padding: '12px 16px',
-                        margin: '16px 0',
-                        borderRadius: '0 8px 8px 0',
-                        color: '#d0d0d0'
+                        borderRadius: '0 8px 8px 0'
                     }} {...props} />
                 ),
                 table: ({ node, ...props }) => (
@@ -148,14 +149,26 @@ function MarkdownContent({ content }: { content: string }) {
                         color: '#ccc'
                     }} {...props} />
                 ),
-                a: ({ node, ...props }) => (
-                    <a style={{ color: '#f59e0b', textDecoration: 'none', borderBottom: '1px dotted #f59e0b', transition: 'all 0.2s' }} target="_blank" rel="noopener noreferrer" {...props} />
-                ),
-                ul: ({ node, ...props }) => <ul style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
-                ol: ({ node, ...props }) => <ol style={{ paddingLeft: '24px', margin: '12px 0' }} {...props} />,
-                h1: ({ node, ...props }) => <h1 style={{ fontSize: '1.5em', fontWeight: 700, margin: '24px 0 16px', color: '#fff' }} {...props} />,
-                h2: ({ node, ...props }) => <h2 style={{ fontSize: '1.3em', fontWeight: 600, margin: '20px 0 12px', color: '#f0f0f0' }} {...props} />,
-                h3: ({ node, ...props }) => <h3 style={{ fontSize: '1.1em', fontWeight: 600, margin: '16px 0 8px', color: '#e0e0e0' }} {...props} />
+                a: ({ node, href, children, ...props }: any) => {
+                    if (href && webSources && webSources.size > 0) {
+                        const source = webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
+                        if (source) {
+                            return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
+                        }
+                    }
+                    return (
+                        <a style={{ color: '#f59e0b', textDecoration: 'none', borderBottom: '1px dotted #f59e0b', transition: 'all 0.2s' }} target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>
+                    )
+                },
+                ul: ({ node, ...props }) => <ul {...props} />,
+                ol: ({ node, ...props }) => <ol {...props} />,
+                h1: ({ node, ...props }) => <h1 {...props} />,
+                h2: ({ node, ...props }) => <h2 {...props} />,
+                h3: ({ node, ...props }) => <h3 {...props} />,
+                h4: ({ node, ...props }) => <h4 {...props} />,
+                h5: ({ node, ...props }) => <h5 {...props} />,
+                h6: ({ node, ...props }) => <h6 {...props} />,
+                p: ({ node, ...props }) => <p {...props} />
             }}
         >
             {content}
@@ -163,10 +176,10 @@ function MarkdownContent({ content }: { content: string }) {
     )
 }
 
-export default function LazyMarkdown({ content, className }: LazyMarkdownProps) {
+export default function LazyMarkdown({ content, className, webSources }: LazyMarkdownProps) {
     return (
-        <Suspense fallback={<div className={className} style={{ color: '#e0e0e0', whiteSpace: 'pre-wrap' }}>{content}</div>}>
-            <MarkdownContent content={content} />
+        <Suspense fallback={<div className={className} style={{ whiteSpace: 'pre-wrap' }}>{content}</div>}>
+            <MarkdownContent content={content} webSources={webSources} />
         </Suspense>
     )
 }

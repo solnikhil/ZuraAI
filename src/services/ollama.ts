@@ -84,6 +84,7 @@ export async function* streamOllamaCompletion(
         num_ctx?: number
         tools?: any[]
         onChunk?: (chunk: OllamaStreamChunk) => void
+        signal?: AbortSignal
     }
 ): AsyncGenerator<OllamaStreamChunk, void, unknown> {
     try {
@@ -103,6 +104,7 @@ export async function* streamOllamaCompletion(
                     num_ctx: options?.num_ctx
                 }
             }),
+            signal: options?.signal
         })
 
         if (!response.ok) {

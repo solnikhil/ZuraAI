@@ -802,11 +802,7 @@ function PDFMessage({ message, previousMessage, onCitationClick, onCopy, isStrea
   return (
     <div style={{ marginBottom: '16px', overflow: 'visible' }}>
       {/* Message content with inline citations */}
-      <div className="markdown-content" style={{
-        color: '#e0e0e0',
-        lineHeight: '1.7',
-        fontSize: '0.95rem'
-      }}>
+      <div className="markdown-content">
         <MessageWithCitations
           content={message.content}
           citations={message.citations || []}

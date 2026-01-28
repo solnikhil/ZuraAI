@@ -46,6 +46,18 @@ export interface UseStreamingChatReturn {
 
 const UPDATE_INTERVAL = 120 // ms
 
+function userRequestsWebSearch(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('use web search') ||
+    normalized.includes('web search') ||
+    normalized.includes('web_search') ||
+    normalized.includes('search the web') ||
+    normalized.includes('search online') ||
+    normalized.includes('use websearch')
+  )
+}
+
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -80,7 +92,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       abortControllerRef.current.abort()
       abortControllerRef.current = null
     }
-  }, [])
+    setIsLoading(false)
+    clearToolState()
+    options.onStreamEnd?.()
+  }, [clearToolState, options])
 
   /**
    * Stream response from Ollama provider
@@ -111,7 +126,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         settings.ollamaUrl,
         settings.aiModel,
         optimizedHistory,
-        { temperature: settings.temperature, tools: ollamaTools }
+        { temperature: settings.temperature, tools: ollamaTools, signal: abortControllerRef.current?.signal }
       )) {
         if (!firstTokenTime && chunk.message?.content) {
           firstTokenTime = performance.now()
@@ -233,7 +248,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           settings.ollamaUrl,
           settings.aiModel,
           followUpMessages,
-          { temperature: settings.temperature, tools: ollamaTools }
+          { temperature: settings.temperature, tools: ollamaTools, signal: abortControllerRef.current?.signal }
         )) {
           if (chunk.message?.content) {
             followUpContent += chunk.message.content
@@ -302,7 +317,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.perplexityApiKey,
       settings.aiModel,
       optimizedHistory,
-      { temperature: settings.temperature, max_tokens: settings.maxTokens }
+      { temperature: settings.temperature, max_tokens: settings.maxTokens, signal: abortControllerRef.current?.signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -364,7 +379,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.geminiApiKey,
       settings.aiModel,
       geminiMessages,
-      { temperature: settings.temperature, maxOutputTokens: settings.maxTokens }
+      { temperature: settings.temperature, maxOutputTokens: settings.maxTokens, signal: abortControllerRef.current?.signal }
     )) {
       chunkCount++
       if (!chunk) continue
@@ -458,7 +473,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         temperature: settings.temperature,
         max_tokens: settings.maxTokens,
         tools: groqTools,
-        toolChoice: initialToolChoice
+        toolChoice: initialToolChoice,
+        signal: abortControllerRef.current?.signal
       }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
@@ -533,34 +549,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Add search blocks to thinking
+      // Update researchStatus for web searches instead of creating separate blocks
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
       if (webSearchCalls.length > 0) {
-        if (accumulatedReasoning?.trim()) {
-          localThinkingBlocks.push({
-            type: 'thinking',
-            content: accumulatedReasoning,
-            duration: 0,
-            timestamp: Date.now()
-          })
-          accumulatedReasoning = ''
-        }
+        // Get the first search query for display
+        const firstSearchQuery = webSearchCalls[0]
+        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
+          ? firstSearchQuery.toolCall.arguments?.query
+          : firstSearchQuery.toolCall.arguments
 
-        webSearchCalls.forEach((tr: any) => {
-          const searchQuery = typeof tr.toolCall.arguments === 'object'
-            ? tr.toolCall.arguments?.query
-            : tr.toolCall.arguments
-          localThinkingBlocks.push({
-            type: 'searching',
-            query: String(searchQuery || ''),
-            timestamp: Date.now()
-          })
-        })
-
+        // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
-          thinking: '',
-          thinkingDuration: undefined,
-          thinkingBlocks: [...localThinkingBlocks]
+          researchStatus: {
+            currentRound: researchRound || 1,
+            maxRounds: researchMaxRounds,
+            currentSearch: String(searchQuery || ''),
+            isSearching: true
+          }
         })
       }
 
@@ -576,7 +581,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < 10) { // Safety limit
+        while (hasMoreToolCalls && researchRound < researchMaxRounds) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
           const remainingSearches = researchMaxRounds - totalSearchCount
           const forceToolUse = researchMandatory && remainingSearches > 0
@@ -597,7 +602,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.groqApiKey,
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, max_tokens: settings.maxTokens, tools: groqTools, toolChoice }
+            { temperature: settings.temperature, max_tokens: settings.maxTokens, tools: groqTools, toolChoice, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -736,7 +741,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
           tools: minimaxTools,
-          toolChoice: initialToolChoice
+          toolChoice: initialToolChoice,
+          signal: abortControllerRef.current?.signal
         }
       )) {
         // Extract content delta
@@ -845,35 +851,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Add search blocks to thinking
+      // Update researchStatus for web searches instead of creating separate blocks
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
       if (webSearchCalls.length > 0) {
-        const currentReasoning = reasoningAccumulator.getReasoning()
-        if (currentReasoning?.trim()) {
-          localThinkingBlocks.push({
-            type: 'thinking',
-            content: currentReasoning,
-            duration: 0,
-            timestamp: Date.now()
-          })
-          reasoningAccumulator.clear()
-        }
+        // Get the first search query for display
+        const firstSearchQuery = webSearchCalls[0]
+        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
+          ? firstSearchQuery.toolCall.arguments?.query
+          : firstSearchQuery.toolCall.arguments
 
-        webSearchCalls.forEach((tr: any) => {
-          const searchQuery = typeof tr.toolCall.arguments === 'object'
-            ? tr.toolCall.arguments?.query
-            : tr.toolCall.arguments
-          localThinkingBlocks.push({
-            type: 'searching',
-            query: String(searchQuery || ''),
-            timestamp: Date.now()
-          })
-        })
-
+        // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
-          thinking: '',
-          thinkingDuration: undefined,
-          thinkingBlocks: [...localThinkingBlocks]
+          researchStatus: {
+            currentRound: researchRound || 1,
+            maxRounds: researchMaxRounds,
+            currentSearch: String(searchQuery || ''),
+            isSearching: true
+          }
         })
       }
 
@@ -889,7 +883,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < 10) { // Safety limit
+        while (hasMoreToolCalls && researchRound < researchMaxRounds) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
           const remainingSearches = researchMaxRounds - totalSearchCount
           const forceToolUse = researchMandatory && remainingSearches > 0
@@ -915,7 +909,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.minimaxApiKey,
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools, toolChoice }
+            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools, toolChoice, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -998,15 +992,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
               }
             }
 
-            for (const tr of nextToolResult.toolResults || []) {
-              if (tr.toolCall.name === 'web_search') {
-                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-                localThinkingBlocks.push({ type: 'searching', query: String(searchQuery || ''), timestamp: Date.now() })
-              }
-            }
-
+            // Update researchStatus to stop searching (searching blocks are handled by single thinking block)
             updateStreamingMessage(targetSessionId, streamingMessageId, {
-              thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
               researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
             })
 
@@ -1042,7 +1029,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.minimaxApiKey,
             settings.aiModel,
             finalAnswerMessages,
-            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools }
+            { temperature: settings.temperature, maxTokens: settings.maxTokens, tools: minimaxTools, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             finalAnswerContent += delta
@@ -1130,7 +1117,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     openRouterMessages: any[],
     startTime: number,
     researchMaxRounds: number,
-    researchMandatory: boolean
+    researchMandatory: boolean,
+    forceWebSearch: boolean
   ) => {
     const tools = canUseTools ? getToolsForRequest() : null
     const openRouterTools = tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
@@ -1155,8 +1143,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
 
     // Set tool choice for mandatory research mode to force web_search
-    const initialForceToolUse = researchMandatory && researchMaxRounds > 0
-    let initialToolChoice: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } } | undefined
+    const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
+    let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
     if (initialForceToolUse) {
       initialToolChoice = { type: 'function', function: { name: 'web_search' } }
     }
@@ -1165,7 +1153,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.openRouterApiKey,
       settings.aiModel,
       openRouterMessages,
-      { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice }
+      { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal: abortControllerRef.current?.signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -1286,19 +1274,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Add search blocks
+      // Update researchStatus for web searches instead of creating separate blocks
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
       if (webSearchCalls.length > 0) {
-        if (accumulatedReasoning?.trim()) {
-          localThinkingBlocks.push({ type: 'thinking', content: accumulatedReasoning, duration: 0, timestamp: Date.now() })
-          accumulatedReasoning = ''
-        }
-        webSearchCalls.forEach((tr: any) => {
-          const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-          localThinkingBlocks.push({ type: 'searching', query: String(searchQuery || ''), timestamp: Date.now() })
-        })
+        // Get the first search query for display
+        const firstSearchQuery = webSearchCalls[0]
+        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
+          ? firstSearchQuery.toolCall.arguments?.query
+          : firstSearchQuery.toolCall.arguments
+
+        // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
-          thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks]
+          researchStatus: {
+            currentRound: researchRound || 1,
+            maxRounds: researchMaxRounds,
+            currentSearch: String(searchQuery || ''),
+            isSearching: true
+          }
         })
       }
 
@@ -1337,7 +1329,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.openRouterApiKey,
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice }
+            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -1411,7 +1403,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
             totalSearchCount += newWebSearches
 
-            // Update thinking blocks
+            // Update thinking blocks and researchStatus
             for (const tr of nextToolResult.toolResults || []) {
               if (tr.toolCall.name === 'web_search') {
                 const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
@@ -1426,15 +1418,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
               }
             }
 
-            for (const tr of nextToolResult.toolResults || []) {
-              if (tr.toolCall.name === 'web_search') {
-                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-                localThinkingBlocks.push({ type: 'searching', query: String(searchQuery || ''), timestamp: Date.now() })
-              }
-            }
-
+            // Update researchStatus to stop searching (searching blocks are handled by single thinking block)
             updateStreamingMessage(targetSessionId, streamingMessageId, {
-              thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
               researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
             })
 
@@ -1470,7 +1455,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.openRouterApiKey,
             settings.aiModel,
             finalAnswerMessages,
-            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools }
+            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             finalAnswerContent += delta
@@ -1558,6 +1543,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     clearToolState()
     setIsLoading(true)
+    abortControllerRef.current = new AbortController()
     options.onStreamStart?.()
 
     let targetSessionId = currentSessionId
@@ -1595,21 +1581,29 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // Requirements: 2.1, 4.1, 5.1, 5.2, 5.3
       let researchMaxRounds = 0
       let researchMandatory = false
+      const webSearchEnabledBySettings = (settings.enabledTools?.length ? settings.enabledTools.includes('web_search') : true)
+        && (settings.webSearchEnabled || settings.deepResearchEnabled)
+      const forceWebSearch = settings.modelProvider === 'openrouter' && canUseTools && webSearchEnabledBySettings && userRequestsWebSearch(content)
 
       if (settings.deepResearchEnabled && canUseTools) {
         // Deep research mode: 25 searches, existing behavior
         researchMaxRounds = 25
         researchMandatory = false
         startResearchMode(25, false)
-      } else if (settings.webSearchEnabled && canUseTools) {
-        // Normal web search mode: 5 searches, planning required
-        researchMaxRounds = 5
+      } else if (settings.webSearchEnabled && canUseTools && !forceWebSearch) {
+        // Normal web search mode: 20 searches, planning required
+        researchMaxRounds = 20
         researchMandatory = false
-        startResearchMode(5, false)
+        startResearchMode(20, false)
       }
       // If neither toggle is ON, researchMaxRounds stays 0 and no research mode is started
 
-      const effectiveSystemPrompt = getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds, researchMandatory)
+      const forceWebSearchPrompt = forceWebSearch
+        ? '\n\nUSER REQUEST: You must call the web_search tool at least once before answering. Use the user\'s latest request as the query if needed. Respond with the tool call first, then answer after results.'
+        : ''
+      const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
+        + getResearchContext(0, researchMaxRounds, researchMandatory)
+        + forceWebSearchPrompt
       const imageFiles = files.filter(f => f.type === 'image')
       const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
       const optimizedHistory = buildOptimizedContext(conversationHistory, content, effectiveSystemPrompt, settings.aiModel)
@@ -1664,7 +1658,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             } as any
           }
         }
-        result = await streamOpenRouter(targetSessionId!, streamingMessageId, openRouterMessages, startTime, researchMaxRounds, researchMandatory)
+        result = await streamOpenRouter(targetSessionId!, streamingMessageId, openRouterMessages, startTime, researchMaxRounds, researchMandatory, forceWebSearch)
       }
 
       setIsLoading(false)
@@ -1680,6 +1674,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
     } catch (error: any) {
+      // Silently handle abort (user clicked stop)
+      if (error.name === 'AbortError' || abortControllerRef.current === null) {
+        // Stream was aborted by user - loading state already cleared by stopStreaming
+        return
+      }
+
       setIsLoading(false)
       let errorMsg = 'An unexpected error occurred.'
 
@@ -1733,6 +1733,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
     clearToolState()
     setIsLoading(true)
+    abortControllerRef.current = new AbortController()
 
     try {
       const session = sessions.find(s => s.id === currentSessionId)
@@ -1750,7 +1751,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const userMessage = session.messages[messageIndex - 1]
-      const conversationHistory = session.messages.slice(0, messageIndex)
+      // Get conversation history BEFORE the user message being regenerated
+      // We exclude the user message because we'll add it back with the instruction appended
+      const conversationHistory = session.messages.slice(0, messageIndex - 1)
 
       let systemPrompt = getEffectiveSystemPrompt(settings)
       let userContent = userMessage.content
@@ -1777,29 +1780,32 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       let accumulatedContent = ''
       let accumulatedReasoning = ''
 
+      // Build context with the modified user content (including instruction)
+      // conversationHistory contains all messages before the user message
+      // userContent is the modified user message with instruction appended
       const apiMessages = buildOptimizedContext(conversationHistory, userContent, systemPrompt, settings.aiModel)
 
       try {
         if (settings.modelProvider === 'ollama') {
-          for await (const chunk of streamOllamaCompletion(settings.ollamaUrl, settings.aiModel, apiMessages)) {
+          for await (const chunk of streamOllamaCompletion(settings.ollamaUrl, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.message?.content || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
         } else if (settings.modelProvider === 'perplexity') {
-          for await (const chunk of streamPerplexityCompletion(settings.perplexityApiKey, settings.aiModel, apiMessages)) {
+          for await (const chunk of streamPerplexityCompletion(settings.perplexityApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
         } else if (settings.modelProvider === 'gemini') {
-          for await (const chunk of streamGeminiCompletion(settings.geminiApiKey, settings.aiModel, apiMessages)) {
+          for await (const chunk of streamGeminiCompletion(settings.geminiApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
         } else if (settings.modelProvider === 'groq') {
-          for await (const chunk of streamGroqCompletion(settings.groqApiKey, settings.aiModel, apiMessages)) {
+          for await (const chunk of streamGroqCompletion(settings.groqApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
@@ -1808,7 +1814,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           const reasoningAccumulator = new ReasoningAccumulator()
           for await (const chunk of streamMiniMaxCompletion(settings.minimaxApiKey, settings.aiModel, apiMessages, {
             temperature: settings.temperature,
-            maxTokens: settings.maxTokens
+            maxTokens: settings.maxTokens,
+            signal: abortControllerRef.current?.signal
           })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             const reasoningDetails = extractReasoningFromChunk(chunk)
@@ -1825,7 +1832,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         } else {
           for await (const chunk of streamOpenRouterCompletion(
             settings.openRouterApiKey, settings.aiModel, apiMessages,
-            { temperature: settings.temperature, maxTokens: settings.maxTokens }
+            { temperature: settings.temperature, maxTokens: settings.maxTokens, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
@@ -1845,6 +1852,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         setIsLoading(false)
 
       } catch (streamError: any) {
+        // Silently handle abort (user clicked stop)
+        if (streamError.name === 'AbortError' || abortControllerRef.current === null) {
+          return
+        }
         deleteMessageFromSession(currentSessionId, streamingMessageId)
         addMessageToSession(currentSessionId, {
           role: 'assistant',
@@ -1859,6 +1870,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
     } catch (error: any) {
+      // Silently handle abort (user clicked stop)
+      if (error.name === 'AbortError' || abortControllerRef.current === null) {
+        return
+      }
       showToast(error.message || 'Failed to regenerate', 'error')
       setIsLoading(false)
     }

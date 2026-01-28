@@ -122,6 +122,7 @@ export async function* streamPerplexityCompletion(
         temperature?: number
         max_tokens?: number
         onChunk?: (chunk: PerplexityStreamChunk) => void
+        signal?: AbortSignal
     }
 ): AsyncGenerator<PerplexityStreamChunk, void, unknown> {
     if (!apiKey) {
@@ -147,7 +148,8 @@ export async function* streamPerplexityCompletion(
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {

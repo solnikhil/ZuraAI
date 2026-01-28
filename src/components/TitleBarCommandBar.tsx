@@ -613,8 +613,11 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const recentsToRender = recentsCount > 0 ? suggestions.slice(0, recentsCount) : []
   const otherSuggestionsToRender = suggestions.slice(recentsCount)
 
-  const renderSuggestionItem = (suggestion: CommandBarSuggestion, index: number, isRecent: boolean = false) => {
+  const renderSuggestionItem = (suggestion: CommandBarSuggestion, index: number, isRecent: boolean = false, sectionIndex: number = 0) => {
     const isActive = index === highlightIndex
+    const { Icon, iconClass } = getSuggestionIcon(suggestion)
+    // Staggered animation delay based on position
+    const animationDelay = `${(sectionIndex * 0.03)}s`
 
     return (
       <div
@@ -625,6 +628,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
         ].filter(Boolean).join(' ')}
         role="option"
         aria-selected={isActive}
+        style={{ animationDelay }}
         onMouseEnter={() => setHighlightIndex(index)}
         onMouseDown={(e) => {
           e.preventDefault()
@@ -632,11 +636,16 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
           void runSuggestion(suggestion)
         }}
       >
-        <div className="app-titlebar__commandbar-item-text">
-          <div className="app-titlebar__commandbar-item-title">{suggestion.title}</div>
-          {!isRecent && suggestion.subtitle && (
-            <div className="app-titlebar__commandbar-item-subtitle">{suggestion.subtitle}</div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+          <div className={['app-titlebar__commandbar-item-icon', iconClass].filter(Boolean).join(' ')}>
+            <Icon size={16} />
+          </div>
+          <div className="app-titlebar__commandbar-item-text">
+            <div className="app-titlebar__commandbar-item-title">{suggestion.title}</div>
+            {!isRecent && suggestion.subtitle && (
+              <div className="app-titlebar__commandbar-item-subtitle">{suggestion.subtitle}</div>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -716,7 +725,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
                 />
               </div>
               {!recentsCollapsed && recentsToRender.map((suggestion, index) =>
-                renderSuggestionItem(suggestion, index, true)
+                renderSuggestionItem(suggestion, index, true, index)
               )}
             </>
           )}
@@ -743,7 +752,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
                 />
               </div>
               {!shortcutsCollapsed && otherSuggestionsToRender.map((suggestion, index) =>
-                renderSuggestionItem(suggestion, recentsCount + index, false)
+                renderSuggestionItem(suggestion, recentsCount + index, false, index)
               )}
             </>
           )}
