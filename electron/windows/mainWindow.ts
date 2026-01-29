@@ -26,6 +26,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     }
 
     const isWindows = process.platform === 'win32'
+    const isMacOS = process.platform === 'darwin'
 
     mainWindow = new BrowserWindow({
         width: options?.width ?? 1200,
@@ -41,6 +42,9 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
                 symbolColor: '#E5E0D5',
                 height: 44,
             },
+        } : {}),
+        ...(isMacOS ? {
+            titleBarStyle: 'hiddenInset',
         } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),

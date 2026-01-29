@@ -116,11 +116,17 @@ export default function TitleBar() {
 
     const showDashboardTabs = (isDashboardRoute || isLegacyChatRoute) && dashboardView !== 'settings'
 
+    // Detect macOS platform
+    const isMacOS = useMemo(() => {
+        return navigator.platform.toLowerCase().includes('mac')
+    }, [])
+
     return (
         <div
             className={[
                 'app-titlebar',
                 density === 'compact' ? 'app-titlebar--compact' : null,
+                isMacOS ? 'app-titlebar--macos' : null,
             ].filter(Boolean).join(' ')}
         >
             <div className="app-titlebar__left">

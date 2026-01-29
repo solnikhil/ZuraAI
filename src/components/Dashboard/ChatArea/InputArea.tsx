@@ -256,8 +256,11 @@ export function InputArea({
                 : "0 0 0 1px rgba(255, 255, 255, 0.06)"
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{
+              "--chat-input-surface-rgb": "255 255 255",
+            } as React.CSSProperties}
             className={cn(
-              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden bg-white/5 p-1.5",
+              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden bg-[rgb(var(--chat-input-surface-rgb)/0.05)] p-1.5",
               showAttachmentBanner ? "pt-3" : "pt-2",
               isDragging && "ring-2 ring-sky-400"
             )}
@@ -294,9 +297,9 @@ export function InputArea({
                 placeholder={isDragging ? "Drop files here..." : "What can I do for you?"}
                 className={cn(
                   "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
-                  "bg-transparent",
-                  "text-white/90",
-                  "placeholder:text-white/60",
+                  "bg-[rgb(var(--chat-input-surface-rgb)/0.03)] backdrop-blur-sm",
+                  "text-white/80",
+                  "placeholder:text-white/50",
                   "transition-colors duration-200"
                 )}
                 onFocus={() => setIsFocused(true)}
@@ -433,7 +436,7 @@ export function InputArea({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className={cn(
-                          "cursor-pointer rounded-lg p-2 transition-colors duration-150 bg-white/5 hover:bg-white/10",
+                          "cursor-pointer rounded-lg p-2 transition-colors duration-150 hover:bg-white/10",
                           attachedFiles.length > 0
                             ? "text-white/90"
                             : "text-white/60 hover:text-white/80"
@@ -466,7 +469,7 @@ export function InputArea({
                           e.stopPropagation()
                           onStop?.()
                         }}
-                        className="rounded-lg p-2 transition-all duration-150 bg-white/5 text-white hover:bg-red-500/20 hover:text-red-400"
+                        className="rounded-lg p-2 transition-all duration-150 text-white hover:bg-red-500/20 hover:text-red-400"
                       >
                         <Square className="w-3.5 h-3.5 fill-current" />
                       </motion.button>
@@ -492,8 +495,8 @@ export function InputArea({
                         className={cn(
                           "rounded-lg p-2 transition-all duration-150",
                           canSend
-                            ? "bg-white/5 text-white/90 hover:bg-white/10"
-                            : "bg-white/5 text-white/30"
+                            ? "text-white/90 hover:bg-white/10"
+                            : "text-white/30"
                         )}
                       >
                         <SendHorizonal className="w-4 h-4" />

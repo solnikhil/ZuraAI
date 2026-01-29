@@ -6,12 +6,28 @@
     justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
-    padding-left: calc(12px + env(titlebar-area-x, 0px));
+    /* Ensure proper spacing from traffic lights on macOS */
+    /* Use env var if available, otherwise ensure minimum safe distance */
+    /* Traffic lights area is typically ~78px, so 100px ensures safe clearance */
+    padding-left: max(100px, calc(12px + env(titlebar-area-x, 78px)));
     padding-right: calc(12px + (100% - env(titlebar-area-width, 100%) - env(titlebar-area-x, 0px)));
     background: var(--theme-background);
 
     user-select: none;
     -webkit-app-region: drag;
+}
+
+/* Exclude traffic lights area from drag region on macOS */
+.app-titlebar::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: env(titlebar-area-width, 78px);
+    height: 100%;
+    -webkit-app-region: no-drag;
+    pointer-events: none;
+    z-index: 1;
 }
 
 
@@ -41,6 +57,14 @@
     pointer-events: none;
     /* Responsive: shrink tab group instead of repositioning */
     max-width: calc(100% - 600px);
+}
+
+/* On macOS, position the middle section (Chat/PDF tabs) on the right side */
+.app-titlebar--macos .app-titlebar__middle {
+    left: auto;
+    right: 180px; /* Account for model selector (~160px) + padding */
+    justify-content: flex-end;
+    max-width: none;
 }
 
 .app-titlebar__center {
@@ -74,6 +98,9 @@
 
 .app-titlebar__left {
     gap: 8px;
+    position: relative;
+    z-index: 2;
+    min-width: 0;
 }
 
 
@@ -470,6 +497,11 @@
 
 .app-titlebar--compact .app-titlebar__middle {
     max-width: calc(100% - 600px);
+}
+
+/* macOS compact mode - keep tabs on right */
+.app-titlebar--macos.app-titlebar--compact .app-titlebar__middle {
+    right: 180px; /* Same as regular mode */
 }
 
 .app-titlebar--compact .app-titlebar__center {
