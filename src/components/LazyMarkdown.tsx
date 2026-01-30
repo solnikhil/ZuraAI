@@ -1,7 +1,9 @@
 // Lazy-loaded Markdown component for memory optimization
 // Only loads when markdown content is actually displayed
-import React, { Suspense, useState, useEffect } from 'react'
+import * as React from 'react'
+const { Suspense, useState, useEffect } = React
 import { lazy } from 'react'
+import { Check, Copy } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 
@@ -30,11 +32,12 @@ async function getPrismStyles() {
 }
 
 function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
-    const [remarkPlugin, setRemarkPlugin] = React.useState<any>(null)
-    const [syntaxHighlighter, setSyntaxHighlighter] = React.useState<any>(null)
-    const [prismStyle, setPrismStyle] = React.useState<any>(null)
+    const [remarkPlugin, setRemarkPlugin] = useState<any>(null)
+    const [syntaxHighlighter, setSyntaxHighlighter] = useState<any>(null)
+    const [prismStyle, setPrismStyle] = useState<any>(null)
+    const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
-    React.useEffect(() => {
+    useEffect(() => {
         let mounted = true
         Promise.all([
             getRemarkGfm(),
@@ -68,6 +71,12 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     
                     if (isCodeBlock && match) {
                         // Code block with language - syntax highlighted
+                        const isCopied = copiedCode === codeString
+                        const handleCopy = () => {
+                            navigator.clipboard.writeText(codeString)
+                            setCopiedCode(codeString)
+                            setTimeout(() => setCopiedCode(null), 2000)
+                        }
                         return (
                             <div style={{ position: 'relative', margin: '12px 0' }}>
                                 <div style={{
@@ -83,10 +92,23 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                                 }}>
                                     <span>{match[1]}</span>
                                     <button
-                                        onClick={() => navigator.clipboard.writeText(codeString)}
-                                        style={{ background: 'none', border: 'none', color: 'var(--theme-text-tertiary)', cursor: 'pointer', fontSize: '0.75rem' }}
+                                        onClick={handleCopy}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                                            cursor: 'pointer',
+                                            padding: '4px',
+                                            borderRadius: '4px',
+                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            lineHeight: 1
+                                        }}
+                                        title={isCopied ? 'Copied!' : 'Copy'}
                                     >
-                                        Copy
+                                        {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
                                     </button>
                                 </div>
                                 <SyntaxHighlighter
@@ -101,14 +123,45 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         )
                     } else if (isCodeBlock) {
                         // Code block without language - plain block
+                        const codeContent = String(children)
+                        const isCopied = copiedCode === codeContent
+                        const handleCopy = () => {
+                            navigator.clipboard.writeText(codeContent)
+                            setCopiedCode(codeContent)
+                            setTimeout(() => setCopiedCode(null), 2000)
+                        }
                         return (
                             <div style={{
                                 margin: '12px 0',
                                 borderRadius: '8px',
                                 background: 'var(--theme-surface)',
                                 border: '1px solid var(--theme-border)',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                position: 'relative'
                             }}>
+                                <button
+                                    onClick={handleCopy}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '8px',
+                                        right: '12px',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '4px',
+                                        transition: 'all 0.2s ease',
+                                        zIndex: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        lineHeight: 1
+                                    }}
+                                    title={isCopied ? 'Copied!' : 'Copy'}
+                                >
+                                    {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
+                                </button>
                                 <div style={{
                                     padding: '12px 16px',
                                     overflowX: 'auto',
@@ -117,7 +170,8 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                                     lineHeight: '1.6',
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word',
-                                    color: 'var(--theme-text-secondary)'
+                                    color: 'var(--theme-text-secondary)',
+                                    paddingTop: '36px'
                                 }}>
                                     {children}
                                 </div>
@@ -126,42 +180,20 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     } else {
                         // Inline code
                         return (
-                            <code {...props} style={{ background: 'var(--theme-surface-hover)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.9em', fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
+                            <code {...props} className={className}>
                                 {children}
                             </code>
                         )
                     }
                 },
-                blockquote: ({ node, ...props }) => (
-                    <blockquote style={{
-                        borderLeft: '4px solid var(--theme-accent)',
-                        background: 'var(--theme-surface-hover)',
-                        padding: '12px 16px',
-                        borderRadius: '0 8px 8px 0'
-                    }} {...props} />
-                ),
+                blockquote: ({ node, ...props }) => <blockquote {...props} />,
                 table: ({ node, ...props }) => (
-                    <div style={{ overflowX: 'auto', margin: '16px 0', borderRadius: '8px', border: '1px solid var(--theme-border)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9em', background: 'var(--theme-surface)' }} {...props} />
+                    <div className="markdown-table">
+                        <table {...props} />
                     </div>
                 ),
-                th: ({ node, ...props }) => (
-                    <th style={{
-                        borderBottom: '1px solid var(--theme-border)',
-                        padding: '12px',
-                        textAlign: 'left',
-                        fontWeight: 600,
-                        color: 'var(--theme-text-primary)',
-                        background: 'var(--theme-surface-hover)'
-                    }} {...props} />
-                ),
-                td: ({ node, ...props }) => (
-                    <td style={{
-                        borderBottom: '1px solid var(--theme-border)',
-                        padding: '12px',
-                        color: 'var(--theme-text-secondary)'
-                    }} {...props} />
-                ),
+                th: ({ node, ...props }) => <th {...props} />,
+                td: ({ node, ...props }) => <td {...props} />,
                 a: ({ node, href, children, ...props }: any) => {
                     if (href && webSources && webSources.size > 0) {
                         const source = webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
@@ -170,7 +202,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         }
                     }
                     return (
-                        <a style={{ color: 'var(--theme-accent)', textDecoration: 'none', borderBottom: '1px dotted var(--theme-accent)', transition: 'all 0.2s' }} target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>
+                        <a target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>
                     )
                 },
                 ul: ({ node, ...props }) => <ul {...props} />,

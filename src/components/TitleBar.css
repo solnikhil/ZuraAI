@@ -6,24 +6,25 @@
     justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
-    /* Ensure proper spacing from traffic lights on macOS */
-    /* Use env var if available, otherwise ensure minimum safe distance */
-    /* Traffic lights area is typically ~78px, so 100px ensures safe clearance */
-    padding-left: max(100px, calc(12px + env(titlebar-area-x, 78px)));
-    padding-right: calc(12px + (100% - env(titlebar-area-width, 100%) - env(titlebar-area-x, 0px)));
     background: var(--theme-background);
 
     user-select: none;
     -webkit-app-region: drag;
 }
 
+/* macOS specific: Add padding for traffic lights */
+.app-titlebar--macos {
+    /* Traffic lights are positioned at x: 12, y: 12 with ~78px width */
+    padding-left: 100px;
+}
+
 /* Exclude traffic lights area from drag region on macOS */
-.app-titlebar::before {
+.app-titlebar--macos::before {
     content: '';
     position: absolute;
     left: 0;
     top: 0;
-    width: env(titlebar-area-width, 78px);
+    width: 80px;
     height: 100%;
     -webkit-app-region: no-drag;
     pointer-events: none;

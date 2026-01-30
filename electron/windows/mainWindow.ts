@@ -7,6 +7,15 @@ const DIST_PATH = process.env.DIST || path.join(__dirname, '../../dist')
 // Production mode check
 const isProduction = require('electron').app.isPackaged
 
+const devServerUrl = process.env.VITE_DEV_SERVER_URL
+const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+
+function isExternalHttpUrl(url: string): boolean {
+    if (!url.startsWith('http:') && !url.startsWith('https:')) return false
+    if (devServerOrigin && url.startsWith(devServerOrigin)) return false
+    return true
+}
+
 // Global reference to main window
 let mainWindow: BrowserWindow | null = null
 
@@ -44,7 +53,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             },
         } : {}),
         ...(isMacOS ? {
-            titleBarStyle: 'hiddenInset',
+            titleBarStyle: 'hidden',
+            trafficLightPosition: { x: 12, y: 12 },
         } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -62,7 +72,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
     // Handle external links - open in default browser
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             shell.openExternal(url)
         }
         return { action: 'deny' }
@@ -70,7 +80,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
     // Handle in-page navigation (e.g. clicking links)
     mainWindow.webContents.on('will-navigate', (event, url) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             event.preventDefault()
             shell.openExternal(url)
         }

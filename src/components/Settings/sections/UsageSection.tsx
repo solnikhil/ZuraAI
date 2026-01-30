@@ -108,8 +108,8 @@ export function UsageSection({
       <div className="usage-stats-grid" style={{ marginTop: 24 }}>
         {/* Today Messages */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <MessageSquare size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <MessageSquare size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.todayMessages}</div>
@@ -119,8 +119,8 @@ export function UsageSection({
 
         {/* Total Sessions */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <Clock size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <Clock size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.totalSessions}</div>
@@ -130,8 +130,8 @@ export function UsageSection({
 
         {/* Total Messages */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <Zap size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <Zap size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.totalMessages}</div>
@@ -141,8 +141,8 @@ export function UsageSection({
 
         {/* Avg Tokens */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <TrendingUp size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <TrendingUp size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.avgTokens}</div>
@@ -152,8 +152,8 @@ export function UsageSection({
 
         {/* Storage */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <HardDrive size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <HardDrive size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.storageUsed} KB</div>
@@ -163,8 +163,8 @@ export function UsageSection({
 
         {/* Images */}
         <div className="stat-card compact">
-          <div className="stat-icon-wrapper">
-            <ImageIcon size={16} color="var(--theme-accent)" />
+          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
+            <ImageIcon size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.imagesProcessed}</div>
@@ -178,7 +178,7 @@ export function UsageSection({
         <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Total Tokens</span>
-            <Cpu size={16} color="var(--theme-accent)" />
+            <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
             {stats.totalTokens.toLocaleString()}
@@ -189,7 +189,7 @@ export function UsageSection({
         <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Most Used Model</span>
-            <BarChart size={16} color="var(--theme-accent)" />
+            <span style={{ color: 'var(--theme-accent)' }}><BarChart size={16} /></span>
           </div>
           <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {stats.mostUsedModel || 'N/A'}
@@ -202,7 +202,7 @@ export function UsageSection({
         <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Active Days</span>
-            <Calendar size={16} color="var(--theme-accent)" />
+            <span style={{ color: 'var(--theme-accent)' }}><Calendar size={16} /></span>
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
             {stats.activeDays || 0}
@@ -215,7 +215,7 @@ export function UsageSection({
         <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Models used</span>
-            <Cpu size={16} color="var(--theme-accent)" />
+            <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
           </div>
           {modelsByCount.length > 0 ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

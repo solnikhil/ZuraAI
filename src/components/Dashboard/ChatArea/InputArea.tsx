@@ -228,7 +228,7 @@ export function InputArea({
                   >
                     <Badge
                       variant="secondary"
-                      className="gap-1 pr-1 bg-white/5 hover:bg-white/10 transition-colors"
+                      className="gap-1 pr-1 bg-white/5 hover:bg-white/10 text-white/80 transition-colors"
                     >
                       <span className="max-w-[100px] truncate text-xs">{file.name}</span>
                       <button
@@ -244,25 +244,23 @@ export function InputArea({
             )}
           </AnimatePresence>
 
-          {/* Main Input Container - unified background */}
+          {/* Main Input Container - KokonutUI style */}
           <motion.div
             role="textbox"
             tabIndex={0}
             aria-label="Chat input container"
             initial={false}
             animate={{
-              boxShadow: isFocused 
-                ? "0 0 0 1px rgba(255, 255, 255, 0.16)" 
-                : "0 0 0 1px rgba(255, 255, 255, 0.06)"
+              boxShadow: isFocused
+                ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
+                : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)"
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            style={{
-              "--chat-input-surface-rgb": "255 255 255",
-            } as React.CSSProperties}
             className={cn(
-              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden bg-[rgb(var(--chat-input-surface-rgb)/0.05)] p-1.5",
+              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5",
+              "bg-[#292929]",
               showAttachmentBanner ? "pt-3" : "pt-2",
-              isDragging && "ring-2 ring-sky-400"
+              isDragging && "ring-2 ring-[var(--theme-accent)]"
             )}
             onClick={handleContainerClick}
             onKeyDown={(e) => {
@@ -281,12 +279,12 @@ export function InputArea({
                   className="mx-2 mb-2.5 flex items-center gap-2 text-xs"
                 >
                   <div className="flex flex-1 items-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-semibold text-white/80">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-semibold text-white/70">
                       AA
                     </span>
-                    <span className="text-white/90 tracking-tighter">is free this weekend!</span>
+                    <span className="text-white/70 tracking-tighter">is free this weekend!</span>
                   </div>
-                  <span className="text-white/70 tracking-tighter">Ship Now!</span>
+                  <span className="text-white/50 tracking-tighter">Ship Now!</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -297,9 +295,9 @@ export function InputArea({
                 placeholder={isDragging ? "Drop files here..." : "What can I do for you?"}
                 className={cn(
                   "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
-                  "bg-[rgb(var(--chat-input-surface-rgb)/0.03)] backdrop-blur-sm",
-                  "text-white/80",
-                  "placeholder:text-white/50",
+                  "bg-transparent",
+                  "text-[var(--theme-text-primary)]",
+                  "placeholder:text-[var(--theme-text-muted)]",
                   "transition-colors duration-200"
                 )}
                 onFocus={() => setIsFocused(true)}
@@ -321,7 +319,7 @@ export function InputArea({
                 {/* Model Selector */}
                 <ModelSelector minimal={true} />
 
-                <div className="mx-1 h-4 w-px bg-white/10" />
+                      <div className="mx-1 h-4 w-px bg-white/10" />
 
                 {/* Web Search Toggle - KokonutUI style */}
                 <button
@@ -333,7 +331,7 @@ export function InputArea({
                   className={cn(
                     "rounded-full transition-all flex items-center gap-2 px-2 py-1 h-8 cursor-pointer",
                     showSearch
-                      ? "bg-sky-500/15 text-sky-400"
+                      ? "bg-white/10 text-white"
                       : "text-white/40 hover:text-white/70 hover:bg-white/5"
                   )}
                 >
@@ -361,7 +359,7 @@ export function InputArea({
                       <Globe
                         className={cn(
                           "w-4 h-4",
-                          showSearch ? "text-sky-400" : "text-inherit"
+                          showSearch ? "text-white" : "text-inherit"
                         )}
                       />
                     </motion.div>
@@ -373,7 +371,7 @@ export function InputArea({
                         animate={{ width: "auto", opacity: 1 }}
                         exit={{ width: 0, opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-sm overflow-hidden whitespace-nowrap text-sky-400 shrink-0 pr-1"
+                        className="text-sm overflow-hidden whitespace-nowrap text-white shrink-0 pr-1"
                       >
                         Search
                       </motion.span>
@@ -402,7 +400,7 @@ export function InputArea({
                               e.stopPropagation()
                               setShowImageModal(true)
                             }}
-                            className="h-8 px-2 gap-1 flex items-center text-sky-400 hover:text-sky-300 rounded-lg transition-colors"
+                            className="h-8 px-2 gap-1 flex items-center text-white/70 hover:text-white rounded-lg transition-colors"
                           >
                             <Image size={16} />
                             {imageFiles.length > 1 && (
@@ -438,8 +436,8 @@ export function InputArea({
                         className={cn(
                           "cursor-pointer rounded-lg p-2 transition-colors duration-150 hover:bg-white/10",
                           attachedFiles.length > 0
-                            ? "text-white/90"
-                            : "text-white/60 hover:text-white/80"
+                            ? "text-white"
+                            : "text-white/50 hover:text-white/70"
                         )}
                         onClick={(e) => {
                           e.preventDefault()
@@ -495,7 +493,7 @@ export function InputArea({
                         className={cn(
                           "rounded-lg p-2 transition-all duration-150",
                           canSend
-                            ? "text-white/90 hover:bg-white/10"
+                            ? "text-white hover:bg-white/10"
                             : "text-white/30"
                         )}
                       >

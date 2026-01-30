@@ -7,6 +7,15 @@ const DIST_PATH = process.env.DIST || path.join(__dirname, '../../dist')
 // Production mode check
 const isProduction = require('electron').app.isPackaged
 
+const devServerUrl = process.env.VITE_DEV_SERVER_URL
+const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+
+function isExternalHttpUrl(url: string): boolean {
+    if (!url.startsWith('http:') && !url.startsWith('https:')) return false
+    if (devServerOrigin && url.startsWith(devServerOrigin)) return false
+    return true
+}
+
 // Global references
 let overlayWin: BrowserWindow | null = null
 let currentScreenshot: NativeImage | null = null
@@ -56,14 +65,14 @@ export function createOverlayWindow(showImmediately = false): BrowserWindow | nu
 
     // Handle external links in overlay
     overlayWin.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             shell.openExternal(url)
         }
         return { action: 'deny' }
     })
 
     overlayWin.webContents.on('will-navigate', (event, url) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             event.preventDefault()
             shell.openExternal(url)
         }

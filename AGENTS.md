@@ -256,6 +256,7 @@ These are useful breadcrumbs for agents:
 - Keep changes scoped and consistent with existing patterns.
 - Treat the renderer as untrusted; validate/sanitize everything in main-process handlers.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for all BrowserWindows.
+- Use shadcn UI components for all UI work; do not introduce other UI component libraries.
 - When changing IPC:
   - update `electron/preload.ts` allowlists
   - update typings in `src/electron.d.ts`

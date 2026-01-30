@@ -6,14 +6,14 @@
  * Requirements: 2.2
  */
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Bar, BarChart, XAxis, YAxis } from 'recharts'
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
+import { assignColor } from '@/utils/colorManager'
 
 /**
  * Activity data point interface
@@ -22,6 +22,7 @@ export interface ActivityData {
   label: string
   date: string
   tokens: number
+  modelBreakdown?: Record<string, number> // Per-model token usage
 }
 
 /**
@@ -32,25 +33,169 @@ export interface ActivityGraphProps {
   data: ActivityData[]
 }
 
-const chartConfig = {
-  tokens: {
-    label: 'Tokens',
-    color: 'hsl(217, 91%, 60%)'
-  }
-} satisfies ChartConfig
+/**
+ * Custom tooltip component showing model breakdown
+ */
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: Array<{
+    dataKey: string
+    value: number
+    color: string
+    payload: Record<string, unknown>
+  }>
+  label?: string
+}
+
+const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label }) => {
+  if (!active || !payload || payload.length === 0) return null
+
+  // Get the date from the first payload item
+  const date = payload[0]?.payload?.date as string || label
+
+  // Calculate total tokens for percentage
+  const totalTokens = payload.reduce((sum, item) => sum + (item.value || 0), 0)
+
+  // Filter out items with 0 tokens and sort by value descending
+  const sortedPayload = payload
+    .filter(item => item.value > 0)
+    .sort((a, b) => (b.value || 0) - (a.value || 0))
+
+  if (sortedPayload.length === 0) return null
+
+  return (
+    <div
+      style={{
+        background: 'var(--theme-surface)',
+        border: '1px solid var(--theme-border)',
+        borderRadius: 8,
+        padding: '8px 12px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        minWidth: 180
+      }}
+    >
+      <div
+        style={{
+          fontSize: '0.75rem',
+          fontWeight: 600,
+          color: 'var(--theme-text-primary)',
+          marginBottom: 8,
+          paddingBottom: 6,
+          borderBottom: '1px solid var(--theme-border)'
+        }}
+      >
+        {date}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {sortedPayload.map((item) => {
+          const percentage = totalTokens > 0 ? ((item.value / totalTokens) * 100).toFixed(1) : '0'
+          return (
+            <div
+              key={item.dataKey}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: '0.75rem'
+              }}
+            >
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: item.color,
+                  flexShrink: 0
+                }}
+              />
+              <div style={{ flex: 1, color: 'var(--theme-text-secondary)' }}>
+                {item.dataKey}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <div style={{ fontWeight: 600, color: 'var(--theme-text-primary)' }}>
+                  {item.value.toLocaleString()}
+                </div>
+                <div style={{ fontSize: '0.65rem', color: 'var(--theme-text-muted)' }}>
+                  {percentage}%
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 6,
+          borderTop: '1px solid var(--theme-border)',
+          fontSize: '0.7rem',
+          color: 'var(--theme-text-muted)',
+          textAlign: 'right'
+        }}
+      >
+        Total: {totalTokens.toLocaleString()} tokens
+      </div>
+    </div>
+  )
+}
 
 /**
  * ActivityGraph - Interactive 30-day token usage bar chart
  */
 export function ActivityGraph({ data }: ActivityGraphProps): React.ReactElement {
-  const chartData = data.map((item) => ({
-    label: item.label,
-    date: item.date,
-    tokens: item.tokens
-  }))
+  // Transform data and extract unique models
+  const { chartData, uniqueModels, chartConfig, modelColors } = useMemo(() => {
+    const modelsSet = new Set<string>()
+    
+    // Collect all unique models
+    data.forEach(item => {
+      if (item.modelBreakdown) {
+        Object.keys(item.modelBreakdown).forEach(model => modelsSet.add(model))
+      }
+    })
+    
+    const models = Array.from(modelsSet)
+    
+    // Assign colors to all models and create a direct color map
+    const config: ChartConfig = {}
+    const colorMap: Record<string, string> = {}
+    models.forEach(model => {
+      const color = assignColor(model)
+      config[model] = {
+        label: model,
+        color: color
+      }
+      colorMap[model] = color
+    })
+    
+    // Transform data to Recharts format
+    const transformed = data.map(item => {
+      const point: Record<string, unknown> = {
+        label: item.label,
+        date: item.date,
+        tokens: item.tokens
+      }
+      
+      // Add each model's tokens as a separate field
+      if (item.modelBreakdown) {
+        Object.entries(item.modelBreakdown).forEach(([model, tokens]) => {
+          point[model] = tokens
+        })
+      }
+      
+      return point
+    })
+    
+    return {
+      chartData: transformed,
+      uniqueModels: models,
+      chartConfig: config,
+      modelColors: colorMap
+    }
+  }, [data])
 
-  const showEmptyState = chartData.length === 0 || chartData.every((item) => item.tokens === 0)
-  const totalTokens = chartData.reduce((sum, item) => sum + item.tokens, 0)
+  const showEmptyState = chartData.length === 0 || chartData.every((item) => (item.tokens as number) === 0)
+  const totalTokens = chartData.reduce((sum, item) => sum + ((item.tokens as number) || 0), 0)
 
   return (
     <div className="activity-section" style={{ marginTop: 32 }}>
@@ -137,24 +282,18 @@ export function ActivityGraph({ data }: ActivityGraphProps): React.ReactElement 
               />
               <ChartTooltip
                 cursor={{ fill: 'rgba(255, 255, 255, 0.08)', radius: 4 }}
-                content={
-                  <ChartTooltipContent
-                    indicator="dot"
-                    labelFormatter={(_, payload) => {
-                      if (payload && payload[0]?.payload?.date) {
-                        return payload[0].payload.date as string
-                      }
-                      return null
-                    }}
-                  />
-                }
+                content={<CustomTooltip />}
               />
-              <Bar
-                dataKey="tokens"
-                fill="var(--color-tokens)"
-                radius={[3, 3, 0, 0]}
-                isAnimationActive={false}
-              />
+              {uniqueModels.map((model) => (
+                <Bar
+                  key={model}
+                  dataKey={model}
+                  stackId="models"
+                  fill={modelColors[model]}
+                  radius={[3, 3, 0, 0]}
+                  isAnimationActive={false}
+                />
+              ))}
             </BarChart>
           </ChartContainer>
 

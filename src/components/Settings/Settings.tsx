@@ -63,18 +63,27 @@ export default function Settings({
       activityData.push({
         label: `${months[d.getMonth()]} ${d.getDate()}`,
         date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-        tokens: 0
+        tokens: 0,
+        modelBreakdown: {}
       })
     }
 
-    // Accumulate tokens per day
+    // Accumulate tokens per day and per model
     sessions.forEach(session => {
       session.messages.forEach(msg => {
         const diffTime = now - msg.timestamp
         const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
         if (diffDays >= 0 && diffDays < 30 && msg.usage) {
           const tokenCount = msg.usage.totalTokens || (msg.usage.inputTokens || 0) + (msg.usage.outputTokens || 0)
-          activityData[29 - diffDays].tokens += tokenCount
+          const dayData = activityData[29 - diffDays]
+          dayData.tokens += tokenCount
+          
+          // Track per-model usage
+          if (msg.model) {
+            const modelName = msg.model.split('/').pop() || msg.model
+            dayData.modelBreakdown = dayData.modelBreakdown || {}
+            dayData.modelBreakdown[modelName] = (dayData.modelBreakdown[modelName] || 0) + tokenCount
+          }
         }
       })
     })
