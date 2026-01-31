@@ -175,19 +175,26 @@ export function TreeNode({
 export function TreeNodeTrigger({
   className,
   children,
+  hasChildren,
+  expandOnClick = true,
   ...props
-}: React.ComponentProps<"button">) {
+}: React.ComponentProps<"button"> & { hasChildren?: boolean; expandOnClick?: boolean }) {
   const { nodeId, level } = useTreeNode()
-  const { selectedIds, selectId } = useTree()
+  const { expandedIds, toggleExpanded, selectedIds, selectId } = useTree()
   const selected = selectedIds.includes(nodeId)
+  const open = expandedIds.includes(nodeId)
 
   return (
     <button
       type="button"
       role="treeitem"
       aria-selected={selected}
+      aria-expanded={hasChildren ? open : undefined}
       data-selected={selected ? "true" : "false"}
-      onClick={(e) => selectId(nodeId, e)}
+      onClick={(e) => {
+        if (hasChildren && expandOnClick) toggleExpanded(nodeId)
+        selectId(nodeId, e)
+      }}
       className={cn(
         "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors",
         "hover:bg-accent/60",

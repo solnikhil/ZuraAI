@@ -53,6 +53,63 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
     const [loadAttempted, setLoadAttempted] = useState(false)
 
+    const injectTreeCodeFences = (markdown: string) => {
+        const lines = markdown.split('\n')
+        const out: string[] = []
+
+        const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
+        const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
+
+        const isTreeCandidateLine = (line: string) => {
+            if (!line.trim()) return false
+            if (!allowedCharsRe.test(line)) return false
+            if (markerRe.test(line)) return true
+            // Root lines often look like "foo/" or "foo" (top label)
+            if (line.trim().endsWith('/')) return true
+            return false
+        }
+
+        let i = 0
+        while (i < lines.length) {
+            const line = lines[i] ?? ''
+
+            // Try to detect a contiguous tree block.
+            if (!isTreeCandidateLine(line)) {
+                out.push(line)
+                i += 1
+                continue
+            }
+
+            let j = i
+            let markerCount = 0
+            const block: string[] = []
+
+            while (j < lines.length) {
+                const l = lines[j] ?? ''
+                if (!l.trim()) break
+                if (!allowedCharsRe.test(l)) break
+                if (!isTreeCandidateLine(l) && !markerRe.test(l)) break
+                if (markerRe.test(l)) markerCount += 1
+                block.push(l)
+                j += 1
+            }
+
+            if (block.length >= 3 && markerCount >= 2) {
+                out.push('```tree')
+                out.push(...block)
+                out.push('```')
+                i = j
+                continue
+            }
+
+            // Not confident; emit the original line and continue.
+            out.push(line)
+            i += 1
+        }
+
+        return out.join('\n')
+    }
+
     const normalizeMathDelimiters = (markdown: string) => {
         const parts = markdown.split(/```/)
         return parts.map((part, index) => {
@@ -93,7 +150,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 return match
             })
 
-            return withMathInline.split('\n').map(line => {
+            const withMathLines = withMathInline.split('\n').map(line => {
                 const match = line.match(/^(\s*(?:[-*+]\s+)?)\[(.+)\]\s*$/)
                 if (!match) return line
                 const prefix = match[1] || ''
@@ -102,6 +159,8 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 if (!formulaLike) return line
                 return `${prefix}$$${inner}$$`
             }).join('\n')
+
+            return injectTreeCodeFences(withMathLines)
         }).join('```')
     }
 
@@ -146,8 +205,9 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 code({ node, inline, className, children, ...props }: any) {
                     const match = /language-([\w-]+)/.exec(className || '')
                     const codeString = Array.isArray(children) ? children.join('') : String(children ?? '')
-                    // Determine if this is truly a code block: has language OR has newlines OR inline is explicitly false
-                    const isCodeBlock = match || (inline === false && codeString.includes('\n'))
+                    const isInline = inline === true
+                    // Determine if this is a code block: not inline and has language OR has newlines
+                    const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
                     const language = match?.[1]?.toLowerCase()
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
@@ -155,7 +215,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
                     const looksLikeTree = markerCount > 0 && codeString.includes('\n')
 
-                    if (!inline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
+                    if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
                         return (
                             <MarkdownFileTree
                                 language={language}

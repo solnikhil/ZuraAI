@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Copy, FileCode2, FileJson, FileText } from 'lucide-react'
+import { FileCode2, FileJson, FileText } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import {
@@ -46,7 +46,7 @@ function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
 
         return (
           <TreeNode key={node.id} nodeId={node.id} level={level} isLast={isLast}>
-            <TreeNodeTrigger className="font-mono text-[13px]">
+            <TreeNodeTrigger className="font-mono text-[13px]" hasChildren={hasChildren}>
               <TreeExpander hasChildren={hasChildren} />
               <TreeIcon hasChildren={hasChildren} icon={!hasChildren ? iconForLeaf(node) : undefined} />
               <div className="min-w-0 flex flex-1 items-center gap-3">
@@ -80,8 +80,6 @@ export default function MarkdownFileTree({
   content: string
   className?: string
 }) {
-  const [copied, setCopied] = React.useState(false)
-
   const nodes = React.useMemo(() => {
     try {
       return parseFileTreeBlock(language, content)
@@ -101,28 +99,11 @@ export default function MarkdownFileTree({
   }
 
   return (
-    <div className={cn('my-3 overflow-hidden rounded-lg border border-border bg-muted/20', className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-background/40 px-3 py-2">
-        <div className="text-xs font-medium text-muted-foreground">Directory</div>
-        <button
-          type="button"
-          className={cn(
-            'inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors',
-            'hover:text-foreground'
-          )}
-          onClick={() => {
-            navigator.clipboard.writeText(content)
-            setCopied(true)
-            window.setTimeout(() => setCopied(false), 1500)
-          }}
-          title={copied ? 'Copied!' : 'Copy'}
-        >
-          {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+    <div className={cn('relative my-2', className)}>
+      <div className="pointer-events-none absolute left-0 top-0 flex items-center gap-2 px-1 py-1">
+        <span className="text-xs font-medium text-muted-foreground">Directory</span>
       </div>
-
-      <div className="p-2">
+      <div className="pt-6">
         <TreeProvider defaultExpandedIds={defaultExpandedIds}>
           <TreeView>
             <TreeNodes nodes={nodes} level={0} />
