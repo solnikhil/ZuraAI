@@ -6,10 +6,13 @@ import { lazy } from 'react'
 import { Check, Copy } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
+import MarkdownFileTree from './MarkdownFileTree'
 
 // Lazy load markdown dependencies
 const ReactMarkdown = lazy(() => import('react-markdown'))
 const remarkGfmPromise = import('remark-gfm')
+const remarkMathPromise = import('remark-math')
+const rehypeKatexPromise = import('rehype-katex')
 const PrismSyntaxHighlighter = lazy(() => import('react-syntax-highlighter').then(m => ({ default: m.Prism })))
 const prismStylesPromise = import('react-syntax-highlighter/dist/esm/styles/prism')
 
@@ -25,6 +28,16 @@ async function getRemarkGfm() {
     return mod.default
 }
 
+async function getRemarkMath() {
+    const mod = await remarkMathPromise
+    return mod.default
+}
+
+async function getRehypeKatex() {
+    const mod = await rehypeKatexPromise
+    return mod.default
+}
+
 // Syntax highlighter wrapper
 async function getPrismStyles() {
     const mod = await prismStylesPromise
@@ -33,43 +46,125 @@ async function getPrismStyles() {
 
 function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
     const [remarkPlugin, setRemarkPlugin] = useState<any>(null)
+    const [remarkMath, setRemarkMath] = useState<any>(null)
+    const [rehypeKatex, setRehypeKatex] = useState<any>(null)
     const [syntaxHighlighter, setSyntaxHighlighter] = useState<any>(null)
     const [prismStyle, setPrismStyle] = useState<any>(null)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
+    const [loadAttempted, setLoadAttempted] = useState(false)
+
+    const normalizeMathDelimiters = (markdown: string) => {
+        const parts = markdown.split(/```/)
+        return parts.map((part, index) => {
+            if (index % 2 !== 0) return part
+            // LLM responses often double-escape backslashes (e.g. "\\[" or "\\frac").
+            // Outside of code fences, reduce double backslashes to single so remark-math/MathJax can parse.
+            const unescaped = part.replace(/\\\\/g, '\\')
+
+            const normalized = unescaped
+                .replace(/\\\[/g, '$$')
+                .replace(/\\\]/g, '$$')
+                .replace(/\\\(/g, '$')
+                .replace(/\\\)/g, '$')
+
+            // Convert inline code that looks like math formulas to proper math syntax
+            // Match backtick-wrapped content that contains math-like characters
+            const withMathInline = normalized.replace(/`([^`]+)`/g, (match, content) => {
+                // Check if content looks like a math formula
+                const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
+                const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)
+                // Extended Greek letters including Δ (Delta), Σ (Sigma), π (pi), ∞ (infinity)
+                const hasGreekOrSubscript = /[α-ωΑ-ΩΔΣΠπ∞]|_[a-zA-Z0-9]/.test(content)
+                // Variables with subscripts like x_i, f(x), Δx
+                const hasVariablePattern = /[a-zA-Z][(_][a-zA-Z0-9]/.test(content) || /Δ[a-zA-Z]/.test(content)
+                
+                if ((hasMathChars && hasMathPattern) || hasGreekOrSubscript || hasVariablePattern) {
+                    // Check if it's already wrapped in $ or $$
+                    if (content.startsWith('$') || content.endsWith('$')) {
+                        return `$${content}$`
+                    }
+                    // Single letter variables like `ρ`, `H`, `U`, `Δ` should be inline math
+                    if (/^[a-zA-Zα-ωΑ-ΩΔΣΠπ∞_]+$/.test(content.trim())) {
+                        return `$${content}$`
+                    }
+                    // Multi-character formulas
+                    return `$${content}$`
+                }
+                return match
+            })
+
+            return withMathInline.split('\n').map(line => {
+                const match = line.match(/^(\s*(?:[-*+]\s+)?)\[(.+)\]\s*$/)
+                if (!match) return line
+                const prefix = match[1] || ''
+                const inner = match[2].trim()
+                const formulaLike = /[\\^_={}]/.test(inner) || /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(inner)
+                if (!formulaLike) return line
+                return `${prefix}$$${inner}$$`
+            }).join('\n')
+        }).join('```')
+    }
 
     useEffect(() => {
         let mounted = true
-        Promise.all([
-            getRemarkGfm(),
-            import('react-syntax-highlighter').then(m => m.Prism),
-            getPrismStyles()
-        ]).then(([plugin, highlighter, style]) => {
-            if (mounted) {
-                setRemarkPlugin(() => plugin)
-                setSyntaxHighlighter(() => highlighter)
-                setPrismStyle(style)
-            }
-        })
+        ;(async () => {
+            const results = await Promise.allSettled([
+                getRemarkGfm(),
+                getRemarkMath(),
+                getRehypeKatex(),
+                import('react-syntax-highlighter').then(m => m.Prism),
+                getPrismStyles()
+            ])
+
+            if (!mounted) return
+
+            const [gfm, math, katex, highlighter, style] = results
+
+            if (gfm.status === 'fulfilled') setRemarkPlugin(() => gfm.value)
+            if (math.status === 'fulfilled') setRemarkMath(() => math.value)
+            if (katex.status === 'fulfilled') setRehypeKatex(() => katex.value)
+            if (highlighter.status === 'fulfilled') setSyntaxHighlighter(() => highlighter.value)
+            if (style.status === 'fulfilled') setPrismStyle(style.value)
+
+            setLoadAttempted(true)
+        })()
         return () => { mounted = false }
     }, [])
 
-    if (!remarkPlugin || !syntaxHighlighter || !prismStyle) {
-        return <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
-    }
+    if (!loadAttempted) return <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
 
     const SyntaxHighlighter = syntaxHighlighter
+    const normalizedContent = normalizeMathDelimiters(content)
+    const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean)
+    const rehypePlugins = [rehypeKatex].filter(Boolean)
 
     return (
         <ReactMarkdown
-            remarkPlugins={[remarkPlugin]}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
             components={{
                 code({ node, inline, className, children, ...props }: any) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const codeString = String(children)
+                    const match = /language-([\w-]+)/.exec(className || '')
+                    const codeString = Array.isArray(children) ? children.join('') : String(children ?? '')
                     // Determine if this is truly a code block: has language OR has newlines OR inline is explicitly false
                     const isCodeBlock = match || (inline === false && codeString.includes('\n'))
+
+                    const language = match?.[1]?.toLowerCase()
+                    const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
+                    const treeMarkerRegex = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/gm
+                    const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
+                    const looksLikeTree = markerCount > 0 && codeString.includes('\n')
+
+                    if (!inline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
+                        return (
+                            <MarkdownFileTree
+                                language={language}
+                                content={codeString.replace(/\n$/, '')}
+                            />
+                        )
+                    }
                     
-                    if (isCodeBlock && match) {
+                    if (isCodeBlock && match && SyntaxHighlighter && prismStyle) {
                         // Code block with language - syntax highlighted
                         const isCopied = copiedCode === codeString
                         const handleCopy = () => {
@@ -216,7 +311,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 p: ({ node, ...props }) => <p {...props} />
             }}
         >
-            {content}
+            {normalizedContent}
         </ReactMarkdown>
     )
 }

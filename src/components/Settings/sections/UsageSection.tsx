@@ -173,9 +173,11 @@ export function UsageSection({
         </div>
       </div>
 
-      {/* Main Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 24 }}>
-        <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+      {/* Usage Bento */}
+      <div className="usage-bento-grid">
+        <ActivityGraph data={stats.activityData} embedded className="usage-bento-graph" />
+
+        <div className="stat-card usage-bento-card usage-bento-total">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Total Tokens</span>
             <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
@@ -186,7 +188,7 @@ export function UsageSection({
           <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Lifetime usage</div>
         </div>
 
-        <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+        <div className="stat-card usage-bento-card usage-bento-most">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Most Used Model</span>
             <span style={{ color: 'var(--theme-accent)' }}><BarChart size={16} /></span>
@@ -199,7 +201,7 @@ export function UsageSection({
           </div>
         </div>
 
-        <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+        <div className="stat-card usage-bento-card usage-bento-active">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Active Days</span>
             <span style={{ color: 'var(--theme-accent)' }}><Calendar size={16} /></span>
@@ -209,10 +211,8 @@ export function UsageSection({
           </div>
           <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Days with activity</div>
         </div>
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginTop: 24 }}>
-        <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+        <div className="stat-card usage-bento-card usage-bento-models">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Models used</span>
             <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
@@ -237,7 +237,7 @@ export function UsageSection({
           </div>
         </div>
 
-        <div className="stat-card" style={{ background: 'var(--theme-surface)', border: '1px solid var(--theme-border)', borderRadius: 16, padding: 20 }}>
+        <div className="stat-card usage-bento-card usage-bento-top">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Top models by tokens</span>
             <BarChart size={16} color="var(--theme-accent)" />
@@ -269,9 +269,6 @@ export function UsageSection({
           )}
         </div>
       </div>
-
-      {/* Activity Graph */}
-      <ActivityGraph data={stats.activityData} />
     </div>
   )
 }

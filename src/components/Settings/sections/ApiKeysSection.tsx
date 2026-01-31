@@ -11,7 +11,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 
@@ -55,33 +55,65 @@ interface ApiKeyInputProps {
   label: string
   value: string
   placeholder: string
+  description?: string
+  showToggle?: boolean
   onChange: (value: string) => void
 }
 
-function ApiKeyInput({ label, value, placeholder, onChange }: ApiKeyInputProps): React.ReactElement {
+function ApiKeyInput({
+  label,
+  value,
+  placeholder,
+  description,
+  showToggle = true,
+  onChange
+}: ApiKeyInputProps): React.ReactElement {
   const [showKey, setShowKey] = useState(false)
+  const inputId = React.useId()
+  const inputType = showToggle ? (showKey ? 'text' : 'password') : 'password'
 
   return (
-    <div className="space-y-2">
-      <Label className="text-sm text-muted-foreground">{label}</Label>
-      <div className="flex gap-2">
+    <Field>
+      <FieldLabel htmlFor={inputId} className="text-sm text-muted-foreground">{label}</FieldLabel>
+      {showToggle ? (
+        <div className="flex gap-2">
+          <Input
+            id={inputId}
+            type={inputType}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 bg-secondary border-border"
+            autoComplete="new-password"
+            spellCheck={false}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            type="button"
+            onClick={() => setShowKey(!showKey)}
+            className="shrink-0"
+            aria-label={showKey ? 'Hide API key' : 'Show API key'}
+          >
+            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+          </Button>
+        </div>
+      ) : (
         <Input
-          type={showKey ? 'text' : 'password'}
+          id={inputId}
+          type={inputType}
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 bg-secondary border-border"
+          className="w-full bg-secondary border-border"
+          autoComplete="new-password"
+          spellCheck={false}
         />
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setShowKey(!showKey)}
-          className="shrink-0"
-        >
-          {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-        </Button>
-      </div>
-    </div>
+      )}
+      {description && (
+        <FieldDescription className="text-xs text-muted-foreground">{description}</FieldDescription>
+      )}
+    </Field>
   )
 }
 
@@ -227,6 +259,9 @@ export function ApiKeysSection({
   toolsEnabled,
   onChange
 }: ApiKeysSectionProps): React.ReactElement {
+  const secureKeyDescription = 'Your API key is encrypted and stored securely.'
+  const tavilyInputId = React.useId()
+
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">
@@ -237,38 +272,43 @@ export function ApiKeysSection({
       {/* API Keys Section */}
       <Card className="settings-section-card">
         <h3 className="section-head">Provider Credentials</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <FieldGroup className="gap-5">
           <ApiKeyInput
             label="OpenRouter API Key"
             value={openRouterApiKey}
             placeholder="sk-or-..."
+            description={secureKeyDescription}
             onChange={value => onChange({ openRouterApiKey: value })}
           />
           <ApiKeyInput
             label="Perplexity API Key"
             value={perplexityApiKey}
             placeholder="pplx-..."
+            description={secureKeyDescription}
             onChange={value => onChange({ perplexityApiKey: value })}
           />
           <ApiKeyInput
             label="Gemini API Key"
             value={geminiApiKey}
             placeholder="AIza..."
+            description={secureKeyDescription}
             onChange={value => onChange({ geminiApiKey: value })}
           />
           <ApiKeyInput
             label="Groq API Key"
             value={groqApiKey}
             placeholder="gsk_..."
+            description={secureKeyDescription}
             onChange={value => onChange({ groqApiKey: value })}
           />
           <ApiKeyInput
             label="MiniMax API Key"
             value={minimaxApiKey}
             placeholder="mm-..."
+            description={secureKeyDescription}
             onChange={value => onChange({ minimaxApiKey: value })}
           />
-        </div>
+        </FieldGroup>
       </Card>
 
       {/* Ollama Section */}
@@ -297,13 +337,24 @@ export function ApiKeysSection({
                 tavily.com
               </a>
             </div>
-            <Input
-              type="password"
-              placeholder="tvly-..."
-              value={tavilyApiKey}
-              onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
-              className="w-full bg-secondary border-border"
-            />
+            <Field>
+              <FieldLabel htmlFor={tavilyInputId} className="text-sm text-muted-foreground">
+                Tavily API Key
+              </FieldLabel>
+              <Input
+                id={tavilyInputId}
+                type="password"
+                placeholder="tvly-..."
+                value={tavilyApiKey}
+                onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
+                className="w-full bg-secondary border-border"
+                autoComplete="new-password"
+                spellCheck={false}
+              />
+              <FieldDescription className="text-xs text-muted-foreground">
+                {secureKeyDescription}
+              </FieldDescription>
+            </Field>
           </div>
         )}
       </Card>

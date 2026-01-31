@@ -180,3 +180,91 @@ body {
 .animate-tooltip-out {
   animation: tooltip-out 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
+
+/* === KaTeX Math Styling - Clean & Minimal === */
+
+/* Base inline math styling */
+.katex {
+  font-size: 1.35em;
+  line-height: 1.2;
+}
+
+/* Inline math - minimal spacing */
+.katex-inline {
+  display: inline;
+  padding: 0 2px;
+}
+
+/* Reduce excessive spacing around operators */
+.katex .mspace {
+  margin: 0 0.15em;
+}
+
+/* Tighter spacing for superscripts/subscripts */
+.katex .supsub {
+  margin: 0;
+}
+
+/* Integral symbols sizing */
+.katex .mop .mop-symbol {
+  font-size: 1em;
+}
+
+/* Reduce padding around math elements */
+.katex .base {
+  padding: 0;
+}
+
+/* Display math (block equations) - more spacing */
+.katex-display {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
+/* Extra spacing for consecutive display math blocks */
+.katex-display + .katex-display {
+  margin-top: 1.5em;
+}
+
+/* Ensure display math doesn't overflow */
+.katex-display > .katex {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.katex-display > .katex {
+  font-size: 1.4em;
+}
+
+/* Lists with math - tighter spacing */
+li .katex-inline {
+  vertical-align: middle;
+}
+
+/* Prevent math from breaking layout - allow wrapping for long equations */
+.katex-html {
+  white-space: normal;
+}
+
+/* Display math should scroll horizontally if too long */
+.katex-display .katex-html {
+  white-space: nowrap;
+}
+
+/* Color consistency with theme */
+.katex {
+  color: inherit;
+}
+
+/* Fractions - more compact */
+.katex .mfrac {
+  margin: 0 0.1em;
+}
+
+/* Remove excessive margins from math blocks */
+.katex-display > .katex {
+  margin: 0;
+  padding: 0;
+}

@@ -14,9 +14,11 @@ interface ResponseInfoProps {
         tps?: number // Tokens per second
         ttft?: number // Time to first token in ms
     }
+    finishReason?: string
+    requestedMaxTokens?: number
 }
 
-export default function ResponseInfo({ model, latency, usage }: ResponseInfoProps) {
+export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens }: ResponseInfoProps) {
     // Format duration: 46.7s
     const formattedDuration = latency ? `${(latency / 1000).toFixed(1)}s` : '-'
 
@@ -59,6 +61,24 @@ export default function ResponseInfo({ model, latency, usage }: ResponseInfoProp
                         {formattedDuration}
                     </span>
                 </div>
+
+                {(finishReason || typeof requestedMaxTokens === 'number') && (
+                    <>
+                        <Separator />
+                        {typeof requestedMaxTokens === 'number' && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Requested Max</span>
+                                <span className="text-sm font-medium">{fmt(requestedMaxTokens)}</span>
+                            </div>
+                        )}
+                        {finishReason && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Stop Reason</span>
+                                <span className="text-sm font-medium">{finishReason}</span>
+                            </div>
+                        )}
+                    </>
+                )}
 
                 {usage && (
                     <>

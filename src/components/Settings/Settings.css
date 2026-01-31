@@ -467,6 +467,52 @@
     width: 100%;
 }
 
+.activity-section--embedded {
+    margin-top: 0;
+    height: 100%;
+}
+
+/* Usage Bento Layout */
+
+.usage-bento-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.usage-bento-card {
+    padding: 20px;
+    border-radius: 16px;
+    min-height: 140px;
+}
+
+.usage-bento-graph {
+    grid-column: span 7;
+    grid-row: span 2;
+    min-height: 360px;
+}
+
+.usage-bento-total {
+    grid-column: span 5;
+}
+
+.usage-bento-most {
+    grid-column: span 3;
+}
+
+.usage-bento-active {
+    grid-column: span 2;
+}
+
+.usage-bento-models {
+    grid-column: span 6;
+}
+
+.usage-bento-top {
+    grid-column: span 6;
+}
+
 
 /* Responsive breakpoints for usage section */
 
@@ -480,11 +526,47 @@
     .usage-detail-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+    .usage-bento-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .usage-bento-graph {
+        grid-column: span 6;
+        grid-row: span 1;
+        min-height: 320px;
+    }
+    .usage-bento-total {
+        grid-column: span 6;
+    }
+    .usage-bento-most,
+    .usage-bento-active {
+        grid-column: span 3;
+    }
+    .usage-bento-models,
+    .usage-bento-top {
+        grid-column: span 6;
+    }
 }
 
 @media (max-width: 900px) {
     .usage-stats-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .usage-bento-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .usage-bento-graph {
+        grid-column: span 2;
+        grid-row: span 1;
+        min-height: 300px;
+    }
+    .usage-bento-total,
+    .usage-bento-models,
+    .usage-bento-top {
+        grid-column: span 2;
+    }
+    .usage-bento-most,
+    .usage-bento-active {
+        grid-column: span 1;
     }
 }
 
@@ -500,6 +582,20 @@
     }
     .detail-card-small {
         padding: 14px;
+    }
+    .usage-bento-grid {
+        grid-template-columns: 1fr;
+    }
+    .usage-bento-graph,
+    .usage-bento-total,
+    .usage-bento-most,
+    .usage-bento-active,
+    .usage-bento-models,
+    .usage-bento-top {
+        grid-column: 1 / -1;
+    }
+    .usage-bento-graph {
+        min-height: 260px;
     }
 }
 

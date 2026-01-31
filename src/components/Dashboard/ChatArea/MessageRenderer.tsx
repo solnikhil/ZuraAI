@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
@@ -791,6 +792,9 @@ export function MessageRenderer({
         </div>
       )}
 
+      {/* Separator - added when model is done streaming to separate response from post-streaming tasks */}
+      {!isStreaming && message.content && <Separator orientation="horizontal" style={{ width: '25%', margin: '16px 0' }} />}
+
       {/* Action Bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
         {/* Version Indicator */}
@@ -982,6 +986,8 @@ export function MessageRenderer({
               model={message.model || settings.aiModel}
               latency={message.latency}
               usage={message.usage}
+              finishReason={message.finishReason}
+              requestedMaxTokens={message.requestedMaxTokens}
             />
           </div>
         )}

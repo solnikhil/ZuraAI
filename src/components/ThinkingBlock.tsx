@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
@@ -58,18 +59,36 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                         Thought for {block.duration ? formatDuration(block.duration) : 'a moment'}
                     </span>
                     {hasContent && (
-                        <ChevronRight
-                            size={14}
-                            className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`}
-                        />
+                        <motion.div
+                            animate={{ rotate: isExpanded ? 90 : 0 }}
+                            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                        >
+                            <ChevronRight
+                                size={14}
+                                className="thinking-chevron"
+                            />
+                        </motion.div>
                     )}
                 </div>
             </div>
-            {isExpanded && hasContent && (
-                <div className="thinking-content">
-                    {block.content}
-                </div>
-            )}
+            <AnimatePresence initial={false}>
+                {isExpanded && hasContent && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ 
+                            height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                            opacity: { duration: 0.15, ease: 'easeInOut' }
+                        }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div className="thinking-content">
+                            {block.content}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }
@@ -113,12 +132,15 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isThinking])
 
-    // Auto-expand only while actively thinking
+    // Auto-expand only while actively thinking, collapse when done
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
+        } else if (!isThinking && !isSearching) {
+            // Collapse immediately when thinking/searching is done
+            setIsExpanded(false)
         }
-    }, [isThinking, thinking])
+    }, [isThinking, isSearching, thinking])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
@@ -174,19 +196,37 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                                             animationKey="completed"
                                         />
                                     </span>
-                                    <ChevronRight
-                                        size={14}
-                                        className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`}
-                                    />
+                                    <motion.div
+                                        animate={{ rotate: isExpanded ? 90 : 0 }}
+                                        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                                    >
+                                        <ChevronRight
+                                            size={14}
+                                            className="thinking-chevron"
+                                        />
+                                    </motion.div>
                                 </>
                             )}
                         </div>
                     </div>
-                    {isExpanded && hasThinkingContent && (
-                        <div className="thinking-content">
-                            {thinking}
-                        </div>
-                    )}
+                    <AnimatePresence initial={false}>
+                        {isExpanded && hasThinkingContent && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ 
+                                    height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                                    opacity: { duration: 0.15, ease: 'easeInOut' }
+                                }}
+                                style={{ overflow: 'hidden' }}
+                            >
+                                <div className="thinking-content">
+                                    {thinking}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             )}
         </div>

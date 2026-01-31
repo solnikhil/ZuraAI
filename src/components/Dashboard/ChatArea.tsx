@@ -53,18 +53,24 @@ export default function ChatArea() {
       setInput('')
       setAttachedFiles([])
       setPastedChunks([])
+    },
+    onRegenerateStart: () => {
+      // Scroll to position the new message in view when regenerating with smooth animation
+      requestAnimationFrame(() => {
+        scrollToNewMessage(true)
+      })
     }
   })
 
   // Scroll helpers
-  const scrollToNewMessage = () => {
-    if (!messagesContainerRef.current) return
+  const scrollToNewMessage = (smooth = false) => {
     const container = messagesContainerRef.current
-    const messageElements = container.querySelectorAll('[data-message-id]')
-    const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement
-    if (lastMessageEl) {
-      lastMessageEl.scrollIntoView({ behavior: 'auto', block: 'start' })
-      container.scrollTop = Math.max(0, container.scrollTop - 48)
+    if (!container) return
+    const scrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+    if (smooth) {
+      container.scrollTo({ top: scrollTop, behavior: 'smooth' })
+    } else {
+      container.scrollTop = scrollTop
     }
   }
 

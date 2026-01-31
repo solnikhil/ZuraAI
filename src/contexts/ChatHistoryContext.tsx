@@ -70,6 +70,8 @@ export interface Message {
         cachedInputTokens?: number
         cachedOutputTokens?: number
     }
+    finishReason?: string
+    requestedMaxTokens?: number
     responseVersions?: ResponseVersion[] // Previous response versions
     currentVersionIndex?: number // Which version is currently displayed
 }

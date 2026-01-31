@@ -35,6 +35,7 @@ export interface UseStreamingChatOptions {
   onMessageSent?: () => void
   onStreamStart?: () => void
   onStreamEnd?: () => void
+  onRegenerateStart?: () => void
 }
 
 export interface UseStreamingChatReturn {
@@ -561,7 +562,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           researchStatus: {
-            currentRound: researchRound || 1,
+            currentRound: 1,
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
@@ -575,7 +576,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       })) || null
 
       if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
-        // Research loop - simplified version
+        // Research loop
         let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
         let hasMoreToolCalls = true
         let lastAssistantMessage = reconstructedMessage
@@ -863,7 +864,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           researchStatus: {
-            currentRound: researchRound || 1,
+            currentRound: 1,
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
@@ -1140,7 +1141,16 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     let thinkingEndTime: number | null = null
     let thinkingDuration: number | undefined = undefined
 
-    const effectiveMaxTokens = researchMaxRounds > 0 ? 8000 : settings.maxTokens
+    // For OpenRouter, avoid accidentally pinning max_tokens to 1000 from legacy settings.
+    // Providers/models may still enforce their own caps.
+    const requestedMaxTokens = (() => {
+      const base = (typeof settings.maxTokens === 'number' && Number.isFinite(settings.maxTokens) && settings.maxTokens > 0)
+        ? settings.maxTokens
+        : 8000
+      if (researchMaxRounds > 0) return 8000
+      if (/:free\b/.test(String(settings.aiModel || '')) && base <= 1000) return 8000
+      return base
+    })()
 
     // Set tool choice for mandatory research mode to force web_search
     const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
@@ -1153,7 +1163,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.openRouterApiKey,
       settings.aiModel,
       openRouterMessages,
-      { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal: abortControllerRef.current?.signal }
+      { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal: abortControllerRef.current?.signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -1286,7 +1296,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Update researchStatus to show searching state (single block will handle display)
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           researchStatus: {
-            currentRound: researchRound || 1,
+            currentRound: 1,
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
@@ -1329,7 +1339,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.openRouterApiKey,
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, toolChoice, signal: abortControllerRef.current?.signal }
+            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -1455,7 +1465,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             settings.openRouterApiKey,
             settings.aiModel,
             finalAnswerMessages,
-            { temperature: settings.temperature, maxTokens: effectiveMaxTokens, tools: openRouterTools, signal: abortControllerRef.current?.signal }
+            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             finalAnswerContent += delta
@@ -1521,6 +1531,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       model: `openrouter/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
+      finishReason: finishReason || undefined,
+      requestedMaxTokens,
       toolResults: savedToolResults
     })
 
@@ -1768,6 +1780,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       deleteMessageFromSession(currentSessionId, message.id)
+      options.onRegenerateStart?.()
 
       const streamingMessageId = addMessageToSession(currentSessionId, {
         role: 'assistant',

@@ -14,6 +14,7 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { assignColor } from '@/utils/colorManager'
+import { cn } from '@/lib/utils'
 
 /**
  * Activity data point interface
@@ -31,6 +32,10 @@ export interface ActivityData {
 export interface ActivityGraphProps {
   /** Activity data points for 30 days */
   data: ActivityData[]
+  /** Remove outer margin for embedded layouts */
+  embedded?: boolean
+  /** Optional class name for container */
+  className?: string
 }
 
 /**
@@ -142,7 +147,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
 /**
  * ActivityGraph - Interactive 30-day token usage bar chart
  */
-export function ActivityGraph({ data }: ActivityGraphProps): React.ReactElement {
+export function ActivityGraph({ data, embedded = false, className }: ActivityGraphProps): React.ReactElement {
   // Transform data and extract unique models
   const { chartData, uniqueModels, chartConfig, modelColors } = useMemo(() => {
     const modelsSet = new Set<string>()
@@ -198,7 +203,10 @@ export function ActivityGraph({ data }: ActivityGraphProps): React.ReactElement 
   const totalTokens = chartData.reduce((sum, item) => sum + ((item.tokens as number) || 0), 0)
 
   return (
-    <div className="activity-section" style={{ marginTop: 32 }}>
+    <div
+      className={cn('activity-section', embedded && 'activity-section--embedded', className)}
+      style={{ marginTop: embedded ? 0 : 32 }}
+    >
       <div
         className="activity-header"
         style={{

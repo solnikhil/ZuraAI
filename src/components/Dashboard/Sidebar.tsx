@@ -671,7 +671,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                         <button
                             key={item.id}
                             onClick={() => onNavigateSettings(item.id)}
-                            className={`nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
+                            className={`nav-item settings-nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
                                 padding: isCollapsed ? '8px' : '10px 12px',
                                 fontSize: '0.9rem',
@@ -806,9 +806,18 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; alignItems: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
                 .btn-signout:hover { background: var(--theme-surface-hover); color: #fff; border-color: var(--theme-border-hover); }
 
-                .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: all 0.15s ease; width: 100%; box-sizing: border-box; }
+                .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: background 0.15s ease, color 0.15s ease; width: 100%; box-sizing: border-box; }
                 .nav-item:hover { background: var(--theme-surface-hover); }
                 .nav-item.active { background: var(--theme-surface-active); }
+
+                .settings-nav-item { transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; will-change: transform; }
+                .settings-nav-item:active { transform: translateY(1px) scale(0.98); background: var(--theme-surface-active); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.06s; }
+                .settings-nav-item:focus-visible { box-shadow: 0 0 0 2px var(--theme-accent-muted); outline: none; }
+                .settings-nav-item:focus-visible:active { box-shadow: 0 0 0 2px var(--theme-accent-muted), inset 0 1px 2px rgba(0, 0, 0, 0.08); }
+                @media (prefers-reduced-motion: reduce) {
+                    .settings-nav-item { transition: background 0.15s ease, color 0.15s ease; }
+                    .settings-nav-item:active { transform: none; box-shadow: none; }
+                }
 
                 .quick-action-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
 

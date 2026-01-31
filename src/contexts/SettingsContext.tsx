@@ -91,7 +91,8 @@ const defaultSettings: Settings = {
     aiModel: 'x-ai/grok-4.1-fast',
     titleModel: 'gemini-2.5-flash', // Default to fast free model
     temperature: 0.7,
-    maxTokens: 25000,
+    // Max output tokens per response (providers may still enforce their own caps)
+    maxTokens: 8000,
     autoHideOverlay: false,
     overlayTransparency: 0.95,
     loadOverlayOnStartup: false,
@@ -246,6 +247,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.minimaxModels) parsed.minimaxModels = defaultSettings.minimaxModels
         // Ensure titleModel exists
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
+
+        // Max tokens sanity + migration
+        // Some older installs/defaults used 1000; for OpenRouter :free models this is often too small.
+        if (typeof parsed.maxTokens !== 'number' || !Number.isFinite(parsed.maxTokens) || parsed.maxTokens <= 0) {
+            parsed.maxTokens = defaultSettings.maxTokens
+        }
+        if (parsed.modelProvider === 'openrouter' && typeof parsed.aiModel === 'string' && /:free\b/.test(parsed.aiModel) && parsed.maxTokens <= 1000) {
+            parsed.maxTokens = 8000
+        }
         // Initialize todos if missing
         if (!parsed.todos) parsed.todos = []
         // Initialize tool settings if missing

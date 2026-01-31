@@ -1,0 +1,190 @@
+export type FileTreeNode = {
+  id: string
+  name: string
+  description?: string
+  type?: 'file' | 'folder'
+  children?: FileTreeNode[]
+}
+
+function safeString(v: unknown): string {
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  return ''
+}
+
+function joinPath(parent: string, name: string): string {
+  const clean = name.replace(/^\/+/, '').replace(/\/+$/, '')
+  if (!parent) return clean
+  return `${parent}/${clean}`
+}
+
+function normalizeChildren(input: any, parentId: string): FileTreeNode[] {
+  if (!Array.isArray(input)) return []
+
+  return input
+    .map((raw) => {
+      if (!raw || typeof raw !== 'object') return null
+      const name = safeString(raw.name || raw.label || raw.title)
+      if (!name) return null
+      const description = safeString(raw.description || raw.comment || raw.desc)
+      const id = safeString(raw.id) || joinPath(parentId, name)
+      const children = normalizeChildren(raw.children, id)
+      const explicitType = raw.type === 'file' || raw.type === 'folder' ? raw.type : undefined
+      const inferredType: FileTreeNode['type'] = explicitType || (children.length > 0 ? 'folder' : 'file')
+
+      const node: FileTreeNode = {
+        id,
+        name,
+        ...(description ? { description } : {}),
+        type: inferredType,
+        ...(children.length > 0 ? { children } : {})
+      }
+      return node
+    })
+    .filter(Boolean) as FileTreeNode[]
+}
+
+export function parseZuraTreeJson(content: string): FileTreeNode[] {
+  const trimmed = content.trim()
+  if (!trimmed) return []
+
+  const parsed = JSON.parse(trimmed)
+  if (Array.isArray(parsed)) return normalizeChildren(parsed, '')
+  if (parsed && typeof parsed === 'object') {
+    if (Array.isArray((parsed as any).nodes)) return normalizeChildren((parsed as any).nodes, '')
+    const name = safeString((parsed as any).name || (parsed as any).label || (parsed as any).title) || 'root'
+    const rootId = safeString((parsed as any).id) || name
+    const children = normalizeChildren((parsed as any).children, rootId)
+    if (children.length > 0) {
+      return [{ id: rootId, name, type: 'folder', children }]
+    }
+    return [{ id: rootId, name, type: 'file' }]
+  }
+
+  return []
+}
+
+type ParsedLine = { depth: number; name: string; description?: string; folderHint?: boolean }
+
+function splitInlineComment(text: string): { name: string; description?: string } {
+  // Support "name  # comment" while avoiding false positives.
+  // Require at least 2 spaces before the # so "file#1" isn't treated as a comment.
+  const m = text.match(/^(.*?)(?:\s{2,}#\s+)(.+)$/)
+  if (!m) return { name: text.trim() }
+  const name = (m[1] || '').trim()
+  const description = (m[2] || '').trim()
+  return { name, ...(description ? { description } : {}) }
+}
+
+function parseTreeLine(line: string): ParsedLine | null {
+  const raw = line.replace(/\t/g, '    ')
+  if (!raw.trim()) return null
+
+  let depth = 0
+  let rest = raw
+
+  const isTreeStyle =
+    rest.includes('├') ||
+    rest.includes('└') ||
+    rest.includes('│') ||
+    rest.includes('─') ||
+    rest.includes('—') ||
+    /^\s*(\||\+)\s*[-─—]{2,}\s+/.test(rest) ||
+    rest.trimStart().startsWith('|--') ||
+    rest.trimStart().startsWith('+--')
+
+  if (isTreeStyle) {
+    // Typical `tree` output uses 4-char indentation blocks like:
+    // "│   ", "    ", sometimes "|   "
+    while (rest.startsWith('│   ') || rest.startsWith('    ') || rest.startsWith('|   ')) {
+      depth += 1
+      rest = rest.slice(4)
+    }
+
+    const marker = rest.match(/^(├──\s*|└──\s*|\+--\s*|\|--\s*|\|[-─—]{2,}\s*|\+[-─—]{2,}\s*|├[-─—]{2,}\s*|└[-─—]{2,}\s*)/)?.[0]
+    if (marker) {
+      // Branch marker indicates one level under the current prefix.
+      depth += 1
+      rest = rest.slice(marker.length)
+    }
+  } else {
+    // Space-indented trees (commonly 2-space indents)
+    const leadingSpaces = rest.match(/^\s+/)?.[0] ?? ''
+    if (leadingSpaces) {
+      depth = Math.floor(leadingSpaces.length / 2)
+      rest = rest.slice(depth * 2)
+    }
+  }
+
+  const { name: rawName, description } = splitInlineComment(rest.trim())
+  if (!rawName) return null
+  const folderHint = rawName.endsWith('/')
+  const name = rawName.replace(/\/+$/, '')
+  if (!name) return null
+
+  return { depth, name, ...(description ? { description } : {}), ...(folderHint ? { folderHint } : {}) }
+}
+
+export function parseTreeText(content: string): FileTreeNode[] {
+  const lines = content
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+$/, ''))
+    .filter((l) => l.trim().length > 0)
+
+  if (lines.length === 0) return []
+
+  // Some outputs start with "." or a label line
+  const parsedLines: ParsedLine[] = []
+  for (const line of lines) {
+    const p = parseTreeLine(line)
+    if (!p) continue
+    if (p.depth === 0 && (p.name === '.' || p.name === './')) continue
+    parsedLines.push(p)
+  }
+  if (parsedLines.length === 0) return []
+
+  const root: FileTreeNode[] = []
+  const stack: Array<{ depth: number; node: FileTreeNode }> = []
+
+  for (let i = 0; i < parsedLines.length; i++) {
+    const { depth, name, description, folderHint } = parsedLines[i]
+
+    while (stack.length > 0 && stack[stack.length - 1]!.depth >= depth) {
+      stack.pop()
+    }
+
+    const parent = stack[stack.length - 1]?.node
+    const parentId = parent?.id || ''
+    const id = joinPath(parentId, name)
+
+    const next = parsedLines[i + 1]
+    const hasChildren = !!next && next.depth > depth
+
+    const node: FileTreeNode = {
+      id,
+      name,
+      ...(description ? { description } : {}),
+      type: hasChildren || folderHint ? 'folder' : 'file',
+      ...(hasChildren ? { children: [] as FileTreeNode[] } : {})
+    }
+
+    if (parent) {
+      if (!parent.children) parent.children = []
+      parent.children.push(node)
+    } else {
+      root.push(node)
+    }
+
+    if (hasChildren) stack.push({ depth, node })
+  }
+
+  return root
+}
+
+export function parseFileTreeBlock(language: string | undefined, content: string): FileTreeNode[] {
+  const lang = (language || '').toLowerCase()
+  if (lang === 'zura-tree' || lang === 'zura_tree' || lang === 'filetree' || lang === 'file-tree') {
+    return parseZuraTreeJson(content)
+  }
+  return parseTreeText(content)
+}
