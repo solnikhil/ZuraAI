@@ -559,84 +559,75 @@ export function ModelSection({
 
             {/* Dropdown Menu */}
             {titleModelDropdownOpen && (
-              <ScrollArea
+              <div
+                className="absolute left-0 right-0 mt-1 z-[100] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-lg"
                 style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: '4px',
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 8,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                  zIndex: 100,
-                  maxHeight: '300px'
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                 }}
               >
-                {allModelsByProvider.map(group => (
-                  <div key={group.providerKey}>
-                    {/* Provider Header */}
-                    <div
-                      style={{
-                        padding: '8px 12px',
-                        background: 'rgba(0,0,0,0.2)',
-                        borderBottom: '1px solid var(--theme-border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        position: 'sticky',
-                        top: 0
-                      }}
-                    >
-                      <ProviderLogo provider={group.providerKey as any} size={14} />
-                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {group.provider}
-                      </span>
-                    </div>
-                    {/* Models */}
-                    {group.models.map((model, idx) => (
+                <ScrollArea style={{ height: '300px' }}>
+                  {allModelsByProvider.map(group => (
+                    <div key={group.providerKey}>
+                      {/* Provider Header */}
                       <div
-                        key={`${group.providerKey}-${idx}`}
-                        onClick={() => {
-                          onTitleModelChange(model.code)
-                          setTitleModelDropdownOpen(false)
-                        }}
                         style={{
-                          padding: '10px 12px',
-                          cursor: 'pointer',
+                          padding: '8px 12px',
+                          background: 'rgba(0,0,0,0.2)',
+                          borderBottom: '1px solid var(--theme-border)',
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '10px',
-                          background: model.code === titleModel ? 'rgba(0, 188, 212, 0.1)' : 'transparent',
-                          borderLeft: model.code === titleModel ? '2px solid var(--theme-accent)' : '2px solid transparent',
-                          transition: 'all 0.15s'
-                        }}
-                        onMouseEnter={e => {
-                          if (model.code !== titleModel) {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                          }
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = model.code === titleModel ? 'rgba(0, 188, 212, 0.1)' : 'transparent'
+                          gap: '8px'
                         }}
                       >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>
-                            {removeEmojis(model.displayName)}
-                          </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--theme-text-muted)' }}>
-                            {model.code}
-                          </div>
-                        </div>
-                        {model.code === titleModel && (
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--theme-accent)' }} />
-                        )}
+                        <ProviderLogo provider={group.providerKey as any} size={14} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--theme-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          {group.provider}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ))}
-              </ScrollArea>
+                      {/* Models */}
+                      {group.models.map((model, idx) => (
+                        <div
+                          key={`${group.providerKey}-${idx}`}
+                          onClick={() => {
+                            onTitleModelChange(model.code)
+                            setTitleModelDropdownOpen(false)
+                          }}
+                          style={{
+                            padding: '10px 12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            background: model.code === titleModel ? 'rgba(0, 188, 212, 0.1)' : 'transparent',
+                            borderLeft: model.code === titleModel ? '2px solid var(--theme-accent)' : '2px solid transparent',
+                            transition: 'all 0.15s'
+                          }}
+                          onMouseEnter={e => {
+                            if (model.code !== titleModel) {
+                              e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+                            }
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = model.code === titleModel ? 'rgba(0, 188, 212, 0.1)' : 'transparent'
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>
+                              {removeEmojis(model.displayName)}
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--theme-text-muted)' }}>
+                              {model.code}
+                            </div>
+                          </div>
+                          {model.code === titleModel && (
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--theme-accent)' }} />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </ScrollArea>
+              </div>
             )}
           </div>
         </Card>

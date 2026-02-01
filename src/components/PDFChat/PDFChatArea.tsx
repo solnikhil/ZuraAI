@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { Send, AlertTriangle, Shield, ShieldOff, Copy, Check, Info, Download, Share2, ChevronDown, FileText, BookOpen, ThumbsUp, ThumbsDown, RefreshCw, Settings, MoreVertical } from '../icons';
 import LazyMarkdown from '../LazyMarkdown';
 import StarBorder from '../StarBorder';
-import ModelSelector from '../Dashboard/ModelSelector';
+import ModelSelector from '../Dashboard/ModelSelector/index';
 import { useSettings } from '../../contexts/SettingsContext';
 import type {
   Citation,

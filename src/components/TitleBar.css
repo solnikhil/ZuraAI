@@ -223,6 +223,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     -webkit-app-region: no-drag;
+    margin-right: 90px;
 }
 
 /* Hide model viewer on small windows */

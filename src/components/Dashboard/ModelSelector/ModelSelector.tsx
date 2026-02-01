@@ -29,6 +29,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
     state,
     searchInputRef,
     currentModels,
+    groupedModels,
     currentModel,
     currentName,
     setSearchQuery,
@@ -63,7 +64,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
             />
           ) : <Cpu size={14} />}
           {!minimal && (
-            <span className="truncate text-xs" style={{ maxWidth: '100px' }}>
+            <span className="truncate text-xs" style={{ maxWidth: '180px', minWidth: '80px' }}>
               {currentName}
             </span>
           )}
@@ -97,7 +98,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           selectedProvider={state.selectedProvider}
           onProviderSelect={setSelectedProvider}
           currentModels={currentModels}
-          groupedModels={{ ollama: [], perplexity: [], openrouter: [], gemini: [], groq: [], minimax: [] }}
+          groupedModels={groupedModels}
           selectedModelCode={settings.aiModel}
           selectedModelProvider={settings.modelProvider}
           favoriteModels={settings.favoriteModels || []}

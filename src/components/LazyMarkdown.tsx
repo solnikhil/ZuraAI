@@ -211,9 +211,15 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
 
                     const language = match?.[1]?.toLowerCase()
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
-                    const treeMarkerRegex = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/gm
+                    // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
+                    // Also match simple indented trees with branch characters
+                    const treeMarkerRegex = /[├└│┌┐┤┴┼].*[─-]|^\s*[|+][-─—]|^\s+\S+\s*#/gm
                     const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
-                    const looksLikeTree = markerCount > 0 && codeString.includes('\n')
+                    // Also check for folder/file patterns with comments (like "folder/  # comment")
+                    const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
+                    // Check for tree markers at line starts
+                    const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(codeString)
+                    const looksLikeTree = (markerCount > 0 || hasFolderComments || hasTreeMarkers) && codeString.includes('\n')
 
                     if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
                         return (

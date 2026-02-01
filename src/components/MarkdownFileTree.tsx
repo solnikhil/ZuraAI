@@ -1,5 +1,20 @@
 import * as React from 'react'
-import { FileCode2, FileJson, FileText } from 'lucide-react'
+import {
+  FileCode2,
+  FileJson,
+  FileText,
+  FolderTree,
+  FileType,
+  FileImage,
+  FileVideo,
+  FileAudio,
+  FileArchive,
+  FileSpreadsheet,
+  FileCog,
+  FileTerminal,
+  FileKey,
+  Database,
+} from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import {
@@ -28,13 +43,121 @@ function collectExpandedIds(nodes: FileTreeNode[], maxDepth: number): string[] {
   return ids
 }
 
+const EXT_ICONS: Record<string, React.ReactNode> = {
+  // TypeScript - blue
+  '.ts': <FileCode2 className="h-4 w-4 text-blue-400" />,
+  '.tsx': <FileCode2 className="h-4 w-4 text-blue-400" />,
+  // JavaScript - yellow
+  '.js': <FileCode2 className="h-4 w-4 text-yellow-400" />,
+  '.jsx': <FileCode2 className="h-4 w-4 text-yellow-400" />,
+  // Python - green/yellow
+  '.py': <FileCode2 className="h-4 w-4 text-emerald-400" />,
+  // Ruby - red
+  '.rb': <FileCode2 className="h-4 w-4 text-red-400" />,
+  // Go - cyan
+  '.go': <FileCode2 className="h-4 w-4 text-cyan-400" />,
+  // Rust - orange
+  '.rs': <FileCode2 className="h-4 w-4 text-orange-400" />,
+  // Java - red/orange
+  '.java': <FileCode2 className="h-4 w-4 text-red-500" />,
+  '.kt': <FileCode2 className="h-4 w-4 text-purple-400" />,
+  '.swift': <FileCode2 className="h-4 w-4 text-orange-500" />,
+  // C/C++ - blue
+  '.c': <FileCode2 className="h-4 w-4 text-blue-500" />,
+  '.cpp': <FileCode2 className="h-4 w-4 text-blue-500" />,
+  '.h': <FileCode2 className="h-4 w-4 text-purple-400" />,
+  '.hpp': <FileCode2 className="h-4 w-4 text-purple-400" />,
+  // C# - purple
+  '.cs': <FileCode2 className="h-4 w-4 text-violet-500" />,
+  // PHP - indigo
+  '.php': <FileCode2 className="h-4 w-4 text-indigo-400" />,
+  // Vue - green
+  '.vue': <FileCode2 className="h-4 w-4 text-emerald-500" />,
+  // Svelte - orange
+  '.svelte': <FileCode2 className="h-4 w-4 text-orange-500" />,
+
+  // Data/config - yellow/amber
+  '.json': <FileJson className="h-4 w-4 text-yellow-500" />,
+  '.yaml': <FileCog className="h-4 w-4 text-rose-400" />,
+  '.yml': <FileCog className="h-4 w-4 text-rose-400" />,
+  '.toml': <FileCog className="h-4 w-4 text-gray-400" />,
+  '.ini': <FileCog className="h-4 w-4 text-gray-400" />,
+  '.env': <FileKey className="h-4 w-4 text-yellow-600" />,
+
+  // Styles - pink/magenta
+  '.css': <FileType className="h-4 w-4 text-sky-400" />,
+  '.scss': <FileType className="h-4 w-4 text-pink-400" />,
+  '.sass': <FileType className="h-4 w-4 text-pink-400" />,
+  '.less': <FileType className="h-4 w-4 text-indigo-400" />,
+
+  // Markup/docs
+  '.html': <FileCode2 className="h-4 w-4 text-orange-500" />,
+  '.htm': <FileCode2 className="h-4 w-4 text-orange-500" />,
+  '.xml': <FileCode2 className="h-4 w-4 text-orange-400" />,
+  '.md': <FileText className="h-4 w-4 text-sky-400" />,
+  '.mdx': <FileText className="h-4 w-4 text-sky-400" />,
+  '.txt': <FileText className="h-4 w-4 text-gray-400" />,
+  '.rst': <FileText className="h-4 w-4 text-gray-400" />,
+
+  // Shell/scripts - green
+  '.sh': <FileTerminal className="h-4 w-4 text-green-500" />,
+  '.bash': <FileTerminal className="h-4 w-4 text-green-500" />,
+  '.zsh': <FileTerminal className="h-4 w-4 text-green-500" />,
+  '.fish': <FileTerminal className="h-4 w-4 text-green-400" />,
+  '.ps1': <FileTerminal className="h-4 w-4 text-blue-500" />,
+  '.bat': <FileTerminal className="h-4 w-4 text-green-600" />,
+  '.cmd': <FileTerminal className="h-4 w-4 text-green-600" />,
+
+  // Images - purple/magenta
+  '.png': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.jpg': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.jpeg': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.gif': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.svg': <FileImage className="h-4 w-4 text-amber-500" />,
+  '.webp': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.ico': <FileImage className="h-4 w-4 text-purple-400" />,
+  '.bmp': <FileImage className="h-4 w-4 text-purple-400" />,
+
+  // Video - red
+  '.mp4': <FileVideo className="h-4 w-4 text-red-400" />,
+  '.webm': <FileVideo className="h-4 w-4 text-red-400" />,
+  '.mov': <FileVideo className="h-4 w-4 text-red-400" />,
+  '.avi': <FileVideo className="h-4 w-4 text-red-400" />,
+  '.mkv': <FileVideo className="h-4 w-4 text-red-400" />,
+
+  // Audio - pink
+  '.mp3': <FileAudio className="h-4 w-4 text-pink-500" />,
+  '.wav': <FileAudio className="h-4 w-4 text-pink-500" />,
+  '.ogg': <FileAudio className="h-4 w-4 text-pink-500" />,
+  '.flac': <FileAudio className="h-4 w-4 text-pink-500" />,
+  '.m4a': <FileAudio className="h-4 w-4 text-pink-500" />,
+
+  // Archives - brown/amber
+  '.zip': <FileArchive className="h-4 w-4 text-amber-600" />,
+  '.tar': <FileArchive className="h-4 w-4 text-amber-600" />,
+  '.gz': <FileArchive className="h-4 w-4 text-amber-600" />,
+  '.rar': <FileArchive className="h-4 w-4 text-amber-600" />,
+  '.7z': <FileArchive className="h-4 w-4 text-amber-600" />,
+
+  // Data - green
+  '.csv': <FileSpreadsheet className="h-4 w-4 text-green-500" />,
+  '.xlsx': <FileSpreadsheet className="h-4 w-4 text-green-600" />,
+  '.xls': <FileSpreadsheet className="h-4 w-4 text-green-600" />,
+  '.sql': <Database className="h-4 w-4 text-blue-400" />,
+  '.db': <Database className="h-4 w-4 text-blue-400" />,
+  '.sqlite': <Database className="h-4 w-4 text-blue-400" />,
+
+  // Security - gold
+  '.pem': <FileKey className="h-4 w-4 text-yellow-500" />,
+  '.key': <FileKey className="h-4 w-4 text-yellow-500" />,
+  '.crt': <FileKey className="h-4 w-4 text-yellow-500" />,
+  '.cer': <FileKey className="h-4 w-4 text-yellow-500" />,
+}
+
 function iconForLeaf(node: FileTreeNode): React.ReactNode {
   const name = node.name.toLowerCase()
-  if (name.endsWith('.json')) return <FileJson className="h-4 w-4" />
-  if (name.endsWith('.ts') || name.endsWith('.tsx') || name.endsWith('.js') || name.endsWith('.jsx')) {
-    return <FileCode2 className="h-4 w-4" />
-  }
-  return <FileText className="h-4 w-4" />
+  const ext = name.slice(name.lastIndexOf('.'))
+  return EXT_ICONS[ext] || <FileText className="h-4 w-4 text-slate-400" />
 }
 
 function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
@@ -42,18 +165,19 @@ function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
     <>
       {nodes.map((node, idx) => {
         const hasChildren = !!node.children && node.children.length > 0
+        const isFolder = node.type === 'folder'
         const isLast = idx === nodes.length - 1
 
         return (
           <TreeNode key={node.id} nodeId={node.id} level={level} isLast={isLast}>
-            <TreeNodeTrigger className="font-mono text-[13px]" hasChildren={hasChildren}>
+             <TreeNodeTrigger className="font-mono text-[13px] [&[data-selected=true]]:bg-transparent" hasChildren={hasChildren}>
               <TreeExpander hasChildren={hasChildren} />
-              <TreeIcon hasChildren={hasChildren} icon={!hasChildren ? iconForLeaf(node) : undefined} />
+              <TreeIcon isFolder={isFolder} icon={!isFolder ? iconForLeaf(node) : undefined} />
               <div className="min-w-0 flex flex-1 items-center gap-3">
-                <TreeLabel className="min-w-0 truncate">{node.type === 'folder' ? `${node.name}/` : node.name}</TreeLabel>
+                <TreeLabel className="min-w-0 truncate">{isFolder ? `${node.name}/` : node.name}</TreeLabel>
                 {node.description && (
-                  <span className="ml-auto min-w-0 truncate text-xs text-muted-foreground">
-                    # {node.description}
+                  <span className="ml-auto min-w-0 truncate text-[11px] italic text-muted-foreground/70 font-normal">
+                    {node.description}
                   </span>
                 )}
               </div>
@@ -98,13 +222,23 @@ export default function MarkdownFileTree({
     )
   }
 
+  // Get root folder name for the title
+  const rootName = nodes[0]?.name || 'Project'
+
   return (
-    <div className={cn('relative my-2', className)}>
-      <div className="pointer-events-none absolute left-0 top-0 flex items-center gap-2 px-1 py-1">
-        <span className="text-xs font-medium text-muted-foreground">Directory</span>
+    <div className={cn('relative mb-4', className)}>
+      {/* Header bar */}
+      <div className="flex items-center gap-2 px-3 py-2 mb-2 border-b border-border/50">
+        <FolderTree className="h-4 w-4 text-primary" />
+        <span className="text-sm font-medium text-foreground">{rootName}</span>
       </div>
-      <div className="pt-6">
-        <TreeProvider defaultExpandedIds={defaultExpandedIds}>
+
+      {/* Tree content */}
+      <div>
+        <TreeProvider
+          defaultExpandedIds={defaultExpandedIds}
+          onSelectionChange={() => {}}
+        >
           <TreeView>
             <TreeNodes nodes={nodes} level={0} />
           </TreeView>

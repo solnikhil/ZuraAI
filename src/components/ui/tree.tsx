@@ -196,10 +196,10 @@ export function TreeNodeTrigger({
         selectId(nodeId, e)
       }}
       className={cn(
-        "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors",
-        "hover:bg-accent/60",
+        "group flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none transition-all duration-150",
+        "hover:bg-muted/50",
         "focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        selected && "bg-accent",
+        selected && "bg-accent/50",
         className
       )}
       style={{ paddingLeft: `calc(${level} * 0.75rem + 0.5rem)` }}
@@ -232,7 +232,7 @@ export function TreeNodeContent({
       <div
         className={cn(
           "mt-0.5 flex flex-col gap-0.5",
-          showLines && "border-l border-border/60",
+          showLines && "border-l border-border/40",
         )}
         style={{ marginLeft: `calc(${level} * 0.75rem + 1.15rem)`, paddingLeft: showLines ? "0.75rem" : undefined }}
       >
@@ -279,18 +279,23 @@ export function TreeIcon({
   className,
   icon,
   hasChildren,
+  isFolder,
 }: {
   className?: string
   icon?: React.ReactNode
   hasChildren?: boolean
+  isFolder?: boolean
 }) {
   const { nodeId } = useTreeNode()
   const { expandedIds } = useTree()
   const open = expandedIds.includes(nodeId)
 
-  const fallback = hasChildren
-    ? (open ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />)
-    : <FileIcon className="h-4 w-4" />
+  // Use isFolder if provided, otherwise fall back to hasChildren for backwards compatibility
+  const showFolderIcon = isFolder ?? hasChildren
+
+  const fallback = showFolderIcon
+    ? (open ? <FolderOpen className="h-4 w-4 text-amber-500" /> : <Folder className="h-4 w-4 text-amber-500/80" />)
+    : <FileIcon className="h-4 w-4 text-muted-foreground" />
 
   return <span className={cn("inline-flex h-4 w-4 shrink-0 items-center justify-center", className)}>{icon ?? fallback}</span>
 }

@@ -89,7 +89,7 @@ function parseTreeLine(line: string): ParsedLine | null {
     rest.includes('│') ||
     rest.includes('─') ||
     rest.includes('—') ||
-    /^\s*(\||\+)\s*[-─—]{2,}\s+/.test(rest) ||
+    /^\s*(\||\+)\s*[-─—]{1,}\s+/.test(rest) ||
     rest.trimStart().startsWith('|--') ||
     rest.trimStart().startsWith('+--')
 
@@ -101,7 +101,8 @@ function parseTreeLine(line: string): ParsedLine | null {
       rest = rest.slice(4)
     }
 
-    const marker = rest.match(/^(├──\s*|└──\s*|\+--\s*|\|--\s*|\|[-─—]{2,}\s*|\+[-─—]{2,}\s*|├[-─—]{2,}\s*|└[-─—]{2,}\s*)/)?.[0]
+    // Support both standard tree markers (──) and simple markers (─)
+    const marker = rest.match(/^(├──\s*|└──\s*|├─\s*|└─\s*|\+--\s*|\|--\s*|\|[-─—]{1,}\s*|\+[-─—]{1,}\s*|├[-─—]{1,}\s*|└[-─—]{1,}\s*)/)?.[0]
     if (marker) {
       // Branch marker indicates one level under the current prefix.
       depth += 1
@@ -133,15 +134,37 @@ export function parseTreeText(content: string): FileTreeNode[] {
 
   if (lines.length === 0) return []
 
+  // Check if first line is a root folder (ends with / and no tree markers)
+  let rootName: string | null = null
+  let startIdx = 0
+  const firstLine = lines[0]!
+  const firstLineHasTreeMarkers = /[├└│┌┐┤┴┼]/.test(firstLine) || /^\s*[|+]\s*[-─—]/.test(firstLine)
+  
+  if (!firstLineHasTreeMarkers && firstLine.includes('/')) {
+    // First line looks like a root folder name
+    const { name, description } = splitInlineComment(firstLine.trim())
+    if (name && (name.endsWith('/') || !firstLineHasTreeMarkers)) {
+      rootName = name.replace(/\/$/, '')
+      startIdx = 1
+    }
+  }
+
   // Some outputs start with "." or a label line
   const parsedLines: ParsedLine[] = []
-  for (const line of lines) {
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i]!
     const p = parseTreeLine(line)
     if (!p) continue
     if (p.depth === 0 && (p.name === '.' || p.name === './')) continue
     parsedLines.push(p)
   }
-  if (parsedLines.length === 0) return []
+  if (parsedLines.length === 0) {
+    // If we have a root name but no children, return just the root
+    if (rootName) {
+      return [{ id: rootName, name: rootName, type: 'folder' }]
+    }
+    return []
+  }
 
   const root: FileTreeNode[] = []
   const stack: Array<{ depth: number; node: FileTreeNode }> = []
@@ -176,6 +199,16 @@ export function parseTreeText(content: string): FileTreeNode[] {
     }
 
     if (hasChildren) stack.push({ depth, node })
+  }
+
+  // If we have a root name, wrap all nodes under it
+  if (rootName && root.length > 0) {
+    return [{
+      id: rootName,
+      name: rootName,
+      type: 'folder',
+      children: root
+    }]
   }
 
   return root

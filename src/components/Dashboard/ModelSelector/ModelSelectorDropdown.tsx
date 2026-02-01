@@ -5,7 +5,7 @@
  * Requirements: 3.1
  */
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Star, Sparkles, Zap, Globe, Database, Cloud } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
 import {
@@ -245,6 +245,32 @@ function getModelDescription(model: ModelWithProvider): string {
 }
 
 /**
+ * Provider logo with fallback icon
+ */
+function ProviderLogoWithFallback({ provider }: { provider: typeof PROVIDERS[number] }) {
+  const [imgError, setImgError] = useState(false)
+  const Icon = provider.icon
+
+  if (imgError || !provider.logo) {
+    return <Icon size={16} />
+  }
+
+  return (
+    <img
+      src={`/provider-logos/${provider.key}.png`}
+      alt={provider.title}
+      onError={() => setImgError(true)}
+      style={{
+        width: '18px',
+        height: '18px',
+        objectFit: 'contain',
+        borderRadius: '4px'
+      }}
+    />
+  )
+}
+
+/**
  * Provider sidebar component
  */
 function ProviderSidebar({
@@ -382,24 +408,7 @@ function ProviderSidebar({
             }}
             title={provider.title}
           >
-            {provider.logo ? (
-              <img 
-                src={`/provider-logos/${provider.key}.png`}
-                alt={provider.title}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                }}
-                style={{ 
-                  width: '18px', 
-                  height: '18px', 
-                  objectFit: 'contain',
-                  borderRadius: '4px'
-                }} 
-              />
-            ) : (
-              React.createElement(provider.icon, { size: 16 })
-            )}
+            <ProviderLogoWithFallback provider={provider} />
           </button>
         ))}
       </div>

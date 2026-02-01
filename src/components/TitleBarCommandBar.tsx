@@ -599,7 +599,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       return
     }
 
-    if (!isOpen && event.key === 'Enter') {
+    if (!shouldShowDropdown && event.key === 'Enter') {
       event.preventDefault()
       if (suggestions.length === 0) {
         showToast('No matching commands', 'info')
