@@ -3,9 +3,10 @@
  * Encapsulates all provider-specific streaming, tool calling, and research mode logic
  * 
  * Requirements: 1.1, 7.1, 7.2, 7.3
+ * Requirements: 3.2 - Throttle updateStreamingMessage calls to a maximum of 8 per second
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useChatHistory, type Message, type ThinkingBlock } from '../../../../contexts/ChatHistoryContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
@@ -29,6 +30,7 @@ import {
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
+import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import type { AttachedFile } from '../FileUploadHandler'
 
 export interface UseStreamingChatOptions {
@@ -64,6 +66,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
+  // Streaming throttler instance - limits updates to 8/second per Requirements 3.2
+  const throttlerRef = useRef<StreamingThrottler | null>(null)
+  if (!throttlerRef.current) {
+    throttlerRef.current = new StreamingThrottler({ maxUpdatesPerSecond: 8 })
+  }
+
   const {
     sessions,
     currentSessionId,
@@ -73,6 +81,26 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     updateSessionTitle,
     deleteMessageFromSession
   } = useChatHistory()
+
+  // Create throttled update function that wraps updateStreamingMessage
+  // This ensures we don't exceed 8 updates per second during streaming
+  const throttledUpdateStreamingMessage = useCallback(
+    (sessionId: string, messageId: string, updates: Partial<Message>) => {
+      if (throttlerRef.current) {
+        throttlerRef.current.throttle(sessionId, messageId, updates, updateStreamingMessage)
+      } else {
+        updateStreamingMessage(sessionId, messageId, updates)
+      }
+    },
+    [updateStreamingMessage]
+  )
+
+  // Flush any pending throttled updates - ensures final update is always applied
+  const flushThrottledUpdates = useCallback(() => {
+    if (throttlerRef.current) {
+      throttlerRef.current.flush(updateStreamingMessage)
+    }
+  }, [updateStreamingMessage])
 
   const { settings, updateSettings } = useSettings()
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
@@ -91,6 +119,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   const messages = currentSession?.messages || []
 
   const stopStreaming = useCallback(() => {
+    // Flush any pending throttled updates before stopping
+    flushThrottledUpdates()
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
@@ -98,7 +128,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     setIsLoading(false)
     clearToolState()
     options.onStreamEnd?.()
-  }, [clearToolState, options])
+  }, [clearToolState, options, flushThrottledUpdates])
 
   /**
    * Stream response from Ollama provider
@@ -157,11 +187,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         const now = Date.now()
         if (now - lastUpdateTime >= updateInterval && !isDone) {
-          updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+          throttledUpdateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
           lastUpdateTime = now
         }
       }
 
+      // Flush throttled updates and apply final content state
+      flushThrottledUpdates()
       updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
     } catch (streamError: any) {
       console.error('Ollama streaming failed, trying non-streaming:', streamError)
@@ -334,12 +366,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       const now = Date.now()
       if (now - lastUpdateTime >= updateInterval) {
-        updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
+        throttledUpdateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
         lastUpdateTime = now
       }
     }
 
     const cleanedContent = cleanSonarResponse(accumulatedContent)
+    // Flush throttled updates and apply final content state
+    flushThrottledUpdates()
     updateStreamingMessage(targetSessionId, streamingMessageId, { content: cleanedContent })
 
     const usage = {
