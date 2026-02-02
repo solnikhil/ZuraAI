@@ -17,6 +17,7 @@ import { AppearanceSection } from './sections/AppearanceSection'
 import { CommandBarSection } from './sections/CommandBarSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { RAGSettingsSection } from './sections/RAGSettingsSection'
+import { ExperimentalSection } from './sections/ExperimentalSection'
 
 import { ActivityData } from './ActivityGraph'
 import './Settings.css'
@@ -347,6 +348,14 @@ export default function Settings({
           {activeSection === 'rag' && (
             <RAGSettingsSection
               onUnsavedChange={onUnsavedChange}
+            />
+          )}
+
+          {/* Experimental Section */}
+          {activeSection === 'experimental' && (
+            <ExperimentalSection
+              streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
+              onChange={(changes) => handleChange(changes)}
             />
           )}
 

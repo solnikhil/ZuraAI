@@ -7,8 +7,14 @@ const isProduction = app.isPackaged
 // Auto-update interval reference
 let autoUpdateInterval: NodeJS.Timeout | null = null
 
+// Delay before first update check (5 seconds after window visible)
+const INITIAL_UPDATE_DELAY_MS = 5000
+
 /**
  * Initialize the auto-updater with event handlers
+ * This function should be called after the main window is visible.
+ * The actual update check is deferred by 5 seconds (Requirement 1.5)
+ * 
  * @param getMainWindow Function to get the main window for sending update notifications
  */
 export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
@@ -17,10 +23,14 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
         return
     }
 
-    // Initial check for updates
-    autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
-        console.error('[UPDATER] Auto-update check failed:', err)
-    })
+    // Defer initial update check by 5 seconds after this function is called
+    // This ensures the window is fully visible and responsive before checking
+    setTimeout(() => {
+        console.log('[UPDATER] Starting initial update check (5s after window visible)')
+        autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
+            console.error('[UPDATER] Auto-update check failed:', err)
+        })
+    }, INITIAL_UPDATE_DELAY_MS)
 
     // Check for updates every 4 hours
     autoUpdateInterval = setInterval(() => {

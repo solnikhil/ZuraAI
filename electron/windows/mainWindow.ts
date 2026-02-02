@@ -1,5 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import path from 'path'
+import { deferredInitializer } from '../startup/deferredInit'
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../../dist')
@@ -89,7 +90,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     // Show when ready to prevent white flash
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show()
+        // Mark window as visible and trigger deferred task execution
+        deferredInitializer.markWindowVisible()
+        deferredInitializer.executeAfterWindowVisible()
     })
+
+    // Track window creation
+    deferredInitializer.markWindowCreated()
 
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)

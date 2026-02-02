@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
-  ChartNoAxesCombined, Cpu, Box, Key, Command, FileText
+  ChartNoAxesCombined, Cpu, Box, Key, Command, FileText, FlaskConical
 } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -81,6 +81,7 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconC
   if (suggestion.id === 'go-settings-themes') return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-preferences') return { Icon: Key, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-experimental') return { Icon: FlaskConical, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Create actions
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
@@ -169,6 +170,7 @@ const COMMAND_AUTOCOMPLETE_KEYWORDS: Record<string, string> = {
   'go-settings-themes': 'theme settings',
   'go-settings-preferences': 'api keys',
   'go-settings-commandbar': 'command bar settings',
+  'go-settings-experimental': 'experimental settings',
   'new-chat': 'new chat',
   'toggle-sidebar-hidden': 'toggle sidebar',
   'toggle-sidebar-collapsed': 'toggle sidebar collapse',

@@ -46,6 +46,7 @@ export interface UseStreamingChatReturn {
 }
 
 const UPDATE_INTERVAL = 120 // ms
+const SMOOTH_UPDATE_INTERVAL = 40 // ms
 
 function userRequestsWebSearch(message: string): boolean {
   const normalized = message.toLowerCase()
@@ -74,6 +75,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   } = useChatHistory()
 
   const { settings, updateSettings } = useSettings()
+  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
   const { showToast } = useToast()
   const {
     canUseTools,
@@ -154,7 +156,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         }
 
         const now = Date.now()
-        if (now - lastUpdateTime >= UPDATE_INTERVAL && !isDone) {
+        if (now - lastUpdateTime >= updateInterval && !isDone) {
           updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
           lastUpdateTime = now
         }
@@ -263,7 +265,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           }
 
           const now = Date.now()
-          if (now - followUpLastUpdate >= UPDATE_INTERVAL && !chunk.done) {
+          if (now - followUpLastUpdate >= updateInterval && !chunk.done) {
             updateStreamingMessage(targetSessionId, streamingMessageId, {
               content: accumulatedContent + followUpContent
             })
@@ -331,7 +333,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const now = Date.now()
-      if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+      if (now - lastUpdateTime >= updateInterval) {
         updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
         lastUpdateTime = now
       }
@@ -394,7 +396,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (chunk.usageMetadata) finalUsage = chunk.usageMetadata
 
       const now = Date.now()
-      if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+      if (now - lastUpdateTime >= updateInterval) {
         updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent })
         lastUpdateTime = now
       }
@@ -509,7 +511,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (chunk.usage) finalUsage = chunk.usage
 
       const now = Date.now()
-      if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+      if (now - lastUpdateTime >= updateInterval) {
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           content: accumulatedContent,
           thinking: accumulatedReasoning || undefined
@@ -622,7 +624,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             if (chunk.usage) followUpUsage = chunk.usage
 
             const now = Date.now()
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            if (now - lastUpdateTime >= updateInterval) {
               updateStreamingMessage(targetSessionId, streamingMessageId, { content: accumulatedContent + followUpContent })
               lastUpdateTime = now
             }
@@ -792,7 +794,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         // Throttled UI updates
         const now = Date.now()
-        if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+        if (now - lastUpdateTime >= updateInterval) {
           updateStreamingMessage(targetSessionId, streamingMessageId, {
             content: accumulatedContent,
             thinking: reasoningAccumulator.hasReasoning() ? reasoningAccumulator.getReasoning() : undefined,
@@ -933,7 +935,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             if (chunk.usage) followUpUsage = chunk.usage
 
             const now = Date.now()
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            if (now - lastUpdateTime >= updateInterval) {
               updateStreamingMessage(targetSessionId, streamingMessageId, {
                 content: accumulatedContent + followUpContent,
                 thinking: followUpReasoningAccumulator.hasReasoning() ? followUpReasoningAccumulator.getReasoning() : undefined
@@ -1052,7 +1054,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             }
 
             const now = Date.now()
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            if (now - lastUpdateTime >= updateInterval) {
               const currentReasoning = reasoningAccumulator.getReasoning()
               const finalReasoning = finalReasoningAccumulator.getReasoning()
               const fullThinking = currentReasoning + (finalReasoning ? '\n\n---\n\n' + finalReasoning : '')
@@ -1231,7 +1233,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const now = Date.now()
-      if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+      if (now - lastUpdateTime >= updateInterval) {
         updateStreamingMessage(targetSessionId, streamingMessageId, {
           content: accumulatedContent,
           thinking: accumulatedReasoning || undefined,
@@ -1372,7 +1374,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             }
 
             const now = Date.now()
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            if (now - lastUpdateTime >= updateInterval) {
               updateStreamingMessage(targetSessionId, streamingMessageId, {
                 content: accumulatedContent + followUpContent,
                 thinking: followUpReasoning || undefined
@@ -1487,7 +1489,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             }
 
             const now = Date.now()
-            if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            if (now - lastUpdateTime >= updateInterval) {
               const fullThinking = accumulatedReasoning + (finalAnswerReasoning ? '\n\n---\n\n' + finalAnswerReasoning : '')
               updateStreamingMessage(targetSessionId, streamingMessageId, {
                 content: accumulatedContent + finalAnswerContent,

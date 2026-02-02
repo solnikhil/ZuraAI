@@ -44,14 +44,60 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
+                // Enhanced code splitting configuration for bundle optimization
+                // Requirements: 2.1, 2.4
                 manualChunks: {
-                    'react-vendor': ['react', 'react-dom'],
-                    'markdown': ['react-markdown', 'remark-gfm', 'react-syntax-highlighter'],
-                    'ui': ['framer-motion', 'lucide-react'],
+                    // Core React vendor chunk - loaded first, cached long-term
+                    'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+                    
+                    // Markdown rendering dependencies - separate chunk for lazy loading
+                    'markdown': [
+                        'react-markdown',
+                        'remark-gfm',
+                        'remark-math',
+                        'rehype-katex',
+                        'rehype-mathjax',
+                        'react-syntax-highlighter'
+                    ],
+                    
+                    // UI animation library - separate for tree-shaking
+                    'ui-motion': ['framer-motion'],
+                    
+                    // Radix UI primitives - grouped for efficient caching
+                    'radix': [
+                        '@radix-ui/react-accordion',
+                        '@radix-ui/react-alert-dialog',
+                        '@radix-ui/react-avatar',
+                        '@radix-ui/react-checkbox',
+                        '@radix-ui/react-collapsible',
+                        '@radix-ui/react-context-menu',
+                        '@radix-ui/react-dialog',
+                        '@radix-ui/react-dropdown-menu',
+                        '@radix-ui/react-label',
+                        '@radix-ui/react-popover',
+                        '@radix-ui/react-progress',
+                        '@radix-ui/react-scroll-area',
+                        '@radix-ui/react-select',
+                        '@radix-ui/react-separator',
+                        '@radix-ui/react-slot',
+                        '@radix-ui/react-switch',
+                        '@radix-ui/react-tabs',
+                        '@radix-ui/react-toggle',
+                        '@radix-ui/react-toggle-group',
+                        '@radix-ui/react-tooltip'
+                    ],
+                    
+                    // PDF rendering - large dependency, lazy loaded
+                    'pdf': ['pdfjs-dist', 'react-pdf'],
+                    
+                    // Charts - only needed in settings/usage
+                    'charts': ['recharts']
                 }
             }
         },
+        // Chunk size warning threshold (in KB)
+        chunkSizeWarningLimit: 500,
         sourcemap: false,
-        reportCompressedSize: false,
+        reportCompressedSize: true, // Enable to verify bundle sizes
     }
 })

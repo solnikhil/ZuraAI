@@ -32,6 +32,7 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
     'preferences',
     'commandbar',
     'rag',
+    'experimental',
 ])
 
 function normalizeSettingsSection(section: string | null): string | null {

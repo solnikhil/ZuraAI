@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
     Plus, Search, MessageSquare, Trash2, SettingsIcon,
     LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command, FileText
+    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command, FileText, FlaskConical
 } from '../icons'
 import { MessageCircleIcon, TrashIcon } from '../icons'
 
@@ -79,7 +79,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
         { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> },
-        { id: 'rag', label: 'PDF RAG', icon: <FileText size={18} /> }
+        { id: 'rag', label: 'PDF RAG', icon: <FileText size={18} /> },
+        { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
     ]
 
     const filteredSessions = sessions.filter(s =>
