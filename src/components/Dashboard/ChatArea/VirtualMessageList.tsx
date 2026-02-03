@@ -90,7 +90,7 @@ export function VirtualMessageList({
   /**
    * Scroll to bottom - used for "Back to bottom" button
    */
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+  const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'auto') => {
     virtuosoRef.current?.scrollToIndex({
       index: 'LAST',
       align: 'end',

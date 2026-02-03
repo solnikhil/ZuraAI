@@ -58,6 +58,16 @@ const INVOKE_CHANNELS = new Set<string>([
 
   // Process metrics
   'get-process-metrics',
+  
+  // Memory monitoring (Requirement 4.6, 6.6)
+  'memory:get-metrics',
+  'memory:force-cleanup',
+
+  // Performance monitoring (Requirement 6.3)
+  'performance:report-renderer-metrics',
+  'performance:get-metrics',
+  'performance:get-renderer-metrics',
+  'performance:check-thresholds',
 
   // Tools
   'execute-tool',

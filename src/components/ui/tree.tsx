@@ -163,8 +163,15 @@ export function TreeNode({
   const { expandedIds } = useTree()
   const open = expandedIds.includes(nodeId)
 
+  // Memoize context value to prevent unnecessary child re-renders
+  // **Validates: Requirements 8.3, Property 30: Context Provider Memoization**
+  const contextValue = React.useMemo(
+    () => ({ nodeId, level, isLast }),
+    [nodeId, level, isLast]
+  )
+
   return (
-    <TreeNodeContext.Provider value={{ nodeId, level, isLast }}>
+    <TreeNodeContext.Provider value={contextValue}>
       <Collapsible open={open}>
         <div className={cn("flex flex-col", className)}>{children}</div>
       </Collapsible>

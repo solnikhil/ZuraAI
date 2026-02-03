@@ -2,10 +2,14 @@
  * MessageRenderer - Component for rendering chat messages
  * Handles markdown rendering, code blocks, file attachments, and message actions
  * 
- * Requirements: 1.3
+ * Requirements: 1.3, 5.2
+ * 
+ * Performance: This component is wrapped with React.memo() to prevent unnecessary
+ * re-renders when parent components re-render with unchanged message props.
+ * A custom comparison function ensures deep equality checking for message objects.
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import ReactDOM from 'react-dom'
 import {
   Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
@@ -533,9 +537,168 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
 }
 
 /**
- * Main MessageRenderer component
+ * Custom comparison function for MessageRenderer memoization
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ * 
+ * Returns true if props are equal (should NOT re-render)
+ * Returns false if props are different (should re-render)
+ * 
+ * This function performs deep equality checking on message props to prevent
+ * unnecessary re-renders during parent component updates (e.g., streaming).
  */
-export function MessageRenderer({
+function areMessagePropsEqual(
+  prevProps: MessageRendererProps,
+  nextProps: MessageRendererProps
+): boolean {
+  // Compare isStreaming - this is critical for streaming updates
+  if (prevProps.isStreaming !== nextProps.isStreaming) {
+    return false
+  }
+
+  // Compare callback references (these should be stable via useCallback in parent)
+  // Note: We compare by reference since callbacks should be memoized
+  if (prevProps.onCopy !== nextProps.onCopy) {
+    return false
+  }
+  if (prevProps.onRegenerate !== nextProps.onRegenerate) {
+    return false
+  }
+
+  const prevMsg = prevProps.message
+  const nextMsg = nextProps.message
+
+  // Compare message identity
+  if (prevMsg.id !== nextMsg.id) {
+    return false
+  }
+
+  // Compare message role
+  if (prevMsg.role !== nextMsg.role) {
+    return false
+  }
+
+  // Compare message content - critical for streaming updates
+  if (prevMsg.content !== nextMsg.content) {
+    return false
+  }
+
+  // Compare timestamp
+  if (prevMsg.timestamp !== nextMsg.timestamp) {
+    return false
+  }
+
+  // Compare model
+  if (prevMsg.model !== nextMsg.model) {
+    return false
+  }
+
+  // Compare thinking content (for extended thinking models)
+  if (prevMsg.thinking !== nextMsg.thinking) {
+    return false
+  }
+
+  // Compare thinking duration
+  if (prevMsg.thinkingDuration !== nextMsg.thinkingDuration) {
+    return false
+  }
+
+  // Compare thinking blocks array (by length and content)
+  const prevThinkingBlocks = prevMsg.thinkingBlocks || []
+  const nextThinkingBlocks = nextMsg.thinkingBlocks || []
+  if (prevThinkingBlocks.length !== nextThinkingBlocks.length) {
+    return false
+  }
+  for (let i = 0; i < prevThinkingBlocks.length; i++) {
+    if (prevThinkingBlocks[i].content !== nextThinkingBlocks[i].content ||
+        prevThinkingBlocks[i].type !== nextThinkingBlocks[i].type) {
+      return false
+    }
+  }
+
+  // Compare research status
+  const prevResearch = prevMsg.researchStatus
+  const nextResearch = nextMsg.researchStatus
+  if (prevResearch?.isSearching !== nextResearch?.isSearching ||
+      prevResearch?.currentRound !== nextResearch?.currentRound ||
+      prevResearch?.maxRounds !== nextResearch?.maxRounds ||
+      prevResearch?.currentSearch !== nextResearch?.currentSearch) {
+    return false
+  }
+
+  // Compare response versions (by length and current index)
+  const prevVersions = prevMsg.responseVersions || []
+  const nextVersions = nextMsg.responseVersions || []
+  if (prevVersions.length !== nextVersions.length) {
+    return false
+  }
+  if (prevMsg.currentVersionIndex !== nextMsg.currentVersionIndex) {
+    return false
+  }
+
+  // Compare tool results (by length - deep comparison would be expensive)
+  const prevToolResults = prevMsg.toolResults || []
+  const nextToolResults = nextMsg.toolResults || []
+  if (prevToolResults.length !== nextToolResults.length) {
+    return false
+  }
+  // Check if any tool result changed (by reference or key properties)
+  for (let i = 0; i < prevToolResults.length; i++) {
+    if (prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
+        prevToolResults[i].result.success !== nextToolResults[i].result.success) {
+      return false
+    }
+  }
+
+  // Compare files array (by length and IDs)
+  const prevFiles = prevMsg.files || []
+  const nextFiles = nextMsg.files || []
+  if (prevFiles.length !== nextFiles.length) {
+    return false
+  }
+  for (let i = 0; i < prevFiles.length; i++) {
+    if (prevFiles[i].id !== nextFiles[i].id) {
+      return false
+    }
+  }
+
+  // Compare usage stats
+  if (prevMsg.usage?.inputTokens !== nextMsg.usage?.inputTokens ||
+      prevMsg.usage?.outputTokens !== nextMsg.usage?.outputTokens ||
+      prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens) {
+    return false
+  }
+
+  // Compare latency
+  if (prevMsg.latency !== nextMsg.latency) {
+    return false
+  }
+
+  // Compare finish reason
+  if (prevMsg.finishReason !== nextMsg.finishReason) {
+    return false
+  }
+
+  // Compare requested max tokens
+  if (prevMsg.requestedMaxTokens !== nextMsg.requestedMaxTokens) {
+    return false
+  }
+
+  // All props are equal - do NOT re-render
+  return true
+}
+
+/**
+ * Main MessageRenderer component
+ * 
+ * Wrapped with React.memo() using a custom comparison function to prevent
+ * unnecessary re-renders when parent components re-render with unchanged props.
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ */
+function MessageRendererComponent({
   message,
   isStreaming = false,
   onCopy,
@@ -1179,5 +1342,23 @@ export function MessageRenderer({
     </div>
   )
 }
+
+/**
+ * Memoized MessageRenderer component
+ * 
+ * Uses React.memo() with a custom comparison function (areMessagePropsEqual)
+ * to prevent unnecessary re-renders when parent components re-render with
+ * unchanged message props.
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ * 
+ * For any parent component re-render with unchanged message props,
+ * the Message component SHALL not re-render.
+ */
+export const MessageRenderer = memo(MessageRendererComponent, areMessagePropsEqual)
+
+// Set display name for debugging
+MessageRenderer.displayName = 'MessageRenderer'
 
 export default MessageRenderer

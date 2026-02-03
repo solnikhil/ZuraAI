@@ -3,28 +3,53 @@
  * Coordinates message display, input handling, and streaming via extracted components and hooks
  * 
  * Requirements: 1.5, 1.6 - Reduced to orchestration logic only (≤600 lines)
+ * Requirements: 5.3 - Isolated streaming updates
+ * Requirements: 4.3, 5.5 - Virtual scrolling for long message lists
+ * 
+ * **Validates: Property 22: Isolated Streaming Updates**
+ * - Uses StreamingMessage component for the actively streaming message
+ * - Only the streaming message re-renders during streaming, not the entire list
+ * 
+ * **Validates: Property 17: Virtual Scrolling Activation**
+ * - For any chat session with more than 100 messages, the message list SHALL use virtual scrolling
+ * 
+ * **Validates: Property 23: Message List Virtualization Threshold**
+ * - For any message list with more than 50 messages, virtualization SHALL be active
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useStreamingState } from '../../contexts/StreamingContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 
 // Extracted components
 import { MessageRenderer } from './ChatArea/MessageRenderer'
+import { StreamingMessage } from './ChatArea/StreamingMessage'
+import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
 import { PastedContentEditModal } from './ChatArea/PastedContentEditModal'
 import { useStreamingChat } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/FileUploadHandler'
 import type { PastedContentChunk as PastedContentChunkType } from './ChatArea/types'
 
+/**
+ * Virtualization threshold - activate virtual scrolling for lists > 50 messages
+ * **Validates: Property 23: Message List Virtualization Threshold**
+ */
+const VIRTUALIZATION_THRESHOLD = 50
+
 export default function ChatArea() {
   const { sessions, currentSessionId } = useChatHistory()
   const { showToast } = useToast()
   const { toolState } = useToolCalling()
+  
+  // Get streaming state for virtualized list
+  // **Validates: Property 22: Isolated Streaming Updates**
+  const streamingState = useStreamingState()
 
   // Local state
   const [input, setInput] = useState('')
@@ -40,6 +65,10 @@ export default function ChatArea() {
   // Get current session and messages
   const currentSession = sessions.find(s => s.id === currentSessionId)
   const messages = currentSession?.messages || []
+  
+  // Determine if virtualization should be active
+  // **Validates: Property 23: Message List Virtualization Threshold**
+  const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
   // Scroll tracking refs
   const prevMessageCountRef = useRef(messages.length)
@@ -184,11 +213,70 @@ export default function ChatArea() {
     }
   }
 
-  // Copy message content
-  const handleCopy = (content: string) => {
+  // Copy message content - memoized to prevent unnecessary re-renders
+  // **Validates: Property 22: Isolated Streaming Updates**
+  const handleCopy = useCallback((content: string) => {
     navigator.clipboard.writeText(content)
     showToast('Copied to clipboard', 'success')
-  }
+  }, [showToast])
+
+  // Render message callback for VirtualMessageList
+  // **Validates: Property 17: Virtual Scrolling Activation**
+  // **Validates: Property 23: Message List Virtualization Threshold**
+  const renderMessage = useCallback((index: number, msg: typeof messages[0]) => {
+    const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
+    const isStreamingMsg = isLoading && isLastAssistant
+    
+    return (
+      <div data-message-id={msg.id}>
+        {/* Show stored tool results before the message */}
+        {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            {msg.toolResults.map((result: any, i: number) => (
+              <ToolResultDisplay
+                key={`stored-${i}`}
+                toolName={result.toolCall.name}
+                result={result.result.success ? result.result.data : undefined}
+                error={result.result.success ? undefined : result.result.error}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
+        {/* **Validates: Property 22: Isolated Streaming Updates** */}
+        {isStreamingMsg ? (
+          <StreamingMessage
+            message={msg}
+            sessionId={currentSessionId!}
+            onCopy={handleCopy}
+            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+          />
+        ) : (
+          <MessageRenderer
+            message={msg}
+            isStreaming={false}
+            onCopy={handleCopy}
+            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+          />
+        )}
+
+        {/* Show active tool results after last assistant message (during streaming) */}
+        {isLastAssistant && toolState.toolResults.length > 0 && (
+          <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+            {toolState.toolResults.map((result, i) => (
+              <ToolResultDisplay
+                key={i}
+                toolName={result.toolCall.name}
+                result={result.result.success ? result.result.data : undefined}
+                error={result.result.success ? undefined : result.result.error}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }, [messages.length, isLoading, currentSessionId, handleCopy, regenerateMessage, toolState.toolResults])
 
   // Remove attached file
   const removeFile = (fileId: string) => {
@@ -283,71 +371,113 @@ export default function ChatArea() {
       background: 'var(--theme-background)',
       position: 'relative'
     }}>
-      {/* Messages Container */}
-      <ScrollArea
-        className="flex-1"
-        style={{ minHeight: 0 }}
-        viewportRef={messagesContainerRef}
-        viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
-      >
-        <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
-          {messages.map((msg, idx) => (
-            <div key={msg.id} data-message-id={msg.id}>
-              {/* Show stored tool results before the message */}
-              {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  {msg.toolResults.map((result: any, i: number) => (
-                    <ToolResultDisplay
-                      key={`stored-${i}`}
-                      toolName={result.toolCall.name}
-                      result={result.result.success ? result.result.data : undefined}
-                      error={result.result.success ? undefined : result.result.error}
-                    />
-                  ))}
+      {/* Messages Container - Use virtualization for large lists */}
+      {/* **Validates: Property 17: Virtual Scrolling Activation** */}
+      {/* **Validates: Property 23: Message List Virtualization Threshold** */}
+      {useVirtualization ? (
+        <VirtualMessageList
+          messages={messages}
+          sessionId={currentSessionId!}
+          isGenerating={isLoading}
+          streamingContent={streamingState?.content || ''}
+          autoScrollEnabled={true}
+          renderMessage={renderMessage}
+          footer={
+            <>
+              {/* Active tool calls indicator */}
+              {toolState.activeToolCalls.map((toolCall, i) => (
+                <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
+                  <ToolCallIndicator
+                    toolName={toolCall.name}
+                    status="executing"
+                    arguments={toolCall.arguments}
+                  />
                 </div>
-              )}
+              ))}
+            </>
+          }
+        />
+      ) : (
+        <ScrollArea
+          className="flex-1"
+          style={{ minHeight: 0 }}
+          viewportRef={messagesContainerRef}
+          viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
+        >
+          <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+            {messages.map((msg, idx) => {
+              const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
+              const isStreamingMessage = isLoading && isLastAssistant
+              
+              return (
+                <div key={msg.id} data-message-id={msg.id}>
+                  {/* Show stored tool results before the message */}
+                  {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      {msg.toolResults.map((result: any, i: number) => (
+                        <ToolResultDisplay
+                          key={`stored-${i}`}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-              {/* Message Bubble */}
-              <MessageRenderer
-                message={msg}
-                isStreaming={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
-                onCopy={handleCopy}
-                onRegenerate={(instruction) => handleRegenerate(msg, instruction)}
-              />
-
-              {/* Show active tool results after last assistant message (during streaming) */}
-              {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
-                <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                  {toolState.toolResults.map((result, i) => (
-                    <ToolResultDisplay
-                      key={i}
-                      toolName={result.toolCall.name}
-                      result={result.result.success ? result.result.data : undefined}
-                      error={result.result.success ? undefined : result.result.error}
+                  {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
+                  {/* **Validates: Property 22: Isolated Streaming Updates** */}
+                  {isStreamingMessage ? (
+                    <StreamingMessage
+                      message={msg}
+                      sessionId={currentSessionId!}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
                     />
-                  ))}
+                  ) : (
+                    <MessageRenderer
+                      message={msg}
+                      isStreaming={false}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                    />
+                  )}
+
+                  {/* Show active tool results after last assistant message (during streaming) */}
+                  {isLastAssistant && toolState.toolResults.length > 0 && (
+                    <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+                      {toolState.toolResults.map((result, i) => (
+                        <ToolResultDisplay
+                          key={i}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              )
+            })}
 
-          {/* Active tool calls indicator */}
-          {toolState.activeToolCalls.map((toolCall, i) => (
-            <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
-              <ToolCallIndicator
-                toolName={toolCall.name}
-                status="executing"
-                arguments={toolCall.arguments}
-              />
-            </div>
-          ))}
+            {/* Active tool calls indicator */}
+            {toolState.activeToolCalls.map((toolCall, i) => (
+              <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
+                <ToolCallIndicator
+                  toolName={toolCall.name}
+                  status="executing"
+                  arguments={toolCall.arguments}
+                />
+              </div>
+            ))}
 
-          {/* Spacer for loading state */}
-          {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
+            {/* Spacer for loading state */}
+            {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
+      )}
 
       {/* Input Area */}
       <div className="chat-input-overlay">

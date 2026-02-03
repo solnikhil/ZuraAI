@@ -34,6 +34,29 @@ export interface TerminalAPI {
 }
 
 // =============================================================================
+// Memory Monitoring Types (Requirements 4.6, 6.6)
+// =============================================================================
+
+/**
+ * Memory metrics from the main process
+ */
+export interface MemoryMetrics {
+    heapUsed: number;      // V8 heap used (bytes)
+    heapTotal: number;     // V8 heap total (bytes)
+    external: number;      // V8 external memory (bytes)
+    rss: number;           // Resident Set Size (bytes)
+    timestamp: number;     // When metrics were collected
+}
+
+/**
+ * Memory cleanup result
+ */
+export interface MemoryCleanupResult {
+    success: boolean;
+    timestamp: number;
+}
+
+// =============================================================================
 // PDF Reader Chat IPC Types
 // =============================================================================
 

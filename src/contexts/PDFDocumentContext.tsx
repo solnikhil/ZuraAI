@@ -16,10 +16,47 @@ interface PDFDocumentContextValue {
 
 const PDFDocumentContext = createContext<PDFDocumentContextValue | undefined>(undefined);
 
-export function usePDFDocuments() {
+// Default empty state for when context is not available
+// This allows components to safely use the hook outside of PDFDocumentProvider
+// without throwing errors - they just get empty/no-op values
+const defaultPDFDocumentValue: PDFDocumentContextValue = {
+    loadedDocumentsMap: new Map(),
+    loadedDocuments: [],
+    setLoadedDocuments: () => {},
+    activeDocumentId: null,
+    setActiveDocumentId: () => {},
+    currentPage: 1,
+    setCurrentPage: () => {},
+    activeDocumentPageCount: 0,
+};
+
+/**
+ * Hook to access PDF document context.
+ * Returns default empty values when used outside of PDFDocumentProvider.
+ * This enables lazy loading of PDFDocumentContext only for /pdf-chat route
+ * while allowing other components (like Sidebar) to safely call this hook.
+ * 
+ * Requirements: 8.4 - PDFDocumentContext SHALL be loaded lazily only when PDF chat route is accessed
+ * Property 31: For any route other than /pdf-chat, the PDFDocumentContext SHALL not be initialized
+ */
+export function usePDFDocuments(): PDFDocumentContextValue {
+    const context = useContext(PDFDocumentContext);
+    // Return default values if context is not available (outside PDFDocumentProvider)
+    // This enables lazy loading - the context is only initialized for /pdf-chat route
+    if (!context) {
+        return defaultPDFDocumentValue;
+    }
+    return context;
+}
+
+/**
+ * Hook that throws if used outside PDFDocumentProvider.
+ * Use this when you need to ensure the context is available (e.g., in PDFChatLayout).
+ */
+export function usePDFDocumentsStrict(): PDFDocumentContextValue {
     const context = useContext(PDFDocumentContext);
     if (!context) {
-        throw new Error('usePDFDocuments must be used within PDFDocumentProvider');
+        throw new Error('usePDFDocumentsStrict must be used within PDFDocumentProvider');
     }
     return context;
 }

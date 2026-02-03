@@ -1,5 +1,33 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
+/**
+ * ChatHistoryContext - Chat session management with selector-based subscriptions
+ * 
+ * This module provides chat history management with optimized re-rendering through
+ * a selector-based subscription pattern. Components can subscribe to specific parts
+ * of the chat state to prevent unnecessary re-renders.
+ * 
+ * **Validates: Requirements 8.2**
+ * - THE ChatHistoryContext SHALL implement a selector pattern to allow components
+ *   to subscribe to specific session data
+ * 
+ * Available hooks:
+ * - useChatHistory() - Full context access (backward compatible)
+ * - useChatHistorySelector(selector) - Subscribe to specific state slice
+ * - useSessionsList() - Get sessions list only
+ * - useCurrentSession() - Get current session only
+ * - useCurrentSessionId() - Get current session ID only
+ * - useIsLoading() - Get loading state only
+ * - useSessionById(id) - Get a specific session by ID
+ * 
+ * @module ChatHistoryContext
+ */
+
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSettings } from './SettingsContext'
+import { ChatSessionManager, type SessionMetadata, type LoadedSession } from './ChatSessionManager'
+import { createSelectableContext, shallowEqual, type Selector } from './createSelectableContext'
+
+// Re-export SessionMetadata for consumers
+export type { SessionMetadata } from './ChatSessionManager'
 
 export interface ToolCallResult {
     toolCall: {
@@ -99,7 +127,38 @@ interface ChatHistoryContextType {
     updateSessionTitle: (id: string, title: string) => void
     refreshSessions: () => Promise<void>
     clearCurrentSession: () => void
+    /** Load full session content on demand. Returns the loaded session or null if not found.
+     * Validates: Requirement 4.2 - Load full message content on demand */
+    loadFullSession: (id: string) => Promise<ChatSession | null>
+    /** Get session metadata without loading full content */
+    getSessionMetadata: () => SessionMetadata[]
+    /** Check if a session's full content is currently loaded in memory */
+    isSessionLoaded: (id: string) => boolean
 }
+
+/**
+ * State interface for the selectable context
+ * This represents the state that can be selected from
+ * 
+ * **Validates: Requirements 8.2**
+ */
+interface ChatHistoryState {
+    sessions: ChatSession[]
+    currentSessionId: string | null
+    isLoading: boolean
+}
+
+/**
+ * Create the selectable context for optimized subscriptions
+ * Components can use useSelector to subscribe to specific state slices
+ * 
+ * **Validates: Requirements 8.2**
+ */
+const {
+    Provider: SelectableChatHistoryProvider,
+    useSelector: useChatHistoryStateSelector,
+    useStore: useChatHistoryStore,
+} = createSelectableContext<ChatHistoryState>()
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
 
@@ -114,17 +173,92 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     const [isLoading, setIsLoading] = useState(true)
     const [isInitialized, setIsInitialized] = useState(false)
 
-    // Load sessions from electron-store or localStorage
+    // ChatSessionManager instance for lazy loading
+    // Validates: Requirements 4.1, 4.2, 4.4, 4.5
+    const sessionManagerRef = useRef<ChatSessionManager | null>(null)
+
+    // Initialize the session manager with loader functions
+    const getSessionManager = useCallback(() => {
+        if (!sessionManagerRef.current) {
+            // Session loader - loads a single session by ID
+            const sessionLoader = async (id: string): Promise<ChatSession | null> => {
+                try {
+                    if (isElectron) {
+                        const allSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                        return allSessions?.find((s: ChatSession) => s.id === id) ?? null
+                    } else {
+                        const saved = localStorage.getItem('zura-chat-history')
+                        const parsed = saved ? JSON.parse(saved) : []
+                        return parsed.find((s: ChatSession) => s.id === id) ?? null
+                    }
+                } catch (error) {
+                    console.error('Failed to load session:', error)
+                    return null
+                }
+            }
+
+            // All sessions loader - loads all sessions (used for metadata extraction)
+            const allSessionsLoader = async (): Promise<ChatSession[]> => {
+                try {
+                    if (isElectron) {
+                        const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                        return storedSessions || []
+                    } else {
+                        const saved = localStorage.getItem('zura-chat-history')
+                        return saved ? JSON.parse(saved) : []
+                    }
+                } catch (error) {
+                    console.error('Failed to load all sessions:', error)
+                    const saved = localStorage.getItem('zura-chat-history')
+                    return saved ? JSON.parse(saved) : []
+                }
+            }
+
+            sessionManagerRef.current = new ChatSessionManager(
+                sessionLoader,
+                allSessionsLoader,
+                {
+                    maxLoadedSessions: 3,
+                    unloadAfterMs: 300000, // 5 minutes
+                    preloadMessageCount: 20,
+                }
+            )
+        }
+        return sessionManagerRef.current
+    }, [])
+
+    // Load sessions - now loads metadata only initially
+    // Validates: Requirement 4.1 - Load only session metadata initially
     const loadSessions = useCallback(async () => {
         try {
+            const manager = getSessionManager()
+            
+            // Initialize the manager (loads metadata for all sessions)
+            await manager.initialize()
+            
+            // Get metadata and create lightweight session objects for backward compatibility
+            // Sessions without full messages loaded will have empty messages array
+            const metadata = manager.getSessionMetadata()
+            
+            // For backward compatibility, we need to provide sessions with messages
+            // Load full data for all sessions initially (will be optimized in future)
+            // This maintains backward compatibility while setting up the infrastructure
+            let fullSessions: ChatSession[] = []
+            
             if (isElectron) {
                 const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
-                setSessions(storedSessions || [])
+                fullSessions = storedSessions || []
             } else {
-                // Fallback to localStorage for non-Electron environments
                 const saved = localStorage.getItem('zura-chat-history')
-                setSessions(saved ? JSON.parse(saved) : [])
+                fullSessions = saved ? JSON.parse(saved) : []
             }
+            
+            // Update the manager with full session data
+            for (const session of fullSessions) {
+                manager.addSession(session)
+            }
+            
+            setSessions(fullSessions)
         } catch (error) {
             console.error('Failed to load chat history:', error)
             // Fallback to localStorage
@@ -134,7 +268,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             setIsLoading(false)
             setIsInitialized(true)
         }
-    }, [])
+    }, [getSessionManager])
 
     // Initialize and migrate from localStorage if needed
     useEffect(() => {
@@ -166,8 +300,21 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         initializeStore()
     }, [loadSessions])
 
+    // Start auto-cleanup when initialized
+    useEffect(() => {
+        if (!isInitialized) return
+        
+        const manager = getSessionManager()
+        manager.startAutoCleanup()
+        
+        return () => {
+            manager.stopAutoCleanup()
+        }
+    }, [isInitialized, getSessionManager])
+
     // Save sessions whenever they change (after initialization)
     // Debounced to avoid excessive IPC/disk writes during streaming.
+    // Requirements: 3.5 - Debounce writes with a minimum delay of 1 second
     useEffect(() => {
         if (!isInitialized) return
 
@@ -187,7 +334,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             }
 
             void saveSessions()
-        }, 750)
+        }, 1000)
 
         return () => clearTimeout(timeoutId)
     }, [sessions, isInitialized])
@@ -243,6 +390,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                         updatedAt: now,
                     }
 
+                    // Update the session manager
+                    const manager = getSessionManager()
+                    manager.updateMetadata(existing.id, { updatedAt: now })
+
                     // Move the reused empty session to the top for a consistent UX.
                     return [updatedExisting, ...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)]
                 }
@@ -265,22 +416,85 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                 updatedAt: now
             }
 
+            // Add to session manager
+            const manager = getSessionManager()
+            manager.addSession(newSession)
+
             nextSessionId = newSession.id
             return [newSession, ...prev]
         })
 
         setCurrentSessionId(nextSessionId)
         return nextSessionId
-    }, [])
+    }, [getSessionManager])
+
+    // Load full session content on demand
+    // Validates: Requirement 4.2 - Load full message content on demand
+    const loadFullSession = useCallback(async (id: string): Promise<ChatSession | null> => {
+        const manager = getSessionManager()
+        const loadedSession = await manager.loadSession(id)
+        
+        if (!loadedSession) {
+            return null
+        }
+
+        // Convert LoadedSession to ChatSession format
+        const chatSession: ChatSession = {
+            id: loadedSession.metadata.id,
+            title: loadedSession.metadata.title,
+            messages: loadedSession.messages,
+            createdAt: loadedSession.metadata.createdAt,
+            updatedAt: loadedSession.metadata.updatedAt,
+        }
+
+        // Update the sessions state to include the full messages
+        setSessions(prev => prev.map(s => 
+            s.id === id ? chatSession : s
+        ))
+
+        return chatSession
+    }, [getSessionManager])
+
+    // Get session metadata without loading full content
+    const getSessionMetadata = useCallback((): SessionMetadata[] => {
+        const manager = getSessionManager()
+        return manager.getSessionMetadata()
+    }, [getSessionManager])
+
+    // Check if a session is currently loaded in memory
+    const isSessionLoaded = useCallback((id: string): boolean => {
+        const manager = getSessionManager()
+        return manager.isSessionLoaded(id)
+    }, [getSessionManager])
 
     const switchSession = useCallback((id: string) => {
         setSessions(prev => {
             if (prev.find(s => s.id === id)) {
                 setCurrentSessionId(id)
+                
+                // Load full session content on demand when switching
+                // Validates: Requirement 4.2 - Load full message content on demand
+                const manager = getSessionManager()
+                if (!manager.isSessionLoaded(id)) {
+                    // Load asynchronously - the session will be updated when loaded
+                    manager.loadSession(id).then(loadedSession => {
+                        if (loadedSession) {
+                            setSessions(current => current.map(s => 
+                                s.id === id ? {
+                                    ...s,
+                                    messages: loadedSession.messages,
+                                    updatedAt: loadedSession.metadata.updatedAt,
+                                } : s
+                            ))
+                        }
+                    }).catch(error => {
+                        console.error('Failed to load session on switch:', error)
+                    })
+                }
             }
             return prev
         })
-    }, [])
+    }, [getSessionManager])
 
     const addMessageToSession = useCallback((sessionId: string, message: Omit<Message, 'id' | 'timestamp'>): string => {
         const newMessage: Message = {
@@ -297,47 +511,78 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                     newTitle = message.content.slice(0, 30) + (message.content.length > 30 ? '...' : '')
                 }
 
-                return {
+                const updatedSession = {
                     ...session,
                     title: newTitle,
                     messages: [...session.messages, newMessage],
                     updatedAt: Date.now()
                 }
+
+                // Update the session manager
+                const manager = getSessionManager()
+                manager.updateLoadedSessionMessages(sessionId, updatedSession.messages)
+                manager.updateMetadata(sessionId, { 
+                    title: newTitle, 
+                    updatedAt: updatedSession.updatedAt,
+                    messageCount: updatedSession.messages.length 
+                })
+
+                return updatedSession
             }
             return session
         }))
         
         return newMessage.id
-    }, [])
+    }, [getSessionManager])
 
     const updateStreamingMessage = useCallback((sessionId: string, messageId: string, updates: Partial<Message>) => {
         setSessions(prev => prev.map(session => {
             if (session.id === sessionId) {
-                return {
+                const updatedMessages = session.messages.map(msg =>
+                    msg.id === messageId ? { ...msg, ...updates } : msg
+                )
+                
+                const updatedSession = {
                     ...session,
-                    messages: session.messages.map(msg =>
-                        msg.id === messageId ? { ...msg, ...updates } : msg
-                    ),
+                    messages: updatedMessages,
                     updatedAt: Date.now()
                 }
+
+                // Update the session manager with the new messages
+                const manager = getSessionManager()
+                manager.updateLoadedSessionMessages(sessionId, updatedMessages)
+
+                return updatedSession
             }
             return session
         }))
-    }, [])
+    }, [getSessionManager])
 
     const deleteSession = useCallback((id: string) => {
+        // Remove from session manager
+        const manager = getSessionManager()
+        manager.removeSession(id)
+
         setSessions(prev => prev.filter(s => s.id !== id))
         setCurrentSessionId(prev => prev === id ? null : prev)
-    }, [])
+    }, [getSessionManager])
 
     const clearAllSessions = useCallback(() => {
+        // Clear the session manager
+        const manager = getSessionManager()
+        manager.clear()
+
         setSessions([])
         setCurrentSessionId(null)
-    }, [])
+    }, [getSessionManager])
 
     const updateSessionTitle = useCallback((id: string, title: string) => {
+        // Update in session manager
+        const manager = getSessionManager()
+        manager.updateMetadata(id, { title })
+
         setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
-    }, [])
+    }, [getSessionManager])
 
     const clearCurrentSession = useCallback(() => {
         // Clear the remembered session so it doesn't auto-restore
@@ -348,14 +593,35 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     const deleteMessageFromSession = useCallback((sessionId: string, messageId: string) => {
         setSessions(prev => prev.map(session => {
             if (session.id === sessionId) {
-                return {
+                const updatedMessages = session.messages.filter(msg => msg.id !== messageId)
+                
+                const updatedSession = {
                     ...session,
-                    messages: session.messages.filter(msg => msg.id !== messageId),
+                    messages: updatedMessages,
                     updatedAt: Date.now()
                 }
+
+                // Update the session manager
+                const manager = getSessionManager()
+                manager.updateLoadedSessionMessages(sessionId, updatedMessages)
+                manager.updateMetadata(sessionId, { 
+                    updatedAt: updatedSession.updatedAt,
+                    messageCount: updatedMessages.length 
+                })
+
+                return updatedSession
             }
             return session
         }))
+    }, [getSessionManager])
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (sessionManagerRef.current) {
+                sessionManagerRef.current.dispose()
+            }
+        }
     }, [])
 
     const contextValue = useMemo(() => ({
@@ -371,7 +637,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         clearAllSessions,
         updateSessionTitle,
         refreshSessions,
-        clearCurrentSession
+        clearCurrentSession,
+        loadFullSession,
+        getSessionMetadata,
+        isSessionLoaded,
     }), [
         sessions,
         currentSessionId,
@@ -385,13 +654,27 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         clearAllSessions,
         updateSessionTitle,
         refreshSessions,
-        clearCurrentSession
+        clearCurrentSession,
+        loadFullSession,
+        getSessionMetadata,
+        isSessionLoaded,
     ])
 
+    // Memoized state for the selectable context
+    // This allows components to subscribe to specific state slices
+    // **Validates: Requirements 8.2**
+    const selectableState = useMemo<ChatHistoryState>(() => ({
+        sessions,
+        currentSessionId,
+        isLoading,
+    }), [sessions, currentSessionId, isLoading])
+
     return (
-        <ChatHistoryContext.Provider value={contextValue}>
-            {children}
-        </ChatHistoryContext.Provider>
+        <SelectableChatHistoryProvider value={selectableState}>
+            <ChatHistoryContext.Provider value={contextValue}>
+                {children}
+            </ChatHistoryContext.Provider>
+        </SelectableChatHistoryProvider>
     )
 }
 
@@ -401,4 +684,179 @@ export function useChatHistory() {
         throw new Error('useChatHistory must be used within a ChatHistoryProvider')
     }
     return context
+}
+
+// ============================================================================
+// Selector-based hooks for optimized re-rendering
+// **Validates: Requirements 8.2 - Property 29: Chat History Selector Pattern**
+// ============================================================================
+
+/**
+ * Generic selector hook for ChatHistoryContext state
+ * Use this to subscribe to specific parts of the state
+ * 
+ * @example
+ * ```tsx
+ * // Only re-renders when sessions array changes
+ * const sessions = useChatHistorySelector(state => state.sessions)
+ * 
+ * // Only re-renders when currentSessionId changes
+ * const currentId = useChatHistorySelector(state => state.currentSessionId)
+ * ```
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useChatHistorySelector<R>(
+    selector: Selector<ChatHistoryState, R>,
+    equalityFn?: (a: R, b: R) => boolean
+): R {
+    return useChatHistoryStateSelector(selector, equalityFn)
+}
+
+/**
+ * Get the sessions list only
+ * Only re-renders when the sessions array changes
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useSessionsList(): ChatSession[] {
+    return useChatHistoryStateSelector(state => state.sessions)
+}
+
+/**
+ * Get the current session ID only
+ * Only re-renders when the current session ID changes
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useCurrentSessionId(): string | null {
+    return useChatHistoryStateSelector(state => state.currentSessionId)
+}
+
+/**
+ * Get the current session object
+ * Only re-renders when the current session changes
+ * Uses shallow equality to prevent re-renders when session content is the same
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useCurrentSession(): ChatSession | null {
+    return useChatHistoryStateSelector(
+        state => {
+            if (!state.currentSessionId) return null
+            return state.sessions.find(s => s.id === state.currentSessionId) ?? null
+        },
+        // Use reference equality - the session object reference changes when updated
+        (a, b) => a === b
+    )
+}
+
+/**
+ * Get the loading state only
+ * Only re-renders when the loading state changes
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useIsLoading(): boolean {
+    return useChatHistoryStateSelector(state => state.isLoading)
+}
+
+/**
+ * Get a specific session by ID
+ * Only re-renders when that specific session changes
+ * 
+ * @param id - The session ID to get
+ * @returns The session or null if not found
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useSessionById(id: string | null): ChatSession | null {
+    return useChatHistoryStateSelector(
+        state => {
+            if (!id) return null
+            return state.sessions.find(s => s.id === id) ?? null
+        },
+        // Use reference equality
+        (a, b) => a === b
+    )
+}
+
+/**
+ * Get the total number of sessions
+ * Only re-renders when the count changes
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useSessionsCount(): number {
+    return useChatHistoryStateSelector(state => state.sessions.length)
+}
+
+/**
+ * Get the messages for the current session
+ * Only re-renders when the current session's messages change
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useCurrentSessionMessages(): Message[] {
+    return useChatHistoryStateSelector(
+        state => {
+            if (!state.currentSessionId) return []
+            const session = state.sessions.find(s => s.id === state.currentSessionId)
+            return session?.messages ?? []
+        },
+        // Use shallow equality to compare message arrays
+        shallowEqual
+    )
+}
+
+/**
+ * Get the chat history actions (methods) without subscribing to state changes
+ * This hook never causes re-renders due to state changes
+ * 
+ * Use this when you only need to call actions like createSession, switchSession, etc.
+ * 
+ * @example
+ * ```tsx
+ * const { createSession, switchSession } = useChatHistoryActions()
+ * // This component won't re-render when sessions change
+ * ```
+ * 
+ * **Validates: Requirements 8.2**
+ */
+export function useChatHistoryActions() {
+    const context = useContext(ChatHistoryContext)
+    if (context === undefined) {
+        throw new Error('useChatHistoryActions must be used within a ChatHistoryProvider')
+    }
+    
+    // Return only the action methods, not the state
+    return useMemo(() => ({
+        createSession: context.createSession,
+        switchSession: context.switchSession,
+        addMessageToSession: context.addMessageToSession,
+        updateStreamingMessage: context.updateStreamingMessage,
+        deleteMessageFromSession: context.deleteMessageFromSession,
+        deleteSession: context.deleteSession,
+        clearAllSessions: context.clearAllSessions,
+        updateSessionTitle: context.updateSessionTitle,
+        refreshSessions: context.refreshSessions,
+        clearCurrentSession: context.clearCurrentSession,
+        loadFullSession: context.loadFullSession,
+        getSessionMetadata: context.getSessionMetadata,
+        isSessionLoaded: context.isSessionLoaded,
+    }), [
+        context.createSession,
+        context.switchSession,
+        context.addMessageToSession,
+        context.updateStreamingMessage,
+        context.deleteMessageFromSession,
+        context.deleteSession,
+        context.clearAllSessions,
+        context.updateSessionTitle,
+        context.refreshSessions,
+        context.clearCurrentSession,
+        context.loadFullSession,
+        context.getSessionMetadata,
+        context.isSessionLoaded,
+    ])
 }

@@ -19,7 +19,8 @@ interface ToastContextType {
 export const ToastContext = React.createContext<ToastContextType | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-    const showToast = (message: string, type: ToastType = 'info', duration: number = 4000) => {
+    // Memoize showToast callback to maintain stable reference
+    const showToast = React.useCallback((message: string, type: ToastType = 'info', duration: number = 4000) => {
         const options = { duration }
 
         switch (type) {
@@ -37,10 +38,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 toast.info(message, options)
                 break
         }
-    }
+    }, [])
+
+    // Memoize context value to prevent unnecessary child re-renders
+    // **Validates: Requirements 8.3, Property 30: Context Provider Memoization**
+    const contextValue = React.useMemo(() => ({ showToast }), [showToast])
 
     return (
-        <ToastContext.Provider value={{ showToast }}>
+        <ToastContext.Provider value={contextValue}>
             {children}
             <Toaster
                 position="bottom-right"

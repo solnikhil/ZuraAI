@@ -1,0 +1,266 @@
+/**
+ * useOllamaStreaming - Provider-specific streaming hook for Ollama
+ * 
+ * Extracts Ollama streaming logic from useStreamingChat to reduce complexity.
+ * 
+ * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
+ */
+
+import { useCallback, useRef } from 'react'
+import { streamOllamaCompletion } from '../../../../../services/ollama'
+import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import type {
+  StreamingResult,
+  ToolCallingOptions,
+  UpdateStreamingCallback,
+  FlushCallback,
+  ToolCallingHook,
+  StreamingSettings,
+} from './types'
+
+const UPDATE_INTERVAL = 120 // ms
+const SMOOTH_UPDATE_INTERVAL = 40 // ms
+
+export interface UseOllamaStreamingOptions {
+  settings: StreamingSettings
+  toolCalling: ToolCallingHook
+  updateStreamingMessage: UpdateStreamingCallback
+  flushThrottledUpdates: FlushCallback
+  throttledUpdateStreamingMessage: UpdateStreamingCallback
+}
+
+export interface UseOllamaStreamingReturn {
+  streamOllama: (options: ToolCallingOptions) => Promise<StreamingResult>
+}
+
+/**
+ * Hook for Ollama-specific streaming logic
+ */
+export function useOllamaStreaming({
+  settings,
+  toolCalling,
+  updateStreamingMessage,
+  flushThrottledUpdates,
+  throttledUpdateStreamingMessage,
+}: UseOllamaStreamingOptions): UseOllamaStreamingReturn {
+  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+
+  const streamOllama = useCallback(async (
+    options: ToolCallingOptions
+  ): Promise<StreamingResult> => {
+    const {
+      sessionId,
+      messageId,
+      messages: optimizedHistory,
+      startTime,
+      researchMaxRounds,
+      researchMandatory,
+      signal,
+    } = options
+
+    const { canUseTools, getToolsForRequest, handleToolCalls, getResearchContext } = toolCalling
+    const tools = canUseTools ? getToolsForRequest() : null
+    const ollamaTools = tools && Array.isArray(tools) ? tools : undefined
+
+    let accumulatedContent = ''
+    let lastUpdateTime = Date.now()
+    let finalUsage: any = {}
+    let hasToolCalls = false
+    let finalMessage: any = null
+    let isDone = false
+    let savedToolResults: any = null
+    let localThinkingBlocks: ThinkingBlock[] = []
+    let firstTokenTime: number | null = null
+
+    try {
+      for await (const chunk of streamOllamaCompletion(
+        settings.ollamaUrl || 'http://localhost:11434',
+        settings.aiModel,
+        optimizedHistory,
+        { temperature: settings.temperature, tools: ollamaTools, signal }
+      )) {
+        if (!firstTokenTime && chunk.message?.content) {
+          firstTokenTime = performance.now()
+        }
+
+        if (chunk.message?.content) {
+          accumulatedContent += chunk.message.content
+        }
+
+        if (chunk.message) {
+          finalMessage = chunk.message
+          if ((chunk.message as any)?.tool_calls?.length > 0) {
+            hasToolCalls = true
+          }
+        }
+
+        if (chunk.done) {
+          isDone = true
+          finalUsage = {
+            inputTokens: chunk.prompt_eval_count || 0,
+            outputTokens: chunk.eval_count || 0,
+            totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+          }
+        }
+
+        const now = Date.now()
+        if (now - lastUpdateTime >= updateInterval && !isDone) {
+          throttledUpdateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+          lastUpdateTime = now
+        }
+      }
+
+      // Flush throttled updates and apply final content state
+      flushThrottledUpdates()
+      updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+    } catch (streamError: any) {
+      console.error('Ollama streaming failed, trying non-streaming:', streamError)
+
+      // Fallback to non-streaming
+      const nonStreamingResponse = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: settings.aiModel,
+          messages: optimizedHistory,
+          stream: false,
+          tools: ollamaTools,
+          tool_choice: ollamaTools ? 'auto' : undefined,
+          options: { temperature: settings.temperature }
+        })
+      })
+
+      if (nonStreamingResponse.ok) {
+        const data = await nonStreamingResponse.json()
+        accumulatedContent = data.message?.content || ''
+        finalUsage = {
+          inputTokens: data.prompt_eval_count || 0,
+          outputTokens: data.eval_count || 0,
+          totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0)
+        }
+        if (data.message?.tool_calls?.length > 0) {
+          hasToolCalls = true
+          finalMessage = data.message
+        }
+        updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+      } else {
+        throw new Error(`Ollama API Error: ${nonStreamingResponse.statusText}`)
+      }
+    }
+
+    updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+
+    if (!accumulatedContent) {
+      // If still no content, return empty
+      const endTime = performance.now()
+      const latency = Math.round(endTime - startTime)
+      const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+      const outputTokens = finalUsage.outputTokens || 0
+      const tps = outputTokens > 0 && latency > 0 ? (outputTokens / (latency / 1000)) : undefined
+
+      updateStreamingMessage(sessionId, messageId, {
+        content: '',
+        model: `ollama/${settings.aiModel}`,
+        latency,
+        usage: { ...finalUsage, tps, ttft }
+      })
+      return { content: '', model: `ollama/${settings.aiModel}` }
+    }
+
+    // Handle tool calls
+    if (canUseTools && hasToolCalls && finalMessage?.tool_calls?.length > 0) {
+      let toolResult
+      try {
+        toolResult = await handleToolCalls({ choices: [{ message: finalMessage }] })
+      } catch (toolError: any) {
+        console.error('Tool calls processing error:', toolError)
+        toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
+      }
+
+      if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+        // Stream follow-up response
+        let followUpContent = ''
+        let followUpLastUpdate = Date.now()
+        let followUpUsage: any = {}
+
+        const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+        const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
+
+        const followUpMessages: any[] = [
+          ...optimizedHistory,
+          finalMessage,
+          ...toolResult.formattedResults
+        ]
+
+        if (researchContextMsg) {
+          followUpMessages.push({ role: 'user', content: researchContextMsg })
+        }
+
+        for await (const chunk of streamOllamaCompletion(
+          settings.ollamaUrl || 'http://localhost:11434',
+          settings.aiModel,
+          followUpMessages,
+          { temperature: settings.temperature, tools: ollamaTools, signal }
+        )) {
+          if (chunk.message?.content) {
+            followUpContent += chunk.message.content
+          }
+          if (chunk.done) {
+            followUpUsage = {
+              inputTokens: chunk.prompt_eval_count || 0,
+              outputTokens: chunk.eval_count || 0,
+              totalTokens: (chunk.prompt_eval_count || 0) + (chunk.eval_count || 0)
+            }
+          }
+
+          const now = Date.now()
+          if (now - followUpLastUpdate >= updateInterval && !chunk.done) {
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              content: accumulatedContent + followUpContent
+            })
+            followUpLastUpdate = now
+          }
+        }
+
+        accumulatedContent += followUpContent
+        flushThrottledUpdates()
+        updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+
+        finalUsage = {
+          inputTokens: (finalUsage.inputTokens || 0) + (followUpUsage.inputTokens || 0),
+          outputTokens: (finalUsage.outputTokens || 0) + (followUpUsage.outputTokens || 0),
+          totalTokens: (finalUsage.totalTokens || 0) + (followUpUsage.totalTokens || 0)
+        }
+      }
+
+      savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+        toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
+        result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+      })) || null
+    }
+
+    const endTime = performance.now()
+    const latency = Math.round(endTime - startTime)
+    const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    const outputTokens = finalUsage.outputTokens || 0
+    const tps = outputTokens > 0 && latency > 0 ? (outputTokens / (latency / 1000)) : undefined
+
+    updateStreamingMessage(sessionId, messageId, {
+      content: accumulatedContent,
+      model: `ollama/${settings.aiModel}`,
+      latency,
+      usage: { ...finalUsage, tps, ttft },
+      toolResults: savedToolResults
+    })
+
+    return {
+      content: accumulatedContent,
+      model: `ollama/${settings.aiModel}`,
+      toolResults: savedToolResults,
+      usage: { ...finalUsage, tps, ttft },
+      latency,
+    }
+  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
+
+  return { streamOllama }
+}

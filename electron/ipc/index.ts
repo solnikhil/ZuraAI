@@ -2,6 +2,7 @@ import { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatSt
 import { registerSecureStorageHandlers, unregisterSecureStorageHandlers } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 import { registerPDFCoreHandlers, unregisterPDFCoreHandlers } from './pdfCoreHandlers'
+import { registerPerformanceHandlers, unregisterPerformanceHandlers } from './performanceHandlers'
 
 // PDF handlers are loaded as a regular import
 // This allows vite to bundle them properly
@@ -37,6 +38,7 @@ export function registerAllHandlers(): void {
     registerChatStoreHandlers()
     registerSecureStorageHandlers()
     registerSystemHandlers()
+    registerPerformanceHandlers()
     
     // Register core PDF handlers first - these only use pdf.js (no LanceDB)
     // and provide basic PDF loading/viewing functionality
@@ -255,6 +257,7 @@ export function unregisterAllHandlers(): void {
     unregisterChatStoreHandlers()
     unregisterSecureStorageHandlers()
     unregisterSystemHandlers()
+    unregisterPerformanceHandlers()
 
     if (pdfCoreHandlersLoaded) {
         unregisterPDFCoreHandlers()
@@ -270,5 +273,6 @@ export { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatSt
 export { registerSecureStorageHandlers, unregisterSecureStorageHandlers } from './secureStorageHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 export { registerPDFCoreHandlers, unregisterPDFCoreHandlers } from './pdfCoreHandlers'
+export { registerPerformanceHandlers, unregisterPerformanceHandlers } from './performanceHandlers'
 // Note: Full PDF handlers are NOT re-exported because they depend on native modules (LanceDB)
 // that may fail to load. Use registerAllHandlers() which handles this gracefully.

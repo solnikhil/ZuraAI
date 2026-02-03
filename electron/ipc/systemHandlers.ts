@@ -9,6 +9,7 @@ import {
   getCurrentScreenshot,
   clearScreenshot,
 } from '../windows'
+import { memoryMonitor, type MemoryMetrics } from '../performance/memoryMonitor'
 
 const MAX_SCREENSHOT_EDGE = 2560
 const MAX_CROP_EDGE = 1536
@@ -163,6 +164,18 @@ export function registerSystemHandlers(): void {
     }))
   })
 
+  // Memory monitoring handlers (Requirements 4.6, 6.6)
+  // Get current memory metrics from the main process
+  ipcMain.handle('memory:get-metrics', (): MemoryMetrics => {
+    return memoryMonitor.getMemoryMetrics()
+  })
+
+  // Force memory cleanup (triggers garbage collection and cleanup callbacks)
+  ipcMain.handle('memory:force-cleanup', () => {
+    memoryMonitor.triggerCleanup()
+    return { success: true, timestamp: Date.now() }
+  })
+
   // Spawn terminal with command handler
   ipcMain.on('spawn-terminal-command', (_event, command, args) => {
     console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
@@ -212,5 +225,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('set-ignore-mouse-events')
   ipcMain.removeAllListeners('open-settings')
   ipcMain.removeHandler('get-process-metrics')
+  ipcMain.removeHandler('memory:get-metrics')
+  ipcMain.removeHandler('memory:force-cleanup')
   ipcMain.removeAllListeners('spawn-terminal-command')
 }

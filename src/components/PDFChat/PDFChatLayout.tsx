@@ -17,7 +17,7 @@ import { PDFViewer } from './PDFViewer';
 import { PDFChatArea } from './PDFChatArea';
 import { DocumentTabs, type DocumentTabInfo } from './DocumentTabs';
 import { IndexingProgress } from './IndexingProgress';
-import { usePDFDocuments } from '../../contexts/PDFDocumentContext';
+import { usePDFDocumentsStrict } from '../../contexts/PDFDocumentContext';
 import type { PDFChatLayoutProps, IndexingState, DocumentLoadingState, IndexingPromptState, IndexingLogEntry } from './types';
 import type { Citation, TextSelection, PDFDocument, IndexResult } from '../../types/pdf';
 
@@ -72,7 +72,7 @@ export function PDFChatLayout({
     setActiveDocumentId,
     currentPage,
     setCurrentPage,
-  } = usePDFDocuments();
+  } = usePDFDocumentsStrict();
 
   // Track document IDs for session management
   const [documentIds, setDocumentIds] = useState<string[]>([]);
