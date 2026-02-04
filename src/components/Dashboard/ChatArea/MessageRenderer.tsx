@@ -494,11 +494,7 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
                   maxWidth: '100%'
                 }}
               >
-                {file.type === 'pdf' ? (
-                  <FileText size={16} color="#f87171" />
-                ) : (
-                  <File size={16} color="#888" />
-                )}
+                <File size={16} color="#888" />
                 <span style={{
                   color: '#e0e0e0',
                   fontSize: '0.85rem',

@@ -425,7 +425,7 @@ export function InputArea({
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   multiple
-                  accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json,.xml"
+                  accept="image/*,.txt,.doc,.docx,.csv,.json,.xml"
                   className="hidden"
                 />
                 <Tooltip>

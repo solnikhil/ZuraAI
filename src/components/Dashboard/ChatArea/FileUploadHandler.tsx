@@ -64,7 +64,7 @@ export async function processFiles(
       newFiles.push({
         id: `${Date.now()}-${i}`,
         name: file.name,
-        type: file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'pdf' : 'file',
+        type: file.type.startsWith('image/') ? 'image' : 'file',
         size: file.size,
         data: base64Data,
         mimeType: file.type
@@ -236,7 +236,7 @@ export function FileUploadHandler({
   onFilesChange,
   maxFiles = 10,
   maxSizeBytes = 20 * 1024 * 1024,
-  acceptedTypes = ['image/*', '.pdf', '.txt', '.doc', '.docx', '.csv', '.json', '.xml'],
+  acceptedTypes = ['image/*', '.txt', '.doc', '.docx', '.csv', '.json', '.xml'],
   onError
 }: FileUploadHandlerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)

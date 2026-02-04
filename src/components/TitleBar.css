@@ -60,7 +60,7 @@
     max-width: calc(100% - 600px);
 }
 
-/* On macOS, position the middle section (Chat/PDF tabs) on the right side */
+/* On macOS, position the middle section on the right side */
 .app-titlebar--macos .app-titlebar__middle {
     left: auto;
     right: 180px; /* Account for model selector (~160px) + padding */

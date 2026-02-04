@@ -106,7 +106,7 @@ export default function TitleBar() {
         }
     }
 
-    const showDashboardTabs = false // Removed PDF tab, only chat view remains
+    const showDashboardTabs = false
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {
