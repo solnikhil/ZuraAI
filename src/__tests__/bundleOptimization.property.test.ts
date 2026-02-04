@@ -50,7 +50,6 @@ interface LazyComponentConfig {
 const LAZY_COMPONENTS: LazyComponentConfig[] = [
   { name: 'Settings', route: '/settings', importPath: './components/Settings/Settings' },
   { name: 'Overlay', route: '/overlay', importPath: './components/Overlay' },
-  { name: 'PDFChatLayout', route: '/pdf-chat', importPath: './components/PDFChat/PDFChatLayout' },
 ];
 
 /**
@@ -67,7 +66,6 @@ const EXPECTED_CHUNKS: ChunkConfig[] = [
   { name: 'markdown', packages: ['react-markdown', 'remark-gfm', 'react-syntax-highlighter'], maxSizeKB: 200 },
   { name: 'ui-motion', packages: ['framer-motion'], maxSizeKB: 100 },
   { name: 'radix', packages: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'], maxSizeKB: 150 },
-  { name: 'pdf', packages: ['pdfjs-dist', 'react-pdf'], maxSizeKB: 500 },
   { name: 'charts', packages: ['recharts'], maxSizeKB: 200 },
 ];
 
@@ -78,7 +76,7 @@ const generators = {
   /**
    * Generate a valid route path
    */
-  routePath: fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/pdf-chat', '/chat'),
+  routePath: fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/chat'),
 
   /**
    * Generate a lazy component configuration
@@ -89,7 +87,7 @@ const generators = {
    * Generate a sequence of route navigations
    */
   routeSequence: fc.array(
-    fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/pdf-chat', '/chat'),
+    fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/chat'),
     { minLength: 1, maxLength: 10 }
   ),
 
@@ -176,7 +174,7 @@ describe('Bundle Optimization Property Tests', () => {
     it('should verify lazy routes do not include eager imports', () => {
       // This test verifies the App.tsx structure
       // Lazy routes should use React.lazy, not direct imports
-      const lazyRoutes = ['/settings', '/overlay', '/pdf-chat'];
+      const lazyRoutes = ['/settings', '/overlay'];
       const eagerRoutes = ['/', '/dashboard', '/chat'];
       
       // Verify lazy routes are properly categorized
@@ -299,7 +297,7 @@ describe('Bundle Optimization Property Tests', () => {
 
     it('should verify main chunk excludes large dependencies', () => {
       // Large dependencies should be in separate chunks
-      const largeDependencies = ['react', 'react-dom', 'framer-motion', 'recharts', 'pdfjs-dist'];
+      const largeDependencies = ['react', 'react-dom', 'framer-motion', 'recharts'];
       
       // Verify each large dependency is assigned to a chunk
       for (const dep of largeDependencies) {
@@ -349,9 +347,6 @@ describe('Bundle Optimization Property Tests', () => {
               // Route-specific chunks
               if (route === '/settings') {
                 loadedChunks.add('charts'); // Settings uses recharts for usage graphs
-              }
-              if (route === '/pdf-chat') {
-                loadedChunks.add('pdf');
               }
               if (route === '/' || route === '/dashboard' || route === '/chat') {
                 loadedChunks.add('markdown'); // Chat uses markdown rendering

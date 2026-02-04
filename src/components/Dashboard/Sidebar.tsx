@@ -1,76 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-    Plus, Search, MessageSquare, Trash2, SettingsIcon,
-    LayoutDashboard, ChevronDown, User, LogOut, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Github, Star, FileEdit, X, Box, Brain, Command, FileText, FlaskConical
+    Search, MessageSquare, SettingsIcon,
+    ChevronDown, ChartNoAxesCombined, Cpu,
+    Key, ArrowLeft, X, Box, Command, FlaskConical
 } from '../icons'
-import { MessageCircleIcon, TrashIcon } from '../icons'
+import { TrashIcon } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
-import { usePDFDocuments } from '../../contexts/PDFDocumentContext'
-import { DocumentTabs, type DocumentTabInfo } from '../PDFChat/DocumentTabs'
-import { PDFThumbnails } from '../PDFChat/PDFThumbnails'
-
-type PDFSidebarTab = 'pages' | 'pdfs'
 
 interface SidebarProps {
-    view: 'chat' | 'pdf' | 'settings'
+    view: 'chat' | 'settings'
     onOpenSettings: () => void
     onCloseSettings: () => void
-    onNavigateToPDF: () => void
     onNavigateToChat?: () => void
-    onLoadRecentPDF?: (filePath: string) => void
-    onSwitchPDFSession?: (sessionId: string) => void
-    activePDFSessionId?: string | null
     activeSettingsSection: string
     onNavigateSettings: (section: string) => void
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToPDF, onNavigateToChat, onLoadRecentPDF, onSwitchPDFSession, activePDFSessionId, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [isSearching, setIsSearching] = useState(false)
     const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
     const [isListExpanded, setIsListExpanded] = useState(true)
-    const [pdfSidebarTab, setPdfSidebarTab] = useState<PDFSidebarTab>('pages')
-    const [starredPDFs, setStarredPDFs] = useState<Array<{ filePath: string; fileName: string; starredAt: number }>>([])
-    const [isLoadingStarredPDFs, setIsLoadingStarredPDFs] = useState(false)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession, createSession } = useChatHistory()
     const { settings, updateSettings } = useSettings()
-    const { loadedDocuments: pdfDocuments, setLoadedDocuments, activeDocumentId, setActiveDocumentId, currentPage, setCurrentPage, activeDocumentPageCount } = usePDFDocuments()
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
-
-
-    // Fetch starred PDF documents when in PDF mode
-    useEffect(() => {
-        const fetchStarredPDFs = () => {
-            if (view === 'pdf') {
-                setIsLoadingStarredPDFs(true)
-                try {
-                    const raw = localStorage.getItem('zura-pdf-starred-v1')
-                    const parsed = raw ? JSON.parse(raw) : []
-                    const docs = Array.isArray(parsed) ? parsed : []
-                    setStarredPDFs(docs)
-                } catch (error) {
-                    console.error('[Sidebar] Error fetching starred PDFs:', error)
-                    setStarredPDFs([])
-                } finally {
-                    setIsLoadingStarredPDFs(false)
-                }
-            }
-        }
-
-        fetchStarredPDFs()
-
-        const handleStarredUpdate = () => fetchStarredPDFs()
-        window.addEventListener('pdf-starred-updated', handleStarredUpdate)
-        return () => window.removeEventListener('pdf-starred-updated', handleStarredUpdate)
-    }, [view])
 
     // Settings navigation items
     const navItems = [
@@ -79,7 +39,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
         { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> },
-        { id: 'rag', label: 'PDF RAG', icon: <FileText size={18} /> },
         { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
     ]
 
@@ -93,93 +52,15 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
-            opacity: (view === 'chat' || view === 'pdf') ? 1 : 0,
-            transform: (view === 'chat' || view === 'pdf') ? 'translateX(0)' : 'translateX(-20px)',
+            opacity: view === 'chat' ? 1 : 0,
+            transform: view === 'chat' ? 'translateX(0)' : 'translateX(-20px)',
             transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
-            pointerEvents: (view === 'chat' || view === 'pdf') ? 'all' : 'none',
-            position: (view === 'chat' || view === 'pdf') ? 'relative' : 'absolute',
+            pointerEvents: view === 'chat' ? 'all' : 'none',
+            position: view === 'chat' ? 'relative' : 'absolute',
             width: '100%'
         }}>
-            {/* Document Tabs - Only visible in PDF mode */}
-            {view === 'pdf' && (
-                <div style={{
-                    borderBottom: '1px solid var(--theme-border)',
-                    backgroundColor: 'var(--theme-surface)',
-                }}>
-                    <DocumentTabs
-                        documents={pdfDocuments}
-                        activeDocumentId={activeDocumentId}
-                        onTabSelect={(docId) => {
-                            setActiveDocumentId(docId)
-                            // Notify PDFChatLayout to switch documents
-                            window.dispatchEvent(new CustomEvent('pdf:switch-document', { detail: { documentId: docId } }))
-                        }}
-                        onTabClose={(docId) => {
-                            // Update the loaded documents map
-                            setLoadedDocuments((prev: Map<string, DocumentTabInfo>) => {
-                                const updated = new Map(prev);
-                                updated.delete(docId);
-                                return updated;
-                            });
-                            // Notify PDFChatLayout to unload the document
-                            window.dispatchEvent(new CustomEvent('pdf:close-document', { detail: { documentId: docId } }));
-                        }}
-                        onAddDocument={() => {
-                            // Trigger file picker via event
-                            window.dispatchEvent(new CustomEvent('pdf:add-document'))
-                        }}
-                    />
-                </div>
-            )}
-
-            {/* PDF Sidebar Tabs - Pages | PDFs toggle */}
-            {view === 'pdf' && !isCollapsed && (
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '8px',
-                    gap: '4px',
-                    borderBottom: '1px solid var(--theme-border)',
-                }}>
-                    <button
-                        onClick={() => setPdfSidebarTab('pages')}
-                        style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: pdfSidebarTab === 'pages' ? 'var(--theme-surface-active)' : 'transparent',
-                            color: pdfSidebarTab === 'pages' ? 'var(--theme-text-primary)' : 'var(--theme-text-muted)',
-                            fontSize: '0.8rem',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                        }}
-                    >
-                        Pages
-                    </button>
-                    <button
-                        onClick={() => setPdfSidebarTab('pdfs')}
-                        style={{
-                            flex: 1,
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: pdfSidebarTab === 'pdfs' ? 'var(--theme-surface-active)' : 'transparent',
-                            color: pdfSidebarTab === 'pdfs' ? 'var(--theme-text-primary)' : 'var(--theme-text-muted)',
-                            fontSize: '0.8rem',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                        }}
-                    >
-                        PDFs
-                    </button>
-                </div>
-            )}
-
-            {/* Chat Actions - Chat mode only */}
-            {view === 'chat' && !isCollapsed && (
+            {/* Chat Actions */}
+            {!isCollapsed && (
                 <div style={{
                     padding: '8px',
                     display: 'flex',
@@ -263,181 +144,21 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 </div>
             )}
 
-            {/* PDF Sidebar Content - Pages or PDFs tab */}
-            {view === 'pdf' && !isCollapsed && (
-                <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0,
-                    overflow: 'hidden',
-                }}>
-                    {/* Pages Tab Content - PDF Thumbnails */}
-                    {pdfSidebarTab === 'pages' && (
-                        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-                            {activeDocumentId && activeDocumentPageCount > 0 ? (
-                                <div className="sidebar-thumbnails-container" style={{ height: '100%', overflow: 'hidden' }}>
-                                    <PDFThumbnails
-                                        documentId={activeDocumentId}
-                                        pageCount={activeDocumentPageCount}
-                                        currentPage={currentPage}
-                                        onPageSelect={(page) => setCurrentPage(page)}
-                                    />
-                                </div>
-                            ) : (
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    height: '100%',
-                                    color: 'var(--theme-text-muted)',
-                                    fontSize: '0.85rem',
-                                    padding: '20px',
-                                    textAlign: 'center',
-                                }}>
-                                    No PDF loaded
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* PDFs Tab Content - Starred PDFs */}
-                    {pdfSidebarTab === 'pdfs' && (
-                        <ScrollArea
-                            style={{
-                                flex: 1,
-                            }}
-                            viewportStyle={{ padding: '8px' }}
-                        >
-                            {/* New PDF Button */}
-                            <button
-                                onClick={() => {
-                                    window.dispatchEvent(new CustomEvent('pdf:add-document'))
-                                }}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    padding: '10px 12px',
-                                    marginBottom: '12px',
-                                    width: '100%',
-                                    background: 'var(--theme-surface-active)',
-                                    border: '1px solid var(--theme-border)',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    color: 'var(--theme-text-primary)',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 500,
-                                    transition: 'all 0.15s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'var(--theme-surface-hover)'
-                                    e.currentTarget.style.borderColor = 'var(--theme-border-hover)'
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'var(--theme-surface-active)'
-                                    e.currentTarget.style.borderColor = 'var(--theme-border)'
-                                }}
-                            >
-                                <Plus size={16} />
-                                New PDF
-                            </button>
-
-                            {/* Starred PDFs Header */}
-                            <div style={{
-                                fontSize: '0.75rem',
-                                color: 'var(--theme-text-muted)',
-                                padding: '4px 4px 8px',
-                                fontWeight: 500,
-                                letterSpacing: '0.5px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                            }}>
-                                <Star size={12} style={{ color: '#facc15' }} />
-                                Starred PDFs
-                            </div>
-
-                            {/* Starred PDFs List */}
-                            {isLoadingStarredPDFs ? (
-                                <div style={{
-                                    padding: '8px 12px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--theme-text-muted)',
-                                    fontStyle: 'italic'
-                                }}>
-                                    Loading...
-                                </div>
-                            ) : starredPDFs.length === 0 ? (
-                                <div style={{
-                                    padding: '12px',
-                                    fontSize: '0.8rem',
-                                    color: 'var(--theme-text-muted)',
-                                    fontStyle: 'italic',
-                                    textAlign: 'center',
-                                }}>
-                                    No starred documents yet
-                                </div>
-                            ) : (
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '2px',
-                                }}>
-                                    {starredPDFs.map((doc, index) => (
-                                        <div
-                                            key={doc.filePath}
-                                            onClick={() => onLoadRecentPDF?.(doc.filePath)}
-                                            className="session-item animate-sidebar-item"
-                                            title={doc.filePath}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                padding: '8px 10px',
-                                                cursor: 'pointer',
-                                                borderRadius: '6px',
-                                                fontSize: '0.8rem',
-                                                color: 'var(--theme-text-primary)',
-                                                backgroundColor: 'transparent',
-                                                transition: 'all 0.15s ease',
-                                                animationDelay: `${index * 0.05}s`,
-                                            }}
-                                        >
-                                            <FileText size={16} strokeWidth={2} style={{ color: 'var(--theme-text-muted)', flexShrink: 0 }} />
-                                            <span style={{
-                                                flex: 1,
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                            }}>{doc.fileName}</span>
-                                            <Star size={12} style={{ color: '#facc15', flexShrink: 0 }} />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </ScrollArea>
-                    )}
-                </div>
-            )}
-
             {/* Chat History List */}
             <ScrollArea
                 style={{
-                    flex: view === 'pdf' ? 0 : 1,
-                    display: view === 'pdf' ? 'none' : 'flex',
+                    flex: 1,
                     minWidth: 0
                 }}
                 viewportStyle={{
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '1px',
-                    padding: view === 'pdf' ? '0' : '4px 8px 0'
+                    padding: '4px 8px 0'
                 }}
             >
 
-                {!isCollapsed && filteredSessions.length > 0 && view !== 'pdf' && (
+                {!isCollapsed && filteredSessions.length > 0 && (
                     <div
                         onClick={() => setIsListExpanded(!isListExpanded)}
                         onMouseEnter={e => {
@@ -477,7 +198,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 )}
 
                 <div style={{
-                    display: isListExpanded && !isCollapsed && view !== 'pdf' ? 'flex' : 'none',
+                    display: isListExpanded && !isCollapsed ? 'flex' : 'none',
                     flexDirection: 'column',
                     gap: '4px',
                     minWidth: 0
@@ -540,7 +261,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 </div>
             </ScrollArea>
 
-            {/* Footer - Settings Button or Back to LLM Chat */}
+            {/* Footer - Settings Button */}
             <div style={{
                 marginTop: 'auto',
                 borderTop: '1px solid var(--theme-border)',
@@ -550,89 +271,45 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 alignItems: 'stretch',
                 minWidth: 0
             }}>
-                {view === 'pdf' ? (
-                    /* Back to LLM Chat Button - Only in PDF mode */
-                    <button
-                        onClick={onNavigateToChat}
-                        title="Back to LLM Chat"
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            cursor: 'pointer',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'transparent',
-                            color: 'var(--theme-text-primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            gap: '10px',
-                            fontSize: '0.85rem',
-                            fontWeight: 500,
-                            transition: 'all 0.2s ease',
-                            minWidth: 0,
-                            overflow: 'hidden'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                        }}
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <MessageCircleIcon size={18} strokeWidth={2} />
-                        </div>
-                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to LLM Chat</span>}
-                    </button>
-                ) : (
-                    /* Settings Button - Chat mode */
-                    <button
-                        onClick={onOpenSettings}
-                        title="Settings"
-                        style={{
-                            width: '100%',
-                            padding: '8px',
-                            cursor: 'pointer',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: 'transparent',
-                            color: 'var(--theme-text-primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'flex-start',
-                            gap: '10px',
-                            fontSize: '0.85rem',
-                            fontWeight: 500,
-                            transition: 'all 0.2s ease',
-                            minWidth: 0,
-                            overflow: 'hidden'
-                        }}
-                        onMouseEnter={e => {
-                            e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                        }}
-                        onMouseLeave={e => {
-                            e.currentTarget.style.backgroundColor = 'transparent'
-                        }}
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <SettingsIcon size={18} strokeWidth={2} />
-                        </div>
-                        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
-                    </button>
-                )}
+                <button
+                    onClick={onOpenSettings}
+                    title="Settings"
+                    style={{
+                        width: '100%',
+                        padding: '8px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--theme-text-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-start',
+                        gap: '10px',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
+                        transition: 'all 0.2s ease',
+                        minWidth: 0,
+                        overflow: 'hidden'
+                    }}
+                    onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
+                    }}
+                    onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                    }}
+                >
+                    <div style={{
+                        width: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                    }}>
+                        <SettingsIcon size={18} strokeWidth={2} />
+                    </div>
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
+                </button>
             </div>
         </div>
     )

@@ -130,8 +130,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `capture-screen`, `crop-screenshot`
   - `execute-tool`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
-  - `pdf:get-file-data` (read PDF bytes for renderer display)
-- `pdf:list-ollama-models` (list local Ollama models)
+  - `ollama:list-models` (list local Ollama models)
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
 
@@ -175,13 +174,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Crops with bounds clamping and returns `data:image/jpeg;base64,...`
   - Clears the full-screen screenshot after crop to reduce memory
 
-#### PDF Viewer Data Load
-- Renderer: `src/components/PDFChat/PDFViewer.tsx`
-  - Requests file bytes via `invoke('pdf:get-file-data', filePath)` when given a local path
-  - Passes `{ data: Uint8Array }` to `react-pdf` to avoid blocked `file://` loads
-- Main process: `electron/ipc/pdfCoreHandlers.ts`
-  - Reads PDF bytes from disk and returns `{ data, byteLength }`
-
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme.
 - Titlebar overlay sync (Windows): `src/contexts/SettingsContext.tsx` sends `set-titlebar-overlay` → `electron/ipc/systemHandlers.ts` → `electron/windows/mainWindow.ts#setTitleBarOverlay`.
@@ -198,8 +190,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `zura-ui:settingsSection`
   - `zura-ui:sidebarCollapsed`
   - `zura-ui:sidebarHidden`
-- PDF UI state:
- - `zura-pdf-starred-v1` (starred PDF list)
 - Command bar:
   - History: `zura-commandbar-history-v1`
   - UI collapsed flags: `zura-commandbar-recents-collapsed`, `zura-commandbar-shortcuts-collapsed`

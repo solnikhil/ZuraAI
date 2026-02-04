@@ -87,9 +87,6 @@ export default defineConfig({
                         '@radix-ui/react-tooltip'
                     ],
                     
-                    // PDF rendering - large dependency, lazy loaded
-                    'pdf': ['pdfjs-dist', 'react-pdf'],
-                    
                     // Charts - only needed in settings/usage
                     'charts': ['recharts']
                 }

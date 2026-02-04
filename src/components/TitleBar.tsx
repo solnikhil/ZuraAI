@@ -17,7 +17,6 @@ const SETTINGS_SECTION_LABELS: Record<string, string> = {
     tools: 'Tools',
     commandbar: 'Command Bar',
     systemprompt: 'System Prompt',
-    rag: 'PDF RAG',
 }
 
 function getModelDisplayName(settings: Settings): string {
@@ -90,7 +89,7 @@ export default function TitleBar() {
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
 
-    const handleDashboardTabChange = (nextView: 'chat' | 'pdf') => {
+    const handleDashboardTabChange = (nextView: 'chat') => {
         if (dashboardView === nextView) return
 
         if (hasUnsavedSettings && dashboardView === 'settings') {
@@ -105,16 +104,9 @@ export default function TitleBar() {
             }
             return
         }
-
-        if (nextView === 'pdf') {
-            setDashboardView('pdf')
-            if (!isDashboardRoute) {
-                navigate('/dashboard')
-            }
-        }
     }
 
-    const showDashboardTabs = (isDashboardRoute || isLegacyChatRoute) && dashboardView !== 'settings'
+    const showDashboardTabs = false // Removed PDF tab, only chat view remains
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {
@@ -158,36 +150,7 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__middle">
-                {showDashboardTabs && (
-                    <div className="app-titlebar__tab-group no-drag" role="tablist" aria-label="Dashboard views">
-                        <button
-                            type="button"
-                            className={[
-                                'app-titlebar__tab',
-                                dashboardView === 'chat' ? 'app-titlebar__tab--active' : null,
-                            ].filter(Boolean).join(' ')}
-                            role="tab"
-                            aria-selected={dashboardView === 'chat'}
-                            aria-label="Chat"
-                            onClick={() => handleDashboardTabChange('chat')}
-                        >
-                            Chat
-                        </button>
-                        <button
-                            type="button"
-                            className={[
-                                'app-titlebar__tab',
-                                dashboardView === 'pdf' ? 'app-titlebar__tab--active' : null,
-                            ].filter(Boolean).join(' ')}
-                            role="tab"
-                            aria-selected={dashboardView === 'pdf'}
-                            aria-label="PDF"
-                            onClick={() => handleDashboardTabChange('pdf')}
-                        >
-                            PDF
-                        </button>
-                    </div>
-                )}
+                {/* Tab group removed - only chat view remains */}
             </div>
 
             <div className="app-titlebar__center">

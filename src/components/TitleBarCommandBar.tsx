@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
-  ChartNoAxesCombined, Cpu, Box, Key, Command, FileText, FlaskConical
+  ChartNoAxesCombined, Cpu, Box, Key, Command, FlaskConical
 } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -73,7 +73,6 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconC
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
-  if (suggestion.id === 'go-pdf') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Settings section actions
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
@@ -392,7 +391,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isFocused])
 
-  const ensureDashboardView = (view: 'chat' | 'pdf' | 'settings') => {
+  const ensureDashboardView = (view: 'chat' | 'settings') => {
     if (dashboardView === view) return
 
     if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {

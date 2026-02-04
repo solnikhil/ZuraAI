@@ -55,10 +55,10 @@ const thinkingBlockArbitrary = fc.record({
 const fileAttachmentArbitrary = fc.record({
     id: fc.uuid(),
     name: fc.string({ minLength: 1, maxLength: 50 }),
-    type: fc.constantFrom('image', 'pdf', 'text'),
+    type: fc.constantFrom('image', 'text'),
     size: fc.integer({ min: 100, max: 10000000 }),
     data: fc.string({ minLength: 10, maxLength: 100 }), // Simplified base64
-    mimeType: fc.constantFrom('image/png', 'image/jpeg', 'application/pdf', 'text/plain'),
+    mimeType: fc.constantFrom('image/png', 'image/jpeg', 'text/plain'),
 })
 
 /**
