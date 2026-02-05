@@ -118,6 +118,12 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Transparent mode for frosted glass effect */
+html.frosted-mode,
+html.frosted-mode body {
+    background-color: transparent !important;
+}
+
 #root {
     width: 100%;
     height: 100%;

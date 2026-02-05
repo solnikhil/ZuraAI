@@ -115,58 +115,6 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
             Titlebar Configuration
           </h3>
 
-          {/* Density */}
-          <div className="setting-item" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px 0',
-            borderBottom: '1px solid var(--theme-border-subtle)'
-          }}>
-            <div className="setting-label">
-              <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                Titlebar Density
-              </h4>
-              <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                Choose between comfortable or compact titlebar height
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button
-                onClick={() => updateSettings({ titleBarDensity: 'comfortable' })}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--theme-border)',
-                  background: settings.titleBarDensity === 'comfortable' ? 'var(--theme-accent-muted)' : 'transparent',
-                  color: settings.titleBarDensity === 'comfortable' ? 'var(--theme-accent)' : 'var(--theme-text-secondary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Comfortable
-              </button>
-              <button
-                onClick={() => updateSettings({ titleBarDensity: 'compact' })}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--theme-border)',
-                  background: settings.titleBarDensity === 'compact' ? 'var(--theme-accent-muted)' : 'transparent',
-                  color: settings.titleBarDensity === 'compact' ? 'var(--theme-accent)' : 'var(--theme-text-secondary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                Compact
-              </button>
-            </div>
-          </div>
-
           {/* Show App Name */}
           <div className="setting-item" style={{
             display: 'flex',

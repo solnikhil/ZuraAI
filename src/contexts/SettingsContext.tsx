@@ -71,7 +71,7 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
             'autoHideOverlay', 'overlayTransparency', 'loadOverlayOnStartup',
-            'commandBar'
+            'commandBar', 'frostedSidebar'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -172,10 +172,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
-        // Title bar personalization
-        if (!parsed.titleBarDensity || !['comfortable', 'compact'].includes(parsed.titleBarDensity)) {
-            parsed.titleBarDensity = defaultSettings.titleBarDensity
-        }
+        // Title bar personalization - always use compact (narrow) mode
+        parsed.titleBarDensity = 'compact'
         if (parsed.titleBarShowAppName === undefined) parsed.titleBarShowAppName = defaultSettings.titleBarShowAppName
         if (parsed.titleBarShowChatTitle === undefined) parsed.titleBarShowChatTitle = defaultSettings.titleBarShowChatTitle
         if (parsed.titleBarShowModel === undefined) parsed.titleBarShowModel = defaultSettings.titleBarShowModel
@@ -191,6 +189,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
         // Initialize activeTheme if missing (new theme system)
         if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
+        // Initialize frostedSidebar if missing (glassmorphism effect)
+        if (parsed.frostedSidebar === undefined) parsed.frostedSidebar = defaultSettings.frostedSidebar
 
         return parsed
     })
@@ -207,6 +207,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         overlayTransparency: storedSettings.overlayTransparency,
         loadOverlayOnStartup: storedSettings.loadOverlayOnStartup,
         commandBar: storedSettings.commandBar,
+        frostedSidebar: storedSettings.frostedSidebar,
     }), [storedSettings])
 
     const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({

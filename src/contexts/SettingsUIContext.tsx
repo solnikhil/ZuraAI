@@ -51,6 +51,9 @@ export interface SettingsUI {
         maxRecents: number
         enableTabAutocomplete: boolean
     }
+    
+    // Frosted sidebar (glassmorphism effect)
+    frostedSidebar: boolean
 }
 
 /**
@@ -59,7 +62,7 @@ export interface SettingsUI {
 export const defaultSettingsUI: SettingsUI = {
     theme: 'dark',
     activeTheme: 'dark-default',
-    titleBarDensity: 'comfortable',
+    titleBarDensity: 'compact',
     titleBarShowAppName: true,
     titleBarShowChatTitle: true,
     titleBarShowModel: true,
@@ -79,6 +82,7 @@ export const defaultSettingsUI: SettingsUI = {
         maxRecents: 3,
         enableTabAutocomplete: true,
     },
+    frostedSidebar: false,
 }
 
 interface SettingsUIContextType {

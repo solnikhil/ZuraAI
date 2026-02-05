@@ -2,6 +2,7 @@ import React, { useState, useCallback, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import { useAppShell } from '../../contexts/AppShellContext'
+import { useSettingsUI } from '../../contexts/SettingsUIContext'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
@@ -23,6 +24,8 @@ function SettingsLoadingFallback() {
 
 export default function DashboardLayout() {
     const { dashboardView: view, setDashboardView: setView, activeSettingsSection, setActiveSettingsSection, hasUnsavedSettings, setHasUnsavedSettings } = useAppShell()
+    const { settingsUI } = useSettingsUI()
+    const { frostedSidebar } = settingsUI
     const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
 
     // This callback is passed to Settings to track unsaved changes
@@ -47,7 +50,13 @@ export default function DashboardLayout() {
     }, [hasUnsavedSettings, triggerWarning])
 
     return (
-        <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--theme-background)' }}>
+        <div style={{ 
+            display: 'flex', 
+            width: '100%', 
+            height: '100%', 
+            overflow: 'hidden', 
+            backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)' 
+        }}>
             <Sidebar
                 view={view}
                 onOpenSettings={() => setView('settings')}
@@ -58,8 +67,13 @@ export default function DashboardLayout() {
                 hasUnsavedSettings={hasUnsavedSettings}
             />
 
-            {/* Main Content Area - ChatArea or Settings */}
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {/* Main Content Area - ChatArea or Settings - always has solid background */}
+            <div style={{ 
+                flex: 1, 
+                position: 'relative', 
+                overflow: 'hidden',
+                backgroundColor: 'var(--theme-background)' // Always solid to contrast with frosted sidebar
+            }}>
                 {view === 'settings' ? (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
                         <Suspense fallback={<SettingsLoadingFallback />}>

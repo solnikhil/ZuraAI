@@ -10,6 +10,7 @@ import { TrashIcon } from '../icons'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
+import { useSettingsUI } from '../../contexts/SettingsUIContext'
 
 interface SidebarProps {
     view: 'chat' | 'settings'
@@ -28,6 +29,17 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     const [isListExpanded, setIsListExpanded] = useState(true)
     const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession, createSession } = useChatHistory()
     const { settings, updateSettings } = useSettings()
+    const { settingsUI } = useSettingsUI()
+    const { frostedSidebar } = settingsUI
+
+    // Check for backdrop-filter support (Requirements: 5.4)
+    const supportsBackdropFilter = typeof CSS !== 'undefined' && (
+        CSS.supports('backdrop-filter', 'blur(1px)') || 
+        CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
+    )
+
+    // Glassmorphism styles - only apply when sidebar is visible (Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.2)
+    const shouldApplyGlass = frostedSidebar && supportsBackdropFilter && !sidebarHidden
 
     // Settings UI State
     const [blurInfo, setBlurInfo] = useState(false)
@@ -432,24 +444,63 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     )
 
     return (
-        <div style={{
+        <div 
+            className={`sidebar-container${shouldApplyGlass ? ' frosted' : ''}`}
+            style={{
             width: sidebarHidden ? '0px' : (isCollapsed ? '60px' : '260px'),
-            background: 'var(--theme-surface)',
-            borderRight: sidebarHidden ? 'none' : '1px solid var(--theme-border)',
-            boxShadow: 'none',
+            background: shouldApplyGlass 
+                ? 'linear-gradient(180deg, rgba(20, 20, 24, 0.45) 0%, rgba(12, 12, 16, 0.5) 100%)' // More transparent for frosted blur to show
+                : 'var(--theme-surface)',
+            backdropFilter: shouldApplyGlass ? 'blur(24px) saturate(130%) brightness(0.9)' : 'none', // Stronger frosted blur
+            WebkitBackdropFilter: shouldApplyGlass ? 'blur(24px) saturate(130%) brightness(0.9)' : 'none',
+            borderRight: sidebarHidden 
+                ? 'none' 
+                : shouldApplyGlass 
+                    ? '1px solid rgba(255, 255, 255, 0.06)' // Hairline border
+                    : '1px solid var(--theme-border)',
+            boxShadow: shouldApplyGlass 
+                ? 'inset 0 0 0 1px rgba(255, 255, 255, 0.03), 2px 0 16px rgba(0, 0, 0, 0.3)' // Inner glow + shadow
+                : 'none',
             display: 'flex',
             flexDirection: 'column',
             height: '100%',
             fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            transition: 'width 0.2s ease, opacity 0.15s ease',
+            transition: 'width 0.2s ease, opacity 0.15s ease, background 0.2s ease',
             position: 'relative',
             overflow: 'hidden',
             pointerEvents: sidebarHidden ? 'none' : 'auto'
         }}>
-            {renderChatContent()}
-            {renderSettingsContent()}
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {renderChatContent()}
+                {renderSettingsContent()}
+            </div>
 
             <style>{`
+                /* Noise overlay for premium frosted glass effect */
+                .sidebar-container.frosted::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+                    opacity: 0.035;
+                    pointer-events: none;
+                    mix-blend-mode: overlay;
+                    z-index: 0;
+                }
+                
+                /* Subtle top highlight for HUD glass effect */
+                .sidebar-container.frosted::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 1px;
+                    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+                    pointer-events: none;
+                    z-index: 1;
+                }
+
                 .session-item:hover { background-color: var(--theme-surface-hover); }
                 .session-item[data-active="true"] {
                     background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
@@ -493,6 +544,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 .settings-nav-item:focus-visible { box-shadow: 0 0 0 2px var(--theme-accent-muted); outline: none; }
                 .settings-nav-item:focus-visible:active { box-shadow: 0 0 0 2px var(--theme-accent-muted), inset 0 1px 2px rgba(0, 0, 0, 0.08); }
                 @media (prefers-reduced-motion: reduce) {
+                    .sidebar-container { transition: none !important; }
+                    .sidebar-container * { transition: none !important; animation: none !important; }
                     .settings-nav-item { transition: background 0.15s ease, color 0.15s ease; }
                     .settings-nav-item:active { transform: none; box-shadow: none; }
                 }

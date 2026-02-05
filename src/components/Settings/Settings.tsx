@@ -347,6 +347,7 @@ export default function Settings({
           {activeSection === 'experimental' && (
             <ExperimentalSection
               streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
+              frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
               onChange={(changes) => handleChange(changes)}
             />
           )}

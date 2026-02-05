@@ -56,6 +56,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         ...(isMacOS ? {
             titleBarStyle: 'hidden',
             trafficLightPosition: { x: 12, y: 12 },
+            // No vibrancy - pure transparency without blur
         } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -67,7 +68,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             additionalArguments: ['--process-name=Zura-Dashboard'],
         },
         autoHideMenuBar: true,
-        backgroundColor: '#14120B',
+        backgroundColor: '#00000000', // Transparent
+        transparent: true, // Pure transparency without vibrancy blur
         show: false,
     })
 

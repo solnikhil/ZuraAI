@@ -4,10 +4,11 @@ import { Switch } from '@/components/ui/switch'
 
 export interface ExperimentalSectionProps {
   streamResponses: boolean
-  onChange: (changes: { streamResponses: boolean }) => void
+  frostedSidebar: boolean
+  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean }) => void
 }
 
-export function ExperimentalSection({ streamResponses, onChange }: ExperimentalSectionProps): React.ReactElement {
+export function ExperimentalSection({ streamResponses, frostedSidebar, onChange }: ExperimentalSectionProps): React.ReactElement {
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">
@@ -25,6 +26,20 @@ export function ExperimentalSection({ streamResponses, onChange }: ExperimentalS
             checked={streamResponses}
             onCheckedChange={(checked) => onChange({ streamResponses: checked })}
             aria-label="Enable smooth streaming"
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>Frosted Sidebar</h3>
+            <div className="section-desc">Enable a glassmorphism effect on the sidebar with a frosted glass appearance.</div>
+          </div>
+          <Switch
+            checked={frostedSidebar}
+            onCheckedChange={(checked) => onChange({ frostedSidebar: checked })}
+            aria-label="Enable frosted sidebar"
           />
         </div>
       </Card>

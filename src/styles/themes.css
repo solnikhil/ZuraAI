@@ -59,6 +59,14 @@
     --theme-scrollbar: rgba(255, 255, 255, 0.08);
     --theme-scrollbar-hover: rgba(255, 255, 255, 0.14);
     
+    /* Glassmorphism variables */
+    --theme-glass-bg: transparent;
+    --theme-glass-bg-light: transparent;
+    --theme-glass-border: rgba(255, 255, 255, 0.2);
+    --theme-glass-border-light: rgba(0, 0, 0, 0.1);
+    --theme-glass-blur: blur(0px);
+    --theme-glass-gloss: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 50%, transparent 100%);
+    
     /* Legacy variable mappings (for backward compatibility) */
     --bg-primary: var(--theme-background);
     --bg-secondary: var(--theme-surface);

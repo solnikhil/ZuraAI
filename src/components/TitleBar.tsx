@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
+import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { PanelLeft } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
@@ -47,6 +48,8 @@ export default function TitleBar() {
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
+    const { settingsUI } = useSettingsUI()
+    const { frostedSidebar } = settingsUI
     const { showToast } = useToast()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
@@ -119,7 +122,11 @@ export default function TitleBar() {
                 'app-titlebar',
                 density === 'compact' ? 'app-titlebar--compact' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
+                frostedSidebar ? 'app-titlebar--frosted' : null,
             ].filter(Boolean).join(' ')}
+            style={{
+                backgroundColor: frostedSidebar ? 'transparent' : undefined
+            }}
         >
             <div className="app-titlebar__left">
                 {isDashboardRoute && (

@@ -12,6 +12,11 @@
     -webkit-app-region: drag;
 }
 
+/* Frosted/transparent titlebar */
+.app-titlebar--frosted {
+    background: transparent !important;
+}
+
 /* macOS specific: Add padding for traffic lights */
 .app-titlebar--macos {
     /* Traffic lights are positioned at x: 12, y: 12 with ~78px width */
