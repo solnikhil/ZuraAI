@@ -425,7 +425,56 @@ function WebSearchImageCarousel({ images }: { images: Array<{ url: string; descr
 /**
  * User Message Bubble
  */
-function UserMessageBubble({ message }: { message: MessageRendererProps['message'] }) {
+function UserMessageBubble({
+  message,
+  bubbleStyle = 'solid'
+}: {
+  message: MessageRendererProps['message']
+  bubbleStyle?: 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
+}) {
+  const bubbleStyleByPreset: Record<'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal', React.CSSProperties> = {
+    solid: {
+      background: 'var(--theme-user-message-bg)',
+      border: '1px solid var(--theme-border-subtle)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-user-message-text)'
+    },
+    glass: {
+      background: 'rgba(255, 255, 255, 0.08)',
+      border: '1px solid var(--theme-border)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-text-primary)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)'
+    },
+    outline: {
+      background: 'transparent',
+      border: '1px solid var(--theme-accent-muted)',
+      boxShadow: 'none',
+      color: 'var(--theme-text-primary)'
+    },
+    gradient: {
+      background: 'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
+      border: '1px solid color-mix(in srgb, var(--theme-accent) 45%, transparent)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-text-inverse)'
+    },
+    elevated: {
+      background: 'var(--theme-surface)',
+      border: '1px solid var(--theme-border)',
+      boxShadow: 'var(--theme-shadow-md)',
+      color: 'var(--theme-text-primary)'
+    },
+    terminal: {
+      background: 'color-mix(in srgb, var(--theme-background) 76%, black 24%)',
+      border: '1px dashed var(--theme-border-hover)',
+      boxShadow: 'none',
+      color: 'var(--theme-text-primary)',
+      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      letterSpacing: '0.01em'
+    }
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -518,12 +567,11 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
       {message.content && (
         <div style={{
           padding: '12px 18px',
-          backgroundColor: 'var(--theme-surface)',
-          borderRadius: '20px',
-          color: 'var(--theme-text-secondary)',
+          borderRadius: '20px 20px 6px 20px',
           fontSize: '0.95rem',
           maxWidth: '70%',
-          whiteSpace: 'pre-wrap'
+          whiteSpace: 'pre-wrap',
+          ...bubbleStyleByPreset[bubbleStyle]
         }}>
           {message.content}
         </div>
@@ -914,7 +962,7 @@ function MessageRendererComponent({
 
   // Render user message
   if (isUser) {
-    return <UserMessageBubble message={message} />
+    return <UserMessageBubble message={message} bubbleStyle={settings.chatBubbleStyle || 'solid'} />
   }
 
   // Render assistant message

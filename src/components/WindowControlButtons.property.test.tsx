@@ -236,20 +236,20 @@ afterEach(() => {
 })
 
 // ============================================================================
-// Property 1: Custom controls render only in frosted Windows mode
+// Property 1: Custom controls render on all non-macOS platforms
 // ============================================================================
 
 /**
- * Feature: frosted-sidebar-window-controls-fix, Property 1: Custom controls render only in frosted Windows mode
+ * Feature: frosted-sidebar-window-controls-fix, Property 1: Custom controls render on all non-macOS platforms
  *
  * *For any* combination of `frostedSidebar` (true/false) and platform (win32/darwin/linux),
  * the TitleBar should render custom minimize, maximize/restore, and close buttons
- * if and only if `frostedSidebar === true` AND the platform is not macOS.
+ * if and only if the platform is not macOS (native overlay is disabled).
  *
  * **Validates: Requirements 1.1, 1.2, 4.1**
  */
-describe('Property 1: Custom controls render only in frosted Windows mode', () => {
-  it('should render custom window control buttons iff frostedSidebar is true AND platform is not macOS', () => {
+describe('Property 1: Custom controls render on all non-macOS platforms', () => {
+  it('should render custom window control buttons iff platform is not macOS', () => {
     fc.assert(
       fc.property(
         conditionalRenderingArbitrary,
@@ -261,9 +261,10 @@ describe('Property 1: Custom controls render only in frosted Windows mode', () =
           // Act: render TitleBar
           const { queryByLabelText } = render(React.createElement(TitleBar))
 
-          // Determine expected behavior
+          // Determine expected behavior — native overlay is disabled,
+          // so custom controls render on all non-macOS platforms
           const isMacOS = isMacOSPlatform(platform)
-          const shouldRenderCustomControls = frostedSidebar && !isMacOS
+          const shouldRenderCustomControls = !isMacOS
 
           // Assert: check for custom control buttons by their aria-labels
           const minimizeBtn = queryByLabelText('Minimize window')
@@ -285,7 +286,7 @@ describe('Property 1: Custom controls render only in frosted Windows mode', () =
     )
   })
 
-  it('should render standalone maximize button only when not frosted and not macOS', () => {
+  it('should always use WindowControlButtons wrapper on non-macOS platforms', () => {
     fc.assert(
       fc.property(
         conditionalRenderingArbitrary,
@@ -298,21 +299,162 @@ describe('Property 1: Custom controls render only in frosted Windows mode', () =
           const { container } = render(React.createElement(TitleBar))
 
           const isMacOS = isMacOSPlatform(platform)
-          const shouldRenderStandaloneMaximize = !frostedSidebar && !isMacOS
 
-          // The standalone maximize button is in __right section but NOT inside __window-controls
+          // The WindowControlButtons wrapper should be present on all non-macOS platforms
           const windowControlsWrapper = container.querySelector('.app-titlebar__window-controls')
-          const rightSection = container.querySelector('.app-titlebar__right')
 
-          if (shouldRenderStandaloneMaximize) {
-            // Should have a maximize button but NOT inside a WindowControlButtons wrapper
-            expect(windowControlsWrapper).not.toBeInTheDocument()
-            const maxBtn = rightSection?.querySelector('[aria-label="Maximize window"], [aria-label="Restore window"]')
-            expect(maxBtn).toBeInTheDocument()
-          } else if (frostedSidebar && !isMacOS) {
-            // Should have WindowControlButtons wrapper
+          if (!isMacOS) {
             expect(windowControlsWrapper).toBeInTheDocument()
+          } else {
+            expect(windowControlsWrapper).not.toBeInTheDocument()
           }
+
+          cleanup()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+})
+
+// ============================================================================
+// Property 2: Maximize/restore icon reflects window state
+// ============================================================================
+
+/**
+ * Feature: frosted-sidebar-window-controls-fix, Property 2: Maximize/restore icon reflects window state
+ *
+ * *For any* sequence of maximize state changes (true → false, false → true),
+ * the rendered maximize/restore button icon should always match the current
+ * `isMaximized` state — showing the restore icon when maximized and the
+ * maximize icon when not maximized.
+ *
+ * **Validates: Requirements 1.7**
+ */
+describe('Property 2: Maximize/restore icon reflects window state', () => {
+  it('should show "Restore window" aria-label when isMaximized is true and "Maximize window" when false', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        (isMaximized) => {
+          // Arrange & Act: render WindowControlButtons with the given isMaximized state
+          const { queryByLabelText } = render(
+            React.createElement(WindowControlButtons, {
+              isMaximized,
+              onMinimize: vi.fn(),
+              onToggleMaximize: vi.fn(),
+              onClose: vi.fn(),
+            })
+          )
+
+          // Assert: the correct aria-label is present based on isMaximized
+          if (isMaximized) {
+            expect(queryByLabelText('Restore window')).toBeInTheDocument()
+            expect(queryByLabelText('Maximize window')).not.toBeInTheDocument()
+          } else {
+            expect(queryByLabelText('Maximize window')).toBeInTheDocument()
+            expect(queryByLabelText('Restore window')).not.toBeInTheDocument()
+          }
+
+          cleanup()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should show correct title attribute matching the isMaximized state', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        (isMaximized) => {
+          // Arrange & Act
+          const { container } = render(
+            React.createElement(WindowControlButtons, {
+              isMaximized,
+              onMinimize: vi.fn(),
+              onToggleMaximize: vi.fn(),
+              onClose: vi.fn(),
+            })
+          )
+
+          // Find the maximize/restore button (the second button)
+          const buttons = container.querySelectorAll('button')
+          const maxRestoreBtn = buttons[1] // minimize=0, max/restore=1, close=2
+
+          // Assert: title attribute matches state
+          if (isMaximized) {
+            expect(maxRestoreBtn.getAttribute('title')).toBe('Restore')
+          } else {
+            expect(maxRestoreBtn.getAttribute('title')).toBe('Maximize')
+          }
+
+          cleanup()
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should maintain correct icon state across a sequence of maximize state changes', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.boolean(), { minLength: 1, maxLength: 20 }),
+        (stateSequence) => {
+          // For each state in the sequence, render and verify the icon matches
+          for (const isMaximized of stateSequence) {
+            const { queryByLabelText } = render(
+              React.createElement(WindowControlButtons, {
+                isMaximized,
+                onMinimize: vi.fn(),
+                onToggleMaximize: vi.fn(),
+                onClose: vi.fn(),
+              })
+            )
+
+            // The final state in each render should always be consistent
+            if (isMaximized) {
+              expect(queryByLabelText('Restore window')).toBeInTheDocument()
+              expect(queryByLabelText('Maximize window')).not.toBeInTheDocument()
+            } else {
+              expect(queryByLabelText('Maximize window')).toBeInTheDocument()
+              expect(queryByLabelText('Restore window')).not.toBeInTheDocument()
+            }
+
+            cleanup()
+          }
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should render exactly one maximize/restore button regardless of isMaximized state', () => {
+    fc.assert(
+      fc.property(
+        fc.boolean(),
+        (isMaximized) => {
+          const { container } = render(
+            React.createElement(WindowControlButtons, {
+              isMaximized,
+              onMinimize: vi.fn(),
+              onToggleMaximize: vi.fn(),
+              onClose: vi.fn(),
+            })
+          )
+
+          // There should always be exactly 3 buttons total (minimize, max/restore, close)
+          const buttons = container.querySelectorAll('button')
+          expect(buttons.length).toBe(3)
+
+          // Exactly one of the max/restore labels should be present
+          const maxBtn = container.querySelector('[aria-label="Maximize window"]')
+          const restoreBtn = container.querySelector('[aria-label="Restore window"]')
+
+          // XOR: exactly one should exist
+          const hasMax = maxBtn !== null
+          const hasRestore = restoreBtn !== null
+          expect(hasMax !== hasRestore).toBe(true)
 
           cleanup()
         }

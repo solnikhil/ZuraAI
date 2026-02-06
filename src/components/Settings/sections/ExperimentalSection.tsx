@@ -5,10 +5,11 @@ import { Switch } from '@/components/ui/switch'
 export interface ExperimentalSectionProps {
   streamResponses: boolean
   frostedSidebar: boolean
-  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean }) => void
+  frostedPrompt: boolean
+  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean; frostedPrompt?: boolean }) => void
 }
 
-export function ExperimentalSection({ streamResponses, frostedSidebar, onChange }: ExperimentalSectionProps): React.ReactElement {
+export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPrompt, onChange }: ExperimentalSectionProps): React.ReactElement {
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">
@@ -40,6 +41,20 @@ export function ExperimentalSection({ streamResponses, frostedSidebar, onChange 
             checked={frostedSidebar}
             onCheckedChange={(checked) => onChange({ frostedSidebar: checked })}
             aria-label="Enable frosted sidebar"
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>Frosted Prompt</h3>
+            <div className="section-desc">Add a glassy, softly refracted surface to the chat prompt area.</div>
+          </div>
+          <Switch
+            checked={frostedPrompt}
+            onCheckedChange={(checked) => onChange({ frostedPrompt: checked })}
+            aria-label="Enable frosted prompt"
           />
         </div>
       </Card>

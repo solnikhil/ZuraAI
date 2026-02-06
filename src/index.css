@@ -147,6 +147,42 @@ html.frosted-mode body {
     border-top: none;
 }
 
+.zura-frosted-prompt {
+  position: relative;
+  background: rgba(20, 18, 12, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+}
+
+.zura-frosted-prompt::before,
+.zura-frosted-prompt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.zura-frosted-prompt::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0) 68%);
+  opacity: 0.45;
+}
+
+.zura-frosted-prompt::after {
+  background:
+    radial-gradient(140% 80% at 12% -20%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 32%, rgba(255, 255, 255, 0) 58%);
+  opacity: 0.55;
+}
+
+.zura-frosted-prompt > * {
+  position: relative;
+  z-index: 1;
+}
+
 /* === Tooltip Animations === */
 @keyframes tooltip-in {
   0% {

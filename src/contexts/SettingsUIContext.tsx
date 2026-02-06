@@ -18,6 +18,8 @@ import React, { createContext, useContext, useState, useEffect, useLayoutEffect,
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
 import { applyThemeToDocument } from '../themes/themeUtils'
 
+export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
+
 /**
  * UI-related settings that change frequently
  */
@@ -54,6 +56,12 @@ export interface SettingsUI {
     
     // Frosted sidebar (glassmorphism effect)
     frostedSidebar: boolean
+
+    // Frosted prompt (glassmorphism effect)
+    frostedPrompt: boolean
+
+    // Chat bubble style
+    chatBubbleStyle?: ChatBubbleStyle
 }
 
 /**
@@ -61,7 +69,7 @@ export interface SettingsUI {
  */
 export const defaultSettingsUI: SettingsUI = {
     theme: 'dark',
-    activeTheme: 'dark-default',
+    activeTheme: 'zuraai',
     titleBarDensity: 'compact',
     titleBarShowAppName: true,
     titleBarShowChatTitle: true,
@@ -83,6 +91,8 @@ export const defaultSettingsUI: SettingsUI = {
         enableTabAutocomplete: true,
     },
     frostedSidebar: false,
+    frostedPrompt: false,
+    chatBubbleStyle: 'solid',
 }
 
 interface SettingsUIContextType {

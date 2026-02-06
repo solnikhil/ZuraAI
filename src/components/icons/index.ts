@@ -102,6 +102,7 @@ export {
   MoreVertical,
   ZoomIn,
   ZoomOut,
+  Paintbrush,
 } from 'lucide-react'
 
 // Animated icons

@@ -312,7 +312,7 @@ export default function Settings({
             </>
           )}
 
-          {/* Themes Section */}
+          {/* Appearance Section */}
           {activeSection === 'themes' && (
             <AppearanceSection />
           )}
@@ -348,6 +348,7 @@ export default function Settings({
             <ExperimentalSection
               streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
               frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
+              frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
               onChange={(changes) => handleChange(changes)}
             />
           )}

@@ -67,6 +67,7 @@ export function InputArea({
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
+  const { frostedPrompt } = settings
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
 
@@ -258,7 +259,7 @@ export function InputArea({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5",
-              "bg-[#292929]",
+              frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
               showAttachmentBanner ? "pt-3" : "pt-2",
               isDragging && "ring-2 ring-[var(--theme-accent)]"
             )}

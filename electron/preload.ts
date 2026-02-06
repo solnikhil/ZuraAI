@@ -70,6 +70,9 @@ const INVOKE_CHANNELS = new Set<string>([
   // Tools
   'execute-tool',
 
+  // Window resize (frosted mode)
+  'window-resize',
+
   // Updater
   'updater:check-for-updates',
   'updater:quit-and-install',

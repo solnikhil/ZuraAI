@@ -1,0 +1,85 @@
+/* ResizeHandles.css — Invisible resize regions for transparent Electron windows */
+
+/* Wrapper: covers the full viewport, passes through all pointer events */
+.resize-handles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Base handle: invisible but interactive */
+.resize-handle {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+
+/* ── Edge handles (minimum 4px wide) ── */
+
+.resize-handle--top {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: n-resize;
+}
+
+.resize-handle--bottom {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: s-resize;
+}
+
+.resize-handle--left {
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 4px;
+  cursor: w-resize;
+}
+
+.resize-handle--right {
+  top: 8px;
+  bottom: 8px;
+  right: 0;
+  width: 4px;
+  cursor: e-resize;
+}
+
+/* ── Corner handles (minimum 8px) ── */
+
+.resize-handle--corner {
+  width: 8px;
+  height: 8px;
+}
+
+.resize-handle--top-left {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+}
+
+.resize-handle--top-right {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+}
+
+.resize-handle--bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+}
+
+.resize-handle--bottom-right {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}

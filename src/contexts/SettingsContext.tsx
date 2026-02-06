@@ -71,7 +71,7 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
             'autoHideOverlay', 'overlayTransparency', 'loadOverlayOnStartup',
-            'commandBar', 'frostedSidebar'
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -191,6 +191,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
         // Initialize frostedSidebar if missing (glassmorphism effect)
         if (parsed.frostedSidebar === undefined) parsed.frostedSidebar = defaultSettings.frostedSidebar
+        // Initialize frostedPrompt if missing (glassmorphism effect)
+        if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
+        // Initialize chatBubbleStyle if missing
+        if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
 
         return parsed
     })
@@ -208,6 +212,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         loadOverlayOnStartup: storedSettings.loadOverlayOnStartup,
         commandBar: storedSettings.commandBar,
         frostedSidebar: storedSettings.frostedSidebar,
+        frostedPrompt: storedSettings.frostedPrompt,
+        chatBubbleStyle: storedSettings.chatBubbleStyle,
     }), [storedSettings])
 
     const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({

@@ -208,6 +208,49 @@ export function registerSystemHandlers(): void {
     return win.isMaximized()
   })
 
+  // Window resize handler (for transparent/frosted windows that lose native resize handles)
+  ipcMain.handle('window-resize', (event, newBounds: unknown) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+
+    // Validate that newBounds is an object with the required properties
+    if (
+      typeof newBounds !== 'object' ||
+      newBounds === null ||
+      !('x' in newBounds) ||
+      !('y' in newBounds) ||
+      !('width' in newBounds) ||
+      !('height' in newBounds)
+    ) {
+      return
+    }
+
+    const bounds = newBounds as { x: unknown; y: unknown; width: unknown; height: unknown }
+
+    // Validate all values are finite numbers
+    const x = Number(bounds.x)
+    const y = Number(bounds.y)
+    const width = Number(bounds.width)
+    const height = Number(bounds.height)
+
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+      return
+    }
+
+    // Clamp to minimum window dimensions
+    const MIN_WIDTH = 900
+    const MIN_HEIGHT = 600
+
+    const clampedBounds = {
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.max(MIN_WIDTH, Math.round(width)),
+      height: Math.max(MIN_HEIGHT, Math.round(height)),
+    }
+
+    win.setBounds(clampedBounds)
+  })
+
   // Spawn terminal with command handler
   ipcMain.on('spawn-terminal-command', (_event, command, args) => {
     console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
@@ -261,6 +304,7 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('memory:get-metrics')
   ipcMain.removeHandler('memory:force-cleanup')
   ipcMain.removeAllListeners('spawn-terminal-command')
+  ipcMain.removeHandler('window-resize')
   ipcMain.removeHandler('window-controls:minimize')
   ipcMain.removeHandler('window-controls:toggle-maximize')
   ipcMain.removeHandler('window-controls:close')

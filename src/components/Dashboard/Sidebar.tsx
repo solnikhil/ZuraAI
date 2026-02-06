@@ -3,7 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
     Search, MessageSquare, SettingsIcon,
     ChevronDown, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, X, Box, Command, FlaskConical
+    Key, ArrowLeft, X, Paintbrush, Command, FlaskConical
 } from '../icons'
 import { TrashIcon } from '../icons'
 
@@ -42,7 +42,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     const navItems = [
         { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
         { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
-        { id: 'themes', label: 'Themes', icon: <Box size={18} /> },
+        { id: 'themes', label: 'Appearance', icon: <Paintbrush size={18} /> },
         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
         { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> },
         { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
@@ -443,15 +443,15 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             style={{
             width: sidebarHidden ? '0px' : (isCollapsed ? '60px' : '260px'),
             background: shouldApplyGlass
-                ? 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)'
+                ? 'transparent'
                 : 'var(--theme-surface)',
             borderRight: sidebarHidden
                 ? 'none'
                 : shouldApplyGlass
-                    ? '1px solid rgba(255, 255, 255, 0.08)'
+                    ? 'none'
                     : '1px solid var(--theme-border)',
             boxShadow: shouldApplyGlass
-                ? 'inset -1px 0 0 rgba(255, 255, 255, 0.04), 4px 0 20px rgba(0, 0, 0, 0.35)'
+                ? '4px 0 20px rgba(0, 0, 0, 0.35)'
                 : 'none',
             display: 'flex',
             flexDirection: 'column',
@@ -469,17 +469,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             </div>
 
             <style>{`
-                .sidebar-container.frosted::after {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-                    background-size: 200px 200px;
-                    opacity: 0.09;
-                    mix-blend-mode: overlay;
-                    pointer-events: none;
-                    z-index: 0;
-                }
                 .session-item:hover { background-color: var(--theme-surface-hover); }
                 .session-item[data-active="true"] {
                     background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
