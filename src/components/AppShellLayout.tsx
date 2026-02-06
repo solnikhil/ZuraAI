@@ -47,8 +47,7 @@ function AppShellContent() {
             <TitleBar />
             <div className="app-content" style={{
                 backgroundColor: frostedSidebar ? 'transparent' : undefined,
-                borderTop: frostedSidebar ? 'none' : undefined,
-                marginTop: frostedSidebar ? '-2px' : undefined
+                borderTop: 'none'
             }}>
                 <Outlet />
             </div>

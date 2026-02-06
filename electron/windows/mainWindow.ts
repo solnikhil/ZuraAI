@@ -74,7 +74,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         },
         autoHideMenuBar: true,
         backgroundColor: '#00000000',
-        transparent: true,
         show: false,
     })
 

@@ -183,7 +183,7 @@ export function registerSystemHandlers(): void {
     return { success: true, timestamp: Date.now() }
   })
 
-  // Window controls handlers (for transparent window maximize workaround)
+  // Window controls handlers
   ipcMain.handle('window-controls:minimize', (event) => {
     BrowserWindow.fromWebContents(event.sender)?.minimize()
   })
@@ -194,13 +194,7 @@ export function registerSystemHandlers(): void {
     if (win.isMaximized()) {
       win.unmaximize()
     } else {
-      // Workaround: transparent windows can't use native maximize on Windows
-      if (process.platform === 'win32') {
-        const { workArea } = screen.getPrimaryDisplay()
-        win.setBounds(workArea)
-      } else {
-        win.maximize()
-      }
+      win.maximize()
     }
   })
 
@@ -211,16 +205,6 @@ export function registerSystemHandlers(): void {
   ipcMain.handle('window-controls:is-maximized', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return false
-    // For transparent windows on Windows, also check if bounds match work area
-    if (process.platform === 'win32') {
-      const bounds = win.getBounds()
-      const { workArea } = screen.getPrimaryDisplay()
-      const isManualMax = Math.abs(bounds.x - workArea.x) < 2
-        && Math.abs(bounds.y - workArea.y) < 2
-        && Math.abs(bounds.width - workArea.width) < 2
-        && Math.abs(bounds.height - workArea.height) < 2
-      return win.isMaximized() || isManualMax
-    }
     return win.isMaximized()
   })
 

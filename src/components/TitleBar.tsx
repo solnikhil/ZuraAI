@@ -4,10 +4,11 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { PanelLeft, Maximize2, Minimize2, Minus, X } from './icons'
+import { PanelLeft, Maximize2, Minimize2 } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
+import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
@@ -224,36 +225,26 @@ export default function TitleBar() {
                         {modelDisplayName}
                     </span>
                 )}
-                {!isMacOS && (
-                    <>
-                        <button
-                            type="button"
-                            className="app-titlebar__icon-btn app-titlebar__window-btn no-drag"
-                            onClick={handleMinimize}
-                            aria-label="Minimize window"
-                            title="Minimize"
-                        >
-                            <Minus size={14} />
-                        </button>
-                        <button
-                            type="button"
-                            className="app-titlebar__icon-btn app-titlebar__window-btn no-drag"
-                            onClick={handleToggleMaximize}
-                            aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-                            title={isMaximized ? 'Restore' : 'Maximize'}
-                        >
-                            {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                        </button>
-                        <button
-                            type="button"
-                            className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--close no-drag"
-                            onClick={handleClose}
-                            aria-label="Close window"
-                            title="Close"
-                        >
-                            <X size={14} />
-                        </button>
-                    </>
+                {/* Frosted mode on Windows: render full custom window controls (minimize, maximize/restore, close) */}
+                {frostedSidebar && !isMacOS && (
+                    <WindowControlButtons
+                        isMaximized={isMaximized}
+                        onMinimize={handleMinimize}
+                        onToggleMaximize={handleToggleMaximize}
+                        onClose={handleClose}
+                    />
+                )}
+                {/* Non-frosted mode on Windows: render only maximize/restore toggle (native overlay handles minimize/close) */}
+                {!frostedSidebar && !isMacOS && (
+                    <button
+                        type="button"
+                        className="app-titlebar__icon-btn app-titlebar__window-btn no-drag"
+                        onClick={handleToggleMaximize}
+                        aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+                        title={isMaximized ? 'Restore' : 'Maximize'}
+                    >
+                        {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                    </button>
                 )}
             </div>
         </div>

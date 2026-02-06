@@ -129,9 +129,10 @@ export function SettingsUIProvider({
         if (window.ipcRenderer) {
             const height = settingsUI.titleBarDensity === 'compact' ? 36 : 44
             const overlayColor = settingsUI.frostedSidebar ? '#00000000' : theme.colors.background
+            const overlaySymbolColor = settingsUI.frostedSidebar ? '#00000000' : theme.colors.textPrimary
             window.ipcRenderer.send('set-titlebar-overlay', {
                 color: overlayColor,
-                symbolColor: theme.colors.textPrimary,
+                symbolColor: overlaySymbolColor,
                 height,
             })
         }

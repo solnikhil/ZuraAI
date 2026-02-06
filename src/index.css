@@ -144,12 +144,7 @@ html.frosted-mode body {
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    border-top: 1px solid var(--theme-border);
-}
-
-/* Remove the separation stroke between titlebar and content in frosted mode */
-.frosted-mode .app-content {
-    border-top: none !important;
+    border-top: none;
 }
 
 /* === Tooltip Animations === */
