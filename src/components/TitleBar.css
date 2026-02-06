@@ -237,6 +237,23 @@
     outline-offset: 2px;
 }
 
+.app-titlebar__window-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+}
+
+.app-titlebar__window-btn--close:hover {
+    background: #c42b1c;
+    border-color: #c42b1c;
+    color: #ffffff;
+}
+
+.app-titlebar__window-btn--close:active {
+    background: #a5271b;
+    border-color: #a5271b;
+}
+
 .app-titlebar__logo {
     width: 20px;
     height: 20px;
@@ -268,6 +285,10 @@
     text-overflow: ellipsis;
     -webkit-app-region: no-drag;
     margin-right: 140px;
+}
+
+.app-titlebar--custom-controls .app-titlebar__model {
+    margin-right: 0;
 }
 
 /* Hide model viewer on small windows */

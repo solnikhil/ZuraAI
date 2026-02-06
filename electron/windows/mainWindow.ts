@@ -10,6 +10,7 @@ const isProduction = require('electron').app.isPackaged
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+const USE_NATIVE_TITLEBAR_OVERLAY = false
 
 function isExternalHttpUrl(url: string): boolean {
     if (!url.startsWith('http:') && !url.startsWith('https:')) return false
@@ -47,11 +48,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         ...(isWindows ? {
             titleBarStyle: 'hidden',
-            titleBarOverlay: {
-                color: '#14120B',
-                symbolColor: '#E5E0D5',
-                height: 44,
-            },
+            ...(USE_NATIVE_TITLEBAR_OVERLAY ? {
+                titleBarOverlay: {
+                    color: '#14120B',
+                    symbolColor: '#E5E0D5',
+                    height: 44,
+                },
+            } : {}),
             backgroundMaterial: 'none' as const,
         } : {}),
         ...(isMacOS ? {
@@ -157,6 +160,7 @@ export function setNativeBlur(enabled: boolean): void {
 export function setTitleBarOverlay(color: string, symbolColor: string, height?: number): void {
     if (process.platform !== 'win32') return
     if (!mainWindow) return
+    if (!USE_NATIVE_TITLEBAR_OVERLAY) return
 
     const overlay: Electron.TitleBarOverlay = { color, symbolColor }
     if (typeof height === 'number' && Number.isFinite(height)) {

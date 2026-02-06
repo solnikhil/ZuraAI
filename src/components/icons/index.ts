@@ -78,6 +78,7 @@ export {
   Expand,
   Maximize2,
   Minimize2,
+  Minus,
   CheckCircle,
   XCircle,
   AlertCircle,

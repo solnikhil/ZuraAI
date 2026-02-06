@@ -4,7 +4,7 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { PanelLeft, Maximize2, Minimize2 } from './icons'
+import { PanelLeft, Maximize2, Minimize2, Minus, X } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
@@ -138,6 +138,14 @@ export default function TitleBar() {
         }).catch(() => {})
     }, [])
 
+    const handleMinimize = useCallback(() => {
+        window.windowControls?.minimize().catch(() => {})
+    }, [])
+
+    const handleClose = useCallback(() => {
+        window.windowControls?.close().catch(() => {})
+    }, [])
+
     const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
         // Only trigger on the titlebar itself, not on buttons/controls
         if ((e.target as HTMLElement).closest('.no-drag')) return
@@ -150,6 +158,7 @@ export default function TitleBar() {
                 'app-titlebar',
                 density === 'compact' ? 'app-titlebar--compact' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
+                !isMacOS ? 'app-titlebar--custom-controls' : null,
                 frostedSidebar ? 'app-titlebar--frosted' : null,
             ].filter(Boolean).join(' ')}
             style={{}}
@@ -216,15 +225,35 @@ export default function TitleBar() {
                     </span>
                 )}
                 {!isMacOS && (
-                    <button
-                        type="button"
-                        className="app-titlebar__icon-btn no-drag"
-                        onClick={handleToggleMaximize}
-                        aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-                        title={isMaximized ? 'Restore' : 'Maximize'}
-                    >
-                        {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                    </button>
+                    <>
+                        <button
+                            type="button"
+                            className="app-titlebar__icon-btn app-titlebar__window-btn no-drag"
+                            onClick={handleMinimize}
+                            aria-label="Minimize window"
+                            title="Minimize"
+                        >
+                            <Minus size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            className="app-titlebar__icon-btn app-titlebar__window-btn no-drag"
+                            onClick={handleToggleMaximize}
+                            aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+                            title={isMaximized ? 'Restore' : 'Maximize'}
+                        >
+                            {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                        </button>
+                        <button
+                            type="button"
+                            className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--close no-drag"
+                            onClick={handleClose}
+                            aria-label="Close window"
+                            title="Close"
+                        >
+                            <X size={14} />
+                        </button>
+                    </>
                 )}
             </div>
         </div>
