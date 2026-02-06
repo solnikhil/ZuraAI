@@ -128,13 +128,14 @@ export function SettingsUIProvider({
         // Keep native Windows title bar overlay in sync
         if (window.ipcRenderer) {
             const height = settingsUI.titleBarDensity === 'compact' ? 36 : 44
+            const overlayColor = settingsUI.frostedSidebar ? '#00000000' : theme.colors.background
             window.ipcRenderer.send('set-titlebar-overlay', {
-                color: 'rgba(0, 0, 0, 0)',
+                color: overlayColor,
                 symbolColor: theme.colors.textPrimary,
                 height,
             })
         }
-    }, [settingsUI.activeTheme, settingsUI.titleBarDensity])
+    }, [settingsUI.activeTheme, settingsUI.titleBarDensity, settingsUI.frostedSidebar])
 
     // Notify parent of changes
     useEffect(() => {

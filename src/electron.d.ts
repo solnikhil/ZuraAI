@@ -56,11 +56,20 @@ export interface MemoryCleanupResult {
     timestamp: number;
 }
 
+export interface WindowControlsAPI {
+    minimize: () => Promise<void>
+    toggleMaximize: () => Promise<void>
+    close: () => Promise<void>
+    isMaximized: () => Promise<boolean>
+    onWindowState: (callback: (state: { isMaximized: boolean }) => void) => () => void
+}
+
 declare global {
     interface Window {
         ipcRenderer: IElectronAPI
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
         terminal: TerminalAPI
+        windowControls: WindowControlsAPI
     }
 }

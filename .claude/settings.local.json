@@ -37,7 +37,8 @@
       "Bash(npx shadcn@latest add:*)",
       "WebFetch(domain:kokonutui.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:ui.shadcn.com)"
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(git status:*)"
     ]
   }
 }

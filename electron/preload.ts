@@ -33,6 +33,7 @@ const SEND_CHANNELS = new Set<string>([
   'set-ignore-mouse-events',
   'open-settings',
   'set-titlebar-overlay',
+  'set-native-blur',
   'spawn-terminal-command',
 ])
 

@@ -76,6 +76,8 @@ export {
   Grid,
   LayoutGrid,
   Expand,
+  Maximize2,
+  Minimize2,
   CheckCircle,
   XCircle,
   AlertCircle,

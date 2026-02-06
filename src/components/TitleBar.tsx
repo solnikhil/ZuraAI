@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { PanelLeft } from './icons'
+import { PanelLeft, Maximize2, Minimize2 } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
@@ -91,6 +91,7 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
+    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
 
     const handleDashboardTabChange = (nextView: 'chat') => {
         if (dashboardView === nextView) return
@@ -116,6 +117,33 @@ export default function TitleBar() {
         return navigator.platform.toLowerCase().includes('mac')
     }, [])
 
+    // Window maximize state
+    const [isMaximized, setIsMaximized] = useState(false)
+
+    useEffect(() => {
+        if (!window.windowControls) return
+        // Check initial state
+        window.windowControls.isMaximized().then(setIsMaximized).catch(() => {})
+        // Listen for state changes
+        const cleanup = window.windowControls.onWindowState((state) => {
+            setIsMaximized(state.isMaximized)
+        })
+        return cleanup
+    }, [])
+
+    const handleToggleMaximize = useCallback(() => {
+        window.windowControls?.toggleMaximize().then(() => {
+            // Re-check state after toggle
+            window.windowControls?.isMaximized().then(setIsMaximized).catch(() => {})
+        }).catch(() => {})
+    }, [])
+
+    const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
+        // Only trigger on the titlebar itself, not on buttons/controls
+        if ((e.target as HTMLElement).closest('.no-drag')) return
+        handleToggleMaximize()
+    }, [handleToggleMaximize])
+
     return (
         <div
             className={[
@@ -124,10 +152,27 @@ export default function TitleBar() {
                 isMacOS ? 'app-titlebar--macos' : null,
                 frostedSidebar ? 'app-titlebar--frosted' : null,
             ].filter(Boolean).join(' ')}
-            style={{
-                backgroundColor: frostedSidebar ? 'transparent' : undefined
-            }}
+            style={{}}
+            onDoubleClick={handleTitleBarDoubleClick}
         >
+            {/* Frosted sidebar extension into titlebar */}
+            {frostedSidebar && isDashboardRoute && (
+                <>
+                    <div
+                        className="app-titlebar__sidebar-glass"
+                        style={{
+                            width: `${sidebarWidthPx}px`,
+                        }}
+                    />
+                    <div
+                        className="app-titlebar__content-bg"
+                        style={{
+                            left: `${sidebarWidthPx}px`,
+                        }}
+                    />
+                </>
+            )}
+
             <div className="app-titlebar__left">
                 {isDashboardRoute && (
                     <div className="app-titlebar__controls no-drag">
@@ -169,6 +214,17 @@ export default function TitleBar() {
                     <span className="app-titlebar__model no-drag" title={settings.aiModel}>
                         {modelDisplayName}
                     </span>
+                )}
+                {!isMacOS && (
+                    <button
+                        type="button"
+                        className="app-titlebar__icon-btn no-drag"
+                        onClick={handleToggleMaximize}
+                        aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+                        title={isMaximized ? 'Restore' : 'Maximize'}
+                    >
+                        {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                    </button>
                 )}
             </div>
         </div>

@@ -2,7 +2,9 @@ import { ipcMain, BrowserWindow, desktopCapturer, screen, app } from 'electron'
 import { spawn, exec } from 'child_process'
 import {
   setTitleBarOverlay,
+  setNativeBlur,
   createMainWindow,
+  getMainWindow,
   getOverlayWindow,
   hideOverlay,
   setCurrentScreenshot,
@@ -39,6 +41,11 @@ export function registerSystemHandlers(): void {
     const safeHeight = parsedHeight !== undefined && parsedHeight >= 28 && parsedHeight <= 64 ? parsedHeight : undefined
 
     setTitleBarOverlay(color, symbolColor, safeHeight)
+  })
+
+  // Native blur toggle (acrylic on Windows, vibrancy on macOS)
+  ipcMain.on('set-native-blur', (_event, enabled: boolean) => {
+    setNativeBlur(!!enabled)
   })
 
   // Screen capture handler
@@ -176,6 +183,47 @@ export function registerSystemHandlers(): void {
     return { success: true, timestamp: Date.now() }
   })
 
+  // Window controls handlers (for transparent window maximize workaround)
+  ipcMain.handle('window-controls:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
+  ipcMain.handle('window-controls:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    if (win.isMaximized()) {
+      win.unmaximize()
+    } else {
+      // Workaround: transparent windows can't use native maximize on Windows
+      if (process.platform === 'win32') {
+        const { workArea } = screen.getPrimaryDisplay()
+        win.setBounds(workArea)
+      } else {
+        win.maximize()
+      }
+    }
+  })
+
+  ipcMain.handle('window-controls:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
+  })
+
+  ipcMain.handle('window-controls:is-maximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return false
+    // For transparent windows on Windows, also check if bounds match work area
+    if (process.platform === 'win32') {
+      const bounds = win.getBounds()
+      const { workArea } = screen.getPrimaryDisplay()
+      const isManualMax = Math.abs(bounds.x - workArea.x) < 2
+        && Math.abs(bounds.y - workArea.y) < 2
+        && Math.abs(bounds.width - workArea.width) < 2
+        && Math.abs(bounds.height - workArea.height) < 2
+      return win.isMaximized() || isManualMax
+    }
+    return win.isMaximized()
+  })
+
   // Spawn terminal with command handler
   ipcMain.on('spawn-terminal-command', (_event, command, args) => {
     console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
@@ -219,6 +267,7 @@ export function registerSystemHandlers(): void {
  */
 export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('set-titlebar-overlay')
+  ipcMain.removeAllListeners('set-native-blur')
   ipcMain.removeHandler('capture-screen')
   ipcMain.removeHandler('crop-screenshot')
   ipcMain.removeAllListeners('close-overlay')
@@ -228,4 +277,8 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('memory:get-metrics')
   ipcMain.removeHandler('memory:force-cleanup')
   ipcMain.removeAllListeners('spawn-terminal-command')
+  ipcMain.removeHandler('window-controls:minimize')
+  ipcMain.removeHandler('window-controls:toggle-maximize')
+  ipcMain.removeHandler('window-controls:close')
+  ipcMain.removeHandler('window-controls:is-maximized')
 }

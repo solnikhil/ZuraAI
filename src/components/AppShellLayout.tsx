@@ -9,13 +9,17 @@ function AppShellContent() {
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
 
-    // Toggle frosted-mode class on html element
+    // Toggle frosted-mode class on html element + notify main process for native blur
     useEffect(() => {
         if (frostedSidebar) {
             document.documentElement.classList.add('frosted-mode')
         } else {
             document.documentElement.classList.remove('frosted-mode')
         }
+        // Toggle native OS blur (acrylic on Windows, vibrancy on macOS)
+        try {
+            (window as any).ipcRenderer?.send('set-native-blur', frostedSidebar)
+        } catch {}
         return () => {
             document.documentElement.classList.remove('frosted-mode')
         }
@@ -36,12 +40,15 @@ function AppShellContent() {
     }, [navigate])
 
     return (
-        <div className="app-frame" style={{ 
-            backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)' 
+        <div className="app-frame" style={{
+            backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
+            position: 'relative'
         }}>
             <TitleBar />
             <div className="app-content" style={{
-                backgroundColor: frostedSidebar ? 'transparent' : undefined
+                backgroundColor: frostedSidebar ? 'transparent' : undefined,
+                borderTop: frostedSidebar ? 'none' : undefined,
+                marginTop: frostedSidebar ? '-2px' : undefined
             }}>
                 <Outlet />
             </div>

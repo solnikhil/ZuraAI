@@ -12,9 +12,48 @@
     -webkit-app-region: drag;
 }
 
-/* Frosted/transparent titlebar */
+/* Frosted titlebar - transparent base so the left glass panel shows through */
 .app-titlebar--frosted {
     background: transparent !important;
+}
+
+/* Solid background for the right (content) side of the titlebar in frosted mode */
+.app-titlebar__content-bg {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: -2px;
+    background: var(--theme-background);
+    transition: left 0.2s ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Frosted sidebar glass extension into titlebar */
+.app-titlebar__sidebar-glass {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: -2px;
+    background: linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    transition: width 0.2s ease;
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* Noise texture overlay for frosted titlebar glass (matches sidebar) */
+.app-titlebar__sidebar-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    opacity: 0.09;
+    mix-blend-mode: overlay;
+    pointer-events: none;
 }
 
 /* macOS specific: Add padding for traffic lights */

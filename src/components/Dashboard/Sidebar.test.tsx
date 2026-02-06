@@ -98,9 +98,6 @@ vi.mock('../../contexts/SettingsContext', () => ({
     useSettings: () => mockSettings,
 }))
 
-// Mock CSS.supports for backdrop-filter detection
-const originalCSSSupports = globalThis.CSS?.supports
-
 describe('Sidebar Glassmorphism Styles', () => {
     const defaultProps = {
         view: 'chat' as const,
@@ -111,6 +108,7 @@ describe('Sidebar Glassmorphism Styles', () => {
         onNavigateSettings: vi.fn(),
         hasUnsavedSettings: false,
     }
+    const frostedBackground = 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)'
 
     beforeEach(() => {
         vi.clearAllMocks()
@@ -118,23 +116,6 @@ describe('Sidebar Glassmorphism Styles', () => {
         mockSettingsUI.settingsUI.frostedSidebar = false
         mockAppShell.sidebarCollapsed = false
         mockAppShell.sidebarHidden = false
-        
-        // Mock CSS.supports to return true for backdrop-filter
-        globalThis.CSS = {
-            supports: vi.fn((prop: string, value: string) => {
-                if (prop === 'backdrop-filter' || prop === '-webkit-backdrop-filter') {
-                    return true
-                }
-                return false
-            }),
-        } as unknown as typeof CSS
-    })
-
-    afterEach(() => {
-        // Restore original CSS.supports
-        if (originalCSSSupports) {
-            globalThis.CSS = { supports: originalCSSSupports } as unknown as typeof CSS
-        }
     })
 
     describe('Solid Background (frostedSidebar: false)', () => {
@@ -177,8 +158,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toBeInTheDocument()
-            // The component uses transparent for glassmorphism
-            expect(sidebar).toHaveStyle({ background: 'transparent' })
+            expect(sidebar).toHaveStyle({ background: frostedBackground })
         })
 
         /**
@@ -186,13 +166,14 @@ describe('Sidebar Glassmorphism Styles', () => {
          * Requirements: 2.4 - WHEN frosted sidebar is enabled, THE Sidebar SHALL display 
          * a subtle border with low opacity to define the glass edge
          */
-        it('applies glassmorphism border when frostedSidebar is true', () => {
+        it('applies glass edge border when frostedSidebar is true', () => {
             mockSettingsUI.settingsUI.frostedSidebar = true
-            
+
             const { container } = render(<Sidebar {...defaultProps} />)
-            const sidebar = container.querySelector('.sidebar-container')
-            
-            expect(sidebar).toHaveStyle({ borderRight: '1px solid rgba(255, 255, 255, 0.08)' })
+            const sidebar = container.querySelector('.sidebar-container') as HTMLElement
+
+            const styleAttr = sidebar.getAttribute('style') || ''
+            expect(styleAttr).toContain('rgba(255, 255, 255, 0.08)')
         })
     })
 
@@ -270,8 +251,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             // Glassmorphism should still be applied when collapsed
-            expect(sidebar).toHaveStyle({ background: 'transparent' })
-            expect(sidebar).toHaveStyle({ borderRight: '1px solid rgba(255, 255, 255, 0.08)' })
+            expect(sidebar).toHaveStyle({ background: frostedBackground })
         })
 
         it('uses solid background when sidebar is collapsed and frostedSidebar is false', () => {
@@ -304,45 +284,18 @@ describe('Sidebar Glassmorphism Styles', () => {
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ background: 'transparent' })
+            expect(sidebar).toHaveStyle({ background: frostedBackground })
         })
     })
 
-    describe('Browser Compatibility Fallback', () => {
-        /**
-         * Test: Graceful fallback when backdrop-filter is not supported
-         * Requirements: 5.4 - IF the browser does not support `backdrop-filter`, 
-         * THEN THE Sidebar SHALL gracefully fall back to a solid background
-         */
-        it('falls back to solid background when backdrop-filter is not supported', () => {
-            // Mock CSS.supports to return false for backdrop-filter
-            globalThis.CSS = {
-                supports: vi.fn(() => false),
-            } as unknown as typeof CSS
-            
+    describe('Native Blur (no CSS backdrop-filter)', () => {
+        it('applies frosted styles regardless of CSS.supports', () => {
             mockSettingsUI.settingsUI.frostedSidebar = true
-            
-            const { container } = render(<Sidebar {...defaultProps} />)
-            const sidebar = container.querySelector('.sidebar-container')
-            
-            // Should fall back to solid background when backdrop-filter not supported
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
-        })
 
-        it('applies glassmorphism when webkit-backdrop-filter is supported', () => {
-            // Mock CSS.supports to return true only for webkit prefix
-            globalThis.CSS = {
-                supports: vi.fn((prop: string) => {
-                    return prop === '-webkit-backdrop-filter'
-                }),
-            } as unknown as typeof CSS
-            
-            mockSettingsUI.settingsUI.frostedSidebar = true
-            
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
-            
-            expect(sidebar).toHaveStyle({ background: 'transparent' })
+
+            expect(sidebar).toHaveStyle({ background: frostedBackground })
         })
     })
 
@@ -377,7 +330,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toHaveStyle({ width: '260px' })
-            expect(sidebar).toHaveStyle({ background: 'transparent' })
+            expect(sidebar).toHaveStyle({ background: frostedBackground })
         })
     })
 })

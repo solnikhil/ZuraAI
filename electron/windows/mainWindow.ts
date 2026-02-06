@@ -48,15 +48,17 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         ...(isWindows ? {
             titleBarStyle: 'hidden',
             titleBarOverlay: {
-                color: 'rgba(0, 0, 0, 0)',
+                color: '#14120B',
                 symbolColor: '#E5E0D5',
                 height: 44,
             },
+            backgroundMaterial: 'none' as const,
         } : {}),
         ...(isMacOS ? {
             titleBarStyle: 'hidden',
             trafficLightPosition: { x: 12, y: 12 },
-            // No vibrancy - pure transparency without blur
+            vibrancy: 'sidebar' as const,
+            visualEffectState: 'active' as const,
         } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -68,8 +70,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             additionalArguments: ['--process-name=Zura-Dashboard'],
         },
         autoHideMenuBar: true,
-        backgroundColor: '#00000000', // Transparent
-        transparent: true, // Pure transparency without vibrancy blur
+        backgroundColor: '#00000000',
+        transparent: true,
         show: false,
     })
 
@@ -129,6 +131,23 @@ export function showMainWindow(): void {
         mainWindow.focus()
     } else {
         createMainWindow()
+    }
+}
+
+/**
+ * Toggle native background blur (acrylic on Windows, vibrancy on macOS)
+ */
+export function setNativeBlur(enabled: boolean): void {
+    if (!mainWindow) return
+
+    try {
+        if (process.platform === 'win32') {
+            mainWindow.setBackgroundMaterial(enabled ? 'acrylic' : 'none')
+        } else if (process.platform === 'darwin') {
+            mainWindow.setVibrancy(enabled ? 'sidebar' : null as any)
+        }
+    } catch {
+        // Ignore if unsupported (e.g. Windows 10)
     }
 }
 
