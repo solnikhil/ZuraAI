@@ -26,6 +26,7 @@ import '@testing-library/jest-dom'
 const mockSettingsUI = {
   settingsUI: {
     frostedSidebar: false,
+    frostedPrompt: false,
     theme: 'dark' as const,
     activeTheme: 'dark-default',
     titleBarDensity: 'compact' as const,

@@ -6,12 +6,17 @@
  */
 
 import React, { useLayoutEffect, useMemo, useState } from 'react'
-import { PanelLeft, MessageSquare, Paintbrush } from '../../icons'
+import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (Number.isNaN(value)) return min
+  return Math.min(max, Math.max(min, value))
+}
 
 const chatBubblePresets = [
   {
@@ -93,6 +98,22 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
   const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles'>('themes')
+  const commandBar = settings.commandBar
+  const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
+  const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
+  const blurPx = clampNumber(commandBar.blurPx, 0, 30)
+  const fieldSurface = clampNumber(commandBar.fieldSurface, 20, 90)
+  const fieldSurfaceFocused = clampNumber(commandBar.fieldSurfaceFocused, 20, 90)
+  const dropdownSurface = clampNumber(commandBar.dropdownSurface, 20, 90)
+
+  const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
+    updateSettings({
+      commandBar: {
+        ...settings.commandBar,
+        ...changes
+      }
+    })
+  }
 
   const filteredThemes = useMemo(() => {
     return getThemesByCategory(selectedThemeCategory)
@@ -110,17 +131,31 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          gap: 4,
+          flexWrap: 'wrap',
+          marginTop: 16,
+          padding: 4,
+          borderRadius: 12,
+          border: '1px solid var(--theme-border)',
+          background: 'var(--theme-surface)'
+        }}
+      >
         <button
           onClick={() => setAppearancePage('themes')}
           style={{
             padding: '8px 14px',
             borderRadius: 8,
-            border: appearancePage === 'themes' ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
-            background: appearancePage === 'themes' ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+            border: '1px solid var(--theme-border)',
+            background: appearancePage === 'themes' ? 'var(--theme-surface-active)' : 'transparent',
             color: 'var(--theme-text-primary)',
             cursor: 'pointer',
-            fontSize: '0.85rem'
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: appearancePage === 'themes' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
           }}
         >
           Themes
@@ -130,11 +165,14 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           style={{
             padding: '8px 14px',
             borderRadius: 8,
-            border: appearancePage === 'titlebar' ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
-            background: appearancePage === 'titlebar' ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+            border: '1px solid var(--theme-border)',
+            background: appearancePage === 'titlebar' ? 'var(--theme-surface-active)' : 'transparent',
             color: 'var(--theme-text-primary)',
             cursor: 'pointer',
-            fontSize: '0.85rem'
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: appearancePage === 'titlebar' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
           }}
         >
           Titlebar
@@ -144,11 +182,14 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           style={{
             padding: '8px 14px',
             borderRadius: 8,
-            border: appearancePage === 'chatbubbles' ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
-            background: appearancePage === 'chatbubbles' ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+            border: '1px solid var(--theme-border)',
+            background: appearancePage === 'chatbubbles' ? 'var(--theme-surface-active)' : 'transparent',
             color: 'var(--theme-text-primary)',
             cursor: 'pointer',
-            fontSize: '0.85rem'
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: appearancePage === 'chatbubbles' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
           }}
         >
           Chat Bubbles
@@ -181,13 +222,14 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                   key={category.id}
                   onClick={() => setSelectedThemeCategory(category.id)}
                   style={{
-                    border: isActive ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
+                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
                     background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
                     color: 'var(--theme-text-primary)',
                     borderRadius: 999,
                     padding: '6px 12px',
                     fontSize: '0.78rem',
                     cursor: 'pointer',
+                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
@@ -212,8 +254,9 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                     textAlign: 'left',
                     padding: 14,
                     borderRadius: 12,
-                    border: isActive ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
+                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
                     background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease'
                   }}
@@ -238,85 +281,264 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
       )}
 
       {appearancePage === 'titlebar' && (
-        <Card className="settings-section-card" style={{ marginTop: 24 }}>
-          <h3 style={{
-            margin: '0 0 20px',
-            fontSize: '1.1rem',
-            fontWeight: 600,
-            color: 'var(--theme-text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <PanelLeft size={20} style={{ color: 'var(--theme-accent)' }} />
-            Titlebar
-          </h3>
+        <>
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 20px',
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <PanelLeft size={20} style={{ color: 'var(--theme-accent)' }} />
+              Titlebar
+            </h3>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px 0',
-            borderBottom: '1px solid var(--theme-border-subtle)'
-          }}>
-            <div>
-              <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                Show App Name
-              </h4>
-              <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                Display the application name in the titlebar
-              </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 0',
+              borderBottom: '1px solid var(--theme-border-subtle)'
+            }}>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
+                  Show App Name
+                </h4>
+                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  Display the application name in the titlebar
+                </p>
+              </div>
+              <Switch
+                checked={settings.titleBarShowAppName}
+                onCheckedChange={(checked) => updateSettings({ titleBarShowAppName: checked })}
+                aria-label="Show app name in titlebar"
+              />
             </div>
-            <Switch
-              checked={settings.titleBarShowAppName}
-              onCheckedChange={(checked) => updateSettings({ titleBarShowAppName: checked })}
-              aria-label="Show app name in titlebar"
-            />
-          </div>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px 0',
-            borderBottom: '1px solid var(--theme-border-subtle)'
-          }}>
-            <div>
-              <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                Show Chat Title
-              </h4>
-              <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                Display the current chat title in the titlebar
-              </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 0',
+              borderBottom: '1px solid var(--theme-border-subtle)'
+            }}>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
+                  Show Chat Title
+                </h4>
+                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  Display the current chat title in the titlebar
+                </p>
+              </div>
+              <Switch
+                checked={settings.titleBarShowChatTitle}
+                onCheckedChange={(checked) => updateSettings({ titleBarShowChatTitle: checked })}
+                aria-label="Show chat title in titlebar"
+              />
             </div>
-            <Switch
-              checked={settings.titleBarShowChatTitle}
-              onCheckedChange={(checked) => updateSettings({ titleBarShowChatTitle: checked })}
-              aria-label="Show chat title in titlebar"
-            />
-          </div>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px 0'
-          }}>
-            <div>
-              <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                Show Model
-              </h4>
-              <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                Display the current AI model in the titlebar
-              </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 0'
+            }}>
+              <div>
+                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
+                  Show Model
+                </h4>
+                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  Display the current AI model in the titlebar
+                </p>
+              </div>
+              <Switch
+                checked={settings.titleBarShowModel}
+                onCheckedChange={(checked) => updateSettings({ titleBarShowModel: checked })}
+                aria-label="Show model in titlebar"
+              />
             </div>
-            <Switch
-              checked={settings.titleBarShowModel}
-              onCheckedChange={(checked) => updateSettings({ titleBarShowModel: checked })}
-              aria-label="Show model in titlebar"
-            />
-          </div>
-        </Card>
+          </Card>
+
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Command size={18} style={{ color: 'var(--theme-accent)' }} />
+              Command Bar
+            </h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Customize titlebar command bar behavior and visual style.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable command bar</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show the command bar in the titlebar</div>
+                </div>
+                <Switch
+                  checked={commandBar.enabled}
+                  onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
+                  aria-label="Enable command bar in titlebar"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Size</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls command bar width</div>
+                </div>
+                <select
+                  value={commandBar.size === 'medium' ? 'medium' : 'small'}
+                  onChange={(e) => updateCommandBar({ size: e.target.value as 'small' | 'medium' })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Recent commands</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show your last 1-3 commands at the top</div>
+                </div>
+                <Switch
+                  checked={commandBar.showRecents}
+                  onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
+                  aria-label="Show recent commands"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max recents</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How many recent commands to show</div>
+                </div>
+                <select
+                  value={maxRecents}
+                  onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
+                  className="setting-input-scira"
+                  style={{ width: 120 }}
+                  disabled={!commandBar.showRecents}
+                >
+                  <option value={0}>0</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Tab autocomplete</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Press Tab to complete commands</div>
+                </div>
+                <Switch
+                  checked={commandBar.enableTabAutocomplete}
+                  onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
+                  aria-label="Enable tab autocomplete"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max results</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Limit dropdown height and clutter</div>
+                </div>
+                <select
+                  value={maxSuggestions}
+                  onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
+                  className="setting-input-scira"
+                  style={{ width: 120 }}
+                >
+                  {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
+                    <option key={count} value={count}>{count}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Background blur</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Glass effect for the dropdown</div>
+                </div>
+                <Switch
+                  checked={commandBar.enableBlur}
+                  onCheckedChange={(checked) => updateCommandBar({ enableBlur: checked })}
+                  aria-label="Enable command bar background blur"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Blur strength</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Higher values look more frosted</div>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  value={blurPx}
+                  onChange={(e) => updateCommandBar({ blurPx: Number(e.target.value) })}
+                  disabled={!commandBar.enableBlur}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Lower values = more transparent</div>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={90}
+                  value={fieldSurface}
+                  onChange={(e) => updateCommandBar({ fieldSurface: Number(e.target.value) })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity (focused)</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Applied when command bar is active</div>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={90}
+                  value={fieldSurfaceFocused}
+                  onChange={(e) => updateCommandBar({ fieldSurfaceFocused: Number(e.target.value) })}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown opacity</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls suggestion transparency</div>
+                </div>
+                <input
+                  type="range"
+                  min={20}
+                  max={90}
+                  value={dropdownSurface}
+                  onChange={(e) => updateCommandBar({ dropdownSurface: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+          </Card>
+        </>
       )}
 
       {appearancePage === 'chatbubbles' && (
@@ -356,8 +578,9 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                     textAlign: 'left',
                     padding: '14px',
                     borderRadius: '12px',
-                    border: isActive ? '1px solid var(--theme-accent)' : '1px solid var(--theme-border)',
+                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
                     background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease'
                   }}

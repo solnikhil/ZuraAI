@@ -149,7 +149,7 @@ html.frosted-mode body {
 
 .zura-frosted-prompt {
   position: relative;
-  background: rgba(20, 18, 12, 0.68);
+  background: rgba(32, 32, 36, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(18px) saturate(130%);
@@ -167,20 +167,26 @@ html.frosted-mode body {
 }
 
 .zura-frosted-prompt::before {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0) 68%);
-  opacity: 0.45;
+  background: linear-gradient(220deg, rgba(180, 180, 180, 0.1) 0%, rgba(110, 110, 110, 0.035) 40%, rgba(90, 90, 90, 0) 62%);
+  opacity: 0.14;
 }
 
 .zura-frosted-prompt::after {
   background:
-    radial-gradient(140% 80% at 12% -20%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 35%, rgba(255, 255, 255, 0) 70%),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 32%, rgba(255, 255, 255, 0) 58%);
-  opacity: 0.55;
+    radial-gradient(120% 70% at 100% 0%, rgba(170, 170, 170, 0.08) 0%, rgba(120, 120, 120, 0.032) 35%, rgba(100, 100, 100, 0) 62%),
+    linear-gradient(230deg, rgba(160, 160, 160, 0.05) 0%, rgba(110, 110, 110, 0.018) 30%, rgba(100, 100, 100, 0) 55%);
+  opacity: 0.16;
 }
 
 .zura-frosted-prompt > * {
   position: relative;
   z-index: 1;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .zura-frosted-prompt {
+    background: rgba(34, 34, 38, 0.94);
+  }
 }
 
 /* === Tooltip Animations === */

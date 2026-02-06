@@ -342,15 +342,6 @@ export function InputArea({
                         rotate: showSearch ? 180 : 0,
                         scale: showSearch ? 1.1 : 1,
                       }}
-                      whileHover={{
-                        rotate: showSearch ? 180 : 15,
-                        scale: 1.1,
-                        transition: {
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 10,
-                        },
-                      }}
                       transition={{
                         type: "spring",
                         stiffness: 260,
