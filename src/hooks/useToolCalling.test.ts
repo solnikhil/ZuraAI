@@ -444,7 +444,7 @@ You have access to web search (up to ${maxRounds} searches) to provide accurate,
 
 When you need information that may be:
 - Recent or time-sensitive (news, current events, latest data)
-- Beyond your training cutoff
+- Not confidently verifiable from existing context alone
 - Specific facts, figures, or statistics
 - Verification of uncertain information
 

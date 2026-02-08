@@ -7,10 +7,6 @@ import { useAppShell } from '../../contexts/AppShellContext'
 // Only loads when user actually opens Settings
 const Settings = lazy(() => import('../Settings').then(m => ({ default: m.default })))
 
-// Lazy load PDFChatLayout component for memory optimization
-// Only loads when user navigates to PDF chat
-const PDFChatLayout = lazy(() => import('../PDFChat/PDFChatLayout').then(m => ({ default: m.PDFChatLayout || m.default })))
-
 function SettingsLoadingFallback() {
     return (
         <div style={{
@@ -25,25 +21,16 @@ function SettingsLoadingFallback() {
     )
 }
 
-function PDFChatLoadingFallback() {
-    return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            color: '#999'
-        }}>
-            Loading PDF Chat...
-        </div>
-    )
-}
-
 export default function DashboardLayout() {
-    const { dashboardView: view, setDashboardView: setView, activeSettingsSection, setActiveSettingsSection, hasUnsavedSettings, setHasUnsavedSettings } = useAppShell()
+    const {
+        dashboardView: view,
+        setDashboardView: setView,
+        activeSettingsSection,
+        setActiveSettingsSection,
+        hasUnsavedSettings,
+        setHasUnsavedSettings
+    } = useAppShell()
     const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
-    const [pdfFilePath, setPdfFilePath] = useState<string | null>(null)
-    const [activePDFSessionId, setActivePDFSessionId] = useState<string | null>(null)
 
     // This callback is passed to Settings to track unsaved changes
     const handleUnsavedChange = useCallback((hasChanges: boolean) => {
@@ -66,38 +53,32 @@ export default function DashboardLayout() {
         return true // allowed
     }, [hasUnsavedSettings, triggerWarning])
 
-    // Handle loading a PDF from the sidebar (starred PDFs)
-    const handleLoadRecentPDF = useCallback((filePath: string) => {
-        console.log('[DashboardLayout] Loading recent PDF:', filePath)
-        setPdfFilePath(filePath)
-        setView('pdf')
-    }, [setView])
-
-    // Handle switching PDF session from the sidebar
-    const handleSwitchPDFSession = useCallback((sessionId: string) => {
-        console.log('[DashboardLayout] Switching to PDF session:', sessionId)
-        setActivePDFSessionId(sessionId)
-        setView('pdf')
-    }, [setView])
-
     return (
-        <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden', backgroundColor: 'var(--theme-background)' }}>
+        <div style={{
+            display: 'flex',
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            position: 'relative'
+        }}>
             <Sidebar
                 view={view}
                 onOpenSettings={() => setView('settings')}
                 onCloseSettings={() => handleNavigate(() => setView('chat'))}
-                onNavigateToPDF={() => handleNavigate(() => setView('pdf'))}
                 onNavigateToChat={() => setView('chat')}
-                onLoadRecentPDF={handleLoadRecentPDF}
-                onSwitchPDFSession={handleSwitchPDFSession}
-                activePDFSessionId={activePDFSessionId}
                 activeSettingsSection={activeSettingsSection}
                 onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
                 hasUnsavedSettings={hasUnsavedSettings}
             />
 
-            {/* Main Content Area - ChatArea, PDFChatLayout, or Settings */}
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            {/* Main Content Area - ChatArea or Settings - always has solid background */}
+            <div style={{ 
+                flex: 1, 
+                position: 'relative', 
+                overflow: 'hidden',
+                backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
+                zIndex: 1
+            }}>
                 {view === 'settings' ? (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
                         <Suspense fallback={<SettingsLoadingFallback />}>
@@ -105,15 +86,6 @@ export default function DashboardLayout() {
                                 activeSection={activeSettingsSection}
                                 onUnsavedChange={handleUnsavedChange}
                                 showWarning={showUnsavedWarning}
-                            />
-                        </Suspense>
-                    </div>
-                ) : view === 'pdf' ? (
-                    <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
-                        <Suspense fallback={<PDFChatLoadingFallback />}>
-                            <PDFChatLayout 
-                                initialDocumentPath={pdfFilePath || undefined}
-                                sessionId={activePDFSessionId || undefined}
                             />
                         </Suspense>
                     </div>

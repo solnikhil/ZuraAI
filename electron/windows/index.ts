@@ -4,6 +4,7 @@ export {
     getMainWindow,
     showMainWindow,
     setTitleBarOverlay,
+    setNativeBlur,
     type MainWindowOptions
 } from './mainWindow'
 

@@ -13,6 +13,10 @@ interface SearchResult {
     url: string
     snippet: string
     favicon?: string
+    // LobeHub-compatible metadata fields
+    source?: string
+    displayed_link?: string
+    date?: string
 }
 
 interface ImageResult {
@@ -119,7 +123,15 @@ export default function ToolResultDisplay({ toolName, result, error }: ToolResul
                                     {r.title}
                                     <ExternalLink size={12} />
                                 </a>
-                                <div className="search-result-url">{r.url}</div>
+                                <div className="search-result-url">
+                                    {r.displayed_link || r.url}
+                                    {r.date && (
+                                        <span className="search-result-date"> • {r.date}</span>
+                                    )}
+                                </div>
+                                {r.source && r.source !== r.displayed_link?.split(' › ')[0] && (
+                                    <div className="search-result-source">{r.source}</div>
+                                )}
                                 <p className="search-result-snippet">{r.snippet}</p>
                             </div>
                         ))}

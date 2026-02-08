@@ -1,23 +1,16 @@
 /**
  * Shared Toast component for Zura AI
  * Provides toast notifications with different types (success, error, warning, info)
- * 
+ * Now powered by shadcn's Sonner toaster
+ *
  * @module Toast
  * Requirements: 6.2
  */
 
-import React, { useState, useEffect } from 'react'
-import { CheckCircle, XCircle, AlertCircle, X, Info } from '../icons'
-import './Toast.css'
+import React from 'react'
+import { Toaster, toast } from 'sonner'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
-
-export interface Toast {
-    id: string
-    message: string
-    type: ToastType
-    duration?: number
-}
 
 interface ToastContextType {
     showToast: (message: string, type?: ToastType, duration?: number) => void
@@ -26,53 +19,45 @@ interface ToastContextType {
 export const ToastContext = React.createContext<ToastContextType | undefined>(undefined)
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-    const [toasts, setToasts] = useState<Toast[]>([])
+    // Memoize showToast callback to maintain stable reference
+    const showToast = React.useCallback((message: string, type: ToastType = 'info', duration: number = 4000) => {
+        const options = { duration }
 
-    const showToast = (message: string, type: ToastType = 'info', duration: number = 4000) => {
-        const id = Date.now().toString() + Math.random().toString(36).substr(2, 9)
-        const newToast: Toast = { id, message, type, duration }
-        setToasts(prev => [...prev, newToast])
-
-        if (duration > 0) {
-            setTimeout(() => {
-                removeToast(id)
-            }, duration)
+        switch (type) {
+            case 'success':
+                toast.success(message, options)
+                break
+            case 'error':
+                toast.error(message, options)
+                break
+            case 'warning':
+                toast.warning(message, options)
+                break
+            case 'info':
+            default:
+                toast.info(message, options)
+                break
         }
-    }
+    }, [])
 
-    const removeToast = (id: string) => {
-        setToasts(prev => prev.filter(t => t.id !== id))
-    }
+    // Memoize context value to prevent unnecessary child re-renders
+    // **Validates: Requirements 8.3, Property 30: Context Provider Memoization**
+    const contextValue = React.useMemo(() => ({ showToast }), [showToast])
 
     return (
-        <ToastContext.Provider value={{ showToast }}>
+        <ToastContext.Provider value={contextValue}>
             {children}
-            <div className="toast-container">
-                {toasts.map(toast => (
-                    <div
-                        key={toast.id}
-                        className={`toast toast-${toast.type}`}
-                        onClick={() => removeToast(toast.id)}
-                    >
-                        <div className="toast-icon">
-                            {toast.type === 'success' && <CheckCircle size={20} />}
-                            {toast.type === 'error' && <XCircle size={20} />}
-                            {toast.type === 'warning' && <AlertCircle size={20} />}
-                            {toast.type === 'info' && <Info size={20} />}
-                        </div>
-                        <div className="toast-message">{toast.message}</div>
-                        <button
-                            className="toast-close"
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                removeToast(toast.id)
-                            }}
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                ))}
-            </div>
+            <Toaster
+                position="bottom-right"
+                toastOptions={{
+                    style: {
+                        background: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        color: 'hsl(var(--foreground))',
+                    },
+                }}
+                richColors
+            />
         </ToastContext.Provider>
     )
 }

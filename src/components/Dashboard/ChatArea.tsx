@@ -3,34 +3,56 @@
  * Coordinates message display, input handling, and streaming via extracted components and hooks
  * 
  * Requirements: 1.5, 1.6 - Reduced to orchestration logic only (≤600 lines)
+ * Requirements: 5.3 - Isolated streaming updates
+ * Requirements: 4.3, 5.5 - Virtual scrolling for long message lists
+ * 
+ * **Validates: Property 22: Isolated Streaming Updates**
+ * - Uses StreamingMessage component for the actively streaming message
+ * - Only the streaming message re-renders during streaming, not the entire list
+ * 
+ * **Validates: Property 17: Virtual Scrolling Activation**
+ * - For any chat session with more than 100 messages, the message list SHALL use virtual scrolling
+ * 
+ * **Validates: Property 23: Message List Virtualization Threshold**
+ * - For any message list with more than 50 messages, virtualization SHALL be active
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useStreamingState } from '../../contexts/StreamingContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 
 // Extracted components
 import { MessageRenderer } from './ChatArea/MessageRenderer'
+import { StreamingMessage } from './ChatArea/StreamingMessage'
+import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
-import { PastedContentEditModal } from './ChatArea/PastedContentEditModal'
 import { useStreamingChat } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/FileUploadHandler'
-import type { PastedContentChunk as PastedContentChunkType } from './ChatArea/types'
+
+/**
+ * Virtualization threshold - activate virtual scrolling for lists > 50 messages
+ * **Validates: Property 23: Message List Virtualization Threshold**
+ */
+const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
   const { sessions, currentSessionId } = useChatHistory()
   const { showToast } = useToast()
   const { toolState } = useToolCalling()
+  
+  // Get streaming state for virtualized list
+  // **Validates: Property 22: Isolated Streaming Updates**
+  const streamingState = useStreamingState()
 
   // Local state
   const [input, setInput] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isTitleAnimated, setIsTitleAnimated] = useState(false)
-  const [pastedChunks, setPastedChunks] = useState<PastedContentChunkType[]>([])
-  const [editingChunk, setEditingChunk] = useState<PastedContentChunkType | null>(null)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -39,6 +61,10 @@ export default function ChatArea() {
   // Get current session and messages
   const currentSession = sessions.find(s => s.id === currentSessionId)
   const messages = currentSession?.messages || []
+  
+  // Determine if virtualization should be active
+  // **Validates: Property 23: Message List Virtualization Threshold**
+  const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
   // Scroll tracking refs
   const prevMessageCountRef = useRef(messages.length)
@@ -51,19 +77,24 @@ export default function ChatArea() {
     onMessageSent: () => {
       setInput('')
       setAttachedFiles([])
-      setPastedChunks([])
+    },
+    onRegenerateStart: () => {
+      // Scroll to position the new message in view when regenerating with smooth animation
+      requestAnimationFrame(() => {
+        scrollToNewMessage(true)
+      })
     }
   })
 
   // Scroll helpers
-  const scrollToNewMessage = () => {
-    if (!messagesContainerRef.current) return
+  const scrollToNewMessage = (smooth = false) => {
     const container = messagesContainerRef.current
-    const messageElements = container.querySelectorAll('[data-message-id]')
-    const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement
-    if (lastMessageEl) {
-      lastMessageEl.scrollIntoView({ behavior: 'auto', block: 'start' })
-      container.scrollTop = Math.max(0, container.scrollTop - 48)
+    if (!container) return
+    const scrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+    if (smooth) {
+      container.scrollTo({ top: scrollTop, behavior: 'smooth' })
+    } else {
+      container.scrollTop = scrollTop
     }
   }
 
@@ -115,53 +146,8 @@ export default function ChatArea() {
 
   // Handle send message
   const handleSendMessage = async () => {
-    if ((!input.trim() && attachedFiles.length === 0 && pastedChunks.length === 0) || isLoading) return
-
-    // Build message with chunk content
-    const chunkContent = pastedChunks.map(c => c.content).join('\n\n---\n\n')
-    let fullInput = input.trim()
-    if (chunkContent) {
-      fullInput += (fullInput ? '\n\n[Attached Content]\n' : '[Attached Content]\n') + chunkContent
-    }
-
-    // Debug: log the full input being sent
-    console.log('[ChatArea] Sending message:', {
-      inputLength: input.length,
-      chunkCount: pastedChunks.length,
-      fullInputLength: fullInput.length,
-      fullInputPreview: fullInput.slice(0, 200) + (fullInput.length > 200 ? '...' : '')
-    })
-
-    await sendMessage(fullInput, attachedFiles)
-  }
-
-  // Handle chunk creation
-  const handleChunkCreate = (content: string) => {
-    const newChunk: PastedContentChunkType = {
-      id: `chunk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      content,
-      charCount: content.length,
-      createdAt: Date.now()
-    }
-    setPastedChunks(prev => [...prev, newChunk])
-  }
-
-  // Handle chunk update
-  const handleChunkUpdate = (id: string, newContent: string) => {
-    setPastedChunks(prev =>
-      prev.map(chunk =>
-        chunk.id === id
-          ? { ...chunk, content: newContent, charCount: newContent.length }
-          : chunk
-      )
-    )
-    setEditingChunk(null)
-  }
-
-  // Handle chunk delete
-  const handleChunkDelete = (id: string) => {
-    setPastedChunks(prev => prev.filter(chunk => chunk.id !== id))
-    setEditingChunk(null)
+    if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
+    await sendMessage(input.trim(), attachedFiles)
   }
 
   // Handle regenerate
@@ -177,11 +163,70 @@ export default function ChatArea() {
     }
   }
 
-  // Copy message content
-  const handleCopy = (content: string) => {
+  // Copy message content - memoized to prevent unnecessary re-renders
+  // **Validates: Property 22: Isolated Streaming Updates**
+  const handleCopy = useCallback((content: string) => {
     navigator.clipboard.writeText(content)
     showToast('Copied to clipboard', 'success')
-  }
+  }, [showToast])
+
+  // Render message callback for VirtualMessageList
+  // **Validates: Property 17: Virtual Scrolling Activation**
+  // **Validates: Property 23: Message List Virtualization Threshold**
+  const renderMessage = useCallback((index: number, msg: typeof messages[0]) => {
+    const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
+    const isStreamingMsg = isLoading && isLastAssistant
+    
+    return (
+      <div data-message-id={msg.id}>
+        {/* Show stored tool results before the message */}
+        {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            {msg.toolResults.map((result: any, i: number) => (
+              <ToolResultDisplay
+                key={`stored-${i}`}
+                toolName={result.toolCall.name}
+                result={result.result.success ? result.result.data : undefined}
+                error={result.result.success ? undefined : result.result.error}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
+        {/* **Validates: Property 22: Isolated Streaming Updates** */}
+        {isStreamingMsg ? (
+          <StreamingMessage
+            message={msg}
+            sessionId={currentSessionId!}
+            onCopy={handleCopy}
+            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+          />
+        ) : (
+          <MessageRenderer
+            message={msg}
+            isStreaming={false}
+            onCopy={handleCopy}
+            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+          />
+        )}
+
+        {/* Show active tool results after last assistant message (during streaming) */}
+        {isLastAssistant && toolState.toolResults.length > 0 && (
+          <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+            {toolState.toolResults.map((result, i) => (
+              <ToolResultDisplay
+                key={i}
+                toolName={result.toolCall.name}
+                result={result.result.success ? result.result.data : undefined}
+                error={result.result.success ? undefined : result.result.error}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }, [messages.length, isLoading, currentSessionId, handleCopy, regenerateMessage, toolState.toolResults])
 
   // Remove attached file
   const removeFile = (fileId: string) => {
@@ -191,25 +236,27 @@ export default function ChatArea() {
   // Empty state (no session selected)
   if (!currentSessionId || messages.length === 0) {
     return (
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        minHeight: 0,
-        background: 'var(--theme-background)',
-        padding: '20px',
-        overflow: 'auto'
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          minHeight: 0,
+          background: 'var(--theme-background)',
+          padding: '20px'
+        }}
+      >
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
+          justifyContent: 'center',
           gap: '16px',
-          maxWidth: 'min(600px, 100%)',
-          width: '100%'
+          maxWidth: 'min(720px, 100%)',
+          width: '100%',
         }}>
           {/* zura Title */}
           <div style={{ textAlign: 'center' }}>
@@ -224,18 +271,15 @@ export default function ChatArea() {
           </div>
 
           {/* Input Area */}
-          <div style={{ width: '100%', maxWidth: '600px' }}>
+          <div style={{ width: '100%' }}>
             <InputArea
               input={input}
               setInput={setInput}
               onSend={handleSendMessage}
+              onStop={stopStreaming}
               isLoading={isLoading}
               attachedFiles={attachedFiles}
               onFilesChange={setAttachedFiles}
-              pastedChunks={pastedChunks}
-              onChunkEdit={(chunk) => setEditingChunk(chunk)}
-              onChunkDelete={handleChunkDelete}
-              onChunkCreate={handleChunkCreate}
               onError={(msg) => showToast(msg, 'error')}
             />
           </div>
@@ -249,15 +293,6 @@ export default function ChatArea() {
           }
         `}</style>
 
-        {/* Edit Modal */}
-        {editingChunk && (
-          <PastedContentEditModal
-            content={editingChunk.content}
-            onSave={(newContent) => handleChunkUpdate(editingChunk.id, newContent)}
-            onCancel={() => setEditingChunk(null)}
-            onDelete={() => handleChunkDelete(editingChunk.id)}
-          />
-        )}
       </div>
     )
   }
@@ -273,82 +308,127 @@ export default function ChatArea() {
       background: 'var(--theme-background)',
       position: 'relative'
     }}>
-      {/* Messages Container */}
-      <div ref={messagesContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', minHeight: 0 }}>
-        <div style={{ width: '100%', maxWidth: 'min(810px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
-          {messages.map((msg, idx) => (
-            <div key={msg.id} data-message-id={msg.id}>
-              {/* Show stored tool results before the message */}
-              {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  {msg.toolResults.map((result: any, i: number) => (
-                    <ToolResultDisplay
-                      key={`stored-${i}`}
-                      toolName={result.toolCall.name}
-                      result={result.result.success ? result.result.data : undefined}
-                      error={result.result.success ? undefined : result.result.error}
-                    />
-                  ))}
+      {/* Messages Container - Use virtualization for large lists */}
+      {/* **Validates: Property 17: Virtual Scrolling Activation** */}
+      {/* **Validates: Property 23: Message List Virtualization Threshold** */}
+      {useVirtualization ? (
+        <VirtualMessageList
+          messages={messages}
+          sessionId={currentSessionId!}
+          isGenerating={isLoading}
+          streamingContent={streamingState?.content || ''}
+          autoScrollEnabled={true}
+          renderMessage={renderMessage}
+          footer={
+            <>
+              {/* Active tool calls indicator */}
+              {toolState.activeToolCalls.map((toolCall, i) => (
+                <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
+                  <ToolCallIndicator
+                    toolName={toolCall.name}
+                    status="executing"
+                    arguments={toolCall.arguments}
+                  />
                 </div>
-              )}
+              ))}
+            </>
+          }
+        />
+      ) : (
+        <ScrollArea
+          className="flex-1"
+          style={{ minHeight: 0 }}
+          viewportRef={messagesContainerRef}
+          viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
+        >
+          <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+            {messages.map((msg, idx) => {
+              const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
+              const isStreamingMessage = isLoading && isLastAssistant
+              
+              return (
+                <div key={msg.id} data-message-id={msg.id}>
+                  {/* Show stored tool results before the message */}
+                  {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      {msg.toolResults.map((result: any, i: number) => (
+                        <ToolResultDisplay
+                          key={`stored-${i}`}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-              {/* Message Bubble */}
-              <MessageRenderer
-                message={msg}
-                isStreaming={isLoading && msg.role === 'assistant' && idx === messages.length - 1}
-                onCopy={handleCopy}
-                onRegenerate={(instruction) => handleRegenerate(msg, instruction)}
-              />
-
-              {/* Show active tool results after last assistant message (during streaming) */}
-              {msg.role === 'assistant' && idx === messages.length - 1 && toolState.toolResults.length > 0 && (
-                <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                  {toolState.toolResults.map((result, i) => (
-                    <ToolResultDisplay
-                      key={i}
-                      toolName={result.toolCall.name}
-                      result={result.result.success ? result.result.data : undefined}
-                      error={result.result.success ? undefined : result.result.error}
+                  {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
+                  {/* **Validates: Property 22: Isolated Streaming Updates** */}
+                  {isStreamingMessage ? (
+                    <StreamingMessage
+                      message={msg}
+                      sessionId={currentSessionId!}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
                     />
-                  ))}
+                  ) : (
+                    <MessageRenderer
+                      message={msg}
+                      isStreaming={false}
+                      onCopy={handleCopy}
+                      onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+                    />
+                  )}
+
+                  {/* Show active tool results after last assistant message (during streaming) */}
+                  {isLastAssistant && toolState.toolResults.length > 0 && (
+                    <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+                      {toolState.toolResults.map((result, i) => (
+                        <ToolResultDisplay
+                          key={i}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              )
+            })}
 
-          {/* Active tool calls indicator */}
-          {toolState.activeToolCalls.map((toolCall, i) => (
-            <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
-              <ToolCallIndicator
-                toolName={toolCall.name}
-                status="executing"
-                arguments={toolCall.arguments}
-              />
-            </div>
-          ))}
+            {/* Active tool calls indicator */}
+            {toolState.activeToolCalls.map((toolCall, i) => (
+              <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
+                <ToolCallIndicator
+                  toolName={toolCall.name}
+                  status="executing"
+                  arguments={toolCall.arguments}
+                />
+              </div>
+            ))}
 
-          {/* Spacer for loading state */}
-          {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
+            {/* Spacer for loading state */}
+            {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
+      )}
 
       {/* Input Area */}
-      <div style={{ width: '100%', maxWidth: 'min(850px, 100%)', margin: '0 auto', padding: '0 20px 20px 20px', flexShrink: 0 }}>
-        <InputArea
-          input={input}
-          setInput={setInput}
-          onSend={handleSendMessage}
-          isLoading={isLoading}
-          attachedFiles={attachedFiles}
-          onFilesChange={setAttachedFiles}
-          pastedChunks={pastedChunks}
-          onChunkEdit={(chunk) => setEditingChunk(chunk)}
-          onChunkDelete={handleChunkDelete}
-          onChunkCreate={handleChunkCreate}
-          onError={(msg) => showToast(msg, 'error')}
-        />
+      <div className="chat-input-overlay">
+        <div className="chat-input-overlay__inner">
+          <InputArea
+            input={input}
+            setInput={setInput}
+            onSend={handleSendMessage}
+            isLoading={isLoading}
+            attachedFiles={attachedFiles}
+            onFilesChange={setAttachedFiles}
+            onError={(msg) => showToast(msg, 'error')}
+          />
+        </div>
       </div>
 
       {/* Styles */}
@@ -376,20 +456,26 @@ export default function ChatArea() {
           color: var(--theme-text-primary);
           margin-bottom: 8px;
         }
+        .chat-input-overlay {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          padding: 0 20px 20px;
+          pointer-events: none;
+          background: transparent;
+        }
+        .chat-input-overlay__inner {
+          width: 100%;
+          max-width: min(900px, 100%);
+          margin: 0 auto;
+          pointer-events: auto;
+        }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
       `}</style>
 
-      {/* Edit Modal */}
-      {editingChunk && (
-        <PastedContentEditModal
-          content={editingChunk.content}
-          onSave={(newContent) => handleChunkUpdate(editingChunk.id, newContent)}
-          onCancel={() => setEditingChunk(null)}
-          onDelete={() => handleChunkDelete(editingChunk.id)}
-        />
-      )}
     </div>
   )
 }

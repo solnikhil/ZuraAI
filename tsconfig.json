@@ -1,11 +1,19 @@
 {
     "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"]
+        },
         "target": "ES2022",
         "useDefineForClassFields": true,
         "lib": [
             "DOM",
             "DOM.Iterable",
             "ESNext"
+        ],
+        "types": [
+            "vitest/globals",
+            "@testing-library/jest-dom"
         ],
         "allowJs": false,
         "skipLibCheck": true,
@@ -25,5 +33,12 @@
         "src",
         "electron",
         "vite.config.ts"
+    ],
+    "exclude": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.property.test.ts"
     ]
 }

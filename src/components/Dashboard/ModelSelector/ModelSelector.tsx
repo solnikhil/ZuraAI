@@ -12,6 +12,8 @@ import { useModelSelector } from './useModelSelector'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 import './ModelSelector.css'
 
 export interface ModelSelectorProps {
@@ -25,53 +27,70 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
   const { settings } = useSettings()
   const {
     state,
-    dropdownRef,
-    portalRef,
     searchInputRef,
     currentModels,
+    groupedModels,
     currentModel,
     currentName,
     setSearchQuery,
     setViewMode,
     setSelectedProvider,
-    toggleOpen,
+    setIsOpen,
     toggleFavorite,
     handleSelect,
-    dropdownPos
   } = useModelSelector()
 
-  const triggerClass = `model-selector-trigger ${minimal ? 'minimal' : ''}`
-
   return (
-    <div style={{ position: 'relative', zIndex: 100 }} ref={dropdownRef}>
-      <button
-        onClick={toggleOpen}
-        aria-haspopup="dialog"
-        aria-expanded={state.isOpen}
-        title={minimal ? `${currentName} — ${settings.modelProvider || 'auto'}` : `${currentName} — ${settings.modelProvider || 'auto'}`}
-        className={triggerClass}
-      >
-        {currentModel ? (
-          <ModelIcon
-            model={currentModel}
-            icon={getModelAttributes(currentModel).icon}
-            color={getModelAttributes(currentModel).color}
-            size={minimal ? 18 : 16}
+    <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
+      <PopoverTrigger asChild>
+        <button
+          aria-haspopup="dialog"
+          aria-expanded={state.isOpen}
+          title={`${currentName} — ${settings.modelProvider || 'auto'}`}
+          className={cn(
+            "flex items-center gap-1 rounded-lg p-2 transition-all cursor-pointer",
+            "bg-black/5 dark:bg-white/5",
+            "hover:bg-black/10 dark:hover:bg-white/10",
+            "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
+            minimal ? "px-2" : "px-3"
+          )}
+        >
+          {currentModel ? (
+            <ModelIcon
+              model={currentModel}
+              icon={getModelAttributes(currentModel).icon}
+              color={getModelAttributes(currentModel).color}
+              size={16}
+            />
+          ) : <Cpu size={14} />}
+          {!minimal && (
+            <span className="truncate text-xs" style={{ maxWidth: '180px', minWidth: '80px' }}>
+              {currentName}
+            </span>
+          )}
+          <ChevronDown 
+            size={12} 
+            className={cn(
+              "opacity-50 transition-transform duration-200",
+              state.isOpen && "rotate-180"
+            )} 
           />
-        ) : <Cpu size={14} />}
-        {!minimal && (
-          <span className="truncate" style={{ maxWidth: '120px', fontSize: '0.85rem' }}>
-            {currentName}
-          </span>
-        )}
-        <ChevronDown size={14} style={{ opacity: 0.5, transform: state.isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-      </button>
-
-      {state.isOpen && (
+        </button>
+      </PopoverTrigger>
+      <PopoverContent 
+        className="w-[460px] p-0" 
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          // Allow interaction with elements inside the popover
+          const target = e.target as HTMLElement
+          if (target.closest('[data-slot="popover-content"]')) {
+            e.preventDefault()
+          }
+        }}
+      >
         <ModelSelectorDropdown
-          portalRef={portalRef}
           searchInputRef={searchInputRef}
-          dropdownPos={dropdownPos}
           searchQuery={state.searchQuery}
           onSearchChange={setSearchQuery}
           viewMode={state.viewMode}
@@ -79,14 +98,14 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           selectedProvider={state.selectedProvider}
           onProviderSelect={setSelectedProvider}
           currentModels={currentModels}
-          groupedModels={{ ollama: [], perplexity: [], openrouter: [], gemini: [], groq: [], minimax: [] }}
+          groupedModels={groupedModels}
           selectedModelCode={settings.aiModel}
           selectedModelProvider={settings.modelProvider}
           favoriteModels={settings.favoriteModels || []}
           onModelSelect={handleSelect}
           onToggleFavorite={toggleFavorite}
         />
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }

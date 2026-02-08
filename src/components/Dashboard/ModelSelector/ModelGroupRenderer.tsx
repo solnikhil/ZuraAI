@@ -275,8 +275,8 @@ function GroupModelIcon({
       background: `linear-gradient(145deg, ${color}22, transparent)`,
       color: color
     }}>
-      {React.isValidElement(icon) 
-        ? React.cloneElement(icon as React.ReactElement, { size: 20 })
+      {React.isValidElement(icon)
+        ? React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: 20 })
         : <MessageSquare size={20} />
       }
     </div>

@@ -1,5 +1,5 @@
 export type CommandBarAction =
-  | { type: 'open_dashboard_view'; view: 'chat' | 'pdf' | 'settings' }
+  | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
   | { type: 'open_settings_section'; section: string }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
@@ -148,13 +148,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_dashboard_view', view: 'chat' }
     },
     {
-      id: 'go-pdf',
-      title: 'Go to PDF',
-      subtitle: 'Document chat',
-      keywords: ['pdf', 'document', 'file', 'reader', 'docs'],
-      action: { type: 'open_dashboard_view', view: 'pdf' }
-    },
-    {
       id: 'go-settings',
       title: 'Go to Settings',
       subtitle: 'Preferences & API Keys',
@@ -190,11 +183,25 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'preferences' }
     },
     {
+      id: 'go-settings-systemprompt',
+      title: 'System Prompt Settings',
+      subtitle: 'Load and edit assistant instructions',
+      keywords: ['system', 'prompt', 'instructions', 'persona', 'behavior'],
+      action: { type: 'open_settings_section', section: 'systemprompt' }
+    },
+    {
       id: 'go-settings-commandbar',
       title: 'Command Bar Settings',
-      subtitle: 'Customize command palette',
+      subtitle: 'Customize command bar in Appearance',
       keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette'],
-      action: { type: 'open_settings_section', section: 'commandbar' }
+      action: { type: 'open_settings_section', section: 'themes' }
+    },
+    {
+      id: 'go-settings-experimental',
+      title: 'Experimental Settings',
+      subtitle: 'Labs & feature flags',
+      keywords: ['experimental', 'labs', 'beta', 'feature', 'flags', 'streaming'],
+      action: { type: 'open_settings_section', section: 'experimental' }
     },
     {
       id: 'new-chat',

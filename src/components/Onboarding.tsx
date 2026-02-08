@@ -3,6 +3,14 @@ import { X, ChevronRight, ChevronLeft, Key, Zap, Image, CheckCircle, Command } f
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from './shared'
 import { saveApiKeyToSecureStorage } from '../utils/secureApiKeys'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import {
+  Dialog,
+  DialogContent,
+} from '@/components/ui/dialog'
 import './Onboarding.css'
 
 interface OnboardingProps {
@@ -184,22 +192,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         </button>
                     </div>
 
-                    <div className="api-key-input">
-                        <label>Paste your API key here:</label>
-                        <input
+                    <div className="api-key-input space-y-3">
+                        <Label>Paste your API key here:</Label>
+                        <Input
                             type="password"
                             value={apiKey}
                             onChange={(e) => setApiKey(e.target.value)}
                             placeholder="sk-..."
-                            className="api-key-field"
+                            className="bg-secondary border-border"
                         />
-                        <button
-                            className="btn-primary"
+                        <Button
                             onClick={handleSaveApiKey}
                             disabled={!apiKey.trim()}
+                            className="w-full"
                         >
                             Save & Continue
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )
@@ -255,9 +263,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         </ul>
                     </div>
 
-                    <button className="btn-primary" onClick={onComplete}>
+                    <Button onClick={onComplete} className="w-full">
                         Start Using Zura
-                    </button>
+                    </Button>
                 </div>
             )
         }
@@ -271,9 +279,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <div className="onboarding-overlay">
             <div className="onboarding-modal">
                 <div className="onboarding-header">
-                    <div className="progress-bar">
-                        <div className="progress-fill" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
-                    </div>
+                    <Progress
+                        value={((step + 1) / steps.length) * 100}
+                        className="h-1.5 bg-white/10"
+                        indicatorClassName="bg-[var(--theme-accent)]"
+                    />
                     <button className="close-btn" onClick={onComplete}>
                         <X size={20} />
                     </button>
@@ -286,17 +296,17 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
                 <div className="onboarding-footer">
                     {!isFirstStep && (
-                        <button className="btn-secondary" onClick={() => setStep(step - 1)}>
-                            <ChevronLeft size={18} />
+                        <Button variant="outline" onClick={() => setStep(step - 1)}>
+                            <ChevronLeft size={18} className="mr-1" />
                             Back
-                        </button>
+                        </Button>
                     )}
                     <div style={{ flex: 1 }} />
                     {!isLastStep && step !== 1 && (
-                        <button className="btn-primary" onClick={() => setStep(step + 1)}>
+                        <Button onClick={() => setStep(step + 1)}>
                             Next
-                            <ChevronRight size={18} />
-                        </button>
+                            <ChevronRight size={18} className="ml-1" />
+                        </Button>
                     )}
                 </div>
             </div>

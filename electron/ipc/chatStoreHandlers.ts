@@ -47,6 +47,16 @@ export function registerChatStoreHandlers(): void {
     ipcMain.handle('chat-store:get-path', () => {
         return chatStore.getStoreFilePath()
     })
+
+    // Folder persistence handlers (Requirement 11.6)
+    ipcMain.handle('chat-store:get-all-folders', () => {
+        return chatStore.getAllFolders()
+    })
+
+    ipcMain.handle('chat-store:save-folders', (_event, folders) => {
+        chatStore.saveFolders(folders)
+        return true
+    })
 }
 
 /**
@@ -62,4 +72,6 @@ export function unregisterChatStoreHandlers(): void {
     ipcMain.removeHandler('chat-store:clear-all')
     ipcMain.removeHandler('chat-store:migrate')
     ipcMain.removeHandler('chat-store:get-path')
+    ipcMain.removeHandler('chat-store:get-all-folders')
+    ipcMain.removeHandler('chat-store:save-folders')
 }

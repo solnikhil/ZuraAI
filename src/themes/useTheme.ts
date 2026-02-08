@@ -28,7 +28,7 @@ export function useTheme(): UseThemeReturn {
     
     const toggleDarkMode = useCallback(() => {
         const newIsDark = !currentTheme.isDark
-        const newThemeId = newIsDark ? 'dark-default' : 'light-default'
+        const newThemeId = 'zuraai'
         setTheme(newThemeId)
     }, [currentTheme.isDark, setTheme])
     

@@ -5,34 +5,40 @@
  * Requirements: 3.1
  */
 
-import React from 'react'
-import ReactDOM from 'react-dom'
-import { Search, Star, Sparkles, Zap, Globe, Database, Cloud } from 'lucide-react'
-import { ModelList } from './ModelList'
+import React, { useEffect, useState } from 'react'
+import { Star, Sparkles, Zap, Globe, Database, Cloud } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { ModelIcon } from './ModelIcon'
+import { getModelAttributes } from '../../../utils/modelUtils'
+import { removeEmojis } from '../../../utils/textUtils'
 
 /**
  * Provider configuration for sidebar
  */
 const PROVIDERS = [
-  { key: 'gemini', title: 'Gemini', icon: <Sparkles />, color: '#4dabf7', logo: true },
-  { key: 'openrouter', title: 'OpenRouter', icon: <Cloud />, color: '#a855f7', logo: true },
-  { key: 'perplexity', title: 'Perplexity', icon: <Globe />, color: '#22c55e', logo: true },
-  { key: 'groq', title: 'Groq', icon: <Zap />, color: '#f97316', logo: true },
-  { key: 'minimax', title: 'MiniMax', icon: <Sparkles />, color: '#6366f1', logo: true },
-  { key: 'ollama', title: 'Ollama', icon: <Database />, color: '#339af0', logo: true },
+  { key: 'gemini', title: 'Gemini', icon: Sparkles, color: '#4dabf7', logo: true },
+  { key: 'openrouter', title: 'OpenRouter', icon: Cloud, color: '#a855f7', logo: true },
+  { key: 'perplexity', title: 'Perplexity', icon: Globe, color: '#22c55e', logo: true },
+  { key: 'groq', title: 'Groq', icon: Zap, color: '#f97316', logo: true },
+  { key: 'minimax', title: 'MiniMax', icon: Sparkles, color: '#6366f1', logo: true },
+  { key: 'ollama', title: 'Ollama', icon: Database, color: '#339af0', logo: true },
 ] as const
 
 /**
  * Props for ModelSelectorDropdown
  */
 export interface ModelSelectorDropdownProps {
-  /** Reference for the portal container */
-  portalRef: React.RefObject<HTMLDivElement>
   /** Reference for the search input */
-  searchInputRef: React.RefObject<HTMLInputElement>
-  /** Dropdown position */
-  dropdownPos: { top: number; left: number; showAbove: boolean }
+  searchInputRef: React.RefObject<HTMLInputElement | null>
   /** Current search query */
   searchQuery: string
   /** Handler for search query changes */
@@ -66,9 +72,7 @@ export interface ModelSelectorDropdownProps {
  * Renders the dropdown overlay with search, provider sidebar, and model list
  */
 export function ModelSelectorDropdown({
-  portalRef,
   searchInputRef,
-  dropdownPos,
   searchQuery,
   onSearchChange,
   viewMode,
@@ -83,67 +87,26 @@ export function ModelSelectorDropdown({
   onModelSelect,
   onToggleFavorite
 }: ModelSelectorDropdownProps): React.ReactElement {
-  return ReactDOM.createPortal(
-    <div
-      ref={portalRef}
-      onMouseDown={(e) => e.stopPropagation()}
-      style={{
-        position: 'fixed',
-        top: dropdownPos.top,
-        left: dropdownPos.left,
-        transform: dropdownPos.showAbove ? 'translateY(-100%)' : 'translateY(0)',
-        width: '460px',
-        height: '484px',
-        backgroundColor: 'var(--theme-surface)',
-        border: '1px solid var(--theme-border)',
-        borderRadius: '16px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
-        display: 'flex',
-        flexDirection: 'column',
-        animation: dropdownPos.showAbove 
-          ? 'dropdown-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-          : 'dropdown-slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        zIndex: 99999,
-        overflow: 'hidden'
-      }}
-    >
-      {/* Search Bar */}
-      <div style={{ padding: '8px 16px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Search size={14} color="#666" />
-          <input
-            ref={searchInputRef}
-            className="search-input"
-            type="text"
-            placeholder="Search models..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              padding: '6px 0',
-              color: '#fff',
-              fontSize: '0.85rem',
-              outline: 'none'
-            }}
-          />
-        </div>
-        <div style={{
-          height: '1px',
-          background: 'rgba(255,255,255,0.06)',
-          marginTop: '8px'
-        }} />
-      </div>
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // CommandInput doesn't forward refs, so we find it via querySelector
+      const input = document.querySelector('[data-slot="command-input"]') as HTMLInputElement
+      if (input) {
+        input.focus()
+        // Store ref for external access if needed
+        if (searchInputRef && 'current' in searchInputRef) {
+          (searchInputRef as React.MutableRefObject<HTMLInputElement | null>).current = input
+        }
+      }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [])
 
+  return (
+    <div className="flex h-[484px] flex-col overflow-hidden">
       {/* Two-column layout */}
-      <div style={{ 
-        display: 'flex', 
-        flex: 1, 
-        overflow: 'hidden',
-        padding: '8px 16px 16px',
-        position: 'relative'
-      }}>
+      <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
         <ProviderSidebar
           viewMode={viewMode}
@@ -152,47 +115,158 @@ export function ModelSelectorDropdown({
           onProviderSelect={onProviderSelect}
         />
 
-        {/* Right Side: Model List */}
-        <div 
-          className="custom-scrollbar"
-          style={{ 
-            flex: 1, 
-            overflowY: 'auto',
-            paddingLeft: '12px',
-            position: 'relative'
-          }}
-        >
-          {/* Right fade gradient */}
-          <div style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: '30px',
-            background: 'linear-gradient(to left, var(--theme-surface) 0%, transparent 100%)',
-            pointerEvents: 'none',
-            zIndex: 1
-          }} />
-
-          {/* Header */}
-          <ModelListHeader 
-            viewMode={viewMode} 
-            selectedProvider={selectedProvider} 
+        {/* Right Side: Command-based search/list */}
+        <Command className="flex-1 rounded-none border-0" shouldFilter={false}>
+          <CommandInput
+            placeholder="Search models..."
+            value={searchQuery}
+            onValueChange={onSearchChange}
+            className="h-12"
           />
-
-          {/* Models List */}
-          <ModelList
-            models={currentModels}
-            selectedModelCode={selectedModelCode}
-            selectedModelProvider={selectedModelProvider}
-            favoriteModels={favoriteModels}
-            onModelSelect={onModelSelect}
-            onToggleFavorite={onToggleFavorite}
-          />
-        </div>
+          <CommandList className="max-h-[calc(484px-48px)]">
+            <CommandEmpty>
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No models found
+              </div>
+            </CommandEmpty>
+            <CommandGroup heading={viewMode === 'favorites' ? 'Favorites' : PROVIDERS.find(p => p.key === selectedProvider)?.title || 'Models'}>
+              {currentModels.map(model => {
+                const isActive = selectedModelCode === model.code && selectedModelProvider === model.provider
+                const isFavorite = favoriteModels.includes(model.code)
+                const { color } = getModelAttributes(model)
+                
+                return (
+                  <CommandItem
+                    key={`${model.provider}-${model.code}`}
+                    value={`${model.code} ${model.displayName}`}
+                    onSelect={() => onModelSelect(model)}
+                    className="flex items-center gap-3 py-2.5"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                      <ModelIcon
+                        model={model}
+                        icon={getModelAttributes(model).icon}
+                        color={color}
+                        size={22}
+                      />
+                    </div>
+                    <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-sm">
+                          {removeEmojis(model.displayName)}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {getModelDescription(model)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="p-1 hover:bg-muted rounded transition-colors"
+                        style={{
+                          color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
+                          opacity: isFavorite ? 1 : 0.4
+                        }}
+                      >
+                        <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+                      </button>
+                      {isActive && (
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      )}
+                    </div>
+                  </CommandItem>
+                )
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </div>
-    </div>,
-    document.body
+    </div>
+  )
+}
+
+/**
+ * Get description for a model based on its attributes
+ */
+function getModelDescription(model: ModelWithProvider): string {
+  const name = model.displayName.toLowerCase()
+  const code = model.code.toLowerCase()
+
+  // Provider-specific descriptions
+  if (model.provider === 'gemini') {
+    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
+    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
+    return 'Google AI model with multimodal capabilities'
+  }
+
+  if (model.provider === 'openrouter') {
+    if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
+    if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
+    if (code.includes('gpt-5')) return "OpenAI's next-generation language model"
+    if (code.includes('llama')) return 'Meta AI open source model'
+    if (code.includes('mistral')) return 'Efficient European AI model'
+    if (code.includes('deepseek')) return 'Advanced reasoning with deep thinking'
+    if (code.includes('grok')) return 'xAI model with real-time knowledge'
+    if (code.includes('kimi')) return 'Enhanced version with longer context'
+    if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
+    return 'Available via OpenRouter'
+  }
+
+  if (model.provider === 'perplexity') {
+    if (name.includes('deep research')) return 'In-depth research with citations'
+    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
+    return 'Real-time web search powered'
+  }
+
+  if (model.provider === 'groq') {
+    return 'Ultra-fast inference on Groq hardware'
+  }
+
+  if (model.provider === 'minimax') {
+    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
+    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
+    if (name.includes('m2')) return 'Powerful model with 200k context'
+    return 'MiniMax AI model with advanced capabilities'
+  }
+
+  if (model.provider === 'ollama') {
+    return 'Running locally on your machine'
+  }
+
+  // Fallback for any unhandled provider
+  const providerName = model.provider as string
+  return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
+}
+
+/**
+ * Provider logo with fallback icon
+ */
+function ProviderLogoWithFallback({ provider }: { provider: typeof PROVIDERS[number] }) {
+  const [imgError, setImgError] = useState(false)
+  const Icon = provider.icon
+
+  if (imgError || !provider.logo) {
+    return <Icon size={16} />
+  }
+
+  return (
+    <img
+      src={`/provider-logos/${provider.key}.png`}
+      alt={provider.title}
+      onError={() => setImgError(true)}
+      style={{
+        width: '18px',
+        height: '18px',
+        objectFit: 'contain',
+        borderRadius: '4px'
+      }}
+    />
   )
 }
 
@@ -234,7 +308,12 @@ function ProviderSidebar({
 
       {/* Favorites Button */}
       <button
-        onClick={() => onViewModeChange('favorites')}
+        onClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          onViewModeChange('favorites')
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -288,10 +367,13 @@ function ProviderSidebar({
         {PROVIDERS.map(provider => (
           <button
             key={provider.key}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
               onProviderSelect(provider.key)
               onViewModeChange('all')
             }}
+            onPointerDown={(e) => e.stopPropagation()}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -326,25 +408,7 @@ function ProviderSidebar({
             }}
             title={provider.title}
           >
-            {provider.logo ? (
-              <img 
-                src={`/provider-logos/${provider.key}.png`}
-                alt={provider.title}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                  target.parentElement!.innerHTML = `<span style="font-size:14px">${provider.icon}</span>`
-                }}
-                style={{ 
-                  width: '18px', 
-                  height: '18px', 
-                  objectFit: 'contain',
-                  borderRadius: '4px'
-                }} 
-              />
-            ) : (
-              React.cloneElement(provider.icon as React.ReactElement, { size: 16 })
-            )}
+            <ProviderLogoWithFallback provider={provider} />
           </button>
         ))}
       </div>
@@ -352,66 +416,5 @@ function ProviderSidebar({
   )
 }
 
-/**
- * Model list header component
- */
-function ModelListHeader({
-  viewMode,
-  selectedProvider
-}: {
-  viewMode: ViewMode
-  selectedProvider: string
-}): React.ReactElement {
-  const provider = PROVIDERS.find(p => p.key === selectedProvider)
-  
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: '10px',
-      position: 'relative',
-      zIndex: 2
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        color: '#fff',
-        fontSize: '0.8rem',
-        fontWeight: 600
-      }}>
-        {viewMode === 'favorites' ? (
-          <>
-            <Star size={12} fill="#FFD700" color="#FFD700" />
-            Favorites
-          </>
-        ) : provider ? (
-          <>
-            {provider.logo ? (
-              <img 
-                src={`/provider-logos/${selectedProvider}.png`}
-                alt={provider.title}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                }}
-                style={{ 
-                  width: '14px', 
-                  height: '14px', 
-                  objectFit: 'contain',
-                  borderRadius: '3px'
-                }} 
-              />
-            ) : (
-              React.cloneElement(provider.icon as React.ReactElement, { size: 12 })
-            )}
-            {provider.title}
-          </>
-        ) : null}
-      </div>
-    </div>
-  )
-}
 
 export default ModelSelectorDropdown

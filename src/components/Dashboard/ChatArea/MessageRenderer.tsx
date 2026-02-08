@@ -2,21 +2,28 @@
  * MessageRenderer - Component for rendering chat messages
  * Handles markdown rendering, code blocks, file attachments, and message actions
  * 
- * Requirements: 1.3
+ * Requirements: 1.3, 5.2
+ * 
+ * Performance: This component is wrapped with React.memo() to prevent unnecessary
+ * re-renders when parent components re-render with unchanged message props.
+ * A custom comparison function ensures deep equality checking for message objects.
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import ReactDOM from 'react-dom'
 import {
   Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
   Wrench, X, File, FileText, RotateCcw, Sparkles, Edit2, Zap, Database,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { WebSource } from './WebSourceCitation'
 
 export interface MessageRendererProps {
   message: Message & {
@@ -120,17 +127,19 @@ function ToolDetailsModal({ toolResults, onClose }: {
       zIndex: 10000,
       padding: '20px'
     }} onClick={onClose}>
-      <div style={{
-        backgroundColor: 'var(--theme-surface)',
-        borderRadius: '12px',
-        padding: '24px',
-        maxWidth: '800px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        border: '1px solid var(--theme-border)',
-        boxShadow: 'var(--theme-shadow-lg)'
-      }} onClick={(e) => e.stopPropagation()}>
+      <ScrollArea
+        style={{
+          backgroundColor: 'var(--theme-surface)',
+          borderRadius: '12px',
+          maxWidth: '800px',
+          width: '100%',
+          maxHeight: '90vh',
+          border: '1px solid var(--theme-border)',
+          boxShadow: 'var(--theme-shadow-lg)'
+        }}
+        viewportStyle={{ padding: '24px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -207,19 +216,23 @@ function ToolDetailsModal({ toolResults, onClose }: {
                   <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
                     Result:
                   </div>
-                  <pre style={{
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    color: '#4ade80',
-                    overflowX: 'auto',
-                    margin: 0,
-                    maxHeight: '300px',
-                    overflowY: 'auto'
-                  }}>
-                    {JSON.stringify(result.result.data, null, 2)}
-                  </pre>
+                  <ScrollArea
+                    style={{
+                      background: 'rgba(34, 197, 94, 0.1)',
+                      borderRadius: '4px',
+                      maxHeight: '300px'
+                    }}
+                    viewportStyle={{ padding: '8px' }}
+                  >
+                    <pre style={{
+                      fontSize: '0.85rem',
+                      color: '#4ade80',
+                      overflowX: 'auto',
+                      margin: 0
+                    }}>
+                      {JSON.stringify(result.result.data, null, 2)}
+                    </pre>
+                  </ScrollArea>
                 </div>
               ) : (
                 <div>
@@ -241,6 +254,169 @@ function ToolDetailsModal({ toolResults, onClose }: {
             </div>
           ))}
         </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
+/**
+ * Web Search Image Carousel Component
+ */
+function WebSearchImageCarousel({ images }: { images: Array<{ url: string; description?: string }> }) {
+  const [startIndex, setStartIndex] = useState(0)
+  const imagesPerPage = 4
+  const totalPages = Math.ceil(images.length / imagesPerPage)
+  const currentPage = Math.floor(startIndex / imagesPerPage)
+  const visibleImages = images.slice(startIndex, startIndex + imagesPerPage)
+
+  const handlePrev = () => {
+    setStartIndex(prev => {
+      const newIndex = prev - imagesPerPage
+      return newIndex < 0 ? (totalPages - 1) * imagesPerPage : newIndex
+    })
+  }
+
+  const handleNext = () => {
+    setStartIndex(prev => {
+      const newIndex = prev + imagesPerPage
+      return newIndex >= images.length ? 0 : newIndex
+    })
+  }
+
+  if (images.length === 0) return null
+
+  return (
+    <div style={{
+      marginBottom: '16px',
+      padding: '12px',
+      background: 'rgba(255, 255, 255, 0.02)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderRadius: '12px'
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '8px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          color: 'var(--theme-text-secondary)',
+          fontSize: '0.85rem'
+        }}>
+          <span>Web Search Images</span>
+          <span style={{ color: 'var(--theme-text-muted)' }}>
+            ({images.length} {images.length === 1 ? 'image' : 'images'})
+          </span>
+        </div>
+        {images.length > imagesPerPage && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <button
+              onClick={handlePrev}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                color: 'var(--theme-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span style={{
+              color: 'var(--theme-text-muted)',
+              fontSize: '0.75rem',
+              minWidth: '40px',
+              textAlign: 'center'
+            }}>
+              {currentPage + 1}/{totalPages}
+            </span>
+            <button
+              onClick={handleNext}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                color: 'var(--theme-text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+              }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: '8px'
+      }}>
+        {visibleImages.map((img, idx) => (
+          <a
+            key={`${startIndex + idx}-${img.url}`}
+            href={img.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              aspectRatio: '16/10',
+              overflow: 'hidden',
+              borderRadius: '8px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'block',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              cursor: 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.02)'
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <img
+              src={img.url}
+              alt={img.description || `Search result image ${startIndex + idx + 1}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block'
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none'
+              }}
+            />
+          </a>
+        ))}
       </div>
     </div>
   )
@@ -249,7 +425,56 @@ function ToolDetailsModal({ toolResults, onClose }: {
 /**
  * User Message Bubble
  */
-function UserMessageBubble({ message }: { message: MessageRendererProps['message'] }) {
+function UserMessageBubble({
+  message,
+  bubbleStyle = 'solid'
+}: {
+  message: MessageRendererProps['message']
+  bubbleStyle?: 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
+}) {
+  const bubbleStyleByPreset: Record<'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal', React.CSSProperties> = {
+    solid: {
+      background: 'var(--theme-user-message-bg)',
+      border: '1px solid var(--theme-border-subtle)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-user-message-text)'
+    },
+    glass: {
+      background: 'rgba(255, 255, 255, 0.08)',
+      border: '1px solid var(--theme-border)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-text-primary)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)'
+    },
+    outline: {
+      background: 'transparent',
+      border: '1px solid var(--theme-accent-muted)',
+      boxShadow: 'none',
+      color: 'var(--theme-text-primary)'
+    },
+    gradient: {
+      background: 'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
+      border: '1px solid color-mix(in srgb, var(--theme-accent) 45%, transparent)',
+      boxShadow: 'var(--theme-shadow-sm)',
+      color: 'var(--theme-text-inverse)'
+    },
+    elevated: {
+      background: 'var(--theme-surface)',
+      border: '1px solid var(--theme-border)',
+      boxShadow: 'var(--theme-shadow-md)',
+      color: 'var(--theme-text-primary)'
+    },
+    terminal: {
+      background: 'color-mix(in srgb, var(--theme-background) 76%, black 24%)',
+      border: '1px dashed var(--theme-border-hover)',
+      boxShadow: 'none',
+      color: 'var(--theme-text-primary)',
+      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      letterSpacing: '0.01em'
+    }
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -318,11 +543,7 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
                   maxWidth: '100%'
                 }}
               >
-                {file.type === 'pdf' ? (
-                  <FileText size={16} color="#f87171" />
-                ) : (
-                  <File size={16} color="#888" />
-                )}
+                <File size={16} color="#888" />
                 <span style={{
                   color: '#e0e0e0',
                   fontSize: '0.85rem',
@@ -346,12 +567,11 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
       {message.content && (
         <div style={{
           padding: '12px 18px',
-          backgroundColor: 'var(--theme-surface)',
-          borderRadius: '20px',
-          color: 'var(--theme-text-secondary)',
+          borderRadius: '20px 20px 6px 20px',
           fontSize: '0.95rem',
           maxWidth: '70%',
-          whiteSpace: 'pre-wrap'
+          whiteSpace: 'pre-wrap',
+          ...bubbleStyleByPreset[bubbleStyle]
         }}>
           {message.content}
         </div>
@@ -361,9 +581,168 @@ function UserMessageBubble({ message }: { message: MessageRendererProps['message
 }
 
 /**
- * Main MessageRenderer component
+ * Custom comparison function for MessageRenderer memoization
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ * 
+ * Returns true if props are equal (should NOT re-render)
+ * Returns false if props are different (should re-render)
+ * 
+ * This function performs deep equality checking on message props to prevent
+ * unnecessary re-renders during parent component updates (e.g., streaming).
  */
-export function MessageRenderer({
+function areMessagePropsEqual(
+  prevProps: MessageRendererProps,
+  nextProps: MessageRendererProps
+): boolean {
+  // Compare isStreaming - this is critical for streaming updates
+  if (prevProps.isStreaming !== nextProps.isStreaming) {
+    return false
+  }
+
+  // Compare callback references (these should be stable via useCallback in parent)
+  // Note: We compare by reference since callbacks should be memoized
+  if (prevProps.onCopy !== nextProps.onCopy) {
+    return false
+  }
+  if (prevProps.onRegenerate !== nextProps.onRegenerate) {
+    return false
+  }
+
+  const prevMsg = prevProps.message
+  const nextMsg = nextProps.message
+
+  // Compare message identity
+  if (prevMsg.id !== nextMsg.id) {
+    return false
+  }
+
+  // Compare message role
+  if (prevMsg.role !== nextMsg.role) {
+    return false
+  }
+
+  // Compare message content - critical for streaming updates
+  if (prevMsg.content !== nextMsg.content) {
+    return false
+  }
+
+  // Compare timestamp
+  if (prevMsg.timestamp !== nextMsg.timestamp) {
+    return false
+  }
+
+  // Compare model
+  if (prevMsg.model !== nextMsg.model) {
+    return false
+  }
+
+  // Compare thinking content (for extended thinking models)
+  if (prevMsg.thinking !== nextMsg.thinking) {
+    return false
+  }
+
+  // Compare thinking duration
+  if (prevMsg.thinkingDuration !== nextMsg.thinkingDuration) {
+    return false
+  }
+
+  // Compare thinking blocks array (by length and content)
+  const prevThinkingBlocks = prevMsg.thinkingBlocks || []
+  const nextThinkingBlocks = nextMsg.thinkingBlocks || []
+  if (prevThinkingBlocks.length !== nextThinkingBlocks.length) {
+    return false
+  }
+  for (let i = 0; i < prevThinkingBlocks.length; i++) {
+    if (prevThinkingBlocks[i].content !== nextThinkingBlocks[i].content ||
+        prevThinkingBlocks[i].type !== nextThinkingBlocks[i].type) {
+      return false
+    }
+  }
+
+  // Compare research status
+  const prevResearch = prevMsg.researchStatus
+  const nextResearch = nextMsg.researchStatus
+  if (prevResearch?.isSearching !== nextResearch?.isSearching ||
+      prevResearch?.currentRound !== nextResearch?.currentRound ||
+      prevResearch?.maxRounds !== nextResearch?.maxRounds ||
+      prevResearch?.currentSearch !== nextResearch?.currentSearch) {
+    return false
+  }
+
+  // Compare response versions (by length and current index)
+  const prevVersions = prevMsg.responseVersions || []
+  const nextVersions = nextMsg.responseVersions || []
+  if (prevVersions.length !== nextVersions.length) {
+    return false
+  }
+  if (prevMsg.currentVersionIndex !== nextMsg.currentVersionIndex) {
+    return false
+  }
+
+  // Compare tool results (by length - deep comparison would be expensive)
+  const prevToolResults = prevMsg.toolResults || []
+  const nextToolResults = nextMsg.toolResults || []
+  if (prevToolResults.length !== nextToolResults.length) {
+    return false
+  }
+  // Check if any tool result changed (by reference or key properties)
+  for (let i = 0; i < prevToolResults.length; i++) {
+    if (prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
+        prevToolResults[i].result.success !== nextToolResults[i].result.success) {
+      return false
+    }
+  }
+
+  // Compare files array (by length and IDs)
+  const prevFiles = prevMsg.files || []
+  const nextFiles = nextMsg.files || []
+  if (prevFiles.length !== nextFiles.length) {
+    return false
+  }
+  for (let i = 0; i < prevFiles.length; i++) {
+    if (prevFiles[i].id !== nextFiles[i].id) {
+      return false
+    }
+  }
+
+  // Compare usage stats
+  if (prevMsg.usage?.inputTokens !== nextMsg.usage?.inputTokens ||
+      prevMsg.usage?.outputTokens !== nextMsg.usage?.outputTokens ||
+      prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens) {
+    return false
+  }
+
+  // Compare latency
+  if (prevMsg.latency !== nextMsg.latency) {
+    return false
+  }
+
+  // Compare finish reason
+  if (prevMsg.finishReason !== nextMsg.finishReason) {
+    return false
+  }
+
+  // Compare requested max tokens
+  if (prevMsg.requestedMaxTokens !== nextMsg.requestedMaxTokens) {
+    return false
+  }
+
+  // All props are equal - do NOT re-render
+  return true
+}
+
+/**
+ * Main MessageRenderer component
+ * 
+ * Wrapped with React.memo() using a custom comparison function to prevent
+ * unnecessary re-renders when parent components re-render with unchanged props.
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ */
+function MessageRendererComponent({
   message,
   isStreaming = false,
   onCopy,
@@ -420,6 +799,55 @@ export function MessageRenderer({
 
   const displayMessage = getVersionContent()
   const processedContent = convertUrlsToMarkdownLinks(displayMessage?.content || '')
+
+  // Build web source map from tool results
+  const webSourceMap = useMemo(() => {
+    const map = new Map<string, WebSource>()
+    if (!message.toolResults) return map
+    for (const tr of message.toolResults) {
+      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+        const results = tr.result.data.results || tr.result.data
+        if (Array.isArray(results)) {
+          for (const entry of results) {
+            if (entry.url) {
+              map.set(entry.url, {
+                title: entry.title || '',
+                url: entry.url,
+                snippet: entry.snippet || entry.description || '',
+                favicon: entry.favicon || ''
+              })
+            }
+          }
+        }
+      }
+    }
+    return map
+  }, [message.toolResults])
+
+  // Extract all images from web_search tool results
+  const webSearchImages = useMemo(() => {
+    const images: Array<{ url: string; description?: string }> = []
+    if (!message.toolResults) return images
+    for (const tr of message.toolResults) {
+      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+        const resultImages = tr.result.data.images || []
+        if (Array.isArray(resultImages)) {
+          for (const img of resultImages) {
+            if (typeof img === 'string') {
+              images.push({ url: img })
+            } else if (img?.url) {
+              images.push({
+                url: img.url,
+                description: img.description || img.alt || undefined
+              })
+            }
+          }
+        }
+      }
+    }
+    return images
+  }, [message.toolResults])
+
   const isUser = message.role === 'user'
   const hasThinking = typeof (message as any).thinking === 'string' && (message as any).thinking.trim().length > 0
   const showThinkingSpinner = isStreaming && !hasThinking
@@ -534,7 +962,7 @@ export function MessageRenderer({
 
   // Render user message
   if (isUser) {
-    return <UserMessageBubble message={message} />
+    return <UserMessageBubble message={message} bubbleStyle={settings.chatBubbleStyle || 'solid'} />
   }
 
   // Render assistant message
@@ -559,12 +987,20 @@ export function MessageRenderer({
         </div>
       )}
 
+      {/* Web Search Image Carousel - shown after thinking ends, before message content */}
+      {!isStreaming && webSearchImages.length > 0 && (
+        <WebSearchImageCarousel images={webSearchImages} />
+      )}
+
       {/* Message content - only show when not streaming or when content has arrived */}
       {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
-        <div className="markdown-content" style={{ color: '#e0e0e0', lineHeight: '1.7', fontSize: '0.95rem' }}>
-          <LazyMarkdown content={processedContent} />
+        <div className="markdown-content">
+          <LazyMarkdown content={processedContent} webSources={webSourceMap} />
         </div>
       )}
+
+      {/* Separator - added when model is done streaming to separate response from post-streaming tasks */}
+      {!isStreaming && message.content && <Separator orientation="horizontal" style={{ width: '25%', margin: '16px 0' }} />}
 
       {/* Action Bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
@@ -757,6 +1193,8 @@ export function MessageRenderer({
               model={message.model || settings.aiModel}
               latency={message.latency}
               usage={message.usage}
+              finishReason={message.finishReason}
+              requestedMaxTokens={message.requestedMaxTokens}
             />
           </div>
         )}
@@ -948,5 +1386,23 @@ export function MessageRenderer({
     </div>
   )
 }
+
+/**
+ * Memoized MessageRenderer component
+ * 
+ * Uses React.memo() with a custom comparison function (areMessagePropsEqual)
+ * to prevent unnecessary re-renders when parent components re-render with
+ * unchanged message props.
+ * 
+ * **Validates: Requirements 5.2**
+ * **Property 21: Message Component Memoization**
+ * 
+ * For any parent component re-render with unchanged message props,
+ * the Message component SHALL not re-render.
+ */
+export const MessageRenderer = memo(MessageRendererComponent, areMessagePropsEqual)
+
+// Set display name for debugging
+MessageRenderer.displayName = 'MessageRenderer'
 
 export default MessageRenderer

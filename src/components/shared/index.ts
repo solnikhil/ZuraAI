@@ -19,6 +19,13 @@ export {
   ToastProvider,
   ToastContext,
   useToast,
-  type Toast,
   type ToastType
 } from './Toast'
+
+export {
+  LazyImage,
+  injectLazyImageStyles,
+  lazyImageStyles,
+  type LazyImageProps,
+  type PlaceholderType
+} from './LazyImage'

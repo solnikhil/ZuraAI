@@ -93,6 +93,9 @@ export interface GeminiRequestOptions {
     
     // Streaming callback
     onChunk?: (chunk: GeminiStreamChunk) => void
+
+    // Abort signal
+    signal?: AbortSignal
 }
 
 export interface GeminiResponse {
@@ -398,7 +401,8 @@ export async function* streamGeminiCompletion(
                     "Content-Type": "application/json",
                     "x-goog-api-key": apiKey
                 },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
+                signal: options?.signal
             }
         )
 

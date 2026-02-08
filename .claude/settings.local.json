@@ -31,7 +31,16 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(npx eslint:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(tasklist:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "WebFetch(domain:kokonutui.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "Bash(git status:*)",
+      "Bash(ls -la \"C:\\\\Users\\\\Nikhil\\\\Desktop\\\\Zura\\\\ZuraAI\\\\src\\\\components\\\\Dashboard\\\\Sidebar\"\" 2>/dev/null || echo \"Directory does not exist yet \")",
+      "Bash(node node_modules/electron/install.js:*)"
     ]
   }
 }

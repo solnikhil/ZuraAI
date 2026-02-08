@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useSettings } from './SettingsContext'
 
-export type DashboardView = 'chat' | 'pdf' | 'settings'
+export type DashboardView = 'chat' | 'settings'
 
 interface AppShellContextType {
     dashboardView: DashboardView
@@ -30,13 +30,14 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
     'models',
     'themes',
     'preferences',
-    'commandbar',
-    'rag',
+    'systemprompt',
+    'experimental',
 ])
 
 function normalizeSettingsSection(section: string | null): string | null {
     if (!section) return null
     if (section === 'tools') return 'preferences'
+    if (section === 'commandbar') return 'themes'
     const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
     return normalized
 }
@@ -44,7 +45,7 @@ function normalizeSettingsSection(section: string | null): string | null {
 function readStoredDashboardView(): DashboardView | null {
 
     const raw = localStorage.getItem(STORAGE_KEYS.dashboardView)
-    if (raw === 'chat' || raw === 'pdf' || raw === 'settings') return raw
+    if (raw === 'chat' || raw === 'settings') return raw
     return null
 }
 

@@ -1,23 +1,22 @@
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
-import { PanelLeft } from './icons'
+import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
+import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
     models: 'Models',
-    themes: 'Themes',
+    themes: 'Appearance',
     preferences: 'API Keys',
     tools: 'Tools',
-    commandbar: 'Command Bar',
     systemprompt: 'System Prompt',
-    rag: 'PDF RAG',
 }
 
 function getModelDisplayName(settings: Settings): string {
@@ -43,11 +42,11 @@ export default function TitleBar() {
         setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
-        sidebarCollapsed,
-        toggleSidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
+    const { settingsUI } = useSettingsUI()
+    const { frostedSidebar } = settingsUI
     const { showToast } = useToast()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
@@ -89,8 +88,9 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
+    const sidebarWidthPx = sidebarHidden ? 0 : 260
 
-    const handleDashboardTabChange = (nextView: 'chat' | 'pdf') => {
+    const handleDashboardTabChange = (nextView: 'chat') => {
         if (dashboardView === nextView) return
 
         if (hasUnsavedSettings && dashboardView === 'settings') {
@@ -105,24 +105,72 @@ export default function TitleBar() {
             }
             return
         }
-
-        if (nextView === 'pdf') {
-            setDashboardView('pdf')
-            if (!isDashboardRoute) {
-                navigate('/dashboard')
-            }
-        }
     }
 
-    const showDashboardTabs = (isDashboardRoute || isLegacyChatRoute) && dashboardView !== 'settings'
+    const showDashboardTabs = false
+
+    // Detect macOS platform
+    const isMacOS = useMemo(() => {
+        return navigator.platform.toLowerCase().includes('mac')
+    }, [])
+
+    // Window maximize state
+    const [isMaximized, setIsMaximized] = useState(false)
+
+    useEffect(() => {
+        if (!window.windowControls) return
+        // Check initial state
+        window.windowControls.isMaximized().then(setIsMaximized).catch(() => {})
+        // Listen for state changes
+        const cleanup = window.windowControls.onWindowState((state) => {
+            setIsMaximized(state.isMaximized)
+        })
+        return cleanup
+    }, [])
+
+    const handleToggleMaximize = useCallback(() => {
+        window.windowControls?.toggleMaximize().then(() => {
+            // Re-check state after toggle
+            window.windowControls?.isMaximized().then(setIsMaximized).catch(() => {})
+        }).catch(() => {})
+    }, [])
+
+    const handleMinimize = useCallback(() => {
+        window.windowControls?.minimize().catch(() => {})
+    }, [])
+
+    const handleClose = useCallback(() => {
+        window.windowControls?.close().catch(() => {})
+    }, [])
+
+    const handleTitleBarDoubleClick = useCallback((e: React.MouseEvent) => {
+        // Only trigger on the titlebar itself, not on buttons/controls
+        if ((e.target as HTMLElement).closest('.no-drag')) return
+        handleToggleMaximize()
+    }, [handleToggleMaximize])
 
     return (
         <div
             className={[
                 'app-titlebar',
                 density === 'compact' ? 'app-titlebar--compact' : null,
+                isMacOS ? 'app-titlebar--macos' : null,
+                !isMacOS ? 'app-titlebar--custom-controls' : null,
+                frostedSidebar ? 'app-titlebar--frosted' : null,
             ].filter(Boolean).join(' ')}
+            style={{}}
+            onDoubleClick={handleTitleBarDoubleClick}
         >
+            {/* Solid background for the content (right) side of the titlebar in frosted mode */}
+            {frostedSidebar && isDashboardRoute && (
+                <div
+                    className="app-titlebar__content-bg"
+                    style={{
+                        left: `${sidebarWidthPx}px`,
+                    }}
+                />
+            )}
+
             <div className="app-titlebar__left">
                 {isDashboardRoute && (
                     <div className="app-titlebar__controls no-drag">
@@ -135,15 +183,6 @@ export default function TitleBar() {
                         >
                             {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
                         </button>
-                        <button
-                            type="button"
-                            className="app-titlebar__icon-btn"
-                            onClick={toggleSidebarCollapsed}
-                            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                        >
-                            <PanelLeft size={18} />
-                        </button>
                     </div>
                 )}
                 {hasUnsavedSettings && dashboardView === 'settings' && (
@@ -152,36 +191,7 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__middle">
-                {showDashboardTabs && (
-                    <div className="app-titlebar__tab-group no-drag" role="tablist" aria-label="Dashboard views">
-                        <button
-                            type="button"
-                            className={[
-                                'app-titlebar__tab',
-                                dashboardView === 'chat' ? 'app-titlebar__tab--active' : null,
-                            ].filter(Boolean).join(' ')}
-                            role="tab"
-                            aria-selected={dashboardView === 'chat'}
-                            aria-label="Chat"
-                            onClick={() => handleDashboardTabChange('chat')}
-                        >
-                            Chat
-                        </button>
-                        <button
-                            type="button"
-                            className={[
-                                'app-titlebar__tab',
-                                dashboardView === 'pdf' ? 'app-titlebar__tab--active' : null,
-                            ].filter(Boolean).join(' ')}
-                            role="tab"
-                            aria-selected={dashboardView === 'pdf'}
-                            aria-label="PDF"
-                            onClick={() => handleDashboardTabChange('pdf')}
-                        >
-                            PDF
-                        </button>
-                    </div>
-                )}
+                {/* Tab group removed - only chat view remains */}
             </div>
 
             <div className="app-titlebar__center">
@@ -193,6 +203,15 @@ export default function TitleBar() {
                     <span className="app-titlebar__model no-drag" title={settings.aiModel}>
                         {modelDisplayName}
                     </span>
+                )}
+                {/* Windows: always render custom window controls since native overlay is disabled */}
+                {!isMacOS && (
+                    <WindowControlButtons
+                        isMaximized={isMaximized}
+                        onMinimize={handleMinimize}
+                        onToggleMaximize={handleToggleMaximize}
+                        onClose={handleClose}
+                    />
                 )}
             </div>
         </div>

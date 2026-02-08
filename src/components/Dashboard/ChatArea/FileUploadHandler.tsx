@@ -7,6 +7,7 @@
 
 import React, { useRef } from 'react'
 import { X, Image, File, FileText } from '../../icons'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export interface AttachedFile {
   id: string
@@ -63,7 +64,7 @@ export async function processFiles(
       newFiles.push({
         id: `${Date.now()}-${i}`,
         name: file.name,
-        type: file.type.startsWith('image/') ? 'image' : file.type === 'application/pdf' ? 'pdf' : 'file',
+        type: file.type.startsWith('image/') ? 'image' : 'file',
         size: file.size,
         data: base64Data,
         mimeType: file.type
@@ -106,19 +107,18 @@ function ImagePreviewModal({
       }}
       onClick={onClose}
     >
-      <div
+      <ScrollArea
         style={{
           backgroundColor: 'var(--theme-surface)',
           borderRadius: '12px',
-          padding: '24px',
           width: '90%',
           maxWidth: '800px',
           maxHeight: '90%',
-          overflowY: 'auto',
           boxShadow: 'var(--theme-shadow-lg)',
           position: 'relative',
           color: 'var(--theme-text-secondary)'
         }}
+        viewportStyle={{ padding: '24px' }}
         onClick={e => e.stopPropagation()}
       >
         <button
@@ -223,7 +223,7 @@ function ImagePreviewModal({
             </div>
           ))}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   )
 }
@@ -236,7 +236,7 @@ export function FileUploadHandler({
   onFilesChange,
   maxFiles = 10,
   maxSizeBytes = 20 * 1024 * 1024,
-  acceptedTypes = ['image/*', '.pdf', '.txt', '.doc', '.docx', '.csv', '.json', '.xml'],
+  acceptedTypes = ['image/*', '.txt', '.doc', '.docx', '.csv', '.json', '.xml'],
   onError
 }: FileUploadHandlerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)

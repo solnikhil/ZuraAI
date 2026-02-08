@@ -9,6 +9,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { ChevronDown, Search, Check } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useDropdownPosition, calculateMaxHeight, getDropdownTransform, getDropdownAnimation } from '../../hooks/useDropdownPosition'
 
 /**
@@ -287,9 +288,10 @@ export function CustomModelSelect({
           </div>
 
           {/* Content Section */}
-          <div
+          <ScrollArea
             className="custom-scrollbar"
-            style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}
+            style={{ maxHeight: '300px' }}
+            viewportStyle={{ paddingRight: '4px' }}
           >
             {renderGroup('Gemini', groupedModels.Gemini)}
             {renderGroup('Groq', groupedModels.Groq)}
@@ -302,7 +304,7 @@ export function CustomModelSelect({
                 No models found
               </div>
             )}
-          </div>
+          </ScrollArea>
         </div>,
         document.body
       )}

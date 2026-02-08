@@ -88,7 +88,7 @@ interface OpenRouterRequestBody {
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
-    tool_choice?: 'auto' | 'none' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+    tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
     reasoning?: {
         max_tokens?: number
         effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
@@ -106,7 +106,7 @@ export async function generateOpenRouterCompletion(
         maxTokens?: number
         stream?: boolean
         tools?: ToolDefinition[]
-        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+        toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         reasoning?: {
             max_tokens?: number
             effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
@@ -135,7 +135,11 @@ export async function generateOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = options.toolChoice ?? 'auto'
+        // Only set tool_choice if explicitly provided - let OpenRouter use provider defaults otherwise
+        // Some providers don't support 'auto', so we only set it when explicitly requested
+        if (options.toolChoice !== undefined) {
+            requestBody.tool_choice = options.toolChoice
+        }
     }
     if (options?.reasoning) {
         requestBody.reasoning = options.reasoning
@@ -169,7 +173,7 @@ export async function* streamOpenRouterCompletion(
         temperature?: number
         maxTokens?: number
         tools?: ToolDefinition[]
-        toolChoice?: 'auto' | 'any' | 'required' | { type: 'function'; function: { name: string } }
+        toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: OpenRouterStreamChunk) => void
         reasoning?: {
             max_tokens?: number
@@ -177,6 +181,7 @@ export async function* streamOpenRouterCompletion(
             exclude?: boolean
             enabled?: boolean
         }
+        signal?: AbortSignal
     }
 ): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
     if (!apiKey) {
@@ -197,7 +202,11 @@ export async function* streamOpenRouterCompletion(
     }
     if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
         requestBody.tools = options.tools
-        requestBody.tool_choice = options.toolChoice ?? 'auto'
+        // Only set tool_choice if explicitly provided - let OpenRouter use provider defaults otherwise
+        // Some providers don't support 'auto', so we only set it when explicitly requested
+        if (options.toolChoice !== undefined) {
+            requestBody.tool_choice = options.toolChoice
+        }
     }
     if (options?.reasoning) {
         requestBody.reasoning = options.reasoning
@@ -209,7 +218,8 @@ export async function* streamOpenRouterCompletion(
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {

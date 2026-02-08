@@ -99,6 +99,19 @@
     white-space: nowrap;
 }
 
+.search-result-date {
+    color: #888;
+    font-size: 0.7rem;
+    margin-left: 4px;
+}
+
+.search-result-source {
+    font-size: 0.7rem;
+    color: #777;
+    margin-top: 2px;
+    font-style: italic;
+}
+
 .search-result-snippet {
     margin: 8px 0 0;
     font-size: 0.85rem;

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
-  ChartNoAxesCombined, Cpu, Box, Key, Command, FileText
+  ChartNoAxesCombined, Cpu, Box, Key, Command, FlaskConical, FileText
 } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -18,18 +19,69 @@ import {
   normalizeCommandQuery
 } from '../commandBar/suggestions'
 
+// KokonutUI-style animation variants
+const DROPDOWN_VARIANTS = {
+  hidden: { opacity: 0, height: 0 },
+  show: {
+    opacity: 1,
+    height: 'auto',
+    transition: {
+      height: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+      opacity: { duration: 0.3 },
+      staggerChildren: 0.06,
+      delayChildren: 0.05,
+    },
+  },
+  exit: {
+    opacity: 0,
+    height: 0,
+    transition: {
+      height: { duration: 0.3, ease: [0.4, 0, 0.2, 1] },
+      opacity: { duration: 0.2 },
+    },
+  },
+} as const
+
+const ITEM_VARIANTS = {
+  hidden: { opacity: 0, y: 16 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.2 },
+  },
+} as const
+
+const SECTION_VARIANTS = {
+  hidden: { opacity: 0, y: 10 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.15 },
+  },
+} as const
+
 function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconClass: string } {
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
-  if (suggestion.id === 'go-pdf') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Settings section actions
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-models') return { Icon: Cpu, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-themes') return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-preferences') return { Icon: Key, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-systemprompt') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'go-settings-experimental') return { Icon: FlaskConical, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Create actions
   if (suggestion.id === 'new-chat') return { Icon: Plus, iconClass: 'app-titlebar__commandbar-item-icon--create' }
@@ -117,7 +169,9 @@ const COMMAND_AUTOCOMPLETE_KEYWORDS: Record<string, string> = {
   'go-settings-models': 'model settings',
   'go-settings-themes': 'theme settings',
   'go-settings-preferences': 'api keys',
+  'go-settings-systemprompt': 'system prompt settings',
   'go-settings-commandbar': 'command bar settings',
+  'go-settings-experimental': 'experimental settings',
   'new-chat': 'new chat',
   'toggle-sidebar-hidden': 'toggle sidebar',
   'toggle-sidebar-collapsed': 'toggle sidebar collapse',
@@ -186,7 +240,6 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   const [query, setQuery] = useState('')
   const [isFocused, setIsFocused] = useState(false)
-  const [isClosing, setIsClosing] = useState(false)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [history, setHistory] = useState<CommandBarHistoryEntry[]>(() => loadCommandBarHistory())
 
@@ -284,20 +337,6 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   }, [baseSuggestions, maxSuggestions, recentSuggestions])
 
   const shouldShowDropdown = isFocused && suggestions.length > 0
-  const isOpen = shouldShowDropdown || isClosing
-
-  // Handle closing animation
-  useEffect(() => {
-    if (!shouldShowDropdown && !isClosing) return
-    if (shouldShowDropdown) {
-      setIsClosing(false)
-      return
-    }
-    // Trigger closing animation
-    setIsClosing(true)
-    const timer = setTimeout(() => setIsClosing(false), 150)
-    return () => clearTimeout(timer)
-  }, [shouldShowDropdown, isClosing])
 
   useEffect(() => {
     setHighlightIndex(0)
@@ -354,7 +393,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isFocused])
 
-  const ensureDashboardView = (view: 'chat' | 'pdf' | 'settings') => {
+  const ensureDashboardView = (view: 'chat' | 'settings') => {
     if (dashboardView === view) return
 
     if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {
@@ -563,7 +602,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       return
     }
 
-    if (!isOpen && event.key === 'Enter') {
+    if (!shouldShowDropdown && event.key === 'Enter') {
       event.preventDefault()
       if (suggestions.length === 0) {
         showToast('No matching commands', 'info')
@@ -615,10 +654,13 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   const renderSuggestionItem = (suggestion: CommandBarSuggestion, index: number, isRecent: boolean = false) => {
     const isActive = index === highlightIndex
+    const { Icon, iconClass } = getSuggestionIcon(suggestion)
 
     return (
-      <div
+      <motion.div
         key={suggestion.id}
+        variants={ITEM_VARIANTS}
+        layout
         className={[
           'app-titlebar__commandbar-item',
           isActive ? 'app-titlebar__commandbar-item--active' : null,
@@ -633,12 +675,15 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
         }}
       >
         <div className="app-titlebar__commandbar-item-text">
-          <div className="app-titlebar__commandbar-item-title">{suggestion.title}</div>
+          <span className={['app-titlebar__commandbar-item-icon', iconClass].filter(Boolean).join(' ')}>
+            <Icon size={16} />
+          </span>
+          <span className="app-titlebar__commandbar-item-title">{suggestion.title}</span>
           {!isRecent && suggestion.subtitle && (
-            <div className="app-titlebar__commandbar-item-subtitle">{suggestion.subtitle}</div>
+            <span className="app-titlebar__commandbar-item-subtitle">{suggestion.subtitle}</span>
           )}
         </div>
-      </div>
+      </motion.div>
     )
   }
 
@@ -690,65 +735,78 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
         )}
       </div>
 
-      {isOpen && (
-        <div
-          className={`app-titlebar__commandbar-dropdown ${isClosing ? 'app-titlebar__commandbar-dropdown--closing' : ''}`}
-          role="listbox"
-        >
-          {hasRecentsSection && (
-            <>
-              <div
-                className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  toggleRecentsCollapsed()
-                }}
-              >
-                <div className="app-titlebar__commandbar-section-label">Recent</div>
-                <ChevronDown
-                  size={12}
-                  style={{
-                    transform: recentsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.15s ease',
-                    opacity: 0.5
+      <AnimatePresence>
+        {shouldShowDropdown && (
+          <motion.div
+            className="app-titlebar__commandbar-dropdown"
+            role="listbox"
+            variants={DROPDOWN_VARIANTS}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+          >
+            {hasRecentsSection && (
+              <>
+                <motion.div
+                  variants={SECTION_VARIANTS}
+                  className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleRecentsCollapsed()
                   }}
-                />
-              </div>
-              {!recentsCollapsed && recentsToRender.map((suggestion, index) =>
-                renderSuggestionItem(suggestion, index, true)
-              )}
-            </>
-          )}
+                >
+                  <div className="app-titlebar__commandbar-section-label">Recent</div>
+                  <motion.div
+                    animate={{ rotate: recentsCollapsed ? -90 : 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <ChevronDown size={12} style={{ opacity: 0.5 }} />
+                  </motion.div>
+                </motion.div>
+                <AnimatePresence>
+                  {!recentsCollapsed && recentsToRender.map((suggestion, index) =>
+                    renderSuggestionItem(suggestion, index, true)
+                  )}
+                </AnimatePresence>
+              </>
+            )}
 
-          {otherSuggestionsToRender.length > 0 && (
-            <>
-              {hasRecentsSection && <div className="app-titlebar__commandbar-divider" />}
-              <div
-                className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  toggleShortcutsCollapsed()
-                }}
-              >
-                <div className="app-titlebar__commandbar-section-label">Shortcuts</div>
-                <ChevronDown
-                  size={12}
-                  style={{
-                    transform: shortcutsCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.15s ease',
-                    opacity: 0.5
+            {otherSuggestionsToRender.length > 0 && (
+              <>
+                {hasRecentsSection && (
+                  <motion.div
+                    variants={SECTION_VARIANTS}
+                    className="app-titlebar__commandbar-divider"
+                  />
+                )}
+                <motion.div
+                  variants={SECTION_VARIANTS}
+                  className="app-titlebar__commandbar-section app-titlebar__commandbar-section--clickable"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleShortcutsCollapsed()
                   }}
-                />
-              </div>
-              {!shortcutsCollapsed && otherSuggestionsToRender.map((suggestion, index) =>
-                renderSuggestionItem(suggestion, recentsCount + index, false)
-              )}
-            </>
-          )}
-        </div>
-      )}
+                >
+                  <div className="app-titlebar__commandbar-section-label">Shortcuts</div>
+                  <motion.div
+                    animate={{ rotate: shortcutsCollapsed ? -90 : 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <ChevronDown size={12} style={{ opacity: 0.5 }} />
+                  </motion.div>
+                </motion.div>
+                <AnimatePresence>
+                  {!shortcutsCollapsed && otherSuggestionsToRender.map((suggestion, index) =>
+                    renderSuggestionItem(suggestion, recentsCount + index, false)
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

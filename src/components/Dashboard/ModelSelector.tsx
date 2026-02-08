@@ -5,6 +5,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { getModelAttributes } from '../../utils/modelUtils'
 import { removeEmojis } from '../../utils/textUtils'
 import { ProviderLogo } from '../shared'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface ModelWithProvider {
     code: string
@@ -242,7 +243,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                 background: size === 24 ? `linear-gradient(145deg, ${color}22, transparent)` : 'transparent',
                 color: color
             }}>
-                {React.cloneElement(icon as React.ReactElement, { size: size === 24 ? 20 : 14 })}
+                {React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: size === 24 ? 20 : 14 })}
             </div>
         )
     }
@@ -876,7 +877,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                                                 }} 
                                             />
                                         ) : (
-                                            React.cloneElement(provider.icon as React.ReactElement, { size: 16 })
+                                            React.cloneElement(provider.icon as React.ReactElement<{ size?: number }>, { size: 16 })
                                         )}
                                     </button>
                                 ))}
@@ -884,14 +885,13 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         </div>
 
                         {/* Right Side: Available Models with fade effect */}
-                        <div 
+                        <ScrollArea
                             className="custom-scrollbar"
-                            style={{ 
-                                flex: 1, 
-                                overflowY: 'auto',
-                                paddingLeft: '12px',
+                            style={{
+                                flex: 1,
                                 position: 'relative'
                             }}
+                            viewportStyle={{ paddingLeft: '12px' }}
                         >
                             {/* Right fade gradient */}
                             <div style={{
@@ -950,7 +950,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                                                                     }} 
                                                                 />
                                                             ) : (
-                                                                React.cloneElement(provider.icon as React.ReactElement, { size: 12 })
+                                                                React.cloneElement(provider.icon as React.ReactElement<{ size?: number }>, { size: 12 })
                                                             )}
                                                             {provider.title}
                                                         </>
@@ -988,7 +988,7 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </ScrollArea>
                     </div>
                 </div>,
                 document.body

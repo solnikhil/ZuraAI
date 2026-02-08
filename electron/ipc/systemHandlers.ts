@@ -2,13 +2,16 @@ import { ipcMain, BrowserWindow, desktopCapturer, screen, app } from 'electron'
 import { spawn, exec } from 'child_process'
 import {
   setTitleBarOverlay,
+  setNativeBlur,
   createMainWindow,
+  getMainWindow,
   getOverlayWindow,
   hideOverlay,
   setCurrentScreenshot,
   getCurrentScreenshot,
   clearScreenshot,
 } from '../windows'
+import { memoryMonitor, type MemoryMetrics } from '../performance/memoryMonitor'
 
 const MAX_SCREENSHOT_EDGE = 2560
 const MAX_CROP_EDGE = 1536
@@ -38,6 +41,11 @@ export function registerSystemHandlers(): void {
     const safeHeight = parsedHeight !== undefined && parsedHeight >= 28 && parsedHeight <= 64 ? parsedHeight : undefined
 
     setTitleBarOverlay(color, symbolColor, safeHeight)
+  })
+
+  // Native blur toggle (acrylic on Windows, vibrancy on macOS)
+  ipcMain.on('set-native-blur', (_event, enabled: boolean) => {
+    setNativeBlur(!!enabled)
   })
 
   // Screen capture handler
@@ -163,6 +171,86 @@ export function registerSystemHandlers(): void {
     }))
   })
 
+  // Memory monitoring handlers (Requirements 4.6, 6.6)
+  // Get current memory metrics from the main process
+  ipcMain.handle('memory:get-metrics', (): MemoryMetrics => {
+    return memoryMonitor.getMemoryMetrics()
+  })
+
+  // Force memory cleanup (triggers garbage collection and cleanup callbacks)
+  ipcMain.handle('memory:force-cleanup', () => {
+    memoryMonitor.triggerCleanup()
+    return { success: true, timestamp: Date.now() }
+  })
+
+  // Window controls handlers
+  ipcMain.handle('window-controls:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+
+  ipcMain.handle('window-controls:toggle-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    if (win.isMaximized()) {
+      win.unmaximize()
+    } else {
+      win.maximize()
+    }
+  })
+
+  ipcMain.handle('window-controls:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
+  })
+
+  ipcMain.handle('window-controls:is-maximized', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return false
+    return win.isMaximized()
+  })
+
+  // Window resize handler (for transparent/frosted windows that lose native resize handles)
+  ipcMain.handle('window-resize', (event, newBounds: unknown) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+
+    // Validate that newBounds is an object with the required properties
+    if (
+      typeof newBounds !== 'object' ||
+      newBounds === null ||
+      !('x' in newBounds) ||
+      !('y' in newBounds) ||
+      !('width' in newBounds) ||
+      !('height' in newBounds)
+    ) {
+      return
+    }
+
+    const bounds = newBounds as { x: unknown; y: unknown; width: unknown; height: unknown }
+
+    // Validate all values are finite numbers
+    const x = Number(bounds.x)
+    const y = Number(bounds.y)
+    const width = Number(bounds.width)
+    const height = Number(bounds.height)
+
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+      return
+    }
+
+    // Clamp to minimum window dimensions
+    const MIN_WIDTH = 900
+    const MIN_HEIGHT = 600
+
+    const clampedBounds = {
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.max(MIN_WIDTH, Math.round(width)),
+      height: Math.max(MIN_HEIGHT, Math.round(height)),
+    }
+
+    win.setBounds(clampedBounds)
+  })
+
   // Spawn terminal with command handler
   ipcMain.on('spawn-terminal-command', (_event, command, args) => {
     console.log('[SYSTEM] Spawning terminal command:', { command, args, platform: process.platform })
@@ -206,11 +294,19 @@ export function registerSystemHandlers(): void {
  */
 export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('set-titlebar-overlay')
+  ipcMain.removeAllListeners('set-native-blur')
   ipcMain.removeHandler('capture-screen')
   ipcMain.removeHandler('crop-screenshot')
   ipcMain.removeAllListeners('close-overlay')
   ipcMain.removeAllListeners('set-ignore-mouse-events')
   ipcMain.removeAllListeners('open-settings')
   ipcMain.removeHandler('get-process-metrics')
+  ipcMain.removeHandler('memory:get-metrics')
+  ipcMain.removeHandler('memory:force-cleanup')
   ipcMain.removeAllListeners('spawn-terminal-command')
+  ipcMain.removeHandler('window-resize')
+  ipcMain.removeHandler('window-controls:minimize')
+  ipcMain.removeHandler('window-controls:toggle-maximize')
+  ipcMain.removeHandler('window-controls:close')
+  ipcMain.removeHandler('window-controls:is-maximized')
 }

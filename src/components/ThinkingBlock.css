@@ -115,74 +115,8 @@
 }
 
 
-/* ==== THINKING DOTS (LOADING STATE) ==== */
-
-.thinking-dot {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    position: relative;
-    padding: 2px 0;
-}
-
-.thinking-dot::before,
-.thinking-dot::after {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.7);
-}
-
-.thinking-dot::before {
-    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    animation-delay: 0s;
-}
-
-.thinking-dot .middle-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.7);
-    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    animation-delay: 0.15s;
-}
-
-.thinking-dot::after {
-    animation: thinkingWave 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    animation-delay: 0.3s;
-}
-
-/* Searching state - blue color */
-.thinking-dot.searching-dot::before,
-.thinking-dot.searching-dot::after,
-.thinking-dot.searching-dot .middle-dot {
-    background: rgba(59, 130, 246, 0.9);
-}
-
-@keyframes thinkingWave {
-
-    0%,
-    100% {
-        transform: translateY(0) scale(1);
-        opacity: 0.5;
-    }
-
-    25% {
-        transform: translateY(-6px) scale(1.1);
-        opacity: 1;
-    }
-
-    50% {
-        transform: translateY(0) scale(1);
-        opacity: 0.7;
-    }
-
-    75% {
-        transform: translateY(2px) scale(0.95);
-        opacity: 0.4;
-    }
-}
+/* ==== AI TEXT LOADING (replaces dots) ==== */
+/* Animation is handled by the AITextLoading component using framer-motion */
 
 
 /* ==== CHEVRON ICON ==== */
@@ -210,6 +144,22 @@
     padding-left: 16px;
     margin-left: 4px;
     animation: thinkingFadeIn 0.2s ease;
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, padding 0.3s ease, margin 0.3s ease;
+}
+
+.thinking-block:not(.expanded) .thinking-content {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.thinking-block.expanded .thinking-content {
+    max-height: 2000px;
+    opacity: 1;
 }
 
 @keyframes thinkingFadeIn {

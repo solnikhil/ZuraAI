@@ -1,7 +1,7 @@
 // OpenRouter/OpenAI Function Calling Adapter
 // Converts tool definitions to OpenAI-compatible format
 
-import { ToolDefinition } from '../definitions'
+import { ToolDefinition, getToolByName } from '../definitions'
 import { 
     ToolCall,
     ToolResult,
@@ -101,6 +101,99 @@ function isJsonComplete(str: string): boolean {
     return depth === 0 && !inString
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function stripOuterQuotes(value: string): string {
+    return value.replace(/^['"]|['"]$/g, '').trim()
+}
+
+function wrapPrimitiveArgs(toolName: string, value: unknown): Record<string, unknown> | null {
+    const toolDef = getToolByName(toolName)
+    if (!toolDef) return null
+
+    const requiredParams = toolDef.parameters.required || []
+    if (requiredParams.length !== 1) return null
+
+    return { [requiredParams[0]]: value }
+}
+
+function extractFallbackArgs(toolName: string, rawArgs: string): Record<string, unknown> | null {
+    const toolDef = getToolByName(toolName)
+    if (!toolDef) return null
+
+    const requiredParams = toolDef.parameters.required || []
+    if (requiredParams.length !== 1) return null
+
+    const key = requiredParams[0]
+    const trimmed = rawArgs.trim()
+    if (!trimmed) return null
+
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+        const keyPattern = escapeRegExp(key)
+        const bareMatch = trimmed.match(new RegExp(`^${keyPattern}\\s*[:=]\\s*(.+)$`, 'i'))
+        if (bareMatch?.[1]?.trim()) {
+            const value = stripOuterQuotes(bareMatch[1].trim())
+            return value ? { [key]: value } : null
+        }
+
+        const value = stripOuterQuotes(trimmed)
+        return value ? { [key]: value } : null
+    }
+
+    const keyPattern = escapeRegExp(key)
+    const quotedMatch = trimmed.match(new RegExp(`["']${keyPattern}["']\\s*:\\s*["']([^"']*)`, 'i'))
+    if (quotedMatch?.[1]?.trim()) {
+        return { [key]: quotedMatch[1].trim() }
+    }
+
+    const unquotedMatch = trimmed.match(new RegExp(`${keyPattern}\\s*:\\s*([^,}\\n]+)`, 'i'))
+    if (unquotedMatch?.[1]?.trim()) {
+        const value = stripOuterQuotes(unquotedMatch[1].trim())
+        return value ? { [key]: value } : null
+    }
+
+    return null
+}
+
+function normalizeParsedArgs(toolName: string, parsed: unknown): Record<string, unknown> | null {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+    }
+
+    return wrapPrimitiveArgs(toolName, parsed)
+}
+
+function parseToolArguments(toolName: string, rawArgs: string): Record<string, unknown> | null {
+    const argsStr = rawArgs?.trim() || ''
+    if (!argsStr) return null
+
+    if (isJsonComplete(argsStr)) {
+        try {
+            const parsed = JSON.parse(argsStr)
+            const normalized = normalizeParsedArgs(toolName, parsed)
+            if (normalized) {
+                return normalized
+            }
+        } catch (e) {
+            console.warn('[openrouter] Failed to parse tool arguments, falling back:', {
+                tool: toolName,
+                error: e instanceof Error ? e.message : String(e),
+                args: argsStr.slice(0, 200)
+            })
+        }
+    } else {
+        console.warn('[openrouter] Incomplete JSON for tool call, falling back:', {
+            tool: toolName,
+            argsLength: argsStr.length,
+            argsPreview: argsStr.slice(0, 100)
+        })
+    }
+
+    return extractFallbackArgs(toolName, argsStr)
+}
+
 /**
  * Parse tool calls from OpenRouter/OpenAI response
  */
@@ -111,34 +204,28 @@ export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall
         return []
     }
 
-    return message.tool_calls.map((tc: OpenRouterToolCall) => {
-        let args: Record<string, unknown> = {}
-        try {
-            const argsStr = tc.function.arguments || ''
-            // Only attempt to parse if JSON appears complete
-            if (isJsonComplete(argsStr)) {
-                args = JSON.parse(argsStr)
-            } else {
-                console.warn('[openrouter] Incomplete JSON for tool call, skipping:', {
-                    tool: tc.function.name,
-                    argsLength: argsStr.length,
-                    argsPreview: argsStr.slice(0, 100)
-                })
-            }
-        } catch (e) {
-            console.error('[openrouter] Failed to parse tool arguments:', {
+    const toolCalls: ToolCall[] = []
+
+    message.tool_calls.forEach((tc: OpenRouterToolCall) => {
+        const rawArgs = tc.function.arguments || ''
+        const args = parseToolArguments(tc.function.name, rawArgs)
+        if (!args) {
+            console.warn('[openrouter] Skipping tool call with empty/invalid arguments:', {
                 tool: tc.function.name,
-                error: e instanceof Error ? e.message : String(e),
-                args: tc.function.arguments?.slice(0, 200)
+                argsLength: rawArgs.length,
+                argsPreview: rawArgs.slice(0, 100)
             })
+            return
         }
 
-        return {
+        toolCalls.push({
             id: tc.id,
             name: tc.function.name,
             arguments: args
-        }
+        })
     })
+
+    return toolCalls
 }
 
 /**

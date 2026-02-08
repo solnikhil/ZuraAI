@@ -29,7 +29,8 @@ interface StorageStatus {
 
 let cachedData: SecureData | null = null
 let cacheTimestamp = 0
-const CACHE_TTL = 5000
+// Requirements: 3.4 - Secure storage cache TTL of 30 seconds minimum
+const CACHE_TTL = 30000
 let lastStorageError: string | null = null
 
 function isEncryptionAvailable(): boolean {

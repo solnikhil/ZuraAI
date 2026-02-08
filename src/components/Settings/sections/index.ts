@@ -22,6 +22,3 @@ export type { ToolsSectionProps } from './ToolsSection'
 
 export { SystemPromptSection } from './SystemPromptSection'
 export type { SystemPromptSectionProps } from './SystemPromptSection'
-
-export { RAGSettingsSection } from './RAGSettingsSection'
-export type { RAGSettingsSectionProps } from './RAGSettingsSection'

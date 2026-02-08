@@ -1,6 +1,16 @@
 import React, { useState } from 'react'
 import { X, Send, Bug, MessageSquare, Lightbulb } from './icons'
 import { useToast } from './shared/Toast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import './Feedback.css'
 
 interface FeedbackProps {
@@ -49,48 +59,51 @@ export default function Feedback({ onClose }: FeedbackProps) {
     }
 
     return (
-        <div className="feedback-overlay" onClick={onClose}>
-            <div className="feedback-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="feedback-header">
-                    <h2>Send Feedback</h2>
-                    <button className="feedback-close" onClick={onClose}>
-                        <X size={20} />
-                    </button>
-                </div>
+        <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="sm:max-w-[500px] bg-card border-border">
+                <DialogHeader>
+                    <DialogTitle>Send Feedback</DialogTitle>
+                </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="feedback-form">
-                    <div className="feedback-type-selector">
-                        <button
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="flex gap-2">
+                        <Button
                             type="button"
-                            className={`feedback-type-btn ${feedbackType === 'bug' ? 'active' : ''}`}
+                            variant={feedbackType === 'bug' ? 'default' : 'outline'}
+                            size="sm"
                             onClick={() => setFeedbackType('bug')}
+                            className="flex-1"
                         >
-                            <Bug size={16} />
+                            <Bug size={16} className="mr-2" />
                             Bug Report
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="button"
-                            className={`feedback-type-btn ${feedbackType === 'feature' ? 'active' : ''}`}
+                            variant={feedbackType === 'feature' ? 'default' : 'outline'}
+                            size="sm"
                             onClick={() => setFeedbackType('feature')}
+                            className="flex-1"
                         >
-                            <Lightbulb size={16} />
-                            Feature Request
-                        </button>
-                        <button
+                            <Lightbulb size={16} className="mr-2" />
+                            Feature
+                        </Button>
+                        <Button
                             type="button"
-                            className={`feedback-type-btn ${feedbackType === 'general' ? 'active' : ''}`}
+                            variant={feedbackType === 'general' ? 'default' : 'outline'}
+                            size="sm"
                             onClick={() => setFeedbackType('general')}
+                            className="flex-1"
                         >
-                            <MessageSquare size={16} />
-                            General Feedback
-                        </button>
+                            <MessageSquare size={16} className="mr-2" />
+                            General
+                        </Button>
                     </div>
 
-                    <div className="feedback-field">
-                        <label htmlFor="feedback-message">
+                    <div className="space-y-2">
+                        <Label htmlFor="feedback-message">
                             {feedbackType === 'bug' ? 'Describe the bug' : feedbackType === 'feature' ? 'Describe your feature idea' : 'Your feedback'}
-                        </label>
-                        <textarea
+                        </Label>
+                        <Textarea
                             id="feedback-message"
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
@@ -103,32 +116,34 @@ export default function Feedback({ onClose }: FeedbackProps) {
                             }
                             rows={6}
                             required
+                            className="bg-secondary border-border resize-none"
                         />
                     </div>
 
-                    <div className="feedback-field">
-                        <label htmlFor="feedback-email">Email (optional)</label>
-                        <input
+                    <div className="space-y-2">
+                        <Label htmlFor="feedback-email">Email (optional)</Label>
+                        <Input
                             id="feedback-email"
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="your@email.com"
+                            className="bg-secondary border-border"
                         />
                     </div>
 
-                    <div className="feedback-actions">
-                        <button type="button" onClick={onClose} className="feedback-cancel">
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="outline" onClick={onClose}>
                             Cancel
-                        </button>
-                        <button type="submit" className="feedback-submit" disabled={isSubmitting || !message.trim()}>
-                            <Send size={16} />
+                        </Button>
+                        <Button type="submit" disabled={isSubmitting || !message.trim()}>
+                            <Send size={16} className="mr-2" />
                             {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
-                        </button>
+                        </Button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </DialogContent>
+        </Dialog>
     )
 }
 

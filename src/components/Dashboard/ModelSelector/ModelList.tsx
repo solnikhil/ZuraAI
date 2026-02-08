@@ -7,9 +7,11 @@
 
 import React, { useState } from 'react'
 import { Check, Star, Search, Eye, Code, Info, Zap, Globe, Brain, Sparkles } from 'lucide-react'
-import { getModelAttributes, detectModelCapabilities } from '../../../utils/modelUtils'
+import { getModelAttributes, detectModelCapabilities, getProviderTitle } from '../../../utils/modelUtils'
+import type { ModelCapability } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 /**
  * Props for ModelList component
@@ -80,6 +82,15 @@ function getModelDescription(model: ModelWithProvider): string {
   // Fallback for any unhandled provider
   const providerName = model.provider as string
   return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
+}
+
+const CAPABILITY_LABELS: Record<ModelCapability, string> = {
+  vision: 'Vision',
+  code: 'Functions',
+  reasoning: 'Reasoning',
+  fast: 'Fast',
+  online: 'Online',
+  'deep-research': 'Deep Research'
 }
 
 /**
@@ -159,6 +170,12 @@ function ModelItem({
   const hasVision = capabilities.includes('vision')
   const hasCode = capabilities.includes('code')
   const description = getModelDescription(model)
+  const providerTitle = getProviderTitle(model.provider)
+  const capabilityChips = capabilities.map(capability => (
+    <span key={capability} className="model-info-chip">
+      {CAPABILITY_LABELS[capability]}
+    </span>
+  ))
 
   return (
     <div
@@ -288,6 +305,7 @@ function ModelItem({
         {hasVision && (
           <div
             title="Supports vision/images"
+            className="feature-badge"
             style={{
               padding: '4px',
               borderRadius: '4px',
@@ -306,6 +324,7 @@ function ModelItem({
         {hasCode && (
           <div
             title="Supports function calling"
+            className="feature-badge"
             style={{
               padding: '4px',
               borderRadius: '4px',
@@ -321,22 +340,29 @@ function ModelItem({
         )}
 
         {/* Info Button */}
-        <div
-          title="Model information"
-          style={{
-            padding: '4px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--theme-text-muted)',
-            opacity: 0.4,
-            cursor: 'pointer'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Info size={14} />
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Model information"
+              className="model-info-btn feature-badge"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Info size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" sideOffset={8} className="rounded-full model-info-tooltip">
+            <div className="model-info-tooltip__title">Model info</div>
+            <div className="model-info-tooltip__name">{removeEmojis(model.displayName)}</div>
+            <div className="model-info-tooltip__description">{description}</div>
+            <div className="model-info-tooltip__meta">{providerTitle} · {model.code}</div>
+            {capabilities.length > 0 && (
+              <div className="model-info-tooltip__chips">
+                {capabilityChips}
+              </div>
+            )}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )

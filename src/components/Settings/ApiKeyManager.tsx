@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react'
+import { Card } from '@/components/ui/card'
 import { Eye, EyeOff } from 'lucide-react'
 
 /**
@@ -96,7 +97,7 @@ function ApiKeyInput({ config, onChange }: ApiKeyInputProps): React.ReactElement
  */
 export function ApiKeyManager({ keys, onChange }: ApiKeyManagerProps): React.ReactElement {
   return (
-    <div className="settings-section-card">
+    <Card className="settings-section-card">
       <h3 className="section-head">Provider Credentials</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {keys.map(keyConfig => (
@@ -107,7 +108,7 @@ export function ApiKeyManager({ keys, onChange }: ApiKeyManagerProps): React.Rea
           />
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 

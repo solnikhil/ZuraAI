@@ -1,6 +1,8 @@
 import React from 'react'
-import { Info, Zap, Clock } from './icons' // Assuming icons exist from lucide-react or similar
-import './ResponseInfo.css'
+import { Info, Zap, Clock } from './icons'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 
 interface ResponseInfoProps {
     model: string
@@ -12,9 +14,11 @@ interface ResponseInfoProps {
         tps?: number // Tokens per second
         ttft?: number // Time to first token in ms
     }
+    finishReason?: string
+    requestedMaxTokens?: number
 }
 
-export default function ResponseInfo({ model, latency, usage }: ResponseInfoProps) {
+export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens }: ResponseInfoProps) {
     // Format duration: 46.7s
     const formattedDuration = latency ? `${(latency / 1000).toFixed(1)}s` : '-'
 
@@ -31,62 +35,90 @@ export default function ResponseInfo({ model, latency, usage }: ResponseInfoProp
     const totalTokens = usage?.totalTokens ?? (usage as any)?.total_tokens ?? 0
 
     return (
-        <div className="response-info-card">
-            <div className="response-info-header">
-                <Info size={16} />
-                <span>Response Info</span>
-            </div>
+        <Card className="bg-card/50 border-border backdrop-blur-sm">
+            <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Info size={16} />
+                    Response Info
+                </CardTitle>
+            </CardHeader>
 
-            <div className="response-info-row">
-                <span className="response-info-label">Model</span>
-                <div className="model-badge">
-                    <Zap size={12} fill="currentColor" />
-                    {displayModel}
+            <CardContent className="space-y-3">
+                {/* Model */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Model</span>
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                        <Zap size={12} fill="currentColor" />
+                        {displayModel}
+                    </Badge>
                 </div>
-            </div>
 
-            <div className="response-info-row">
-                <span className="response-info-label">Generation Time</span>
-                <span className="response-info-value">
-                    <Clock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'text-bottom' }} />
-                    {formattedDuration}
-                </span>
-            </div>
-
-            {usage && (
-                <div className="token-usage-section">
-                    <span className="token-usage-title">Token Usage</span>
-
-                    <div className="token-grid">
-                        <div className="token-metric">
-                            <span className="token-metric-label">Input</span>
-                            <span className="token-metric-value">{fmt(inputTokens)}</span>
-                        </div>
-                        <div className="token-metric">
-                            <span className="token-metric-label">Output</span>
-                            <span className="token-metric-value">{fmt(outputTokens)}</span>
-                        </div>
-                    </div>
-
-                    <div className="total-row">
-                        <span className="response-info-label" style={{ fontSize: '12px' }}>Total Tokens</span>
-                        <span className="response-info-value">{fmt(totalTokens)}</span>
-                    </div>
-
-                    {(usage.tps !== undefined || usage.ttft !== undefined) && (
-                        <div className="token-grid" style={{ marginTop: '8px' }}>
-                            <div className="token-metric">
-                                <span className="token-metric-label">Speed</span>
-                                <span className="token-metric-value">{fmtTps(usage.tps)} t/s</span>
-                            </div>
-                            <div className="token-metric">
-                                <span className="token-metric-label">First Token</span>
-                                <span className="token-metric-value">{fmt(usage.ttft)}ms</span>
-                            </div>
-                        </div>
-                    )}
+                {/* Generation Time */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Generation Time</span>
+                    <span className="text-sm flex items-center gap-1">
+                        <Clock size={12} />
+                        {formattedDuration}
+                    </span>
                 </div>
-            )}
-        </div>
+
+                {(finishReason || typeof requestedMaxTokens === 'number') && (
+                    <>
+                        <Separator />
+                        {typeof requestedMaxTokens === 'number' && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Requested Max</span>
+                                <span className="text-sm font-medium">{fmt(requestedMaxTokens)}</span>
+                            </div>
+                        )}
+                        {finishReason && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-muted-foreground">Stop Reason</span>
+                                <span className="text-sm font-medium">{finishReason}</span>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {usage && (
+                    <>
+                        <Separator />
+
+                        <div className="space-y-2">
+                            <span className="text-xs font-medium text-muted-foreground">Token Usage</span>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="bg-secondary/50 rounded-md p-2 text-center">
+                                    <div className="text-xs text-muted-foreground">Input</div>
+                                    <div className="text-sm font-medium">{fmt(inputTokens)}</div>
+                                </div>
+                                <div className="bg-secondary/50 rounded-md p-2 text-center">
+                                    <div className="text-xs text-muted-foreground">Output</div>
+                                    <div className="text-sm font-medium">{fmt(outputTokens)}</div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                                <span className="text-xs text-muted-foreground">Total Tokens</span>
+                                <span className="text-sm font-medium">{fmt(totalTokens)}</span>
+                            </div>
+
+                            {(usage.tps !== undefined || usage.ttft !== undefined) && (
+                                <div className="grid grid-cols-2 gap-2 pt-2">
+                                    <div className="bg-secondary/50 rounded-md p-2 text-center">
+                                        <div className="text-xs text-muted-foreground">Speed</div>
+                                        <div className="text-sm font-medium">{fmtTps(usage.tps)} t/s</div>
+                                    </div>
+                                    <div className="bg-secondary/50 rounded-md p-2 text-center">
+                                        <div className="text-xs text-muted-foreground">First Token</div>
+                                        <div className="text-sm font-medium">{fmt(usage.ttft)}ms</div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+            </CardContent>
+        </Card>
     )
 }

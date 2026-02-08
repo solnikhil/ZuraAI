@@ -7,6 +7,8 @@
 
 import React from 'react'
 import { Sparkles, Globe } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 
 
 /**
@@ -49,7 +51,7 @@ export function ToolsSection({
       </div>
 
       {/* Master Toggle */}
-      <div className="settings-section-card">
+      <Card className="settings-section-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{
@@ -69,21 +71,18 @@ export function ToolsSection({
               <div className="section-desc">Allow AI to use web search.</div>
             </div>
           </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={toolsEnabled}
-              onChange={(e) => onChange({ toolsEnabled: e.target.checked })}
-            />
-            <span className="toggle-slider"></span>
-          </label>
+          <Switch
+            checked={toolsEnabled}
+            onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
+            aria-label="Enable tools"
+          />
         </div>
-      </div>
+      </Card>
 
       {toolsEnabled && (
         <>
           {/* Web Search API Key */}
-          <div className="settings-section-card" style={{ marginTop: 24 }}>
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
             <h3 className="section-head">Web Search API</h3>
             <div className="section-desc" style={{ marginBottom: '12px' }}>
               Required for web search functionality. Get your key at{' '}
@@ -99,10 +98,10 @@ export function ToolsSection({
               onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
               style={{ width: '100%' }}
             />
-          </div>
+          </Card>
 
           {/* Built-in Tools */}
-          <div className="settings-section-card" style={{ marginTop: 24 }}>
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
             <h3 className="section-head">Built-in Tools</h3>
             <div className="section-desc" style={{ marginBottom: '16px' }}>
               These tools are always available when tools are enabled
@@ -148,7 +147,7 @@ export function ToolsSection({
                 )
               })}
             </div>
-          </div>
+          </Card>
         </>
       )}
     </div>

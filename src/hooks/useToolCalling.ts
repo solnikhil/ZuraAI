@@ -36,7 +36,7 @@ export function useToolCalling() {
         researchMode: {
             isActive: false,
             currentRound: 0,
-            maxRounds: 5,
+            maxRounds: 20,
             searchCount: 0,
             mandatory: false
         }
@@ -189,7 +189,7 @@ export function useToolCalling() {
             researchMode: {
                 isActive: false,
                 currentRound: 0,
-                maxRounds: 5,
+                maxRounds: 20,
                 searchCount: 0,
                 mandatory: false
             }
@@ -201,7 +201,7 @@ export function useToolCalling() {
      * @param maxRounds - Maximum number of searches allowed
      * @param mandatory - If true, model MUST complete exactly maxRounds searches
      */
-    const startResearchMode = (maxRounds: number = 5, mandatory: boolean = false) => {
+    const startResearchMode = (maxRounds: number = 20, mandatory: boolean = false) => {
         setToolState(prev => ({
             ...prev,
             researchMode: {
@@ -235,7 +235,7 @@ export function useToolCalling() {
         const remaining = maxRounds - searchCount
 
         // Limit reached state - instructs model to provide final answer
-        // Works for both normal mode (5 searches) and deep research mode (25 searches)
+        // Works for both normal mode (20 searches) and deep research mode (25 searches)
         // Validates: Requirements 2.2, 2.3
         if (remaining <= 0) {
             return `\n\nYou have completed all ${maxRounds} available searches. You MUST now provide your final comprehensive answer based on all the information gathered.`
@@ -299,7 +299,7 @@ ${remaining} more searches required. Your response MUST be a web_search FUNCTION
         //    - Uses aggressive prompts to ensure comprehensive research
         //    - Validates: Requirements 4.1, 4.2, 4.3
         //
-        // 2. NORMAL WEB SEARCH MODE (maxRounds > 0 && maxRounds < 10, typically 5):
+        // 2. NORMAL WEB SEARCH MODE (maxRounds > 0 && maxRounds < 25, typically 20):
         //    - Triggered when only webSearchEnabled is ON
         //    - Requires planning before executing searches
         //    - Allows model to decide when to stop (up to limit)
@@ -311,8 +311,8 @@ ${remaining} more searches required. Your response MUST be a web_search FUNCTION
         // ============================================================================
         
         // Regular research mode (non-mandatory) - model decides when to search
-        const isDeepResearch = maxRounds >= 10  // Deep research has 25 rounds
-        const isNormalSearch = maxRounds > 0 && maxRounds < 10  // Normal search has 5 rounds
+        const isDeepResearch = maxRounds >= 25  // Deep research has 25 rounds
+        const isNormalSearch = maxRounds > 0 && maxRounds < 25  // Normal search has 20 rounds
 
         if (searchCount === 0) {
             // ----------------------------------------------------------------
@@ -358,7 +358,7 @@ You have access to web search (up to ${maxRounds} searches) to provide accurate,
 
 When you need information that may be:
 - Recent or time-sensitive (news, current events, latest data)
-- Beyond your training cutoff
+- Not confidently verifiable from existing context alone
 - Specific facts, figures, or statistics
 - Verification of uncertain information
 
@@ -483,4 +483,3 @@ Continue using web_search if you need more information, or provide your comprehe
         getResearchContext
     }
 }
-

@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react'
+import { Card } from '@/components/ui/card'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 
 /**
@@ -60,7 +61,7 @@ export function SystemPromptSection({
       </div>
 
       {/* System Prompt Editor */}
-      <div
+      <Card
         className="settings-section-card"
         style={{
           background: 'var(--theme-surface)',
@@ -170,7 +171,7 @@ export function SystemPromptSection({
                   e.currentTarget.style.color = 'var(--theme-text-secondary)'
                 }}
               >
-                Reset to Default
+                Load Default Prompt
               </button>
             </div>
           </div>
@@ -245,10 +246,10 @@ export function SystemPromptSection({
             </button>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Tips Section */}
-      <div
+      <Card
         className="settings-section-card"
         style={{
           marginTop: 24,
@@ -335,7 +336,7 @@ export function SystemPromptSection({
             </div>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

@@ -76,6 +76,9 @@ export {
   Grid,
   LayoutGrid,
   Expand,
+  Maximize2,
+  Minimize2,
+  Minus,
   CheckCircle,
   XCircle,
   AlertCircle,
@@ -99,6 +102,7 @@ export {
   MoreVertical,
   ZoomIn,
   ZoomOut,
+  Paintbrush,
 } from 'lucide-react'
 
 // Animated icons

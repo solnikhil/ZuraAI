@@ -204,3 +204,95 @@
 .model-item-t3:hover .feature-badge {
   opacity: 0.8 !important;
 }
+
+.model-info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-muted);
+  opacity: 0.55;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.model-item-t3:hover .model-info-btn {
+  opacity: 0.85;
+}
+
+.model-info-btn:hover {
+  background: var(--theme-surface-active);
+  border-color: var(--theme-border-hover);
+  color: var(--theme-text-primary);
+  box-shadow: var(--theme-shadow-sm);
+  transform: translateY(-1px);
+}
+
+.model-info-btn:active {
+  transform: translateY(0);
+  background: var(--theme-surface-pressed);
+}
+
+.model-info-btn:focus-visible {
+  outline: 2px solid var(--theme-info);
+  outline-offset: 2px;
+}
+
+.model-info-tooltip {
+  background: var(--theme-surface) !important;
+  color: var(--theme-text-primary) !important;
+  border: 1px solid var(--theme-border) !important;
+  box-shadow: var(--theme-shadow-md);
+  padding: 12px 14px !important;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.model-info-tooltip__title {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--theme-text-tertiary);
+  margin-bottom: 0;
+}
+
+.model-info-tooltip__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+}
+
+.model-info-tooltip__description {
+  font-size: 0.7rem;
+  color: var(--theme-text-muted);
+  margin-top: 0;
+}
+
+.model-info-tooltip__meta {
+  font-size: 0.65rem;
+  color: var(--theme-text-tertiary);
+  margin-top: 0;
+  word-break: break-all;
+}
+
+.model-info-tooltip__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0;
+}
+
+.model-info-chip {
+  font-size: 0.62rem;
+  color: var(--theme-text-secondary);
+  background: var(--theme-surface-hover);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}

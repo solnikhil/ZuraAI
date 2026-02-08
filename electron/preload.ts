@@ -33,17 +33,17 @@ const SEND_CHANNELS = new Set<string>([
   'set-ignore-mouse-events',
   'open-settings',
   'set-titlebar-overlay',
+  'set-native-blur',
   'spawn-terminal-command',
 ])
-
-// PDF IPC channels - imported from src/types/pdf.ts for reference
-// These channels support the PDF Reader Chat feature with RAG capabilities
 
 const INVOKE_CHANNELS = new Set<string>([
   // Chat store
   'chat-store:get-all',
   'chat-store:save-all',
   'chat-store:migrate',
+  'chat-store:get-all-folders',
+  'chat-store:save-folders',
 
   // Secure storage
   'secure-storage:get',
@@ -58,107 +58,32 @@ const INVOKE_CHANNELS = new Set<string>([
 
   // Process metrics
   'get-process-metrics',
+  
+  // Memory monitoring (Requirement 4.6, 6.6)
+  'memory:get-metrics',
+  'memory:force-cleanup',
+
+  // Performance monitoring (Requirement 6.3)
+  'performance:report-renderer-metrics',
+  'performance:get-metrics',
+  'performance:get-renderer-metrics',
+  'performance:check-thresholds',
 
   // Tools
   'execute-tool',
+
+  // Window resize (frosted mode)
+  'window-resize',
 
   // Updater
   'updater:check-for-updates',
   'updater:quit-and-install',
   'updater:get-version',
-
-  // PDF Loading & Parsing
-  'pdf:load',
-  'pdf:get-file-data',
-  'pdf:get-page',
-  'pdf:search-text',
-  'pdf:get-outline',
-  'pdf:get-major-sections',
-  'pdf:unload',
-
-  // PDF Indexing
-  'pdf:index',
-  'pdf:get-index-status',
-  'pdf:delete-index',
-
-  // PDF RAG Query
-  'pdf:query',
-  'pdf:get-chunks',
-  'pdf:get-context',
-  'pdf:summarize-document',
-
-  // PDF Session Management
-  'pdf-chat:create-session',
-  'pdf-chat:get-sessions',
-  'pdf-chat:get-session',
-  'pdf-chat:save-session',
-  'pdf-chat:delete-session',
-  'pdf-chat:get-recent-documents',
-
-  // PDF Settings
-  'pdf:get-settings',
-  'pdf:update-settings',
-
-  // PDF Per-Document Settings (Requirement 16.7)
-  'pdf:get-document-settings',
-  'pdf:update-document-settings',
-  'pdf:delete-document-settings',
-  'pdf:get-all-document-settings',
-
-  // PDF Embedding Model Management (Requirement 21.6)
-  'pdf:check-model-change',
-  'pdf:get-indexed-documents',
-  'pdf:get-documents-needing-reindex',
-  'pdf:reindex-documents',
-
-  // PDF Model Caching (Requirement 21.7)
-  'pdf:get-model-cache-status',
-  'pdf:get-all-models-status',
-  'pdf:download-model',
-  'pdf:clear-model-cache',
-  'pdf:refresh-model-status',
-  'pdf:list-ollama-models',
-
-  // PDF Embedding Fallback (Requirement 18.2)
-  'pdf:get-embedding-fallback-state',
-  'pdf:attempt-embedding-recovery',
-  'pdf:get-embedding-fallback-notification',
-  'pdf:check-embedding-availability',
-
-  // PDF Index Corruption Recovery (Requirement 18.4)
-  'pdf:check-index-corruption',
-  'pdf:rebuild-corrupted-index',
-  'pdf:cleanup-orphaned-chunks',
-  'pdf:repair-chunk-counts',
-  'pdf:get-documents-needing-rebuild',
-
-  // PDF Feedback
-  'pdf:save-feedback',
-  'pdf:get-feedback',
 ])
 
 const ON_CHANNELS = new Set<string>([
   'update-available',
   'update-downloaded',
-
-  // PDF Indexing Events (main process → renderer)
-  'pdf:index-progress',
-  'pdf:index-complete',
-  'pdf:index-error',
-  'pdf:index-log',
-
-  // PDF Re-indexing Events (Requirement 21.6)
-  'pdf:reindex-progress',
-
-  // PDF Model Download Events (Requirement 21.7)
-  'pdf:model-download-progress',
-  'pdf:model-download-complete',
-
-  // PDF Embedding Fallback Events (Requirement 18.2)
-  'pdf:embedding-fallback-status',
-
-  // PDF Index Rebuild Events (Requirement 18.4)
-  'pdf:rebuild-progress',
 ])
 
 function assertAllowed(kind: 'send' | 'invoke' | 'on' | 'off', channel: string, allowed: Set<string>) {

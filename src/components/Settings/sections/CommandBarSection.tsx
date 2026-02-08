@@ -1,4 +1,8 @@
 import React from 'react'
+import { Card } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
 
 export interface CommandBarSectionProps {
@@ -30,24 +34,21 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
         <div className="page-subtitle">Configure the titlebar command palette</div>
       </div>
 
-      <div className="settings-section-card">
+      <Card className="settings-section-card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h3 className="section-head" style={{ marginBottom: 4 }}>Enable Command Bar</h3>
             <div className="section-desc">Show the command bar in the title bar</div>
           </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={commandBar.enabled}
-              onChange={(e) => onChange({ enabled: e.target.checked })}
-            />
-            <span className="toggle-slider"></span>
-          </label>
+          <Switch
+            checked={commandBar.enabled}
+            onCheckedChange={(checked) => onChange({ enabled: checked })}
+            aria-label="Enable command bar"
+          />
         </div>
-      </div>
+      </Card>
 
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">Behavior</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -55,14 +56,11 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
               <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Recent commands</div>
               <div className="section-desc">Show your last 1–3 commands at the top</div>
             </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={commandBar.showRecents}
-                onChange={(e) => onChange({ showRecents: e.target.checked })}
-              />
-              <span className="toggle-slider"></span>
-            </label>
+            <Switch
+              checked={commandBar.showRecents}
+              onCheckedChange={(checked) => onChange({ showRecents: checked })}
+              aria-label="Show recent commands"
+            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -89,14 +87,11 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
               <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Tab autocomplete</div>
               <div className="section-desc">Press Tab to complete commands</div>
             </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={commandBar.enableTabAutocomplete}
-                onChange={(e) => onChange({ enableTabAutocomplete: e.target.checked })}
-              />
-              <span className="toggle-slider"></span>
-            </label>
+            <Switch
+              checked={commandBar.enableTabAutocomplete}
+              onCheckedChange={(checked) => onChange({ enableTabAutocomplete: checked })}
+              aria-label="Enable tab autocomplete"
+            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -116,9 +111,9 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
             </select>
           </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">Appearance</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -142,14 +137,11 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
               <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Background blur</div>
               <div className="section-desc">Glass effect for the dropdown</div>
             </div>
-            <label className="toggle-switch">
-              <input
-                type="checkbox"
-                checked={commandBar.enableBlur}
-                onChange={(e) => onChange({ enableBlur: e.target.checked })}
-              />
-              <span className="toggle-slider"></span>
-            </label>
+            <Switch
+              checked={commandBar.enableBlur}
+              onCheckedChange={(checked) => onChange({ enableBlur: checked })}
+              aria-label="Enable background blur"
+            />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
@@ -209,14 +201,14 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
             />
           </div>
         </div>
-      </div>
+      </Card>
 
       <div style={{ marginTop: 18, color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
         Tip: Use Ctrl+K / Cmd+K to focus the command bar.
       </div>
 
       {/* Remember Section */}
-      <div className="settings-section-card" style={{ marginTop: 24 }}>
+      <Card className="settings-section-card" style={{ marginTop: 24 }}>
         <h3 className="section-head">Remember</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -224,37 +216,49 @@ export function CommandBarSection({ commandBar, onChange, rememberLastChatSessio
               <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Restore your last state when reopening Zura</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Checkbox
+                id="remember-chat-session"
                 checked={rememberLastChatSession ?? true}
-                onChange={(e) => onRememberChange?.({ rememberLastChatSession: e.target.checked })}
-                style={{ accentColor: 'var(--theme-accent)' }}
+                onCheckedChange={(checked) => onRememberChange?.({ rememberLastChatSession: checked === true })}
               />
-              Chat session
-            </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
+              <Label
+                htmlFor="remember-chat-session"
+                style={{ fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}
+              >
+                Chat session
+              </Label>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Checkbox
+                id="remember-dashboard-view"
                 checked={rememberLastDashboardView ?? true}
-                onChange={(e) => onRememberChange?.({ rememberLastDashboardView: e.target.checked })}
-                style={{ accentColor: 'var(--theme-accent)' }}
+                onCheckedChange={(checked) => onRememberChange?.({ rememberLastDashboardView: checked === true })}
               />
-              Chat/Settings view
-            </label>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-              <input
-                type="checkbox"
+              <Label
+                htmlFor="remember-dashboard-view"
+                style={{ fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}
+              >
+                Chat/Settings view
+              </Label>
+            </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Checkbox
+                id="remember-settings-section"
                 checked={rememberLastSettingsSection ?? true}
-                onChange={(e) => onRememberChange?.({ rememberLastSettingsSection: e.target.checked })}
-                style={{ accentColor: 'var(--theme-accent)' }}
+                onCheckedChange={(checked) => onRememberChange?.({ rememberLastSettingsSection: checked === true })}
               />
-              Settings section
-            </label>
+              <Label
+                htmlFor="remember-settings-section"
+                style={{ fontSize: '0.85rem', color: 'var(--theme-text-secondary)', cursor: 'pointer', userSelect: 'none' }}
+              >
+                Settings section
+              </Label>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import React from 'react'
 import { Keyboard } from './icons'
-import './KeyboardShortcuts.css'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 
 export default function KeyboardShortcuts() {
     const shortcuts = [
@@ -27,43 +29,50 @@ export default function KeyboardShortcuts() {
                 { keys: ['Ctrl', ','], description: 'Open Settings (when main window focused)' },
             ]
         }
-
     ]
 
     return (
-        <div className="keyboard-shortcuts-panel">
-            <div className="shortcuts-header">
-                <Keyboard size={20} />
-                <h2>Keyboard Shortcuts</h2>
-            </div>
+        <Card className="bg-card border-border">
+            <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <Keyboard size={20} />
+                    Keyboard Shortcuts
+                </CardTitle>
+            </CardHeader>
 
-            <div className="shortcuts-content">
+            <CardContent className="space-y-4">
                 {shortcuts.map((category, idx) => (
-                    <div key={idx} className="shortcuts-category">
-                        <h3>{category.category}</h3>
-                        <div className="shortcuts-list">
+                    <div key={idx} className="space-y-2">
+                        <h3 className="text-sm font-medium text-muted-foreground">{category.category}</h3>
+                        <div className="space-y-2">
                             {category.items.map((item, itemIdx) => (
-                                <div key={itemIdx} className="shortcut-row">
-                                    <div className="shortcut-keys">
+                                <div key={itemIdx} className="flex items-center justify-between py-1">
+                                    <div className="flex items-center gap-1">
                                         {item.keys.map((key, keyIdx) => (
                                             <React.Fragment key={keyIdx}>
-                                                <kbd>{key}</kbd>
-                                                {keyIdx < item.keys.length - 1 && <span className="plus">+</span>}
+                                                <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5">
+                                                    {key}
+                                                </Badge>
+                                                {keyIdx < item.keys.length - 1 && (
+                                                    <span className="text-muted-foreground text-xs">+</span>
+                                                )}
                                             </React.Fragment>
                                         ))}
                                     </div>
-                                    <span className="shortcut-description">{item.description}</span>
+                                    <span className="text-sm text-muted-foreground">{item.description}</span>
                                 </div>
                             ))}
                         </div>
+                        {idx < shortcuts.length - 1 && <Separator className="mt-3" />}
                     </div>
                 ))}
-            </div>
+            </CardContent>
 
-            <div className="shortcuts-footer">
-                <p>Tip: You can change some shortcuts in Settings → Preferences</p>
-            </div>
-        </div>
+            <CardFooter className="pt-3 border-t border-border">
+                <p className="text-xs text-muted-foreground">
+                    Tip: You can change some shortcuts in Settings → Preferences
+                </p>
+            </CardFooter>
+        </Card>
     )
 }
-

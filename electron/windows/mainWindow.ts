@@ -1,11 +1,22 @@
 import { BrowserWindow, shell } from 'electron'
 import path from 'path'
+import { deferredInitializer } from '../startup/deferredInit'
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../../dist')
 
 // Production mode check
 const isProduction = require('electron').app.isPackaged
+
+const devServerUrl = process.env.VITE_DEV_SERVER_URL
+const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
+const USE_NATIVE_TITLEBAR_OVERLAY = false
+
+function isExternalHttpUrl(url: string): boolean {
+    if (!url.startsWith('http:') && !url.startsWith('https:')) return false
+    if (devServerOrigin && url.startsWith(devServerOrigin)) return false
+    return true
+}
 
 // Global reference to main window
 let mainWindow: BrowserWindow | null = null
@@ -26,6 +37,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     }
 
     const isWindows = process.platform === 'win32'
+    const isMacOS = process.platform === 'darwin'
 
     mainWindow = new BrowserWindow({
         width: options?.width ?? 1200,
@@ -36,11 +48,20 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         ...(isWindows ? {
             titleBarStyle: 'hidden',
-            titleBarOverlay: {
-                color: 'rgba(0, 0, 0, 0)',
-                symbolColor: '#E5E0D5',
-                height: 44,
-            },
+            ...(USE_NATIVE_TITLEBAR_OVERLAY ? {
+                titleBarOverlay: {
+                    color: '#14120B',
+                    symbolColor: '#E5E0D5',
+                    height: 44,
+                },
+            } : {}),
+            backgroundMaterial: 'none' as const,
+        } : {}),
+        ...(isMacOS ? {
+            titleBarStyle: 'hidden',
+            trafficLightPosition: { x: 12, y: 12 },
+            vibrancy: 'sidebar' as const,
+            visualEffectState: 'active' as const,
         } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
@@ -52,13 +73,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             additionalArguments: ['--process-name=Zura-Dashboard'],
         },
         autoHideMenuBar: true,
-        backgroundColor: '#14120B',
+        backgroundColor: '#00000000',
         show: false,
     })
 
     // Handle external links - open in default browser
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             shell.openExternal(url)
         }
         return { action: 'deny' }
@@ -66,7 +87,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
     // Handle in-page navigation (e.g. clicking links)
     mainWindow.webContents.on('will-navigate', (event, url) => {
-        if (url.startsWith('https:') || url.startsWith('http:')) {
+        if (isExternalHttpUrl(url)) {
             event.preventDefault()
             shell.openExternal(url)
         }
@@ -75,7 +96,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     // Show when ready to prevent white flash
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show()
+        // Mark window as visible and trigger deferred task execution
+        deferredInitializer.markWindowVisible()
+        deferredInitializer.executeAfterWindowVisible()
     })
+
+    // Track window creation
+    deferredInitializer.markWindowCreated()
 
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
@@ -110,11 +137,29 @@ export function showMainWindow(): void {
 }
 
 /**
+ * Toggle native background blur (acrylic on Windows, vibrancy on macOS)
+ */
+export function setNativeBlur(enabled: boolean): void {
+    if (!mainWindow) return
+
+    try {
+        if (process.platform === 'win32') {
+            mainWindow.setBackgroundMaterial(enabled ? 'acrylic' : 'none')
+        } else if (process.platform === 'darwin') {
+            mainWindow.setVibrancy(enabled ? 'sidebar' : null as any)
+        }
+    } catch {
+        // Ignore if unsupported (e.g. Windows 10)
+    }
+}
+
+/**
  * Set the titlebar overlay colors (Windows only)
  */
 export function setTitleBarOverlay(color: string, symbolColor: string, height?: number): void {
     if (process.platform !== 'win32') return
     if (!mainWindow) return
+    if (!USE_NATIVE_TITLEBAR_OVERLAY) return
 
     const overlay: Electron.TitleBarOverlay = { color, symbolColor }
     if (typeof height === 'number' && Number.isFinite(height)) {

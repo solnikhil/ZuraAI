@@ -6,12 +6,73 @@
     justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
-    padding-left: calc(12px + env(titlebar-area-x, 0px));
-    padding-right: calc(12px + (100% - env(titlebar-area-width, 100%) - env(titlebar-area-x, 0px)));
     background: var(--theme-background);
 
     user-select: none;
     -webkit-app-region: drag;
+}
+
+/* Frosted titlebar - transparent base so the left glass panel shows through */
+.app-titlebar--frosted {
+    background: transparent !important;
+}
+
+/* Solid background for the right (content) side of the titlebar in frosted mode */
+.app-titlebar__content-bg {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--theme-background);
+    transition: left 0.2s ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* Frosted sidebar glass extension into titlebar */
+.app-titlebar__sidebar-glass {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    transition: width 0.2s ease;
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* Noise texture overlay for frosted titlebar glass (matches sidebar) */
+.app-titlebar__sidebar-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    opacity: 0.09;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+}
+
+/* macOS specific: Add padding for traffic lights */
+.app-titlebar--macos {
+    /* Traffic lights are positioned at x: 12, y: 12 with ~78px width */
+    padding-left: 100px;
+}
+
+/* Exclude traffic lights area from drag region on macOS */
+.app-titlebar--macos::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80px;
+    height: 100%;
+    -webkit-app-region: no-drag;
+    pointer-events: none;
+    z-index: 1;
 }
 
 
@@ -43,6 +104,14 @@
     max-width: calc(100% - 600px);
 }
 
+/* On macOS, position the middle section on the right side */
+.app-titlebar--macos .app-titlebar__middle {
+    left: auto;
+    right: 180px; /* Account for model selector (~160px) + padding */
+    justify-content: flex-end;
+    max-width: none;
+}
+
 .app-titlebar__center {
     position: absolute;
     left: 50%;
@@ -68,12 +137,17 @@
     justify-content: flex-end;
     margin-left: auto;
     gap: 10px;
+    position: relative;
+    z-index: 2;
 }
 
 
 
 .app-titlebar__left {
     gap: 8px;
+    position: relative;
+    z-index: 2;
+    min-width: 0;
 }
 
 
@@ -165,6 +239,43 @@
     outline-offset: 2px;
 }
 
+.app-titlebar__window-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+}
+
+.app-titlebar__window-btn--close:hover {
+    background: #c42b1c;
+    border-color: #c42b1c;
+    color: #ffffff;
+}
+
+.app-titlebar__window-btn--close:active {
+    background: #a5271b;
+    border-color: #a5271b;
+}
+
+/* WindowControlButtons wrapper (frosted mode custom controls) */
+.app-titlebar__window-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+}
+
+/* Close button red hover state (icon-btn modifier for frosted mode) */
+.app-titlebar__icon-btn--close:hover {
+    background: #c42b1c;
+    border-color: #c42b1c;
+    color: #ffffff;
+}
+
+.app-titlebar__icon-btn--close:active {
+    background: #a5271b;
+    border-color: #a5271b;
+}
+
 .app-titlebar__logo {
     width: 20px;
     height: 20px;
@@ -195,6 +306,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     -webkit-app-region: no-drag;
+    margin-right: 140px;
+}
+
+.app-titlebar--custom-controls .app-titlebar__model {
+    margin-right: 0;
 }
 
 /* Hide model viewer on small windows */
@@ -320,64 +436,23 @@
 }
 
 
-/* === COMMAND BAR DROPDOWN - Premium Redesign === */
-
-@keyframes commandbar-dropdown-enter {
-    0% {
-        opacity: 0;
-        transform: translateY(-6px) scale(0.96);
-    }
-
-    60% {
-        opacity: 1;
-        transform: translateY(2px) scale(1.01);
-    }
-
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
+/* === COMMAND BAR DROPDOWN - KokonutUI Exact Style === */
 
 .app-titlebar__commandbar-dropdown {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + 4px);
     left: 0;
     right: 0;
-    background: rgba(22, 22, 24, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    background: #000000;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     overflow: hidden;
     z-index: 5000;
-    max-height: min(300px, calc(100vh - 140px));
-    overflow-y: auto;
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     -webkit-app-region: no-drag;
-    animation: commandbar-dropdown-enter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    will-change: opacity, transform;
     transform-origin: top center;
-    padding: 4px;
     scrollbar-width: none;
     -ms-overflow-style: none;
-}
-
-@keyframes commandbar-dropdown-exit {
-    0% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-
-    100% {
-        opacity: 0;
-        transform: translateY(-4px) scale(0.97);
-    }
-}
-
-.app-titlebar__commandbar-dropdown--closing {
-    animation: commandbar-dropdown-exit 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
-    pointer-events: none;
 }
 
 .app-titlebar__commandbar-dropdown::-webkit-scrollbar {
@@ -385,7 +460,7 @@
 }
 
 .app-titlebar__commandbar-section {
-    padding: 6px 8px 4px;
+    padding: 8px 12px 4px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -393,40 +468,26 @@
 
 .app-titlebar__commandbar-section--clickable {
     cursor: pointer;
-    border-radius: 4px;
-    margin: 2px 4px;
-    padding: 6px 8px;
+    border-radius: 6px;
+    margin: 0;
+    padding: 8px 12px;
+    transition: background 0.15s ease;
 }
 
 .app-titlebar__commandbar-section--clickable:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: #18181b;
 }
 
 .app-titlebar__commandbar-section-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.35);
-    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #71717a;
 }
 
 .app-titlebar__commandbar-divider {
     height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0.08) 80%, transparent 100%);
-    margin: 6px 10px;
-}
-
-@keyframes commandbar-item-enter {
-    from {
-        opacity: 0;
-        transform: translateY(-6px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    background: #27272a;
+    margin: 4px 0;
 }
 
 .app-titlebar__commandbar-item {
@@ -436,68 +497,58 @@
     align-items: center;
     justify-content: space-between;
     border-radius: 6px;
-    margin: 1px 0;
-    transition: background 0.1s ease;
+    transition: background 0.15s ease;
 }
 
 .app-titlebar__commandbar-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: #18181b;
 }
 
 .app-titlebar__commandbar-item--active {
-    background: rgba(255, 255, 255, 0.08);
+    background: #27272a;
 }
 
 .app-titlebar__commandbar-item-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    transition: all 0.15s ease;
+    flex-shrink: 0;
+    color: #6b7280;
 }
 
-/* Color-coded icon backgrounds */
+/* Color-coded icons - KokonutUI style */
 .app-titlebar__commandbar-item-icon--navigate {
-    background: rgba(96, 165, 250, 0.15);
-    color: #60A5FA;
+    color: #3b82f6;
 }
 
 .app-titlebar__commandbar-item-icon--create {
-    background: rgba(52, 211, 153, 0.15);
-    color: #34D399;
+    color: #22c55e;
 }
 
 .app-titlebar__commandbar-item-icon--toggle {
-    background: rgba(167, 139, 250, 0.15);
-    color: #A78BFA;
+    color: #a855f7;
 }
 
 .app-titlebar__commandbar-item-icon--tool {
-    background: rgba(251, 191, 36, 0.15);
-    color: #FBBF24;
+    color: #f97316;
 }
 
 .app-titlebar__commandbar-item-icon--export {
-    background: rgba(244, 114, 182, 0.15);
-    color: #F472B6;
+    color: #ec4899;
 }
 
 .app-titlebar__commandbar-item-text {
     min-width: 0;
     display: flex;
-    flex-direction: row;
     align-items: center;
     gap: 8px;
+    flex: 1;
 }
 
 .app-titlebar__commandbar-item-title {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
+    color: #f4f4f5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -505,21 +556,16 @@
 
 .app-titlebar__commandbar-item-subtitle {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: #a1a1aa;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .app-titlebar__commandbar-item-shortcut {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.35);
-    padding: 3px 6px;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 0.75rem;
+    color: #a1a1aa;
+    white-space: nowrap;
 }
 
 
@@ -540,6 +586,11 @@
 
 .app-titlebar--compact .app-titlebar__middle {
     max-width: calc(100% - 600px);
+}
+
+/* macOS compact mode - keep tabs on right */
+.app-titlebar--macos.app-titlebar--compact .app-titlebar__middle {
+    right: 180px; /* Same as regular mode */
 }
 
 .app-titlebar--compact .app-titlebar__center {

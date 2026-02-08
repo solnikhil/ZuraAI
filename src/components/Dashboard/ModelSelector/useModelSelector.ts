@@ -35,9 +35,7 @@ export interface UseModelSelectorReturn {
   state: ModelSelectorState
   
   // Refs
-  dropdownRef: React.RefObject<HTMLDivElement>
-  portalRef: React.RefObject<HTMLDivElement>
-  searchInputRef: React.RefObject<HTMLInputElement>
+  searchInputRef: React.RefObject<HTMLInputElement | null>
   
   // Computed values
   allModels: ModelWithProvider[]
@@ -57,10 +55,6 @@ export interface UseModelSelectorReturn {
   toggleGroup: (provider: string) => void
   toggleFavorite: (modelCode: string, e: React.MouseEvent) => void
   handleSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
-  
-  // Dropdown position
-  dropdownPos: { top: number; left: number; showAbove: boolean }
-  calculatePosition: () => void
 }
 
 /**
@@ -86,11 +80,8 @@ export function useModelSelector(): UseModelSelectorReturn {
     groq: false,
     minimax: false
   })
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, showAbove: true })
   
   // Refs
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const portalRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   
   // Sync selectedProvider with settings.modelProvider when dropdown opens
@@ -174,53 +165,10 @@ export function useModelSelector(): UseModelSelectorReturn {
     return removeEmojis(nameRaw)
   }, [currentModel, settings.aiModel])
   
-  // Calculate dropdown position
-  const calculatePosition = useCallback(() => {
-    if (!dropdownRef.current) return
-    
-    const rect = dropdownRef.current.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const viewportWidth = window.innerWidth
-    const dropdownHeight = 484
-    const dropdownWidth = 460
-    const padding = 16
-    
-    const spaceAbove = rect.top
-    const spaceBelow = viewportHeight - rect.bottom
-    const showAbove = spaceAbove >= dropdownHeight + padding || spaceAbove > spaceBelow
-    
-    let top: number
-    if (showAbove) {
-      top = rect.top - 12
-    } else {
-      top = rect.bottom + 12
-    }
-    
-    let left = rect.left
-    if (left + dropdownWidth > viewportWidth - padding) {
-      left = viewportWidth - dropdownWidth - padding
-    }
-    if (left < padding) {
-      left = padding
-    }
-    
-    const docWidth = document.body.clientWidth
-    if (docWidth < viewportWidth) {
-      left = Math.min(left, docWidth - dropdownWidth - padding)
-    }
-    
-    setDropdownPos({ top, left, showAbove })
-  }, [])
-  
   // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {
-    if (!isOpen) {
-      calculatePosition()
-      setIsOpen(true)
-    } else {
-      setIsOpen(false)
-    }
-  }, [isOpen, calculatePosition])
+    setIsOpen(prev => !prev)
+  }, [])
   
   // Toggle provider group collapse
   const toggleGroup = useCallback((provider: string) => {
@@ -250,64 +198,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     updateSettings({ aiModel: model.code, modelProvider: model.provider })
   }, [updateSettings])
   
-  // Update position on window resize
-  useEffect(() => {
-    if (!isOpen) return
-    
-    const handleResize = () => calculatePosition()
-    
-    window.addEventListener('resize', handleResize)
-    window.addEventListener('scroll', handleResize, true)
-    
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      window.removeEventListener('scroll', handleResize, true)
-    }
-  }, [isOpen, calculatePosition])
-  
-  // Handle keyboard events
-  useEffect(() => {
-    if (!isOpen) return
-    
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false)
-      }
-    }
-    
-    window.addEventListener('keydown', handleKeyDown)
-    const rafId = requestAnimationFrame(() => {
-      searchInputRef.current?.focus()
-      searchInputRef.current?.select()
-    })
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      cancelAnimationFrame(rafId)
-    }
-  }, [isOpen])
-  
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return
-    
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node
-      if (dropdownRef.current && !dropdownRef.current.contains(target) &&
-          portalRef.current && !portalRef.current.contains(target)) {
-        setIsOpen(false)
-      }
-    }
-    
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside)
-    }, 0)
-    
-    return () => {
-      clearTimeout(timeoutId)
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
   
   return {
     state: {
@@ -317,8 +207,6 @@ export function useModelSelector(): UseModelSelectorReturn {
       selectedProvider,
       collapsedGroups
     },
-    dropdownRef,
-    portalRef,
     searchInputRef,
     allModels,
     filteredModels,
@@ -334,9 +222,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     toggleOpen,
     toggleGroup,
     toggleFavorite,
-    handleSelect,
-    dropdownPos,
-    calculatePosition
+    handleSelect
   }
 }
 

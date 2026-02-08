@@ -4,6 +4,8 @@
  * Requirements: 2.5, 2.6
  */
 import React, { useState, useEffect, useMemo } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Card } from '@/components/ui/card'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
@@ -12,11 +14,10 @@ import { UsageSection } from './sections/UsageSection'
 import { ModelSection } from './sections/ModelSection'
 import { ApiKeysSection } from './sections/ApiKeysSection'
 import { AppearanceSection } from './sections/AppearanceSection'
-import { CommandBarSection } from './sections/CommandBarSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
-import { RAGSettingsSection } from './sections/RAGSettingsSection'
+import { ExperimentalSection } from './sections/ExperimentalSection'
 
-import { GraphRange, ActivityData } from './ActivityGraph'
+import { ActivityData } from './ActivityGraph'
 import './Settings.css'
 
 interface SettingsProps {
@@ -32,7 +33,6 @@ export default function Settings({
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
   const [pendingSettings, setPendingSettings] = useState(settings)
-  const [graphRange, setGraphRange] = useState<GraphRange>('7d')
 
   useEffect(() => {
   }, [activeSection])
@@ -53,61 +53,40 @@ export default function Settings({
       })
     })
 
-    // Activity data calculation
-    let activityData: ActivityData[] = []
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    // Activity data calculation - 30 days of token usage
+    const activityData: ActivityData[] = []
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    if (graphRange === '7d') {
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now - i * 24 * 60 * 60 * 1000)
-        activityData.push({ label: days[d.getDay()], value: 0 })
-      }
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          const diffTime = now - msg.timestamp
-          const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
-          if (diffDays >= 0 && diffDays < 7) {
-            activityData[6 - diffDays].value++
-          }
-        })
-      })
-    } else if (graphRange === '30d') {
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date(now - i * 24 * 60 * 60 * 1000)
-        activityData.push({ label: d.getDate().toString(), value: 0 })
-      }
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          const diffTime = now - msg.timestamp
-          const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
-          if (diffDays >= 0 && diffDays < 30) {
-            activityData[29 - diffDays].value++
-          }
-        })
-      })
-    } else if (graphRange === '12m') {
-      const currentMonth = new Date().getMonth()
-      for (let i = 11; i >= 0; i--) {
-        const mIndex = (currentMonth - i + 12) % 12
-        activityData.push({ label: months[mIndex], value: 0 })
-      }
-      const oneYearAgo = new Date()
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-
-      sessions.forEach(session => {
-        session.messages.forEach(msg => {
-          if (msg.timestamp >= oneYearAgo.getTime()) {
-            const msgDate = new Date(msg.timestamp)
-            const monthDiff = (new Date().getFullYear() - msgDate.getFullYear()) * 12 +
-              (new Date().getMonth() - msgDate.getMonth())
-            if (monthDiff >= 0 && monthDiff < 12) {
-              activityData[11 - monthDiff].value++
-            }
-          }
-        })
+    // Initialize 30 days with zero tokens
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now - i * 24 * 60 * 60 * 1000)
+      activityData.push({
+        label: `${months[d.getMonth()]} ${d.getDate()}`,
+        date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        tokens: 0,
+        modelBreakdown: {}
       })
     }
+
+    // Accumulate tokens per day and per model
+    sessions.forEach(session => {
+      session.messages.forEach(msg => {
+        const diffTime = now - msg.timestamp
+        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
+        if (diffDays >= 0 && diffDays < 30 && msg.usage) {
+          const tokenCount = msg.usage.totalTokens || (msg.usage.inputTokens || 0) + (msg.usage.outputTokens || 0)
+          const dayData = activityData[29 - diffDays]
+          dayData.tokens += tokenCount
+          
+          // Track per-model usage
+          if (msg.model) {
+            const modelName = msg.model.split('/').pop() || msg.model
+            dayData.modelBreakdown = dayData.modelBreakdown || {}
+            dayData.modelBreakdown[modelName] = (dayData.modelBreakdown[modelName] || 0) + tokenCount
+          }
+        }
+      })
+    })
 
     // Most used model calculation
     let maxModel = 'N/A', maxCount = 0, imagesProcessed = 0, assistantMsgCount = 0, totalAssistantChars = 0
@@ -136,7 +115,7 @@ export default function Settings({
       avgResponseLength: assistantMsgCount > 0 ? Math.round(totalAssistantChars / assistantMsgCount) : 0,
       activeDays: activeDaysSet.size
     }
-  }, [sessions, graphRange])
+  }, [sessions])
 
   // Sync settings when they change externally
   useEffect(() => {
@@ -203,15 +182,15 @@ export default function Settings({
 
   return (
     <div className="settings-container">
-      <div
+      <ScrollArea
         className="settings-main-col"
         style={{
           padding: '0',
-          overflowY: 'auto',
           height: '100%',
-          paddingBottom: hasChanges ? 80 : 0,
-          maxWidth: '100%'
+          maxWidth: '100%',
+          overflow: 'hidden'
         }}
+        viewportStyle={{ paddingBottom: hasChanges ? 80 : 0 }}
       >
         <div style={{
           width: '100%',
@@ -224,8 +203,6 @@ export default function Settings({
           {activeSection === 'usage' && (
             <UsageSection
               stats={usageStats}
-              graphRange={graphRange}
-              onGraphRangeChange={setGraphRange}
               sessions={sessions}
             />
           )}
@@ -247,40 +224,96 @@ export default function Settings({
 
           {/* Models Section */}
           {activeSection === 'models' && (
-            <ModelSection
-              configuredModels={pendingSettings.configuredModels || []}
-              perplexityModels={pendingSettings.perplexityModels || []}
-              geminiModels={pendingSettings.geminiModels || []}
-              groqModels={pendingSettings.groqModels || []}
-              minimaxModels={pendingSettings.minimaxModels || []}
-              ollamaModels={pendingSettings.ollamaModels || []}
-              onModelsChange={(models) => handleChange({ configuredModels: models })}
-              titleModel={pendingSettings.titleModel || 'gemini-2.0-flash'}
-              onTitleModelChange={(model) => handleChange({ titleModel: model })}
-            />
+            <>
+              <Card
+                className="settings-section-card"
+                style={{
+                  background: 'var(--theme-surface)',
+                  border: '1px solid var(--theme-border)',
+                  borderRadius: 12,
+                  padding: '20px',
+                  marginTop: '32px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
+                      Generation Settings
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', marginTop: 4 }}>
+                      Max output tokens controls response length. Some models may still enforce their own caps.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {[1000, 4000, 8000, 16000].map(v => (
+                      <button
+                        key={v}
+                        onClick={() => handleChange({ maxTokens: v })}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid var(--theme-border)',
+                          background: pendingSettings.maxTokens === v ? 'rgba(0, 188, 212, 0.15)' : 'var(--theme-surface-hover)',
+                          color: 'var(--theme-text-primary)',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s, border-color 0.15s'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--theme-accent)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--theme-border)' }}
+                      >
+                        {v.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 200, flex: 1 }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)', marginBottom: 6 }}>Max Output Tokens</div>
+                    <input
+                      className="setting-input-scira"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={Number.isFinite(pendingSettings.maxTokens) ? pendingSettings.maxTokens : 1000}
+                      onChange={(e) => {
+                        const next = Number.parseInt(e.target.value, 10)
+                        if (!Number.isFinite(next)) return
+                        handleChange({ maxTokens: Math.max(1, next) })
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        fontSize: '0.9rem',
+                        background: 'var(--theme-surface-hover)',
+                        border: '1px solid var(--theme-border)',
+                        borderRadius: 8,
+                        color: 'var(--theme-text-primary)'
+                      }}
+                    />
+                  </div>
+                </div>
+              </Card>
+
+              <ModelSection
+                configuredModels={pendingSettings.configuredModels || []}
+                perplexityModels={pendingSettings.perplexityModels || []}
+                geminiModels={pendingSettings.geminiModels || []}
+                groqModels={pendingSettings.groqModels || []}
+                minimaxModels={pendingSettings.minimaxModels || []}
+                ollamaModels={pendingSettings.ollamaModels || []}
+                onModelsChange={(models) => handleChange({ configuredModels: models })}
+                titleModel={pendingSettings.titleModel || 'gemini-2.0-flash'}
+                onTitleModelChange={(model) => handleChange({ titleModel: model })}
+              />
+            </>
           )}
 
-          {/* Themes Section */}
+          {/* Appearance Section */}
           {activeSection === 'themes' && (
             <AppearanceSection />
-          )}
-
-
-          {/* Command Bar Section */}
-          {activeSection === 'commandbar' && (
-            <CommandBarSection
-              commandBar={pendingSettings.commandBar ?? settings.commandBar}
-              onChange={(changes) => handleChange({
-                commandBar: {
-                  ...(pendingSettings.commandBar ?? settings.commandBar),
-                  ...changes
-                }
-              })}
-              rememberLastChatSession={pendingSettings.rememberLastChatSession ?? settings.rememberLastChatSession}
-              rememberLastDashboardView={pendingSettings.rememberLastDashboardView ?? settings.rememberLastDashboardView}
-              rememberLastSettingsSection={pendingSettings.rememberLastSettingsSection ?? settings.rememberLastSettingsSection}
-              onRememberChange={(changes) => handleChange(changes)}
-            />
           )}
 
           {/* System Prompt Section */}
@@ -291,15 +324,18 @@ export default function Settings({
             />
           )}
 
-          {/* RAG Settings Section */}
-          {activeSection === 'rag' && (
-            <RAGSettingsSection
-              onUnsavedChange={onUnsavedChange}
+          {/* Experimental Section */}
+          {activeSection === 'experimental' && (
+            <ExperimentalSection
+              streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
+              frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
+              frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
+              onChange={(changes) => handleChange(changes)}
             />
           )}
 
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Unsaved Changes Bar */}
       {hasChanges && (

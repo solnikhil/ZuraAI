@@ -4,6 +4,7 @@ import { Theme } from '../themes/themeDefinitions'
 import { useTheme } from '../themes/useTheme'
 import { useSettings } from '../contexts/SettingsContext'
 import ThemePreview from './ThemePreview'
+import { Card } from '@/components/ui/card'
 import './ThemesPage.css'
 
 export default function ThemesPage() {
@@ -102,7 +103,7 @@ export default function ThemesPage() {
             </div>
 
             {/* Theme Details */}
-            <div className="settings-section-card" style={{ marginTop: 24 }}>
+            <Card className="settings-section-card" style={{ marginTop: 24 }}>
                 <h3 className="section-head">Theme Details</h3>
                 <div className="theme-details-grid" style={{ marginTop: 16 }}>
                     <div className="detail-card">
@@ -134,7 +135,7 @@ export default function ThemesPage() {
                         </div>
                     </div>
                 </div>
-            </div>
+            </Card>
         </div>
     )
 }
