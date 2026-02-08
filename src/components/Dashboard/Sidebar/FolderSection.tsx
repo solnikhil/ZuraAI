@@ -55,7 +55,7 @@ export default function FolderSection({
                         style={{
                             fontSize: '0.7rem',
                             color: 'var(--theme-text-muted)',
-                            padding: '6px 4px 2px',
+                            padding: '6px 6px 2px',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
@@ -83,7 +83,7 @@ export default function FolderSection({
                     </div>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '2px', paddingLeft: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '2px' }}>
                         {children}
                     </div>
                     {sessionCount === 0 && (

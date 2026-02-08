@@ -18,6 +18,7 @@ import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
 import { applyThemeToDocument } from '../themes/themeUtils'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
+export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
 
 /**
  * UI-related settings that change frequently
@@ -56,6 +57,9 @@ export interface SettingsUI {
 
     // Chat bubble style
     chatBubbleStyle?: ChatBubbleStyle
+
+    // Sidebar selected chat overlay style
+    chatSelectedOverlayStyle?: ChatSelectedOverlayStyle
 }
 
 /**
@@ -84,6 +88,7 @@ export const defaultSettingsUI: SettingsUI = {
     frostedSidebar: false,
     frostedPrompt: false,
     chatBubbleStyle: 'solid',
+    chatSelectedOverlayStyle: 'linear',
 }
 
 interface SettingsUIContextType {

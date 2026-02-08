@@ -12,11 +12,10 @@ import './TitleBar.css'
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
-    models: 'Models',
+    providers: 'Providers',
     themes: 'Appearance',
-    preferences: 'API Keys',
-    tools: 'Tools',
     systemprompt: 'System Prompt',
+    experimental: 'Experimental',
 }
 
 function getModelDisplayName(settings: Settings): string {

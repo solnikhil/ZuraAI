@@ -96,22 +96,34 @@ export function useModelSelector(): UseModelSelectorReturn {
     const models: ModelWithProvider[] = []
     
     if (settings.ollamaModels) {
-      settings.ollamaModels.forEach(m => models.push({ ...m, provider: 'ollama' }))
+      settings.ollamaModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'ollama' }))
     }
     if (settings.perplexityModels) {
-      settings.perplexityModels.forEach(m => models.push({ ...m, provider: 'perplexity' }))
+      settings.perplexityModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'perplexity' }))
     }
     if (settings.configuredModels) {
-      settings.configuredModels.forEach(m => models.push({ ...m, provider: 'openrouter' }))
+      settings.configuredModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'openrouter' }))
     }
     if (settings.geminiModels) {
-      settings.geminiModels.forEach(m => models.push({ ...m, provider: 'gemini' }))
+      settings.geminiModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'gemini' }))
     }
     if (settings.groqModels) {
-      settings.groqModels.forEach(m => models.push({ ...m, provider: 'groq' }))
+      settings.groqModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'groq' }))
     }
     if (settings.minimaxModels) {
-      settings.minimaxModels.forEach(m => models.push({ ...m, provider: 'minimax' }))
+      settings.minimaxModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'minimax' }))
     }
     
     return models

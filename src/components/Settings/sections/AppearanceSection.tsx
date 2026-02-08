@@ -10,6 +10,7 @@ import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '../../../contexts/SettingsContext'
+import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
 
@@ -91,11 +92,70 @@ const chatBubblePresets = [
   }
 ] as const
 
+const chatSelectedOverlayPresets: Array<{
+  id: ChatSelectedOverlayStyle
+  label: string
+  description: string
+  previewStyle: React.CSSProperties
+}> = [
+  {
+    id: 'linear',
+    label: 'Linear Solid',
+    description: 'Dense neutral surface with precise edge',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 88%, black 12%)',
+      border: '1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent)',
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+    }
+  },
+  {
+    id: 'notion',
+    label: 'Notion Soft',
+    description: 'Calm, low-contrast solid selection',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-hover) 82%, transparent)',
+      border: '1px solid transparent',
+      boxShadow: 'none',
+    }
+  },
+  {
+    id: 'slack',
+    label: 'Slack Tint',
+    description: 'Solid accent-tinted selection for focus',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface-active))',
+      border: '1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent)',
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)',
+    }
+  },
+  {
+    id: 'discord',
+    label: 'Discord Solid',
+    description: 'Chunky neutral fill with soft border',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 92%, var(--theme-surface) 8%)',
+      border: '1px solid color-mix(in srgb, var(--theme-border) 62%, transparent)',
+      boxShadow: 'none',
+    }
+  },
+  {
+    id: 'github',
+    label: 'GitHub Subtle',
+    description: 'Clean card-like active row with restraint',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 86%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+      boxShadow: 'none',
+    }
+  },
+]
+
 export interface AppearanceSectionProps {}
 
 export function AppearanceSection(_props: AppearanceSectionProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
+  const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
   const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles'>('themes')
   const commandBar = settings.commandBar
@@ -123,6 +183,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
     const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
     applyThemeToDocument(theme)
   }, [settings.activeTheme])
+
 
   return (
     <div style={{ width: '100%', padding: '32px', paddingBottom: 100 }}>
@@ -604,6 +665,90 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                 </button>
               )
             })}
+          </div>
+
+          <div style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: '1px solid var(--theme-border-subtle)'
+          }}>
+            <h4 style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)'
+            }}>
+              Chat Selected Overlay
+            </h4>
+            <p style={{
+              margin: '0 0 14px',
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)'
+            }}>
+              Choose the selected chat highlight style in the sidebar.
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px'
+            }}>
+              {chatSelectedOverlayPresets.map((preset) => {
+                const isActive = currentChatSelectedOverlayStyle === preset.id
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
+                    style={{
+                      textAlign: 'left',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                      background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                      boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{
+                      height: 34,
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 10px',
+                      marginBottom: 10,
+                      ...preset.previewStyle
+                    }}>
+                      <span style={{
+                        fontSize: '0.82rem',
+                        color: 'var(--theme-text-primary)',
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Prompt Optimization Guide
+                      </span>
+                      <span style={{
+                        marginLeft: 8,
+                        color: 'var(--theme-text-muted)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1
+                      }}>
+                        ...
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
+                      {preset.label}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                      {preset.description}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </Card>
       )}

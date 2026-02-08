@@ -5,14 +5,12 @@
  */
 import React, { useState, useEffect, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Card } from '@/components/ui/card'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
-import { ModelSection } from './sections/ModelSection'
-import { ApiKeysSection } from './sections/ApiKeysSection'
+import { ProviderHubSection } from './sections/ProviderHubSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
@@ -207,108 +205,31 @@ export default function Settings({
             />
           )}
 
-          {/* API Keys Section */}
-          {(activeSection === 'preferences' || activeSection === 'tools') && (
-            <ApiKeysSection
+          {/* Providers Section (all-in-one models + API keys + search APIs) */}
+          {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences' || activeSection === 'tools') && (
+            <ProviderHubSection
               openRouterApiKey={pendingSettings.openRouterApiKey}
               perplexityApiKey={pendingSettings.perplexityApiKey}
               geminiApiKey={pendingSettings.geminiApiKey}
               groqApiKey={pendingSettings.groqApiKey}
               minimaxApiKey={pendingSettings.minimaxApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
-              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
+              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
+              webSearchEnabled={pendingSettings.webSearchEnabled ?? settings.webSearchEnabled}
+              deepResearchEnabled={pendingSettings.deepResearchEnabled ?? settings.deepResearchEnabled}
+              aiModel={pendingSettings.aiModel ?? settings.aiModel}
+              modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
+              configuredModels={pendingSettings.configuredModels || []}
+              perplexityModels={pendingSettings.perplexityModels || []}
+              geminiModels={pendingSettings.geminiModels || []}
+              groqModels={pendingSettings.groqModels || []}
+              minimaxModels={pendingSettings.minimaxModels || []}
+              ollamaModels={pendingSettings.ollamaModels || []}
+              maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
+              titleModel={pendingSettings.titleModel || settings.titleModel || 'gemini-2.5-flash'}
               onChange={handleChange}
             />
-          )}
-
-          {/* Models Section */}
-          {activeSection === 'models' && (
-            <>
-              <Card
-                className="settings-section-card"
-                style={{
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 12,
-                  padding: '20px',
-                  marginTop: '32px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                      Generation Settings
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', marginTop: 4 }}>
-                      Max output tokens controls response length. Some models may still enforce their own caps.
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {[1000, 4000, 8000, 16000].map(v => (
-                      <button
-                        key={v}
-                        onClick={() => handleChange({ maxTokens: v })}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          border: '1px solid var(--theme-border)',
-                          background: pendingSettings.maxTokens === v ? 'rgba(0, 188, 212, 0.15)' : 'var(--theme-surface-hover)',
-                          color: 'var(--theme-text-primary)',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s, border-color 0.15s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--theme-accent)' }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--theme-border)' }}
-                      >
-                        {v.toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 200, flex: 1 }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)', marginBottom: 6 }}>Max Output Tokens</div>
-                    <input
-                      className="setting-input-scira"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      step={1}
-                      value={Number.isFinite(pendingSettings.maxTokens) ? pendingSettings.maxTokens : 1000}
-                      onChange={(e) => {
-                        const next = Number.parseInt(e.target.value, 10)
-                        if (!Number.isFinite(next)) return
-                        handleChange({ maxTokens: Math.max(1, next) })
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        fontSize: '0.9rem',
-                        background: 'var(--theme-surface-hover)',
-                        border: '1px solid var(--theme-border)',
-                        borderRadius: 8,
-                        color: 'var(--theme-text-primary)'
-                      }}
-                    />
-                  </div>
-                </div>
-              </Card>
-
-              <ModelSection
-                configuredModels={pendingSettings.configuredModels || []}
-                perplexityModels={pendingSettings.perplexityModels || []}
-                geminiModels={pendingSettings.geminiModels || []}
-                groqModels={pendingSettings.groqModels || []}
-                minimaxModels={pendingSettings.minimaxModels || []}
-                ollamaModels={pendingSettings.ollamaModels || []}
-                onModelsChange={(models) => handleChange({ configuredModels: models })}
-                titleModel={pendingSettings.titleModel || 'gemini-2.0-flash'}
-                onTitleModelChange={(model) => handleChange({ titleModel: model })}
-              />
-            </>
           )}
 
           {/* Appearance Section */}

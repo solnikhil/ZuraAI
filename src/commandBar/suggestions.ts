@@ -150,8 +150,8 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     {
       id: 'go-settings',
       title: 'Go to Settings',
-      subtitle: 'Preferences & API Keys',
-      keywords: ['preferences', 'config', 'api keys'],
+      subtitle: 'Providers & configuration',
+      keywords: ['providers', 'config', 'api keys', 'models'],
       action: { type: 'open_dashboard_view', view: 'settings' }
     },
     {
@@ -162,11 +162,11 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'usage' }
     },
     {
-      id: 'go-settings-models',
-      title: 'Model Settings',
-      subtitle: 'AI model selection',
-      keywords: ['models', 'ai', 'model', 'provider', 'llm'],
-      action: { type: 'open_settings_section', section: 'models' }
+      id: 'go-settings-providers',
+      title: 'Providers Settings',
+      subtitle: 'Models, API keys, and search APIs',
+      keywords: ['providers', 'models', 'api', 'keys', 'llm', 'openrouter', 'gemini', 'groq'],
+      action: { type: 'open_settings_section', section: 'providers' }
     },
     {
       id: 'go-settings-themes',
@@ -174,13 +174,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       subtitle: 'Appearance & themes',
       keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
       action: { type: 'open_settings_section', section: 'themes' }
-    },
-    {
-      id: 'go-settings-preferences',
-      title: 'API Keys & Preferences',
-      subtitle: 'Configure providers & tools',
-      keywords: ['api', 'keys', 'preferences', 'api keys', 'providers', 'tools'],
-      action: { type: 'open_settings_section', section: 'preferences' }
     },
     {
       id: 'go-settings-systemprompt',

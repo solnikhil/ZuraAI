@@ -28,6 +28,22 @@ export interface TodoItem {
     createdAt: number
 }
 
+export interface ConfiguredModel {
+    code: string
+    displayName: string
+    enabled?: boolean
+    description?: string
+    maxContext?: number
+    extendedParameters?: string[]
+    modelType?: 'chat' | 'reasoning' | 'image' | 'video' | 'embedding' | 'other'
+    supportsToolCall?: boolean
+    supportsVision?: boolean
+    supportsDeepThinking?: boolean
+    supportsWebSearch?: boolean
+    supportsImageGeneration?: boolean
+    supportsVideoRecognition?: boolean
+}
+
 /**
  * Configuration-related settings that change infrequently
  */
@@ -43,13 +59,13 @@ export interface SettingsConfig {
     // Model settings
     aiModel: string
     modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
-    configuredModels: Array<{ code: string; displayName: string }>
+    configuredModels: ConfiguredModel[]
     ollamaUrl: string
-    ollamaModels: Array<{ code: string; displayName: string }>
-    perplexityModels: Array<{ code: string; displayName: string }>
-    geminiModels: Array<{ code: string; displayName: string }>
-    groqModels: Array<{ code: string; displayName: string }>
-    minimaxModels: Array<{ code: string; displayName: string }>
+    ollamaModels: ConfiguredModel[]
+    perplexityModels: ConfiguredModel[]
+    geminiModels: ConfiguredModel[]
+    groqModels: ConfiguredModel[]
+    minimaxModels: ConfiguredModel[]
     
     // AI parameters
     temperature: number

@@ -7,13 +7,6 @@ import {
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import {
-    ContextMenu,
-    ContextMenuTrigger,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-} from '@/components/ui/context-menu'
-import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -21,7 +14,8 @@ import {
     DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog'
-import { Edit2, Copy, Trash2 } from '../../icons'
+import { Edit2, Copy, Trash2, Pin, Archive } from '../../icons'
+import { useSettingsUI } from '../../../contexts/SettingsUIContext'
 import type { ChatRowAction } from './ChatRow'
 
 interface ChatRowContextMenuProps {
@@ -33,56 +27,6 @@ interface ChatRowContextMenuProps {
     onDropdownOpenChange: (open: boolean) => void
 }
 
-function MenuItems({
-    isPinned,
-    isArchived,
-    onAction,
-}: {
-    isPinned: boolean
-    isArchived: boolean
-    onAction: (action: ChatRowAction) => void
-}) {
-    return (
-        <>
-            <div
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--theme-text-primary)] outline-none transition-colors hover:bg-[var(--theme-surface-hover)]"
-                onClick={() => onAction('rename')}
-            >
-                <Edit2 size={14} />
-                Rename
-            </div>
-            <div
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--theme-text-primary)] outline-none transition-colors hover:bg-[var(--theme-surface-hover)]"
-                onClick={() => onAction(isPinned ? 'unpin' : 'pin')}
-            >
-                {isPinned ? '📌' : '📌'}{' '}
-                {isPinned ? 'Unpin' : 'Pin'}
-            </div>
-            <div
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--theme-text-primary)] outline-none transition-colors hover:bg-[var(--theme-surface-hover)]"
-                onClick={() => onAction('duplicate')}
-            >
-                <Copy size={14} />
-                Duplicate
-            </div>
-            <div
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--theme-text-primary)] outline-none transition-colors hover:bg-[var(--theme-surface-hover)]"
-                onClick={() => onAction('archive')}
-            >
-                {isArchived ? 'Unarchive' : 'Archive'}
-            </div>
-            <div className="-mx-1 my-1 h-px bg-[var(--theme-border)]" />
-            <div
-                className="relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-red-400 outline-none transition-colors hover:bg-[var(--theme-surface-hover)]"
-                onClick={() => onAction('delete')}
-            >
-                <Trash2 size={14} />
-                Delete
-            </div>
-        </>
-    )
-}
-
 export default function ChatRowContextMenu({
     isPinned,
     isArchived,
@@ -91,7 +35,9 @@ export default function ChatRowContextMenu({
     dropdownOpen,
     onDropdownOpenChange,
 }: ChatRowContextMenuProps) {
+    const { settingsUI } = useSettingsUI()
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+    const isFrosted = settingsUI.frostedSidebar
 
     const handleAction = (action: ChatRowAction) => {
         onDropdownOpenChange(false)
@@ -104,63 +50,47 @@ export default function ChatRowContextMenu({
 
     return (
         <>
-            <ContextMenu>
-                <ContextMenuTrigger asChild>
-                    <DropdownMenu open={dropdownOpen} onOpenChange={onDropdownOpenChange}>
-                        <DropdownMenuTrigger asChild>
-                            {children}
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" side="bottom">
-                            <DropdownMenuItem onClick={() => handleAction('rename')}>
-                                <Edit2 size={14} />
-                                Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction(isPinned ? 'unpin' : 'pin')}>
-                                {isPinned ? 'Unpin' : 'Pin'}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction('duplicate')}>
-                                <Copy size={14} />
-                                Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleAction('archive')}>
-                                {isArchived ? 'Unarchive' : 'Archive'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                onClick={() => handleAction('delete')}
-                                className="!text-red-400"
-                            >
-                                <Trash2 size={14} />
-                                Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                    <ContextMenuItem onClick={() => handleAction('rename')}>
+            <DropdownMenu open={dropdownOpen} onOpenChange={onDropdownOpenChange}>
+                <DropdownMenuTrigger asChild>
+                    {children}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="end"
+                    side="bottom"
+                    style={isFrosted ? {
+                        background: 'linear-gradient(180deg, rgba(22, 24, 30, 0.74) 0%, rgba(14, 16, 22, 0.68) 100%)',
+                        border: '1px solid color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.2) 28%)',
+                        backdropFilter: 'blur(14px) saturate(120%)',
+                        WebkitBackdropFilter: 'blur(14px) saturate(120%)',
+                        boxShadow: '0 18px 38px rgba(0, 0, 0, 0.42)',
+                    } : undefined}
+                >
+                    <DropdownMenuItem onClick={() => handleAction('rename')}>
                         <Edit2 size={14} />
                         Rename
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleAction(isPinned ? 'unpin' : 'pin')}>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAction(isPinned ? 'unpin' : 'pin')}>
+                        <Pin size={14} />
                         {isPinned ? 'Unpin' : 'Pin'}
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleAction('duplicate')}>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAction('duplicate')}>
                         <Copy size={14} />
                         Duplicate
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleAction('archive')}>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAction('archive')}>
+                        <Archive size={14} />
                         {isArchived ? 'Unarchive' : 'Archive'}
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
                         onClick={() => handleAction('delete')}
                         className="!text-red-400"
                     >
                         <Trash2 size={14} />
                         Delete
-                    </ContextMenuItem>
-                </ContextMenuContent>
-            </ContextMenu>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

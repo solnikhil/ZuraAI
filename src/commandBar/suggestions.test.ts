@@ -78,5 +78,15 @@ describe('commandBar suggestions', () => {
       expect(ids).not.toContain('quick-web-search')
       expect(ids).not.toContain('quick-fetch-url')
     })
+
+    it('offers providers section shortcut', () => {
+      const suggestions = getCommandBarSuggestions('providers', {
+        toolsEnabled: true,
+        webSearchEnabled: true,
+        hasCurrentSession: false,
+      })
+
+      expect(suggestions.some((item) => item.id === 'go-settings-providers')).toBe(true)
+    })
   })
 })

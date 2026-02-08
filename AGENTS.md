@@ -166,10 +166,16 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`).
 - `set-titlebar-overlay` remains exposed for compatibility, but `electron/windows/mainWindow.ts#setTitleBarOverlay` is currently a guarded no-op when native overlay is disabled.
 
+#### Model Enablement (Provider Hub)
+- Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `geminiModels`, `groqModels`, `minimaxModels`) now support optional `enabled?: boolean`.
+- Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
+
 ### Data Persistence
 
 **Renderer (localStorage)**
 - Settings: `zura-settings`
+  - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
 - Last active chat session: `zura-ui:lastChatSessionId`

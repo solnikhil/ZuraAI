@@ -67,7 +67,7 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle'
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle', 'chatSelectedOverlayStyle'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -172,6 +172,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
+
         // Title bar personalization - always use compact (narrow) mode
         parsed.titleBarDensity = 'compact'
         if (parsed.titleBarShowAppName === undefined) parsed.titleBarShowAppName = defaultSettings.titleBarShowAppName
@@ -195,6 +196,24 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
+        // Initialize/migrate chatSelectedOverlayStyle if missing
+        const legacyChatSelectedOverlayMap: Partial<Record<string, NonNullable<SettingsUI['chatSelectedOverlayStyle']>>> = {
+            pill: 'linear',
+            soft: 'notion',
+            outline: 'github',
+            glow: 'slack',
+        }
+        const rawChatSelectedOverlayStyle = parsed.chatSelectedOverlayStyle as string | undefined
+        if (!rawChatSelectedOverlayStyle) {
+            parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
+        } else {
+            const migratedStyle = legacyChatSelectedOverlayMap[rawChatSelectedOverlayStyle]
+            if (migratedStyle) {
+                parsed.chatSelectedOverlayStyle = migratedStyle
+            } else if (!['linear', 'notion', 'slack', 'discord', 'github'].includes(rawChatSelectedOverlayStyle)) {
+                parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
+            }
+        }
 
         return parsed
     })
@@ -211,6 +230,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         frostedSidebar: storedSettings.frostedSidebar,
         frostedPrompt: storedSettings.frostedPrompt,
         chatBubbleStyle: storedSettings.chatBubbleStyle,
+        chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
     }), [storedSettings])
 
     const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
