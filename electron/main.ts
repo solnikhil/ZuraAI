@@ -7,8 +7,7 @@ import {
     createMainWindow,
     getMainWindow,
     createTray,
-    destroyTray,
-    setQuitting
+    destroyTray
 } from './windows'
 
 // Import IPC handlers
@@ -67,7 +66,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-    setQuitting(true)
     globalShortcut.unregisterAll()
 })
 
@@ -360,6 +358,4 @@ app.whenReady().then(async () => {
         console.log('╚════════════════════════════════════════════════════════════════════╝\n')
     })
 
-    // Overlay is now lazy-loaded - only created when first needed
-    // This saves ~100-200MB RAM when overlay is not being used
 })

@@ -12,11 +12,6 @@ import { ToastProvider, ErrorBoundary } from './components/shared'
 // Requirements: 2.2
 const Settings = lazy(() => import('./components/Settings/Settings'))
 
-// Lazy load Overlay component for bundle optimization
-// Only loads when overlay window is opened
-// Requirements: 2.3
-const Overlay = lazy(() => import('./components/Overlay'))
-
 // Loading fallback for Settings route
 // Requirements: 2.2
 function SettingsLoadingFallback() {
@@ -31,24 +26,6 @@ function SettingsLoadingFallback() {
             backgroundColor: 'var(--theme-background)'
         }}>
             Loading Settings...
-        </div>
-    )
-}
-
-// Loading fallback for Overlay route
-// Requirements: 2.3
-function OverlayLoadingFallback() {
-    return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100vh',
-            width: '100vw',
-            color: 'rgba(255, 255, 255, 0.7)',
-            backgroundColor: 'transparent'
-        }}>
-            Loading...
         </div>
     )
 }
@@ -73,11 +50,6 @@ function App() {
                                         {/* Legacy chat view now uses DashboardLayout to include sidebar */}
                                         <Route path="/chat" element={<DashboardLayout />} />
                                     </Route>
-                                    <Route path="/overlay" element={
-                                        <Suspense fallback={<OverlayLoadingFallback />}>
-                                            <Overlay />
-                                        </Suspense>
-                                    } />
                                 </Routes>
                             </Router>
                         </StreamingProvider>

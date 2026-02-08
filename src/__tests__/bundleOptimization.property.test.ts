@@ -5,10 +5,10 @@
  * universal properties of the bundle optimization implementation.
  * 
  * **Property 6: Lazy Component Loading**
- * For any lazily-loaded component (Settings, Overlay), its JavaScript chunk 
+ * For any lazily-loaded component (Settings), its JavaScript chunk 
  * SHALL not be present in network requests until the corresponding route is navigated to.
  * 
- * **Validates: Requirements 2.2, 2.3**
+ * **Validates: Requirements 2.2**
  * 
  * **Property 7: Icon Tree-Shaking Effectiveness**
  * For any production bundle, the lucide-react contribution to bundle size 
@@ -49,7 +49,6 @@ interface LazyComponentConfig {
 
 const LAZY_COMPONENTS: LazyComponentConfig[] = [
   { name: 'Settings', route: '/settings', importPath: './components/Settings/Settings' },
-  { name: 'Overlay', route: '/overlay', importPath: './components/Overlay' },
 ];
 
 /**
@@ -76,7 +75,7 @@ const generators = {
   /**
    * Generate a valid route path
    */
-  routePath: fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/chat'),
+  routePath: fc.constantFrom('/', '/dashboard', '/settings', '/chat'),
 
   /**
    * Generate a lazy component configuration
@@ -87,7 +86,7 @@ const generators = {
    * Generate a sequence of route navigations
    */
   routeSequence: fc.array(
-    fc.constantFrom('/', '/dashboard', '/settings', '/overlay', '/chat'),
+    fc.constantFrom('/', '/dashboard', '/settings', '/chat'),
     { minLength: 1, maxLength: 10 }
   ),
 
@@ -112,10 +111,10 @@ describe('Bundle Optimization Property Tests', () => {
     /**
      * **Property 6: Lazy Component Loading**
      * 
-     * For any lazily-loaded component (Settings, Overlay), its JavaScript chunk 
+     * For any lazily-loaded component (Settings), its JavaScript chunk 
      * SHALL not be present in network requests until the corresponding route is navigated to.
      * 
-     * **Validates: Requirements 2.2, 2.3**
+     * **Validates: Requirements 2.2**
      */
     it('should verify lazy components are defined with React.lazy', async () => {
       await fc.assert(
@@ -174,7 +173,7 @@ describe('Bundle Optimization Property Tests', () => {
     it('should verify lazy routes do not include eager imports', () => {
       // This test verifies the App.tsx structure
       // Lazy routes should use React.lazy, not direct imports
-      const lazyRoutes = ['/settings', '/overlay'];
+      const lazyRoutes = ['/settings'];
       const eagerRoutes = ['/', '/dashboard', '/chat'];
       
       // Verify lazy routes are properly categorized

@@ -2,7 +2,7 @@
  * SettingsContext - Combined settings context for backward compatibility
  * 
  * This module provides a unified settings interface that wraps both:
- * - SettingsUIContext: For frequently changing UI state (theme, title bar, overlay, command bar)
+ * - SettingsUIContext: For frequently changing UI state (theme, title bar, command bar)
  * - SettingsConfigContext: For stable configuration (API keys, models, AI parameters, tools)
  * 
  * **Validates: Requirements 8.1**
@@ -10,7 +10,7 @@
  *   values (theme, UI state) and stable values (API keys, model configs)
  * 
  * For new code, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, overlay, command bar settings
+ * - useSettingsUI() - For theme, title bar, and command bar settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  * 
  * The combined useSettings() hook is maintained for backward compatibility.
@@ -31,9 +31,6 @@ export type { TodoItem }
  */
 export interface Settings extends SettingsUI, SettingsConfig {}
 
-/**
- * Default settings (combined from both contexts)
- */
 const defaultSettings: Settings = {
     ...defaultSettingsUI,
     ...defaultSettingsConfig,
@@ -70,7 +67,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'autoHideOverlay', 'overlayTransparency', 'loadOverlayOnStartup',
             'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle'
         ]
         
@@ -124,6 +120,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const saved = localStorage.getItem('zura-settings')
         const parsed = saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings
 
+        // Remove deprecated overlay-era settings from older persisted state
+        delete (parsed as Record<string, unknown>).autoHideOverlay
+        delete (parsed as Record<string, unknown>).overlayTransparency
+        delete (parsed as Record<string, unknown>).loadOverlayOnStartup
+        delete (parsed as Record<string, unknown>).shortcuts
+
         // Force migration: if model is the old default, switch to Grok
         if (parsed.aiModel === 'openrouter/sherlock-dash-alpha') {
             parsed.aiModel = 'x-ai/grok-4.1-fast'
@@ -167,8 +169,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
         if (parsed.deepResearchEnabled === undefined) parsed.deepResearchEnabled = defaultSettings.deepResearchEnabled
-        // Initialize loadOverlayOnStartup if missing
-        if (parsed.loadOverlayOnStartup === undefined) parsed.loadOverlayOnStartup = defaultSettings.loadOverlayOnStartup
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
@@ -207,9 +207,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         titleBarShowAppName: storedSettings.titleBarShowAppName,
         titleBarShowChatTitle: storedSettings.titleBarShowChatTitle,
         titleBarShowModel: storedSettings.titleBarShowModel,
-        autoHideOverlay: storedSettings.autoHideOverlay,
-        overlayTransparency: storedSettings.overlayTransparency,
-        loadOverlayOnStartup: storedSettings.loadOverlayOnStartup,
         commandBar: storedSettings.commandBar,
         frostedSidebar: storedSettings.frostedSidebar,
         frostedPrompt: storedSettings.frostedPrompt,
@@ -244,7 +241,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         favoriteModels: storedSettings.favoriteModels,
         quickPrompts: storedSettings.quickPrompts,
         todos: storedSettings.todos,
-        shortcuts: storedSettings.shortcuts,
         rememberLastChatSession: storedSettings.rememberLastChatSession,
         rememberLastSettingsSection: storedSettings.rememberLastSettingsSection,
         rememberLastDashboardView: storedSettings.rememberLastDashboardView,
@@ -300,7 +296,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
  * Combined settings hook for backward compatibility
  * 
  * For better performance, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, overlay, command bar settings
+ * - useSettingsUI() - For theme, title bar, and command bar settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  */
 export function useSettings() {

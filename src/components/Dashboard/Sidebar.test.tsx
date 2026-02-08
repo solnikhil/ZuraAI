@@ -21,9 +21,6 @@ const mockSettingsUI = {
         titleBarShowAppName: true,
         titleBarShowChatTitle: true,
         titleBarShowModel: true,
-        autoHideOverlay: false,
-        overlayTransparency: 0.95,
-        loadOverlayOnStartup: false,
         commandBar: {
             enabled: true,
             size: 'medium' as const,
@@ -56,6 +53,7 @@ const mockAppShell = {
 
 const mockChatHistory = {
     sessions: [],
+    folders: [],
     currentSessionId: null,
     isLoading: false,
     createSession: vi.fn(),

@@ -6,7 +6,7 @@
  * - Model configurations
  * - AI parameters (temperature, maxTokens, systemPrompt)
  * - Tool settings
- * - User preferences (shortcuts, remember settings)
+ * - User preferences (remember settings)
  * 
  * **Validates: Requirements 8.1**
  * - THE SettingsContext SHALL split into separate contexts for frequently-changing 
@@ -74,11 +74,6 @@ export interface SettingsConfig {
     
     // Todos
     todos: TodoItem[]
-    
-    // Shortcuts
-    shortcuts: {
-        toggleOverlay: string
-    }
     
     // Remember settings
     rememberLastChatSession: boolean
@@ -195,11 +190,6 @@ export const defaultSettingsConfig: SettingsConfig = {
     
     // Todos
     todos: [],
-    
-    // Shortcuts
-    shortcuts: {
-        toggleOverlay: 'CommandOrControl+Shift+Z'
-    },
     
     // Remember settings
     rememberLastChatSession: true,

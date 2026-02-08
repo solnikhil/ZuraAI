@@ -275,8 +275,6 @@ describe('Codebase Reorganization Properties', () => {
       { component: 'src/components/TitleBar.tsx', css: 'src/components/TitleBar.css' },
       { component: 'src/components/shared/Toast.tsx', css: 'src/components/shared/Toast.css' },
       { component: 'src/components/Chat.tsx', css: 'src/components/Chat.css' },
-      { component: 'src/components/Overlay.tsx', css: 'src/components/Overlay.css' },
-      { component: 'src/components/AgentBar.tsx', css: 'src/components/AgentBar.css' },
       { component: 'src/components/Feedback.tsx', css: 'src/components/Feedback.css' },
       { component: 'src/components/Onboarding.tsx', css: 'src/components/Onboarding.css' },
       { component: 'src/components/ThemesPage.tsx', css: 'src/components/ThemesPage.css' },

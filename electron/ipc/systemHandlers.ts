@@ -1,27 +1,11 @@
-import { ipcMain, BrowserWindow, desktopCapturer, screen, app } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, exec } from 'child_process'
 import {
   setTitleBarOverlay,
   setNativeBlur,
   createMainWindow,
-  getMainWindow,
-  getOverlayWindow,
-  hideOverlay,
-  setCurrentScreenshot,
-  getCurrentScreenshot,
-  clearScreenshot,
 } from '../windows'
 import { memoryMonitor, type MemoryMetrics } from '../performance/memoryMonitor'
-
-const MAX_SCREENSHOT_EDGE = 2560
-const MAX_CROP_EDGE = 1536
-const JPEG_QUALITY = 85
-
-function clampNumber(value: unknown, min: number, max: number): number {
-  const num = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(num)) return min
-  return Math.min(max, Math.max(min, num))
-}
 
 /**
  * Register all system IPC handlers
@@ -46,112 +30,6 @@ export function registerSystemHandlers(): void {
   // Native blur toggle (acrylic on Windows, vibrancy on macOS)
   ipcMain.on('set-native-blur', (_event, enabled: boolean) => {
     setNativeBlur(!!enabled)
-  })
-
-  // Screen capture handler
-  ipcMain.handle('capture-screen', async () => {
-    const overlayWin = getOverlayWindow()
-    overlayWin?.hide()
-
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    const displayBounds = screen.getPrimaryDisplay().bounds
-    const maxEdge = Math.max(displayBounds.width, displayBounds.height)
-    const scale = Math.min(1, MAX_SCREENSHOT_EDGE / Math.max(1, maxEdge))
-
-    const thumbnailSize = {
-      width: Math.max(1, Math.round(displayBounds.width * scale)),
-      height: Math.max(1, Math.round(displayBounds.height * scale)),
-    }
-
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize,
-      fetchWindowIcons: false,
-    })
-
-    const primarySource = sources[0]
-    if (primarySource?.thumbnail) {
-      setCurrentScreenshot(primarySource.thumbnail)
-    }
-
-    overlayWin?.show()
-    overlayWin?.setAlwaysOnTop(true)
-
-    return true
-  })
-
-  // Screenshot crop handler
-  ipcMain.handle('crop-screenshot', async (_event, selection) => {
-    const currentScreenshot = getCurrentScreenshot()
-    if (!currentScreenshot) {
-      return null
-    }
-
-    try {
-      const displayBounds = screen.getPrimaryDisplay().bounds
-      const imgSize = currentScreenshot.getSize()
-      const scaleX = imgSize.width / Math.max(1, displayBounds.width)
-      const scaleY = imgSize.height / Math.max(1, displayBounds.height)
-
-      const x = clampNumber(selection?.x, 0, displayBounds.width) * scaleX
-      const y = clampNumber(selection?.y, 0, displayBounds.height) * scaleY
-      const width = clampNumber(selection?.width, 0, displayBounds.width) * scaleX
-      const height = clampNumber(selection?.height, 0, displayBounds.height) * scaleY
-
-      const cropRect = {
-        x: Math.round(x),
-        y: Math.round(y),
-        width: Math.round(width),
-        height: Math.round(height),
-      }
-
-      if (cropRect.width <= 0 || cropRect.height <= 0) {
-        return null
-      }
-
-      // Clamp crop rect to image bounds
-      cropRect.x = Math.max(0, Math.min(cropRect.x, imgSize.width - 1))
-      cropRect.y = Math.max(0, Math.min(cropRect.y, imgSize.height - 1))
-      cropRect.width = Math.max(1, Math.min(cropRect.width, imgSize.width - cropRect.x))
-      cropRect.height = Math.max(1, Math.min(cropRect.height, imgSize.height - cropRect.y))
-
-      let croppedImage = currentScreenshot.crop(cropRect)
-
-      // Resize large crops to reduce RAM and base64 payload size
-      const croppedSize = croppedImage.getSize()
-      const cropMaxEdge = Math.max(croppedSize.width, croppedSize.height)
-      if (cropMaxEdge > MAX_CROP_EDGE) {
-        const resizeScale = MAX_CROP_EDGE / cropMaxEdge
-        croppedImage = croppedImage.resize({
-          width: Math.max(1, Math.round(croppedSize.width * resizeScale)),
-          height: Math.max(1, Math.round(croppedSize.height * resizeScale)),
-        })
-      }
-
-      const base64Image = `data:image/jpeg;base64,${croppedImage.toJPEG(JPEG_QUALITY).toString('base64')}`
-
-      // Drop the full-screen screenshot as soon as we have the crop
-      clearScreenshot()
-
-      return base64Image
-    } catch (error) {
-      console.error('[ERROR] Crop failed:', error)
-      return null
-    }
-  })
-
-  // Overlay control handlers
-  ipcMain.on('close-overlay', () => {
-    hideOverlay()
-    clearScreenshot()
-  })
-
-  // Mouse events handler
-  ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (typeof ignore !== 'boolean') return
-    win?.setIgnoreMouseEvents(ignore, options)
   })
 
   // Open settings handler
@@ -295,10 +173,6 @@ export function registerSystemHandlers(): void {
 export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('set-titlebar-overlay')
   ipcMain.removeAllListeners('set-native-blur')
-  ipcMain.removeHandler('capture-screen')
-  ipcMain.removeHandler('crop-screenshot')
-  ipcMain.removeAllListeners('close-overlay')
-  ipcMain.removeAllListeners('set-ignore-mouse-events')
   ipcMain.removeAllListeners('open-settings')
   ipcMain.removeHandler('get-process-metrics')
   ipcMain.removeHandler('memory:get-metrics')

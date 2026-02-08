@@ -26,9 +26,8 @@ describe('KeyboardShortcuts Component', () => {
         it('renders General shortcuts', () => {
             render(<KeyboardShortcuts />)
 
-            expect(screen.getByText('Toggle overlay window')).toBeInTheDocument()
-            expect(screen.getByText('Capture screenshot for analysis')).toBeInTheDocument()
-            expect(screen.getByText('Close overlay or cancel selection')).toBeInTheDocument()
+            expect(screen.getByText('Start new chat')).toBeInTheDocument()
+            expect(screen.getByText('Toggle command bar')).toBeInTheDocument()
         })
 
         it('renders Chat shortcuts', () => {
@@ -51,15 +50,14 @@ describe('KeyboardShortcuts Component', () => {
 
             // Check for specific key badges (using getAllByText since keys may appear multiple times)
             expect(screen.getAllByText('Ctrl').length).toBeGreaterThan(0)
-            expect(screen.getAllByText('Shift').length).toBeGreaterThan(0)
             expect(screen.getAllByText('Enter').length).toBeGreaterThan(0)
-            expect(screen.getAllByText('Esc').length).toBeGreaterThan(0)
+            expect(screen.getAllByText('Space').length).toBeGreaterThan(0)
         })
 
         it('renders the tip in footer', () => {
             render(<KeyboardShortcuts />)
 
-            expect(screen.getByText(/Tip: You can change some shortcuts in Settings/)).toBeInTheDocument()
+            expect(screen.getByText(/Tip: Use Cmd instead of Ctrl on macOS/)).toBeInTheDocument()
         })
     })
 
@@ -75,11 +73,10 @@ describe('KeyboardShortcuts Component', () => {
         it('has correct number of shortcut items', () => {
             render(<KeyboardShortcuts />)
 
-            // General: 3, Chat: 3, Navigation: 2 = 8 total
+            // General: 2, Chat: 3, Navigation: 2 = 7 total
             const descriptions = [
-                'Toggle overlay window',
-                'Capture screenshot for analysis',
-                'Close overlay or cancel selection',
+                'Start new chat',
+                'Toggle command bar',
                 'Send message',
                 'New line in message',
                 'Select all text in message (when focused)',
