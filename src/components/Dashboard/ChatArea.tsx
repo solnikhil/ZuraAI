@@ -31,10 +31,8 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
-import { PastedContentEditModal } from './ChatArea/PastedContentEditModal'
 import { useStreamingChat } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/FileUploadHandler'
-import type { PastedContentChunk as PastedContentChunkType } from './ChatArea/types'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
@@ -55,8 +53,6 @@ export default function ChatArea() {
   const [input, setInput] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isTitleAnimated, setIsTitleAnimated] = useState(false)
-  const [pastedChunks, setPastedChunks] = useState<PastedContentChunkType[]>([])
-  const [editingChunk, setEditingChunk] = useState<PastedContentChunkType | null>(null)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -81,7 +77,6 @@ export default function ChatArea() {
     onMessageSent: () => {
       setInput('')
       setAttachedFiles([])
-      setPastedChunks([])
     },
     onRegenerateStart: () => {
       // Scroll to position the new message in view when regenerating with smooth animation
@@ -151,53 +146,8 @@ export default function ChatArea() {
 
   // Handle send message
   const handleSendMessage = async () => {
-    if ((!input.trim() && attachedFiles.length === 0 && pastedChunks.length === 0) || isLoading) return
-
-    // Build message with chunk content
-    const chunkContent = pastedChunks.map(c => c.content).join('\n\n---\n\n')
-    let fullInput = input.trim()
-    if (chunkContent) {
-      fullInput += (fullInput ? '\n\n[Attached Content]\n' : '[Attached Content]\n') + chunkContent
-    }
-
-    // Debug: log the full input being sent
-    console.log('[ChatArea] Sending message:', {
-      inputLength: input.length,
-      chunkCount: pastedChunks.length,
-      fullInputLength: fullInput.length,
-      fullInputPreview: fullInput.slice(0, 200) + (fullInput.length > 200 ? '...' : '')
-    })
-
-    await sendMessage(fullInput, attachedFiles)
-  }
-
-  // Handle chunk creation
-  const handleChunkCreate = (content: string) => {
-    const newChunk: PastedContentChunkType = {
-      id: `chunk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      content,
-      charCount: content.length,
-      createdAt: Date.now()
-    }
-    setPastedChunks(prev => [...prev, newChunk])
-  }
-
-  // Handle chunk update
-  const handleChunkUpdate = (id: string, newContent: string) => {
-    setPastedChunks(prev =>
-      prev.map(chunk =>
-        chunk.id === id
-          ? { ...chunk, content: newContent, charCount: newContent.length }
-          : chunk
-      )
-    )
-    setEditingChunk(null)
-  }
-
-  // Handle chunk delete
-  const handleChunkDelete = (id: string) => {
-    setPastedChunks(prev => prev.filter(chunk => chunk.id !== id))
-    setEditingChunk(null)
+    if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
+    await sendMessage(input.trim(), attachedFiles)
   }
 
   // Handle regenerate
@@ -330,10 +280,6 @@ export default function ChatArea() {
               isLoading={isLoading}
               attachedFiles={attachedFiles}
               onFilesChange={setAttachedFiles}
-              pastedChunks={pastedChunks}
-              onChunkEdit={(chunk) => setEditingChunk(chunk)}
-              onChunkDelete={handleChunkDelete}
-              onChunkCreate={handleChunkCreate}
               onError={(msg) => showToast(msg, 'error')}
             />
           </div>
@@ -347,15 +293,6 @@ export default function ChatArea() {
           }
         `}</style>
 
-        {/* Edit Modal */}
-        {editingChunk && (
-          <PastedContentEditModal
-            content={editingChunk.content}
-            onSave={(newContent) => handleChunkUpdate(editingChunk.id, newContent)}
-            onCancel={() => setEditingChunk(null)}
-            onDelete={() => handleChunkDelete(editingChunk.id)}
-          />
-        )}
       </div>
     )
   }
@@ -489,10 +426,6 @@ export default function ChatArea() {
             isLoading={isLoading}
             attachedFiles={attachedFiles}
             onFilesChange={setAttachedFiles}
-            pastedChunks={pastedChunks}
-            onChunkEdit={(chunk) => setEditingChunk(chunk)}
-            onChunkDelete={handleChunkDelete}
-            onChunkCreate={handleChunkCreate}
             onError={(msg) => showToast(msg, 'error')}
           />
         </div>
@@ -543,15 +476,6 @@ export default function ChatArea() {
         }
       `}</style>
 
-      {/* Edit Modal */}
-      {editingChunk && (
-        <PastedContentEditModal
-          content={editingChunk.content}
-          onSave={(newContent) => handleChunkUpdate(editingChunk.id, newContent)}
-          onCancel={() => setEditingChunk(null)}
-          onDelete={() => handleChunkDelete(editingChunk.id)}
-        />
-      )}
     </div>
   )
 }

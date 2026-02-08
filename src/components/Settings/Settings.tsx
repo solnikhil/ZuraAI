@@ -14,7 +14,6 @@ import { UsageSection } from './sections/UsageSection'
 import { ModelSection } from './sections/ModelSection'
 import { ApiKeysSection } from './sections/ApiKeysSection'
 import { AppearanceSection } from './sections/AppearanceSection'
-import { CommandBarSection } from './sections/CommandBarSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
 
@@ -315,24 +314,6 @@ export default function Settings({
           {/* Appearance Section */}
           {activeSection === 'themes' && (
             <AppearanceSection />
-          )}
-
-
-          {/* Command Bar Section */}
-          {activeSection === 'commandbar' && (
-            <CommandBarSection
-              commandBar={pendingSettings.commandBar ?? settings.commandBar}
-              onChange={(changes) => handleChange({
-                commandBar: {
-                  ...(pendingSettings.commandBar ?? settings.commandBar),
-                  ...changes
-                }
-              })}
-              rememberLastChatSession={pendingSettings.rememberLastChatSession ?? settings.rememberLastChatSession}
-              rememberLastDashboardView={pendingSettings.rememberLastDashboardView ?? settings.rememberLastDashboardView}
-              rememberLastSettingsSection={pendingSettings.rememberLastSettingsSection ?? settings.rememberLastSettingsSection}
-              onRememberChange={(changes) => handleChange(changes)}
-            />
           )}
 
           {/* System Prompt Section */}

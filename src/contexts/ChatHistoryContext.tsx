@@ -111,10 +111,27 @@ export interface ChatSession {
     createdAt: number
     updatedAt: number
     totalTokens?: number
+    // Sidebar redesign fields (Requirements 11.1, 11.2, 11.3, 11.4)
+    pinned?: boolean          // default: false
+    archived?: boolean        // default: false
+    folderId?: string | null  // default: null
+    tags?: string[]           // default: []
+}
+
+/**
+ * Folder definition for organizing chat sessions.
+ * Validates: Requirement 11.6
+ */
+export interface Folder {
+    id: string
+    name: string
+    order: number    // for display ordering
+    createdAt: number
 }
 
 interface ChatHistoryContextType {
     sessions: ChatSession[]
+    folders: Folder[]
     currentSessionId: string | null
     isLoading: boolean
     createSession: (firstMessage?: string) => string
@@ -134,6 +151,31 @@ interface ChatHistoryContextType {
     getSessionMetadata: () => SessionMetadata[]
     /** Check if a session's full content is currently loaded in memory */
     isSessionLoaded: (id: string) => boolean
+
+    // Sidebar redesign: Pin operations (Requirements 5.4, 5.5)
+    pinSession: (id: string) => void
+    unpinSession: (id: string) => void
+
+    // Sidebar redesign: Archive operations (Requirements 7.7, 12.3)
+    archiveSession: (id: string) => void
+    unarchiveSession: (id: string) => void
+
+    // Sidebar redesign: Duplicate operation (Requirement 7.8)
+    duplicateSession: (id: string) => void
+
+    // Sidebar redesign: Folder assignment (Requirements 8.3, 8.4)
+    assignFolder: (sessionId: string, folderId: string) => void
+    removeFromFolder: (sessionId: string) => void
+
+    // Sidebar redesign: Tag operations (Requirements 8.5, 8.6)
+    addTag: (sessionId: string, tag: string) => void
+    removeTag: (sessionId: string, tag: string) => void
+
+    // Sidebar redesign: Folder CRUD (Requirements 8.1, 8.2)
+    createFolder: (name: string) => string
+    deleteFolder: (id: string) => void
+    renameFolder: (id: string, name: string) => void
+    reorderFolder: (id: string, order: number) => void
 }
 
 /**
@@ -144,6 +186,7 @@ interface ChatHistoryContextType {
  */
 interface ChatHistoryState {
     sessions: ChatSession[]
+    folders: Folder[]
     currentSessionId: string | null
     isLoading: boolean
 }
@@ -169,6 +212,7 @@ const LAST_SESSION_ID_KEY = 'zura-ui:lastChatSessionId'
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
     const { settings } = useSettings()
     const [sessions, setSessions] = useState<ChatSession[]>([])
+    const [folders, setFolders] = useState<Folder[]>([])
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isInitialized, setIsInitialized] = useState(false)
@@ -259,6 +303,18 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             }
             
             setSessions(fullSessions)
+
+            // Load folders from IPC (sidebar redesign)
+            // Validates: Requirements 8.1, 8.2
+            if (isElectron) {
+                try {
+                    const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
+                    setFolders(storedFolders || [])
+                } catch (folderError) {
+                    console.error('Failed to load folders:', folderError)
+                    setFolders([])
+                }
+            }
         } catch (error) {
             console.error('Failed to load chat history:', error)
             // Fallback to localStorage
@@ -338,6 +394,29 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
         return () => clearTimeout(timeoutId)
     }, [sessions, isInitialized])
+
+    // Save folders whenever they change (after initialization)
+    // Debounced to avoid excessive IPC/disk writes.
+    // Validates: Requirements 8.1, 8.2 (folder persistence)
+    useEffect(() => {
+        if (!isInitialized) return
+
+        const timeoutId = setTimeout(() => {
+            const saveFolders = async () => {
+                try {
+                    if (isElectron) {
+                        await window.ipcRenderer.invoke('chat-store:save-folders', folders)
+                    }
+                } catch (error) {
+                    console.error('Failed to save folders:', error)
+                }
+            }
+
+            void saveFolders()
+        }, 1000)
+
+        return () => clearTimeout(timeoutId)
+    }, [folders, isInitialized])
 
     // Restore last active chat session (optional)
     useEffect(() => {
@@ -615,6 +694,155 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         }))
     }, [getSessionManager])
 
+    // =========================================================================
+    // Sidebar redesign: Pin operations (Requirements 5.4, 5.5)
+    // =========================================================================
+
+    const pinSession = useCallback((id: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === id ? { ...s, pinned: true, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    const unpinSession = useCallback((id: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === id ? { ...s, pinned: false, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    // =========================================================================
+    // Sidebar redesign: Archive operations (Requirements 7.7, 12.3)
+    // =========================================================================
+
+    const archiveSession = useCallback((id: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === id ? { ...s, archived: true, updatedAt: Date.now() } : s
+        ))
+        // If the archived session is the current one, clear it
+        setCurrentSessionId(prev => prev === id ? null : prev)
+    }, [])
+
+    const unarchiveSession = useCallback((id: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === id ? { ...s, archived: false, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    // =========================================================================
+    // Sidebar redesign: Duplicate operation (Requirement 7.8)
+    // =========================================================================
+
+    const duplicateSession = useCallback((id: string) => {
+        setSessions(prev => {
+            const original = prev.find(s => s.id === id)
+            if (!original) return prev
+
+            const now = Date.now()
+            const newSession: ChatSession = {
+                id: crypto.randomUUID(),
+                title: `Copy of ${original.title}`,
+                messages: original.messages.map(msg => ({
+                    ...msg,
+                    id: crypto.randomUUID(),
+                    timestamp: msg.timestamp,
+                })),
+                createdAt: now,
+                updatedAt: now,
+                totalTokens: original.totalTokens,
+                pinned: false,
+                archived: false,
+                folderId: original.folderId,
+                tags: [...(original.tags || [])],
+            }
+
+            // Add to session manager
+            const manager = getSessionManager()
+            manager.addSession(newSession)
+
+            return [newSession, ...prev]
+        })
+    }, [getSessionManager])
+
+    // =========================================================================
+    // Sidebar redesign: Folder assignment (Requirements 8.3, 8.4)
+    // =========================================================================
+
+    const assignFolder = useCallback((sessionId: string, folderId: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === sessionId ? { ...s, folderId, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    const removeFromFolder = useCallback((sessionId: string) => {
+        setSessions(prev => prev.map(s =>
+            s.id === sessionId ? { ...s, folderId: null, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    // =========================================================================
+    // Sidebar redesign: Tag operations (Requirements 8.5, 8.6)
+    // =========================================================================
+
+    const addTag = useCallback((sessionId: string, tag: string) => {
+        setSessions(prev => prev.map(s => {
+            if (s.id !== sessionId) return s
+            const currentTags = s.tags || []
+            // Avoid duplicate tags
+            if (currentTags.includes(tag)) return s
+            return { ...s, tags: [...currentTags, tag], updatedAt: Date.now() }
+        }))
+    }, [])
+
+    const removeTag = useCallback((sessionId: string, tag: string) => {
+        setSessions(prev => prev.map(s => {
+            if (s.id !== sessionId) return s
+            const currentTags = s.tags || []
+            return { ...s, tags: currentTags.filter(t => t !== tag), updatedAt: Date.now() }
+        }))
+    }, [])
+
+    // =========================================================================
+    // Sidebar redesign: Folder CRUD (Requirements 8.1, 8.2)
+    // =========================================================================
+
+    const createFolder = useCallback((name: string): string => {
+        const newFolder: Folder = {
+            id: crypto.randomUUID(),
+            name,
+            order: 0,
+            createdAt: Date.now(),
+        }
+
+        setFolders(prev => {
+            // New folder gets order = max existing order + 1
+            const maxOrder = prev.reduce((max, f) => Math.max(max, f.order), -1)
+            newFolder.order = maxOrder + 1
+            return [...prev, newFolder]
+        })
+
+        return newFolder.id
+    }, [])
+
+    const deleteFolder = useCallback((id: string) => {
+        // Remove folder and unassign all sessions from it
+        setFolders(prev => prev.filter(f => f.id !== id))
+        setSessions(prev => prev.map(s =>
+            s.folderId === id ? { ...s, folderId: null, updatedAt: Date.now() } : s
+        ))
+    }, [])
+
+    const renameFolder = useCallback((id: string, name: string) => {
+        setFolders(prev => prev.map(f =>
+            f.id === id ? { ...f, name } : f
+        ))
+    }, [])
+
+    const reorderFolder = useCallback((id: string, order: number) => {
+        setFolders(prev => prev.map(f =>
+            f.id === id ? { ...f, order } : f
+        ))
+    }, [])
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
@@ -626,6 +854,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
     const contextValue = useMemo(() => ({
         sessions,
+        folders,
         currentSessionId,
         isLoading,
         createSession,
@@ -641,8 +870,23 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         loadFullSession,
         getSessionMetadata,
         isSessionLoaded,
+        // Sidebar redesign actions
+        pinSession,
+        unpinSession,
+        archiveSession,
+        unarchiveSession,
+        duplicateSession,
+        assignFolder,
+        removeFromFolder,
+        addTag,
+        removeTag,
+        createFolder,
+        deleteFolder,
+        renameFolder,
+        reorderFolder,
     }), [
         sessions,
+        folders,
         currentSessionId,
         isLoading,
         createSession,
@@ -658,6 +902,20 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         loadFullSession,
         getSessionMetadata,
         isSessionLoaded,
+        // Sidebar redesign actions
+        pinSession,
+        unpinSession,
+        archiveSession,
+        unarchiveSession,
+        duplicateSession,
+        assignFolder,
+        removeFromFolder,
+        addTag,
+        removeTag,
+        createFolder,
+        deleteFolder,
+        renameFolder,
+        reorderFolder,
     ])
 
     // Memoized state for the selectable context
@@ -665,9 +923,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     // **Validates: Requirements 8.2**
     const selectableState = useMemo<ChatHistoryState>(() => ({
         sessions,
+        folders,
         currentSessionId,
         isLoading,
-    }), [sessions, currentSessionId, isLoading])
+    }), [sessions, folders, currentSessionId, isLoading])
 
     return (
         <SelectableChatHistoryProvider value={selectableState}>
@@ -844,6 +1103,20 @@ export function useChatHistoryActions() {
         loadFullSession: context.loadFullSession,
         getSessionMetadata: context.getSessionMetadata,
         isSessionLoaded: context.isSessionLoaded,
+        // Sidebar redesign actions
+        pinSession: context.pinSession,
+        unpinSession: context.unpinSession,
+        archiveSession: context.archiveSession,
+        unarchiveSession: context.unarchiveSession,
+        duplicateSession: context.duplicateSession,
+        assignFolder: context.assignFolder,
+        removeFromFolder: context.removeFromFolder,
+        addTag: context.addTag,
+        removeTag: context.removeTag,
+        createFolder: context.createFolder,
+        deleteFolder: context.deleteFolder,
+        renameFolder: context.renameFolder,
+        reorderFolder: context.reorderFolder,
     }), [
         context.createSession,
         context.switchSession,
@@ -858,5 +1131,29 @@ export function useChatHistoryActions() {
         context.loadFullSession,
         context.getSessionMetadata,
         context.isSessionLoaded,
+        // Sidebar redesign actions
+        context.pinSession,
+        context.unpinSession,
+        context.archiveSession,
+        context.unarchiveSession,
+        context.duplicateSession,
+        context.assignFolder,
+        context.removeFromFolder,
+        context.addTag,
+        context.removeTag,
+        context.createFolder,
+        context.deleteFolder,
+        context.renameFolder,
+        context.reorderFolder,
     ])
+}
+
+/**
+ * Get the folders list only
+ * Only re-renders when the folders array changes
+ * 
+ * **Validates: Requirements 8.1, 8.2**
+ */
+export function useFolders(): Folder[] {
+    return useChatHistoryStateSelector(state => state.folders)
 }

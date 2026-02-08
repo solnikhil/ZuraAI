@@ -30,13 +30,14 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
     'models',
     'themes',
     'preferences',
-    'commandbar',
+    'systemprompt',
     'experimental',
 ])
 
 function normalizeSettingsSection(section: string | null): string | null {
     if (!section) return null
     if (section === 'tools') return 'preferences'
+    if (section === 'commandbar') return 'themes'
     const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
     return normalized
 }

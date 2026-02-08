@@ -42,6 +42,8 @@ const INVOKE_CHANNELS = new Set<string>([
   'chat-store:get-all',
   'chat-store:save-all',
   'chat-store:migrate',
+  'chat-store:get-all-folders',
+  'chat-store:save-folders',
 
   // Secure storage
   'secure-storage:get',

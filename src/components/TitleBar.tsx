@@ -4,7 +4,6 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { PanelLeft } from './icons'
 import { EyeIcon, EyeOffIcon } from './icons'
 import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
@@ -17,7 +16,6 @@ const SETTINGS_SECTION_LABELS: Record<string, string> = {
     themes: 'Appearance',
     preferences: 'API Keys',
     tools: 'Tools',
-    commandbar: 'Command Bar',
     systemprompt: 'System Prompt',
 }
 
@@ -44,8 +42,6 @@ export default function TitleBar() {
         setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
-        sidebarCollapsed,
-        toggleSidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
@@ -92,7 +88,7 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
-    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const sidebarWidthPx = sidebarHidden ? 0 : 260
 
     const handleDashboardTabChange = (nextView: 'chat') => {
         if (dashboardView === nextView) return
@@ -186,15 +182,6 @@ export default function TitleBar() {
                             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
                         >
                             {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
-                        </button>
-                        <button
-                            type="button"
-                            className="app-titlebar__icon-btn"
-                            onClick={toggleSidebarCollapsed}
-                            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                        >
-                            <PanelLeft size={18} />
                         </button>
                     </div>
                 )}

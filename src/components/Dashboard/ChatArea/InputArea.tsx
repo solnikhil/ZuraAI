@@ -12,8 +12,6 @@ import { Paperclip, Globe, Image, X, SendHorizonal, Square } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
-import { PastedContentChunk } from './PastedContentChunk'
-import type { PastedContentChunk as PastedContentChunkType } from './types'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -34,10 +32,6 @@ export interface InputAreaProps {
   isLoading: boolean
   attachedFiles: AttachedFile[]
   onFilesChange: (files: AttachedFile[]) => void
-  pastedChunks?: PastedContentChunkType[]
-  onChunkEdit?: (chunk: PastedContentChunkType) => void
-  onChunkDelete?: (id: string) => void
-  onChunkCreate?: (content: string) => void
   onError?: (message: string) => void
 }
 
@@ -52,10 +46,6 @@ export function InputArea({
   isLoading,
   attachedFiles,
   onFilesChange,
-  pastedChunks = [],
-  onChunkEdit,
-  onChunkDelete,
-  onChunkCreate,
   onError
 }: InputAreaProps) {
   const [isDragging, setIsDragging] = React.useState(false)
@@ -77,7 +67,7 @@ export function InputArea({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (!isLoading && (input.trim() || attachedFiles.length > 0 || pastedChunks.length > 0)) {
+      if (!isLoading && (input.trim() || attachedFiles.length > 0)) {
         onSend()
         setInput('')
         adjustHeight(true)
@@ -99,8 +89,6 @@ export function InputArea({
     }
   }
 
-  const PASTE_THRESHOLD = 250
-
   const handlePaste = async (event: React.ClipboardEvent) => {
     const items = event.clipboardData.items
     const files: File[] = []
@@ -120,12 +108,6 @@ export function InputArea({
         onFilesChange([...attachedFiles, ...newFiles])
       }
       return
-    }
-
-    const pastedText = event.clipboardData.getData('text')
-    if (pastedText.length > PASTE_THRESHOLD && onChunkCreate) {
-      event.preventDefault()
-      onChunkCreate(pastedText)
     }
   }
 
@@ -172,7 +154,7 @@ export function InputArea({
     }
   }
 
-  const canSend = !isLoading && (input.trim() || attachedFiles.length > 0 || pastedChunks.length > 0)
+  const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentBanner = attachedFiles.length > 0
 
   return (
@@ -185,30 +167,6 @@ export function InputArea({
       >
         {/* Wider container - max-w-2xl = 672px */}
         <div className="relative max-w-2xl w-full mx-auto">
-          {/* Pasted Content Chunks */}
-          <AnimatePresence>
-            {pastedChunks.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="mb-2 flex flex-col gap-1.5"
-              >
-                {pastedChunks.map(chunk => (
-                  <PastedContentChunk
-                    key={chunk.id}
-                    id={chunk.id}
-                    content={chunk.content}
-                    charCount={chunk.charCount}
-                    onEdit={() => onChunkEdit?.(chunk)}
-                    onDelete={() => onChunkDelete?.(chunk.id)}
-                  />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {/* Attached Files Badges */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (

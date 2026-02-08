@@ -183,11 +183,18 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'preferences' }
     },
     {
+      id: 'go-settings-systemprompt',
+      title: 'System Prompt Settings',
+      subtitle: 'Load and edit assistant instructions',
+      keywords: ['system', 'prompt', 'instructions', 'persona', 'behavior'],
+      action: { type: 'open_settings_section', section: 'systemprompt' }
+    },
+    {
       id: 'go-settings-commandbar',
       title: 'Command Bar Settings',
-      subtitle: 'Customize command palette',
+      subtitle: 'Customize command bar in Appearance',
       keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette'],
-      action: { type: 'open_settings_section', section: 'commandbar' }
+      action: { type: 'open_settings_section', section: 'themes' }
     },
     {
       id: 'go-settings-experimental',

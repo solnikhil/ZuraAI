@@ -17,6 +17,51 @@ function ScrollArea({
   viewportRef,
   ...props
 }: ScrollAreaProps) {
+  const internalViewportRef = React.useRef<HTMLDivElement | null>(null)
+
+  const mergedViewportRef = React.useCallback((node: HTMLDivElement | null) => {
+    internalViewportRef.current = node
+
+    if (!viewportRef) return
+
+    if (typeof viewportRef === "function") {
+      viewportRef(node)
+      return
+    }
+
+    viewportRef.current = node
+  }, [viewportRef])
+
+  const normalizedViewportStyle = React.useMemo<React.CSSProperties>(() => ({
+    overscrollBehavior: "contain",
+    scrollBehavior: "auto",
+    ...viewportStyle,
+  }), [viewportStyle])
+
+  const handleViewportWheel = React.useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    if (event.deltaMode === 0) return
+
+    const viewport = internalViewportRef.current
+    if (!viewport) return
+
+    let deltaY = event.deltaY
+    let deltaX = event.deltaX
+
+    if (event.deltaMode === 1) {
+      const computedLineHeight = Number.parseFloat(window.getComputedStyle(viewport).lineHeight)
+      const lineHeight = Number.isFinite(computedLineHeight) ? computedLineHeight : 16
+      deltaY *= lineHeight
+      deltaX *= lineHeight
+    } else if (event.deltaMode === 2) {
+      deltaY *= viewport.clientHeight
+      deltaX *= viewport.clientWidth
+    }
+
+    viewport.scrollTop += deltaY
+    viewport.scrollLeft += deltaX
+    event.preventDefault()
+  }, [])
+
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
@@ -25,12 +70,13 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        ref={viewportRef}
+        ref={mergedViewportRef}
+        onWheel={handleViewportWheel}
         className={cn(
           "h-full w-full rounded-[inherit]",
           viewportClassName
         )}
-        style={viewportStyle}
+        style={normalizedViewportStyle}
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

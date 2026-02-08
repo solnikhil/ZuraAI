@@ -22,11 +22,28 @@ export interface ChatSession {
     createdAt: number
     updatedAt: number
     totalTokens?: number
+    // Sidebar redesign fields (Requirements 11.1, 11.2, 11.3, 11.4)
+    pinned?: boolean          // default: false
+    archived?: boolean        // default: false
+    folderId?: string | null  // default: null
+    tags?: string[]           // default: []
 }
 
-interface ChatHistoryData {
+/**
+ * Folder definition for organizing chat sessions.
+ * Validates: Requirement 11.6
+ */
+export interface Folder {
+    id: string
+    name: string
+    order: number    // for display ordering
+    createdAt: number
+}
+
+export interface ChatHistoryData {
     sessions: ChatSession[]
-    version: number
+    folders: Folder[]  // Sidebar redesign: folder persistence (Requirement 11.6)
+    version: number    // bumped to 2 for sidebar redesign migration
 }
 
 // In-memory cache to reduce disk reads
@@ -38,6 +55,40 @@ const CACHE_TTL = 1000 // 1 second cache
 function getStorePath(): string {
     const userDataPath = app.getPath('userData')
     return path.join(userDataPath, 'chat-history.json')
+}
+
+/**
+ * Apply default values for sidebar redesign fields to a single session.
+ * Used during v1→v2 migration to ensure backward compatibility.
+ * Validates: Requirement 11.5 (backward compatibility — existing sessions load without data loss)
+ * Exported for testing (Property 7).
+ */
+export function migrateSession(session: ChatSession): ChatSession {
+    return {
+        ...session,
+        pinned: session.pinned ?? false,
+        archived: session.archived ?? false,
+        folderId: session.folderId ?? null,
+        tags: Array.isArray(session.tags) ? session.tags : [],
+    }
+}
+
+// Migrate v1 data to v2 format (add folders array and default new session fields)
+// Validates: Requirements 11.5, 11.6
+// Exported for testing.
+export function migrateData(data: ChatHistoryData): ChatHistoryData {
+    if (data.version < 2) {
+        return {
+            sessions: data.sessions.map(migrateSession),
+            folders: (data as any).folders ?? [],
+            version: 2,
+        }
+    }
+    // Ensure folders field exists even for v2+ data
+    if (!data.folders) {
+        data.folders = []
+    }
+    return data
 }
 
 // Read data from file (async)
@@ -52,14 +103,15 @@ async function readStoreAsync(): Promise<ChatHistoryData> {
         const exists = fsSync.existsSync(filePath)
         if (exists) {
             const data = await fs.readFile(filePath, 'utf-8')
-            cachedData = JSON.parse(data)
+            const parsed = migrateData(JSON.parse(data))
+            cachedData = parsed
             cacheTimestamp = Date.now()
             return cachedData!
         }
     } catch (error) {
         console.error('Failed to read chat history:', error)
     }
-    return { sessions: [], version: 1 }
+    return { sessions: [], folders: [], version: 2 }
 }
 
 // Write data to file (async)
@@ -88,14 +140,15 @@ function readStore(): ChatHistoryData {
     try {
         if (fsSync.existsSync(filePath)) {
             const data = fsSync.readFileSync(filePath, 'utf-8')
-            cachedData = JSON.parse(data)
+            const parsed = migrateData(JSON.parse(data))
+            cachedData = parsed
             cacheTimestamp = Date.now()
             return cachedData!
         }
     } catch (error) {
         console.error('Failed to read chat history:', error)
     }
-    return { sessions: [], version: 1 }
+    return { sessions: [], folders: [], version: 2 }
 }
 
 function writeStore(data: ChatHistoryData): void {
@@ -110,7 +163,25 @@ export function getAllSessions(): ChatSession[] {
 }
 
 export function saveAllSessions(sessions: ChatSession[]): void {
-    writeStore({ sessions, version: 1 })
+    const currentData = readStore()
+    writeStore({ sessions, folders: currentData.folders, version: 2 })
+}
+
+/**
+ * Get all folders from the store.
+ * Validates: Requirement 11.6 (persist Folder definitions alongside chat history data)
+ */
+export function getAllFolders(): Folder[] {
+    return readStore().folders
+}
+
+/**
+ * Save folders to the store, preserving existing sessions.
+ * Validates: Requirement 11.6 (persist Folder definitions alongside chat history data)
+ */
+export function saveFolders(folders: Folder[]): void {
+    const currentData = readStore()
+    writeStore({ sessions: currentData.sessions, folders, version: 2 })
 }
 
 export function getSession(id: string): ChatSession | undefined {
@@ -177,5 +248,24 @@ export async function getAllSessionsAsync(): Promise<ChatSession[]> {
 }
 
 export async function saveAllSessionsAsync(sessions: ChatSession[]): Promise<void> {
-    await writeStoreAsync({ sessions, version: 1 })
+    const currentData = await readStoreAsync()
+    await writeStoreAsync({ sessions, folders: currentData.folders, version: 2 })
+}
+
+/**
+ * Get all folders from the store (async version).
+ * Validates: Requirement 11.6
+ */
+export async function getAllFoldersAsync(): Promise<Folder[]> {
+    const data = await readStoreAsync()
+    return data.folders
+}
+
+/**
+ * Save folders to the store, preserving existing sessions (async version).
+ * Validates: Requirement 11.6
+ */
+export async function saveFoldersAsync(folders: Folder[]): Promise<void> {
+    const currentData = await readStoreAsync()
+    await writeStoreAsync({ sessions: currentData.sessions, folders, version: 2 })
 }

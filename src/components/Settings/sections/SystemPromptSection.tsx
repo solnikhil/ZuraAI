@@ -171,7 +171,7 @@ export function SystemPromptSection({
                   e.currentTarget.style.color = 'var(--theme-text-secondary)'
                 }}
               >
-                Reset to Default
+                Load Default Prompt
               </button>
             </div>
           </div>

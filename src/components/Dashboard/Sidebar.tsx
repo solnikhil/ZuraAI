@@ -1,16 +1,20 @@
-import React, { useState } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-    Search, MessageSquare, SettingsIcon,
-    ChevronDown, ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, X, Paintbrush, Command, FlaskConical
+    ChartNoAxesCombined, Cpu,
+    Key, ArrowLeft, Paintbrush, FlaskConical, FileText
 } from '../icons'
-import { TrashIcon } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+
+import SidebarHeader from './Sidebar/SidebarHeader'
+import SidebarChatList from './Sidebar/SidebarChatList'
+import SidebarFooter from './Sidebar/SidebarFooter'
+import { filterSessions } from './Sidebar/utils/filterSessions'
+import { groupSessions } from './Sidebar/utils/groupSessions'
+import type { ChatRowAction } from './Sidebar/ChatRow'
 
 interface SidebarProps {
     view: 'chat' | 'settings'
@@ -24,19 +28,32 @@ interface SidebarProps {
 
 export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
-    const [isSearching, setIsSearching] = useState(false)
-    const { sidebarCollapsed: isCollapsed, sidebarHidden } = useAppShell()
-    const [isListExpanded, setIsListExpanded] = useState(true)
-    const { sessions, currentSessionId, switchSession, deleteSession, clearCurrentSession, createSession } = useChatHistory()
-    const { settings, updateSettings } = useSettings()
+    const { sidebarHidden } = useAppShell()
+    const {
+        sessions,
+        folders,
+        currentSessionId,
+        switchSession,
+        deleteSession,
+        clearCurrentSession,
+        updateSessionTitle,
+        pinSession,
+        unpinSession,
+        archiveSession,
+        unarchiveSession,
+        duplicateSession: duplicateSessionAction,
+        assignFolder,
+    } = useChatHistory()
+    const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
 
-    // Glassmorphism styles - only apply when sidebar is visible (Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 4.1, 4.2)
+    // Sidebar state
+    const [focusIndex, setFocusIndex] = useState(-1)
+    const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+    const [showArchived, setShowArchived] = useState(false)
+    // Glassmorphism styles
     const shouldApplyGlass = frostedSidebar && !sidebarHidden
-
-    // Settings UI State
-    const [blurInfo, setBlurInfo] = useState(false)
 
     // Settings navigation items
     const navItems = [
@@ -44,15 +61,136 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
         { id: 'themes', label: 'Appearance', icon: <Paintbrush size={18} /> },
         { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
-        { id: 'commandbar', label: 'Command Bar', icon: <Command size={18} /> },
+        { id: 'systemprompt', label: 'System Prompt', icon: <FileText size={18} /> },
         { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
     ]
 
-    const filteredSessions = sessions.filter(s =>
-        s.title.toLowerCase().includes(searchQuery.toLowerCase())
+    // Filter sessions by search query
+    const filteredSessions = useMemo(() =>
+        filterSessions(sessions, searchQuery),
+        [sessions, searchQuery]
     )
 
-    // Helper to render Chat List Content
+    // Group filtered sessions
+    const groupedSessions = useMemo(() =>
+        groupSessions(filteredSessions, folders),
+        [filteredSessions, folders]
+    )
+
+    // Archived sessions (excluded from main list, shown on demand)
+    const archivedSessions = useMemo(() =>
+        sessions.filter(s => s.archived === true),
+        [sessions]
+    )
+
+    // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
+    const flatVisibleSessions = useMemo(() => {
+        const flat = [
+            ...groupedSessions.pinned,
+        ]
+        for (const folder of folders) {
+            const folderSessions = groupedSessions.folders.get(folder.id) || []
+            flat.push(...folderSessions)
+        }
+        flat.push(
+            ...groupedSessions.today,
+            ...groupedSessions.yesterday,
+            ...groupedSessions.previous7Days,
+            ...groupedSessions.previous30Days,
+            ...groupedSessions.older,
+        )
+        return flat
+    }, [groupedSessions, folders])
+
+    // Clamp focus index when list changes
+    useEffect(() => {
+        if (focusIndex >= flatVisibleSessions.length) {
+            setFocusIndex(Math.max(flatVisibleSessions.length - 1, -1))
+        }
+    }, [flatVisibleSessions.length, focusIndex])
+
+    // Global Ctrl+N / Cmd+N shortcut (Requirement 2.4)
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                e.preventDefault()
+                clearCurrentSession()
+            }
+        }
+        window.addEventListener('keydown', handler)
+        return () => window.removeEventListener('keydown', handler)
+    }, [clearCurrentSession])
+
+    // Keyboard navigation handler (Requirements 4.4, 4.5, 4.6, 4.7)
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        const listLength = flatVisibleSessions.length
+        if (listLength === 0) return
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault()
+                setFocusIndex(prev => Math.min(prev + 1, listLength - 1))
+                break
+            case 'ArrowUp':
+                e.preventDefault()
+                setFocusIndex(prev => Math.max(prev - 1, 0))
+                break
+            case 'Enter':
+                if (focusIndex >= 0 && focusIndex < listLength) {
+                    switchSession(flatVisibleSessions[focusIndex].id)
+                }
+                break
+            case 'Escape': {
+                const searchEl = document.querySelector('[data-sidebar-search]') as HTMLInputElement
+                searchEl?.focus()
+                setFocusIndex(-1)
+                break
+            }
+        }
+    }, [flatVisibleSessions, focusIndex, switchSession])
+
+    // Context menu action handler
+    const handleContextAction = useCallback((action: ChatRowAction, sessionId: string) => {
+        switch (action) {
+            case 'rename':
+                setRenamingSessionId(sessionId)
+                break
+            case 'pin':
+                pinSession(sessionId)
+                break
+            case 'unpin':
+                unpinSession(sessionId)
+                break
+            case 'archive':
+                // If archiving the active session, clear current
+                if (currentSessionId === sessionId) {
+                    clearCurrentSession()
+                }
+                archiveSession(sessionId)
+                break
+            case 'delete':
+                deleteSession(sessionId)
+                break
+            case 'duplicate':
+                duplicateSessionAction(sessionId)
+                break
+        }
+    }, [pinSession, unpinSession, archiveSession, deleteSession, duplicateSessionAction, currentSessionId, clearCurrentSession])
+
+    const handleRenameConfirm = useCallback((id: string, newTitle: string) => {
+        updateSessionTitle(id, newTitle)
+        setRenamingSessionId(null)
+    }, [updateSessionTitle])
+
+    const handleRenameCancel = useCallback(() => {
+        setRenamingSessionId(null)
+    }, [])
+
+    const handleDropSessionToFolder = useCallback((sessionId: string, folderId: string) => {
+        assignFolder(sessionId, folderId)
+    }, [assignFolder])
+
+    // Chat content view
     const renderChatContent = () => (
         <div style={{
             display: 'flex',
@@ -65,262 +203,41 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             position: view === 'chat' ? 'relative' : 'absolute',
             width: '100%'
         }}>
-            {/* Chat Actions */}
-            {!isCollapsed && (
-                <div style={{
-                    padding: '8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px'
-                }}>
-                    {/* New Chat - navigates to home screen only */}
-                    <button
-                        onClick={() => clearCurrentSession()}
-                        className="nav-item"
-                        title="New Chat"
-                    >
-                        <div style={{
-                            width: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                        }}>
-                            <MessageSquare size={18} />
-                        </div>
-                        <span>New chat</span>
-                    </button>
+            <SidebarHeader
+                onNewChat={clearCurrentSession}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+            />
 
-                    {/* Search Chat - toggles search input */}
-                    {isSearching || searchQuery ? (
-                        <div style={{ padding: '4px 0' }}>
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                background: 'var(--theme-surface-active)',
-                                border: '1px solid var(--theme-border)',
-                                borderRadius: '6px',
-                                padding: '6px 8px',
-                                gap: '6px'
-                            }}>
-                                <Search size={14} style={{ color: 'var(--theme-text-muted)' }} />
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    onBlur={() => { if (!searchQuery) setIsSearching(false) }}
-                                    placeholder="Search chats..."
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--theme-text-primary)',
-                                        fontSize: '0.85rem',
-                                        width: '100%',
-                                        outline: 'none'
-                                    }}
-                                />
-                                {searchQuery && (
-                                    <X 
-                                        size={14} 
-                                        style={{ cursor: 'pointer', color: 'var(--theme-text-muted)' }}
-                                        onClick={() => { setSearchQuery(''); setIsSearching(false) }}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setIsSearching(true)}
-                            className="nav-item"
-                            title="Search Chat"
-                        >
-                            <div style={{
-                                width: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                            }}>
-                                <Search size={18} />
-                            </div>
-                            <span>Search Chat</span>
-                        </button>
-                    )}
-                </div>
-            )}
+            <SidebarChatList
+                    groupedSessions={groupedSessions}
+                    folders={folders}
+                    currentSessionId={currentSessionId}
+                    streamingSessionId={null}
+                    focusIndex={focusIndex}
+                    flatVisibleSessions={flatVisibleSessions}
+                    renamingSessionId={renamingSessionId}
+                    searchQuery={searchQuery}
+                    showArchived={showArchived}
+                    archivedSessions={archivedSessions}
+                    onSelectSession={switchSession}
+                    onContextAction={handleContextAction}
+                    onRenameStart={(id) => setRenamingSessionId(id)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
+                    onDropSessionToFolder={handleDropSessionToFolder}
+                    onToggleArchived={() => setShowArchived(prev => !prev)}
+                    onKeyDown={handleKeyDown}
+                />
 
-            {/* Chat History List */}
-            <ScrollArea
-                style={{
-                    flex: 1,
-                    minWidth: 0
-                }}
-                viewportStyle={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1px',
-                    padding: '4px 8px 0'
-                }}
-            >
-
-                {!isCollapsed && filteredSessions.length > 0 && (
-                    <div
-                        onClick={() => setIsListExpanded(!isListExpanded)}
-                        onMouseEnter={e => {
-                            const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
-                            if (chevron) chevron.style.opacity = '1'
-                        }}
-                        onMouseLeave={e => {
-                            const chevron = e.currentTarget.querySelector('.chevron-icon') as HTMLElement
-                            if (chevron) chevron.style.opacity = '0'
-                        }}
-                        style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--theme-text-muted)',
-                            padding: '6px 0 4px 9px',
-                            marginBottom: '2px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            fontWeight: 500,
-                            letterSpacing: '0.5px'
-                        }}
-                    >
-                        <span>Your Chats</span>
-                        <ChevronDown
-                            className="chevron-icon"
-                            size={12}
-                            style={{
-                                transition: 'transform 0.2s, opacity 0.2s',
-                                transform: isListExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                opacity: 0,
-                                marginLeft: 'auto'
-                            }}
-                        />
-                    </div>
-                )}
-
-                <div style={{
-                    display: isListExpanded && !isCollapsed ? 'flex' : 'none',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    minWidth: 0
-                }}>
-                    {filteredSessions.map((session, index) => (
-                        <div
-                            key={session.id}
-                            onClick={() => switchSession(session.id)}
-                            className="session-item animate-sidebar-item"
-                            data-active={currentSessionId === session.id ? "true" : "false"}
-                            title={isCollapsed ? session.title : ''}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 10px',
-                                cursor: 'pointer',
-                                borderRadius: '10px',
-                                fontSize: '0.8rem',
-                                color: 'var(--theme-text-primary)',
-                                backgroundColor: 'transparent',
-                                transition: 'all 0.15s ease',
-                                justifyContent: 'flex-start',
-                                animationDelay: `${index * 0.05}s`,
-                                width: '100%',
-                                minWidth: 0,
-                                overflow: 'hidden'
-                            }}
-                        >
-                            <span style={{
-                                flex: 1,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                display: isCollapsed ? 'none' : 'block',
-                                minWidth: 0,
-                                paddingLeft: '4px'
-                            }}>{session.title}</span>
-                            {!isCollapsed && (
-                                <div
-                                    className="delete-btn"
-                                    onClick={(e) => { e.stopPropagation(); deleteSession(session.id) }}
-                                    style={{
-                                        opacity: 0,
-                                        padding: '8px',
-                                        borderRadius: '6px',
-                                        flexShrink: 0,
-                                        transition: 'opacity 0.15s ease',
-                                        marginRight: '8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                >
-                                    <TrashIcon size={16} dangerHover />
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </ScrollArea>
-
-            {/* Footer - Settings Button */}
-            <div style={{
-                marginTop: 'auto',
-                borderTop: '1px solid var(--theme-border)',
-                padding: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                minWidth: 0
-            }}>
-                <button
-                    onClick={onOpenSettings}
-                    title="Settings"
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'var(--theme-text-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-start',
-                        gap: '10px',
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        transition: 'all 0.2s ease',
-                        minWidth: 0,
-                        overflow: 'hidden'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
-                >
-                    <div style={{
-                        width: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                    }}>
-                        <SettingsIcon size={18} strokeWidth={2} />
-                    </div>
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
-                </button>
-            </div>
+            <SidebarFooter
+                currentModel={settings.aiModel}
+                onOpenSettings={onOpenSettings}
+            />
         </div>
     )
 
-    // Helper to render Settings Content
+    // Settings content view (preserved from original)
     const renderSettingsContent = () => (
         <div style={{
             position: 'absolute',
@@ -336,11 +253,8 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             pointerEvents: view === 'settings' ? 'all' : 'none',
             boxSizing: 'border-box'
         }}>
-
-
-            {/* Content Area - grows to push footer down */}
+            {/* Content Area */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '8px 12px 0', overflow: 'hidden' }}>
-                {/* Navigation */}
                 <div className="nav-menu" style={{
                     background: 'transparent',
                     border: 'none',
@@ -357,15 +271,14 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                             onClick={() => onNavigateSettings(item.id)}
                             className={`nav-item settings-nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
-                                padding: isCollapsed ? '8px' : '10px 12px',
+                                padding: '10px 12px',
                                 fontSize: '0.9rem',
-                                justifyContent: isCollapsed ? 'center' : 'flex-start',
+                                justifyContent: 'flex-start',
                                 animationDelay: `${index * 0.05}s`,
                                 minWidth: 0,
                                 overflow: 'hidden',
-                                width: isCollapsed ? '36px' : '100%'
+                                width: '100%'
                             }}
-                            title={isCollapsed ? item.label : ''}
                         >
                             <div style={{
                                 width: '20px',
@@ -376,12 +289,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                             }}>
                                 {item.icon}
                             </div>
-                            {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
                         </button>
                     ))}
                 </div>
-
-                {/* GitHub Card removed for debugging sidebar expansion */}
             </div>
 
             {/* Footer - Back to Chat Button */}
@@ -420,7 +331,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     onMouseLeave={e => {
                         e.currentTarget.style.backgroundColor = 'transparent'
                     }}
-                    title={isCollapsed ? "Back to Chat" : ""}
+                    title=""
                 >
                     <div style={{
                         width: '20px',
@@ -431,52 +342,44 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     }}>
                         <ArrowLeft size={20} strokeWidth={2} />
                     </div>
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to Chat</span>}
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to Chat</span>
                 </button>
             </div>
-        </div >
+        </div>
     )
 
     return (
-        <div 
+        <div
             className={`sidebar-container${shouldApplyGlass ? ' frosted' : ''}`}
             style={{
-            width: sidebarHidden ? '0px' : (isCollapsed ? '60px' : '260px'),
-            background: shouldApplyGlass
-                ? 'transparent'
-                : 'var(--theme-surface)',
-            borderRight: sidebarHidden
-                ? 'none'
-                : shouldApplyGlass
+                width: sidebarHidden ? '0px' : '260px',
+                background: shouldApplyGlass
+                    ? 'transparent'
+                    : 'var(--theme-surface)',
+                borderRight: sidebarHidden
                     ? 'none'
-                    : '1px solid var(--theme-border)',
-            boxShadow: shouldApplyGlass
-                ? '4px 0 20px rgba(0, 0, 0, 0.35)'
-                : 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-            transition: 'width 0.2s ease, opacity 0.15s ease, background 0.2s ease',
-            position: 'relative',
-            overflow: 'hidden',
-            pointerEvents: sidebarHidden ? 'none' : 'auto',
-            zIndex: 1
-        }}>
+                    : shouldApplyGlass
+                        ? 'none'
+                        : '1px solid var(--theme-border)',
+                boxShadow: shouldApplyGlass
+                    ? '4px 0 20px rgba(0, 0, 0, 0.35)'
+                    : 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+                transition: 'width 0.2s ease, opacity 0.15s ease, background 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden',
+                pointerEvents: sidebarHidden ? 'none' : 'auto',
+                zIndex: 1
+            }}>
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {renderChatContent()}
                 {renderSettingsContent()}
             </div>
 
             <style>{`
-                .session-item:hover { background-color: var(--theme-surface-hover); }
-                .session-item[data-active="true"] {
-                    background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
-                }
-                .session-item[data-active="true"]:hover { background-color: color-mix(in srgb, var(--theme-accent) 18%, transparent); }
-                .session-item:hover .delete-btn { opacity: 1 !important; }
-                .delete-btn:hover { background-color: var(--theme-surface-active) !important; }
-
                 /* Custom Scrollbar */
                 ::-webkit-scrollbar {
                     width: 4px;
@@ -495,14 +398,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     background: var(--theme-border-active);
                 }
 
-                .toggle-switch { width: 32px; height: 18px; background: rgba(255,255,255,0.1); border-radius: 9px; position: relative; cursor: pointer; transition: background 0.2s; }
-                .toggle-thumb { width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
-                .toggle-switch.active .toggle-thumb { transform: translateX(14px); }
-                .toggle-switch.active { background: #fff; }
-
-                .btn-signout { width: 100%; padding: 10px; border: 1px solid var(--theme-border); background: transparent; border-radius: 12px; color: var(--theme-text-secondary); font-size: 0.9rem; cursor: pointer; display: flex; alignItems: center; justifyContent: center; gap: 8px; transition: all 0.2s; }
-                .btn-signout:hover { background: var(--theme-surface-hover); color: #fff; border-color: var(--theme-border-hover); }
-
                 .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: background 0.15s ease, color 0.15s ease; width: 100%; box-sizing: border-box; }
                 .nav-item:hover { background: var(--theme-surface-hover); }
                 .nav-item.active { background: var(--theme-surface-active); }
@@ -518,8 +413,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     .settings-nav-item:active { transform: none; box-shadow: none; }
                 }
 
-                .quick-action-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
-
                 @keyframes blur-in-up {
                     0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
                     100% { opacity: 1; transform: translateY(0); filter: blur(0); }
@@ -528,18 +421,10 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     animation: blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
                 }
 
-                @keyframes fade-in-slide {
-                    0% { opacity: 0; transform: translateY(-8px); }
-                    100% { opacity: 1; transform: translateY(0); }
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.4; }
                 }
-                .library-title {
-                    animation: fade-in-slide 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
-                }
-                .quick-action-btn {
-                    animation: fade-in-slide 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
-                }
-                .quick-action-btn:nth-child(1) { animation-delay: 0.05s; }
-                .quick-action-btn:nth-child(2) { animation-delay: 0.1s; }
             `}</style>
         </div>
     )
