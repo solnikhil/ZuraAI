@@ -982,7 +982,6 @@ export function ProviderHubSection({
                     aiModel={aiModel}
                     modelProvider={modelProvider}
                     onToggleModel={(code, checked) => toggleModelEnabled(selectedProviderDef.key, code, checked)}
-                    onSelectModel={(code) => onChange({ aiModel: code, modelProvider: selectedProviderDef.key })}
                   />
                 )}
 
@@ -993,7 +992,6 @@ export function ProviderHubSection({
                   aiModel={aiModel}
                   modelProvider={modelProvider}
                   onToggleModel={(code, checked) => toggleModelEnabled(selectedProviderDef.key, code, checked)}
-                  onSelectModel={(code) => onChange({ aiModel: code, modelProvider: selectedProviderDef.key })}
                 />
               </div>
             </div>
@@ -1315,7 +1313,6 @@ function ModelGroup({
   aiModel,
   modelProvider,
   onToggleModel,
-  onSelectModel,
 }: {
   title: string
   models: ModelBasic[]
@@ -1323,7 +1320,6 @@ function ModelGroup({
   aiModel: string
   modelProvider: string
   onToggleModel: (code: string, checked: boolean) => void
-  onSelectModel: (code: string) => void
 }): React.ReactElement {
   if (models.length === 0) {
     return (
@@ -1342,19 +1338,7 @@ function ModelGroup({
             key={`${selectedProvider}-${model.code}`}
             className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 first:border-t-0"
           >
-            <div
-              className="min-w-0 cursor-pointer"
-              onClick={() => onSelectModel(model.code)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onSelectModel(model.code)
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label={`Set current ${model.displayName}`}
-            >
+            <div className="min-w-0">
               <div className="truncate text-sm font-medium text-foreground">
                 {model.displayName}
                 {isCurrentModel && (

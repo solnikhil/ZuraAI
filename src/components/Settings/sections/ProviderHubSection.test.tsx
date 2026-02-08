@@ -68,17 +68,13 @@ describe('ProviderHubSection', () => {
     expect(screen.getByRole('button', { name: /update/i })).toBeInTheDocument()
   })
 
-  it('updates selected model from provider model row', () => {
+  it('removes current-model selection controls from settings list', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
     fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
-    fireEvent.click(screen.getByLabelText('Set current Grok 4.1 Mini'))
 
-    expect(onChange).toHaveBeenCalledWith({
-      aiModel: 'x-ai/grok-4.1-mini',
-      modelProvider: 'openrouter',
-    })
+    expect(screen.queryByLabelText(/Set current/i)).not.toBeInTheDocument()
   })
 
   it('allows enabling multiple models independently', () => {
