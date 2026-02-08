@@ -47,8 +47,8 @@ describe('Onboarding Component', () => {
         it('renders feature list', () => {
             renderWithProviders(<Onboarding onComplete={mockOnComplete} />)
 
-            expect(screen.getByText('Quick access with global hotkeys')).toBeInTheDocument()
-            expect(screen.getByText('Screenshot analysis and vision AI')).toBeInTheDocument()
+            expect(screen.getByText('Fast keyboard shortcuts for chat and navigation')).toBeInTheDocument()
+            expect(screen.getByText('Attach images and files for vision analysis')).toBeInTheDocument()
             expect(screen.getByText('Multiple AI providers supported')).toBeInTheDocument()
         })
 

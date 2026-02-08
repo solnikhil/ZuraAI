@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, ChevronRight, ChevronLeft, Key, Zap, Image, CheckCircle, Command } from './icons'
+import { X, ChevronRight, ChevronLeft, Zap, Image, Command } from './icons'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from './shared'
 import { saveApiKeyToSecureStorage } from '../utils/secureApiKeys'
@@ -115,11 +115,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     <div className="feature-list">
                         <div className="feature-item">
                             <Zap size={20} />
-                            <span>Quick access with global hotkeys</span>
+                            <span>Fast keyboard shortcuts for chat and navigation</span>
                         </div>
                         <div className="feature-item">
                             <Image size={20} />
-                            <span>Screenshot analysis and vision AI</span>
+                            <span>Attach images and files for vision analysis</span>
                         </div>
                         <div className="feature-item">
                             <Command size={20} />
@@ -222,25 +222,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     
                     <div className="shortcuts-list">
                         <div className="shortcut-item">
-                            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd>
-                            <span>Toggle overlay window</span>
+                            <kbd>Ctrl</kbd> + <kbd>N</kbd>
+                            <span>Start new chat</span>
                         </div>
                         <div className="shortcut-item">
-                            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>
-                            <span>Capture screenshot for analysis</span>
-                        </div>
-                        <div className="shortcut-item">
-                            <kbd>Esc</kbd>
-                            <span>Close overlay</span>
+                            <kbd>Ctrl</kbd> + <kbd>Space</kbd>
+                            <span>Toggle command bar</span>
                         </div>
                         <div className="shortcut-item">
                             <kbd>Enter</kbd>
                             <span>Send message</span>
                         </div>
+                        <div className="shortcut-item">
+                            <kbd>Shift</kbd> + <kbd>Enter</kbd>
+                            <span>New line in message</span>
+                        </div>
                     </div>
 
                     <div className="tip-box">
-                        <p><strong>Tip:</strong> You can change these shortcuts later in Settings.</p>
+                        <p><strong>Tip:</strong> Use Cmd instead of Ctrl on macOS.</p>
                     </div>
                 </div>
             )
@@ -251,13 +251,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 <div className="onboarding-content">
                     <div className="onboarding-icon">🎉</div>
                     <h2>Ready to Go!</h2>
-                    <p>Zura AI is now configured and ready to use. Press <kbd>Ctrl+Shift+Z</kbd> to start chatting.</p>
+                    <p>Zura AI is now configured and ready to use. Start chatting in the dashboard.</p>
                     
                     <div className="quick-tips">
                         <h3>Quick Tips:</h3>
                         <ul>
-                            <li>Use the overlay for quick questions while working</li>
-                            <li>Press Ctrl+Shift+X to analyze screenshots</li>
+                            <li>Paste images or files directly into the chat input</li>
+                            <li>Press Ctrl+N to start a fresh conversation quickly</li>
                             <li>Access Settings from the sidebar anytime</li>
                             <li>Your chat history is saved automatically</li>
                         </ul>
@@ -313,4 +313,3 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </div>
     )
 }
-

@@ -33,9 +33,6 @@ const mockSettingsUI = {
     titleBarShowAppName: true,
     titleBarShowChatTitle: true,
     titleBarShowModel: true,
-    autoHideOverlay: false,
-    overlayTransparency: 0.95,
-    loadOverlayOnStartup: false,
     commandBar: {
       enabled: true,
       size: 'medium' as const,

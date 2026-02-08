@@ -5,7 +5,6 @@
  * - Theme settings (theme, activeTheme)
  * - Title bar customization
  * - Command bar settings
- * - Overlay settings
  * 
  * **Validates: Requirements 8.1**
  * - THE SettingsContext SHALL split into separate contexts for frequently-changing 
@@ -33,11 +32,6 @@ export interface SettingsUI {
     titleBarShowAppName: boolean
     titleBarShowChatTitle: boolean
     titleBarShowModel: boolean
-    
-    // Overlay settings
-    autoHideOverlay: boolean
-    overlayTransparency: number
-    loadOverlayOnStartup: boolean
     
     // Command bar settings
     commandBar: {
@@ -74,9 +68,6 @@ export const defaultSettingsUI: SettingsUI = {
     titleBarShowAppName: true,
     titleBarShowChatTitle: true,
     titleBarShowModel: true,
-    autoHideOverlay: false,
-    overlayTransparency: 0.95,
-    loadOverlayOnStartup: false,
     commandBar: {
         enabled: true,
         size: 'medium',
@@ -171,7 +162,7 @@ export function SettingsUIProvider({
 
 /**
  * Hook to access UI-related settings
- * Use this hook when you only need theme, title bar, overlay, or command bar settings
+ * Use this hook when you only need theme, title bar, or command bar settings
  */
 export function useSettingsUI() {
     const context = useContext(SettingsUIContext)

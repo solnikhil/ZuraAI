@@ -29,8 +29,6 @@ contextBridge.exposeInMainWorld('windowControls', {
 // This prevents arbitrary IPC access if the renderer is compromised.
 
 const SEND_CHANNELS = new Set<string>([
-  'close-overlay',
-  'set-ignore-mouse-events',
   'open-settings',
   'set-titlebar-overlay',
   'set-native-blur',
@@ -51,10 +49,6 @@ const INVOKE_CHANNELS = new Set<string>([
   'secure-storage:get-all',
   'secure-storage:clear',
   'secure-storage:status',
-
-  // Screenshot
-  'capture-screen',
-  'crop-screenshot',
 
   // Process metrics
   'get-process-metrics',

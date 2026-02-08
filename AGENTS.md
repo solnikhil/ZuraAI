@@ -11,7 +11,6 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Overlay UI (always-on-top, click-through, screenshot selection/cropping)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Gemini, Groq, MiniMax)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; only `web_search` is enabled end-to-end)
@@ -33,9 +32,7 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- There are **two UI routes** and (intended) **two windows**:
-  - Main window loads `#/dashboard` (and settings)
-  - Overlay window loads `#/overlay` (transparent, always-on-top)
+- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`).
 - Persistence is split:
   - **Settings + UI state** live in renderer `localStorage`.
   - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
@@ -47,7 +44,7 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
-  - `electron/windows/` — main window, overlay window, tray
+  - `electron/windows/` — main window, tray
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
   - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
   - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
@@ -55,10 +52,9 @@ Core capabilities:
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/overlay`)
+  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`)
   - `src/contexts/` — app state (settings, chat history, app shell)
   - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
-  - `src/components/Overlay.tsx` — overlay UI + screenshot selection/crop flow
   - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
   - `src/tools/` — tool schema + adapters + tool execution coordinator
 
@@ -76,11 +72,11 @@ Core capabilities:
 |   Renderer (Vite/React)|          |   Electron Main Process    |
 |  src/*                 |          |  electron/*                |
 |                        |          |                           |
-|  - UI (Dashboard)      |          |  - windows/ (main/overlay) |
-|  - UI (Overlay)        |          |  - tray                    |
+|  - UI (Dashboard)      |          |  - windows/ (main)         |
+|                        |          |  - tray                    |
 |  - AI providers (HTTP) |          |  - chatStore (userData)    |
 |  - Tool manager        |          |  - secureStorage (userData)|
-|                        |          |  - screenshot capture/crop |
+|                        |          |  - window controls + IPC   |
 |    window.ipcRenderer  |          |  - updater (prod only)     |
 +-----------^------------+          +------------^--------------+
             |                                     |
@@ -105,13 +101,9 @@ Core capabilities:
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
   - External links are opened via `shell.openExternal`.
 
-- **Overlay Window** (`electron/windows/overlayWindow.ts`)
-  - Intended to load `#/overlay`
-  - Transparent, always-on-top, click-through when not selecting
-
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-  - In prod, windows load `dist/index.html` with `hash: 'dashboard'` / `hash: 'overlay'`
+  - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
 
 ### IPC Surface (Security-Critical)
 The renderer never imports Electron APIs directly; it uses what preload exposes.
@@ -121,18 +113,19 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
-  - `close-overlay`
-  - `set-ignore-mouse-events`
   - `open-settings`
   - `set-titlebar-overlay`
+  - `set-native-blur`
   - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
-  - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`
+  - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`, `secure-storage:clear`, `secure-storage:status`
-  - `capture-screen`, `crop-screenshot`
+  - `get-process-metrics`
+  - `memory:get-metrics`, `memory:force-cleanup`
+  - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
   - `execute-tool`
+  - `window-resize`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
-  - `ollama:list-models` (list local Ollama models)
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
 
@@ -167,14 +160,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - User toggles live in settings: `settings.webSearchEnabled`, `settings.deepResearchEnabled`.
 - Dashboard currently starts research mode with `startResearchMode(25, false)` when either toggle is enabled.
   - Mandatory/exact-search enforcement exists in `useToolCalling`, but is not currently started in mandatory mode by the dashboard.
-
-#### Overlay Screenshot Capture/Crop
-- Renderer: `src/components/Overlay.tsx`
-  - `invoke('capture-screen')` then `invoke('crop-screenshot', selection)`
-- Main process: `electron/ipc/systemHandlers.ts`
-  - Captures primary display via `desktopCapturer`
-  - Crops with bounds clamping and returns `data:image/jpeg;base64,...`
-  - Clears the full-screen screenshot after crop to reduce memory
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme.
@@ -239,7 +224,6 @@ Never commit `.env` or API keys.
 These are useful breadcrumbs for agents:
 - No `globalShortcut.register(...)` calls were found; shortcut strings exist in settings, but main-process global hotkey registration appears pending.
 - `src/contexts/SettingsContext.tsx` sends `settings-changed`, but that channel is not allowlisted/handled; settings sync primarily happens via `localStorage` + `storage` events.
-- `electron/windows/overlayWindow.ts` can `send('settings-updated', ...)`, but there is no renderer listener wired (and `settings-updated` is not in the preload `ON_CHANNELS`).
 
 ---
 
@@ -284,7 +268,7 @@ These are useful breadcrumbs for agents:
 
 ## When to Update the Architecture Section
 Update **this file’s “Architecture”** whenever you:
-- Add/remove a BrowserWindow or change routing boundaries (`#/dashboard`, `#/overlay`, etc.)
+- Add/remove a BrowserWindow or change routing boundaries (`#/dashboard`, `#/settings`, etc.)
 - Add/remove/rename IPC channels or exposed `window.*` APIs
 - Change where data is persisted (settings/chat history/secure storage)
 - Add/enable tools or change tool execution policy

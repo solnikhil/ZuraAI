@@ -1,6 +1,6 @@
 # Zura AI
 
-A powerful desktop AI assistant for Windows with screenshot analysis, multiple AI provider support, and a sleek overlay interface.
+A powerful desktop AI assistant for Windows with multimodal chat, file analysis, and multiple AI provider support.
 
 ![Zura AI](public/icon.png)
 
@@ -11,16 +11,10 @@ A powerful desktop AI assistant for Windows with screenshot analysis, multiple A
 - **Ollama** - Run local AI models for privacy and offline use
 - **Perplexity** - Real-time web search powered AI responses
 
-### Screenshot Analysis
-- **Quick Capture** (`Ctrl+Shift+X`) - Instantly capture and analyze any part of your screen
-- **Selection Tool** - Click and drag to select specific areas
-- **Vision AI** - Send screenshots to vision-capable models for analysis
-
-### Overlay Mode
-- **Global Hotkey** (`Ctrl+Shift+Z`) - Toggle the overlay from anywhere
-- **Always on Top** - Chat while working in other applications
-- **Click-Through** - Transparent overlay that doesn't block your workflow
-- **Typewriter Effect** - Smooth animated AI responses
+### Image & File Analysis
+- **Drag & Drop Attachments** - Add images and documents directly into chat
+- **Paste from Clipboard** - Quickly paste screenshots/images into the input
+- **Vision AI** - Send image attachments to vision-capable models for analysis
 
 ### Dashboard Interface
 - **Chat History** - Persistent conversations saved locally
@@ -181,10 +175,10 @@ Creates a portable version without an installer.
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+Z` | Toggle overlay |
-| `Ctrl+Shift+X` | Screenshot selection mode |
-| `Escape` | Close overlay / Cancel selection |
+| `Ctrl+N` | Start new chat |
+| `Ctrl+Space` | Toggle command bar |
 | `Enter` | Send message |
+| `Shift+Enter` | New line in message |
 
 ---
 
@@ -199,9 +193,8 @@ zura/
 ├── src/                   # React frontend
 │   ├── components/       # UI components
 │   │   ├── Dashboard/    # Main dashboard views
-│   │   ├── Overlay.tsx   # Floating overlay
-│   │   ├── Chat.tsx      # Chat interface
-│   │   └── Settings.tsx  # Settings panel
+│   │   ├── Chat.tsx      # Legacy chat interface
+│   │   └── Settings/     # Settings panel
 │   ├── contexts/         # React contexts
 │   │   ├── SettingsContext.tsx
 │   │   └── ChatHistoryContext.tsx
@@ -240,17 +233,11 @@ zura/
 2. Check if you have credits/quota remaining
 3. Try a different model
 
-### Screenshot capture not working
+### Image attachment not working
 
-1. Run as Administrator for screen capture permissions
-2. Check if overlay is visible (`Ctrl+Shift+Z`)
-3. Try `Ctrl+Shift+X` for direct screenshot mode
-
-### Overlay not appearing
-
-1. Check system tray for Zura icon
-2. Press `Ctrl+Shift+Z` to toggle
-3. Restart the application
+1. Try drag-and-drop or paste directly into the chat input
+2. Verify the file type is supported (images, txt, doc/docx, csv, json, xml)
+3. Restart the application and retry
 
 ### Models not loading (Ollama)
 
@@ -305,8 +292,8 @@ The NSIS installer is configured with:
 1. Create a new service file in `src/services/`
 2. Implement the API call function
 3. Add provider option to `SettingsContext.tsx`
-4. Update the UI in `Settings.tsx`
-5. Add call logic in `Overlay.tsx` and `Chat.tsx`
+4. Update the UI in `src/components/Settings/Settings.tsx`
+5. Add call logic in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
 
 ---
 

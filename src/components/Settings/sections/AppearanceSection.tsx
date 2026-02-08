@@ -211,7 +211,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
             Themes
           </h3>
           <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-            Pick the look and feel for dashboard, settings, and overlay controls.
+            Pick the look and feel for dashboard and settings.
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>

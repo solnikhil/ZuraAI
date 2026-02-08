@@ -9,9 +9,8 @@ export default function KeyboardShortcuts() {
         {
             category: 'General',
             items: [
-                { keys: ['Ctrl', 'Shift', 'Z'], description: 'Toggle overlay window' },
-                { keys: ['Ctrl', 'Shift', 'X'], description: 'Capture screenshot for analysis' },
-                { keys: ['Esc'], description: 'Close overlay or cancel selection' },
+                { keys: ['Ctrl', 'N'], description: 'Start new chat' },
+                { keys: ['Ctrl', 'Space'], description: 'Toggle command bar' },
             ]
         },
         {
@@ -70,7 +69,7 @@ export default function KeyboardShortcuts() {
 
             <CardFooter className="pt-3 border-t border-border">
                 <p className="text-xs text-muted-foreground">
-                    Tip: You can change some shortcuts in Settings → Preferences
+                    Tip: Use Cmd instead of Ctrl on macOS
                 </p>
             </CardFooter>
         </Card>

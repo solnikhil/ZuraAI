@@ -9,18 +9,6 @@ export {
 } from './mainWindow'
 
 export {
-    createOverlayWindow,
-    getOverlayWindow,
-    showOverlay,
-    hideOverlay,
-    setQuitting,
-    setCurrentScreenshot,
-    getCurrentScreenshot,
-    clearScreenshot,
-    sendSettingsToOverlay
-} from './overlayWindow'
-
-export {
     createTray,
     getTray,
     destroyTray
