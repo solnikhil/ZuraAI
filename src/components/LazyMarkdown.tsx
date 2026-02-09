@@ -7,6 +7,7 @@ import { Check, Copy } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
+const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 // Lazy load markdown dependencies
 const ReactMarkdown = lazy(() => import('react-markdown'))
@@ -210,6 +211,29 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
                     const language = match?.[1]?.toLowerCase()
+                    
+                    // Mermaid diagrams
+                    const isMermaid = language === 'mermaid'
+                    if (!isInline && isCodeBlock && isMermaid) {
+                        return (
+                            <Suspense fallback={
+                                <div style={{
+                                    margin: '12px 0',
+                                    padding: '16px',
+                                    borderRadius: '8px',
+                                    background: 'var(--theme-surface)',
+                                    border: '1px solid var(--theme-border)',
+                                    textAlign: 'center',
+                                    color: 'var(--theme-text-tertiary)'
+                                }}>
+                                    Loading diagram...
+                                </div>
+                            }>
+                                <MermaidDiagram code={codeString.replace(/\n$/, '')} />
+                            </Suspense>
+                        )
+                    }
+                    
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
                     // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
                     // Also match simple indented trees with branch characters
