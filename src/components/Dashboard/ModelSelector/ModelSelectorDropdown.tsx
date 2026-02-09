@@ -5,8 +5,9 @@
  * Requirements: 3.1
  */
 
-import React, { useEffect, useState } from 'react'
-import { Star, Sparkles, Zap, Globe, Database, Cloud } from 'lucide-react'
+import React, { useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Star, Check, Eye, Code } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
 import {
   Command,
@@ -16,21 +17,25 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { ModelIcon } from './ModelIcon'
-import { getModelAttributes } from '../../../utils/modelUtils'
+import { getModelAttributes, getModelDescription, detectModelCapabilities } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
+import { ProviderLogo } from '@/components/shared'
+import { PROVIDER_CONFIG } from '../../../utils/modelUtils'
+import { useSettings } from '../../../contexts/SettingsContext'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
 
 /**
- * Provider configuration for sidebar
+ * Provider configuration
  */
 const PROVIDERS = [
-  { key: 'gemini', title: 'Gemini', icon: Sparkles, color: '#4dabf7', logo: true },
-  { key: 'openrouter', title: 'OpenRouter', icon: Cloud, color: '#a855f7', logo: true },
-  { key: 'perplexity', title: 'Perplexity', icon: Globe, color: '#22c55e', logo: true },
-  { key: 'groq', title: 'Groq', icon: Zap, color: '#f97316', logo: true },
-  { key: 'minimax', title: 'MiniMax', icon: Sparkles, color: '#6366f1', logo: true },
-  { key: 'ollama', title: 'Ollama', icon: Database, color: '#339af0', logo: true },
+  { key: 'gemini', title: 'Gemini' },
+  { key: 'openrouter', title: 'OpenRouter' },
+  { key: 'perplexity', title: 'Perplexity' },
+  { key: 'groq', title: 'Groq' },
+  { key: 'minimax', title: 'MiniMax' },
+  { key: 'ollama', title: 'Ollama' },
 ] as const
 
 /**
@@ -68,8 +73,30 @@ export interface ModelSelectorDropdownProps {
 }
 
 /**
+ * Get stagger delay based on speed setting
+ */
+function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
+  switch (speed) {
+    case 'fast': return 0.02
+    case 'slow': return 0.05
+    default: return 0.03
+  }
+}
+
+/**
+ * Get density padding classes
+ */
+function getDensityClasses(density: 'compact' | 'comfortable' | 'spacious'): string {
+  switch (density) {
+    case 'compact': return 'py-1.5'
+    case 'spacious': return 'py-3.5'
+    default: return 'py-2.5'
+  }
+}
+
+/**
  * ModelSelectorDropdown component
- * Renders the dropdown overlay with search, provider sidebar, and model list
+ * Renders the dropdown overlay with vertical provider sidebar and model list
  */
 export function ModelSelectorDropdown({
   searchInputRef,
@@ -87,102 +114,135 @@ export function ModelSelectorDropdown({
   onModelSelect,
   onToggleFavorite
 }: ModelSelectorDropdownProps): React.ReactElement {
+  const { settings } = useSettings()
+  const modelSelector = settings.modelSelector || {
+    sidebarPosition: 'left',
+    sidebarShowLabels: true,
+    sidebarShowModelCount: true,
+    dropdownWidth: 'default',
+    showDescriptions: true,
+    showCapabilityBadges: true,
+    showProviderLogos: true,
+    showFavoriteStars: true,
+    showInfoTooltips: true,
+    activeIndicatorStyle: 'dot',
+    itemDensity: 'comfortable',
+    defaultView: 'lastUsed',
+    autoCloseOnSelect: true,
+    rememberProvider: true,
+    showSearch: true,
+    enableAnimations: true,
+    staggerSpeed: 'normal',
+  }
+
   // Focus search input when dropdown opens
   useEffect(() => {
+    if (!modelSelector.showSearch) return
     const timer = setTimeout(() => {
-      // CommandInput doesn't forward refs, so we find it via querySelector
       const input = document.querySelector('[data-slot="command-input"]') as HTMLInputElement
       if (input) {
         input.focus()
-        // Store ref for external access if needed
         if (searchInputRef && 'current' in searchInputRef) {
           (searchInputRef as React.MutableRefObject<HTMLInputElement | null>).current = input
         }
       }
     }, 0)
     return () => clearTimeout(timer)
-  }, [])
+  }, [modelSelector.showSearch, searchInputRef])
+
+  // Determine active tab key (favorites or provider)
+  const activeTabKey = viewMode === 'favorites' ? 'favorites' : selectedProvider
+
+  const staggerDelay = getStaggerDelay(modelSelector.staggerSpeed)
+  const densityClasses = getDensityClasses(modelSelector.itemDensity)
 
   return (
-    <div className="flex h-[484px] flex-col overflow-hidden">
-      {/* Two-column layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <ProviderSidebar
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          selectedProvider={selectedProvider}
-          onProviderSelect={onProviderSelect}
-        />
+    <div className={`flex h-[484px] overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
+      {/* Vertical Provider Sidebar */}
+      <ProviderSidebar
+        activeTabKey={activeTabKey}
+        groupedModels={groupedModels}
+        favoriteModels={favoriteModels}
+        sidebarShowLabels={modelSelector.sidebarShowLabels}
+        sidebarShowModelCount={modelSelector.sidebarShowModelCount}
+        enableAnimations={modelSelector.enableAnimations}
+        sidebarPosition={modelSelector.sidebarPosition}
+        onTabSelect={(key) => {
+          if (key === 'favorites') {
+            onViewModeChange('favorites')
+          } else {
+            onProviderSelect(key)
+            onViewModeChange('all')
+          }
+        }}
+      />
 
-        {/* Right Side: Command-based search/list */}
+      {/* Main Area: Search + Model List */}
+      <div className={`flex-1 flex flex-col overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l'} border-border/50 relative`}>
+        {modelSelector.showSearch && (
+          <div className="px-3 py-2 border-b border-border/50">
+            <Command className="rounded-none border-0" shouldFilter={false}>
+              <CommandInput
+                placeholder="Search models..."
+                value={searchQuery}
+                onValueChange={onSearchChange}
+                className="h-10"
+              />
+            </Command>
+          </div>
+        )}
         <Command className="flex-1 rounded-none border-0" shouldFilter={false}>
-          <CommandInput
-            placeholder="Search models..."
-            value={searchQuery}
-            onValueChange={onSearchChange}
-            className="h-12"
-          />
-          <CommandList className="max-h-[calc(484px-48px)]">
+          <CommandList className="max-h-full">
             <CommandEmpty>
               <div className="py-6 text-center text-sm text-muted-foreground">
                 No models found
               </div>
             </CommandEmpty>
             <CommandGroup heading={viewMode === 'favorites' ? 'Favorites' : PROVIDERS.find(p => p.key === selectedProvider)?.title || 'Models'}>
-              {currentModels.map(model => {
-                const isActive = selectedModelCode === model.code && selectedModelProvider === model.provider
-                const isFavorite = favoriteModels.includes(model.code)
-                const { color } = getModelAttributes(model)
-                
-                return (
-                  <CommandItem
-                    key={`${model.provider}-${model.code}`}
-                    value={`${model.code} ${model.displayName}`}
-                    onSelect={() => onModelSelect(model)}
-                    className="flex items-center gap-3 py-2.5"
+              <AnimatePresence mode="wait">
+                {modelSelector.enableAnimations ? (
+                  <motion.div
+                    key={activeTabKey}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="flex flex-col gap-1"
                   >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                      <ModelIcon
+                    {currentModels.map((model, index) => (
+                      <ModelItem
+                        key={`${model.provider}-${model.code}`}
                         model={model}
-                        icon={getModelAttributes(model).icon}
-                        color={color}
-                        size={22}
+                        index={index}
+                        staggerDelay={staggerDelay}
+                        densityClasses={densityClasses}
+                        isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
+                        isFavorite={favoriteModels.includes(model.code)}
+                        modelSelector={modelSelector}
+                        onSelect={onModelSelect}
+                        onToggleFavorite={onToggleFavorite}
                       />
-                    </div>
-                    <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate font-medium text-sm">
-                          {removeEmojis(model.displayName)}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {getModelDescription(model)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          onToggleFavorite(model.code, e as unknown as React.MouseEvent)
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="p-1 hover:bg-muted rounded transition-colors"
-                        style={{
-                          color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
-                          opacity: isFavorite ? 1 : 0.4
-                        }}
-                      >
-                        <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
-                      </button>
-                      {isActive && (
-                        <div className="h-2 w-2 rounded-full bg-primary" />
-                      )}
-                    </div>
-                  </CommandItem>
-                )
-              })}
+                    ))}
+                  </motion.div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {currentModels.map((model) => (
+                      <ModelItem
+                        key={`${model.provider}-${model.code}`}
+                        model={model}
+                        index={0}
+                        staggerDelay={0}
+                        densityClasses={densityClasses}
+                        isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
+                        isFavorite={favoriteModels.includes(model.code)}
+                        modelSelector={modelSelector}
+                        onSelect={onModelSelect}
+                        onToggleFavorite={onToggleFavorite}
+                      />
+                    ))}
+                  </div>
+                )}
+              </AnimatePresence>
             </CommandGroup>
           </CommandList>
         </Command>
@@ -192,229 +252,292 @@ export function ModelSelectorDropdown({
 }
 
 /**
- * Get description for a model based on its attributes
- */
-function getModelDescription(model: ModelWithProvider): string {
-  const name = model.displayName.toLowerCase()
-  const code = model.code.toLowerCase()
-
-  // Provider-specific descriptions
-  if (model.provider === 'gemini') {
-    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
-    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
-    return 'Google AI model with multimodal capabilities'
-  }
-
-  if (model.provider === 'openrouter') {
-    if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
-    if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
-    if (code.includes('gpt-5')) return "OpenAI's next-generation language model"
-    if (code.includes('llama')) return 'Meta AI open source model'
-    if (code.includes('mistral')) return 'Efficient European AI model'
-    if (code.includes('deepseek')) return 'Advanced reasoning with deep thinking'
-    if (code.includes('grok')) return 'xAI model with real-time knowledge'
-    if (code.includes('kimi')) return 'Enhanced version with longer context'
-    if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
-    return 'Available via OpenRouter'
-  }
-
-  if (model.provider === 'perplexity') {
-    if (name.includes('deep research')) return 'In-depth research with citations'
-    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
-    return 'Real-time web search powered'
-  }
-
-  if (model.provider === 'groq') {
-    return 'Ultra-fast inference on Groq hardware'
-  }
-
-  if (model.provider === 'minimax') {
-    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
-    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
-    if (name.includes('m2')) return 'Powerful model with 200k context'
-    return 'MiniMax AI model with advanced capabilities'
-  }
-
-  if (model.provider === 'ollama') {
-    return 'Running locally on your machine'
-  }
-
-  // Fallback for any unhandled provider
-  const providerName = model.provider as string
-  return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
-}
-
-/**
- * Provider logo with fallback icon
- */
-function ProviderLogoWithFallback({ provider }: { provider: typeof PROVIDERS[number] }) {
-  const [imgError, setImgError] = useState(false)
-  const Icon = provider.icon
-
-  if (imgError || !provider.logo) {
-    return <Icon size={16} />
-  }
-
-  return (
-    <img
-      src={`/provider-logos/${provider.key}.png`}
-      alt={provider.title}
-      onError={() => setImgError(true)}
-      style={{
-        width: '18px',
-        height: '18px',
-        objectFit: 'contain',
-        borderRadius: '4px'
-      }}
-    />
-  )
-}
-
-/**
- * Provider sidebar component
+ * ProviderSidebar component - vertical sidebar with provider tabs
  */
 function ProviderSidebar({
-  viewMode,
-  onViewModeChange,
-  selectedProvider,
-  onProviderSelect
+  activeTabKey,
+  groupedModels,
+  favoriteModels,
+  sidebarShowLabels,
+  sidebarShowModelCount,
+  enableAnimations,
+  sidebarPosition,
+  onTabSelect
 }: {
-  viewMode: ViewMode
-  onViewModeChange: (mode: ViewMode) => void
-  selectedProvider: string
-  onProviderSelect: (provider: string) => void
+  activeTabKey: string
+  groupedModels: GroupedModels
+  favoriteModels: string[]
+  sidebarShowLabels: boolean
+  sidebarShowModelCount: boolean
+  enableAnimations: boolean
+  sidebarPosition: 'left' | 'right'
+  onTabSelect: (key: string) => void
 }): React.ReactElement {
+  const getModelCount = (providerKey: string): number => {
+    return groupedModels[providerKey as keyof GroupedModels]?.length || 0
+  }
+
+  // Count models that are actually favorited
+  const favoritesCount = favoriteModels.length
+
+  const sidebarWidth = sidebarShowLabels ? 'w-[120px]' : 'w-[48px]'
+  const borderSide = sidebarPosition === 'right' ? 'border-l' : 'border-r'
+  
   return (
-    <div style={{
-      width: '48px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      paddingRight: '10px',
-      borderRight: '1px solid rgba(255,255,255,0.06)',
-      position: 'relative',
-      zIndex: 2
-    }}>
-      {/* Left fade gradient */}
-      <div style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: '20px',
-        background: 'linear-gradient(to right, var(--theme-surface) 0%, transparent 100%)',
-        pointerEvents: 'none'
-      }} />
-
-      {/* Favorites Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-          onViewModeChange('favorites')
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '36px',
-          height: '36px',
-          borderRadius: '8px',
-          border: 'none',
-          background: viewMode === 'favorites' ? 'rgba(255,215,0,0.15)' : 'transparent',
-          color: viewMode === 'favorites' ? '#FFD700' : '#666',
-          cursor: 'pointer',
-          marginBottom: '10px',
-          position: 'relative',
-          zIndex: 3
-        }}
-        onMouseEnter={e => {
-          if (viewMode !== 'favorites') {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-            e.currentTarget.style.color = '#888'
-          }
-        }}
-        onMouseLeave={e => {
-          if (viewMode !== 'favorites') {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = '#666'
-          }
-        }}
-      >
-        <Star size={16} fill={viewMode === 'favorites' ? '#FFD700' : 'none'} />
-      </button>
-
+    <div data-sidebar className={`${sidebarWidth} flex flex-col ${borderSide} border-border/50 bg-muted/20 shrink-0 relative z-10`}>
+      {/* Favorites Tab */}
+      <SidebarItem
+        key="favorites"
+        isActive={activeTabKey === 'favorites'}
+        onClick={() => onTabSelect('favorites')}
+        icon={<Star size={16} />}
+        label={sidebarShowLabels ? 'Favorites' : undefined}
+        count={sidebarShowModelCount ? favoritesCount : undefined}
+        enableAnimations={enableAnimations}
+      />
+      
       {/* Separator */}
-      <div style={{
-        width: '20px',
-        height: '1px',
-        background: 'rgba(255,255,255,0.1)',
-        marginBottom: '10px',
-        position: 'relative',
-        zIndex: 3
-      }} />
+      <div className="h-px bg-border/50 mx-2 my-1" />
 
-      {/* Provider Buttons */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        flex: 1,
-        position: 'relative',
-        zIndex: 2
-      }}>
-        {PROVIDERS.map(provider => (
-          <button
+      {/* Provider Tabs */}
+      {PROVIDERS.map(provider => {
+        const count = getModelCount(provider.key)
+        return (
+          <SidebarItem
             key={provider.key}
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              onProviderSelect(provider.key)
-              onViewModeChange('all')
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '36px',
-              height: '36px',
-              borderRadius: '8px',
-              border: 'none',
-              background: selectedProvider === provider.key 
-                ? 'rgba(255,255,255,0.1)' 
-                : 'transparent',
-              color: selectedProvider === provider.key 
-                ? '#fff' 
-                : '#666',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              flexShrink: 0,
-              position: 'relative',
-              zIndex: 3
-            }}
-            onMouseEnter={e => {
-              if (selectedProvider !== provider.key) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                e.currentTarget.style.color = '#888'
-              }
-            }}
-            onMouseLeave={e => {
-              if (selectedProvider !== provider.key) {
-                e.currentTarget.style.background = 'transparent'
-                e.currentTarget.style.color = '#666'
-              }
-            }}
-            title={provider.title}
-          >
-            <ProviderLogoWithFallback provider={provider} />
-          </button>
-        ))}
-      </div>
+            isActive={activeTabKey === provider.key}
+            onClick={() => onTabSelect(provider.key)}
+            icon={<ProviderLogo provider={provider.key} size={16} />}
+            label={sidebarShowLabels ? provider.title : undefined}
+            count={sidebarShowModelCount ? count : undefined}
+            enableAnimations={enableAnimations}
+          />
+        )
+      })}
     </div>
   )
 }
 
+/**
+ * SidebarItem component
+ */
+function SidebarItem({
+  isActive,
+  onClick,
+  icon,
+  label,
+  count,
+  enableAnimations
+}: {
+  isActive: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label?: string
+  count?: number
+  enableAnimations: boolean
+}): React.ReactElement {
+  const Button = enableAnimations ? motion.button : 'button'
+  const buttonProps = enableAnimations ? {
+    whileHover: { scale: 1.02 },
+    whileTap: { scale: 0.98 },
+  } : {}
+
+  return (
+    <Button
+      {...buttonProps}
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
+        onClick()
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
+      }}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        e.preventDefault()
+      }}
+      className={`
+        relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
+        w-full
+        ${label ? 'justify-start' : 'justify-center'}
+        ${isActive 
+          ? 'bg-primary/10 text-foreground' 
+          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+        }
+      `}
+    >
+      {icon}
+      {label && <span className="truncate">{label}</span>}
+      {count !== undefined && count > 0 && (
+        <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">
+          {count}
+        </span>
+      )}
+      {isActive && enableAnimations && (
+        <motion.div
+          layoutId="provider-active"
+          className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r"
+          initial={false}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
+      )}
+      {isActive && !enableAnimations && (
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r" />
+      )}
+    </Button>
+  )
+}
+
+/**
+ * ModelItem component
+ */
+function ModelItem({
+  model,
+  index,
+  staggerDelay,
+  densityClasses,
+  isActive,
+  isFavorite,
+  modelSelector,
+  onSelect,
+  onToggleFavorite
+}: {
+  model: ModelWithProvider
+  index: number
+  staggerDelay: number
+  densityClasses: string
+  isActive: boolean
+  isFavorite: boolean
+  modelSelector: ModelSelectorSettings
+  onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
+  onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
+}): React.ReactElement {
+  const { color } = getModelAttributes(model)
+  const capabilities = detectModelCapabilities(model.code + ' ' + model.displayName)
+  const hasVision = capabilities.includes('vision')
+  const hasCode = capabilities.includes('code')
+
+  const ItemWrapper = modelSelector.enableAnimations ? motion.div : 'div'
+  const wrapperProps = modelSelector.enableAnimations ? {
+    initial: { opacity: 0, x: -8 },
+    animate: { opacity: 1, x: 0 },
+    transition: {
+      delay: index * staggerDelay,
+      type: "spring" as const,
+      stiffness: 400,
+      damping: 30
+    }
+  } : {}
+
+  const activeIndicator = () => {
+    switch (modelSelector.activeIndicatorStyle) {
+      case 'checkmark':
+        return <Check size={14} className="text-primary" />
+      case 'highlight':
+        return <div className="h-full w-1 bg-primary rounded-l absolute left-0 top-0 bottom-0" />
+      default:
+        return <div className="h-2 w-2 rounded-full bg-primary" />
+    }
+  }
+
+  return (
+    <ItemWrapper {...wrapperProps}>
+      <CommandItem
+        value={`${model.code} ${model.displayName}`}
+        onSelect={() => onSelect(model)}
+        className={`
+          flex items-center gap-3 px-3 rounded-lg relative
+          ${densityClasses}
+          ${isActive && modelSelector.activeIndicatorStyle === 'highlight' ? 'bg-primary/10' : ''}
+          ${!isActive ? 'hover:bg-muted/50' : ''}
+          transition-colors
+        `}
+      >
+        {modelSelector.showProviderLogos ? (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+            <ModelIcon
+              model={model}
+              icon={getModelAttributes(model).icon}
+              color={color}
+              size={22}
+            />
+          </div>
+        ) : (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+            {getModelAttributes(model).icon}
+          </div>
+        )}
+        <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium text-sm">
+              {removeEmojis(model.displayName)}
+            </span>
+          </div>
+          {modelSelector.showDescriptions && (
+            <span className="text-xs text-muted-foreground truncate">
+              {getModelDescription(model)}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {modelSelector.showCapabilityBadges && (
+            <>
+              {hasVision && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="p-1 rounded opacity-60">
+                      <Eye size={12} className="text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Supports vision/images</TooltipContent>
+                </Tooltip>
+              )}
+              {hasCode && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="p-1 rounded opacity-60">
+                      <Code size={12} className="text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Supports function calling</TooltipContent>
+                </Tooltip>
+              )}
+            </>
+          )}
+          {modelSelector.showFavoriteStars && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-1 hover:bg-muted rounded transition-colors"
+              style={{
+                color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
+                opacity: isFavorite ? 1 : 0.4
+              }}
+            >
+              {modelSelector.enableAnimations ? (
+                <motion.div
+                  animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
+                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                >
+                  <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+                </motion.div>
+              ) : (
+                <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+              )}
+            </button>
+          )}
+          {isActive && activeIndicator()}
+        </div>
+      </CommandItem>
+    </ItemWrapper>
+  )
+}
 
 export default ModelSelectorDropdown

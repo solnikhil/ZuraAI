@@ -67,7 +67,8 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle', 'chatSelectedOverlayStyle'
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
+            'modelSelector'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}

@@ -6,6 +6,7 @@
  */
 
 import React from 'react'
+import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { useModelSelector } from './useModelSelector'
@@ -40,19 +41,30 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
     handleSelect,
   } = useModelSelector()
 
+  const modelSelector = settings.modelSelector || {
+    dropdownWidth: 'default',
+  }
+  
+  const dropdownWidthClass = {
+    compact: 'w-[420px]',
+    wide: 'w-[640px]',
+    default: 'w-[520px]',
+  }[modelSelector.dropdownWidth || 'default']
+
   return (
     <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
       <PopoverTrigger asChild>
-        <button
+        <motion.button
           aria-haspopup="dialog"
           aria-expanded={state.isOpen}
           title={`${currentName} — ${settings.modelProvider || 'auto'}`}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           className={cn(
-            "flex items-center gap-1 rounded-lg p-2 transition-all cursor-pointer",
-            "bg-black/5 dark:bg-white/5",
-            "hover:bg-black/10 dark:hover:bg-white/10",
+            "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-colors cursor-pointer",
+            "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20",
             "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
-            minimal ? "px-2" : "px-3"
+            minimal && "px-2 gap-1"
           )}
         >
           {currentModel ? (
@@ -64,27 +76,29 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
             />
           ) : <Cpu size={14} />}
           {!minimal && (
-            <span className="truncate text-xs" style={{ maxWidth: '180px', minWidth: '80px' }}>
+            <span className="truncate text-xs font-medium" style={{ maxWidth: '140px', minWidth: '80px' }}>
               {currentName}
             </span>
           )}
-          <ChevronDown 
-            size={12} 
-            className={cn(
-              "opacity-50 transition-transform duration-200",
-              state.isOpen && "rotate-180"
-            )} 
-          />
-        </button>
+          <motion.div
+            animate={{ rotate: state.isOpen ? 180 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          >
+            <ChevronDown 
+              size={12} 
+              className="opacity-50"
+            />
+          </motion.div>
+        </motion.button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[460px] p-0" 
+        className={cn(dropdownWidthClass, "p-0")}
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
-          // Allow interaction with elements inside the popover
+          // Allow interaction with elements inside the popover, including sidebar
           const target = e.target as HTMLElement
-          if (target.closest('[data-slot="popover-content"]')) {
+          if (target.closest('[data-slot="popover-content"]') || target.closest('[data-sidebar]')) {
             e.preventDefault()
           }
         }}

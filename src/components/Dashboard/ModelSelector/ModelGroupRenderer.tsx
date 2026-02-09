@@ -3,13 +3,17 @@
  * 
  * @module ModelSelector/ModelGroupRenderer
  * Requirements: 3.2
+ * 
+ * @deprecated This component is deprecated. The new model selector uses horizontal provider tabs
+ * instead of grouped rendering. This component is kept for backward compatibility only.
  */
 
-import React, { useState } from 'react'
-import { ChevronDown, Check, Star, MessageSquare } from 'lucide-react'
+import React from 'react'
+import { ChevronDown, Check, Star } from 'lucide-react'
 import { ProviderLogo } from '../../shared'
 import { getModelAttributes } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
+import { ModelIcon } from './ModelIcon'
 import type { ModelWithProvider } from './types'
 
 /**
@@ -181,7 +185,7 @@ function GroupModelItem({
         if (starBtn && !isFavorite) starBtn.style.opacity = '0'
       }}
     >
-      <GroupModelIcon model={model} icon={attrIcon} color={color} size={24} />
+      <ModelIcon model={model} icon={attrIcon} color={color} size={24} />
       
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ 
@@ -233,54 +237,5 @@ function GroupModelItem({
   )
 }
 
-/**
- * GroupModelIcon component - renders model icon with fallback
- */
-function GroupModelIcon({ 
-  model, 
-  icon, 
-  color, 
-  size = 24 
-}: { 
-  model: ModelWithProvider
-  icon: React.ReactNode
-  color: string
-  size?: number 
-}): React.ReactElement {
-  const [imgError, setImgError] = useState(false)
-
-  if (!imgError) {
-    return (
-      <img
-        src={`/provider-logos/${model.provider}.png`}
-        alt={model.displayName}
-        onError={() => setImgError(true)}
-        style={{ 
-          width: `${size}px`, 
-          height: `${size}px`, 
-          objectFit: 'contain', 
-          borderRadius: '6px' 
-        }}
-      />
-    )
-  }
-
-  return (
-    <div style={{
-      padding: '10px',
-      borderRadius: '10px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: `linear-gradient(145deg, ${color}22, transparent)`,
-      color: color
-    }}>
-      {React.isValidElement(icon)
-        ? React.cloneElement(icon as React.ReactElement<{ size?: number }>, { size: 20 })
-        : <MessageSquare size={20} />
-      }
-    </div>
-  )
-}
 
 export default ModelGroupRenderer

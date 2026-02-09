@@ -21,6 +21,11 @@ export interface ModelWithProvider {
 export type ViewMode = 'favorites' | 'all'
 
 /**
+ * Provider key type union
+ */
+export type ProviderKey = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
+
+/**
  * Provider configuration
  */
 export interface ProviderConfig {

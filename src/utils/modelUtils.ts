@@ -333,3 +333,60 @@ export function getProviderTitle(provider: string): string {
 export function getProviderColor(provider: string): string {
   return PROVIDER_CONFIG[provider as keyof typeof PROVIDER_CONFIG]?.color || '#b0b0b0'
 }
+
+/**
+ * Get description for a model based on its attributes
+ * Centralized function to avoid duplication across components
+ * 
+ * @param model - Model object with provider, code, and displayName
+ * @returns Human-readable description string
+ */
+export function getModelDescription(model: { provider: string; code: string; displayName: string }): string {
+  const name = model.displayName.toLowerCase()
+  const code = model.code.toLowerCase()
+
+  // Provider-specific descriptions
+  if (model.provider === 'gemini') {
+    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
+    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
+    return 'Google AI model with multimodal capabilities'
+  }
+
+  if (model.provider === 'openrouter') {
+    if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
+    if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
+    if (code.includes('gpt-5')) return "OpenAI's next-generation language model"
+    if (code.includes('llama')) return 'Meta AI open source model'
+    if (code.includes('mistral')) return 'Efficient European AI model'
+    if (code.includes('deepseek')) return 'Advanced reasoning with deep thinking'
+    if (code.includes('grok')) return 'xAI model with real-time knowledge'
+    if (code.includes('kimi')) return 'Enhanced version with longer context'
+    if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
+    return 'Available via OpenRouter'
+  }
+
+  if (model.provider === 'perplexity') {
+    if (name.includes('deep research')) return 'In-depth research with citations'
+    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
+    return 'Real-time web search powered'
+  }
+
+  if (model.provider === 'groq') {
+    return 'Ultra-fast inference on Groq hardware'
+  }
+
+  if (model.provider === 'minimax') {
+    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
+    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
+    if (name.includes('m2')) return 'Powerful model with 200k context'
+    return 'MiniMax AI model with advanced capabilities'
+  }
+
+  if (model.provider === 'ollama') {
+    return 'Running locally on your machine'
+  }
+
+  // Fallback for any unhandled provider
+  const providerName = model.provider as string
+  return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
+}

@@ -25,6 +25,8 @@ export interface ModelSelectorState {
   selectedProvider: string
   /** Collapsed state for each provider group */
   collapsedGroups: Record<string, boolean>
+  /** Focused model index for keyboard navigation */
+  focusedIndex: number
 }
 
 /**
@@ -51,10 +53,12 @@ export interface UseModelSelectorReturn {
   setSearchQuery: (query: string) => void
   setViewMode: (mode: ViewMode) => void
   setSelectedProvider: (provider: string) => void
+  setFocusedIndex: (index: number) => void
   toggleOpen: () => void
   toggleGroup: (provider: string) => void
   toggleFavorite: (modelCode: string, e: React.MouseEvent) => void
   handleSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
+  handleKeyboardNav: (e: KeyboardEvent) => void
 }
 
 /**
@@ -64,11 +68,30 @@ export interface UseModelSelectorReturn {
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
   
+  const modelSelector = settings.modelSelector || {
+    defaultView: 'lastUsed',
+    rememberProvider: true,
+    autoCloseOnSelect: true,
+  }
+  
+  // Determine initial view mode based on settings
+  const getInitialViewMode = (): ViewMode => {
+    if (modelSelector.defaultView === 'favorites') {
+      return 'favorites'
+    }
+    return 'all'
+  }
+  
   // State
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('all')
-  const [selectedProvider, setSelectedProviderState] = useState<string>(settings.modelProvider || 'openrouter')
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
+  const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
+    if (modelSelector.rememberProvider && settings.modelProvider) {
+      return settings.modelProvider
+    }
+    return 'openrouter'
+  })
   
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
@@ -84,12 +107,29 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
   
+  // Keyboard navigation state
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+  
   // Sync selectedProvider with settings.modelProvider when dropdown opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedProvider(settings.modelProvider || 'openrouter')
+      // Set initial view mode based on defaultView setting
+      if (modelSelector.defaultView === 'favorites') {
+        setViewMode('favorites')
+      } else {
+        setViewMode('all')
+        // Restore provider if rememberProvider is enabled
+        if (modelSelector.rememberProvider && settings.modelProvider) {
+          setSelectedProvider(settings.modelProvider)
+        } else {
+          setSelectedProvider('openrouter')
+        }
+      }
+      setFocusedIndex(-1) // Reset focus when opening
+    } else {
+      setFocusedIndex(-1) // Reset focus when closing
     }
-  }, [isOpen, settings.modelProvider])
+  }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider])
   
   // Get ALL models from ALL providers
   const allModels = useMemo((): ModelWithProvider[] => {
@@ -177,6 +217,13 @@ export function useModelSelector(): UseModelSelectorReturn {
     return removeEmojis(nameRaw)
   }, [currentModel, settings.aiModel])
   
+  // Reset focused index when models change
+  useEffect(() => {
+    if (focusedIndex >= currentModels.length) {
+      setFocusedIndex(Math.max(0, currentModels.length - 1))
+    }
+  }, [currentModels.length, focusedIndex])
+  
   // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {
     setIsOpen(prev => !prev)
@@ -206,9 +253,53 @@ export function useModelSelector(): UseModelSelectorReturn {
       e.stopPropagation()
       e.preventDefault()
     }
-    setIsOpen(false)
+    if (modelSelector.autoCloseOnSelect) {
+      setIsOpen(false)
+    }
+    setFocusedIndex(-1)
     updateSettings({ aiModel: model.code, modelProvider: model.provider })
-  }, [updateSettings])
+  }, [updateSettings, modelSelector.autoCloseOnSelect])
+  
+  // Keyboard navigation handlers
+  const handleKeyboardNav = useCallback((e: KeyboardEvent) => {
+    if (!isOpen) return
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setFocusedIndex(prev => 
+          prev < currentModels.length - 1 ? prev + 1 : 0
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setFocusedIndex(prev => 
+          prev > 0 ? prev - 1 : currentModels.length - 1
+        )
+        break
+      case 'Enter':
+        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
+          e.preventDefault()
+          handleSelect(currentModels[focusedIndex])
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        setIsOpen(false)
+        setFocusedIndex(-1)
+        break
+    }
+  }, [isOpen, currentModels, focusedIndex, handleSelect])
+  
+  // Attach keyboard event listener when dropdown is open
+  useEffect(() => {
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyboardNav)
+      return () => {
+        window.removeEventListener('keydown', handleKeyboardNav)
+      }
+    }
+  }, [isOpen, handleKeyboardNav])
   
   
   return {
@@ -217,7 +308,8 @@ export function useModelSelector(): UseModelSelectorReturn {
       searchQuery,
       viewMode,
       selectedProvider,
-      collapsedGroups
+      collapsedGroups,
+      focusedIndex
     },
     searchInputRef,
     allModels,
@@ -231,10 +323,12 @@ export function useModelSelector(): UseModelSelectorReturn {
     setSearchQuery,
     setViewMode,
     setSelectedProvider,
+    setFocusedIndex,
     toggleOpen,
     toggleGroup,
     toggleFavorite,
-    handleSelect
+    handleSelect,
+    handleKeyboardNav
   }
 }
 

@@ -21,6 +21,38 @@ export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elev
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
 
 /**
+ * Model Selector settings
+ */
+export interface ModelSelectorSettings {
+  // Layout
+  sidebarPosition: 'left' | 'right'
+  sidebarShowLabels: boolean
+  sidebarShowModelCount: boolean
+  dropdownWidth: 'compact' | 'default' | 'wide'
+  
+  // Display
+  showDescriptions: boolean
+  showCapabilityBadges: boolean
+  showProviderLogos: boolean
+  showFavoriteStars: boolean
+  showInfoTooltips: boolean
+  activeIndicatorStyle: 'dot' | 'checkmark' | 'highlight'
+  
+  // Density
+  itemDensity: 'compact' | 'comfortable' | 'spacious'
+  
+  // Behavior
+  defaultView: 'favorites' | 'lastUsed'
+  autoCloseOnSelect: boolean
+  rememberProvider: boolean
+  showSearch: boolean
+  
+  // Animations
+  enableAnimations: boolean
+  staggerSpeed: 'fast' | 'normal' | 'slow'
+}
+
+/**
  * UI-related settings that change frequently
  */
 export interface SettingsUI {
@@ -60,6 +92,9 @@ export interface SettingsUI {
 
     // Sidebar selected chat overlay style
     chatSelectedOverlayStyle?: ChatSelectedOverlayStyle
+
+    // Model Selector settings
+    modelSelector?: ModelSelectorSettings
 }
 
 /**
@@ -89,6 +124,25 @@ export const defaultSettingsUI: SettingsUI = {
     frostedPrompt: false,
     chatBubbleStyle: 'solid',
     chatSelectedOverlayStyle: 'linear',
+    modelSelector: {
+        sidebarPosition: 'left',
+        sidebarShowLabels: true,
+        sidebarShowModelCount: true,
+        dropdownWidth: 'default',
+        showDescriptions: true,
+        showCapabilityBadges: true,
+        showProviderLogos: true,
+        showFavoriteStars: true,
+        showInfoTooltips: true,
+        activeIndicatorStyle: 'dot',
+        itemDensity: 'comfortable',
+        defaultView: 'lastUsed',
+        autoCloseOnSelect: true,
+        rememberProvider: true,
+        showSearch: true,
+        enableAnimations: true,
+        staggerSpeed: 'normal',
+    },
 }
 
 interface SettingsUIContextType {
@@ -116,13 +170,32 @@ export function SettingsUIProvider({
     onSettingsChange 
 }: SettingsUIProviderProps) {
     const [settingsUI, setSettingsUI] = useState<SettingsUI>(() => {
-        return { ...defaultSettingsUI, ...initialSettings }
+        // Deep merge modelSelector if present
+        const merged = { ...defaultSettingsUI, ...initialSettings }
+        if (initialSettings?.modelSelector) {
+            merged.modelSelector = {
+                ...defaultSettingsUI.modelSelector!,
+                ...initialSettings.modelSelector,
+            }
+        }
+        return merged
     })
 
     // Sync with parent when initialSettings change (e.g., from storage events)
     useEffect(() => {
         if (initialSettings) {
-            setSettingsUI(prev => ({ ...prev, ...initialSettings }))
+            setSettingsUI(prev => {
+                const merged = { ...prev, ...initialSettings }
+                // Deep merge modelSelector
+                if (initialSettings.modelSelector) {
+                    merged.modelSelector = {
+                        ...defaultSettingsUI.modelSelector!,
+                        ...prev.modelSelector,
+                        ...initialSettings.modelSelector,
+                    }
+                }
+                return merged
+            })
         }
     }, [initialSettings])
 
@@ -150,7 +223,18 @@ export function SettingsUIProvider({
     }, [settingsUI, onSettingsChange])
 
     const updateSettingsUI = useCallback((newSettings: Partial<SettingsUI>) => {
-        setSettingsUI(prev => ({ ...prev, ...newSettings }))
+        setSettingsUI(prev => {
+            const merged = { ...prev, ...newSettings }
+            // Deep merge modelSelector if present
+            if (newSettings.modelSelector) {
+                merged.modelSelector = {
+                    ...defaultSettingsUI.modelSelector!,
+                    ...prev.modelSelector,
+                    ...newSettings.modelSelector,
+                }
+            }
+            return merged
+        })
     }, [])
 
     const contextValue = useMemo(() => ({
