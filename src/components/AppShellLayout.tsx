@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
+import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
@@ -10,12 +11,14 @@ const NOISE_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 function AppShellContent() {
     const navigate = useNavigate()
     const location = useLocation()
+    const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
     const { sidebarCollapsed, sidebarHidden } = useAppShell()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 
     // Detect Windows platform (same pattern as TitleBar)
     const isWindows = useMemo(() => {
@@ -71,12 +74,12 @@ function AppShellContent() {
             backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
             position: 'relative'
         }}>
-            {/* Single continuous glass panel spanning full height — eliminates seam between titlebar and sidebar */}
+            {/* Glass panel under the titlebar for frosted mode */}
             {frostedSidebar && isDashboardRoute && sidebarWidthPx > 0 && (
                 <div style={{
                     position: 'absolute',
                     left: 0,
-                    top: 0,
+                    top: titlebarHeightPx,
                     bottom: 0,
                     width: `${sidebarWidthPx}px`,
                     background: 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)',

@@ -41,6 +41,7 @@ export default function TitleBar() {
         setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
+        sidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
@@ -87,7 +88,7 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
-    const sidebarWidthPx = sidebarHidden ? 0 : 260
+    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
 
     const handleDashboardTabChange = (nextView: 'chat') => {
         if (dashboardView === nextView) return
@@ -161,6 +162,14 @@ export default function TitleBar() {
             onDoubleClick={handleTitleBarDoubleClick}
         >
             {/* Solid background for the content (right) side of the titlebar in frosted mode */}
+            {frostedSidebar && isDashboardRoute && sidebarWidthPx > 0 && (
+                <div
+                    className="app-titlebar__sidebar-glass"
+                    style={{
+                        width: `${sidebarWidthPx}px`,
+                    }}
+                />
+            )}
             {frostedSidebar && isDashboardRoute && (
                 <div
                     className="app-titlebar__content-bg"
