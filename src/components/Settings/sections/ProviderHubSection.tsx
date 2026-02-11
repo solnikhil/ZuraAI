@@ -28,6 +28,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ProviderLogo } from '@/components/shared'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
+import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
+import {
+  getCapabilitiesFromModel,
+  CAPABILITY_BADGES,
+} from '../../../utils/modelUtils'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
@@ -204,6 +209,8 @@ export function ProviderHubSection({
   const [selectedSearchCard, setSelectedSearchCard] = useState<'tavily' | 'runtime'>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] =
+    useState(false)
   const [connectivityModel, setConnectivityModel] = useState('')
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
   const [providerProxyUrls, setProviderProxyUrls] = useState<Record<ProviderKey, string>>(PROVIDER_ENDPOINTS)
@@ -960,6 +967,17 @@ export function ProviderHubSection({
                   <RefreshCcw size={14} />
                   Fetch models
                 </Button>
+                {selectedProviderDef.key === 'openrouter' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOpenRouterSearchDialogOpen(true)}
+                    className="gap-2"
+                  >
+                    <Search size={14} />
+                    Add from Catalog
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="icon"
@@ -1130,6 +1148,16 @@ export function ProviderHubSection({
         onOpenChange={setAddDialogOpen}
         onCreate={addCustomModel}
       />
+
+      {selectedProviderDef.key === 'openrouter' && (
+        <OpenRouterModelSearchDialog
+          open={openRouterSearchDialogOpen}
+          onOpenChange={setOpenRouterSearchDialogOpen}
+          onAddModel={addCustomModel}
+          apiKey={openRouterApiKey}
+          existingModelCodes={configuredModels.map((m) => m.code)}
+        />
+      )}
     </div>
   )
 }
@@ -1331,23 +1359,48 @@ function ModelGroup({
     <div>
       <div className="px-4 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{title}</div>
       {models.map((model) => {
-        const isCurrentModel = model.code === aiModel && modelProvider === selectedProvider
+        const isCurrentModel =
+          model.code === aiModel && modelProvider === selectedProvider
         const enabled = model.enabled !== false
+        const capabilities = getCapabilitiesFromModel(model as ConfiguredModel)
         return (
           <div
             key={`${selectedProvider}-${model.code}`}
             className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 first:border-t-0"
           >
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-foreground">
-                {model.displayName}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {model.displayName}
+                </div>
                 {isCurrentModel && (
-                  <span className="ml-2 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">Current</span>
+                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0">
+                    Current
+                  </span>
                 )}
               </div>
-              <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+              <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground mb-2">
                 {model.code}
               </div>
+              {capabilities.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  {capabilities.map((capKey) => {
+                    const badgeConfig = CAPABILITY_BADGES[capKey]
+                    if (!badgeConfig) return null
+                    const Icon = badgeConfig.icon
+                    return (
+                      <div
+                        key={capKey}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground"
+                        title={badgeConfig.label}
+                      >
+                        <Icon size={10} />
+                        <span>{badgeConfig.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <Switch
               checked={enabled}

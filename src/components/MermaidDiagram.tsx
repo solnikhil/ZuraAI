@@ -85,7 +85,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                 
                 // Handle different export formats and cache instance
                 if (!mermaidInstance) {
-                    mermaidInstance = mermaidModule.default || mermaidModule.mermaid || mermaidModule
+                    mermaidInstance = mermaidModule.default || (mermaidModule as Record<string, unknown>).mermaid || mermaidModule
 
                     if (!mermaidInstance) {
                         console.error('[MermaidDiagram] Mermaid instance is null/undefined')

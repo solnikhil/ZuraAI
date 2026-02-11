@@ -13,6 +13,13 @@ export interface ModelWithProvider {
   code: string
   displayName: string
   provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
+  /** Capability fields from ConfiguredModel (API-derived) */
+  supportsToolCall?: boolean
+  supportsVision?: boolean
+  supportsDeepThinking?: boolean
+  supportsWebSearch?: boolean
+  supportsImageGeneration?: boolean
+  supportsVideoRecognition?: boolean
 }
 
 /**

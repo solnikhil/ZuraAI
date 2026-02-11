@@ -173,7 +173,8 @@ export function extractUsageMetrics(usage: MiniMaxUsage | undefined | null): Nor
     const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? 0
 
     // Calculate totalTokens - use provided value or sum of input + output
-    const totalTokens = usage.total_tokens ?? (inputTokens + outputTokens)
+    // When total_tokens is 0 or missing, fall back to inputTokens + outputTokens
+    const totalTokens = usage.total_tokens || (inputTokens + outputTokens)
 
     // Extract reasoning tokens from completion_tokens_details
     const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens

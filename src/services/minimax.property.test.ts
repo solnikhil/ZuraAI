@@ -949,10 +949,9 @@ describe('MiniMax Service Property Tests', () => {
                         expect(result!.inputTokens).toBe(expectedInput)
                         expect(result!.outputTokens).toBe(expectedOutput)
 
-                        // totalTokens uses provided value (even if 0), or falls back to calculated sum
-                        // Note: The implementation uses ?? (nullish coalescing), so 0 is a valid value
+                        // totalTokens uses provided value when > 0, or falls back to calculated sum when 0 or missing
                         const providedTotal = data.hasTotalTokens ? data.total_tokens : undefined
-                        const expectedTotal = providedTotal ?? (expectedInput + expectedOutput)
+                        const expectedTotal = providedTotal || (expectedInput + expectedOutput)
                         expect(result!.totalTokens).toBe(expectedTotal)
                     }
                 ),
@@ -985,9 +984,9 @@ describe('MiniMax Service Property Tests', () => {
                         const expectedInput = usageDataArray.reduce((sum, u) => sum + u.prompt_tokens, 0)
                         const expectedOutput = usageDataArray.reduce((sum, u) => sum + u.completion_tokens, 0)
                         // For totalTokens, we need to account for the fallback logic in extractUsageMetrics
-                        // Note: Uses ?? (nullish coalescing), so only undefined/null triggers fallback, not 0
+                        // When total_tokens is 0 or missing, fall back to inputTokens + outputTokens
                         const expectedTotal = usageDataArray.reduce((sum, u) => {
-                            const total = u.total_tokens ?? (u.prompt_tokens + u.completion_tokens)
+                            const total = u.total_tokens || (u.prompt_tokens + u.completion_tokens)
                             return sum + total
                         }, 0)
                         const expectedReasoning = usageDataArray
@@ -1061,10 +1060,12 @@ describe('MiniMax Service Property Tests', () => {
                     const result = extractUsageMetrics(usage)
 
                     // Property: Should extract tokens from alternative field names
+                    // totalTokens falls back to inputTokens + outputTokens when total_tokens is 0 or missing
                     expect(result).toBeDefined()
                     expect(result!.inputTokens).toBe(inputTokens)
                     expect(result!.outputTokens).toBe(outputTokens)
-                    expect(result!.totalTokens).toBe(totalTokens)
+                    const expectedTotal = totalTokens || (inputTokens + outputTokens)
+                    expect(result!.totalTokens).toBe(expectedTotal)
                 }),
                 { numRuns: 100 }
             )

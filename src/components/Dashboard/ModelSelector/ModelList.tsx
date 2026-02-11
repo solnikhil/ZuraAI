@@ -7,9 +7,14 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Star, Search, Eye, Code, Info } from 'lucide-react'
-import { getModelAttributes, detectModelCapabilities, getProviderTitle, getModelDescription } from '../../../utils/modelUtils'
-import type { ModelCapability } from '../../../utils/modelUtils'
+import { Star, Search, Info } from 'lucide-react'
+import {
+  getModelAttributes,
+  getCapabilitiesFromModel,
+  getProviderTitle,
+  getModelDescription,
+  CAPABILITY_BADGES,
+} from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -33,13 +38,14 @@ export interface ModelListProps {
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }
 
-const CAPABILITY_LABELS: Record<ModelCapability, string> = {
+const LEGACY_CAPABILITY_LABELS: Record<string, string> = {
   vision: 'Vision',
   code: 'Functions',
-  reasoning: 'Reasoning',
-  fast: 'Fast',
-  online: 'Online',
-  'deep-research': 'Deep Research'
+  toolCall: 'Tool Calling',
+  deepThinking: 'Deep Thinking',
+  webSearch: 'Web Search',
+  imageGen: 'Image Gen',
+  videoRec: 'Video',
 }
 
 /**
@@ -136,16 +142,18 @@ function ModelItem({
   onToggleFavorite
 }: ModelItemProps): React.ReactElement {
   const { color, badge } = getModelAttributes(model)
-  const capabilities = detectModelCapabilities(model.code + ' ' + model.displayName)
-  const hasVision = capabilities.includes('vision')
-  const hasCode = capabilities.includes('code')
+  const capabilities = getCapabilitiesFromModel(model)
   const description = getModelDescription(model)
   const providerTitle = getProviderTitle(model.provider)
-  const capabilityChips = capabilities.map(capability => (
-    <span key={capability} className="model-info-chip">
-      {CAPABILITY_LABELS[capability]}
-    </span>
-  ))
+  const capabilityChips = capabilities.map((capKey) => {
+    const badgeConfig = CAPABILITY_BADGES[capKey]
+    const label = badgeConfig?.label ?? LEGACY_CAPABILITY_LABELS[capKey] ?? capKey
+    return (
+      <span key={capKey} className="model-info-chip">
+        {label}
+      </span>
+    )
+  })
 
   return (
     <motion.div
@@ -213,25 +221,20 @@ function ModelItem({
 
       {/* Feature Badges (Right side) */}
       <div className="flex items-center gap-1 shrink-0">
-        {/* Vision Badge */}
-        {hasVision && (
-          <div
-            title="Supports vision/images"
-            className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity"
-          >
-            <Eye size={14} className="text-muted-foreground" />
-          </div>
-        )}
-
-        {/* Function Calling Badge */}
-        {hasCode && (
-          <div
-            title="Supports function calling"
-            className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity"
-          >
-            <Code size={14} className="text-muted-foreground" />
-          </div>
-        )}
+        {capabilities.map((capKey) => {
+          const badgeConfig = CAPABILITY_BADGES[capKey]
+          if (!badgeConfig) return null
+          const Icon = badgeConfig.icon
+          return (
+            <div
+              key={capKey}
+              title={badgeConfig.label}
+              className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity"
+            >
+              <Icon size={14} className="text-muted-foreground" />
+            </div>
+          )
+        })}
 
         {/* Info Button */}
         <Tooltip>

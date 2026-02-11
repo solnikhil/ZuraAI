@@ -7,7 +7,19 @@
  */
 
 import React from 'react'
-import { MessageSquare, Sparkles, Box, Cpu, Zap, Brain, Globe } from 'lucide-react'
+import {
+  MessageSquare,
+  Sparkles,
+  Box,
+  Cpu,
+  Zap,
+  Brain,
+  Globe,
+  Wrench,
+  Eye,
+  Image as ImageIcon,
+  Video,
+} from 'lucide-react'
 
 /**
  * Model information interface
@@ -30,7 +42,98 @@ export interface ModelAttributes {
 /**
  * Model capability types
  */
-export type ModelCapability = 'vision' | 'code' | 'reasoning' | 'fast' | 'online' | 'deep-research'
+export type ModelCapability =
+  | 'vision'
+  | 'code'
+  | 'reasoning'
+  | 'fast'
+  | 'online'
+  | 'deep-research'
+  | 'tool-call'
+  | 'deep-thinking'
+  | 'web-search'
+  | 'image-gen'
+  | 'video-rec'
+
+/**
+ * Model with capability fields (from ConfiguredModel)
+ */
+export interface ModelWithCapabilities {
+  supportsToolCall?: boolean
+  supportsVision?: boolean
+  supportsDeepThinking?: boolean
+  supportsWebSearch?: boolean
+  supportsImageGeneration?: boolean
+  supportsVideoRecognition?: boolean
+}
+
+/**
+ * Capability badge configuration
+ */
+export interface CapabilityBadge {
+  label: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  key: keyof ModelWithCapabilities
+}
+
+/**
+ * Capability badge definitions
+ */
+export const CAPABILITY_BADGES: Record<string, CapabilityBadge> = {
+  toolCall: { label: 'Tool Calling', icon: Wrench, key: 'supportsToolCall' },
+  vision: { label: 'Vision', icon: Eye, key: 'supportsVision' },
+  deepThinking: {
+    label: 'Deep Thinking',
+    icon: Brain,
+    key: 'supportsDeepThinking',
+  },
+  webSearch: { label: 'Web Search', icon: Globe, key: 'supportsWebSearch' },
+  imageGen: {
+    label: 'Image Gen',
+    icon: ImageIcon,
+    key: 'supportsImageGeneration',
+  },
+  videoRec: {
+    label: 'Video',
+    icon: Video,
+    key: 'supportsVideoRecognition',
+  },
+}
+
+/**
+ * Get capabilities from model. Prefers explicit ConfiguredModel fields over heuristics.
+ *
+ * @param model - Model with optional capability fields
+ * @returns Array of capability keys that are enabled
+ */
+export function getCapabilitiesFromModel(
+  model: ModelWithCapabilities & { code?: string; displayName?: string }
+): string[] {
+  const capabilities: string[] = []
+
+  if (model.supportsToolCall) capabilities.push('toolCall')
+  if (model.supportsVision) capabilities.push('vision')
+  if (model.supportsDeepThinking) capabilities.push('deepThinking')
+  if (model.supportsWebSearch) capabilities.push('webSearch')
+  if (model.supportsImageGeneration) capabilities.push('imageGen')
+  if (model.supportsVideoRecognition) capabilities.push('videoRec')
+
+  if (
+    capabilities.length === 0 &&
+    model.code != null &&
+    model.displayName != null
+  ) {
+    const heuristicCaps = detectModelCapabilities(
+      model.code + ' ' + model.displayName
+    )
+    if (heuristicCaps.includes('vision')) capabilities.push('vision')
+    if (heuristicCaps.includes('code')) capabilities.push('toolCall')
+    if (heuristicCaps.includes('reasoning')) capabilities.push('deepThinking')
+    if (heuristicCaps.includes('online')) capabilities.push('webSearch')
+  }
+
+  return capabilities
+}
 
 /**
  * Model family detection patterns
