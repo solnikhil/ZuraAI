@@ -170,7 +170,7 @@ function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
 
         return (
           <TreeNode key={node.id} nodeId={node.id} level={level} isLast={isLast}>
-             <TreeNodeTrigger className="font-mono text-[13px] [&[data-selected=true]]:bg-transparent" hasChildren={hasChildren}>
+            <TreeNodeTrigger className="font-mono text-[13px] [&[data-selected=true]]:bg-transparent" hasChildren={hasChildren}>
               <TreeExpander hasChildren={hasChildren} />
               <TreeIcon isFolder={isFolder} icon={!isFolder ? iconForLeaf(node) : undefined} />
               <div className="min-w-0 flex flex-1 items-center gap-3">
