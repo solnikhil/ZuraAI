@@ -127,6 +127,11 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
             // Convert inline code that looks like math formulas to proper math syntax
             // Match backtick-wrapped content that contains math-like characters
             const withMathInline = normalized.replace(/`([^`]+)`/g, (match, content) => {
+                // Skip code-like content - do not convert to math (e.g. `const x = 1`)
+                const isCodeLike = /\b(const|let|var|function|return|=>|;\s*$|[{}])\b/.test(content) ||
+                    /^\s*\w+\s*[=\(]\s*/.test(content) // e.g. "const " or "fn("
+                if (isCodeLike) return match
+
                 // Check if content looks like a math formula
                 const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
                 const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)

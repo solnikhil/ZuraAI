@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
+import { checkOllamaStatus, listOllamaModels } from '../../../services/ollama'
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
@@ -130,6 +131,38 @@ export function useModelSelector(): UseModelSelectorReturn {
       setFocusedIndex(-1) // Reset focus when closing
     }
   }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider])
+
+  // Refresh Ollama models when dropdown opens so models added via terminal appear immediately
+  const prevOpenRef = useRef(false)
+  useEffect(() => {
+    if (!isOpen) {
+      prevOpenRef.current = false
+      return
+    }
+    if (prevOpenRef.current) return // Already fetched for this open session
+    prevOpenRef.current = true
+    const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
+    const existing = (settings.ollamaModels || []).map(m => [m.code, m.enabled] as const)
+    const refresh = async () => {
+      try {
+        const connected = await checkOllamaStatus(url)
+        if (!connected) return
+        const models = await listOllamaModels(url)
+        if (models.length === 0) return
+        const formatted = models.map(m => ({
+          code: m.name,
+          displayName: `${m.name} (${m.details.parameter_size})`
+        }))
+        const enabledMap = new Map(existing)
+        const merged = formatted.map(m => ({
+          ...m,
+          enabled: enabledMap.get(m.code) ?? true
+        }))
+        updateSettings({ ollamaModels: merged })
+      } catch { /* Ollama not available */ }
+    }
+    void refresh()
+  }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
   
   // Get ALL models from ALL providers
   const allModels = useMemo((): ModelWithProvider[] => {

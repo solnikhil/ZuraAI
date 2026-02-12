@@ -215,6 +215,12 @@
     list-style-type: disc; /* list-disc */
 }
 
+.markdown-body ol,
+.markdown-content ol,
+.markdown-typography ol {
+    list-style-type: decimal;
+}
+
 .markdown-body li,
 .markdown-content li,
 .markdown-typography li {
@@ -266,10 +272,12 @@
 .markdown-body th,
 .markdown-content th,
 .markdown-typography th {
-    background: var(--theme-surface-hover);
+    background: color-mix(in srgb, var(--theme-surface-hover) 80%, var(--theme-surface));
     font-weight: 600;
     color: var(--theme-text-primary);
     text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--theme-border-active);
 }
 
 .markdown-body td,
@@ -296,6 +304,7 @@
     font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; /* font-mono */
     font-size: 0.875rem; /* text-sm */
     font-weight: 600; /* font-semibold */
+    font-style: normal; /* prevent italic inheritance from blockquote/em */
 }
 
 .markdown-body pre,
@@ -320,7 +329,8 @@
 .markdown-content a,
 .markdown-typography a {
     color: var(--theme-accent);
-    text-decoration: none;
+    text-decoration: underline;
+    text-underline-offset: 2px;
     transition: color 0.2s;
 }
 
@@ -328,7 +338,7 @@
 .markdown-content a:hover,
 .markdown-typography a:hover {
     color: var(--theme-accent-hover);
-    text-decoration: underline;
+    text-decoration-thickness: 2px;
 }
 
 /* Lead text */
@@ -386,6 +396,8 @@
 .markdown-content s,
 .markdown-typography s {
     text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: var(--theme-text-muted);
     color: var(--theme-text-muted);
 }
 
@@ -428,6 +440,8 @@
 .markdown-content .task-list-item:has(input[type="checkbox"]:checked),
 .markdown-typography .task-list-item:has(input[type="checkbox"]:checked) {
     text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: var(--theme-text-muted);
     color: var(--theme-text-muted);
 }
 

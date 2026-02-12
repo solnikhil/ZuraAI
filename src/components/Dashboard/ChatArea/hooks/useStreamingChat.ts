@@ -593,10 +593,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       try {
         if (settings.modelProvider === 'ollama') {
-          for await (const chunk of streamOllamaCompletion(settings.ollamaUrl, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
+          for await (const chunk of streamOllamaCompletion(settings.ollamaUrl, settings.aiModel, apiMessages, { think: true, signal: abortControllerRef.current?.signal })) {
+            const thinkingDelta = chunk.message?.thinking || ''
             const delta = chunk.message?.content || ''
+            if (thinkingDelta) accumulatedReasoning += thinkingDelta
             accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
+            updateStreamingMessage(currentSessionId, streamingMessageId, {
+              content: accumulatedContent,
+              thinking: accumulatedReasoning || undefined
+            })
           }
         } else if (settings.modelProvider === 'perplexity') {
           for await (const chunk of streamPerplexityCompletion(settings.perplexityApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
