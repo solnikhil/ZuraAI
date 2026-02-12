@@ -126,7 +126,6 @@ describe('Codebase Reorganization Properties', () => {
         'src/components/Dashboard/ModelSelector/ModelSelector.tsx',
         'src/components/Dashboard/ModelSelector/ModelSelectorDropdown.tsx',
         'src/components/Dashboard/ModelSelector/ModelList.tsx',
-        'src/components/Dashboard/ModelSelector/ModelGroupRenderer.tsx',
         'src/components/Dashboard/ModelSelector/useModelSelector.ts',
         'src/components/Dashboard/ModelSelector/types.ts',
         'src/components/Dashboard/ModelSelector/ModelIcon.tsx'
@@ -416,7 +415,6 @@ describe('Codebase Reorganization Properties', () => {
     it('should have all barrel exports (index.ts) in component folders', () => {
       const foldersWithBarrelExports = [
         'src/components/Dashboard/ChatArea/index.ts',
-        'src/components/Dashboard/ChatArea/providers/index.ts',
         'src/components/Dashboard/ModelSelector/index.ts',
         'src/components/Settings/index.ts',
         'src/components/Settings/sections/index.ts',

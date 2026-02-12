@@ -176,7 +176,6 @@ function OllamaSection({ ollamaUrl, onChange }: OllamaSectionProps): React.React
   const handleAutoRunOllama = () => {
     const terminal = (window as any).terminal
     if (terminal?.spawnCommand) {
-      console.log('[Settings] Spawning Ollama in new terminal...')
       terminal.spawnCommand('ollama', ['serve'])
     } else {
       console.error('[Settings] Terminal API not available. Restart the app.')

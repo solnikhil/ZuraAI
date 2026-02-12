@@ -25,7 +25,7 @@ interface SidebarProps {
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
     const { sidebarHidden } = useAppShell()
@@ -40,7 +40,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         pinSession,
         unpinSession,
         archiveSession,
-        unarchiveSession,
+        unarchiveSession: _unarchiveSession,
         duplicateSession: duplicateSessionAction,
         assignFolder,
     } = useChatHistory()

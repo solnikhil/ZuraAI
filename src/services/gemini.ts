@@ -242,9 +242,9 @@ export const generateGeminiCompletion = async (
     }
 
     try {
-        // Using v1 API endpoint (works for all Gemini models including 2.0)
+        // Using v1beta API endpoint (works for all Gemini models including 3.x)
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             {
                 method: "POST",
                 headers: {
@@ -392,9 +392,9 @@ export async function* streamGeminiCompletion(
     }
 
     try {
-        // Use v1 API endpoint for streaming (works for all Gemini models including 2.0)
+        // Use v1beta API endpoint for streaming (works for all Gemini models including 3.x)
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1/models/${model}:streamGenerateContent`,
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent`,
             {
                 method: "POST",
                 headers: {

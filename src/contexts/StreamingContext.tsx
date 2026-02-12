@@ -20,7 +20,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
-import type { Message, ThinkingBlock } from './ChatHistoryContext'
+import type { ThinkingBlock } from './ChatHistoryContext'
 
 /**
  * Streaming message state - contains all data for the currently streaming message

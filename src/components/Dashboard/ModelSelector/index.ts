@@ -12,7 +12,6 @@ export { default } from './ModelSelector'
 // Sub-components
 export { ModelSelectorDropdown } from './ModelSelectorDropdown'
 export { ModelList } from './ModelList'
-export { ModelGroupRenderer } from './ModelGroupRenderer'
 export { ModelIcon } from './ModelIcon'
 
 // Hook

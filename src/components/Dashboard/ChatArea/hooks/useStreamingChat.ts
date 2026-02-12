@@ -13,7 +13,7 @@
  */
 
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { useChatHistory, type Message, type ThinkingBlock } from '../../../../contexts/ChatHistoryContext'
+import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
 import { useStreamingActions } from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
@@ -63,21 +63,6 @@ export interface UseStreamingChatReturn {
   stopStreaming: () => void
 }
 
-/**
- * Check if user explicitly requests web search in their message
- */
-function userRequestsWebSearch(message: string): boolean {
-  const normalized = message.toLowerCase()
-  return (
-    normalized.includes('use web search') ||
-    normalized.includes('web search') ||
-    normalized.includes('web_search') ||
-    normalized.includes('search the web') ||
-    normalized.includes('search online') ||
-    normalized.includes('use websearch')
-  )
-}
-
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -125,7 +110,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           streamingMessageRef.current?.messageId === messageId) {
         // Update isolated streaming context (doesn't trigger message list re-render)
         if (throttlerRef.current) {
-          throttlerRef.current.throttle(sessionId, messageId, updates, (sid, mid, upd) => {
+          throttlerRef.current.throttle(sessionId, messageId, updates, (_sid, _mid, upd) => {
             updateStreaming(upd)
           })
         } else {
@@ -196,7 +181,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
   const {
     calculateResearchConfig,
-    userRequestsWebSearch: checkUserRequestsWebSearch,
   } = useResearchMode({ canUseTools })
 
   // Initialize provider-specific streaming hooks
@@ -218,6 +202,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const { streamGemini } = useGeminiStreaming({
     settings: streamingSettings,
+    toolCalling,
     updateStreamingMessage,
     flushThrottledUpdates,
     throttledUpdateStreamingMessage,
@@ -286,13 +271,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
    * Uses composed provider-specific streaming hooks
    */
   const sendMessage = useCallback(async (content: string, files: AttachedFile[]) => {
-    // Debug: log received content
-    console.log('[useStreamingChat] sendMessage called:', {
-      contentLength: content.length,
-      contentPreview: content.slice(0, 200) + (content.length > 200 ? '...' : ''),
-      filesCount: files.length
-    })
-
     if ((!content.trim() && files.length === 0) || isLoading) return
 
     clearToolState()
@@ -368,12 +346,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
       startStreaming(targetSessionId!, streamingMessageId)
 
-      let result: { content: string; model: string }
-
       // Use composed provider-specific streaming hooks
       // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
       if (settings.modelProvider === 'ollama') {
-        result = await streamOllama({
+        await streamOllama({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -383,7 +359,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'perplexity') {
-        result = await streamPerplexity({
+        await streamPerplexity({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -407,15 +383,17 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             } as any
           }
         }
-        result = await streamGemini({
+        await streamGemini({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: geminiMessages,
           startTime,
+          researchMaxRounds,
+          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'groq') {
-        result = await streamGroq({
+        await streamGroq({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -425,7 +403,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'minimax') {
-        result = await streamMiniMax({
+        await streamMiniMax({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -449,7 +427,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             } as any
           }
         }
-        result = await streamOpenRouter({
+        await streamOpenRouter({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: openRouterMessages,
@@ -464,7 +442,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // Commit streaming content to the session
       // **Validates: Property 22: Isolated Streaming Updates**
       if (streamingMessageRef.current) {
-        const finalState = completeStreaming()
+        completeStreaming()
         // The final update is already applied by the provider functions via updateStreamingMessage
         // Just clear the streaming ref
         streamingMessageRef.current = null
@@ -613,8 +591,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           }
         } else if (settings.modelProvider === 'gemini') {
           for await (const chunk of streamGeminiCompletion(settings.geminiApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const delta = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
-            accumulatedContent += delta
+            const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
+            if (text) accumulatedContent = text
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
         } else if (settings.modelProvider === 'groq') {

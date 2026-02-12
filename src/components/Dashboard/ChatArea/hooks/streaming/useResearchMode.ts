@@ -12,7 +12,7 @@
  * - Neither toggle ON: No research mode
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 
 /**
  * Research mode state

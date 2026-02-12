@@ -562,7 +562,7 @@ export function ProviderHubSection({
   }
 
   return (
-    <div style={{ padding: '32px', paddingBottom: 100 }}>
+    <div className="min-w-0 px-4 pb-20 sm:px-6 md:px-8 lg:px-8">
       <div className="page-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="page-title">Providers</h2>
@@ -595,8 +595,8 @@ export function ProviderHubSection({
       </div>
 
       {manageMode === 'providers' && providerView === 'catalog' && (
-        <div className="mt-4 grid gap-4 xl:grid-cols-[280px_1fr]">
-          <Card className="settings-section-card h-[min(780px,calc(100vh-230px))] overflow-hidden">
+        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[240px_1fr] xl:grid-cols-[280px_1fr]">
+          <Card className="settings-section-card h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
             <div className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -696,7 +696,7 @@ export function ProviderHubSection({
             </div>
           </Card>
 
-          <Card className="settings-section-card h-[min(780px,calc(100vh-230px))] overflow-y-auto">
+          <Card className="settings-section-card h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
             <ProviderSection
               title="Enabled"
               providers={enabledProviders}
@@ -725,7 +725,7 @@ export function ProviderHubSection({
       )}
 
       {manageMode === 'providers' && providerView === 'detail' && (
-        <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <Card className="settings-section-card mt-4">
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -738,7 +738,7 @@ export function ProviderHubSection({
                   <ChevronLeft size={16} />
                 </button>
                 <ProviderLogo provider={selectedProviderDef.key} size={18} />
-                <span className="text-[28px] leading-none text-foreground">{selectedProviderDef.name}</span>
+                <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">{selectedProviderDef.name}</span>
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
                   <CircleHelp size={12} />
                 </span>
@@ -991,7 +991,7 @@ export function ProviderHubSection({
                 </Button>
               </div>
 
-              <div className="max-h-[640px] overflow-y-auto rounded-md border border-border bg-secondary/35">
+              <div className="max-h-[min(350px,55vh)] overflow-y-auto rounded-md border border-border bg-secondary/35 sm:max-h-[480px] lg:max-h-[640px]">
                 {enabledModels.length > 0 && (
                   <ModelGroup
                     title="Enabled"
@@ -1040,7 +1040,7 @@ export function ProviderHubSection({
 
       {manageMode === 'search-apis' && (
         <>
-          <Card className="settings-section-card" style={{ marginTop: 16 }}>
+          <Card className="settings-section-card mt-4">
             <div className="grid gap-3 md:grid-cols-2">
               <SearchCard
                 title="Tavily"
@@ -1064,7 +1064,7 @@ export function ProviderHubSection({
             </div>
           </Card>
 
-          <Card className="settings-section-card" style={{ marginTop: 16 }}>
+          <Card className="settings-section-card mt-4">
             {selectedSearchCard === 'tavily' ? (
               <DetailField
                 label="Tavily API Key"

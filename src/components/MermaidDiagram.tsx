@@ -1,4 +1,3 @@
-import * as React from 'react'
 import { useState, useEffect, useRef, useId } from 'react'
 import { Copy, Check, Code, AlertCircle, Maximize2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -79,10 +78,8 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                     }
                 }, 10000) // 10 second timeout
 
-                console.log('[MermaidDiagram] Loading mermaid module...')
                 const mermaidModule = await mermaidPromise
-                console.log('[MermaidDiagram] Mermaid module loaded:', Object.keys(mermaidModule))
-                
+
                 // Handle different export formats and cache instance
                 if (!mermaidInstance) {
                     mermaidInstance = mermaidModule.default || (mermaidModule as Record<string, unknown>).mermaid || mermaidModule
@@ -91,8 +88,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                         console.error('[MermaidDiagram] Mermaid instance is null/undefined')
                         throw new Error('Failed to load mermaid library: instance is null')
                     }
-
-                    console.log('[MermaidDiagram] Mermaid instance:', typeof mermaidInstance, Object.keys(mermaidInstance).slice(0, 10))
 
                     if (typeof mermaidInstance.initialize !== 'function') {
                         console.error('[MermaidDiagram] initialize method missing')
@@ -107,7 +102,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
                 // Initialize mermaid only once with security settings
                 if (!mermaidInitialized) {
-                    console.log('[MermaidDiagram] Initializing mermaid...')
                     mermaidInstance.initialize({
                         startOnLoad: false,
                         securityLevel: 'strict',
@@ -172,10 +166,8 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                         }
                     })
                     mermaidInitialized = true
-                    console.log('[MermaidDiagram] Mermaid initialized')
                 } else {
                     // Update theme if already initialized
-                    console.log('[MermaidDiagram] Mermaid already initialized, updating theme')
                     mermaidInstance.initialize({
                         startOnLoad: false,
                         securityLevel: 'strict',
@@ -191,15 +183,10 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
                 // Render the diagram
                 const renderId = `mermaid-${uniqueId}`
-                console.log('[MermaidDiagram] Rendering diagram with ID:', renderId)
-                console.log('[MermaidDiagram] Code length:', trimmedCode.length)
-                console.log('[MermaidDiagram] Code preview:', trimmedCode.substring(0, 100))
-                
+
                 // mermaid.render() returns a Promise that resolves to { svg, bindFunctions }
                 const result = await mermaidInstance.render(renderId, trimmedCode)
-                
-                console.log('[MermaidDiagram] Render result:', result ? 'received' : 'null', result?.svg ? `svg length: ${result.svg.length}` : 'no svg')
-                
+
                 if (!result) {
                     throw new Error('Mermaid render returned null or undefined')
                 }
@@ -216,7 +203,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                 if (mounted) {
                     setSvg(result.svg)
                     setIsLoading(false)
-                    console.log('[MermaidDiagram] Diagram rendered successfully')
                 }
             } catch (err: any) {
                 console.error('[MermaidDiagram] Rendering error:', err)

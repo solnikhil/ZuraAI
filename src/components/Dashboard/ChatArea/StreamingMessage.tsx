@@ -13,9 +13,9 @@
  * @module StreamingMessage
  */
 
-import React, { memo, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useMessageStreamingState } from '../../../contexts/StreamingContext'
-import { MessageRenderer, type MessageRendererProps } from './MessageRenderer'
+import { MessageRenderer } from './MessageRenderer'
 import type { Message } from '../../../contexts/ChatHistoryContext'
 
 interface StreamingMessageProps {

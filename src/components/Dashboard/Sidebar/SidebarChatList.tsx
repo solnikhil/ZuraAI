@@ -102,7 +102,7 @@ export default function SidebarChatList({
                         onRenameStart={onRenameStart}
                         onRenameConfirm={onRenameConfirm}
                         onRenameCancel={onRenameCancel}
-                        onMoreClick={(e, id) => {
+                        onMoreClick={(_e, id) => {
                             setDropdownOpenId(id)
                         }}
                     />

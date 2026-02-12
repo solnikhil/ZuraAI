@@ -322,11 +322,14 @@ export function buildMessagesWithToolResults(
             ] as ProviderMessage[]
 
         case 'gemini':
-            // Gemini handles this differently - tool results go in content parts
+            // Gemini: model turn with function call parts, then user turn with function response parts
+            const modelParts = Array.isArray((assistantMessage as any).parts)
+                ? (assistantMessage as any).parts
+                : [assistantMessage]
             return [
                 ...originalMessages,
-                { role: 'model', parts: [assistantMessage] },
-                { role: 'function', parts: toolResults }
+                { role: 'model', parts: modelParts },
+                { role: 'user', parts: toolResults }  // Gemini API expects role 'user' for function responses
             ]
 
         case 'perplexity':

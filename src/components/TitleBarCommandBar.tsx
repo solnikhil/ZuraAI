@@ -222,7 +222,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   const {
     dashboardView,
     setDashboardView,
-    activeSettingsSection,
+    activeSettingsSection: _activeSettingsSection,
     setActiveSettingsSection,
     hasUnsavedSettings,
     toggleSidebarCollapsed,

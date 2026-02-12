@@ -1,4 +1,3 @@
-import React from 'react'
 import { Minus, Maximize2, Minimize2, X } from './icons'
 
 export interface WindowControlButtonsProps {

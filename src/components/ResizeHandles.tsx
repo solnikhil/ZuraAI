@@ -159,7 +159,7 @@ export default function ResizeHandles({ disabled }: ResizeHandlesProps) {
     window.ipcRenderer?.invoke('window-resize', newBounds)
   }, [])
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>) => {
     const state = dragStateRef.current
     if (!state) return
 

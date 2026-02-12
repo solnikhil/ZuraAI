@@ -9,7 +9,6 @@
 
 import { useCallback } from 'react'
 import { streamGroqCompletion } from '../../../../../services/groq'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -71,7 +70,6 @@ export function useGroqStreaming({
     let toolCallsAccumulator: any[] = []
     let finishReason: string | null = null
     let savedToolResults: any = null
-    let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
 
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0

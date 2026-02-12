@@ -14,7 +14,6 @@ const ReactMarkdown = lazy(() => import('react-markdown'))
 const remarkGfmPromise = import('remark-gfm')
 const remarkMathPromise = import('remark-math')
 const rehypeKatexPromise = import('rehype-katex')
-const PrismSyntaxHighlighter = lazy(() => import('react-syntax-highlighter').then(m => ({ default: m.Prism })))
 const prismStylesPromise = import('react-syntax-highlighter/dist/esm/styles/prism')
 
 interface LazyMarkdownProps {

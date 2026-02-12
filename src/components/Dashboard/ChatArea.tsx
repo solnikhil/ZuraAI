@@ -17,7 +17,7 @@
  * - For any message list with more than 50 messages, virtualization SHALL be active
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
@@ -52,7 +52,6 @@ export default function ChatArea() {
   // Local state
   const [input, setInput] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [isTitleAnimated, setIsTitleAnimated] = useState(false)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -150,19 +149,6 @@ export default function ChatArea() {
     await sendMessage(input.trim(), attachedFiles)
   }
 
-  // Handle regenerate
-  const handleRegenerate = async (message: any, instruction: string) => {
-    await regenerateMessage(message, instruction)
-  }
-
-  // Handle keyboard shortcuts
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
   // Copy message content - memoized to prevent unnecessary re-renders
   // **Validates: Property 22: Isolated Streaming Updates**
   const handleCopy = useCallback((content: string) => {
@@ -227,11 +213,6 @@ export default function ChatArea() {
       </div>
     )
   }, [messages.length, isLoading, currentSessionId, handleCopy, regenerateMessage, toolState.toolResults])
-
-  // Remove attached file
-  const removeFile = (fileId: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== fileId))
-  }
 
   // Empty state (no session selected)
   if (!currentSessionId || messages.length === 0) {

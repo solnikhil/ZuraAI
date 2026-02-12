@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { ChevronDown, Check, Settings, Search, Sparkles, Zap, Brain, Box, MessageSquare, Image as ImageIcon, Eye, Star, Filter, ArrowLeft, Cpu, Cloud, Database, Globe, Grid, LayoutGrid, ArrowRight, Expand, ChevronUp } from 'lucide-react'
+import { ChevronDown, Check, Search, Sparkles, Zap, Brain, MessageSquare, Star, Cpu, Cloud, Database, Globe } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
 import { getModelAttributes } from '../../utils/modelUtils'
 import { removeEmojis } from '../../utils/textUtils'
-import { ProviderLogo } from '../shared'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface ModelWithProvider {
@@ -25,20 +24,11 @@ const providers = [
     { key: 'minimax', title: 'MiniMax', icon: <Brain />, color: '#6366f1', logo: true },
 ] as const
 
-// Helper function to convert hex to rgb
-const hexToRgb = (hex: string): string => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    return result 
-        ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
-        : '255, 255, 255'
-}
-
 export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     const { settings, updateSettings } = useSettings()
     const [isOpen, setIsOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [viewMode, setViewMode] = useState<ViewMode>('all')
-    const [isListExpanded, setIsListExpanded] = useState(true)
     const [selectedProvider, setSelectedProvider] = useState(settings.modelProvider || 'openrouter')
     // Sync selectedProvider with settings.modelProvider when dropdown opens
     useEffect(() => {
@@ -46,14 +36,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             setSelectedProvider(settings.modelProvider || 'openrouter')
         }
     }, [isOpen, settings.modelProvider])
-    // Collapse states for groups
-    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-        ollama: false,
-        perplexity: false,
-        openrouter: false,
-        gemini: false,
-        groq: false
-    })
 
     const dropdownRef = useRef<HTMLDivElement>(null)
     const portalRef = useRef<HTMLDivElement>(null)
@@ -93,8 +75,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         
         // For electron apps, use document.body dimensions for better responsiveness
         const docWidth = document.body.clientWidth
-        const docHeight = document.body.clientHeight
-        
         // Adjust for application bounds if in electron
         if (docWidth < viewportWidth) {
             left = Math.min(left, docWidth - dropdownWidth - padding)
@@ -266,17 +246,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         return localFiltered
     }, [allModels, searchQuery])
 
-    const groupedModels = useMemo(() => {
-        return {
-            ollama: filteredModels.filter(m => m.provider === 'ollama'),
-            perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
-            openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
-            gemini: filteredModels.filter(m => m.provider === 'gemini'),
-            groq: filteredModels.filter(m => m.provider === 'groq'),
-            minimax: filteredModels.filter(m => m.provider === 'minimax')
-        }
-    }, [filteredModels])
-
     const handleSelect = (model: ModelWithProvider, e?: React.MouseEvent) => {
         if (e) {
             e.stopPropagation()
@@ -284,13 +253,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         }
         setIsOpen(false)
         updateSettings({ aiModel: model.code, modelProvider: model.provider })
-    }
-
-    const toggleGroup = (provider: string) => {
-        setCollapsedGroups(prev => ({
-            ...prev,
-            [provider]: !prev[provider]
-        }))
     }
 
     // Close on outside click
@@ -310,95 +272,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
             document.removeEventListener('mousedown', handleClickOutside)
         }
     }, [isOpen])
-
-    // Render model item with favorite star on hover
-    const renderModelItem = (model: ModelWithProvider, isActive: boolean, isCompact: boolean = false) => {
-        const { icon: attrIcon, color, badge } = getModelAttributes(model)
-        const isFavorite = settings.favoriteModels?.includes(model.code) || false
-
-        return (
-            <div
-                key={model.code}
-                onClick={(e) => handleSelect(model, e)}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={`model-item ${isActive ? 'model-item-active' : ''}`}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: isCompact ? '8px 10px' : '12px',
-                    borderRadius: '10px',
-                    background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
-                    cursor: 'pointer',
-                    position: 'relative'
-                }}
-                onMouseEnter={e => {
-                    if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
-                    // Show star on hover
-                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
-                    if (starBtn) starBtn.style.opacity = '1'
-                }}
-                onMouseLeave={e => {
-                    if (!isActive) e.currentTarget.style.background = 'transparent'
-                    // Hide star on hover out
-                    const starBtn = e.currentTarget.querySelector('.star-btn') as HTMLElement
-                    if (starBtn && !isFavorite) starBtn.style.opacity = '0'
-                }}
-            >
-                <ModelIcon
-                    model={model}
-                    icon={attrIcon}
-                    color={color}
-                    size={isCompact ? 20 : 24}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ 
-                        color: '#ddd', 
-                        fontSize: isCompact ? '0.85rem' : '0.9rem', 
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                    }}>
-                        {removeEmojis(model.displayName)}
-                    </div>
-                    {!isCompact && (
-                        <div style={{ color: '#888', fontSize: '0.75rem', marginTop: '2px' }}>{model.provider}</div>
-                    )}
-                </div>
-                {badge}
-                
-                {/* Star button - shows on hover */}
-                <button
-                    className={`star-btn ${isFavorite ? 'favorited' : ''}`}
-                    onClick={(e) => toggleFavorite(model.code, e)}
-                    style={{
-                        opacity: isFavorite ? 1 : 0,
-                        padding: '4px',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                    onMouseEnter={e => {
-                        e.stopPropagation()
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)'
-                    }}
-                    onMouseLeave={e => {
-                        e.stopPropagation()
-                        e.currentTarget.style.background = 'transparent'
-                    }}
-                >
-                    <Star size={14} fill={isFavorite ? '#FFD700' : 'none'} color={isFavorite ? '#FFD700' : '#666'} />
-                </button>
-
-                {isActive && <Check size={16} color="#fff" />}
-            </div>
-        )
-    }
 
     // Render compact model item for list view
     const renderCompactModelItem = (model: ModelWithProvider, isActive: boolean) => {
@@ -504,123 +377,6 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
                         <Star size={14} fill={isFavorite ? '#FFD700' : 'none'} />
                     </button>
                 )}
-            </div>
-        )
-    }
-
-    const renderGroup = (provider: string, title: string, icon: React.ReactNode, models: ModelWithProvider[]) => {
-        if (models.length === 0 && !searchQuery) return null
-        if (models.length === 0) return null
-
-        const isCollapsed = collapsedGroups[provider]
-
-        return (
-            <div style={{ marginBottom: '8px' }}>
-                <div
-                    className="group-header"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        toggleGroup(provider)
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 4px',
-                        cursor: 'pointer',
-                        color: '#b0b0b0',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        userSelect: 'none'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#e0e0e0'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#b0b0b0'}
-                >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <ProviderLogo provider={provider} size={14} />
-                        <span>{title}</span>
-                        <span style={{ fontSize: '0.7rem', opacity: 0.6, background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: '10px' }}>
-                            {models.length}
-                        </span>
-                    </div>
-                    <ChevronDown size={14} style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-                </div>
-
-                {!isCollapsed && (
-                    <div className="model-group" style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingLeft: '8px' }}>
-                        {models.map(model => {
-                            const isActive = settings.aiModel === model.code && settings.modelProvider === model.provider
-                            return renderModelItem(model, isActive)
-                        })}
-                    </div>
-                )}
-            </div>
-        )
-    }
-
-    // Render expanded grid view
-    const renderExpandedView = () => {
-        // Get all models organized by provider
-        const providers = [
-            { key: 'gemini', title: 'Gemini', icon: <Sparkles size={14} />, color: '#4dabf7' },
-            { key: 'openrouter', title: 'OpenRouter', icon: <Cloud size={14} />, color: '#a855f7' },
-            { key: 'perplexity', title: 'Perplexity', icon: <Globe size={14} />, color: '#22c55e' },
-            { key: 'groq', title: 'Groq', icon: <Zap size={14} />, color: '#f97316' },
-            { key: 'ollama', title: 'Ollama', icon: <Database size={14} />, color: '#339af0' }
-        ]
-
-        return (
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '12px',
-                paddingRight: '4px'
-            }}>
-                {providers.map(provider => {
-                    const models = groupedModels[provider.key as keyof typeof groupedModels]
-                    if (models.length === 0) return null
-
-                    return (
-                        <div
-                            key={provider.key}
-                            style={{
-                                background: 'rgba(255,255,255,0.02)',
-                                borderRadius: '12px',
-                                padding: '12px'
-                            }}
-                        >
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                marginBottom: '10px',
-                                color: provider.color,
-                                fontSize: '0.75rem',
-                                fontWeight: 600
-                            }}>
-                                {provider.icon}
-                                {provider.title}
-                                <span style={{
-                                    fontSize: '0.65rem',
-                                    opacity: 0.6,
-                                    background: 'rgba(255,255,255,0.05)',
-                                    padding: '1px 5px',
-                                    borderRadius: '8px',
-                                    marginLeft: 'auto'
-                                }}>
-                                    {models.length}
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                {models.slice(0, 6).map(model => {
-                                    const isActive = settings.aiModel === model.code && settings.modelProvider === provider.key
-                                    return renderModelItem(model, isActive, false)
-                                })}
-                            </div>
-                        </div>
-                    )
-                })}
             </div>
         )
     }

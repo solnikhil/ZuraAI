@@ -1,4 +1,3 @@
-import React from 'react'
 import { SettingsIcon } from '../../icons'
 import { useSettingsUI } from '../../../contexts/SettingsUIContext'
 

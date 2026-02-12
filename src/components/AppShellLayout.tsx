@@ -1,6 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
+
+/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
+const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
 import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
@@ -13,10 +16,25 @@ function AppShellContent() {
     const location = useLocation()
     const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
-    const { frostedSidebar } = settingsUI
-    const { sidebarCollapsed, sidebarHidden } = useAppShell()
+    const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
+    const { sidebarCollapsed, sidebarHidden, setSidebarHidden } = useAppShell()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
+    const hasSidebar = isDashboardRoute || location.pathname === '/chat'
+
+    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle
+    useEffect(() => {
+        if (!hasSidebar || !sidebarAutoHideOnResize) return
+        const handler = () => {
+            const width = window.innerWidth
+            if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+                setSidebarHidden(true)
+            }
+        }
+        handler() // Initial check on mount
+        window.addEventListener('resize', handler)
+        return () => window.removeEventListener('resize', handler)
+    }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
     const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
     const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 

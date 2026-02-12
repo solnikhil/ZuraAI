@@ -142,7 +142,7 @@ export function parseTreeText(content: string): FileTreeNode[] {
   
   if (!firstLineHasTreeMarkers && firstLine.includes('/')) {
     // First line looks like a root folder name
-    const { name, description } = splitInlineComment(firstLine.trim())
+    const { name, description: _description } = splitInlineComment(firstLine.trim())
     if (name && (name.endsWith('/') || !firstLineHasTreeMarkers)) {
       rootName = name.replace(/\/$/, '')
       startIdx = 1

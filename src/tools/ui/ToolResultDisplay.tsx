@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, ChevronUp, ExternalLink, Search, AlertCircle } from '../../components/icons'
 
 import './ToolResultDisplay.css'

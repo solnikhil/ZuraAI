@@ -87,6 +87,9 @@ export interface SettingsUI {
     // Frosted prompt (glassmorphism effect)
     frostedPrompt: boolean
 
+    // Sidebar auto-hide when window is narrow
+    sidebarAutoHideOnResize: boolean
+
     // Chat bubble style
     chatBubbleStyle?: ChatBubbleStyle
 
@@ -122,6 +125,7 @@ export const defaultSettingsUI: SettingsUI = {
     },
     frostedSidebar: false,
     frostedPrompt: false,
+    sidebarAutoHideOnResize: true,
     chatBubbleStyle: 'solid',
     chatSelectedOverlayStyle: 'linear',
     modelSelector: {

@@ -151,7 +151,7 @@ export function registerSystemHandlers(): void {
       // macOS: use Terminal.app with osascript
       const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
       const script = `tell app "Terminal" to do script "${fullCommand}; read -n1"`
-      exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
+      exec(`osascript -e '${script}'`, (error, _stdout, _stderr) => {
         if (error) console.error('[SYSTEM] macOS exec error:', error.message)
         else console.log('[SYSTEM] macOS terminal opened')
       })

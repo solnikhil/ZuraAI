@@ -16,6 +16,3 @@ export { InputArea } from './InputArea'
 // Hooks
 export { useStreamingChat } from './hooks'
 export type { UseStreamingChatOptions, UseStreamingChatReturn } from './hooks'
-
-// Provider streaming
-export * from './providers'

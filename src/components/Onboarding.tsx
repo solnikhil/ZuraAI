@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, ChevronRight, ChevronLeft, Zap, Image, Command } from './icons'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from './shared'
@@ -7,10 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import {
-  Dialog,
-  DialogContent,
-} from '@/components/ui/dialog'
 import './Onboarding.css'
 
 interface OnboardingProps {
@@ -19,7 +15,7 @@ interface OnboardingProps {
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
     const [step, setStep] = useState(0)
-    const { settings, updateSettings } = useSettings()
+    const { updateSettings } = useSettings()
     const { showToast } = useToast()
     const [apiKey, setApiKey] = useState('')
     const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'gemini' | 'groq'>('openrouter')
@@ -46,7 +42,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 })
                 return response.ok || response.status === 400 // 400 means auth worked but request was invalid
             } else if (provider === 'gemini') {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })

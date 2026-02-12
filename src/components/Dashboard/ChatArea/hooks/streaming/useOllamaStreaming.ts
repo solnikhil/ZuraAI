@@ -6,9 +6,8 @@
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { streamOllamaCompletion } from '../../../../../services/ollama'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -69,7 +68,6 @@ export function useOllamaStreaming({
     let finalMessage: any = null
     let isDone = false
     let savedToolResults: any = null
-    let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
 
     try {

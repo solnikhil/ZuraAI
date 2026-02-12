@@ -120,7 +120,7 @@ function initializeGlobalTTI(): void {
   const metrics = rendererPerformanceTracker.getMetrics();
   if (metrics.tti !== null) {
     globalTTIReached = true;
-    console.log('[useLazyLoad] TTI already reached:', metrics.tti);
+    if (import.meta.env.DEV) console.log('[useLazyLoad] TTI already reached:', metrics.tti);
     return;
   }
   
@@ -128,7 +128,7 @@ function initializeGlobalTTI(): void {
   const unsubscribe = rendererPerformanceTracker.onMetricsUpdate((updates) => {
     if (updates.tti !== undefined && updates.tti !== null) {
       globalTTIReached = true;
-      console.log('[useLazyLoad] TTI reached:', updates.tti);
+      if (import.meta.env.DEV) console.log('[useLazyLoad] TTI reached:', updates.tti);
       
       // Notify all listeners
       globalTTIListeners.forEach(listener => {
@@ -229,7 +229,7 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     // Set up timeout fallback
     const timeoutId = setTimeout(() => {
       if (!globalTTIReached) {
-        console.warn('[useLazyLoad] TTI timeout reached, forcing load');
+        if (import.meta.env.DEV) console.warn('[useLazyLoad] TTI timeout reached, forcing load');
         setIsTTIReached(true);
       }
     }, ttiTimeout);
@@ -259,7 +259,7 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     
     // Check if IntersectionObserver is available
     if (typeof IntersectionObserver === 'undefined') {
-      console.warn('[useLazyLoad] IntersectionObserver not available, loading immediately');
+      if (import.meta.env.DEV) console.warn('[useLazyLoad] IntersectionObserver not available, loading immediately');
       setIsIntersecting(true);
       return;
     }
@@ -336,7 +336,7 @@ export function waitForTTI(timeout = 10000): Promise<void> {
     initializeGlobalTTI();
     
     const timeoutId = setTimeout(() => {
-      console.warn('[waitForTTI] Timeout reached');
+      if (import.meta.env.DEV) console.warn('[waitForTTI] Timeout reached');
       resolve();
     }, timeout);
     

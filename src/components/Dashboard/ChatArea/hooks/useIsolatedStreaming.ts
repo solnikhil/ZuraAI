@@ -51,7 +51,6 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
     completeStreaming,
     cancelStreaming,
     isMessageStreaming,
-    getStreamingContent,
   } = useStreamingActions()
   
   const { updateStreamingMessage } = useChatHistory()

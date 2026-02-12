@@ -7,10 +7,9 @@
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { useToolCalling } from '../../../../../hooks/useToolCalling'
 import { useToast } from '../../../../shared/Toast'
-import type { Message, ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type { UpdateStreamingCallback, StreamingSettings } from './types'
 
 /**
@@ -141,7 +140,7 @@ export interface ProcessToolCallsResult {
  * Hook for handling tool execution and result handling during streaming
  */
 export function useStreamingToolCalls({
-  settings,
+  settings: _settings,
 }: UseStreamingToolCallsOptions): UseStreamingToolCallsReturn {
   const { showToast } = useToast()
   
@@ -150,7 +149,6 @@ export function useStreamingToolCalls({
     canUseTools,
     getToolsForRequest,
     handleToolCalls: baseHandleToolCalls,
-    toolState,
     clearToolState,
     startResearchMode,
     getResearchContext,

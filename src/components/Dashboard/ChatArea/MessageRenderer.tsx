@@ -10,10 +10,8 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
-import ReactDOM from 'react-dom'
 import {
-  Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
-  Wrench, X, File, FileText, RotateCcw, Sparkles, Edit2, Zap, Database,
+  Copy, Check, Info, Wrench, X, File, RotateCcw,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -61,7 +59,7 @@ function convertUrlsToMarkdownLinks(content: string): string {
   if (!content) return content
 
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (match, prefix, num, url) => {
+  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (_match, prefix, num, url) => {
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
     return `${prefix}[[${num}]](${cleanUrl})`
   })

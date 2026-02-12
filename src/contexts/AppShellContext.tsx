@@ -14,6 +14,7 @@ interface AppShellContextType {
     toggleSidebarCollapsed: () => void
     sidebarHidden: boolean
     toggleSidebarHidden: () => void
+    setSidebarHidden: (hidden: boolean) => void
 }
 
 const AppShellContext = createContext<AppShellContextType | undefined>(undefined)
@@ -88,7 +89,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         return false
     })
 
-    const [sidebarHidden, setSidebarHidden] = useState<boolean>(() => {
+    const [sidebarHidden, setSidebarHiddenState] = useState<boolean>(() => {
         if (settings.rememberLastDashboardView) {
             return readStoredBoolean(STORAGE_KEYS.sidebarHidden) ?? false
         }
@@ -100,7 +101,11 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const toggleSidebarHidden = useCallback(() => {
-        setSidebarHidden(prev => !prev)
+        setSidebarHiddenState(prev => !prev)
+    }, [])
+
+    const setSidebarHidden = useCallback((hidden: boolean) => {
+        setSidebarHiddenState(hidden)
     }, [])
 
     const setDashboardView = useCallback((view: DashboardView) => {
@@ -156,12 +161,14 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         toggleSidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
+        setSidebarHidden,
     }), [
         activeSettingsSection,
         dashboardView,
         hasUnsavedSettings,
         setActiveSettingsSection,
         setDashboardView,
+        setSidebarHidden,
         sidebarCollapsed,
         sidebarHidden,
         toggleSidebarCollapsed,
@@ -193,6 +200,7 @@ export function useAppShell() {
                 toggleSidebarCollapsed: () => {},
                 sidebarHidden: false,
                 toggleSidebarHidden: () => {},
+                setSidebarHidden: () => {},
             }
         }
         throw new Error('useAppShell must be used within a AppShellProvider')

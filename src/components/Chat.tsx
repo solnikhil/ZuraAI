@@ -78,7 +78,7 @@ export default function Chat() {
         }
     }
 
-    const callPerplexity = async (userPrompt: string, image?: string) => {
+    const callPerplexity = async (userPrompt: string, _image?: string) => {
         if (!settings.perplexityApiKey) {
             throw new Error("Please configure your Perplexity API Key in Settings.")
         }

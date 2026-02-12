@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
-import { filterModels, groupModelsByProvider } from '../../../utils/modelUtils'
+import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
 

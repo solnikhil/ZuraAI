@@ -2,8 +2,6 @@
 
 import * as React from "react"
 import { ResponsiveContainer, Tooltip, Legend } from "recharts"
-import type { TooltipProps } from "recharts"
-import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent"
 
 import { cn } from "@/lib/utils"
 
