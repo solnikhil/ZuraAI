@@ -2,6 +2,7 @@ import { generateGeminiCompletion } from './gemini'
 import { generateGroqCompletion } from './groq'
 import { generateOllamaCompletion } from './ollama'
 import { generatePerplexityCompletion } from './perplexity'
+import { getOpenRouterApiKey } from '../utils/openRouterKey'
 
 /**
  * Generates a short, descriptive title for a chat session based on the user's first message.
@@ -93,12 +94,13 @@ User message: "${userMessage.slice(0, 200)}"`
                 { temperature: 0.3 }
             )
             title = res.message?.content || ''
-        } else if (settings.openRouterApiKey) {
+        } else if (getOpenRouterApiKey(settings.openRouterApiKey)) {
             // Fallback to OpenRouter for everything else
+            const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${settings.openRouterApiKey}`,
+                    "Authorization": `Bearer ${openRouterKey}`,
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
@@ -115,7 +117,7 @@ User message: "${userMessage.slice(0, 200)}"`
         title = title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
 
         // Final sanity check before enforcing
-        if (!title && settings.openRouterApiKey) {
+        if (!title && getOpenRouterApiKey(settings.openRouterApiKey)) {
             // Try OpenRouter fallback if primary failed silently empty
             throw new Error('Empty title from primary provider')
         }
@@ -127,12 +129,13 @@ User message: "${userMessage.slice(0, 200)}"`
         console.error('Primary title generation failed:', error)
 
         // Fallback to free OpenRouter model
-        if (settings.openRouterApiKey && !settings.titleModel?.includes('openrouter')) {
+        const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
+        if (openRouterKey && !settings.titleModel?.includes('openrouter')) {
             try {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
                     headers: {
-                        "Authorization": `Bearer ${settings.openRouterApiKey}`,
+                        "Authorization": `Bearer ${openRouterKey}`,
                         "Content-Type": "application/json",
                         "HTTP-Referer": "https://zura.ai",
                         "X-Title": "Zura"

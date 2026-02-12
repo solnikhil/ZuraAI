@@ -3,7 +3,7 @@
 import * as React from 'react'
 const { Suspense, useState, useEffect } = React
 import { lazy } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, Code } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
@@ -205,7 +205,8 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 code({ node, inline, className, children, ...props }: any) {
                     const match = /language-([\w-]+)/.exec(className || '')
                     const codeString = Array.isArray(children) ? children.join('') : String(children ?? '')
-                    const isInline = inline === true
+                    // Derive inline from prop or hast node: block code has parent <pre>, inline has parent <p>
+                    const isInline = inline === true || (node?.parent as { tagName?: string } | undefined)?.tagName !== 'pre'
                     // Determine if this is a code block: not inline and has language OR has newlines
                     const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
@@ -218,14 +219,31 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                             <Suspense fallback={
                                 <div style={{
                                     margin: '12px 0',
-                                    padding: '16px',
+                                    padding: '48px 24px',
                                     borderRadius: '8px',
                                     background: 'var(--theme-surface)',
                                     border: '1px solid var(--theme-border)',
                                     textAlign: 'center',
                                     color: 'var(--theme-text-tertiary)'
-                                }}>
-                                    Loading diagram...
+                                }} className="markdown-mermaid-skeleton">
+                                    <div style={{
+                                        width: '120px',
+                                        height: '12px',
+                                        margin: '0 auto 12px',
+                                        borderRadius: '4px',
+                                        background: 'var(--theme-surface-hover)',
+                                        animation: 'markdown-skeleton-pulse 1.5s ease-in-out infinite'
+                                    }} />
+                                    <div style={{
+                                        width: '200px',
+                                        height: '80px',
+                                        margin: '0 auto',
+                                        borderRadius: '6px',
+                                        background: 'var(--theme-surface-hover)',
+                                        animation: 'markdown-skeleton-pulse 1.5s ease-in-out infinite',
+                                        animationDelay: '0.1s'
+                                    }} />
+                                    <span style={{ display: 'block', marginTop: '12px', fontSize: '0.8rem' }}>Loading diagram...</span>
                                 </div>
                             }>
                                 <MermaidDiagram code={codeString.replace(/\n$/, '')} />
@@ -262,11 +280,12 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
                         return (
-                            <div style={{ position: 'relative', margin: '12px 0' }}>
+                            <div style={{ position: 'relative', margin: '12px 0' }} className="markdown-code-block">
                                 <div style={{
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
+                                    gap: '8px',
                                     padding: '8px 12px',
                                     backgroundColor: 'var(--theme-surface)',
                                     borderTopLeftRadius: '8px',
@@ -274,7 +293,10 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                                     fontSize: '0.75rem',
                                     color: 'var(--theme-text-tertiary)'
                                 }}>
-                                    <span>{match[1]}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Code size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
+                                        <span style={{ textTransform: 'capitalize' }}>{match[1]}</span>
+                                    </span>
                                     <button
                                         onClick={handleCopy}
                                         style={{
@@ -322,30 +344,42 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                                 border: '1px solid var(--theme-border)',
                                 overflow: 'hidden',
                                 position: 'relative'
-                            }}>
-                                <button
-                                    onClick={handleCopy}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '8px',
-                                        right: '12px',
-                                        background: 'none',
-                                        border: 'none',
-                                        color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-                                        cursor: 'pointer',
-                                        padding: '4px',
-                                        borderRadius: '4px',
-                                        transition: 'all 0.2s ease',
-                                        zIndex: 1,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        lineHeight: 1
-                                    }}
-                                    title={isCopied ? 'Copied!' : 'Copy'}
-                                >
-                                    {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
-                                </button>
+                            }} className="markdown-code-block">
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '8px 12px',
+                                    backgroundColor: 'var(--theme-surface)',
+                                    borderBottom: '1px solid var(--theme-border)',
+                                    fontSize: '0.75rem',
+                                    color: 'var(--theme-text-tertiary)'
+                                }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Code size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
+                                        <span>Code</span>
+                                    </span>
+                                    <button
+                                        onClick={handleCopy}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
+                                            cursor: 'pointer',
+                                            padding: '4px',
+                                            borderRadius: '4px',
+                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            lineHeight: 1
+                                        }}
+                                        title={isCopied ? 'Copied!' : 'Copy'}
+                                    >
+                                        {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
+                                    </button>
+                                </div>
                                 <div style={{
                                     padding: '12px 16px',
                                     overflowX: 'auto',
@@ -354,8 +388,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                                     lineHeight: '1.6',
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word',
-                                    color: 'var(--theme-text-secondary)',
-                                    paddingTop: '36px'
+                                    color: 'var(--theme-text-secondary)'
                                 }}>
                                     {children}
                                 </div>

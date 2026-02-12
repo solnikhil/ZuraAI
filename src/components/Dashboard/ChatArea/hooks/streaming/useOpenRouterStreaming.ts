@@ -9,6 +9,7 @@
 
 import { useCallback } from 'react'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
+import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
 import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
@@ -99,7 +100,7 @@ export function useOpenRouterStreaming({
     }
 
     for await (const chunk of streamOpenRouterCompletion(
-      settings.openRouterApiKey || '',
+      getOpenRouterApiKey(settings.openRouterApiKey),
       settings.aiModel,
       openRouterMessages,
       { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal }
@@ -274,7 +275,7 @@ export function useOpenRouterStreaming({
           })
 
           for await (const chunk of streamOpenRouterCompletion(
-            settings.openRouterApiKey || '',
+            getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,
             followUpMessages,
             { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice, signal }
@@ -401,7 +402,7 @@ export function useOpenRouterStreaming({
           let finalAnswerUsage: any = {}
 
           for await (const chunk of streamOpenRouterCompletion(
-            settings.openRouterApiKey || '',
+            getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,
             finalAnswerMessages,
             { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, signal }

@@ -188,8 +188,11 @@
 .markdown-typography blockquote {
     margin-top: 1.5rem; /* mt-6 */
     margin-bottom: 1.5rem;
-    border-left: 2px solid var(--theme-border);
-    padding-left: 1.5rem; /* pl-6 */
+    border-left: 3px solid var(--theme-accent);
+    padding: 0.75rem 0 0.75rem 1.5rem;
+    margin-left: 0;
+    background: var(--theme-surface-hover);
+    border-radius: 0 0.25rem 0.25rem 0;
     font-style: italic;
     color: var(--theme-text-secondary);
 }
@@ -231,6 +234,9 @@
     width: 100%;
     overflow-x: auto;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0.5rem;
+    border: 1px solid var(--theme-border);
 }
 
 .markdown-body table,
@@ -239,6 +245,7 @@
     margin-top: 1.5rem;
     margin-bottom: 1.5rem;
     width: 100%;
+    min-width: 300px;
     border-collapse: collapse;
 }
 
@@ -253,7 +260,7 @@
 .markdown-content td,
 .markdown-typography td {
     border: 1px solid var(--theme-border);
-    padding: 0.5rem;
+    padding: 0.625rem 0.875rem;
 }
 
 .markdown-body th,
@@ -269,6 +276,13 @@
 .markdown-content td,
 .markdown-typography td {
     color: var(--theme-text-secondary);
+}
+
+/* Zebra striping for table body rows */
+.markdown-body tbody tr:nth-child(even),
+.markdown-content tbody tr:nth-child(even),
+.markdown-typography tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--theme-surface-hover) 40%, transparent);
 }
 
 /* Inline Code */
@@ -355,4 +369,79 @@
 .markdown-typography strong {
     color: var(--theme-text-primary);
     font-weight: 600;
+}
+
+.markdown-body em,
+.markdown-content em,
+.markdown-typography em {
+    font-style: italic;
+    color: var(--theme-text-primary);
+}
+
+/* Strikethrough (GFM ~~text~~) */
+.markdown-body del,
+.markdown-content del,
+.markdown-typography del,
+.markdown-body s,
+.markdown-content s,
+.markdown-typography s {
+    text-decoration: line-through;
+    color: var(--theme-text-muted);
+}
+
+/* Task lists (GFM - [ ] / - [x]) */
+.markdown-body ul.contains-task-list,
+.markdown-content ul.contains-task-list,
+.markdown-typography ul.contains-task-list {
+    list-style: none;
+    padding-left: 1.5rem; /* align with other lists */
+}
+
+.markdown-body .task-list-item,
+.markdown-content .task-list-item,
+.markdown-typography .task-list-item {
+    list-style: none;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.markdown-body .task-list-item:first-child,
+.markdown-content .task-list-item:first-child,
+.markdown-typography .task-list-item:first-child {
+    margin-top: 0;
+}
+
+.markdown-body .task-list-item input[type="checkbox"],
+.markdown-content .task-list-item input[type="checkbox"],
+.markdown-typography .task-list-item input[type="checkbox"] {
+    margin: 0.25rem 0 0 0;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--theme-accent);
+    cursor: default;
+}
+
+.markdown-body .task-list-item:has(input[type="checkbox"]:checked),
+.markdown-content .task-list-item:has(input[type="checkbox"]:checked),
+.markdown-typography .task-list-item:has(input[type="checkbox"]:checked) {
+    text-decoration: line-through;
+    color: var(--theme-text-muted);
+}
+
+/* Horizontal rules (GFM ---) */
+.markdown-body hr,
+.markdown-content hr,
+.markdown-typography hr {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid var(--theme-border);
+}
+
+/* Skeleton animation for loading states */
+@keyframes markdown-skeleton-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }

@@ -21,6 +21,7 @@ import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
+import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
 import type { AttachedFile } from '../FileUploadHandler'
 
 // Import provider-specific streaming hooks
@@ -346,6 +347,17 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
       startStreaming(targetSessionId!, streamingMessageId)
 
+      // Validate OpenRouter API key before sending
+      const isOpenRouter = settings.modelProvider === 'openrouter' ||
+        !['ollama', 'perplexity', 'gemini', 'groq', 'minimax'].includes(settings.modelProvider)
+      if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
+        deleteMessageFromSession(targetSessionId!, streamingMessageId)
+        streamingMessageRef.current = null
+        setIsLoading(false)
+        showToast('OpenRouter API key is required. Add it in Settings > Providers and save.', 'error')
+        return
+      }
+
       // Use composed provider-specific streaming hooks
       // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
       if (settings.modelProvider === 'ollama') {
@@ -485,6 +497,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
         errorMsg = 'Network error. Please check your internet connection.'
         showToast(errorMsg, 'error')
+      } else if (error.message?.includes('API Key') || error.message?.includes('missing')) {
+        errorMsg = 'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
+        showToast(errorMsg, 'error')
       } else {
         errorMsg = `Error: ${error.message || 'Unknown error'}`
         showToast(errorMsg, 'error')
@@ -497,7 +512,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [
     isLoading, currentSessionId, messages, settings, canUseTools,
     createSession, addMessageToSession, updateStreamingMessage, updateSessionTitle,
-    clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
+    deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
     streamOllama, streamPerplexity, streamGemini, streamGroq, streamMiniMax, streamOpenRouter,
   ])
@@ -622,7 +637,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           }
         } else {
           for await (const chunk of streamOpenRouterCompletion(
-            settings.openRouterApiKey, settings.aiModel, apiMessages,
+            getOpenRouterApiKey(settings.openRouterApiKey), settings.aiModel, apiMessages,
             { temperature: settings.temperature, maxTokens: settings.maxTokens, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''

@@ -152,7 +152,26 @@ export default function Settings({
   }
 
   const cancelChanges = () => setPendingSettings(settings)
-  const hasChanges = JSON.stringify(pendingSettings) !== JSON.stringify(settings)
+
+  // ollamaModels list is auto-discovered from the user's Ollama server (terminal). Only
+  // user-controlled enabled flags matter for "unsaved changes"; list add/remove from server
+  // state should not prompt "Save changes". Compare only models present in both lists.
+  const ollamaModelsMatchUserIntent = (a: typeof settings.ollamaModels, b: typeof settings.ollamaModels) => {
+    const aMap = new Map((a || []).map(m => [m.code, m.enabled]))
+    const bMap = new Map((b || []).map(m => [m.code, m.enabled]))
+    const commonCodes = [...aMap.keys()].filter(c => bMap.has(c))
+    for (const code of commonCodes) {
+      if (aMap.get(code) !== bMap.get(code)) return false
+    }
+    return true
+  }
+  const withoutOllamaModels = (s: typeof settings) => {
+    const { ollamaModels: _om, ...rest } = s
+    return rest
+  }
+  const baseChanged = JSON.stringify(withoutOllamaModels(pendingSettings)) !== JSON.stringify(withoutOllamaModels(settings))
+  const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(pendingSettings.ollamaModels, settings.ollamaModels)
+  const hasChanges = baseChanged || ollamaEnabledChanged
 
   useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
 
