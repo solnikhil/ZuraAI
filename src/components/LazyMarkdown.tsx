@@ -60,14 +60,22 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
         const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
         const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
 
+        // Plain indented file/folder line: "  name", "  name/", "  name  # comment", "name/  # comment"
+        const indentedPathRe = /^\s*[\w.-]+(\/)?(\s{2,}#\s+.*)?$/
+
         const isTreeCandidateLine = (line: string) => {
             if (!line.trim()) return false
             if (!allowedCharsRe.test(line)) return false
             if (markerRe.test(line)) return true
             // Root lines often look like "foo/" or "foo" (top label)
             if (line.trim().endsWith('/')) return true
+            // Plain indented file/folder structure (e.g. "  admin.py  # Admin commands", "  cogs/")
+            if (indentedPathRe.test(line.trim())) return true
             return false
         }
+
+        const hasIndentedLine = (block: string[]) =>
+            block.some((l) => /^\s{2,}/.test(l))
 
         let i = 0
         while (i < lines.length) {
@@ -94,7 +102,12 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 j += 1
             }
 
-            if (block.length >= 3 && markerCount >= 2) {
+            // Tree markers: require block length + marker count (original behavior)
+            const hasTreeMarkers = block.length >= 3 && markerCount >= 2
+            // Plain indented: no markers but looks like file tree (root + indented children)
+            const hasPlainIndented = block.length >= 2 && hasIndentedLine(block) && markerCount === 0
+
+            if (hasTreeMarkers || hasPlainIndented) {
                 out.push('```tree')
                 out.push(...block)
                 out.push('```')
@@ -258,14 +271,24 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
                     // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
-                    // Also match simple indented trees with branch characters
                     const treeMarkerRegex = /[├└│┌┐┤┴┼].*[─-]|^\s*[|+][-─—]|^\s+\S+\s*#/gm
                     const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
-                    // Also check for folder/file patterns with comments (like "folder/  # comment")
+                    // Folder/file patterns with comments (like "folder/  # comment")
                     const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
-                    // Check for tree markers at line starts
+                    // Tree markers at line starts (├──, └──, etc.)
                     const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(codeString)
-                    const looksLikeTree = (markerCount > 0 || hasFolderComments || hasTreeMarkers) && codeString.includes('\n')
+                    // Plain indented structure: root + indented children (e.g. "project/\n  src/\n    file.ts")
+                    const treeLines = codeString.split('\n').filter((l) => l.trim())
+                    const hasIndentedLines = treeLines.some((l) => /^\s{2,}/.test(l))
+                    const pathLike = /^[\s\w.\-_/\\@]+(\s{2,}#\s+.*)?$/  // paths, no code syntax
+                    const hasPlainIndentedTree =
+                        treeLines.length >= 2 &&
+                        hasIndentedLines &&
+                        !/[{};=><]/.test(codeString) && // avoid matching code
+                        treeLines.every((l) => pathLike.test(l))
+                    const looksLikeTree =
+                        (markerCount > 0 || hasFolderComments || hasTreeMarkers || hasPlainIndentedTree) &&
+                        codeString.includes('\n')
 
                     if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
                         return (
