@@ -1,14 +1,14 @@
 /**
- * useGroqStreaming - Provider-specific streaming hook for Groq
- * 
- * Extracts Groq streaming logic from useStreamingChat to reduce complexity.
+ * useNvidiaStreaming - Provider-specific streaming hook for NVIDIA AI API
+ *
+ * Extracts NVIDIA streaming logic from useStreamingChat to reduce complexity.
  * Supports tool calling and research mode.
- * 
+ *
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
 import { useCallback } from 'react'
-import { streamGroqCompletion } from '../../../../../services/groq'
+import { streamNvidiaCompletion } from '../../../../../services/nvidia'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -21,7 +21,7 @@ import type {
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
 
-/** ~4 chars per token heuristic when Groq doesn't return usage (e.g. compound models) */
+/** ~4 chars per token heuristic when NVIDIA doesn't return usage */
 function estimateOutputTokens(content: string): number {
   if (!content || content.length === 0) return 0
   return Math.ceil(content.length / 4)
@@ -42,7 +42,7 @@ function fillMissingUsage(
   }
 }
 
-export interface UseGroqStreamingOptions {
+export interface UseNvidiaStreamingOptions {
   settings: StreamingSettings
   toolCalling: ToolCallingHook
   updateStreamingMessage: UpdateStreamingCallback
@@ -50,23 +50,23 @@ export interface UseGroqStreamingOptions {
   throttledUpdateStreamingMessage: UpdateStreamingCallback
 }
 
-export interface UseGroqStreamingReturn {
-  streamGroq: (options: ToolCallingOptions) => Promise<StreamingResult>
+export interface UseNvidiaStreamingReturn {
+  streamNvidia: (options: ToolCallingOptions) => Promise<StreamingResult>
 }
 
 /**
- * Hook for Groq-specific streaming logic with tool calling support
+ * Hook for NVIDIA-specific streaming logic with tool calling support
  */
-export function useGroqStreaming({
+export function useNvidiaStreaming({
   settings,
   toolCalling,
   updateStreamingMessage,
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
-}: UseGroqStreamingOptions): UseGroqStreamingReturn {
+}: UseNvidiaStreamingOptions): UseNvidiaStreamingReturn {
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
 
-  const streamGroq = useCallback(async (
+  const streamNvidia = useCallback(async (
     options: ToolCallingOptions
   ): Promise<StreamingResult> => {
     const {
@@ -81,7 +81,7 @@ export function useGroqStreaming({
 
     const { canUseTools, getToolsForRequest, handleToolCalls, getResearchContext } = toolCalling
     const tools = canUseTools ? getToolsForRequest() : null
-    const groqTools = tools && Array.isArray(tools) ? tools : undefined
+    const nvidiaTools = tools && Array.isArray(tools) ? tools : undefined
 
     let accumulatedContent = ''
     let accumulatedReasoning = ''
@@ -99,13 +99,14 @@ export function useGroqStreaming({
       initialToolChoice = { type: 'function', function: { name: 'web_search' } }
     }
 
-    for await (const chunk of streamGroqCompletion(
-      settings.groqApiKey || '',
+    for await (const chunk of streamNvidiaCompletion(
+      settings.nvidiaApiKey || '',
       settings.aiModel,
       optimizedHistory,
       {
         temperature: settings.temperature,
-        tools: groqTools,
+        max_tokens: settings.maxTokens,
+        tools: nvidiaTools,
         toolChoice: initialToolChoice,
         signal
       }
@@ -233,11 +234,11 @@ export function useGroqStreaming({
           let followUpToolCalls: any[] = []
           let followUpUsage: any = {}
 
-          for await (const chunk of streamGroqCompletion(
-            settings.groqApiKey || '',
+          for await (const chunk of streamNvidiaCompletion(
+            settings.nvidiaApiKey || '',
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, tools: groqTools, toolChoice, signal }
+            { temperature: settings.temperature, max_tokens: settings.maxTokens, tools: nvidiaTools, toolChoice, signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -317,13 +318,12 @@ export function useGroqStreaming({
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
     const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
-    // Final fill in case usage was never populated (e.g. compound models)
     usage = fillMissingUsage(usage, accumulatedContent)
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     updateStreamingMessage(sessionId, messageId, {
       content: accumulatedContent,
-      model: `groq/${settings.aiModel}`,
+      model: `nvidia/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
       toolResults: savedToolResults
@@ -331,7 +331,7 @@ export function useGroqStreaming({
 
     return {
       content: accumulatedContent,
-      model: `groq/${settings.aiModel}`,
+      model: `nvidia/${settings.aiModel}`,
       toolResults: savedToolResults,
       usage: { ...usage, tps, ttft },
       latency,
@@ -339,5 +339,5 @@ export function useGroqStreaming({
     }
   }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
 
-  return { streamGroq }
+  return { streamNvidia }
 }

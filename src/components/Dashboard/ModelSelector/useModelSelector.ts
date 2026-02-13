@@ -87,9 +87,29 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
+  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'nvidia'] as const
+
+  const isProviderEnabled = useCallback((provider: string): boolean => {
+    switch (provider) {
+      case 'ollama':
+        return Boolean(settings.ollamaUrl?.trim())
+      case 'openrouter':
+        return Boolean(settings.openRouterApiKey?.trim())
+      case 'perplexity':
+        return Boolean(settings.perplexityApiKey?.trim())
+      case 'groq':
+        return Boolean(settings.groqApiKey?.trim())
+      case 'nvidia':
+        return Boolean(settings.nvidiaApiKey?.trim())
+      default:
+        return false
+    }
+  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.nvidiaApiKey])
+
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
-      return settings.modelProvider
+      const p = settings.modelProvider
+      return (validProviders as readonly string[]).includes(p) ? p : 'openrouter'
     }
     return 'openrouter'
   })
@@ -100,9 +120,8 @@ export function useModelSelector(): UseModelSelectorReturn {
     ollama: false,
     perplexity: false,
     openrouter: false,
-    gemini: false,
     groq: false,
-    minimax: false
+    nvidia: false
   })
   
   // Refs
@@ -119,18 +138,18 @@ export function useModelSelector(): UseModelSelectorReturn {
         setViewMode('favorites')
       } else {
         setViewMode('all')
-        // Restore provider if rememberProvider is enabled
-        if (modelSelector.rememberProvider && settings.modelProvider) {
-          setSelectedProvider(settings.modelProvider)
-        } else {
-          setSelectedProvider('openrouter')
+        // Restore provider if rememberProvider is enabled and provider is valid and enabled
+        let provider = modelSelector.rememberProvider && settings.modelProvider ? settings.modelProvider : 'openrouter'
+        if (!validProviders.includes(provider as typeof validProviders[number]) || !isProviderEnabled(provider)) {
+          provider = validProviders.find(p => isProviderEnabled(p)) ?? 'openrouter'
         }
+        setSelectedProvider(provider)
       }
       setFocusedIndex(-1) // Reset focus when opening
     } else {
       setFocusedIndex(-1) // Reset focus when closing
     }
-  }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider])
+  }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider, isProviderEnabled])
 
   // Refresh Ollama models when dropdown opens so models added via terminal appear immediately
   const prevOpenRef = useRef(false)
@@ -164,43 +183,37 @@ export function useModelSelector(): UseModelSelectorReturn {
     void refresh()
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
   
-  // Get ALL models from ALL providers
+  // Get ALL models from ENABLED providers only (provider has API key or ollamaUrl)
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
-    
-    if (settings.ollamaModels) {
+
+    if (isProviderEnabled('ollama') && settings.ollamaModels) {
       settings.ollamaModels
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'ollama' }))
     }
-    if (settings.perplexityModels) {
+    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
       settings.perplexityModels
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'perplexity' }))
     }
-    if (settings.configuredModels) {
+    if (isProviderEnabled('openrouter') && settings.configuredModels) {
       settings.configuredModels
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'openrouter' }))
     }
-    if (settings.geminiModels) {
-      settings.geminiModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'gemini' }))
-    }
-    if (settings.groqModels) {
+    if (isProviderEnabled('groq') && settings.groqModels) {
       settings.groqModels
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'groq' }))
     }
-    if (settings.minimaxModels) {
-      settings.minimaxModels
+    if (isProviderEnabled('nvidia') && settings.nvidiaModels) {
+      settings.nvidiaModels
         .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'minimax' }))
+        .forEach(m => models.push({ ...m, provider: 'nvidia' }))
     }
-    
     return models
-  }, [settings])
+  }, [settings, isProviderEnabled])
   
   // Filter models based on search query
   const filteredModels = useMemo(() => {
@@ -213,9 +226,8 @@ export function useModelSelector(): UseModelSelectorReturn {
       ollama: filteredModels.filter(m => m.provider === 'ollama'),
       perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
       openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
-      gemini: filteredModels.filter(m => m.provider === 'gemini'),
       groq: filteredModels.filter(m => m.provider === 'groq'),
-      minimax: filteredModels.filter(m => m.provider === 'minimax')
+      nvidia: filteredModels.filter(m => m.provider === 'nvidia')
     }
   }, [filteredModels])
   
@@ -256,6 +268,17 @@ export function useModelSelector(): UseModelSelectorReturn {
       setFocusedIndex(Math.max(0, currentModels.length - 1))
     }
   }, [currentModels.length, focusedIndex])
+
+  // Auto-switch when current model is from a disabled provider (no longer in allModels)
+  useEffect(() => {
+    const currentInList = allModels.some(
+      m => m.code === settings.aiModel && m.provider === settings.modelProvider
+    )
+    if (!currentInList && allModels.length > 0) {
+      const fallback = allModels[0]
+      updateSettings({ aiModel: fallback.code, modelProvider: fallback.provider })
+    }
+  }, [allModels, settings.aiModel, settings.modelProvider, updateSettings])
   
   // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {

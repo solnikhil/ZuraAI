@@ -7,9 +7,8 @@ describe('ProviderHubSection', () => {
   const baseProps = {
     openRouterApiKey: '',
     perplexityApiKey: '',
-    geminiApiKey: '',
     groqApiKey: '',
-    minimaxApiKey: '',
+    nvidiaApiKey: '',
     tavilyApiKey: '',
     ollamaUrl: 'http://localhost:11434',
     toolsEnabled: true,
@@ -23,12 +22,11 @@ describe('ProviderHubSection', () => {
       { code: 'openrouter/image-model', displayName: 'ImageGen Pro' },
     ],
     perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
-    geminiModels: [{ code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
-    minimaxModels: [{ code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' }],
+    nvidiaModels: [{ code: 'meta/llama3-70b', displayName: 'Llama 3 70B' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
-    titleModel: 'gemini-2.5-flash',
+    titleModel: 'google/gemini-2.0-flash-exp:free',
     onChange: vi.fn(),
   }
 
@@ -112,5 +110,78 @@ describe('ProviderHubSection', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Chat \(/ }))
     expect(screen.queryByLabelText('Toggle ImageGen Pro')).not.toBeInTheDocument()
+  })
+
+  it('opens edit dialog when Edit is clicked on a model', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+
+    const editButtons = screen.getAllByRole('button', { name: /edit grok 4\.1 fast/i })
+    fireEvent.click(editButtons[0])
+
+    expect(screen.getByText('Edit Model')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toContainElement(screen.getByDisplayValue('Grok 4.1 Fast'))
+    expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument()
+  })
+
+  it('updates model when edit dialog is saved', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+
+    const editButtons = screen.getAllByRole('button', { name: /edit grok 4\.1 fast/i })
+    fireEvent.click(editButtons[0])
+
+    fireEvent.change(screen.getByPlaceholderText(/please enter the display name/i), { target: { value: 'Grok 4.1 Fast (Edited)' } })
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      configuredModels: expect.arrayContaining([
+        expect.objectContaining({ code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast (Edited)' }),
+      ]),
+    }))
+  })
+
+  it('opens delete confirmation when Delete is clicked in model dropdown', async () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+
+    const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
+    fireEvent.pointerDown(moreButtons[0])
+
+    const deleteItem = await screen.findByRole('menuitem', { name: /delete/i })
+    fireEvent.click(deleteItem)
+
+    expect(screen.getByText('Delete Model')).toBeInTheDocument()
+    expect(screen.getByText(/Remove "Grok 4.1 Fast"/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
+  })
+
+  it('removes model when delete is confirmed', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+
+    const moreButtons = screen.getAllByRole('button', { name: /more actions for grok 4\.1 fast/i })
+    fireEvent.pointerDown(moreButtons[0])
+    const deleteItem = await screen.findByRole('menuitem', { name: /delete/i })
+    fireEvent.click(deleteItem)
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      configuredModels: expect.arrayContaining([
+        expect.objectContaining({ code: 'x-ai/grok-4.1-mini', displayName: 'Grok 4.1 Mini' }),
+        expect.objectContaining({ code: 'openrouter/image-model', displayName: 'ImageGen Pro' }),
+      ]),
+    }))
+    expect(onChange.mock.calls[0][0].configuredModels).not.toContainEqual(
+      expect.objectContaining({ code: 'x-ai/grok-4.1-fast' })
+    )
   })
 })

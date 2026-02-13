@@ -107,8 +107,6 @@ describe('Sidebar Glassmorphism Styles', () => {
         onNavigateSettings: vi.fn(),
         hasUnsavedSettings: false,
     }
-    const frostedBackground = 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)'
-
     beforeEach(() => {
         vi.clearAllMocks()
         // Reset mock values to defaults
@@ -146,33 +144,33 @@ describe('Sidebar Glassmorphism Styles', () => {
 
     describe('Glassmorphism Styles (frostedSidebar: true)', () => {
         /**
-         * Test: Glassmorphism styles when frostedSidebar is true
-         * Requirements: 2.1 - WHEN frosted sidebar is enabled, THE Sidebar SHALL apply 
-         * a semi-transparent background color with alpha value between 0.1 and 0.3
+         * Test: Transparent background when frostedSidebar is true
+         * Requirements: 2.1 - WHEN frosted sidebar is enabled, THE Sidebar SHALL use
+         * transparent background so the glass panel (in AppShellLayout) shows through
          */
-        it('applies semi-transparent background when frostedSidebar is true', () => {
+        it('applies transparent background when frostedSidebar is true', () => {
             mockSettingsUI.settingsUI.frostedSidebar = true
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toBeInTheDocument()
-            expect(sidebar).toHaveStyle({ background: frostedBackground })
+            expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
 
         /**
-         * Test: Glassmorphism border when frostedSidebar is true
-         * Requirements: 2.4 - WHEN frosted sidebar is enabled, THE Sidebar SHALL display 
-         * a subtle border with low opacity to define the glass edge
+         * Test: No theme border when frostedSidebar is true
+         * Requirements: 2.4 - WHEN frosted sidebar is enabled, THE Sidebar SHALL not
+         * apply the solid theme border (glass edge is on the glass panel in AppShellLayout)
          */
-        it('applies glass edge border when frostedSidebar is true', () => {
+        it('does not apply theme border when frostedSidebar is true', () => {
             mockSettingsUI.settingsUI.frostedSidebar = true
 
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container') as HTMLElement
 
             const styleAttr = sidebar.getAttribute('style') || ''
-            expect(styleAttr).toContain('rgba(255, 255, 255, 0.08)')
+            expect(styleAttr).not.toContain('var(--theme-border)')
         })
     })
 
@@ -242,15 +240,15 @@ describe('Sidebar Glassmorphism Styles', () => {
             expect(sidebar).toHaveStyle({ width: '60px' })
         })
 
-        it('maintains glassmorphism effect when sidebar is collapsed and frostedSidebar is true', () => {
+        it('maintains transparent background when sidebar is collapsed and frostedSidebar is true', () => {
             mockAppShell.sidebarCollapsed = true
             mockSettingsUI.settingsUI.frostedSidebar = true
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            // Glassmorphism should still be applied when collapsed
-            expect(sidebar).toHaveStyle({ background: frostedBackground })
+            // Transparent so glass panel shows through when collapsed
+            expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
 
         it('uses solid background when sidebar is collapsed and frostedSidebar is false', () => {
@@ -275,7 +273,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             expect(sidebar).toHaveStyle({ width: '260px' })
         })
 
-        it('applies glassmorphism when expanded and frostedSidebar is true', () => {
+        it('applies transparent background when expanded and frostedSidebar is true', () => {
             mockAppShell.sidebarCollapsed = false
             mockAppShell.sidebarHidden = false
             mockSettingsUI.settingsUI.frostedSidebar = true
@@ -283,18 +281,18 @@ describe('Sidebar Glassmorphism Styles', () => {
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ background: frostedBackground })
+            expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
     })
 
     describe('Native Blur (no CSS backdrop-filter)', () => {
-        it('applies frosted styles regardless of CSS.supports', () => {
+        it('applies transparent background when frosted regardless of CSS.supports', () => {
             mockSettingsUI.settingsUI.frostedSidebar = true
 
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
 
-            expect(sidebar).toHaveStyle({ background: frostedBackground })
+            expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
     })
 
@@ -329,7 +327,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toHaveStyle({ width: '260px' })
-            expect(sidebar).toHaveStyle({ background: frostedBackground })
+            expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
     })
 })

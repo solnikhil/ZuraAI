@@ -7,7 +7,7 @@
 
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Star, Check, Eye, Code } from 'lucide-react'
+import { Star, Check } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
 import {
   Command,
@@ -18,7 +18,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { ModelIcon } from './ModelIcon'
-import { getModelAttributes, getModelDescription, detectModelCapabilities } from '../../../utils/modelUtils'
+import { getModelAttributes, getModelDescription, getCapabilitiesForModelPicker, CAPABILITY_BADGE_STYLES, formatContextLength, getModelContextLength } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import { ProviderLogo } from '@/components/shared'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -29,11 +29,10 @@ import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
  * Provider configuration
  */
 const PROVIDERS = [
-  { key: 'gemini', title: 'Gemini' },
   { key: 'openrouter', title: 'OpenRouter' },
   { key: 'perplexity', title: 'Perplexity' },
   { key: 'groq', title: 'Groq' },
-  { key: 'minimax', title: 'MiniMax' },
+  { key: 'nvidia', title: 'NVIDIA' },
   { key: 'ollama', title: 'Ollama' },
 ] as const
 
@@ -121,8 +120,10 @@ export function ModelSelectorDropdown({
     dropdownWidth: 'default',
     showDescriptions: true,
     showCapabilityBadges: true,
+    capabilityBadgeDisplay: 'both',
     showProviderLogos: true,
     showFavoriteStars: true,
+    showContextLength: true,
     showInfoTooltips: true,
     activeIndicatorStyle: 'dot',
     itemDensity: 'comfortable',
@@ -298,8 +299,8 @@ function ProviderSidebar({
       {/* Separator */}
       <div className="h-px bg-border/50 mx-2 my-1" />
 
-      {/* Provider Tabs */}
-      {PROVIDERS.map(provider => {
+      {/* Provider Tabs - only show providers that have models (disabled providers have empty lists) */}
+      {PROVIDERS.filter(provider => getModelCount(provider.key) > 0).map(provider => {
         const count = getModelCount(provider.key)
         return (
           <SidebarItem
@@ -393,6 +394,49 @@ function SidebarItem({
 /**
  * ModelItem component
  */
+/**
+ * CapabilityBadge - styled pill badge with icon and/or text
+ * Supports icon-only, text-only, or both based on capabilityBadgeDisplay setting
+ */
+function CapabilityBadge({
+  capKey,
+  display,
+}: {
+  capKey: string
+  display: 'icon' | 'text' | 'both'
+}): React.ReactElement | null {
+  const style = CAPABILITY_BADGE_STYLES[capKey]
+  if (!style) return null
+  const Icon = style.icon
+
+  const showIcon = display === 'icon' || display === 'both'
+  const showText = display === 'text' || display === 'both'
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className="inline-flex items-center justify-center gap-1 shrink-0 rounded-md font-semibold transition-opacity hover:opacity-90"
+          style={{
+            background: style.gradient,
+            color: style.iconColor,
+            padding: display === 'icon' ? '4px' : '3px 6px',
+            minWidth: display === 'icon' ? 20 : undefined,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          {showIcon && <Icon size={display === 'icon' ? 12 : 10} className="shrink-0" />}
+          {showText && <span className="text-[10px] leading-tight">{style.label}</span>}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        {style.tooltip}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function ModelItem({
   model,
   index,
@@ -415,9 +459,7 @@ function ModelItem({
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }): React.ReactElement {
   const { color } = getModelAttributes(model)
-  const capabilities = detectModelCapabilities(model.code + ' ' + model.displayName)
-  const hasVision = capabilities.includes('vision')
-  const hasCode = capabilities.includes('code')
+  const capabilities = getCapabilitiesForModelPicker(model)
 
   const ItemWrapper = modelSelector.enableAnimations ? motion.div : 'div'
   const wrapperProps = modelSelector.enableAnimations ? {
@@ -481,31 +523,25 @@ function ModelItem({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {modelSelector.showCapabilityBadges && (
-            <>
-              {hasVision && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="p-1 rounded opacity-60">
-                      <Eye size={12} className="text-muted-foreground" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>Supports vision/images</TooltipContent>
-                </Tooltip>
-              )}
-              {hasCode && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="p-1 rounded opacity-60">
-                      <Code size={12} className="text-muted-foreground" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>Supports function calling</TooltipContent>
-                </Tooltip>
-              )}
-            </>
+        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          {modelSelector.showCapabilityBadges && capabilities.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[160px]">
+              {capabilities.map((capKey) => (
+                <CapabilityBadge
+                  key={capKey}
+                  capKey={capKey}
+                  display={modelSelector.capabilityBadgeDisplay ?? 'both'}
+                />
+              ))}
+            </div>
           )}
+          {modelSelector.showContextLength !== false && (() => {
+            const ctx = getModelContextLength(model)
+            const formatted = ctx != null ? formatContextLength(ctx) : ''
+            return formatted ? (
+              <span className="text-xs text-muted-foreground font-medium shrink-0">{formatted}</span>
+            ) : null
+          })()}
           {modelSelector.showFavoriteStars && (
             <button
               onClick={(e) => {

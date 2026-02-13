@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft, ChevronDown,
-  ChartNoAxesCombined, Cloud, Box, Command, FlaskConical, FileText
+  ChartNoAxesCombined, Cloud, Box, Command, FlaskConical, FileText, Globe
 } from './icons'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -76,9 +76,12 @@ function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconC
 
   // Settings section actions
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
-  if (suggestion.id === 'go-settings-providers' || suggestion.id === 'go-settings-models' || suggestion.id === 'go-settings-preferences') {
+  if (suggestion.id === 'go-settings-providers' || suggestion.id === 'go-settings-models' || suggestion.id === 'go-settings-preferences' ||
+      suggestion.id === 'go-settings-openrouter' || suggestion.id === 'go-settings-groq' ||
+      suggestion.id === 'go-settings-perplexity' || suggestion.id === 'go-settings-ollama') {
     return { Icon: Cloud, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   }
+  if (suggestion.id === 'go-settings-search-apis') return { Icon: Globe, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-themes') return { Icon: Box, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-systemprompt') return { Icon: FileText, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-settings-commandbar') return { Icon: Command, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
@@ -174,6 +177,11 @@ const COMMAND_AUTOCOMPLETE_KEYWORDS: Record<string, string> = {
   'go-settings-systemprompt': 'system prompt settings',
   'go-settings-commandbar': 'command bar settings',
   'go-settings-experimental': 'experimental settings',
+  'go-settings-openrouter': 'openrouter settings',
+  'go-settings-groq': 'groq settings',
+  'go-settings-perplexity': 'perplexity settings',
+  'go-settings-ollama': 'ollama settings',
+  'go-settings-search-apis': 'search apis settings',
   'new-chat': 'new chat',
   'toggle-sidebar-hidden': 'toggle sidebar',
   'toggle-sidebar-collapsed': 'toggle sidebar collapse',
@@ -224,6 +232,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
     setDashboardView,
     activeSettingsSection: _activeSettingsSection,
     setActiveSettingsSection,
+    setSettingsSectionParams,
     hasUnsavedSettings,
     toggleSidebarCollapsed,
     toggleSidebarHidden,
@@ -493,11 +502,20 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
         ensureDashboardRoute()
         ensureDashboardView(action.view)
         return true
-      case 'open_settings_section':
+      case 'open_settings_section': {
         ensureDashboardRoute()
         ensureDashboardView('settings')
         setActiveSettingsSection(action.section)
+        if (action.provider != null || action.manageMode != null) {
+          setSettingsSectionParams({
+            ...(action.provider != null && { provider: action.provider }),
+            ...(action.manageMode != null && { manageMode: action.manageMode }),
+          })
+        } else {
+          setSettingsSectionParams(null)
+        }
         return true
+      }
       case 'toggle_sidebar_hidden':
         toggleSidebarHidden()
         return true
@@ -646,8 +664,9 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
   }
 
   const keyHint = navigator.platform.toLowerCase().includes('mac') ? '⌘ + Space' : 'Ctrl + Space'
-  const idlePlaceholderText = idlePlaceholder && idlePlaceholder.trim() ? idlePlaceholder : 'Search or run a command'
-  const placeholder = isFocused ? 'Search or run a command' : idlePlaceholderText
+  const placeholder = isFocused
+    ? 'Search or run a command'
+    : ''
 
   const hasRecentsSection = showRecents && recentSuggestions.length > 0
   const recentsCount = hasRecentsSection ? recentSuggestions.length : 0
@@ -691,7 +710,10 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
 
   return (
     <div
-      className="app-titlebar__commandbar no-drag"
+      className={[
+        'app-titlebar__commandbar no-drag',
+        isFocused ? 'app-titlebar__commandbar--expanded' : 'app-titlebar__commandbar--collapsed',
+      ].join(' ')}
       ref={containerRef}
       style={commandBarStyle}
       onMouseDown={(event) => {
@@ -704,6 +726,7 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       <div className={[
         'app-titlebar__commandbar-field',
         isFocused ? 'app-titlebar__commandbar-field--focused' : null,
+        !isFocused ? 'app-titlebar__commandbar-field--collapsed' : null,
       ].filter(Boolean).join(' ')}>
         <Search size={14} className="app-titlebar__commandbar-icon" />
         <div className="app-titlebar__commandbar-input-wrap">
@@ -727,13 +750,14 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             spellCheck={false}
+            aria-label={isFocused ? undefined : (idlePlaceholder?.trim() || 'Search or run a command')}
           />
         </div>
         {isFocused && autocomplete && (
           <span className="app-titlebar__commandbar-hint">Tab</span>
         )}
         {!query && !isFocused && (
-          <span className="app-titlebar__commandbar-hint">{keyHint}</span>
+          <span className="app-titlebar__commandbar-hint app-titlebar__commandbar-hint--inline" title={`Search or run a command (${keyHint})`}>{keyHint}</span>
         )}
       </div>
 

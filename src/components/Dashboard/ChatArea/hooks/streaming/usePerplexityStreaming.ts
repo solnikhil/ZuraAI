@@ -62,7 +62,7 @@ export function usePerplexityStreaming({
       settings.perplexityApiKey || '',
       settings.aiModel,
       optimizedHistory,
-      { temperature: settings.temperature, max_tokens: settings.maxTokens, signal }
+      { temperature: settings.temperature, signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {

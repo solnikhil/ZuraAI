@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   AlertCircle,
   ArrowUpDown,
@@ -7,6 +8,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Edit2,
   Eye,
   EyeOff,
   Globe,
@@ -16,14 +18,20 @@ import {
   Lock,
   MoreVertical,
   Plus,
-  RefreshCcw,
   Search,
+  Trash2,
   Wrench,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ProviderLogo } from '@/components/shared'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
@@ -36,7 +44,7 @@ import {
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'gemini' | 'groq' | 'minimax' | 'ollama'
+type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 
 interface ProviderDefinition {
@@ -44,7 +52,7 @@ interface ProviderDefinition {
   name: string
   description: string
   apiKeyField?: keyof Pick<ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'minimaxApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'nvidiaApiKey'
   >
 }
 
@@ -56,28 +64,22 @@ const PROVIDERS: ProviderDefinition[] = [
     apiKeyField: 'openRouterApiKey',
   },
   {
-    key: 'gemini',
-    name: 'Gemini',
-    description: 'Google Gemini models with strong multimodal and long-context support.',
-    apiKeyField: 'geminiApiKey',
-  },
-  {
     key: 'groq',
     name: 'Groq',
     description: 'Ultra-low-latency model inference for high-speed chat experiences.',
     apiKeyField: 'groqApiKey',
   },
   {
+    key: 'nvidia',
+    name: 'NVIDIA',
+    description: 'NVIDIA NIM API with access to Llama, Mistral, Nemotron, and other text models.',
+    apiKeyField: 'nvidiaApiKey',
+  },
+  {
     key: 'perplexity',
     name: 'Perplexity',
     description: 'Research-focused model provider with search-native reasoning models.',
     apiKeyField: 'perplexityApiKey',
-  },
-  {
-    key: 'minimax',
-    name: 'MiniMax',
-    description: 'Reasoning-capable provider with streaming and interleaved thinking.',
-    apiKeyField: 'minimaxApiKey',
   },
   {
     key: 'ollama',
@@ -89,11 +91,46 @@ const PROVIDERS: ProviderDefinition[] = [
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   openrouter: 'https://openrouter.ai/api/v1',
   perplexity: 'https://api.perplexity.ai',
-  gemini: 'https://generativelanguage.googleapis.com/v1beta',
   groq: 'https://api.groq.com/openai/v1',
-  minimax: 'https://api.minimax.io/v1',
   ollama: 'http://localhost:11434',
+  nvidia: 'https://integrate.api.nvidia.com',
 }
+
+type SearchApiKey = 'tavily' | 'runtime'
+// Future: 'serpapi' | 'brave'
+
+interface SearchApiDefinition {
+  key: SearchApiKey
+  name: string
+  description: string
+  shortDescription?: string
+  icon: React.ReactNode
+  color?: string
+  learnMoreUrl?: string
+  apiKeyField?: 'tavilyApiKey'
+  isRuntime?: boolean
+}
+
+const SEARCH_APIS: SearchApiDefinition[] = [
+  {
+    key: 'tavily',
+    name: 'Tavily',
+    description: 'AI-optimized search API for the web_search tool. Best quality results with optional images.',
+    shortDescription: 'AI-optimized search for web_search. Add a key for best results.',
+    icon: <Globe size={18} />,
+    color: '#4dabf7',
+    learnMoreUrl: 'https://tavily.com',
+    apiKeyField: 'tavilyApiKey',
+  },
+  {
+    key: 'runtime',
+    name: 'Search Runtime',
+    description: 'Control web search and deep research availability.',
+    shortDescription: 'Enable tools, web search, and deep research.',
+    icon: <Wrench size={18} />,
+    isRuntime: true,
+  },
+]
 
 interface ModelBasic {
   code: string
@@ -123,30 +160,30 @@ function sortByOrder(items: ProviderDefinition[], orderedKeys: ProviderKey[]): P
 export interface ProviderHubSectionProps {
   openRouterApiKey: string
   perplexityApiKey: string
-  geminiApiKey: string
   groqApiKey: string
-  minimaxApiKey: string
+  nvidiaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
   toolsEnabled: boolean
   webSearchEnabled: boolean
   deepResearchEnabled: boolean
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
+  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
   configuredModels: ConfiguredModel[]
   perplexityModels: ModelBasic[]
-  geminiModels: ModelBasic[]
   groqModels: ModelBasic[]
-  minimaxModels: ModelBasic[]
+  nvidiaModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   maxTokens: number
   titleModel: string
+  initialProvider?: ProviderKey
+  initialManageMode?: ManageMode
+  onParamsConsumed?: () => void
   onChange: (changes: Partial<{
     openRouterApiKey: string
     perplexityApiKey: string
-    geminiApiKey: string
     groqApiKey: string
-    minimaxApiKey: string
+    nvidiaApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
     toolsEnabled: boolean
@@ -154,23 +191,21 @@ export interface ProviderHubSectionProps {
     deepResearchEnabled: boolean
     configuredModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
-    geminiModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
-    minimaxModels: ConfiguredModel[]
+    nvidiaModels: ConfiguredModel[]
     ollamaModels: ConfiguredModel[]
     maxTokens: number
     titleModel: string
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
   }>) => void
 }
 
 export function ProviderHubSection({
   openRouterApiKey,
   perplexityApiKey,
-  geminiApiKey,
   groqApiKey,
-  minimaxApiKey,
+  nvidiaApiKey,
   tavilyApiKey,
   ollamaUrl,
   toolsEnabled,
@@ -180,15 +215,17 @@ export function ProviderHubSection({
   modelProvider,
   configuredModels,
   perplexityModels,
-  geminiModels,
   groqModels,
-  minimaxModels,
+  nvidiaModels,
   ollamaModels,
   titleModel,
+  initialProvider,
+  initialManageMode,
+  onParamsConsumed,
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
-  const [manageMode, setManageMode] = useState<ManageMode>('providers')
-  const [providerView, setProviderView] = useState<ProviderView>('catalog')
+  const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
+  const [providerView, setProviderView] = useState<ProviderView>(initialProvider ? 'detail' : 'catalog')
   const [query, setQuery] = useState('')
   const [catalogFilter, setCatalogFilter] = useState<'all' | ProviderKey>('all')
   const [sidebarExpandedGroups, setSidebarExpandedGroups] = useState<{ enabled: boolean; disabled: boolean }>({
@@ -205,10 +242,15 @@ export function ProviderHubSection({
     disabled: [],
   })
   const [providerModelQuery, setProviderModelQuery] = useState('')
-  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>('openrouter')
-  const [selectedSearchCard, setSelectedSearchCard] = useState<'tavily' | 'runtime'>('tavily')
+  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(initialProvider ?? 'openrouter')
+  const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
+  const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [modelToEdit, setModelToEdit] = useState<{ provider: ProviderKey; model: ConfiguredModel } | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [modelToDelete, setModelToDelete] = useState<{ provider: ProviderKey; modelCode: string; displayName: string } | null>(null)
   const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] =
     useState(false)
   const [connectivityModel, setConnectivityModel] = useState('')
@@ -219,19 +261,35 @@ export function ProviderHubSection({
   const [connectivityMeta, setConnectivityMeta] = useState<{ latencyMs: number; checkedAt: string } | null>(null)
   const [connectivityDetails, setConnectivityDetails] = useState('')
   const [showConnectivityDetails, setShowConnectivityDetails] = useState(false)
+  const apiKeyOrEndpointInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (manageMode !== 'providers') {
       setProviderView('catalog')
+      if (manageMode === 'search-apis') {
+        setSearchApiView('catalog')
+      }
     }
   }, [manageMode])
+
+  useEffect(() => {
+    if (initialProvider != null || initialManageMode != null) {
+      if (initialProvider != null) {
+        setSelectedProvider(initialProvider)
+        setProviderView('detail')
+      }
+      if (initialManageMode != null) {
+        setManageMode(initialManageMode)
+      }
+      onParamsConsumed?.()
+    }
+  }, [initialProvider, initialManageMode, onParamsConsumed])
 
   const providerModelMap: Record<ProviderKey, ModelBasic[]> = {
     openrouter: configuredModels,
     perplexity: perplexityModels,
-    gemini: geminiModels,
     groq: groqModels,
-    minimax: minimaxModels,
+    nvidia: nvidiaModels,
     ollama: ollamaModels,
   }
 
@@ -282,11 +340,10 @@ export function ProviderHubSection({
 
   const getProviderApiKey = (provider: ProviderDefinition): string => {
     if (!provider.apiKeyField) return ''
-    if (provider.apiKeyField === 'openRouterApiKey') return openRouterApiKey
-    if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey
-    if (provider.apiKeyField === 'geminiApiKey') return geminiApiKey
-    if (provider.apiKeyField === 'groqApiKey') return groqApiKey
-    if (provider.apiKeyField === 'minimaxApiKey') return minimaxApiKey
+    if (provider.apiKeyField === 'openRouterApiKey') return openRouterApiKey ?? ''
+    if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
+    if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
+    if (provider.apiKeyField === 'nvidiaApiKey') return nvidiaApiKey ?? ''
     return ''
   }
 
@@ -299,9 +356,8 @@ export function ProviderHubSection({
     if (!provider.apiKeyField) return
     if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: value })
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
-    if (provider.apiKeyField === 'geminiApiKey') onChange({ geminiApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
-    if (provider.apiKeyField === 'minimaxApiKey') onChange({ minimaxApiKey: value })
+    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: value })
   }
 
   const clearProvider = (provider: ProviderDefinition) => {
@@ -312,9 +368,8 @@ export function ProviderHubSection({
     if (!provider.apiKeyField) return
     if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: '' })
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: '' })
-    if (provider.apiKeyField === 'geminiApiKey') onChange({ geminiApiKey: '' })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: '' })
-    if (provider.apiKeyField === 'minimaxApiKey') onChange({ minimaxApiKey: '' })
+    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: '' })
   }
 
   const addCustomModel = (model: ConfiguredModel) => {
@@ -338,9 +393,7 @@ export function ProviderHubSection({
     const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
-    if (provider === 'gemini') updates.geminiModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'minimax') updates.minimaxModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
@@ -352,6 +405,65 @@ export function ProviderHubSection({
     }
 
     onChange(updates)
+  }
+
+  const updateModel = (provider: ProviderKey, modelCode: string, updatedModel: ConfiguredModel) => {
+    const currentModels = providerModelMap[provider] as ConfiguredModel[]
+    const updatedModels = currentModels.map((model) => {
+      if (model.code !== modelCode) return model
+      return { ...model, ...updatedModel, code: modelCode }
+    })
+
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
+    if (provider === 'openrouter') updates.configuredModels = updatedModels
+    if (provider === 'perplexity') updates.perplexityModels = updatedModels
+    if (provider === 'groq') updates.groqModels = updatedModels
+    if (provider === 'ollama') updates.ollamaModels = updatedModels
+
+    onChange(updates)
+  }
+
+  const removeModel = (provider: ProviderKey, modelCode: string) => {
+    const currentModels = providerModelMap[provider] as ConfiguredModel[]
+    const updatedModels = currentModels.filter((model) => model.code !== modelCode)
+
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
+    if (provider === 'openrouter') updates.configuredModels = updatedModels
+    if (provider === 'perplexity') updates.perplexityModels = updatedModels
+    if (provider === 'groq') updates.groqModels = updatedModels
+    if (provider === 'ollama') updates.ollamaModels = updatedModels
+
+    if (modelProvider === provider && aiModel === modelCode) {
+      const fallback = updatedModels.find((model) => model.enabled !== false)
+      if (fallback) {
+        updates.aiModel = fallback.code
+        updates.modelProvider = provider
+      }
+    }
+
+    onChange(updates)
+  }
+
+  const handleEditModel = (model: ModelBasic) => {
+    setModelToEdit({ provider: selectedProviderDef.key, model: model as ConfiguredModel })
+    setEditDialogOpen(true)
+  }
+
+  const handleDeleteModelClick = (model: ModelBasic) => {
+    setModelToDelete({
+      provider: selectedProviderDef.key,
+      modelCode: model.code,
+      displayName: model.displayName || model.code,
+    })
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (modelToDelete) {
+      removeModel(modelToDelete.provider, modelToDelete.modelCode)
+      setModelToDelete(null)
+    }
+    setDeleteConfirmOpen(false)
   }
 
   const filteredProviders = useMemo(() => {
@@ -513,36 +625,6 @@ export function ProviderHubSection({
         if (!response.ok && response.status !== 400) {
           throw new Error(`Perplexity check failed (${response.status}).`)
         }
-      } else if (selectedProviderDef.key === 'gemini') {
-        const response = await fetch(`${endpoint}/models/${connectivityModel}:generateContent?key=${selectedKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: 'ping' }] }],
-            generationConfig: { maxOutputTokens: 1 },
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          throw new Error(`Gemini check failed (${response.status}).`)
-        }
-      } else if (selectedProviderDef.key === 'minimax') {
-        const response = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${selectedKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: connectivityModel,
-            messages: [{ role: 'user', content: 'ping' }],
-            max_tokens: 1,
-          }),
-          signal: controller.signal,
-        })
-        if (!response.ok && response.status !== 400) {
-          throw new Error(`MiniMax check failed (${response.status}).`)
-        }
       }
 
       const latencyMs = Math.max(1, Date.now() - startedAt)
@@ -595,8 +677,8 @@ export function ProviderHubSection({
       </div>
 
       {manageMode === 'providers' && providerView === 'catalog' && (
-        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[240px_1fr] xl:grid-cols-[280px_1fr]">
-          <Card className="settings-section-card h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
+        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
+          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
             <div className="flex h-full flex-col gap-3">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -696,7 +778,7 @@ export function ProviderHubSection({
             </div>
           </Card>
 
-          <Card className="settings-section-card h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
+          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
             <ProviderSection
               title="Enabled"
               providers={enabledProviders}
@@ -746,7 +828,11 @@ export function ProviderHubSection({
               <Switch
                 checked={isProviderEnabled(selectedProviderDef)}
                 onCheckedChange={(checked) => {
-                  if (!checked) clearProvider(selectedProviderDef)
+                  if (!checked) {
+                    clearProvider(selectedProviderDef)
+                  } else {
+                    apiKeyOrEndpointInputRef.current?.focus()
+                  }
                 }}
                 aria-label={`Enable ${selectedProviderDef.name}`}
               />
@@ -761,6 +847,7 @@ export function ProviderHubSection({
                     control={(
                       <div className="relative">
                         <Input
+                          ref={apiKeyOrEndpointInputRef}
                           type={showApiKey ? 'text' : 'password'}
                           value={getProviderApiKey(selectedProviderDef)}
                           onChange={(e) => {
@@ -909,6 +996,7 @@ export function ProviderHubSection({
                   description="Set your local Ollama endpoint URL"
                   control={(
                     <Input
+                      ref={apiKeyOrEndpointInputRef}
                       value={ollamaUrl}
                       onChange={(e) => onChange({ ollamaUrl: e.target.value })}
                       className="border-border bg-secondary"
@@ -953,7 +1041,7 @@ export function ProviderHubSection({
                 </button>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
                 <div className="relative">
                   <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -963,10 +1051,6 @@ export function ProviderHubSection({
                     className="border-border bg-secondary pl-9"
                   />
                 </div>
-                <Button variant="outline" className="gap-1">
-                  <RefreshCcw size={14} />
-                  Fetch models
-                </Button>
                 {selectedProviderDef.key === 'openrouter' && (
                   <Button
                     variant="outline"
@@ -986,30 +1070,15 @@ export function ProviderHubSection({
                 >
                   <Plus size={16} />
                 </Button>
-                <Button variant="outline" size="icon" aria-label="More model actions">
-                  <MoreVertical size={16} />
-                </Button>
               </div>
 
               <div className="max-h-[min(350px,55vh)] overflow-y-auto rounded-md border border-border bg-secondary/35 sm:max-h-[480px] lg:max-h-[640px]">
-                {enabledModels.length > 0 && (
-                  <ModelGroup
-                    title="Enabled"
-                    models={enabledModels}
-                    selectedProvider={selectedProviderDef.key}
-                    aiModel={aiModel}
-                    modelProvider={modelProvider}
-                    onToggleModel={(code, checked) => toggleModelEnabled(selectedProviderDef.key, code, checked)}
-                  />
-                )}
-
                 <ModelGroup
-                  title={enabledModels.length > 0 ? 'Disabled' : 'Available'}
-                  models={disabledModels}
+                  models={[...enabledModels, ...disabledModels]}
                   selectedProvider={selectedProviderDef.key}
-                  aiModel={aiModel}
-                  modelProvider={modelProvider}
                   onToggleModel={(code, checked) => toggleModelEnabled(selectedProviderDef.key, code, checked)}
+                  onEditModel={handleEditModel}
+                  onDeleteModel={handleDeleteModelClick}
                 />
               </div>
             </div>
@@ -1038,72 +1107,61 @@ export function ProviderHubSection({
         </Card>
       )}
 
-      {manageMode === 'search-apis' && (
-        <>
-          <Card className="settings-section-card mt-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <SearchCard
-                title="Tavily"
-                description="Add search API key for web_search tool execution."
-                selected={selectedSearchCard === 'tavily'}
-                enabled={Boolean(tavilyApiKey.trim())}
-                icon={<Globe size={17} className="text-foreground" />}
-                onSelect={() => setSelectedSearchCard('tavily')}
-                onDisable={() => onChange({ tavilyApiKey: '' })}
-              />
-
-              <SearchCard
-                title="Search Runtime"
-                description="Control web search and deep research availability."
-                selected={selectedSearchCard === 'runtime'}
-                enabled={toolsEnabled}
-                icon={<Wrench size={17} className="text-foreground" />}
-                onSelect={() => setSelectedSearchCard('runtime')}
-                onDisable={() => onChange({ toolsEnabled: false })}
-              />
+      {manageMode === 'search-apis' && searchApiView === 'catalog' && (
+        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
+          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(400px,calc(60vh-120px))]">
+            <div className="flex h-full flex-col gap-2">
+              <div className="px-2 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                Search APIs
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-1">
+                {SEARCH_APIS.map((api) => (
+                  <SearchApiSidebarItem
+                    key={api.key}
+                    api={api}
+                    active={selectedSearchApi === api.key}
+                    enabled={
+                      api.isRuntime
+                        ? toolsEnabled
+                        : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+                    }
+                    onClick={() => {
+                      setSelectedSearchApi(api.key)
+                      setSearchApiView('detail')
+                    }}
+                  />
+                ))}
+              </div>
             </div>
           </Card>
 
-          <Card className="settings-section-card mt-4">
-            {selectedSearchCard === 'tavily' ? (
-              <DetailField
-                label="Tavily API Key"
-                description="Only API key is required here."
-                control={(
-                  <Input
-                    type="password"
-                    value={tavilyApiKey}
-                    onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
-                    placeholder="tvly-..."
-                    className="border-border bg-secondary"
-                  />
-                )}
-              />
-            ) : (
-              <div className="space-y-3">
-                <ToggleRow
-                  label="Enable Tools"
-                  checked={toolsEnabled}
-                  onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
-                />
-                <ToggleRow
-                  label="Enable Web Search"
-                  checked={webSearchEnabled}
-                  onCheckedChange={(checked) => {
-                    onChange({ webSearchEnabled: checked, ...(checked ? {} : { deepResearchEnabled: false }) })
-                  }}
-                />
-                <ToggleRow
-                  label="Enable Deep Research"
-                  checked={deepResearchEnabled}
-                  onCheckedChange={(checked) => {
-                    onChange({ deepResearchEnabled: checked, ...(checked ? { webSearchEnabled: true } : {}) })
-                  }}
-                />
-              </div>
-            )}
+          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]">
+            <SearchApiSection
+              apis={SEARCH_APIS}
+              selectedApi={selectedSearchApi}
+              tavilyApiKey={tavilyApiKey}
+              toolsEnabled={toolsEnabled}
+              onCardClick={(api) => {
+                setSelectedSearchApi(api.key)
+                setSearchApiView('detail')
+              }}
+              onTavilyDisable={() => onChange({ tavilyApiKey: '' })}
+              onRuntimeDisable={() => onChange({ toolsEnabled: false })}
+            />
           </Card>
-        </>
+        </div>
+      )}
+
+      {manageMode === 'search-apis' && searchApiView === 'detail' && (
+        <SearchApiDetail
+          api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
+          tavilyApiKey={tavilyApiKey}
+          toolsEnabled={toolsEnabled}
+          webSearchEnabled={webSearchEnabled}
+          deepResearchEnabled={deepResearchEnabled}
+          onBack={() => setSearchApiView('catalog')}
+          onChange={onChange}
+        />
       )}
 
       <Dialog open={customOrderDialogOpen} onOpenChange={setCustomOrderDialogOpen}>
@@ -1148,6 +1206,51 @@ export function ProviderHubSection({
         onOpenChange={setAddDialogOpen}
         onCreate={addCustomModel}
       />
+
+      <CreateCustomModelDialog
+        open={editDialogOpen}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open)
+          if (!open) setModelToEdit(null)
+        }}
+        onCreate={addCustomModel}
+        initialModel={modelToEdit?.model}
+        onUpdate={(updated) => {
+          if (modelToEdit) {
+            updateModel(modelToEdit.provider, modelToEdit.model.code, updated)
+            setEditDialogOpen(false)
+            setModelToEdit(null)
+          }
+        }}
+      />
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="border-border bg-card sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Delete Model</DialogTitle>
+            <DialogDescription>
+              {modelToDelete && (
+                <>
+                  Remove &quot;{modelToDelete.displayName}&quot; from your model list?
+                  {modelToDelete.provider === 'ollama' && (
+                    <span className="mt-2 block text-muted-foreground">
+                      Ollama models will reappear when you refresh the model list.
+                    </span>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {selectedProviderDef.key === 'openrouter' && (
         <OpenRouterModelSearchDialog
@@ -1220,6 +1323,8 @@ function ProviderSection({
                   onCheckedChange={(checked) => {
                     if (!checked) {
                       clearProvider(provider)
+                    } else {
+                      onCardClick(provider)
                     }
                   }}
                   aria-label={`Toggle ${provider.name}`}
@@ -1338,16 +1443,16 @@ function ModelGroup({
   title,
   models,
   selectedProvider,
-  aiModel,
-  modelProvider,
   onToggleModel,
+  onEditModel,
+  onDeleteModel,
 }: {
-  title: string
+  title?: string
   models: ModelBasic[]
   selectedProvider: ProviderKey
-  aiModel: string
-  modelProvider: string
   onToggleModel: (code: string, checked: boolean) => void
+  onEditModel: (model: ModelBasic) => void
+  onDeleteModel: (model: ModelBasic) => void
 }): React.ReactElement {
   if (models.length === 0) {
     return (
@@ -1357,110 +1462,351 @@ function ModelGroup({
 
   return (
     <div>
-      <div className="px-4 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{title}</div>
+      {title && (
+        <div className="px-4 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{title}</div>
+      )}
       {models.map((model) => {
-        const isCurrentModel =
-          model.code === aiModel && modelProvider === selectedProvider
         const enabled = model.enabled !== false
         const capabilities = getCapabilitiesFromModel(model as ConfiguredModel)
         return (
-          <div
+          <motion.div
             key={`${selectedProvider}-${model.code}`}
+            layout
+            initial={{ opacity: 1 }}
+            transition={{ layout: { duration: 0.25, ease: 'easeInOut' } }}
             className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 first:border-t-0"
           >
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <div className="truncate text-sm font-medium text-foreground">
                   {model.displayName}
                 </div>
-                {isCurrentModel && (
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground shrink-0">
-                    Current
-                  </span>
+                {capabilities.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap shrink-0">
+                    {capabilities.map((capKey) => {
+                      const badgeConfig = CAPABILITY_BADGES[capKey]
+                      if (!badgeConfig) return null
+                      const Icon = badgeConfig.icon
+                      return (
+                        <div
+                          key={capKey}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground"
+                          title={badgeConfig.label}
+                        >
+                          <Icon size={10} />
+                          <span>{badgeConfig.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
-              <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground mb-2">
+              <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {model.code}
               </div>
-              {capabilities.length > 0 && (
-                <div className="flex items-center gap-1 flex-wrap">
-                  {capabilities.map((capKey) => {
-                    const badgeConfig = CAPABILITY_BADGES[capKey]
-                    if (!badgeConfig) return null
-                    const Icon = badgeConfig.icon
-                    return (
-                      <div
-                        key={capKey}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground"
-                        title={badgeConfig.label}
-                      >
-                        <Icon size={10} />
-                        <span>{badgeConfig.label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-            <Switch
-              checked={enabled}
-              onCheckedChange={(checked) => onToggleModel(model.code, checked)}
-              aria-label={`Toggle ${model.displayName}`}
-            />
-          </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEditModel(model)
+                }}
+                aria-label={`Edit ${model.displayName}`}
+              >
+                <Edit2 size={14} />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`More actions for ${model.displayName}`}
+                  >
+                    <MoreVertical size={14} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onEditModel(model)
+                    }}
+                  >
+                    <Edit2 size={14} />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteModel(model)
+                    }}
+                    className="text-red-400 focus:text-red-400"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <motion.div whileTap={{ scale: 0.92 }} transition={{ duration: 0.15 }}>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={(checked) => onToggleModel(model.code, checked)}
+                  aria-label={`Toggle ${model.displayName}`}
+                />
+              </motion.div>
+            </div>
+          </motion.div>
         )
       })}
     </div>
   )
 }
 
-function SearchCard({
-  title,
-  description,
-  selected,
+function SearchApiSidebarItem({
+  api,
+  active,
   enabled,
-  icon,
-  onSelect,
-  onDisable,
+  onClick,
 }: {
-  title: string
-  description: string
-  selected: boolean
+  api: SearchApiDefinition
+  active: boolean
   enabled: boolean
-  icon: React.ReactNode
-  onSelect: () => void
-  onDisable: () => void
+  onClick: () => void
 }): React.ReactElement {
   return (
-    <div
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect()
-        }
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition"
+      style={{
+        background: active ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+        color: 'var(--theme-text-primary)',
       }}
-      role="button"
-      tabIndex={0}
-      className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
-      style={{ boxShadow: selected ? 'inset 0 0 0 1px var(--theme-accent)' : 'none' }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {icon}
-          <span className="text-[15px] font-semibold text-foreground">{title}</span>
-        </div>
-        <Switch
-          checked={enabled}
-          onCheckedChange={(checked) => {
-            if (!checked) onDisable()
-          }}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`Toggle ${title}`}
-        />
+      <span className="inline-flex min-w-0 items-center gap-2">
+        <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
+        <span className="truncate">{api.name}</span>
+      </span>
+      <span
+        className="h-2 w-2 shrink-0 rounded-full"
+        style={{ background: enabled ? '#b8f221' : '#4b5563' }}
+      />
+    </button>
+  )
+}
+
+function SearchApiSection({
+  apis,
+  selectedApi,
+  tavilyApiKey,
+  toolsEnabled,
+  onCardClick,
+  onTavilyDisable,
+  onRuntimeDisable,
+}: {
+  apis: SearchApiDefinition[]
+  selectedApi: SearchApiKey
+  tavilyApiKey: string
+  toolsEnabled: boolean
+  onCardClick: (api: SearchApiDefinition) => void
+  onTavilyDisable: () => void
+  onRuntimeDisable: () => void
+}): React.ReactElement {
+  return (
+    <div className="mt-3 first:mt-0">
+      <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
+        <span>Search APIs</span>
+        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{apis.length}</span>
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">{description}</p>
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {apis.map((api) => {
+          const enabled = api.isRuntime
+            ? toolsEnabled
+            : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+          return (
+            <div
+              key={api.key}
+              onClick={() => onCardClick(api)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onCardClick(api)
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
+              style={{ boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none' }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
+                  <span className="truncate text-[15px] font-semibold text-foreground">{api.name}</span>
+                  {api.key === 'tavily' && (
+                    <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
+                      Recommended
+                    </span>
+                  )}
+                </div>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={(checked) => {
+                    if (!checked) {
+                      if (api.isRuntime) onRuntimeDisable()
+                      else if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
+                    } else {
+                      onCardClick(api)
+                    }
+                  }}
+                  aria-label={`Toggle ${api.name}`}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">
+                {api.shortDescription || api.description}
+              </p>
+              <div className="mt-4 border-t border-border pt-2" />
+            </div>
+          )
+        })}
+      </div>
     </div>
+  )
+}
+
+function SearchApiDetail({
+  api,
+  tavilyApiKey,
+  toolsEnabled,
+  webSearchEnabled,
+  deepResearchEnabled,
+  onBack,
+  onChange,
+}: {
+  api: SearchApiDefinition
+  tavilyApiKey: string
+  toolsEnabled: boolean
+  webSearchEnabled: boolean
+  deepResearchEnabled: boolean
+  onBack: () => void
+  onChange: ProviderHubSectionProps['onChange']
+}): React.ReactElement {
+  const [showApiKey, setShowApiKey] = useState(false)
+  const isEnabled = api.isRuntime
+    ? toolsEnabled
+    : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+
+  return (
+    <Card className="settings-section-card mt-4">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-md p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+              aria-label="Back to search APIs"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
+            <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">
+              {api.name}
+            </span>
+            {api.key === 'tavily' && (
+              <span className="rounded bg-[var(--theme-accent)]/20 px-2 py-0.5 text-xs font-medium text-[var(--theme-accent)]">
+                Recommended
+              </span>
+            )}
+          </div>
+          <Switch
+            checked={isEnabled}
+            onCheckedChange={(checked) => {
+              if (!checked) {
+                if (api.isRuntime) {
+                  onChange({ toolsEnabled: false })
+                } else if (api.apiKeyField === 'tavilyApiKey') {
+                  onChange({ tavilyApiKey: '' })
+                }
+              }
+            }}
+            aria-label={`Enable ${api.name}`}
+          />
+        </div>
+
+        <div className="border-t border-border pt-6">
+          {api.isRuntime ? (
+            <div className="space-y-3">
+              <ToggleRow
+                label="Enable Tools"
+                checked={toolsEnabled}
+                onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
+              />
+              <ToggleRow
+                label="Enable Web Search"
+                checked={webSearchEnabled}
+                onCheckedChange={(checked) => {
+                  onChange({ webSearchEnabled: checked, ...(checked ? {} : { deepResearchEnabled: false }) })
+                }}
+              />
+              <ToggleRow
+                label="Enable Deep Research"
+                checked={deepResearchEnabled}
+                onCheckedChange={(checked) => {
+                  onChange({ deepResearchEnabled: checked, ...(checked ? { webSearchEnabled: true } : {}) })
+                }}
+              />
+            </div>
+          ) : api.apiKeyField === 'tavilyApiKey' ? (
+            <div className="space-y-6">
+              <DetailField
+                label="API Key"
+                description="Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here."
+                control={
+                  <div className="relative">
+                    <Input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={tavilyApiKey}
+                      onChange={(e) => onChange({ tavilyApiKey: e.target.value })}
+                      placeholder="tvly-..."
+                      className="border-border bg-secondary pr-10"
+                      autoComplete="new-password"
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
+                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                    >
+                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                }
+              />
+              {api.learnMoreUrl && (
+                <p className="text-sm text-muted-foreground">
+                  Learn more:{' '}
+                  <a
+                    href={api.learnMoreUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[var(--theme-accent)] hover:underline"
+                  >
+                    {api.learnMoreUrl.replace(/^https?:\/\//, '')}
+                  </a>
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </Card>
   )
 }
 

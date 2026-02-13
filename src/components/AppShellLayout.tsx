@@ -100,9 +100,9 @@ function AppShellContent() {
                     top: titlebarHeightPx,
                     bottom: 0,
                     width: `${sidebarWidthPx}px`,
-                    background: 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)',
-                    borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-                    boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.04)',
+                    background: 'var(--frosted-glass-gradient)',
+                    borderRight: 'var(--frosted-glass-border)',
+                    boxShadow: 'var(--frosted-glass-shadow)',
                     transition: 'width 0.2s ease',
                     zIndex: 0,
                     pointerEvents: 'none',
@@ -113,7 +113,7 @@ function AppShellContent() {
                         inset: 0,
                         backgroundImage: NOISE_SVG,
                         backgroundSize: '200px 200px',
-                        opacity: 0.09,
+                        opacity: 'var(--frosted-glass-noise-opacity)',
                         mixBlendMode: 'overlay' as const,
                         pointerEvents: 'none' as const
                     }} />

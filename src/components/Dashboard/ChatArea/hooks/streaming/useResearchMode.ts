@@ -221,11 +221,11 @@ export function useResearchMode({
       (settings.enabledTools?.length ? settings.enabledTools.includes('web_search') : true) &&
       (settings.webSearchEnabled || settings.deepResearchEnabled)
 
-    // Check if user explicitly requests web search (OpenRouter only)
+    // Check if user explicitly requests web search (providers with tool support)
     const forceWebSearch = 
-      settings.modelProvider === 'openrouter' && 
-      canUseTools && 
-      webSearchEnabledBySettings && 
+      ['openrouter', 'groq', 'nvidia'].includes(settings.modelProvider) &&
+      canUseTools &&
+      webSearchEnabledBySettings &&
       checkUserRequestsWebSearch(userMessage)
 
     let maxRounds = 0

@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
+// Providers WITH tool support: openrouter, groq, ollama
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -19,22 +19,19 @@
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { parseOpenRouterToolCalls, hasToolCalls, formatToolResultsForOpenRouter } from './adapters/openrouter'
-import { parseGeminiFunctionCalls, hasGeminiFunctionCalls, formatToolResultsForGemini } from './adapters/gemini'
 import { executeToolCalls } from './executor'
 import { 
     ToolCall, 
     ToolCallResult,
     OpenRouterResponse,
-    GeminiResponse,
-    OpenRouterToolResultMessage,
-    GeminiFunctionResponse
+    OpenRouterToolResultMessage
 } from './types'
 
 // Type for provider API responses
-type ProviderResponse = OpenRouterResponse | GeminiResponse
+type ProviderResponse = OpenRouterResponse
 
 // Type for formatted tool results
-type FormattedToolResults = OpenRouterToolResultMessage[] | GeminiFunctionResponse[]
+type FormattedToolResults = OpenRouterToolResultMessage[]
 
 /**
  * Validate that all required parameters are present in tool arguments
@@ -117,7 +114,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
@@ -154,10 +151,7 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
-        case 'gemini':
-            return parseGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return []
@@ -175,10 +169,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
             return hasToolCalls(response as OpenRouterResponse)
-        case 'gemini':
-            return hasGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return false
@@ -202,10 +193,7 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
-        case 'gemini':
-            return formatToolResultsForGemini(toolCalls, toolResults)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return []
@@ -293,12 +281,7 @@ interface OpenRouterMessage {
     tool_calls?: unknown[]
 }
 
-interface GeminiMessage {
-    role: string
-    parts: unknown[]
-}
-
-type ProviderMessage = OpenRouterMessage | GeminiMessage
+type ProviderMessage = OpenRouterMessage
 
 /**
  * Build messages array with tool results for follow-up API call
@@ -314,23 +297,11 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
             return [
                 ...originalMessages,
                 assistantMessage,
                 ...toolResults
             ] as ProviderMessage[]
-
-        case 'gemini':
-            // Gemini: model turn with function call parts, then user turn with function response parts
-            const modelParts = Array.isArray((assistantMessage as any).parts)
-                ? (assistantMessage as any).parts
-                : [assistantMessage]
-            return [
-                ...originalMessages,
-                { role: 'model', parts: modelParts },
-                { role: 'user', parts: toolResults }  // Gemini API expects role 'user' for function responses
-            ]
 
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities

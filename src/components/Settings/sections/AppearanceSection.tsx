@@ -914,7 +914,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show capability badges</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display vision/code/reasoning icons</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display tools, vision, search & other capability labels</div>
                 </div>
                 <Switch
                   checked={getModelSelector().showCapabilityBadges}
@@ -927,6 +927,30 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                   aria-label="Show capability badges"
                 />
               </div>
+
+              {getModelSelector().showCapabilityBadges && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingLeft: 8, borderLeft: '2px solid var(--theme-border)' }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>Badge display</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show icon only, text only, or both</div>
+                  </div>
+                  <select
+                    value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
+                    onChange={(e) => updateSettings({ 
+                      modelSelector: { 
+                        ...getModelSelector(),
+                        capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both'
+                      } 
+                    })}
+                    className="setting-input-scira"
+                    style={{ width: 140 }}
+                  >
+                    <option value="icon">Icon only</option>
+                    <option value="text">Text only</option>
+                    <option value="both">Icon + text</option>
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
@@ -959,6 +983,23 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                     } 
                   })}
                   aria-label="Show favorite stars"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show context length</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display context length (e.g. 200K, 1M) next to each model</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showContextLength !== false}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showContextLength: checked
+                    } 
+                  })}
+                  aria-label="Show context length"
                 />
               </div>
 

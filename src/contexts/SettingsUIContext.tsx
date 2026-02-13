@@ -33,8 +33,11 @@ export interface ModelSelectorSettings {
   // Display
   showDescriptions: boolean
   showCapabilityBadges: boolean
+  /** How capability badges are shown: icon only, text only, or both */
+  capabilityBadgeDisplay: 'icon' | 'text' | 'both'
   showProviderLogos: boolean
   showFavoriteStars: boolean
+  showContextLength: boolean
   showInfoTooltips: boolean
   activeIndicatorStyle: 'dot' | 'checkmark' | 'highlight'
   
@@ -135,8 +138,10 @@ export const defaultSettingsUI: SettingsUI = {
         dropdownWidth: 'default',
         showDescriptions: true,
         showCapabilityBadges: true,
+        capabilityBadgeDisplay: 'both',
         showProviderLogos: true,
         showFavoriteStars: true,
+        showContextLength: true,
         showInfoTooltips: true,
         activeIndicatorStyle: 'dot',
         itemDensity: 'comfortable',

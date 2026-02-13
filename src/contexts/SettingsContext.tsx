@@ -136,24 +136,70 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.systemPrompt?.includes('Keep responses concise and actionable')) {
             parsed.systemPrompt = defaultSettings.systemPrompt
         }
+        // Migrate truncated or outdated defaults (e.g. old ~800 char truncation, or "You are Zura" variant)
+        const defaultLen = defaultSettings.systemPrompt.length
+        if (
+            typeof parsed.systemPrompt === 'string' &&
+            (parsed.systemPrompt.includes('You are Zura') ||
+                (parsed.systemPrompt.startsWith('Role & Identity') && parsed.systemPrompt.length < defaultLen - 10))
+        ) {
+            parsed.systemPrompt = defaultSettings.systemPrompt
+        }
 
         // Initialize new fields if missing
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
+        // Migrate removed providers to openrouter
+        if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
+            parsed.modelProvider = 'openrouter'
+        }
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
         if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
         if (!parsed.perplexityModels) parsed.perplexityModels = defaultSettings.perplexityModels
-        if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
-        // Force migration: Always use latest Gemini models
-        parsed.geminiModels = defaultSettings.geminiModels
+        else {
+            // Merge: use default list, preserve user's enabled and maxContext from defaults for models that exist in both
+            const merged = defaultSettings.perplexityModels.map((d) => {
+                const existing = parsed.perplexityModels.find((m: { code: string }) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            parsed.perplexityModels = merged
+        }
         // Initialize Groq fields if missing
         if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
-        // Initialize MiniMax fields if missing
-        if (!parsed.minimaxApiKey) parsed.minimaxApiKey = defaultSettings.minimaxApiKey
-        if (!parsed.minimaxModels) parsed.minimaxModels = defaultSettings.minimaxModels
-        // Ensure titleModel exists
+        else {
+            // Merge: use new default list, preserve user's enabled state for models that exist in both
+            const merged = defaultSettings.groqModels.map((d) => {
+                const existing = parsed.groqModels.find((m: { code: string }) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            parsed.groqModels = merged
+        }
+        // Initialize NVIDIA fields if missing
+        if (!parsed.nvidiaApiKey) parsed.nvidiaApiKey = defaultSettings.nvidiaApiKey
+        if (!parsed.nvidiaModels) parsed.nvidiaModels = defaultSettings.nvidiaModels
+        else {
+            const merged = defaultSettings.nvidiaModels.map((d) => {
+                const existing = parsed.nvidiaModels.find((m: { code: string }) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            parsed.nvidiaModels = merged
+        }
+        // Migrate deprecated Groq model IDs when modelProvider is groq
+        const deprecatedGroqModelMap: Record<string, string> = {
+            'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
+            'deepseek-r1-distill-llama-70b': 'llama-3.3-70b-versatile',
+            'mixtral-8x7b-32768': 'llama-3.1-8b-instant',
+            'gemma2-9b-it': 'llama-3.1-8b-instant',
+        }
+        if (parsed.modelProvider === 'groq' && parsed.aiModel && deprecatedGroqModelMap[parsed.aiModel]) {
+            parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
+        }
+        // Ensure titleModel exists; migrate gemini-* to OpenRouter model
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
+        if (parsed.titleModel?.startsWith('gemini-')) {
+            parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+        }
 
         // Max tokens sanity + migration
         if (typeof parsed.maxTokens !== 'number' || !Number.isFinite(parsed.maxTokens) || parsed.maxTokens <= 0) {
@@ -240,19 +286,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
         openRouterApiKey: storedSettings.openRouterApiKey,
         perplexityApiKey: storedSettings.perplexityApiKey,
-        geminiApiKey: storedSettings.geminiApiKey,
         groqApiKey: storedSettings.groqApiKey,
-        minimaxApiKey: storedSettings.minimaxApiKey,
         tavilyApiKey: storedSettings.tavilyApiKey,
+        nvidiaApiKey: storedSettings.nvidiaApiKey,
         aiModel: storedSettings.aiModel,
         modelProvider: storedSettings.modelProvider,
         configuredModels: storedSettings.configuredModels,
         ollamaUrl: storedSettings.ollamaUrl,
         ollamaModels: storedSettings.ollamaModels,
         perplexityModels: storedSettings.perplexityModels,
-        geminiModels: storedSettings.geminiModels,
         groqModels: storedSettings.groqModels,
-        minimaxModels: storedSettings.minimaxModels,
+        nvidiaModels: storedSettings.nvidiaModels,
         temperature: storedSettings.temperature,
         maxTokens: storedSettings.maxTokens,
         systemPrompt: storedSettings.systemPrompt,

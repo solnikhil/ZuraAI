@@ -10,7 +10,7 @@ import { motion } from 'framer-motion'
 import { Star, Search, Info } from 'lucide-react'
 import {
   getModelAttributes,
-  getCapabilitiesFromModel,
+  getCapabilitiesForModelPicker,
   getProviderTitle,
   getModelDescription,
   CAPABILITY_BADGES,
@@ -142,7 +142,7 @@ function ModelItem({
   onToggleFavorite
 }: ModelItemProps): React.ReactElement {
   const { color, badge } = getModelAttributes(model)
-  const capabilities = getCapabilitiesFromModel(model)
+  const capabilities = getCapabilitiesForModelPicker(model)
   const description = getModelDescription(model)
   const providerTitle = getProviderTitle(model.provider)
   const capabilityChips = capabilities.map((capKey) => {

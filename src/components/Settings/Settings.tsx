@@ -3,10 +3,11 @@
  * @module Settings
  * Requirements: 2.5, 2.6
  */
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useAppShell } from '../../contexts/AppShellContext'
 import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
@@ -30,7 +31,9 @@ export default function Settings({
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
+  const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
   const [pendingSettings, setPendingSettings] = useState(settings)
+  const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   useEffect(() => {
   }, [activeSection])
@@ -127,14 +130,13 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
-        { key: 'geminiApiKey', current: pendingSettings.geminiApiKey, original: settings.geminiApiKey },
         { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'minimaxApiKey', current: pendingSettings.minimaxApiKey, original: settings.minimaxApiKey }
+        { key: 'nvidiaApiKey', current: pendingSettings.nvidiaApiKey, original: settings.nvidiaApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -227,11 +229,13 @@ export default function Settings({
           {/* Providers Section (all-in-one models + API keys + search APIs) */}
           {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences' || activeSection === 'tools') && (
             <ProviderHubSection
+              initialProvider={settingsSectionParams?.provider}
+              initialManageMode={settingsSectionParams?.manageMode}
+              onParamsConsumed={clearParams}
               openRouterApiKey={pendingSettings.openRouterApiKey}
               perplexityApiKey={pendingSettings.perplexityApiKey}
-              geminiApiKey={pendingSettings.geminiApiKey}
               groqApiKey={pendingSettings.groqApiKey}
-              minimaxApiKey={pendingSettings.minimaxApiKey}
+              nvidiaApiKey={pendingSettings.nvidiaApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
               toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
@@ -241,12 +245,11 @@ export default function Settings({
               modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
               configuredModels={pendingSettings.configuredModels || []}
               perplexityModels={pendingSettings.perplexityModels || []}
-              geminiModels={pendingSettings.geminiModels || []}
               groqModels={pendingSettings.groqModels || []}
-              minimaxModels={pendingSettings.minimaxModels || []}
+              nvidiaModels={pendingSettings.nvidiaModels || []}
               ollamaModels={pendingSettings.ollamaModels || []}
               maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
-              titleModel={pendingSettings.titleModel || settings.titleModel || 'gemini-2.5-flash'}
+              titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}
               onChange={handleChange}
             />
           )}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -26,17 +26,23 @@ interface CreateCustomModelDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (model: ConfiguredModel) => void
+  /** When provided, dialog operates in edit mode: prefill form, code read-only, Save instead of Add */
+  initialModel?: ConfiguredModel
+  /** Called when saving in edit mode. If omitted, onCreate is used for both create and edit. */
+  onUpdate?: (model: ConfiguredModel) => void
 }
 
 export function CreateCustomModelDialog({
   open,
   onOpenChange,
   onCreate,
+  initialModel,
+  onUpdate,
 }: CreateCustomModelDialogProps): React.ReactElement {
   const [modelId, setModelId] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [modelType, setModelType] = useState<ConfiguredModel['modelType']>('chat')
-  const [maxContextIndex, setMaxContextIndex] = useState(2)
+  const [maxContext, setMaxContext] = useState(16000)
   const [extendedParameters, setExtendedParameters] = useState<string[]>([])
   const [supportsToolCall, setSupportsToolCall] = useState(false)
   const [supportsVision, setSupportsVision] = useState(false)
@@ -45,13 +51,40 @@ export function CreateCustomModelDialog({
   const [supportsImageGeneration, setSupportsImageGeneration] = useState(false)
   const [supportsVideoRecognition, setSupportsVideoRecognition] = useState(false)
 
-  const maxContext = useMemo(() => CONTEXT_PRESETS[maxContextIndex] ?? 16000, [maxContextIndex])
+  const isEditMode = Boolean(initialModel)
+
+  /** Index of closest preset for slider thumb position (0..8) */
+  const maxContextSliderIndex = useMemo(() => {
+    const idx = CONTEXT_PRESETS.indexOf(maxContext)
+    if (idx >= 0) return idx
+    return CONTEXT_PRESETS.reduce(
+      (best, val, i) =>
+        Math.abs(val - maxContext) < Math.abs(CONTEXT_PRESETS[best] - maxContext) ? i : best,
+      0
+    )
+  }, [maxContext])
+
+  useEffect(() => {
+    if (open && initialModel) {
+      setModelId(initialModel.code)
+      setDisplayName(initialModel.displayName || initialModel.code)
+      setModelType(initialModel.modelType ?? 'chat')
+      setMaxContext(initialModel.maxContext ?? 16000)
+      setExtendedParameters(initialModel.extendedParameters ?? [])
+      setSupportsToolCall(initialModel.supportsToolCall ?? false)
+      setSupportsVision(initialModel.supportsVision ?? false)
+      setSupportsDeepThinking(initialModel.supportsDeepThinking ?? false)
+      setSupportsWebSearch(initialModel.supportsWebSearch ?? false)
+      setSupportsImageGeneration(initialModel.supportsImageGeneration ?? false)
+      setSupportsVideoRecognition(initialModel.supportsVideoRecognition ?? false)
+    }
+  }, [open, initialModel])
 
   const reset = () => {
     setModelId('')
     setDisplayName('')
     setModelType('chat')
-    setMaxContextIndex(2)
+    setMaxContext(16000)
     setExtendedParameters([])
     setSupportsToolCall(false)
     setSupportsVision(false)
@@ -69,11 +102,11 @@ export function CreateCustomModelDialog({
     setExtendedParameters((previous) => previous.filter((item) => item !== name))
   }
 
-  const handleCreate = () => {
+  const handleSubmit = () => {
     const normalizedId = modelId.trim()
     if (!normalizedId) return
 
-    onCreate({
+    const model: ConfiguredModel = {
       code: normalizedId,
       displayName: displayName.trim() || normalizedId,
       maxContext,
@@ -85,7 +118,14 @@ export function CreateCustomModelDialog({
       supportsWebSearch,
       supportsImageGeneration,
       supportsVideoRecognition,
-    })
+      ...(isEditMode && initialModel && { enabled: initialModel.enabled }),
+    }
+
+    if (isEditMode && onUpdate) {
+      onUpdate(model)
+    } else {
+      onCreate(model)
+    }
 
     reset()
     onOpenChange(false)
@@ -101,9 +141,11 @@ export function CreateCustomModelDialog({
     >
       <DialogContent className="border-border bg-card p-0 sm:max-w-[760px]">
         <DialogHeader className="border-b border-border px-6 py-4">
-          <DialogTitle>Create Custom AI Model</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Model' : 'Create Custom AI Model'}</DialogTitle>
           <DialogDescription>
-            Add your own model profile and set capability flags.
+            {isEditMode
+              ? 'Update model parameters and capability flags.'
+              : 'Add your own model profile and set capability flags.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -111,13 +153,14 @@ export function CreateCustomModelDialog({
           <div className="space-y-6">
             <FormRow
               label="* Model ID"
-              description="This cannot be modified after creation and will be used as the model ID when calling AI."
+              description={isEditMode ? 'Model ID cannot be changed.' : 'This cannot be modified after creation and will be used as the model ID when calling AI.'}
               control={(
                 <Input
                   id="custom-model-id"
                   placeholder="Please enter the model ID, e.g., gpt-4o or claude-3.5-sonnet"
                   value={modelId}
                   onChange={(e) => setModelId(e.target.value)}
+                  readOnly={isEditMode}
                   className="border-border bg-secondary"
                 />
               )}
@@ -143,41 +186,47 @@ export function CreateCustomModelDialog({
               control={(
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <input
-                      id="custom-model-context"
-                      type="range"
-                      min={0}
-                      max={CONTEXT_PRESETS.length - 1}
-                      step={1}
-                      value={maxContextIndex}
-                      onChange={(e) => {
-                        const parsed = Number.parseInt(e.target.value, 10)
-                        setMaxContextIndex(Number.isFinite(parsed) ? parsed : 0)
-                      }}
-                      className="w-full"
-                    />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <input
+                        id="custom-model-context"
+                        type="range"
+                        min={0}
+                        max={CONTEXT_PRESETS.length - 1}
+                        step={1}
+                        value={maxContextSliderIndex}
+                        onChange={(e) => {
+                          const idx = Number.parseInt(e.target.value, 10)
+                          if (Number.isFinite(idx) && idx >= 0 && idx < CONTEXT_PRESETS.length) {
+                            setMaxContext(CONTEXT_PRESETS[idx])
+                          }
+                        }}
+                        className="w-full"
+                      />
+                      <div className="grid grid-cols-9 gap-2 text-xs text-muted-foreground">
+                        {CONTEXT_PRESETS.map((value) => (
+                          <span key={value} className="text-center">
+                            {value >= 1000000 ? `${Math.round(value / 1000000)}M` : value === 0 ? '0' : `${Math.round(value / 1000)}K`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                     <Input
                       type="number"
+                      min={0}
+                      max={10_000_000}
                       value={maxContext}
                       onChange={(e) => {
-                        const parsed = Number.parseInt(e.target.value, 10)
-                        if (!Number.isFinite(parsed)) return
-                        const closestIndex = CONTEXT_PRESETS.reduce((bestIndex, currentValue, currentIndex) => {
-                          const bestDistance = Math.abs(CONTEXT_PRESETS[bestIndex] - parsed)
-                          const currentDistance = Math.abs(currentValue - parsed)
-                          return currentDistance < bestDistance ? currentIndex : bestIndex
-                        }, 0)
-                        setMaxContextIndex(closestIndex)
+                        const raw = e.target.value
+                        if (raw === '') {
+                          setMaxContext(0)
+                          return
+                        }
+                        const parsed = Number.parseInt(raw, 10)
+                        if (!Number.isFinite(parsed) || parsed < 0) return
+                        setMaxContext(Math.min(parsed, 10_000_000))
                       }}
-                      className="w-24 border-border bg-secondary"
+                      className="w-24 shrink-0 border-border bg-secondary"
                     />
-                  </div>
-                  <div className="grid grid-cols-9 gap-2 text-xs text-muted-foreground">
-                    {CONTEXT_PRESETS.map((value) => (
-                      <span key={value} className="text-center">
-                        {value >= 1000000 ? `${Math.round(value / 1000000)}M` : value === 0 ? '0' : `${Math.round(value / 1000)}K`}
-                      </span>
-                    ))}
                   </div>
                 </div>
               )}
@@ -277,7 +326,9 @@ export function CreateCustomModelDialog({
 
         <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={!modelId.trim()}>Add Model</Button>
+          <Button onClick={handleSubmit} disabled={!modelId.trim()}>
+            {isEditMode ? 'Save' : 'Add Model'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

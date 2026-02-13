@@ -5,9 +5,10 @@
  * @module SystemPromptSection
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
+import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
  * Props for SystemPromptSection component
@@ -29,6 +30,14 @@ export function SystemPromptSection({
   const [isDirty, setIsDirty] = useState(false)
   const [localValue, setLocalValue] = useState(systemPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
+
+  // Sync local state when prop changes, but not while user has unsaved edits
+  useEffect(() => {
+    if (!isDirty) {
+      setLocalValue(systemPrompt)
+      setCharCount(systemPrompt.length)
+    }
+  }, [systemPrompt, isDirty])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
@@ -52,6 +61,11 @@ export function SystemPromptSection({
     setCharCount(systemPrompt.length)
     setIsDirty(false)
   }
+
+  const estTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localValue }),
+    [localValue]
+  )
 
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
@@ -91,14 +105,31 @@ export function SystemPromptSection({
           </div>
           <div
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
               fontSize: '0.75rem',
-              color: 'var(--theme-text-muted)',
-              padding: '4px 10px',
-              background: 'rgba(255,255,255,0.05)',
-              borderRadius: 6
+              color: 'var(--theme-text-muted)'
             }}
           >
-            {charCount.toLocaleString()} characters
+            <span
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
+              }}
+            >
+              {charCount.toLocaleString()} chars
+            </span>
+            <span
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
+              }}
+            >
+              ~{estTokensInput.toLocaleString()} tokens input
+            </span>
           </div>
         </div>
 
@@ -115,8 +146,8 @@ export function SystemPromptSection({
               fontSize: '0.9rem',
               lineHeight: 1.6,
               fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              background: '#1B1913',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'var(--theme-surface)',
+              border: '1px solid var(--theme-border)',
               borderRadius: 8,
               color: 'var(--theme-text-primary)',
               resize: 'vertical',
@@ -126,7 +157,7 @@ export function SystemPromptSection({
               e.target.style.borderColor = 'var(--theme-accent)'
             }}
             onBlur={e => {
-              e.target.style.borderColor = 'rgba(255,255,255,0.1)'
+              e.target.style.borderColor = 'var(--theme-border)'
             }}
             placeholder="Enter your system prompt here..."
           />
@@ -246,96 +277,6 @@ export function SystemPromptSection({
             </button>
           </div>
         )}
-      </Card>
-
-      {/* Tips Section */}
-      <Card
-        className="settings-section-card"
-        style={{
-          marginTop: 24,
-          background: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
-          borderRadius: 12,
-          padding: '20px 24px'
-        }}
-      >
-        <h3 className="section-head" style={{ marginBottom: 12 }}>
-          Tips for Effective System Prompts
-        </h3>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 16
-          }}
-        >
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(0, 188, 212, 0.08)',
-              border: '1px solid rgba(0, 188, 212, 0.15)'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: 'var(--theme-accent)',
-                marginBottom: 6
-              }}
-            >
-              Be Specific
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Clearly define the AI's role, expertise, and boundaries to get more relevant responses.
-            </div>
-          </div>
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(34, 197, 94, 0.08)',
-              border: '1px solid rgba(34, 197, 94, 0.15)'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: '#22c55e',
-                marginBottom: 6
-              }}
-            >
-              Define Style
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Specify desired tone, formatting preferences, and communication style.
-            </div>
-          </div>
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(168, 85, 247, 0.08)',
-              border: '1px solid rgba(168, 85, 247, 0.15)'
-            }}
-          >
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: '#a855f7',
-                marginBottom: 6
-              }}
-            >
-              Set Constraints
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Define what the AI should and shouldn't do, including safety guidelines.
-            </div>
-          </div>
-        </div>
       </Card>
     </div>
   )

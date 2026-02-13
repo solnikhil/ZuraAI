@@ -51,22 +51,20 @@ export interface SettingsConfig {
     // API Keys
     openRouterApiKey: string
     perplexityApiKey: string
-    geminiApiKey: string
     groqApiKey: string
-    minimaxApiKey: string
     tavilyApiKey: string
-    
+    nvidiaApiKey: string
+
     // Model settings
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
     configuredModels: ConfiguredModel[]
     ollamaUrl: string
     ollamaModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
-    geminiModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
-    minimaxModels: ConfiguredModel[]
-    
+    nvidiaModels: ConfiguredModel[]
+
     // AI parameters
     temperature: number
     maxTokens: number
@@ -104,11 +102,10 @@ export const defaultSettingsConfig: SettingsConfig = {
     // API Keys
     openRouterApiKey: '',
     perplexityApiKey: '',
-    geminiApiKey: '',
     groqApiKey: '',
-    minimaxApiKey: '',
     tavilyApiKey: '',
-    
+    nvidiaApiKey: '',
+
     // Model settings
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter',
@@ -139,45 +136,47 @@ export const defaultSettingsConfig: SettingsConfig = {
     ollamaModels: [],
     perplexityModels: [
         // Sonar Models (2025)
-        { code: 'sonar', displayName: 'Sonar' },
-        { code: 'sonar-pro', displayName: 'Sonar Pro' },
-        { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
-        { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
-        { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+        { code: 'sonar', displayName: 'Sonar', maxContext: 200000 },
+        { code: 'sonar-pro', displayName: 'Sonar Pro', maxContext: 200000 },
+        { code: 'sonar-reasoning', displayName: 'Sonar Reasoning', maxContext: 200000 },
+        { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro', maxContext: 200000 },
+        { code: 'sonar-deep-research', displayName: 'Sonar Deep Research', maxContext: 200000 },
         // Llama 3.1 Sonar Variants (128k Context)
-        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online' },
-        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online' },
-        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online' },
-        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online' },
-    ],
-    geminiModels: [
-        // Gemini 3.0 Models (Preview - Text Only)
-        { code: 'gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
-        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
-        // Gemini 2.5 Models (Stable - Text Only)
-        { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
-        { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-        { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
+        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online', maxContext: 131072 },
     ],
     groqModels: [
-        // Llama 4 (Latest 2025)
-        { code: 'llama-4-scout', displayName: 'Llama 4 Scout' },
-        // Llama 3.3
-        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
-        // Llama 3.1
-        { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
-        // DeepSeek R1 Distill
-        { code: 'deepseek-r1-distill-llama-70b', displayName: 'DeepSeek R1 Distill Llama 70B' },
-        // Other models
-        { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
-        { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
+        // Production Models (enabled: most famous)
+        { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant', enabled: true, maxContext: 131072 },
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile', enabled: true, maxContext: 131072 },
+        { code: 'openai/gpt-oss-120b', displayName: 'GPT OSS 120B', enabled: true, maxContext: 131072 },
+        { code: 'openai/gpt-oss-20b', displayName: 'GPT OSS 20B', enabled: true, maxContext: 131072 },
+        // Production Systems (enabled)
+        { code: 'groq/compound', displayName: 'Groq Compound', enabled: true, maxContext: 131072 },
+        { code: 'groq/compound-mini', displayName: 'Groq Compound Mini', enabled: true, maxContext: 131072 },
+        // Preview Models (enabled: well-known)
+        { code: 'meta-llama/llama-4-scout-17b-16e-instruct', displayName: 'Llama 4 Scout 17B', enabled: true, maxContext: 131072 },
+        { code: 'qwen/qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 131072 },
+        { code: 'moonshotai/kimi-k2-instruct-0905', displayName: 'Kimi K2', enabled: true, maxContext: 262144 },
+        // Preview Models (disabled: less known)
+        { code: 'meta-llama/llama-4-maverick-17b-128e-instruct', displayName: 'Llama 4 Maverick 17B', enabled: false, maxContext: 131072 },
+        { code: 'openai/gpt-oss-safeguard-20b', displayName: 'GPT OSS Safeguard 20B', enabled: false, maxContext: 131072 },
     ],
-    minimaxModels: [
-        { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' },
-        { code: 'MiniMax-M2.1-lightning', displayName: 'MiniMax M2.1 Lightning' },
-        { code: 'MiniMax-M2', displayName: 'MiniMax M2' },
+    nvidiaModels: [
+        { code: 'meta/llama3-70b', displayName: 'Llama 3 70B', enabled: true, maxContext: 8192 },
+        { code: 'meta/llama3-8b', displayName: 'Llama 3 8B', enabled: true, maxContext: 8192 },
+        { code: 'nvidia/nemotron-4-340b-instruct', displayName: 'Nemotron 4 340B', enabled: true, maxContext: 4096 },
+        { code: 'mistralai/mistral-large', displayName: 'Mistral Large', enabled: true, maxContext: 128000 },
+        { code: 'mistralai/mixtral-8x7b-instruct', displayName: 'Mixtral 8x7B', enabled: true, maxContext: 32768 },
+        { code: 'mistralai/mistral-7b-instruct', displayName: 'Mistral 7B', enabled: true, maxContext: 32768 },
+        { code: 'google/gemma-2-9b-it', displayName: 'Gemma 2 9B', enabled: true, maxContext: 8192 },
+        { code: 'microsoft/phi-3-medium-4k-instruct', displayName: 'Phi-3 Medium 4K', enabled: true, maxContext: 4096 },
+        { code: 'deepseek-ai/deepseek-r1', displayName: 'DeepSeek R1', enabled: true, maxContext: 64000 },
+        { code: 'snowflake/arctic', displayName: 'Snowflake Arctic', enabled: true, maxContext: 4096 },
     ],
-    
+
     // AI parameters
     temperature: 0.7,
     maxTokens: 8000,
@@ -191,7 +190,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     deepResearchEnabled: false,
     
     // Title generation
-    titleModel: 'gemini-2.5-flash',
+    titleModel: 'google/gemini-2.0-flash-exp:free',
     
     // Favorites
     favoriteModels: [],
@@ -256,10 +255,9 @@ export function SettingsConfigProvider({
                 await migrateApiKeysFromLocalStorage({
                     openRouterApiKey: settingsConfig.openRouterApiKey,
                     perplexityApiKey: settingsConfig.perplexityApiKey,
-                    geminiApiKey: settingsConfig.geminiApiKey,
                     groqApiKey: settingsConfig.groqApiKey,
                     tavilyApiKey: settingsConfig.tavilyApiKey,
-                    minimaxApiKey: settingsConfig.minimaxApiKey,
+                    nvidiaApiKey: settingsConfig.nvidiaApiKey,
                 })
 
                 // Load from secure storage
@@ -267,8 +265,7 @@ export function SettingsConfigProvider({
 
                 // Check if we got any keys
                 const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
-                    secureKeys.geminiApiKey || secureKeys.groqApiKey || secureKeys.tavilyApiKey ||
-                    secureKeys.minimaxApiKey
+                    secureKeys.groqApiKey || secureKeys.tavilyApiKey || secureKeys.nvidiaApiKey
 
                 if (hasSecureKeys) {
                     // Update settings with secure keys - prefer secure storage values
@@ -276,10 +273,9 @@ export function SettingsConfigProvider({
                         ...prev,
                         openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
                         perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
-                        geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                         tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
-                        minimaxApiKey: secureKeys.minimaxApiKey || prev.minimaxApiKey,
+                        nvidiaApiKey: secureKeys.nvidiaApiKey || prev.nvidiaApiKey,
                     }))
                 }
 

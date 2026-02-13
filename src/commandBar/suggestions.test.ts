@@ -88,5 +88,41 @@ describe('commandBar suggestions', () => {
 
       expect(suggestions.some((item) => item.id === 'go-settings-providers')).toBe(true)
     })
+
+    it('offers OpenRouter settings when typing openrouter', () => {
+      const suggestions = getCommandBarSuggestions('openrouter', {
+        toolsEnabled: true,
+        webSearchEnabled: true,
+        hasCurrentSession: false,
+      })
+
+      const openrouterSuggestion = suggestions.find((s) => s.id === 'go-settings-openrouter')
+      expect(openrouterSuggestion).toBeDefined()
+      expect(openrouterSuggestion?.title).toBe('OpenRouter Settings')
+    })
+
+    it('offers Groq settings when typing groq', () => {
+      const suggestions = getCommandBarSuggestions('groq', {
+        toolsEnabled: true,
+        webSearchEnabled: true,
+        hasCurrentSession: false,
+      })
+
+      const groqSuggestion = suggestions.find((s) => s.id === 'go-settings-groq')
+      expect(groqSuggestion).toBeDefined()
+      expect(groqSuggestion?.title).toBe('Groq Settings')
+    })
+
+    it('offers Search APIs settings when typing tavily', () => {
+      const suggestions = getCommandBarSuggestions('tavily', {
+        toolsEnabled: true,
+        webSearchEnabled: true,
+        hasCurrentSession: false,
+      })
+
+      const searchApisSuggestion = suggestions.find((s) => s.id === 'go-settings-search-apis')
+      expect(searchApisSuggestion).toBeDefined()
+      expect(searchApisSuggestion?.title).toBe('Search APIs Settings')
+    })
   })
 })

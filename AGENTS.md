@@ -11,7 +11,7 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Gemini, Groq, MiniMax)
+- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; only `web_search` is enabled end-to-end)
 
@@ -147,10 +147,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
-  - `src/services/gemini.ts` (`streamGeminiCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
-  - `src/services/minimax.ts` (`streamMiniMaxCompletion`)
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
@@ -168,7 +166,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `geminiModels`, `groqModels`, `minimaxModels`) now support optional `enabled?: boolean`.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`) now support optional `enabled?: boolean`.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
 
 ### Data Persistence
@@ -192,7 +190,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `geminiApiKey`, `groqApiKey`, `tavilyApiKey`, `minimaxApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `nvidiaApiKey`, `tavilyApiKey`
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
@@ -205,18 +203,17 @@ Tool execution is intentionally restricted.
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (**currently only `web_search` enabled**)
   - Web search: `electron/tools/webSearch.ts`
-    - Uses Tavily if key exists (`TAVILY_API_KEY` env or secure storage `tavilyApiKey`)
-    - Falls back to DuckDuckGo Instant Answer API
+    - Primary: Tavily API when key exists (`TAVILY_API_KEY` env or secure storage `tavilyApiKey`)
+    - Fallback: duck-duck-scrape (real DuckDuckGo web search) when no key or Tavily fails
 
 **Note:** Other tool implementations exist in `electron/tools/*` (e.g. `datetime`, `clipboard`, `calculator`, `urlFetcher`) but are not wired to IPC by default.
 
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
-- Gemini: `src/services/gemini.ts` (Gemini function calling)
+- NVIDIA: `src/services/nvidia.ts` (NVIDIA NIM API; OpenAI-compatible tool calling)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
-- MiniMax: `src/services/minimax.ts` (OpenAI-compatible; streaming, tool calling, interleaved thinking/reasoning)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)
 
 ### Environment & Secrets
@@ -230,6 +227,7 @@ Never commit `.env` or API keys.
 These are useful breadcrumbs for agents:
 - No `globalShortcut.register(...)` calls were found; shortcut strings exist in settings, but main-process global hotkey registration appears pending.
 - `src/contexts/SettingsContext.tsx` sends `settings-changed`, but that channel is not allowlisted/handled; settings sync primarily happens via `localStorage` + `storage` events.
+- **Title bar command bar** (`src/components/TitleBarCommandBar.tsx`, `src/components/TitleBar.css`): The expanded-state styling (shadows, borders) has been reported to cause visual discomfort. Consider switching up the renderer/styling approach (e.g. frosted glass, different elevation treatment, or alternative component structure) if users report discomfort.
 
 ---
 

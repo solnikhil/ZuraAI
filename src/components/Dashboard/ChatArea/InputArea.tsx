@@ -210,9 +210,13 @@ export function InputArea({
             aria-label="Chat input container"
             initial={false}
             animate={{
-              boxShadow: isFocused
-                ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
-                : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)"
+              boxShadow: frostedPrompt
+                ? (isFocused
+                  ? "0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)"
+                  : "0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)")
+                : (isFocused
+                  ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
+                  : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)")
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(

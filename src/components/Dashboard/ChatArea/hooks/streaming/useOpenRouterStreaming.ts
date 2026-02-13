@@ -82,16 +82,6 @@ export function useOpenRouterStreaming({
     let thinkingEndTime: number | null = null
     let thinkingDuration: number | undefined = undefined
 
-    // For OpenRouter, avoid accidentally pinning max_tokens to 1000 from legacy settings.
-    const requestedMaxTokens = (() => {
-      const base = (typeof settings.maxTokens === 'number' && Number.isFinite(settings.maxTokens) && settings.maxTokens > 0)
-        ? settings.maxTokens
-        : 8000
-      if (researchMaxRounds > 0) return 8000
-      if (/:free\b/.test(String(settings.aiModel || '')) && base <= 1000) return 8000
-      return base
-    })()
-
     // Set tool choice for mandatory research mode to force web_search
     const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
@@ -103,7 +93,7 @@ export function useOpenRouterStreaming({
       getOpenRouterApiKey(settings.openRouterApiKey),
       settings.aiModel,
       openRouterMessages,
-      { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal }
+      { temperature: settings.temperature, tools: openRouterTools, toolChoice: initialToolChoice, signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -278,7 +268,7 @@ export function useOpenRouterStreaming({
             getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice, signal }
+            { temperature: settings.temperature, tools: openRouterTools, toolChoice, signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -405,7 +395,7 @@ export function useOpenRouterStreaming({
             getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,
             finalAnswerMessages,
-            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, signal }
+            { temperature: settings.temperature, tools: openRouterTools, signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             finalAnswerContent += delta
@@ -473,7 +463,6 @@ export function useOpenRouterStreaming({
       latency,
       usage: { ...usage, tps, ttft },
       finishReason: finishReason || undefined,
-      requestedMaxTokens,
       toolResults: savedToolResults
     })
 

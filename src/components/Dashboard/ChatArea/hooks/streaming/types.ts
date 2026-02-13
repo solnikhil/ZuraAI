@@ -115,7 +115,6 @@ export interface StreamingSettings {
   ollamaUrl?: string
   openRouterApiKey?: string
   perplexityApiKey?: string
-  geminiApiKey?: string
   groqApiKey?: string
-  minimaxApiKey?: string
+  nvidiaApiKey?: string
 }

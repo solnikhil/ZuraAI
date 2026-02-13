@@ -18,37 +18,32 @@
 // - formatResultsForProvider() switch cases
 // - buildMessagesWithToolResults() switch cases
 //
-// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
+// Providers WITH tool support: openrouter, groq, ollama
 // ============================================================================
 
 // Tool Adapters - Convert tool definitions to provider-specific formats
 
 export * from './openrouter'
-export * from './gemini'
 
 import { ToolDefinition } from '../definitions'
 import { convertToOpenRouterFormat, OpenAITool } from './openrouter'
-import { convertToGeminiFormat, GeminiTools } from './gemini'
 
-export type ProviderToolFormat = OpenAITool[] | GeminiTools
+export type ProviderToolFormat = OpenAITool[]
 
 /**
  * Convert tools to the format required by a specific provider
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
+        case 'nvidia':
             // All use OpenAI-compatible format
             return convertToOpenRouterFormat(tools)
-
-        case 'gemini':
-            return convertToGeminiFormat(tools)
 
         case 'perplexity':
             // EXCLUDED: Perplexity has native search
@@ -65,7 +60,7 @@ export function convertToolsForProvider(
  * EXCLUDED: perplexity (see header comment)
  */
 export function providerSupportsTools(provider: string): boolean {
-    return ['openrouter', 'gemini', 'groq', 'ollama', 'minimax'].includes(provider)
+    return ['openrouter', 'groq', 'ollama', 'nvidia'].includes(provider)
 }
 
 /**
@@ -87,19 +82,18 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'google/gemini-2.5-flash',
         'mistralai/mistral-large',
     ],
-    gemini: [
-        'gemini-3-flash-preview',
-        'gemini-3-pro-preview',
-        'gemini-2.5-pro',
-        'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
-    ],
     groq: [
-        'llama-4-scout',
+        'groq/compound',
+        'groq/compound-mini',
+        'openai/gpt-oss-120b',
+        'openai/gpt-oss-20b',
+        'meta-llama/llama-4-scout-17b-16e-instruct',
+        'meta-llama/llama-4-maverick-17b-128e-instruct',
         'llama-3.3-70b-versatile',
         'llama-3.1-8b-instant',
-        'deepseek-r1-distill-llama-70b',
-        'mixtral-8x7b-32768',
+        'qwen/qwen3-32b',
+        'moonshotai/kimi-k2-instruct-0905',
+        'openai/gpt-oss-safeguard-20b',
     ],
     ollama: [
         'llama3.1',
@@ -107,11 +101,18 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'mistral',
         'mixtral',
     ],
-    minimax: [
-        'MiniMax-M2.1',
-        'MiniMax-M2.1-lightning',
-        'MiniMax-M2',
-    ]
+    nvidia: [
+        'meta/llama3-70b',
+        'meta/llama3-8b',
+        'nvidia/nemotron-4-340b-instruct',
+        'mistralai/mistral-large',
+        'mistralai/mixtral-8x7b-instruct',
+        'mistralai/mistral-7b-instruct',
+        'google/gemma-2-9b-it',
+        'microsoft/phi-3-medium-4k-instruct',
+        'deepseek-ai/deepseek-r1',
+        'snowflake/arctic',
+    ],
 }
 
 /**

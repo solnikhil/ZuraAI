@@ -22,7 +22,6 @@ function getModelDisplayName(settings: Settings): string {
         ...(settings.ollamaModels || []),
         ...(settings.perplexityModels || []),
         ...(settings.configuredModels || []),
-        ...(settings.geminiModels || []),
         ...(settings.groqModels || []),
     ]
 

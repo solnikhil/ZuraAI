@@ -28,10 +28,9 @@ import type { AttachedFile } from '../FileUploadHandler'
 import {
   useOllamaStreaming,
   usePerplexityStreaming,
-  useGeminiStreaming,
   useGroqStreaming,
-  useMiniMaxStreaming,
   useOpenRouterStreaming,
+  useNvidiaStreaming,
   useStreamingToolCalls,
   useResearchMode,
   type StreamingSettings,
@@ -41,14 +40,9 @@ import {
 // Import streaming services for regenerate (simplified streaming without full hook)
 import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamPerplexityCompletion } from '../../../../services/perplexity'
-import { streamGeminiCompletion } from '../../../../services/gemini'
 import { streamGroqCompletion } from '../../../../services/groq'
+import { streamNvidiaCompletion } from '../../../../services/nvidia'
 import { streamOpenRouterCompletion } from '../../../../services/openrouter'
-import { 
-  streamMiniMaxCompletion, 
-  extractReasoningFromChunk,
-  ReasoningAccumulator,
-} from '../../../../services/minimax'
 
 export interface UseStreamingChatOptions {
   onMessageSent?: () => void
@@ -154,9 +148,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     ollamaUrl: settings.ollamaUrl,
     openRouterApiKey: settings.openRouterApiKey,
     perplexityApiKey: settings.perplexityApiKey,
-    geminiApiKey: settings.geminiApiKey,
     groqApiKey: settings.groqApiKey,
-    minimaxApiKey: settings.minimaxApiKey,
+    nvidiaApiKey: settings.nvidiaApiKey,
   }), [settings])
 
   // Use the streaming tool calls hook
@@ -201,14 +194,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
-  const { streamGemini } = useGeminiStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
   const { streamGroq } = useGroqStreaming({
     settings: streamingSettings,
     toolCalling,
@@ -217,7 +202,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
-  const { streamMiniMax } = useMiniMaxStreaming({
+  const { streamOpenRouter } = useOpenRouterStreaming({
     settings: streamingSettings,
     toolCalling,
     updateStreamingMessage,
@@ -225,7 +210,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
-  const { streamOpenRouter } = useOpenRouterStreaming({
+  const { streamNvidia } = useNvidiaStreaming({
     settings: streamingSettings,
     toolCalling,
     updateStreamingMessage,
@@ -347,9 +332,17 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
       startStreaming(targetSessionId!, streamingMessageId)
 
-      // Validate OpenRouter API key before sending
+      // Validate API key before sending
       const isOpenRouter = settings.modelProvider === 'openrouter' ||
-        !['ollama', 'perplexity', 'gemini', 'groq', 'minimax'].includes(settings.modelProvider)
+        !['ollama', 'perplexity', 'groq', 'nvidia'].includes(settings.modelProvider)
+      const isNvidia = settings.modelProvider === 'nvidia'
+      if (isNvidia && !settings.nvidiaApiKey?.trim()) {
+        deleteMessageFromSession(targetSessionId!, streamingMessageId)
+        streamingMessageRef.current = null
+        setIsLoading(false)
+        showToast('NVIDIA API key is required. Add it in Settings > Providers and save.', 'error')
+        return
+      }
       if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
         deleteMessageFromSession(targetSessionId!, streamingMessageId)
         streamingMessageRef.current = null
@@ -378,32 +371,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           startTime,
           signal: abortControllerRef.current?.signal,
         })
-      } else if (settings.modelProvider === 'gemini') {
-        // Prepare Gemini messages with vision support
-        let geminiMessages = [...optimizedHistory]
-        if (firstImage) {
-          const lastMessage = geminiMessages[geminiMessages.length - 1]
-          if (lastMessage?.role === 'user') {
-            const base64Image = firstImage.includes(',') ? firstImage.split(',')[1] : firstImage
-            const mimeType = firstImage.match(/data:([^;]+)/)?.[1] || 'image/png'
-            geminiMessages[geminiMessages.length - 1] = {
-              role: 'user',
-              parts: [
-                { text: lastMessage.content || content },
-                { inline_data: { mime_type: mimeType, data: base64Image } }
-              ]
-            } as any
-          }
-        }
-        await streamGemini({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: geminiMessages,
-          startTime,
-          researchMaxRounds,
-          researchMandatory,
-          signal: abortControllerRef.current?.signal,
-        })
       } else if (settings.modelProvider === 'groq') {
         await streamGroq({
           sessionId: targetSessionId!,
@@ -414,8 +381,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
-      } else if (settings.modelProvider === 'minimax') {
-        await streamMiniMax({
+      } else if (settings.modelProvider === 'nvidia') {
+        await streamNvidia({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -514,7 +481,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     createSession, addMessageToSession, updateStreamingMessage, updateSessionTitle,
     deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
-    streamOllama, streamPerplexity, streamGemini, streamGroq, streamMiniMax, streamOpenRouter,
+    streamOllama, streamPerplexity, streamGroq, streamNvidia, streamOpenRouter,
   ])
 
   /**
@@ -581,7 +548,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       const streamingMessageId = addMessageToSession(currentSessionId, {
         role: 'assistant',
         content: '',
-        model: `openrouter/${settings.aiModel}`,
+        model: `${settings.modelProvider}/${settings.aiModel}`,
         responseVersions: versions,
         currentVersionIndex: versions.length
       })
@@ -609,41 +576,22 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
-        } else if (settings.modelProvider === 'gemini') {
-          for await (const chunk of streamGeminiCompletion(settings.geminiApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const text = chunk.candidates?.[0]?.content?.parts?.[0]?.text || ''
-            if (text) accumulatedContent = text
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
-          }
         } else if (settings.modelProvider === 'groq') {
           for await (const chunk of streamGroqCompletion(settings.groqApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
-        } else if (settings.modelProvider === 'minimax') {
-          const reasoningAccumulator = new ReasoningAccumulator()
-          for await (const chunk of streamMiniMaxCompletion(settings.minimaxApiKey, settings.aiModel, apiMessages, {
-            temperature: settings.temperature,
-            maxTokens: settings.maxTokens,
-            signal: abortControllerRef.current?.signal
-          })) {
+        } else if (settings.modelProvider === 'nvidia') {
+          for await (const chunk of streamNvidiaCompletion(settings.nvidiaApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
-            const reasoningDetails = extractReasoningFromChunk(chunk)
-            if (reasoningDetails && reasoningDetails.length > 0) {
-              reasoningAccumulator.accumulate(reasoningDetails)
-              accumulatedReasoning = reasoningAccumulator.getReasoning()
-            }
-            if (delta) accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, {
-              content: accumulatedContent,
-              thinking: accumulatedReasoning || undefined
-            })
+            accumulatedContent += delta
+            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
         } else {
           for await (const chunk of streamOpenRouterCompletion(
             getOpenRouterApiKey(settings.openRouterApiKey), settings.aiModel, apiMessages,
-            { temperature: settings.temperature, maxTokens: settings.maxTokens, signal: abortControllerRef.current?.signal }
+            { temperature: settings.temperature, signal: abortControllerRef.current?.signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
@@ -709,14 +657,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     if (settings.perplexityModels) {
       settings.perplexityModels.forEach(m => allModels.push({ id: `perplexity/${m.code}`, displayName: m.displayName }))
     }
-    if (settings.geminiModels) {
-      settings.geminiModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
-    }
     if (settings.groqModels) {
       settings.groqModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
-    if (settings.minimaxModels) {
-      settings.minimaxModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+    if (settings.nvidiaModels) {
+      settings.nvidiaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
 
     return allModels

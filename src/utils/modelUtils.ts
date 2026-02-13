@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Video,
 } from 'lucide-react'
+import { modelSupportsTools } from '../tools/adapters'
 
 /**
  * Model information interface
@@ -27,7 +28,7 @@ import {
 export interface ModelInfo {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia'
 }
 
 /**
@@ -101,6 +102,69 @@ export const CAPABILITY_BADGES: Record<string, CapabilityBadge> = {
 }
 
 /**
+ * Styled capability badge config for model picker - distinct colors, icons, gradients
+ */
+export interface CapabilityBadgeStyle {
+  key: string
+  label: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  gradient: string
+  iconColor: string
+  tooltip: string
+}
+
+export const CAPABILITY_BADGE_STYLES: Record<string, CapabilityBadgeStyle> = {
+  toolCall: {
+    key: 'toolCall',
+    label: 'Tools',
+    icon: Wrench,
+    gradient: 'linear-gradient(145deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%)',
+    iconColor: '#fffbeb',
+    tooltip: 'Supports function calling & tools',
+  },
+  vision: {
+    key: 'vision',
+    label: 'Vision',
+    icon: Eye,
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+    iconColor: '#e0e7ff',
+    tooltip: 'Supports images & vision',
+  },
+  deepThinking: {
+    key: 'deepThinking',
+    label: 'Think',
+    icon: Brain,
+    gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)',
+    iconColor: '#f3e8ff',
+    tooltip: 'Deep reasoning & chain-of-thought',
+  },
+  webSearch: {
+    key: 'webSearch',
+    label: 'Search',
+    icon: Globe,
+    gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+    iconColor: '#dcfce7',
+    tooltip: 'Web search & real-time info',
+  },
+  imageGen: {
+    key: 'imageGen',
+    label: 'Image',
+    icon: ImageIcon,
+    gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+    iconColor: '#fce7f3',
+    tooltip: 'Image generation',
+  },
+  videoRec: {
+    key: 'videoRec',
+    label: 'Video',
+    icon: Video,
+    gradient: 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
+    iconColor: '#ccfbf1',
+    tooltip: 'Video recognition',
+  },
+}
+
+/**
  * Get capabilities from model. Prefers explicit ConfiguredModel fields over heuristics.
  *
  * @param model - Model with optional capability fields
@@ -133,6 +197,31 @@ export function getCapabilitiesFromModel(
   }
 
   return capabilities
+}
+
+/**
+ * Get capabilities for model picker display.
+ * Includes tool calling via modelSupportsTools when provider is available.
+ *
+ * @param model - Model with provider, code, displayName, and optional capability fields
+ * @returns Array of capability keys for badge display
+ */
+export function getCapabilitiesForModelPicker(
+  model: ModelWithCapabilities & { code?: string; displayName?: string; provider?: string }
+): string[] {
+  const caps = getCapabilitiesFromModel(model)
+
+  // Tool calling: only show when we have explicit support (ConfiguredModel or provider whitelist)
+  const hasToolSupport =
+    model.supportsToolCall ||
+    (!!model.provider && !!model.code && modelSupportsTools(model.provider, model.code))
+  if (caps.includes('toolCall') && !hasToolSupport) {
+    caps.splice(caps.indexOf('toolCall'), 1)
+  } else if (!caps.includes('toolCall') && hasToolSupport) {
+    caps.push('toolCall')
+  }
+
+  return caps
 }
 
 /**
@@ -307,7 +396,6 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
     name.includes('vision') ||
     name.includes('4o') ||
     name.includes('pro-vision') ||
-    name.includes('gemini') ||  // All Gemini models support vision
     name.includes('claude-3') || // Claude 3 models support vision
     name.includes('claude-sonnet') ||
     name.includes('claude-opus') ||
@@ -326,10 +414,8 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
     name.includes('gpt-4') ||
     name.includes('gpt-3.5') ||
     name.includes('claude') ||
-    name.includes('gemini') ||
     name.includes('mistral') ||
-    name.includes('llama-3') ||
-    name.includes('minimax')
+    name.includes('llama-3')
   ) {
     capabilities.push('code')
   }
@@ -379,6 +465,24 @@ export function filterModels<T extends { code: string; displayName: string }>(
 }
 
 /**
+ * Format context length for display (e.g. 131072 -> "131K", 1000000 -> "1M")
+ */
+export function formatContextLength(tokens: number | undefined): string {
+  if (tokens == null || tokens <= 0) return ''
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
+  return `${Math.round(tokens / 1000)}K`
+}
+
+/**
+ * Get context length for a model from settings (ConfiguredModel.maxContext only).
+ * Only uses the value explicitly set in settings; no fallback lookup.
+ */
+export function getModelContextLength(model: { maxContext?: number }): number | undefined {
+  if (model.maxContext != null && model.maxContext > 0) return model.maxContext
+  return undefined
+}
+
+/**
  * Group models by provider
  * 
  * @param models - Array of models with provider field
@@ -391,9 +495,8 @@ export function groupModelsByProvider<T extends ModelInfo>(
     ollama: [],
     perplexity: [],
     openrouter: [],
-    gemini: [],
     groq: [],
-    minimax: []
+    nvidia: []
   }
 
   models.forEach(model => {
@@ -409,12 +512,11 @@ export function groupModelsByProvider<T extends ModelInfo>(
  * Provider configuration with colors and icons
  */
 export const PROVIDER_CONFIG = {
-  gemini: { title: 'Gemini', color: '#4dabf7' },
   openrouter: { title: 'OpenRouter', color: '#a855f7' },
   perplexity: { title: 'Perplexity', color: '#22c55e' },
   groq: { title: 'Groq', color: '#f97316' },
   ollama: { title: 'Ollama', color: '#339af0' },
-  minimax: { title: 'MiniMax', color: '#6366f1' },
+  nvidia: { title: 'NVIDIA', color: '#76b900' },
 } as const
 
 /**
@@ -448,13 +550,6 @@ export function getModelDescription(model: { provider: string; code: string; dis
   const name = model.displayName.toLowerCase()
   const code = model.code.toLowerCase()
 
-  // Provider-specific descriptions
-  if (model.provider === 'gemini') {
-    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
-    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
-    return 'Google AI model with multimodal capabilities'
-  }
-
   if (model.provider === 'openrouter') {
     if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
     if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
@@ -478,15 +573,12 @@ export function getModelDescription(model: { provider: string; code: string; dis
     return 'Ultra-fast inference on Groq hardware'
   }
 
-  if (model.provider === 'minimax') {
-    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
-    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
-    if (name.includes('m2')) return 'Powerful model with 200k context'
-    return 'MiniMax AI model with advanced capabilities'
-  }
-
   if (model.provider === 'ollama') {
     return 'Running locally on your machine'
+  }
+
+  if (model.provider === 'nvidia') {
+    return 'NVIDIA NIM API with optimized inference'
   }
 
   // Fallback for any unhandled provider

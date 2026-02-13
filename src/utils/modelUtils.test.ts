@@ -15,6 +15,7 @@ import {
   groupModelsByProvider,
   getProviderTitle,
   getProviderColor,
+  getCapabilitiesForModelPicker,
   type ModelInfo
 } from './modelUtils'
 
@@ -293,6 +294,69 @@ describe('modelUtils', () => {
 
     it('returns default color for unknown providers', () => {
       expect(getProviderColor('unknown')).toBe('#b0b0b0')
+    })
+  })
+
+  describe('getCapabilitiesForModelPicker', () => {
+    it('includes toolCall for Groq model in whitelist', () => {
+      const model = {
+        code: 'llama-3.1-8b-instant',
+        displayName: 'Llama 3.1 8B Instant',
+        provider: 'groq',
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).toContain('toolCall')
+    })
+
+    it('excludes toolCall for Groq model not in whitelist even when heuristic would add it', () => {
+      const model = {
+        code: 'mistral-7b',
+        displayName: 'Mistral 7B',
+        provider: 'groq',
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).not.toContain('toolCall')
+    })
+
+    it('includes toolCall for OpenRouter model', () => {
+      const model = {
+        code: 'anthropic/claude-3.5-sonnet',
+        displayName: 'Claude 3.5 Sonnet',
+        provider: 'openrouter',
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).toContain('toolCall')
+    })
+
+    it('excludes toolCall for Perplexity model', () => {
+      const model = {
+        code: 'sonar',
+        displayName: 'Sonar',
+        provider: 'perplexity',
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).not.toContain('toolCall')
+    })
+
+    it('includes toolCall when model has explicit supportsToolCall', () => {
+      const model = {
+        code: 'custom-model',
+        displayName: 'Custom Model',
+        provider: 'groq',
+        supportsToolCall: true,
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).toContain('toolCall')
+    })
+
+    it('includes toolCall for Ollama model in whitelist', () => {
+      const model = {
+        code: 'llama3.1',
+        displayName: 'Llama 3.1',
+        provider: 'ollama',
+      }
+      const caps = getCapabilitiesForModelPicker(model)
+      expect(caps).toContain('toolCall')
     })
   })
 })

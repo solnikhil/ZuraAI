@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
-import { ChevronDown, Check, Search, Sparkles, Zap, Brain, MessageSquare, Star, Cpu, Cloud, Database, Globe } from 'lucide-react'
+import { ChevronDown, Check, Search, Zap, MessageSquare, Star, Cpu, Cloud, Database, Globe } from 'lucide-react'
 import { useSettings } from '../../contexts/SettingsContext'
 import { getModelAttributes } from '../../utils/modelUtils'
 import { removeEmojis } from '../../utils/textUtils'
@@ -9,19 +9,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 interface ModelWithProvider {
     code: string
     displayName: string
-    provider: 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
+    provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq'
 }
 
 type ViewMode = 'favorites' | 'all'
 
 // Provider configuration
 const providers = [
-    { key: 'gemini', title: 'Gemini', icon: <Sparkles />, color: '#4dabf7', logo: true },
     { key: 'openrouter', title: 'OpenRouter', icon: <Cloud />, color: '#a855f7', logo: true },
     { key: 'perplexity', title: 'Perplexity', icon: <Globe />, color: '#22c55e', logo: true },
     { key: 'groq', title: 'Groq', icon: <Zap />, color: '#f97316', logo: true },
     { key: 'ollama', title: 'Ollama', icon: <Database />, color: '#339af0', logo: true },
-    { key: 'minimax', title: 'MiniMax', icon: <Brain />, color: '#6366f1', logo: true },
 ] as const
 
 export default function ModelSelector({ minimal }: { minimal?: boolean }) {
@@ -148,14 +146,8 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
         if (settings.configuredModels) {
             settings.configuredModels.forEach(m => allModels.push({ ...m, provider: 'openrouter' }))
         }
-        if (settings.geminiModels) {
-            settings.geminiModels.forEach(m => allModels.push({ ...m, provider: 'gemini' }))
-        }
         if (settings.groqModels) {
             settings.groqModels.forEach(m => allModels.push({ ...m, provider: 'groq' }))
-        }
-        if (settings.minimaxModels) {
-            settings.minimaxModels.forEach(m => allModels.push({ ...m, provider: 'minimax' }))
         }
         return allModels
     }

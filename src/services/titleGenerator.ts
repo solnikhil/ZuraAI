@@ -1,5 +1,5 @@
-import { generateGeminiCompletion } from './gemini'
 import { generateGroqCompletion } from './groq'
+import { generateNvidiaCompletion } from './nvidia'
 import { generateOllamaCompletion } from './ollama'
 import { generatePerplexityCompletion } from './perplexity'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
@@ -38,10 +38,7 @@ User message: "${userMessage.slice(0, 200)}"`
 
     try {
         let title = ''
-        const titleModel = settings.titleModel || 'gemini-2.0-flash'
-
-        // Determine Provider
-        const isGemini = titleModel.startsWith('gemini-') && settings.geminiApiKey
+        const titleModel = settings.titleModel || 'google/gemini-2.0-flash-exp:free'
 
         // Check if it's a known Groq model or if we are forced to use Groq
         const knownGroqModels = [
@@ -62,15 +59,11 @@ User message: "${userMessage.slice(0, 200)}"`
 
         const isPerplexity = titleModel.startsWith('sonar') && settings.perplexityApiKey
 
-        if (isGemini) {
-            const res = await generateGeminiCompletion(
-                settings.geminiApiKey,
-                titleModel,
-                [{ role: 'user', content: prompt }],
-                { temperature: 0.3 }
-            )
-            title = res.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        } else if (isGroq) {
+        const configuredNvidiaModels = settings.nvidiaModels?.map((m: any) => m.code) || []
+        const isNvidia = (settings.modelProvider === 'nvidia' && settings.nvidiaApiKey) ||
+            (configuredNvidiaModels.includes(titleModel) && settings.nvidiaApiKey)
+
+        if (isGroq) {
             const res = await generateGroqCompletion(
                 settings.groqApiKey,
                 titleModel,
@@ -94,6 +87,14 @@ User message: "${userMessage.slice(0, 200)}"`
                 { temperature: 0.3 }
             )
             title = res.message?.content || ''
+        } else if (isNvidia) {
+            const res = await generateNvidiaCompletion(
+                settings.nvidiaApiKey,
+                titleModel || settings.aiModel,
+                [{ role: 'user', content: prompt }],
+                { temperature: 0.3, max_tokens: 20 }
+            )
+            title = res.choices?.[0]?.message?.content || ''
         } else if (getOpenRouterApiKey(settings.openRouterApiKey)) {
             // Fallback to OpenRouter for everything else
             const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)

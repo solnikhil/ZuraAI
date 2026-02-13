@@ -18,7 +18,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const { updateSettings } = useSettings()
     const { showToast } = useToast()
     const [apiKey, setApiKey] = useState('')
-    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'gemini' | 'groq'>('openrouter')
+    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'groq'>('openrouter')
 
     const validateApiKey = async (provider: string, key: string): Promise<boolean> => {
         try {
@@ -41,13 +41,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     })
                 })
                 return response.ok || response.status === 400 // 400 means auth worked but request was invalid
-            } else if (provider === 'gemini') {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
-                })
-                return response.ok
             } else if (provider === 'groq') {
                 const response = await fetch('https://api.groq.com/openai/v1/models', {
                     headers: { 'Authorization': `Bearer ${key}` }
@@ -84,9 +77,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             } else if (selectedProvider === 'perplexity') {
                 await saveApiKeyToSecureStorage('perplexityApiKey', trimmedKey)
                 updates.perplexityApiKey = trimmedKey
-            } else if (selectedProvider === 'gemini') {
-                await saveApiKeyToSecureStorage('geminiApiKey', trimmedKey)
-                updates.geminiApiKey = trimmedKey
             } else if (selectedProvider === 'groq') {
                 await saveApiKeyToSecureStorage('groqApiKey', trimmedKey)
                 updates.groqApiKey = trimmedKey
@@ -157,19 +147,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                             </div>
                             <p className="provider-desc">Real-time web search powered AI responses</p>
                             <a href="https://www.perplexity.ai/settings/api" target="_blank" rel="noopener noreferrer" className="provider-link">
-                                Get API Key →
-                            </a>
-                        </button>
-
-                        <button
-                            className={`provider-option ${selectedProvider === 'gemini' ? 'active' : ''}`}
-                            onClick={() => setSelectedProvider('gemini')}
-                        >
-                            <div className="provider-header">
-                                <span className="provider-name">Google Gemini</span>
-                            </div>
-                            <p className="provider-desc">Google's powerful AI models with vision support</p>
-                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="provider-link">
                                 Get API Key →
                             </a>
                         </button>

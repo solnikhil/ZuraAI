@@ -28,7 +28,7 @@ interface SidebarProps {
 export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
-    const { sidebarHidden } = useAppShell()
+    const { sidebarHidden, sidebarCollapsed } = useAppShell()
     const {
         sessions,
         folders,
@@ -360,7 +360,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         <div
             className={`sidebar-container${shouldApplyGlass ? ' frosted' : ''}`}
             style={{
-                width: sidebarHidden ? '0px' : '260px',
+                width: sidebarHidden ? '0px' : (sidebarCollapsed ? '60px' : '260px'),
                 background: shouldApplyGlass
                     ? 'transparent'
                     : 'var(--theme-surface)',

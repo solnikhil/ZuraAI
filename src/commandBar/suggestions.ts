@@ -1,6 +1,8 @@
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia'
+
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'open_settings_section'; section: string }
+  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis' }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
@@ -165,8 +167,43 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       id: 'go-settings-providers',
       title: 'Providers Settings',
       subtitle: 'Models, API keys, and search APIs',
-      keywords: ['providers', 'models', 'api', 'keys', 'llm', 'openrouter', 'gemini', 'groq'],
+      keywords: ['providers', 'models', 'api', 'keys', 'llm'],
       action: { type: 'open_settings_section', section: 'providers' }
+    },
+    {
+      id: 'go-settings-openrouter',
+      title: 'OpenRouter Settings',
+      subtitle: 'API keys & models',
+      keywords: ['openrouter', 'api', 'models'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'openrouter' }
+    },
+    {
+      id: 'go-settings-groq',
+      title: 'Groq Settings',
+      subtitle: 'Ultra-low-latency models',
+      keywords: ['groq'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'groq' }
+    },
+    {
+      id: 'go-settings-perplexity',
+      title: 'Perplexity Settings',
+      subtitle: 'Research-focused models',
+      keywords: ['perplexity'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'perplexity' }
+    },
+    {
+      id: 'go-settings-ollama',
+      title: 'Ollama Settings',
+      subtitle: 'Local models',
+      keywords: ['ollama', 'local'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' }
+    },
+    {
+      id: 'go-settings-search-apis',
+      title: 'Search APIs Settings',
+      subtitle: 'Tavily & web search',
+      keywords: ['tavily', 'search api', 'web search', 'tools'],
+      action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' }
     },
     {
       id: 'go-settings-themes',

@@ -12,7 +12,7 @@ import { Cloud, Database, Globe, Sparkles, Zap, Brain } from 'lucide-react'
 /**
  * Provider types supported by the application
  */
-export type ProviderType = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax'
+export type ProviderType = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax' | 'nvidia'
 
 /**
  * Size variants for the provider logo
@@ -53,7 +53,8 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   perplexity: Globe,
   groq: Zap,
   ollama: Database,
-  minimax: Brain
+  minimax: Brain,
+  nvidia: Zap
 }
 
 /**
@@ -65,7 +66,8 @@ const PROVIDER_COLORS: Record<string, string> = {
   perplexity: '#22c55e',
   groq: '#f97316',
   ollama: '#339af0',
-  minimax: '#6366f1'
+  minimax: '#6366f1',
+  nvidia: '#76b900'
 }
 
 /**
@@ -164,7 +166,7 @@ export function getProviderLogoColor(provider: string): string {
  * @returns True if provider is known
  */
 export function isKnownProvider(provider: string): provider is ProviderType {
-  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax'].includes(provider.toLowerCase())
+  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'nvidia'].includes(provider.toLowerCase())
 }
 
 export default ProviderLogo

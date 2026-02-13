@@ -12,11 +12,10 @@ const STORAGE_FILE = path.join(app.getPath('userData'), 'secure-storage.json')
 interface SecureData {
     openRouterApiKey?: string
     perplexityApiKey?: string
-    geminiApiKey?: string
     groqApiKey?: string
     tavilyApiKey?: string
-    minimaxApiKey?: string
     voyageApiKey?: string
+    nvidiaApiKey?: string
 }
 
 interface StorageStatus {
@@ -66,7 +65,7 @@ async function readSecureDataAsync(): Promise<SecureData> {
                         decrypted[key as keyof SecureData] = value
                     }
                 } catch {
-                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.length < 100) {
+                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.startsWith('nvapi-') || value.length < 100) {
                         decrypted[key as keyof SecureData] = value
                     }
                 }
@@ -106,7 +105,7 @@ function readSecureData(): SecureData {
                         decrypted[key as keyof SecureData] = value
                     }
                 } catch {
-                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.length < 100) {
+                    if (value.startsWith('sk-') || value.startsWith('pplx-') || value.startsWith('tvly-') || value.startsWith('nvapi-') || value.length < 100) {
                         decrypted[key as keyof SecureData] = value
                     }
                 }

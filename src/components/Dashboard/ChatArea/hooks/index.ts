@@ -11,9 +11,7 @@ export { useIsolatedStreaming } from './useIsolatedStreaming'
 export {
   useOllamaStreaming,
   usePerplexityStreaming,
-  useGeminiStreaming,
   useGroqStreaming,
-  useMiniMaxStreaming,
   useOpenRouterStreaming,
 } from './streaming'
 
