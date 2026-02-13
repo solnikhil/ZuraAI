@@ -36,6 +36,8 @@ interface StreamingMessageProps {
   }
   /** Session ID for checking streaming state */
   sessionId: string
+  /** Active tool calls during streaming (for in-message tool calling animation) */
+  activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   /** Callback when content is copied */
   onCopy?: (content: string) => void
   /** Callback when regenerate is requested */
@@ -55,6 +57,7 @@ interface StreamingMessageProps {
 function StreamingMessageComponent({
   message,
   sessionId,
+  activeToolCalls,
   onCopy,
   onRegenerate,
 }: StreamingMessageProps) {
@@ -92,6 +95,7 @@ function StreamingMessageComponent({
     <MessageRenderer
       message={displayMessage}
       isStreaming={isStreaming}
+      activeToolCalls={activeToolCalls}
       onCopy={onCopy}
       onRegenerate={onRegenerate}
     />
@@ -152,6 +156,13 @@ function arePropsEqual(
   const prevToolResults = prevProps.message.toolResults || []
   const nextToolResults = nextProps.message.toolResults || []
   if (prevToolResults.length !== nextToolResults.length) {
+    return false
+  }
+
+  // Compare activeToolCalls (for tool calling animation)
+  const prevActive = prevProps.activeToolCalls || []
+  const nextActive = nextProps.activeToolCalls || []
+  if (prevActive.length !== nextActive.length) {
     return false
   }
   

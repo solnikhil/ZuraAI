@@ -165,6 +165,68 @@ function normalizeParsedArgs(toolName: string, parsed: unknown): Record<string, 
     return wrapPrimitiveArgs(toolName, parsed)
 }
 
+/**
+ * Return synthetic args that will fail validation when a tool call has empty/invalid arguments.
+ * Ensures we send an error result back to the model so the stream continues instead of hanging.
+ */
+function getSyntheticErrorArgs(toolName: string): Record<string, unknown> {
+    const toolDef = getToolByName(toolName)
+    if (!toolDef?.parameters?.required?.length) {
+        return {}
+    }
+    const required = toolDef.parameters.required
+    return Object.fromEntries(required.map(p => [p, '']))
+}
+
+/**
+ * Fallback context for tool calls when parsing fails (e.g. empty args from streaming).
+ * Attach to response as response._fallbackContext when calling handleToolCalls.
+ */
+export interface ToolCallFallbackContext {
+    lastUserMessage?: string
+    reasoning?: string
+}
+
+/**
+ * Extract a fallback search query from conversation context when tool args are empty.
+ * Tries: last user message (trimmed) → patterns in reasoning.
+ */
+function extractFallbackQuery(
+    toolName: string,
+    fallbackContext?: ToolCallFallbackContext | null
+): string | null {
+    if (toolName !== 'web_search' || !fallbackContext) return null
+
+    const { lastUserMessage, reasoning } = fallbackContext
+
+    // 1. Use last user message as query (most reliable for "what is X?" type questions)
+    if (lastUserMessage && typeof lastUserMessage === 'string') {
+        const trimmed = lastUserMessage.trim()
+        if (trimmed.length > 0) {
+            return trimmed.length > 300 ? trimmed.slice(0, 300) : trimmed
+        }
+    }
+
+    // 2. Search for query-like patterns in reasoning (e.g. "search for 'kiro'", "I'll look up X")
+    if (reasoning && typeof reasoning === 'string') {
+        const patterns = [
+            /search\s+for\s+['"]([^'"]+)['"]/i,
+            /search\s+for\s+(\S[^.]{2,80}?)(?:\s|\.|$)/i,
+            /web\s+search[:\s]+['"]?([^'"]+)['"]?/i,
+            /look\s+up\s+['"]?([^'".]+)['"]?/i,
+            /search\s+['"]?([^'"]+)['"]?\s+(?:to|for)/i,
+            /query\s*[=:]\s*['"]?([^'"]+)['"]?/i,
+            /["']([^"']{3,100})["']\s+(?:to\s+)?search/i
+        ]
+        for (const re of patterns) {
+            const m = reasoning.match(re)
+            if (m?.[1]?.trim()) return m[1].trim().slice(0, 300)
+        }
+    }
+
+    return null
+}
+
 function parseToolArguments(toolName: string, rawArgs: string): Record<string, unknown> | null {
     const argsStr = rawArgs?.trim() || ''
     if (!argsStr) return null
@@ -196,26 +258,35 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
 
 /**
  * Parse tool calls from OpenRouter/OpenAI response
+ * Supports optional fallback context (response._fallbackContext) to infer query when args are empty.
  */
-export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall[] {
+export function parseOpenRouterToolCalls(response: OpenRouterResponse & { _fallbackContext?: ToolCallFallbackContext }): ToolCall[] {
     const message = response.choices?.[0]?.message
 
     if (!message?.tool_calls || message.tool_calls.length === 0) {
         return []
     }
 
+    const fallbackContext = response._fallbackContext
     const toolCalls: ToolCall[] = []
 
     message.tool_calls.forEach((tc: OpenRouterToolCall) => {
         const rawArgs = tc.function.arguments || ''
-        const args = parseToolArguments(tc.function.name, rawArgs)
+        let args = parseToolArguments(tc.function.name, rawArgs)
+
         if (!args) {
-            console.warn('[openrouter] Skipping tool call with empty/invalid arguments:', {
-                tool: tc.function.name,
-                argsLength: rawArgs.length,
-                argsPreview: rawArgs.slice(0, 100)
-            })
-            return
+            const fallbackQuery = extractFallbackQuery(tc.function.name, fallbackContext)
+            if (fallbackQuery) {
+                args = { query: fallbackQuery }
+                console.info('[openrouter] Empty args for web_search, used fallback from context:', { query: fallbackQuery.slice(0, 60) + (fallbackQuery.length > 60 ? '...' : '') })
+            } else {
+                console.warn('[openrouter] Tool call had empty/invalid arguments, using synthetic error args so model receives a result:', {
+                    tool: tc.function.name,
+                    argsLength: rawArgs.length,
+                    argsPreview: rawArgs.slice(0, 100)
+                })
+                args = getSyntheticErrorArgs(tc.function.name)
+            }
         }
 
         toolCalls.push({

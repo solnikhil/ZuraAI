@@ -178,9 +178,20 @@ export function useGroqStreaming({
         }))
       }
 
+      const lastUserMsg = [...optimizedHistory].reverse().find((m: any) => m?.role === 'user')
+      const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : null
+
+      const responseWithFallback = {
+        choices: [{ message: reconstructedMessage }],
+        _fallbackContext: {
+          lastUserMessage: lastUserContent ?? undefined,
+          reasoning: accumulatedReasoning || undefined
+        }
+      }
+
       let toolResult
       try {
-        toolResult = await handleToolCalls({ choices: [{ message: reconstructedMessage }] })
+        toolResult = await handleToolCalls(responseWithFallback)
       } catch (toolError: any) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -285,9 +296,17 @@ export function useGroqStreaming({
               }))
             }
 
+            const followUpResponseWithFallback = {
+              choices: [{ message: reconstructedFollowUp }],
+              _fallbackContext: {
+                lastUserMessage: lastUserContent ?? undefined,
+                reasoning: accumulatedReasoning || undefined
+              }
+            }
+
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUp }] })
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback)
             } catch (e: any) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }

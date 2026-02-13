@@ -394,6 +394,7 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
+    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
@@ -418,6 +419,7 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
+    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     onChange(updates)
@@ -431,6 +433,7 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
+    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (modelProvider === provider && aiModel === modelCode) {
@@ -1468,6 +1471,7 @@ function ModelGroup({
       {models.map((model) => {
         const enabled = model.enabled !== false
         const capabilities = getCapabilitiesFromModel(model as ConfiguredModel)
+        const handleToggle = () => onToggleModel(model.code, !enabled)
         return (
           <motion.div
             key={`${selectedProvider}-${model.code}`}
@@ -1476,7 +1480,12 @@ function ModelGroup({
             transition={{ layout: { duration: 0.25, ease: 'easeInOut' } }}
             className="flex items-center justify-between gap-2 border-t border-border px-4 py-3 first:border-t-0"
           >
-            <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={handleToggle}
+              className="min-w-0 flex-1 text-left cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 -m-1 p-1"
+              aria-label={`${enabled ? 'Disable' : 'Enable'} ${model.displayName}`}
+            >
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <div className="truncate text-sm font-medium text-foreground">
                   {model.displayName}
@@ -1504,7 +1513,7 @@ function ModelGroup({
               <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {model.code}
               </div>
-            </div>
+            </button>
             <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="ghost"
@@ -1552,13 +1561,13 @@ function ModelGroup({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <motion.div whileTap={{ scale: 0.92 }} transition={{ duration: 0.15 }}>
+              <div onClick={(e) => e.stopPropagation()} role="presentation">
                 <Switch
                   checked={enabled}
                   onCheckedChange={(checked) => onToggleModel(model.code, checked)}
                   aria-label={`Toggle ${model.displayName}`}
                 />
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         )

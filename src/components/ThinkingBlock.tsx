@@ -1,9 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight } from './icons'
+import { ChevronRight, Loader2 } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
+
+const toolDisplayNames: Record<string, string> = {
+    web_search: 'Web Search',
+}
+
+function formatToolDisplayName(name: string): string {
+    return toolDisplayNames[name] || name.replace(/_/g, ' ')
+}
+
+function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
+    const displayName = formatToolDisplayName(tool.name)
+    if (tool.name === 'web_search' && tool.arguments?.query) {
+        return `Using ${displayName}: "${String(tool.arguments.query)}"`
+    }
+    return `Using ${displayName}...`
+}
 
 interface ThinkingBlockProps {
     thinking: string
@@ -11,6 +27,8 @@ interface ThinkingBlockProps {
     thinkingDuration?: number // in milliseconds
     isSearching?: boolean // Show "Searching" state instead of "Thinking"
     searchQuery?: string // The search query being searched
+    /** Active tool calls during streaming (shows tool calling animation) */
+    activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
     // New props for showing completed blocks
     completedBlocks?: ThinkingBlockType[]
 }
@@ -93,8 +111,9 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
     )
 }
 
-export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, completedBlocks = [] }: ThinkingBlockProps) {
-    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching) // Expand only for active state
+export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, activeToolCalls = [], completedBlocks = [] }: ThinkingBlockProps) {
+    const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
+    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls) // Expand only for active state
     const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
     // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
     const [finalTime, setFinalTime] = useState<number | null>(
@@ -132,24 +151,26 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isThinking])
 
-    // Auto-expand only while actively thinking, collapse when done
+    // Auto-expand only while actively thinking, tool calling, or searching; collapse when done
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
-        } else if (!isThinking && !isSearching) {
-            // Collapse immediately when thinking/searching is done
+        } else if (hasActiveToolCalls) {
+            setIsExpanded(true)
+        } else if (!isThinking && !isSearching && !hasActiveToolCalls) {
+            // Collapse immediately when thinking/searching/tool-calling is done
             setIsExpanded(false)
         }
-    }, [isThinking, isSearching, thinking])
+    }, [isThinking, isSearching, hasActiveToolCalls, thinking])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
     }
 
-    if (!thinking && !isThinking && !isSearching && completedBlocks.length === 0) return null
+    if (!thinking && !isThinking && !isSearching && !hasActiveToolCalls && completedBlocks.length === 0) return null
 
     const hasThinkingContent = thinking && thinking.trim().length > 0
-    const showActiveBlock = hasThinkingContent || isThinking || isSearching
+    const showActiveBlock = hasThinkingContent || isThinking || isSearching || hasActiveToolCalls
 
     // Use finalTime when thinking is complete, otherwise use live elapsedTime
     const displayTime = finalTime !== null ? finalTime : elapsedTime
@@ -168,9 +189,19 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
             {/* Current active block */}
             {showActiveBlock && (
                 <div className={`thinking-block ${isExpanded ? 'expanded' : ''}`}>
-                    <div className={`thinking-header ${isSearching ? 'searching' : ''}`} onClick={handleToggle}>
+                    <div className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''}`} onClick={handleToggle}>
                         <div className="thinking-label">
-                            {isSearching ? (
+                            {hasActiveToolCalls ? (
+                                <span className="thinking-text thinking-tool-calling">
+                                    <span className="thinking-tool-calling-icon">
+                                        <Loader2 size={14} className="tool-call-spinner" />
+                                    </span>
+                                    <AITextLoading
+                                        text={getToolCallText(activeToolCalls[0])}
+                                        animationKey="tool-calling"
+                                    />
+                                </span>
+                            ) : isSearching ? (
                                 <span className="thinking-text">
                                     <AITextLoading 
                                         text={`Searching web${searchQuery ? `: "${searchQuery}"` : ''}`}

@@ -177,14 +177,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }
         // Initialize NVIDIA fields if missing
         if (!parsed.nvidiaApiKey) parsed.nvidiaApiKey = defaultSettings.nvidiaApiKey
-        if (!parsed.nvidiaModels) parsed.nvidiaModels = defaultSettings.nvidiaModels
-        else {
-            const merged = defaultSettings.nvidiaModels.map((d) => {
-                const existing = parsed.nvidiaModels.find((m: { code: string }) => m.code === d.code)
-                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-            })
-            parsed.nvidiaModels = merged
-        }
+        // Always use full default list; merge preserves user's enabled state for models that exist in both
+        const userNvidia = parsed.nvidiaModels
+        const merged = defaultSettings.nvidiaModels.map((d) => {
+            const existing = Array.isArray(userNvidia) ? userNvidia.find((m: { code: string }) => m.code === d.code) : undefined
+            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+        })
+        parsed.nvidiaModels = merged
         // Migrate deprecated Groq model IDs when modelProvider is groq
         const deprecatedGroqModelMap: Record<string, string> = {
             'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',

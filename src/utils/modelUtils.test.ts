@@ -166,13 +166,13 @@ describe('modelUtils', () => {
       expect(detectModelCapabilities('codestral')).toContain('code')
       expect(detectModelCapabilities('code-llama')).toContain('code')
       expect(detectModelCapabilities('deepseek-coder')).toContain('code')
-      expect(detectModelCapabilities('minimax-m2')).toContain('code')
+      expect(detectModelCapabilities('mistral-7b')).toContain('code')
     })
 
     it('detects reasoning capability', () => {
       expect(detectModelCapabilities('o1-reasoning')).toContain('reasoning')
       expect(detectModelCapabilities('o1-preview')).toContain('reasoning')
-      expect(detectModelCapabilities('MiniMax-M2.1')).toContain('reasoning')
+      expect(detectModelCapabilities('deepseek-r1')).toContain('reasoning')
     })
 
     it('detects fast capability', () => {
@@ -236,45 +236,41 @@ describe('modelUtils', () => {
   describe('groupModelsByProvider', () => {
     const testModels: ModelInfo[] = [
       { code: 'gpt-4', displayName: 'GPT-4', provider: 'openrouter' },
-      { code: 'gemini-pro', displayName: 'Gemini Pro', provider: 'gemini' },
+      { code: 'llama3-70b', displayName: 'Llama 3 70B', provider: 'nvidia' },
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
       { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' },
       { code: 'sonar', displayName: 'Sonar', provider: 'perplexity' },
       { code: 'mixtral', displayName: 'Mixtral', provider: 'groq' },
-      { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1', provider: 'minimax' }
     ]
 
     it('groups models by provider', () => {
       const groups = groupModelsByProvider(testModels)
-      
+
       expect(groups.openrouter).toHaveLength(2)
-      expect(groups.gemini).toHaveLength(1)
+      expect(groups.nvidia).toHaveLength(1)
       expect(groups.ollama).toHaveLength(1)
       expect(groups.perplexity).toHaveLength(1)
       expect(groups.groq).toHaveLength(1)
-      expect(groups.minimax).toHaveLength(1)
     })
 
     it('returns empty arrays for providers with no models', () => {
       const groups = groupModelsByProvider([])
-      
+
       expect(groups.openrouter).toEqual([])
-      expect(groups.gemini).toEqual([])
       expect(groups.ollama).toEqual([])
       expect(groups.perplexity).toEqual([])
       expect(groups.groq).toEqual([])
-      expect(groups.minimax).toEqual([])
+      expect(groups.nvidia).toEqual([])
     })
   })
 
   describe('getProviderTitle', () => {
     it('returns correct titles for known providers', () => {
-      expect(getProviderTitle('gemini')).toBe('Gemini')
       expect(getProviderTitle('openrouter')).toBe('OpenRouter')
       expect(getProviderTitle('perplexity')).toBe('Perplexity')
       expect(getProviderTitle('groq')).toBe('Groq')
       expect(getProviderTitle('ollama')).toBe('Ollama')
-      expect(getProviderTitle('minimax')).toBe('MiniMax')
+      expect(getProviderTitle('nvidia')).toBe('NVIDIA')
     })
 
     it('returns provider name for unknown providers', () => {
@@ -284,12 +280,11 @@ describe('modelUtils', () => {
 
   describe('getProviderColor', () => {
     it('returns correct colors for known providers', () => {
-      expect(getProviderColor('gemini')).toBe('#4dabf7')
       expect(getProviderColor('openrouter')).toBe('#a855f7')
       expect(getProviderColor('perplexity')).toBe('#22c55e')
       expect(getProviderColor('groq')).toBe('#f97316')
       expect(getProviderColor('ollama')).toBe('#339af0')
-      expect(getProviderColor('minimax')).toBe('#6366f1')
+      expect(getProviderColor('nvidia')).toBe('#76b900')
     })
 
     it('returns default color for unknown providers', () => {

@@ -76,6 +76,16 @@
     background: var(--theme-scrollbar-hover, var(--theme-border-hover));
 }
 
+/* Hide scrollbar (e.g. for horizontal carousels) */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
 
 /* Animation Keyframes */
 

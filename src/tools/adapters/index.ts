@@ -112,6 +112,11 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'microsoft/phi-3-medium-4k-instruct',
         'deepseek-ai/deepseek-r1',
         'snowflake/arctic',
+        'z-ai/glm4.7',
+        'minimaxai/minimax-m2',
+        'moonshotai/kimi-k2-5',
+        'moonshotai/kimi-k2-instruct',
+        'moonshotai/kimi-k2-instruct-0905',
     ],
 }
 

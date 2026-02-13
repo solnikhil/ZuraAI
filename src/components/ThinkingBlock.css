@@ -54,9 +54,52 @@
     color: rgba(255, 255, 255, 0.7);
 }
 
-/* Searching state text - blue color */
+/* Searching state text - uses theme info color */
 .thinking-header.searching .thinking-text {
-    color: rgba(59, 130, 246, 0.9);
+    color: var(--theme-info, rgba(59, 130, 246, 0.9));
+}
+
+/* Tool calling state - distinct styling with pulse animation */
+.thinking-header.tool-calling .thinking-text {
+    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+}
+
+.thinking-tool-calling {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.thinking-tool-calling-icon {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.tool-call-spinner {
+    animation: toolCallSpin 1s linear infinite;
+}
+
+@keyframes toolCallSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.thinking-header.tool-calling .thinking-label {
+    animation: toolCallPulse 2s ease-in-out infinite;
+}
+
+@keyframes toolCallPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.85;
+    }
 }
 
 /* ==== COPY BUTTON ==== */
