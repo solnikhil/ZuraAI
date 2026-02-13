@@ -257,15 +257,37 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     }
                     
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
-                    // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
-                    // Also match simple indented trees with branch characters
-                    const treeMarkerRegex = /[├└│┌┐┤┴┼].*[─-]|^\s*[|+][-─—]|^\s+\S+\s*#/gm
-                    const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
-                    // Also check for folder/file patterns with comments (like "folder/  # comment")
-                    const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
-                    // Check for tree markers at line starts
-                    const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(codeString)
-                    const looksLikeTree = (markerCount > 0 || hasFolderComments || hasTreeMarkers) && codeString.includes('\n')
+                    
+                    // Enhanced tree detection for code blocks without explicit language tags
+                    const detectTreePattern = (content: string): boolean => {
+                        if (!content.includes('\n')) return false
+                        
+                        // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
+                        const treeMarkerRegex = /[├└│┌┐┤┴┼][\s─-]|^\s*[|+][-─—]/gm
+                        const markerMatches = Array.from(content.matchAll(treeMarkerRegex))
+                        
+                        // Check for folder/file patterns with comments (like "folder/  # comment")
+                        const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(content)
+                        
+                        // Check for tree markers at line starts (more strict)
+                        const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(content)
+                        
+                        // Check if content has typical tree structure characteristics
+                        const lines = content.trim().split('\n')
+                        const hasTreeLines = lines.filter(line => 
+                            /[├└│]/.test(line) || /^\s*[|+][-─—]/.test(line)
+                        ).length
+                        
+                        // A file tree typically has:
+                        // - At least 2 tree marker lines
+                        // - Or folder comments
+                        // - Or consistent tree markers
+                        const hasMinimumTreeStructure = hasTreeLines >= 2 || markerMatches.length >= 2
+                        
+                        return (hasMinimumTreeStructure || hasFolderComments || hasTreeMarkers)
+                    }
+                    
+                    const looksLikeTree = detectTreePattern(codeString)
 
                     if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
                         return (
