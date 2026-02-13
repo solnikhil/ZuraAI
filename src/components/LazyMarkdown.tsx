@@ -262,8 +262,9 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     const detectTreePattern = (content: string): boolean => {
                         if (!content.includes('\n')) return false
                         
-                        // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
-                        const treeMarkerRegex = /[├└│┌┐┤┴┼][\s─-]|^\s*[|+][-─—]/gm
+                        // Match tree-style markers at line starts or with proper indentation
+                        // ├──, └──, ├─, └─, |--, +--, etc. with proper context
+                        const treeMarkerRegex = /^\s*[├└│┌┐┤┴┼][\s─-]|^\s*[|+][-─—]/gm
                         const markerMatches = Array.from(content.matchAll(treeMarkerRegex))
                         
                         // Check for folder/file patterns with comments (like "folder/  # comment")
@@ -272,9 +273,9 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         // Check for tree markers at line starts (more strict)
                         const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(content)
                         
-                        // Check if content has typical tree structure characteristics
+                        // Count lines that have typical tree structure characteristics
                         const lines = content.trim().split('\n')
-                        const hasTreeLines = lines.filter(line => 
+                        const treeLineCount = lines.filter(line => 
                             /[├└│]/.test(line) || /^\s*[|+][-─—]/.test(line)
                         ).length
                         
@@ -282,7 +283,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         // - At least 2 tree marker lines
                         // - Or folder comments
                         // - Or consistent tree markers
-                        const hasMinimumTreeStructure = hasTreeLines >= 2 || markerMatches.length >= 2
+                        const hasMinimumTreeStructure = treeLineCount >= 2 || markerMatches.length >= 2
                         
                         return (hasMinimumTreeStructure || hasFolderComments || hasTreeMarkers)
                     }
