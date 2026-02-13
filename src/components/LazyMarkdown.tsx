@@ -60,22 +60,14 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
         const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
         const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
 
-        // Plain indented file/folder line: "  name", "  name/", "  name  # comment", "name/  # comment"
-        const indentedPathRe = /^\s*[\w.-]+(\/)?(\s{2,}#\s+.*)?$/
-
         const isTreeCandidateLine = (line: string) => {
             if (!line.trim()) return false
             if (!allowedCharsRe.test(line)) return false
             if (markerRe.test(line)) return true
             // Root lines often look like "foo/" or "foo" (top label)
             if (line.trim().endsWith('/')) return true
-            // Plain indented file/folder structure (e.g. "  admin.py  # Admin commands", "  cogs/")
-            if (indentedPathRe.test(line.trim())) return true
             return false
         }
-
-        const hasIndentedLine = (block: string[]) =>
-            block.some((l) => /^\s{2,}/.test(l))
 
         let i = 0
         while (i < lines.length) {
@@ -102,12 +94,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 j += 1
             }
 
-            // Tree markers: require block length + marker count (original behavior)
-            const hasTreeMarkers = block.length >= 3 && markerCount >= 2
-            // Plain indented: no markers but looks like file tree (root + indented children)
-            const hasPlainIndented = block.length >= 2 && hasIndentedLine(block) && markerCount === 0
-
-            if (hasTreeMarkers || hasPlainIndented) {
+            if (block.length >= 3 && markerCount >= 2) {
                 out.push('```tree')
                 out.push(...block)
                 out.push('```')
@@ -223,9 +210,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 code({ node, inline, className, children, ...props }: any) {
                     const match = /language-([\w-]+)/.exec(className || '')
                     const codeString = Array.isArray(children) ? children.join('') : String(children ?? '')
-                    // Derive inline from prop or hast node: block code has parent <pre>, inline has parent <p>
-                    const isInline = inline === true || (node?.parent as { tagName?: string } | undefined)?.tagName !== 'pre'
-                    // Determine if this is a code block: not inline and has language OR has newlines
+                    const isInline = inline === true
                     const isCodeBlock = !isInline && (!!match || codeString.includes('\n'))
 
                     const language = match?.[1]?.toLowerCase()
@@ -273,22 +258,9 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
                     const treeMarkerRegex = /[├└│┌┐┤┴┼].*[─-]|^\s*[|+][-─—]|^\s+\S+\s*#/gm
                     const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
-                    // Folder/file patterns with comments (like "folder/  # comment")
                     const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
-                    // Tree markers at line starts (├──, └──, etc.)
                     const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(codeString)
-                    // Plain indented structure: root + indented children (e.g. "project/\n  src/\n    file.ts")
-                    const treeLines = codeString.split('\n').filter((l) => l.trim())
-                    const hasIndentedLines = treeLines.some((l) => /^\s{2,}/.test(l))
-                    const pathLike = /^[\s\w.\-_/\\@]+(\s{2,}#\s+.*)?$/  // paths, no code syntax
-                    const hasPlainIndentedTree =
-                        treeLines.length >= 2 &&
-                        hasIndentedLines &&
-                        !/[{};=><]/.test(codeString) && // avoid matching code
-                        treeLines.every((l) => pathLike.test(l))
-                    const looksLikeTree =
-                        (markerCount > 0 || hasFolderComments || hasTreeMarkers || hasPlainIndentedTree) &&
-                        codeString.includes('\n')
+                    const looksLikeTree = (markerCount > 0 || hasFolderComments || hasTreeMarkers) && codeString.includes('\n')
 
                     if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
                         return (
