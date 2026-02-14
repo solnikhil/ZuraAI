@@ -102,6 +102,16 @@ export function SystemPromptSection({
             <div className="section-desc">
               Define the system prompt that shapes the AI's personality, capabilities, and guidelines
             </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: '0.8rem',
+                color: 'var(--theme-text-muted)',
+                lineHeight: 1.5
+              }}
+            >
+              When Web Search is enabled, web search instructions are appended at the end of this basic prompt.
+            </div>
           </div>
           <div
             style={{

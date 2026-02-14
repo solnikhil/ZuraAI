@@ -8,16 +8,32 @@
 import { useState, useCallback } from 'react'
 
 /**
- * Unified system prompt for web search - single prompt for all cases
+ * Base system prompt for web search - planning and multi-turn guidance
  */
-const WEB_SEARCH_SYSTEM_PROMPT = `You have access to the web_search tool for real-time information. Use it when the user needs:
+const WEB_SEARCH_BASE_PROMPT = `You have access to the web_search tool for real-time information. Use it when the user needs:
 - Current events, news, or recent data
 - Facts, figures, or statistics you cannot verify from context
 - Verification of uncertain information
 
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
-Decide how many searches you need based on the user's question. Simple questions may need one search; complex research may need several. Search as many times as needed, then provide your answer. If you already know the answer confidently, respond directly without searching.`
+PLANNING IN YOUR THINKING: Before calling web_search, briefly outline in your reasoning what searches you plan to make and why. For ambiguous queries (e.g. "what is X" when X could be a name, company, or place), plan 2–3 searches to cover different angles.
+
+MULTI-TURN SEARCHES: You can call web_search multiple times. After each search you receive results and get another turn—you may search again or provide your answer. There is no single-tool-call limit. If the first search is insufficient or the topic is ambiguous, call web_search again with a different query.
+
+Decide how many searches you need based on the user's question. Simple questions may need one search; complex or ambiguous research may need several. Search as many times as needed, then provide your answer. If you already know the answer confidently, respond directly without searching.`
+
+/**
+ * Follow-up prompt when searchCount >= 1 - encourages additional searches when needed
+ */
+function getFollowUpResearchPrompt(searchCount: number): string {
+  return `\n\n*** WEB SEARCH PROGRESS ***
+You have completed ${searchCount} search(es). Consider:
+- Do you need more specific information, different angles, or verification?
+- Is the topic ambiguous (e.g. name vs company vs place)? If so, do follow-up searches.
+- If you have sufficient information, provide your answer now.
+- If continuing, call web_search again with a different query.`
+}
 
 const FORCE_WEB_SEARCH_PREFIX = `The user has requested a web search. Call web_search at least once before answering.
 
@@ -218,7 +234,7 @@ export function useResearchMode({
   }, [canUseTools])
 
   const getResearchContext = useCallback((
-    _actualSearchCount?: number,
+    actualSearchCount?: number,
     maxRoundsOverride?: number,
     _mandatoryOverride?: boolean
   ): string => {
@@ -230,7 +246,13 @@ export function useResearchMode({
     }
 
     const prefix = researchState.forceWebSearch ? FORCE_WEB_SEARCH_PREFIX : ''
-    return `\n\n${prefix}${WEB_SEARCH_SYSTEM_PROMPT}`
+    const searchCount = actualSearchCount ?? researchState.searchCount
+
+    if (searchCount >= 1) {
+      return prefix + getFollowUpResearchPrompt(searchCount)
+    }
+
+    return `\n\n${prefix}${WEB_SEARCH_BASE_PROMPT}`
   }, [researchState])
 
   return {
