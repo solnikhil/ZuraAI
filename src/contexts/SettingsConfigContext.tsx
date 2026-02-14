@@ -75,7 +75,8 @@ export interface SettingsConfig {
     toolsEnabled: boolean
     enabledTools: string[]
     webSearchEnabled: boolean
-    deepResearchEnabled: boolean
+    /** Step-by-step research: plan → execute web searches → synthesize */
+    structuredResearchEnabled: boolean
     
     // Title generation
     titleModel: string
@@ -240,7 +241,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     toolsEnabled: true,
     enabledTools: ['web_search', 'get_datetime'],
     webSearchEnabled: true,
-    deepResearchEnabled: false,
+    structuredResearchEnabled: false,
     
     // Title generation
     titleModel: 'google/gemini-2.0-flash-exp:free',

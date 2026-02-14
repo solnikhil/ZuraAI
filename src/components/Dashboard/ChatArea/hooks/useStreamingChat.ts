@@ -42,7 +42,9 @@ import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamPerplexityCompletion } from '../../../../services/perplexity'
 import { streamGroqCompletion } from '../../../../services/groq'
 import { streamNvidiaCompletion } from '../../../../services/nvidia'
-import { streamOpenRouterCompletion } from '../../../../services/openrouter'
+import { streamOpenRouterCompletion, streamResearchSynthesis } from '../../../../services/openrouter'
+import { generateResearchPlan } from '../../../../services/researchPlanner'
+import { executeResearchPlan } from '../../../../services/researchExecutor'
 
 export interface UseStreamingChatOptions {
   onMessageSent?: () => void
@@ -234,6 +236,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           thinkingDuration: finalState.thinkingDuration,
           thinkingBlocks: finalState.thinkingBlocks,
           researchStatus: finalState.researchStatus,
+          researchPlan: finalState.researchPlan,
+          researchProgress: finalState.researchProgress,
           toolResults: finalState.toolResults,
           model: finalState.model,
           latency: finalState.latency,
@@ -292,11 +296,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         return msg
       })
 
-      // Research mode setup using the research mode hook
-      // Requirements: 2.1, 4.1, 5.1, 5.2, 5.3, 5.4
+      // Research mode setup - single web search toggle, model-driven depth, no caps
       const researchConfig = calculateResearchConfig({
         webSearchEnabled: settings.webSearchEnabled,
-        deepResearchEnabled: settings.deepResearchEnabled,
         modelProvider: settings.modelProvider,
         enabledTools: settings.enabledTools,
       }, content)
@@ -305,17 +307,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       let researchMandatory = researchConfig.mandatory
       const forceWebSearch = researchConfig.forceWebSearch
 
-      // Start research mode if configured
-      if (researchMaxRounds > 0 && canUseTools) {
-        startResearchMode(researchMaxRounds, researchMandatory)
+      // Start research mode when web search is enabled (maxRounds >= 0)
+      if (researchMaxRounds >= 0 && canUseTools) {
+        startResearchMode(researchMaxRounds, researchMandatory, forceWebSearch)
       }
 
-      const forceWebSearchPrompt = forceWebSearch
-        ? '\n\nUSER REQUEST: You must call the web_search tool at least once before answering. Use the user\'s latest request as the query if needed. Respond with the tool call first, then answer after results.'
-        : ''
       const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
         + getResearchContext(0, researchMaxRounds, researchMandatory)
-        + forceWebSearchPrompt
       const imageFiles = files.filter(f => f.type === 'image')
       const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
       const optimizedHistory = buildOptimizedContext(conversationHistory, content, effectiveSystemPrompt, settings.aiModel)
@@ -349,6 +347,114 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         setIsLoading(false)
         showToast('OpenRouter API key is required. Add it in Settings > Providers and save.', 'error')
         return
+      }
+
+      // Structured research path (plan → execute → synthesize) for OpenRouter when enabled
+      const useStructuredResearch =
+        settings.structuredResearchEnabled &&
+        settings.webSearchEnabled &&
+        canUseTools &&
+        isOpenRouter
+
+      if (useStructuredResearch) {
+        const apiKey = getOpenRouterApiKey(settings.openRouterApiKey)
+        const signal = abortControllerRef.current?.signal
+
+        try {
+          // Phase 1: Generate plan
+          const plan = await generateResearchPlan(apiKey, settings.aiModel, content, { signal })
+          if (plan.steps.length === 0) {
+            showToast('Research planner returned no steps. Falling back to normal mode.', 'warning')
+            // Fall through to normal flow - will be handled below
+          } else {
+            updateStreaming({ researchPlan: plan })
+            throttledUpdateStreamingMessage(targetSessionId!, streamingMessageId, { researchPlan: plan })
+
+            // Phase 2: Execute plan
+            const execResult = await executeResearchPlan(
+              plan,
+              (currentStep, totalSteps, query) => {
+                updateStreaming({
+                  researchProgress: { currentStep, totalSteps, currentQuery: query }
+                })
+                throttledUpdateStreamingMessage(targetSessionId!, streamingMessageId, {
+                  researchProgress: { currentStep, totalSteps, currentQuery: query }
+                })
+              },
+              { signal }
+            )
+
+            // Build tool results from step results for display
+            const toolResults = execResult.stepResults.map((sr) => ({
+              toolCall: {
+                id: `research-step-${sr.step.stepNumber}`,
+                name: 'web_search',
+                arguments: { query: sr.step.query }
+              },
+              result: {
+                success: sr.success,
+                data: sr.data,
+                error: sr.error,
+                executionTime: sr.executionTime
+              }
+            }))
+
+            updateStreaming({ toolResults })
+            throttledUpdateStreamingMessage(targetSessionId!, streamingMessageId, { toolResults })
+
+            // Phase 3: Stream synthesis
+            let synthesizedContent = ''
+            for await (const chunk of streamResearchSynthesis(
+              apiKey,
+              settings.aiModel,
+              content,
+              execResult.combinedResults,
+              { temperature: settings.temperature, maxTokens: settings.maxTokens, signal }
+            )) {
+              const delta = chunk.choices?.[0]?.delta?.content || ''
+              synthesizedContent += delta
+              throttledUpdateStreamingMessage(targetSessionId!, streamingMessageId, {
+                content: synthesizedContent,
+                researchPlan: plan,
+                researchProgress: { currentStep: plan.steps.length, totalSteps: plan.steps.length },
+                toolResults
+              })
+            }
+
+            flushThrottledUpdates()
+            const endTime = performance.now()
+            updateStreamingMessage(targetSessionId!, streamingMessageId, {
+              content: synthesizedContent,
+              researchPlan: plan,
+              researchProgress: { currentStep: plan.steps.length, totalSteps: plan.steps.length },
+              toolResults,
+              model: `openrouter/${settings.aiModel}`,
+              latency: Math.round(endTime - startTime)
+            })
+
+            if (streamingMessageRef.current) {
+              completeStreaming()
+              streamingMessageRef.current = null
+            }
+            setIsLoading(false)
+            clearToolState()
+            options.onStreamEnd?.()
+            options.onMessageSent?.()
+            if (isNewSession && targetSessionId) {
+              generateChatTitle(content, settings).then(title => {
+                if (title) updateSessionTitle(targetSessionId!, title)
+              }).catch(console.error)
+            }
+            return
+          }
+        } catch (structErr: any) {
+          if (structErr?.name === 'AbortError' || abortControllerRef.current === null) {
+            return
+          }
+          console.warn('Structured research failed, falling back to normal mode:', structErr)
+          showToast('Step-by-step research failed. Using normal mode.', 'warning')
+          // Fall through to normal flow
+        }
       }
 
       // Use composed provider-specific streaming hooks

@@ -412,15 +412,17 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 th: ({ node, ...props }) => <th {...props} />,
                 td: ({ node, ...props }) => <td {...props} />,
                 a: ({ node, href, children, ...props }: any) => {
-                    if (href && webSources && webSources.size > 0) {
-                        const source = webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
-                        if (source) {
-                            return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
+                    if (!href) return <span {...props}>{children}</span>
+                    let source = webSources?.get(href) || webSources?.get(href.replace(/\/+$/, ''))
+                    if (!source) {
+                        try {
+                            const hostname = new URL(href, 'https://x').hostname
+                            source = { title: hostname || 'Link', url: href }
+                        } catch {
+                            source = { title: 'Link', url: href }
                         }
                     }
-                    return (
-                        <a target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>
-                    )
+                    return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
                 },
                 ul: ({ node, ...props }) => <ul {...props} />,
                 ol: ({ node, ...props }) => <ol {...props} />,

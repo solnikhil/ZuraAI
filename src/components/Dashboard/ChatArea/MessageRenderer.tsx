@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
+import { ResearchPlanBlock } from './ResearchPlanBlock'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
@@ -46,6 +47,8 @@ export interface MessageRendererProps {
       toolCall: { id: string; name: string; arguments: any }
       result: { success: boolean; data?: any; error?: string; executionTime?: number }
     }>
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
   isStreaming?: boolean
   /** Active tool calls during streaming (for in-message tool calling animation) */
@@ -696,6 +699,19 @@ function areMessagePropsEqual(
     return false
   }
 
+  // Compare research plan and progress
+  const prevPlan = prevMsg.researchPlan
+  const nextPlan = nextMsg.researchPlan
+  if (prevPlan?.topic !== nextPlan?.topic || prevPlan?.steps?.length !== nextPlan?.steps?.length) {
+    return false
+  }
+  const prevProgress = prevMsg.researchProgress
+  const nextProgress = nextMsg.researchProgress
+  if (prevProgress?.currentStep !== nextProgress?.currentStep ||
+      prevProgress?.totalSteps !== nextProgress?.totalSteps) {
+    return false
+  }
+
   // Compare tool results (by length - deep comparison would be expensive)
   const prevToolResults = prevMsg.toolResults || []
   const nextToolResults = nextMsg.toolResults || []
@@ -989,6 +1005,19 @@ function MessageRendererComponent({
       onKeyDown={handleKeyDown}
       ref={messageRef}
     >
+      {/* Research Plan Block (structured research mode) */}
+      {message.researchPlan && message.researchPlan.steps.length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <ResearchPlanBlock
+            topic={message.researchPlan.topic}
+            steps={message.researchPlan.steps}
+            currentStep={message.researchProgress?.currentStep}
+            totalSteps={message.researchProgress?.totalSteps}
+            currentQuery={message.researchProgress?.currentQuery}
+          />
+        </div>
+      )}
+
       {/* Thinking Block */}
       {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>

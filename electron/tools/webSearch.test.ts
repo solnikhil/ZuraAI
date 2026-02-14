@@ -192,7 +192,21 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledWith('trimmed', expect.any(Object))
         })
 
-        it('clamps query to max length', async () => {
+        it('reformulates conversational query to keywords', async () => {
+            vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
+                results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
+                noResults: false,
+                vqd: 'x'
+            } as any)
+
+            await executeWebSearch({ query: 'Can you find the latest AI developments in 2025?' })
+            expect(duckDuckScrapeSearch).toHaveBeenCalledWith(
+                'the latest AI developments in 2025',
+                expect.any(Object)
+            )
+        })
+
+        it('clamps and reformulates long query to 400 chars (Tavily best practice)', async () => {
             vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
                 results: [],
                 noResults: true,
@@ -201,8 +215,9 @@ describe('executeWebSearch', () => {
 
             const longQuery = 'a'.repeat(600)
             await executeWebSearch({ query: longQuery })
+            // Query is clamped to 500, then reformulated to 400 chars max
             expect(duckDuckScrapeSearch).toHaveBeenCalledWith(
-                expect.stringMatching(/^a{500}$/),
+                expect.stringMatching(/^a{397}\.\.\.$/),
                 expect.any(Object)
             )
         })

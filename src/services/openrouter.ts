@@ -89,6 +89,14 @@ interface OpenRouterRequestBody {
     max_tokens?: number
     tools?: ToolDefinition[]
     tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+    response_format?: {
+        type: 'json_schema'
+        json_schema: {
+            name: string
+            strict?: boolean
+            schema: Record<string, unknown>
+        }
+    }
     reasoning?: {
         max_tokens?: number
         effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
@@ -107,12 +115,14 @@ export async function generateOpenRouterCompletion(
         stream?: boolean
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+        responseFormat?: OpenRouterRequestBody['response_format']
         reasoning?: {
             max_tokens?: number
             effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
             exclude?: boolean
             enabled?: boolean
         }
+        signal?: AbortSignal
     }
 ): Promise<OpenRouterResponse> {
     if (!apiKey) {
@@ -144,6 +154,9 @@ export async function generateOpenRouterCompletion(
     if (options?.reasoning) {
         requestBody.reasoning = options.reasoning
     }
+    if (options?.responseFormat) {
+        requestBody.response_format = options.responseFormat
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -151,7 +164,8 @@ export async function generateOpenRouterCompletion(
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {
@@ -271,3 +285,35 @@ export async function* streamOpenRouterCompletion(
     }
 }
 
+const SYNTHESIS_SYSTEM = `You are a research synthesizer. Given a user question and web search results, write a clear, well-structured answer. Use the research to support your response. Cite sources when relevant. Be concise but thorough.`
+
+/**
+ * Stream the synthesis of research results into a final answer.
+ * Used by structured research mode (step-by-step research).
+ */
+export async function* streamResearchSynthesis(
+    apiKey: string,
+    model: string,
+    userQuestion: string,
+    researchResults: string,
+    options?: {
+        temperature?: number
+        maxTokens?: number
+        signal?: AbortSignal
+    }
+): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
+    if (!apiKey) {
+        throw new Error("OpenRouter API Key is missing")
+    }
+
+    const messages: ChatMessage[] = [
+        { role: 'system', content: SYNTHESIS_SYSTEM },
+        { role: 'user', content: `User question: ${userQuestion}\n\nResearch results:\n${researchResults}\n\nPlease synthesize a clear answer based on the research above.` }
+    ]
+
+    yield* streamOpenRouterCompletion(apiKey, model, messages, {
+        temperature: options?.temperature ?? 0.5,
+        maxTokens: options?.maxTokens ?? 8000,
+        signal: options?.signal
+    })
+}

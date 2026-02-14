@@ -166,7 +166,7 @@ export interface ProviderHubSectionProps {
   ollamaUrl: string
   toolsEnabled: boolean
   webSearchEnabled: boolean
-  deepResearchEnabled: boolean
+  structuredResearchEnabled?: boolean
   aiModel: string
   modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
   configuredModels: ConfiguredModel[]
@@ -188,7 +188,7 @@ export interface ProviderHubSectionProps {
     ollamaUrl: string
     toolsEnabled: boolean
     webSearchEnabled: boolean
-    deepResearchEnabled: boolean
+    structuredResearchEnabled?: boolean
     configuredModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
@@ -210,7 +210,7 @@ export function ProviderHubSection({
   ollamaUrl,
   toolsEnabled,
   webSearchEnabled,
-  deepResearchEnabled,
+  structuredResearchEnabled = false,
   aiModel,
   modelProvider,
   configuredModels,
@@ -1161,7 +1161,7 @@ export function ProviderHubSection({
           tavilyApiKey={tavilyApiKey}
           toolsEnabled={toolsEnabled}
           webSearchEnabled={webSearchEnabled}
-          deepResearchEnabled={deepResearchEnabled}
+          structuredResearchEnabled={structuredResearchEnabled}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
@@ -1693,7 +1693,7 @@ function SearchApiDetail({
   tavilyApiKey,
   toolsEnabled,
   webSearchEnabled,
-  deepResearchEnabled,
+  structuredResearchEnabled = false,
   onBack,
   onChange,
 }: {
@@ -1701,7 +1701,7 @@ function SearchApiDetail({
   tavilyApiKey: string
   toolsEnabled: boolean
   webSearchEnabled: boolean
-  deepResearchEnabled: boolean
+  structuredResearchEnabled?: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
@@ -1759,16 +1759,12 @@ function SearchApiDetail({
               <ToggleRow
                 label="Enable Web Search"
                 checked={webSearchEnabled}
-                onCheckedChange={(checked) => {
-                  onChange({ webSearchEnabled: checked, ...(checked ? {} : { deepResearchEnabled: false }) })
-                }}
+                onCheckedChange={(checked) => onChange({ webSearchEnabled: checked })}
               />
               <ToggleRow
-                label="Enable Deep Research"
-                checked={deepResearchEnabled}
-                onCheckedChange={(checked) => {
-                  onChange({ deepResearchEnabled: checked, ...(checked ? { webSearchEnabled: true } : {}) })
-                }}
+                label="Step-by-step research"
+                checked={structuredResearchEnabled}
+                onCheckedChange={(checked) => onChange({ structuredResearchEnabled: checked })}
               />
             </div>
           ) : api.apiKeyField === 'tavilyApiKey' ? (

@@ -47,6 +47,10 @@ export interface StreamingMessageState {
   }
   /** Tool results from function calls */
   toolResults?: any[]
+  /** Structured research plan (step-by-step mode) */
+  researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+  /** Progress during structured research execution */
+  researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   /** Model identifier */
   model?: string
   /** Response latency in ms */

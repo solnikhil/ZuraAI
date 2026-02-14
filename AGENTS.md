@@ -154,10 +154,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
   - Main tool registry: `electron/tools/index.ts` (restricted)
 
-#### “Research Mode” (Web Search / Deep Research toggles)
-- User toggles live in settings: `settings.webSearchEnabled`, `settings.deepResearchEnabled`.
-- Dashboard currently starts research mode with `startResearchMode(25, false)` when either toggle is enabled.
-  - Mandatory/exact-search enforcement exists in `useToolCalling`, but is not currently started in mandatory mode by the dashboard.
+#### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
+- **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
+- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): 3-phase flow for OpenRouter: (1) Planning: `researchPlanner.ts` — LLM generates search plan; (2) Execution: `researchExecutor.ts` — runs `web_search` per step; (3) Synthesis: `streamResearchSynthesis` in `openrouter.ts` — LLM synthesizes final answer.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme.

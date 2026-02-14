@@ -88,6 +88,10 @@ export interface Message {
         currentSearch?: string // The search query being executed
         isSearching: boolean
     }
+    /** Structured research plan (step-by-step mode) */
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    /** Progress during structured research execution */
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
     usage?: {
         inputTokens: number
         outputTokens: number

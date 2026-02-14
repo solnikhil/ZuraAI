@@ -142,10 +142,7 @@ export function InputArea({
   }
 
   const toggleSearch = () => {
-    updateSettings({ 
-      webSearchEnabled: !settings.webSearchEnabled,
-      deepResearchEnabled: false // Always disable deep research
-    })
+    updateSettings({ webSearchEnabled: !settings.webSearchEnabled })
   }
 
   const handleContainerClick = () => {

@@ -30,6 +30,8 @@ interface StreamingMessageProps {
       currentSearch?: string
       isSearching: boolean
     }
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
     responseVersions?: any[]
     currentVersionIndex?: number
     toolResults?: any[]
@@ -81,6 +83,8 @@ function StreamingMessageComponent({
       thinkingDuration: streamingState.thinkingDuration ?? message.thinkingDuration,
       thinkingBlocks: streamingState.thinkingBlocks ?? message.thinkingBlocks,
       researchStatus: streamingState.researchStatus ?? message.researchStatus,
+      researchPlan: streamingState.researchPlan ?? message.researchPlan,
+      researchProgress: streamingState.researchProgress ?? message.researchProgress,
       toolResults: streamingState.toolResults ?? message.toolResults,
       model: streamingState.model ?? message.model,
       latency: streamingState.latency ?? message.latency,

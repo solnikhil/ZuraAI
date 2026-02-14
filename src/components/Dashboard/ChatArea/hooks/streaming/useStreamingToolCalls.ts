@@ -9,6 +9,7 @@
 
 import { useCallback } from 'react'
 import { useToolCalling } from '../../../../../hooks/useToolCalling'
+import { useResearchMode } from './useResearchMode'
 import { useToast } from '../../../../shared/Toast'
 import type { UpdateStreamingCallback, StreamingSettings } from './types'
 
@@ -64,7 +65,7 @@ export interface UseStreamingToolCallsReturn {
   /** Clear tool state */
   clearToolState: () => void
   /** Start research mode */
-  startResearchMode: (maxRounds: number, mandatory: boolean) => void
+  startResearchMode: (maxRounds: number, mandatory?: boolean, forceWebSearch?: boolean) => void
   /** Get research context for system prompt */
   getResearchContext: (searchCount: number, maxRounds: number, mandatory: boolean) => string
   /** Tool call accumulator utilities */
@@ -150,9 +151,10 @@ export function useStreamingToolCalls({
     getToolsForRequest,
     handleToolCalls: baseHandleToolCalls,
     clearToolState,
-    startResearchMode,
-    getResearchContext,
   } = useToolCalling()
+
+  // Use useResearchMode for research-specific logic (unified web search prompt)
+  const { startResearchMode, getResearchContext } = useResearchMode({ canUseTools })
 
   /**
    * Create a new tool call accumulator state
@@ -278,7 +280,7 @@ export function useStreamingToolCalls({
       sessionId,
       messageId,
       researchMaxRounds,
-      researchMandatory,
+      researchMandatory: _researchMandatory,
       updateStreamingMessage,
     } = options
 
@@ -326,10 +328,8 @@ export function useStreamingToolCalls({
       (r: any) => r.toolCall.name === 'web_search'
     ).length || 0
 
-    // Determine if more tool calls are needed
-    const needsMoreToolCalls = toolResult.needsFollowUp && 
-      toolResult.formattedResults.length > 0 &&
-      (researchMandatory || totalSearchCount < researchMaxRounds)
+    // Determine if more tool calls are needed (model decides - no cap)
+    const needsMoreToolCalls = toolResult.needsFollowUp && toolResult.formattedResults.length > 0
 
     return {
       toolResults: savedToolResults.length > 0 ? savedToolResults : null,

@@ -13,6 +13,8 @@ interface WebSearchArgs {
     query: string
     num_results?: number
     search_depth?: 'basic' | 'advanced'
+    time_range?: 'day' | 'week' | 'month' | 'year'
+    topic?: 'general' | 'news'
 }
 
 interface SearchResult {
@@ -39,6 +41,63 @@ function coerceSearchDepth(value: unknown): 'basic' | 'advanced' {
 }
 
 /**
+ * Coerce time_range to valid value
+ */
+function coerceTimeRange(value: unknown): 'day' | 'week' | 'month' | 'year' | undefined {
+    if (value === 'day' || value === 'week' || value === 'month' || value === 'year') return value
+    return undefined
+}
+
+/**
+ * Coerce topic to valid value
+ */
+function coerceTopic(value: unknown): 'general' | 'news' | undefined {
+    if (value === 'news') return 'news'
+    if (value === 'general') return 'general'
+    return undefined
+}
+
+/**
+ * Reformulate poor queries (long or conversational) into keyword-focused search queries.
+ * Uses heuristics only - no LLM call. Keeps queries under 400 chars per Tavily best practices.
+ */
+function reformulateQueryIfNeeded(query: string): string {
+    const trimmed = query.trim()
+    if (!trimmed) return trimmed
+
+    const CONVERSATIONAL_PREFIXES = [
+        /^can you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^could you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^would you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^i want to know (?:about )?/i,
+        /^i need to (?:find|know|search for)\s+/i,
+        /^please (?:find|search|look up|tell me)\s+/i,
+        /^what (?:is|are) (?:the )?(?:latest|best|current)\s+/i,
+        /^tell me (?:about )?/i,
+        /^search for\s+/i,
+        /^look up\s+/i,
+        /^find (?:out )?(?:about )?/i
+    ]
+
+    let result = trimmed
+
+    // Strip conversational prefixes
+    for (const re of CONVERSATIONAL_PREFIXES) {
+        result = result.replace(re, '').trim()
+    }
+
+    // Remove trailing question marks and "?" for cleaner keywords
+    result = result.replace(/\?+$/, '').trim()
+
+    // If still over 400 chars, truncate to first 400 (Tavily recommends under 400)
+    if (result.length > 400) {
+        result = result.slice(0, 397) + '...'
+    }
+
+    return result || trimmed
+}
+
+/**
  * Execute web search using available API
  * Priority: Tavily > duck-duck-scrape (fallback when no key or Tavily fails)
  */
@@ -55,6 +114,8 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
     num_results = Math.min(Math.max(num_results, 1), 10)
 
     const search_depth = coerceSearchDepth(args.search_depth ?? 'basic')
+    const time_range = coerceTimeRange(args.time_range)
+    const topic = coerceTopic(args.topic)
 
     // Validate and sanitize query
     let query = args.query
@@ -75,10 +136,13 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         query = query.slice(0, MAX_QUERY_LENGTH)
     }
 
+    // Reformulate poor queries (long or conversational) into keyword-focused search queries
+    query = reformulateQueryIfNeeded(query)
+
     const tavilyKey = process.env.TAVILY_API_KEY || await getSecureValueAsync('tavilyApiKey')
 
     if (tavilyKey && tavilyKey.trim()) {
-        const tavilyResult = await searchWithTavily(query, num_results, tavilyKey.trim(), search_depth)
+        const tavilyResult = await searchWithTavily(query, num_results, tavilyKey.trim(), search_depth, time_range, topic)
         if (tavilyResult.success) {
             return tavilyResult
         }
@@ -178,23 +242,39 @@ async function searchWithTavily(
     query: string,
     numResults: number,
     apiKey: string,
-    searchDepth: 'basic' | 'advanced' = 'basic'
+    searchDepth: 'basic' | 'advanced' = 'basic',
+    timeRange?: 'day' | 'week' | 'month' | 'year',
+    topic?: 'general' | 'news'
 ): Promise<ToolResult> {
     try {
+        const body: Record<string, unknown> = {
+            api_key: apiKey,
+            query,
+            search_depth: searchDepth,
+            max_results: Math.min(numResults, 10),
+            include_answer: true,
+            include_raw_content: false,
+            include_images: true
+        }
+
+        // Tavily best practices: advanced depth + chunks for specific queries
+        if (searchDepth === 'advanced') {
+            body.chunks_per_source = 3
+        }
+
+        if (timeRange) {
+            body.time_range = timeRange
+        }
+        if (topic) {
+            body.topic = topic
+        }
+
         const response = await fetchWithTimeout(
             'https://api.tavily.com/search',
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    api_key: apiKey,
-                    query,
-                    search_depth: searchDepth,
-                    max_results: Math.min(numResults, 10),
-                    include_answer: true,
-                    include_raw_content: false,
-                    include_images: true
-                })
+                body: JSON.stringify(body)
             },
             FETCH_TIMEOUT_MS
         )

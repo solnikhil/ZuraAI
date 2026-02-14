@@ -48,13 +48,8 @@ export function useToolCalling() {
             ? [...settings.enabledTools]
             : allToolNames
 
-        // Gate web_search based on BOTH toggles
-        // web_search is excluded only when BOTH webSearchEnabled AND deepResearchEnabled are OFF
-        // This ensures web_search is available when:
-        // - webSearchEnabled is ON (normal web search mode)
-        // - deepResearchEnabled is ON (deep research mode, regardless of webSearchEnabled)
-        // Validates: Requirements 1.1, 1.3, 1.4
-        if (!settings.webSearchEnabled && !settings.deepResearchEnabled) {
+        // Gate web_search based on webSearchEnabled toggle
+        if (!settings.webSearchEnabled) {
             enabledTools = enabledTools.filter(tool => tool !== 'web_search')
         }
 

@@ -83,8 +83,6 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'mistralai/mistral-large',
     ],
     groq: [
-        'groq/compound',
-        'groq/compound-mini',
         'openai/gpt-oss-120b',
         'openai/gpt-oss-20b',
         'meta-llama/llama-4-scout-17b-16e-instruct',

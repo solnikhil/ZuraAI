@@ -27,13 +27,19 @@ export interface ToolDefinition {
 export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'web_search',
-    description: 'Search the internet for real-time information. Returns text results and images.',
+    description: `Search the internet for real-time information. Returns text results and images.
+
+Query formulation best practices:
+- Keep queries concise (under 400 chars). Use search keywords, not full sentences.
+- Use keyword-focused phrasing: "OpenAI GPT-5 release date 2025" not "Can you tell me when OpenAI will release GPT-5?"
+- Break complex topics into separate focused searches (overview, recent developments, specifics, verification).
+- For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'The search query to look up. Be specific and include relevant keywords.'
+          description: 'Search query. Use concise keywords (e.g. "X market size 2025", "latest AI developments"). Avoid conversational phrasing like "Can you find..." or "I want to know...".'
         },
         num_results: {
           type: 'number',
@@ -42,9 +48,20 @@ export const toolDefinitions: ToolDefinition[] = [
         },
         search_depth: {
           type: 'string',
-          description: 'Search depth: "basic" for quick results, "advanced" for more comprehensive research',
+          description: 'Search depth: "basic" for quick results, "advanced" for specific/detailed information (higher relevance)',
           enum: ['basic', 'advanced'],
           default: 'basic'
+        },
+        time_range: {
+          type: 'string',
+          description: 'Filter by recency. Use for time-sensitive queries (news, recent events, latest data).',
+          enum: ['day', 'week', 'month', 'year']
+        },
+        topic: {
+          type: 'string',
+          description: 'Content type: "general" for broad searches, "news" for current events and real-time updates.',
+          enum: ['general', 'news'],
+          default: 'general'
         }
       },
       required: ['query']

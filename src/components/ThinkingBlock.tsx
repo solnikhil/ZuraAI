@@ -55,7 +55,7 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                 <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
                     <div className="thinking-label">
                         <span className="thinking-text">
-                            Tool: Web Search req{block.query ? ` "${block.query}"` : ''}
+                            Tool: Web Search{block.query ? ` "${block.query}"` : ''}
                         </span>
                         <ChevronRight
                             size={14}
@@ -151,17 +151,19 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isThinking])
 
-    // Auto-expand only while actively thinking, tool calling, or searching; collapse when done
+    // Auto-expand while actively thinking, tool calling, or searching; expand when we have content to show
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
         } else if (hasActiveToolCalls) {
             setIsExpanded(true)
+        } else if (isSearching) {
+            setIsExpanded(true)
         } else if (!isThinking && !isSearching && !hasActiveToolCalls) {
-            // Collapse immediately when thinking/searching/tool-calling is done
-            setIsExpanded(false)
+            const hasContentToShow = (thinking && thinking.trim().length > 0) || completedBlocks.length > 0
+            setIsExpanded(hasContentToShow)
         }
-    }, [isThinking, isSearching, hasActiveToolCalls, thinking])
+    }, [isThinking, isSearching, hasActiveToolCalls, thinking, completedBlocks.length])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
@@ -177,12 +179,12 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
 
     return (
         <div className="thinking-blocks-container">
-            {/* Render completed blocks first */}
+            {/* Render completed blocks first - expand by default when we have content (e.g. after web search) */}
             {completedBlocks.map((block, index) => (
                 <CompletedBlock
                     key={`completed-${index}-${block.timestamp}`}
                     block={block}
-                    defaultExpanded={false}
+                    defaultExpanded={!!(block.content && block.content.trim().length > 0)}
                 />
             ))}
 

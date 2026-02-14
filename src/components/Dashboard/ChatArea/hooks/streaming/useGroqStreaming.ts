@@ -227,12 +227,10 @@ export function useGroqStreaming({
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < researchMaxRounds) {
+        const SAFETY_CAP = 50
+        while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          const remainingSearches = researchMaxRounds - totalSearchCount
-          const forceToolUse = researchMandatory && remainingSearches > 0
-
-          let toolChoice: any = forceToolUse ? { type: 'function', function: { name: 'web_search' } } : undefined
+          let toolChoice: any = undefined
 
           const followUpMessages: any[] = []
           if (researchContextMsg) {
@@ -324,8 +322,7 @@ export function useGroqStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            const remainingAfter = researchMaxRounds - totalSearchCount
-            hasMoreToolCalls = remainingAfter > 0 && (researchMandatory || nextToolResult.needsFollowUp)
+            hasMoreToolCalls = nextToolResult.needsFollowUp
           } else {
             hasMoreToolCalls = false
           }

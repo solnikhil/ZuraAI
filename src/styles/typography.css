@@ -324,22 +324,7 @@
     font-weight: normal;
 }
 
-/* Links */
-.markdown-body a,
-.markdown-content a,
-.markdown-typography a {
-    color: var(--theme-accent);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    transition: color 0.2s;
-}
-
-.markdown-body a:hover,
-.markdown-content a:hover,
-.markdown-typography a:hover {
-    color: var(--theme-accent-hover);
-    text-decoration-thickness: 2px;
-}
+/* Links - all rendered via WebSourceCitation (blur/highlight style) */
 
 /* Lead text */
 .markdown-body .lead,

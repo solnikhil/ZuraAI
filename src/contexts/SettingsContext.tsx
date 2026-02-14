@@ -214,7 +214,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
-        if (parsed.deepResearchEnabled === undefined) parsed.deepResearchEnabled = defaultSettings.deepResearchEnabled
+        // Migration: deep research removed - ensure webSearchEnabled if it was on
+        if ((parsed as Record<string, unknown>).deepResearchEnabled === true) {
+            parsed.webSearchEnabled = true
+        }
+        delete (parsed as Record<string, unknown>).deepResearchEnabled
+        // structuredResearchEnabled restored - initialize if missing
+        if (parsed.structuredResearchEnabled === undefined) parsed.structuredResearchEnabled = defaultSettings.structuredResearchEnabled
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
@@ -303,7 +309,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         toolsEnabled: storedSettings.toolsEnabled,
         enabledTools: storedSettings.enabledTools,
         webSearchEnabled: storedSettings.webSearchEnabled,
-        deepResearchEnabled: storedSettings.deepResearchEnabled,
+        structuredResearchEnabled: storedSettings.structuredResearchEnabled,
         titleModel: storedSettings.titleModel,
         favoriteModels: storedSettings.favoriteModels,
         quickPrompts: storedSettings.quickPrompts,

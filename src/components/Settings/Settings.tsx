@@ -240,7 +240,7 @@ export default function Settings({
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
               toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
               webSearchEnabled={pendingSettings.webSearchEnabled ?? settings.webSearchEnabled}
-              deepResearchEnabled={pendingSettings.deepResearchEnabled ?? settings.deepResearchEnabled}
+              structuredResearchEnabled={pendingSettings.structuredResearchEnabled ?? settings.structuredResearchEnabled}
               aiModel={pendingSettings.aiModel ?? settings.aiModel}
               modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
               configuredModels={pendingSettings.configuredModels || []}

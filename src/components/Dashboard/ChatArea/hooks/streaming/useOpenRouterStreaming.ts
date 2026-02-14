@@ -226,7 +226,7 @@ export function useOpenRouterStreaming({
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Update researchStatus for web searches
+      // Update researchStatus for web searches (use throttled for display, updateStreamingMessage for session)
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
       if (webSearchCalls.length > 0) {
         const firstSearchQuery = webSearchCalls[0]
@@ -234,14 +234,19 @@ export function useOpenRouterStreaming({
           ? firstSearchQuery.toolCall.arguments?.query
           : firstSearchQuery.toolCall.arguments
 
-        updateStreamingMessage(sessionId, messageId, {
+        const researchStatusUpdate = {
           researchStatus: {
             currentRound: 1,
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
           }
+        }
+        throttledUpdateStreamingMessage(sessionId, messageId, {
+          ...researchStatusUpdate,
+          ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {})
         })
+        updateStreamingMessage(sessionId, messageId, researchStatusUpdate)
       }
 
       savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
@@ -256,11 +261,10 @@ export function useOpenRouterStreaming({
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < 10) {
+        const SAFETY_CAP = 50
+        while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          const remainingSearches = researchMaxRounds - totalSearchCount
-          const forceToolUse = researchMandatory && remainingSearches > 0
-          let toolChoice: any = forceToolUse ? { type: 'function', function: { name: 'web_search' } } : undefined
+          let toolChoice: any = undefined
 
           const followUpMessages: any[] = []
           if (researchContextMsg) followUpMessages.push({ role: 'system', content: researchContextMsg })
@@ -271,9 +275,9 @@ export function useOpenRouterStreaming({
           let followUpToolCalls: any[] = []
           let followUpUsage: any = {}
 
-          updateStreamingMessage(sessionId, messageId, {
-            researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
-          })
+          const loopResearchStatus = { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+          throttledUpdateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
+          updateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
 
           for await (const chunk of streamOpenRouterCompletion(
             getOpenRouterApiKey(settings.openRouterApiKey),
@@ -287,9 +291,10 @@ export function useOpenRouterStreaming({
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
             if (reasoningDelta) {
               followUpReasoning += reasoningDelta
+              const combinedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + followUpContent,
-                thinking: followUpReasoning
+                thinking: combinedThinking
               })
             }
 
@@ -313,18 +318,21 @@ export function useOpenRouterStreaming({
 
             const now = Date.now()
             if (now - lastUpdateTime >= updateInterval) {
+              const combinedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + followUpContent,
-                thinking: followUpReasoning || undefined
+                thinking: combinedThinking || undefined
               })
               lastUpdateTime = now
             }
           }
 
           accumulatedContent += followUpContent
-          if (followUpReasoning) accumulatedReasoning = followUpReasoning
+          if (followUpReasoning) accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
           flushThrottledUpdates()
-          updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+          const contentUpdate = { content: accumulatedContent, ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}) }
+          throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
+          updateStreamingMessage(sessionId, messageId, contentUpdate)
 
           usage = {
             inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
@@ -362,25 +370,30 @@ export function useOpenRouterStreaming({
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
             totalSearchCount += newWebSearches
 
-            // Update thinking blocks and researchStatus
+            // Append search markers to thinking (unified single block - do not clear)
             for (const tr of nextToolResult.toolResults || []) {
               if (tr.toolCall.name === 'web_search') {
                 const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-                if (accumulatedReasoning?.trim()) {
-                  localThinkingBlocks.push({ type: 'thinking', content: accumulatedReasoning, duration: 0, timestamp: Date.now() })
-                }
-                updateStreamingMessage(sessionId, messageId, {
-                  thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
+                accumulatedReasoning += '\n\n--- Web Search: "' + String(searchQuery || '') + '" ---\n\n'
+                const webSearchUpdate = {
+                  thinking: accumulatedReasoning,
+                  thinkingDuration: thinkingDuration,
                   researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true }
-                })
-                accumulatedReasoning = ''
+                }
+                throttledUpdateStreamingMessage(sessionId, messageId, webSearchUpdate)
+                updateStreamingMessage(sessionId, messageId, webSearchUpdate)
               }
             }
 
-            // Update researchStatus to stop searching
-            updateStreamingMessage(sessionId, messageId, {
-              researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
-            })
+            // Update researchStatus to stop searching - include full thinking for session sync
+            flushThrottledUpdates()
+            const doneSearchingStatus = { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+            const doneSearchingUpdate = {
+              researchStatus: doneSearchingStatus,
+              ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {})
+            }
+            throttledUpdateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
+            updateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
 
             const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
@@ -392,79 +405,9 @@ export function useOpenRouterStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            const remainingAfter = researchMaxRounds - totalSearchCount
-            hasMoreToolCalls = remainingAfter > 0 && (researchMandatory || nextToolResult.needsFollowUp)
+            hasMoreToolCalls = nextToolResult.needsFollowUp
           } else {
             hasMoreToolCalls = false
-          }
-        }
-
-        // Final answer request for mandatory research
-        if (researchMandatory && totalSearchCount >= researchMaxRounds) {
-          const finalAnswerMessages: any[] = [
-            { role: 'system', content: `\n\n*** ALL RESEARCH COMPLETE ***\nYou have completed all ${totalSearchCount} required web searches.\n\nYou MUST now provide your FINAL COMPREHENSIVE ANSWER based on all the information gathered.\n\nDo NOT make any more tool calls.\nSynthesize all the search results into a coherent, well-structured response that directly answers the user's question.\nInclude relevant details from the searches and cite sources where appropriate.` },
-            ...openRouterMessages, lastAssistantMessage, ...toolResult.formattedResults
-          ]
-
-          let finalAnswerContent = ''
-          let finalAnswerReasoning = ''
-          let finalAnswerUsage: any = {}
-
-          for await (const chunk of streamOpenRouterCompletion(
-            getOpenRouterApiKey(settings.openRouterApiKey),
-            settings.aiModel,
-            finalAnswerMessages,
-            { temperature: settings.temperature, tools: openRouterTools, signal }
-          )) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            finalAnswerContent += delta
-
-            const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
-            if (reasoningDelta) {
-              finalAnswerReasoning += reasoningDelta
-              const updatedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
-              throttledUpdateStreamingMessage(sessionId, messageId, {
-                content: accumulatedContent + finalAnswerContent,
-                thinking: updatedThinking
-              })
-            }
-
-            if (chunk.usage) {
-              finalAnswerUsage = chunk.usage
-              const reasoningTokens = chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.reasoning_tokens || 0
-              if (reasoningTokens > 0) totalThinkingTokens += reasoningTokens
-            }
-
-            const now = Date.now()
-            if (now - lastUpdateTime >= updateInterval) {
-              const fullThinking = accumulatedReasoning + (finalAnswerReasoning ? '\n\n---\n\n' + finalAnswerReasoning : '')
-              throttledUpdateStreamingMessage(sessionId, messageId, {
-                content: accumulatedContent + finalAnswerContent,
-                thinking: fullThinking || undefined
-              })
-              lastUpdateTime = now
-            }
-          }
-
-          accumulatedContent += finalAnswerContent
-          if (finalAnswerReasoning) {
-            accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
-          }
-
-          flushThrottledUpdates()
-          updateStreamingMessage(sessionId, messageId, {
-            content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
-            researchStatus: undefined
-          })
-
-          usage = {
-            inputTokens: (usage.inputTokens || 0) + (finalAnswerUsage.prompt_tokens || 0),
-            outputTokens: (usage.outputTokens || 0) + (finalAnswerUsage.completion_tokens || 0),
-            totalTokens: (usage.totalTokens || 0) + (finalAnswerUsage.total_tokens || 0),
-            thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
-            cachedInputTokens: ((usage.cachedInputTokens || 0) + (finalAnswerUsage.prompt_cache_tokens || 0)) || undefined,
-            cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (finalAnswerUsage.completion_cache_tokens || 0)) || undefined
           }
         }
       }
@@ -477,7 +420,9 @@ export function useOpenRouterStreaming({
 
     updateStreamingMessage(sessionId, messageId, {
       content: accumulatedContent,
-      thinking: accumulatedReasoning || undefined,
+      ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+      ...(thinkingDuration !== undefined ? { thinkingDuration } : {}),
+      ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
       model: `openrouter/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
