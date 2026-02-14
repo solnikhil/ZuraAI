@@ -168,49 +168,49 @@ export const defaultSettingsConfig: SettingsConfig = {
         // Meta (well-known)
         { code: 'meta/llama3-70b', displayName: 'Llama 3 70B', enabled: true, maxContext: 8192 },
         { code: 'meta/llama3-8b', displayName: 'Llama 3 8B', enabled: true, maxContext: 8192 },
-        { code: 'meta/llama2-70b', displayName: 'Llama 2 70B', enabled: true, maxContext: 4096 },
-        { code: 'meta/codellama-70b', displayName: 'Code Llama 70B', enabled: true, maxContext: 16384 },
+        { code: 'meta/llama2-70b', displayName: 'Llama 2 70B', enabled: false, maxContext: 4096 },
+        { code: 'meta/codellama-70b', displayName: 'Code Llama 70B', enabled: false, maxContext: 16384 },
         // NVIDIA (well-known)
         { code: 'nvidia/nemotron-4-340b-instruct', displayName: 'Nemotron 4 340B', enabled: true, maxContext: 4096 },
         { code: 'nvidia/llama3-chatqa-1.5-70b', displayName: 'Llama 3 ChatQA 1.5 70B', enabled: true, maxContext: 8192 },
-        { code: 'nvidia/llama3-chatqa-1.5-8b', displayName: 'Llama 3 ChatQA 1.5 8B', enabled: true, maxContext: 8192 },
+        { code: 'nvidia/llama3-chatqa-1.5-8b', displayName: 'Llama 3 ChatQA 1.5 8B', enabled: false, maxContext: 8192 },
         // Mistral (well-known)
         { code: 'mistralai/mistral-large', displayName: 'Mistral Large', enabled: true, maxContext: 128000 },
         { code: 'mistralai/mistral-large-2-instruct', displayName: 'Mistral Large 2', enabled: true, maxContext: 128000 },
         { code: 'mistralai/mixtral-8x7b-instruct', displayName: 'Mixtral 8x7B', enabled: true, maxContext: 32768 },
-        { code: 'mistralai/mixtral-8x22b-instruct', displayName: 'Mixtral 8x22B', enabled: true, maxContext: 65536 },
-        { code: 'mistralai/mistral-7b-instruct', displayName: 'Mistral 7B', enabled: true, maxContext: 32768 },
+        { code: 'mistralai/mixtral-8x22b-instruct', displayName: 'Mixtral 8x22B', enabled: false, maxContext: 65536 },
+        { code: 'mistralai/mistral-7b-instruct', displayName: 'Mistral 7B', enabled: false, maxContext: 32768 },
         { code: 'mistralai/mistral-7b-instruct-v0.3', displayName: 'Mistral 7B v0.3', enabled: false, maxContext: 32768 },
         { code: 'mistralai/codestral-22b-instruct-v0.1', displayName: 'Codestral 22B', enabled: false, maxContext: 32768 },
         { code: 'mistralai/mathstral-7b-v0.1', displayName: 'Mathstral 7B', enabled: false, maxContext: 32768 },
-        // Google (well-known: Gemma 2 9B/27B)
+        // Google (well-known: Gemma 2 9B)
         { code: 'google/gemma-2b', displayName: 'Gemma 2B', enabled: false, maxContext: 8192 },
         { code: 'google/gemma-7b', displayName: 'Gemma 7B', enabled: false, maxContext: 8192 },
         { code: 'google/gemma-2-2b-it', displayName: 'Gemma 2 2B IT', enabled: false, maxContext: 8192 },
         { code: 'google/gemma-2-9b-it', displayName: 'Gemma 2 9B IT', enabled: true, maxContext: 8192 },
-        { code: 'google/gemma-2-27b-it', displayName: 'Gemma 2 27B IT', enabled: true, maxContext: 8192 },
+        { code: 'google/gemma-2-27b-it', displayName: 'Gemma 2 27B IT', enabled: false, maxContext: 8192 },
         { code: 'google/codegemma-1.1-7b', displayName: 'CodeGemma 1.1 7B', enabled: false, maxContext: 8192 },
         { code: 'google/codegemma-7b', displayName: 'CodeGemma 7B', enabled: false, maxContext: 8192 },
         { code: 'google/recurrentgemma-2b', displayName: 'RecurrentGemma 2B', enabled: false, maxContext: 8192 },
         { code: 'google/shieldgemma-9b', displayName: 'ShieldGemma 9B', enabled: false, maxContext: 8192 },
-        // Microsoft (well-known: Phi-3 Medium/Mini 4K)
+        // Microsoft (well-known: Phi-3 Medium 4K)
         { code: 'microsoft/phi-3-medium-4k-instruct', displayName: 'Phi-3 Medium 4K', enabled: true, maxContext: 4096 },
         { code: 'microsoft/phi-3-medium-128k-instruct', displayName: 'Phi-3 Medium 128K', enabled: false, maxContext: 131072 },
-        { code: 'microsoft/phi-3-mini-4k-instruct', displayName: 'Phi-3 Mini 4K', enabled: true, maxContext: 4096 },
+        { code: 'microsoft/phi-3-mini-4k-instruct', displayName: 'Phi-3 Mini 4K', enabled: false, maxContext: 4096 },
         { code: 'microsoft/phi-3-mini-128k-instruct', displayName: 'Phi-3 Mini 128K', enabled: false, maxContext: 131072 },
         { code: 'microsoft/phi-3-small-8k-instruct', displayName: 'Phi-3 Small 8K', enabled: false, maxContext: 8192 },
         { code: 'microsoft/phi-3-small-128k-instruct', displayName: 'Phi-3 Small 128K', enabled: false, maxContext: 131072 },
         // DeepSeek (well-known)
         { code: 'deepseek-ai/deepseek-r1', displayName: 'DeepSeek R1', enabled: true, maxContext: 64000 },
         // Snowflake (well-known)
-        { code: 'snowflake/arctic', displayName: 'Snowflake Arctic', enabled: true, maxContext: 4096 },
+        { code: 'snowflake/arctic', displayName: 'Snowflake Arctic', enabled: false, maxContext: 4096 },
         // GLM / Zhipu (well-known: GLM 4.7)
-        { code: 'z-ai/glm4.7', displayName: 'GLM 4.7', enabled: true, maxContext: 131072 },
+        { code: 'z-ai/glm4.7', displayName: 'GLM 4.7', enabled: false, maxContext: 131072 },
         { code: 'thudm/chatglm3-6b', displayName: 'ChatGLM3 6B', enabled: false, maxContext: 8192 },
         // MiniMax (well-known)
-        { code: 'minimaxai/minimax-m2', displayName: 'MiniMax M2', enabled: true, maxContext: 128000 },
+        { code: 'minimaxai/minimax-m2', displayName: 'MiniMax M2', enabled: false, maxContext: 128000 },
         // Kimi / Moonshot (well-known: K2.5)
-        { code: 'moonshotai/kimi-k2-5', displayName: 'Kimi K2.5', enabled: true, maxContext: 262144 },
+        { code: 'moonshotai/kimi-k2-5', displayName: 'Kimi K2.5', enabled: false, maxContext: 262144 },
         { code: 'moonshotai/kimi-k2-instruct', displayName: 'Kimi K2 Instruct', enabled: false, maxContext: 131072 },
         { code: 'moonshotai/kimi-k2-instruct-0905', displayName: 'Kimi K2 Instruct 0905', enabled: false, maxContext: 262144 },
         // Others (disabled by default)

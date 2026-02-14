@@ -307,8 +307,8 @@ export default function ChatArea() {
           renderMessage={renderMessage}
           footer={
             <>
-              {/* Active tool calls indicator */}
-              {toolState.activeToolCalls.map((toolCall, i) => (
+              {/* Active tool calls - shown in ThinkingBlock when streaming; footer only when not streaming */}
+              {!isLoading && toolState.activeToolCalls.map((toolCall, i) => (
                 <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
                   <ToolCallIndicator
                     toolName={toolCall.name}
@@ -388,8 +388,8 @@ export default function ChatArea() {
               )
             })}
 
-            {/* Active tool calls indicator */}
-            {toolState.activeToolCalls.map((toolCall, i) => (
+            {/* Active tool calls - shown in ThinkingBlock when streaming; footer only when not streaming last message */}
+            {!isLoading && toolState.activeToolCalls.map((toolCall, i) => (
               <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
                 <ToolCallIndicator
                   toolName={toolCall.name}
