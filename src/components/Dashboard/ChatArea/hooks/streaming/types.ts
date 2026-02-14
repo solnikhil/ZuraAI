@@ -88,12 +88,21 @@ export type UpdateStreamingCallback = (
 export type FlushCallback = () => void
 
 /**
+ * Options for handleToolCalls (research plan UI updates)
+ */
+export interface HandleToolCallsOptions {
+  onToolStart?: (toolCall: any) => void
+  onToolComplete?: (result: any) => void
+  onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
+}
+
+/**
  * Tool calling hook interface
  */
 export interface ToolCallingHook {
   canUseTools: boolean
   getToolsForRequest: () => any[] | null
-  handleToolCalls: (response: any) => Promise<{
+  handleToolCalls: (response: any, options?: HandleToolCallsOptions) => Promise<{
     hasTools: boolean
     toolResults: any[]
     formattedResults: any[]

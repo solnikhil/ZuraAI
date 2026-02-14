@@ -58,6 +58,10 @@ export interface ThinkingBlock {
     query?: string // For searching blocks
     duration?: number // Duration in milliseconds (for thinking)
     timestamp: number // When this block was created
+    /** Tool call arguments (for searching blocks - JSON input) */
+    toolInput?: Record<string, unknown>
+    /** Tool call result (for searching blocks - JSON output) */
+    toolOutput?: { success: boolean; data?: unknown; error?: string; executionTime?: number }
 }
 
 export interface ResponseVersion {

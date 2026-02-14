@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react'
+import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamGroqCompletion } from '../../../../../services/groq'
 import type {
   StreamingResult,
@@ -17,6 +18,8 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
+import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
@@ -64,6 +67,7 @@ export function useGroqStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseGroqStreamingOptions): UseGroqStreamingReturn {
+  const { updateStreaming } = useStreamingActions()
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
 
   const streamGroq = useCallback(async (
@@ -92,6 +96,7 @@ export function useGroqStreaming({
     let finishReason: string | null = null
     let savedToolResults: any = null
     let firstTokenTime: number | null = null
+    let localThinkingBlocks: ThinkingBlock[] = []
 
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
@@ -189,21 +194,68 @@ export function useGroqStreaming({
         }
       }
 
+      const researchPlanCallbacks = {
+          onToolStart: (toolCall: any) => {
+            if (toolCall?.name === 'research_plan') {
+              const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
+              if (args?.topic && Array.isArray(args?.steps)) {
+                const plan = { topic: args.topic, steps: args.steps }
+                updateStreaming({ researchPlan: plan })
+                throttledUpdateStreamingMessage(sessionId, messageId, { researchPlan: plan })
+              }
+            }
+          },
+          onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
+            updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              researchProgress: { currentStep, totalSteps, currentQuery: query }
+            })
+          }
+        }
+
       let toolResult
       try {
-        toolResult = await handleToolCalls(responseWithFallback)
+        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
       } catch (toolError: any) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Update researchStatus for web searches
+      // Update researchStatus for web searches or research_plan and add thinkingBlocks
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      if (webSearchCalls.length > 0) {
-        const firstSearchQuery = webSearchCalls[0]
-        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
-          ? firstSearchQuery.toolCall.arguments?.query
-          : firstSearchQuery.toolCall.arguments
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
+      if (hasSearchCalls) {
+        const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
+        const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
+          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          : (typeof firstSearch?.toolCall?.arguments === 'object'
+            ? firstSearch?.toolCall?.arguments?.query
+            : firstSearch?.toolCall?.arguments)
+
+        for (const tr of toolResult.toolResults || []) {
+          if (tr.toolCall.name === 'web_search') {
+            const args = tr.toolCall.arguments
+            const q = typeof args === 'object' ? args?.query : args
+            localThinkingBlocks.push({
+              type: 'searching',
+              query: String(q || ''),
+              timestamp: Date.now(),
+              toolInput: typeof args === 'object' ? args : { query: args },
+              toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+            })
+          } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+            for (const step of tr.toolCall.arguments.steps) {
+              localThinkingBlocks.push({
+                type: 'searching',
+                query: String(step?.query || ''),
+                timestamp: Date.now(),
+                toolInput: { query: step?.query },
+                toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+              })
+            }
+          }
+        }
 
         updateStreamingMessage(sessionId, messageId, {
           researchStatus: {
@@ -211,7 +263,8 @@ export function useGroqStreaming({
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
-          }
+          },
+          thinkingBlocks: localThinkingBlocks
         })
       }
 
@@ -304,13 +357,39 @@ export function useGroqStreaming({
 
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls(followUpResponseWithFallback)
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
             } catch (e: any) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
-            totalSearchCount += newWebSearches
+            const newResearchPlanSteps = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'research_plan')
+              .flatMap((r: any) => r.toolCall.arguments?.steps || []).length || 0
+            totalSearchCount += newWebSearches + newResearchPlanSteps
+
+            for (const tr of nextToolResult.toolResults || []) {
+              if (tr.toolCall.name === 'web_search') {
+                const args = tr.toolCall.arguments
+                const q = typeof args === 'object' ? args?.query : args
+                localThinkingBlocks.push({
+                  type: 'searching',
+                  query: String(q || ''),
+                  timestamp: Date.now(),
+                  toolInput: typeof args === 'object' ? args : { query: args },
+                  toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+                })
+              } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+                for (const step of tr.toolCall.arguments.steps) {
+                  localThinkingBlocks.push({
+                    type: 'searching',
+                    query: String(step?.query || ''),
+                    timestamp: Date.now(),
+                    toolInput: { query: step?.query },
+                    toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+                  })
+                }
+              }
+            }
 
             const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
@@ -333,27 +412,33 @@ export function useGroqStreaming({
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
     const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
-    // Final fill in case usage was never populated (e.g. compound models)
     usage = fillMissingUsage(usage, accumulatedContent)
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
+    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+      r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
+    )
+    const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent
+
     updateStreamingMessage(sessionId, messageId, {
-      content: accumulatedContent,
+      content: finalContent,
       model: `groq/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
-      toolResults: savedToolResults
+      toolResults: savedToolResults,
+      ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {})
     })
 
     return {
-      content: accumulatedContent,
+      content: finalContent,
       model: `groq/${settings.aiModel}`,
       toolResults: savedToolResults,
+      thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
       usage: { ...usage, tps, ttft },
       latency,
       finishReason: finishReason || undefined,
     }
-  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
+  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateStreaming, updateInterval])
 
   return { streamGroq }
 }

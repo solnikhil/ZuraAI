@@ -20,6 +20,7 @@ import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { parseOpenRouterToolCalls, hasToolCalls, formatToolResultsForOpenRouter } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
+import { executeResearchPlanTool } from './researchPlanHandler'
 import { 
     ToolCall, 
     ToolCallResult,
@@ -119,6 +120,8 @@ export interface ToolManagerConfig {
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
     onToolComplete?: (result: ToolCallResult) => void
+    /** Called during research_plan execution for step-by-step progress (currentStep, totalSteps, query) */
+    onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
 }
 
 /**
@@ -151,6 +154,7 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'nvidia':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -169,6 +173,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'nvidia':
             return hasToolCalls(response as OpenRouterResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -193,6 +198,7 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'nvidia':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -245,12 +251,21 @@ export async function processToolCalls(
             continue
         }
         
-        // Notify tool start
+        // Notify tool start (UI can show research plan from toolCall.arguments when name === 'research_plan')
         config.onToolStart?.(coercedToolCall)
         
-        // Execute tool with coerced arguments - wrap in try-catch to prevent crashes
+        // Execute tool - research_plan is handled in renderer (expands to web_search per step)
         try {
-            const result = await executeToolCalls([coercedToolCall])
+            let result: ToolCallResult[]
+            if (coercedToolCall.name === 'research_plan') {
+                const singleResult = await executeResearchPlanTool(
+                    coercedToolCall,
+                    config.onResearchPlanProgress
+                )
+                result = [singleResult]
+            } else {
+                result = await executeToolCalls([coercedToolCall])
+            }
             results.push(...result)
             
             // Notify tool complete

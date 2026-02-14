@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react'
+import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
 import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
 import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
@@ -19,6 +20,7 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
+import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
@@ -45,6 +47,7 @@ export function useOpenRouterStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseOpenRouterStreamingOptions): UseOpenRouterStreamingReturn {
+  const { updateStreaming } = useStreamingActions()
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
 
   const streamOpenRouter = useCallback(async (
@@ -82,10 +85,14 @@ export function useOpenRouterStreaming({
     let thinkingEndTime: number | null = null
     let thinkingDuration: number | undefined = undefined
 
-    // Set tool choice for mandatory research mode to force web_search
+    // Set tool choice to force tool use when needed
+    const hasResearchPlanOnly = openRouterTools?.some((t: any) => t?.function?.name === 'research_plan') &&
+      !openRouterTools?.some((t: any) => t?.function?.name === 'web_search')
     const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
-    if (initialForceToolUse) {
+    if (hasResearchPlanOnly) {
+      initialToolChoice = { type: 'function', function: { name: 'research_plan' } }
+    } else if (initialForceToolUse) {
       initialToolChoice = { type: 'function', function: { name: 'web_search' } }
     }
 
@@ -218,21 +225,70 @@ export function useOpenRouterStreaming({
         }
       }
 
+      const researchPlanCallbacks = {
+          onToolStart: (toolCall: any) => {
+            if (toolCall?.name === 'research_plan') {
+              const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
+              if (args?.topic && Array.isArray(args?.steps)) {
+                const plan = { topic: args.topic, steps: args.steps }
+                updateStreaming({ researchPlan: plan })
+                throttledUpdateStreamingMessage(sessionId, messageId, { researchPlan: plan })
+              }
+            }
+          },
+          onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
+            updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              researchProgress: { currentStep, totalSteps, currentQuery: query }
+            })
+          }
+        }
+
       let toolResult
       try {
-        toolResult = await handleToolCalls(responseWithFallback)
+        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
       } catch (toolError: any) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Update researchStatus for web searches (use throttled for display, updateStreamingMessage for session)
+      // Update researchStatus for web searches or research_plan (use throttled for display, updateStreamingMessage for session)
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      if (webSearchCalls.length > 0) {
-        const firstSearchQuery = webSearchCalls[0]
-        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
-          ? firstSearchQuery.toolCall.arguments?.query
-          : firstSearchQuery.toolCall.arguments
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
+
+      if (hasSearchCalls) {
+        const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
+        const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
+          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          : (typeof firstSearch?.toolCall?.arguments === 'object'
+            ? firstSearch?.toolCall?.arguments?.query
+            : firstSearch?.toolCall?.arguments)
+
+        // Add thinkingBlocks for each web search or research_plan step
+        for (const tr of toolResult.toolResults || []) {
+          if (tr.toolCall.name === 'web_search') {
+            const args = tr.toolCall.arguments
+            const q = typeof args === 'object' ? args?.query : args
+            localThinkingBlocks.push({
+              type: 'searching',
+              query: String(q || ''),
+              timestamp: Date.now(),
+              toolInput: typeof args === 'object' ? args : { query: args },
+              toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+            })
+          } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+            for (const step of tr.toolCall.arguments.steps) {
+              localThinkingBlocks.push({
+                type: 'searching',
+                query: String(step?.query || ''),
+                timestamp: Date.now(),
+                toolInput: { query: step?.query },
+                toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+              })
+            }
+          }
+        }
 
         const researchStatusUpdate = {
           researchStatus: {
@@ -244,9 +300,10 @@ export function useOpenRouterStreaming({
         }
         throttledUpdateStreamingMessage(sessionId, messageId, {
           ...researchStatusUpdate,
-          ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {})
+          ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+          thinkingBlocks: localThinkingBlocks
         })
-        updateStreamingMessage(sessionId, messageId, researchStatusUpdate)
+        updateStreamingMessage(sessionId, messageId, { ...researchStatusUpdate, thinkingBlocks: localThinkingBlocks })
       }
 
       savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
@@ -362,7 +419,7 @@ export function useOpenRouterStreaming({
 
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls(followUpResponseWithFallback)
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
             } catch (e: any) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
@@ -370,15 +427,23 @@ export function useOpenRouterStreaming({
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
             totalSearchCount += newWebSearches
 
-            // Append search markers to thinking (unified single block - do not clear)
+            // Add thinkingBlocks for Web Search UI (no raw --- in thinking; tool call shows in block)
             for (const tr of nextToolResult.toolResults || []) {
               if (tr.toolCall.name === 'web_search') {
-                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-                accumulatedReasoning += '\n\n--- Web Search: "' + String(searchQuery || '') + '" ---\n\n'
+                const args = tr.toolCall.arguments
+                const searchQuery = typeof args === 'object' ? args?.query : args
+                localThinkingBlocks.push({
+                  type: 'searching',
+                  query: String(searchQuery || ''),
+                  timestamp: Date.now(),
+                  toolInput: typeof args === 'object' ? args : { query: args },
+                  toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+                })
                 const webSearchUpdate = {
                   thinking: accumulatedReasoning,
                   thinkingDuration: thinkingDuration,
-                  researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true }
+                  researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true },
+                  thinkingBlocks: localThinkingBlocks
                 }
                 throttledUpdateStreamingMessage(sessionId, messageId, webSearchUpdate)
                 updateStreamingMessage(sessionId, messageId, webSearchUpdate)
@@ -418,11 +483,33 @@ export function useOpenRouterStreaming({
     const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
+    // When web search or research_plan was used, strip standalone --- so user sees Web Search block instead
+    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+      r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
+    )
+    const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent
+
+    // Persist research plan and progress for research_plan tool results
+    const researchPlanResult = (savedToolResults || []).find((r: any) => r?.toolCall?.name === 'research_plan')
+    const researchPlanData = researchPlanResult?.toolCall?.arguments?.topic && Array.isArray(researchPlanResult?.toolCall?.arguments?.steps)
+      ? {
+          researchPlan: {
+            topic: researchPlanResult.toolCall.arguments.topic,
+            steps: researchPlanResult.toolCall.arguments.steps
+          },
+          researchProgress: {
+            currentStep: researchPlanResult.toolCall.arguments.steps.length,
+            totalSteps: researchPlanResult.toolCall.arguments.steps.length
+          }
+        }
+      : {}
+
     updateStreamingMessage(sessionId, messageId, {
-      content: accumulatedContent,
+      content: finalContent,
       ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
       ...(thinkingDuration !== undefined ? { thinkingDuration } : {}),
       ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
+      ...researchPlanData,
       model: `openrouter/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
@@ -431,7 +518,7 @@ export function useOpenRouterStreaming({
     })
 
     return {
-      content: accumulatedContent,
+      content: finalContent,
       model: `openrouter/${settings.aiModel}`,
       thinking: accumulatedReasoning || undefined,
       thinkingDuration,
@@ -441,7 +528,7 @@ export function useOpenRouterStreaming({
       latency,
       finishReason: finishReason || undefined,
     }
-  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
+  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateStreaming, updateInterval])
 
   return { streamOpenRouter }
 }

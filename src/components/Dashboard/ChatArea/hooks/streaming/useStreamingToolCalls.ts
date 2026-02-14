@@ -219,9 +219,17 @@ export function useStreamingToolCalls({
   /**
    * Handle tool calls with error handling and toast notifications
    */
-  const handleToolCalls = useCallback(async (response: any): Promise<ToolCallProcessingResult> => {
+  const handleToolCalls = useCallback(async (
+    response: any,
+    options?: { onToolStart?: (tc: any) => void; onToolComplete?: (r: any) => void; onResearchPlanProgress?: (step: number, total: number, query?: string) => void }
+  ): Promise<ToolCallProcessingResult> => {
     try {
-      return await baseHandleToolCalls(response)
+      return await baseHandleToolCalls(
+        response,
+        options?.onToolStart,
+        options?.onToolComplete,
+        options?.onResearchPlanProgress
+      )
     } catch (toolError: any) {
       console.error('Tool calls processing error:', toolError)
       showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')

@@ -24,6 +24,89 @@
     color: rgba(255, 255, 255, 0.5);
 }
 
+/* Web Search tool call inside thinking block - matches active tool call styling */
+.thinking-block.thinking-tool-call .thinking-header.tool-call {
+    opacity: 0.9;
+}
+
+.thinking-block.thinking-tool-call .thinking-header.tool-call .thinking-text {
+    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+}
+
+.thinking-block.thinking-tool-call .thinking-tool-calling-icon {
+    color: var(--theme-info, rgba(59, 130, 246, 0.9));
+}
+
+/* Inline Web Search tool call - dropdown, follows thinking block style */
+.thinking-inline-tool-call {
+    margin: 12px 0;
+    display: block;
+}
+
+.thinking-inline-tool-call .thinking-header {
+    display: inline-flex;
+    padding: 6px 0;
+}
+
+.thinking-inline-tool-call .thinking-header.clickable,
+.thinking-block.thinking-tool-call .thinking-header.tool-call.clickable {
+    cursor: pointer;
+}
+
+.thinking-inline-tool-call .thinking-header.tool-call {
+    color: var(--theme-info, rgba(59, 130, 246, 0.95));
+}
+
+.thinking-inline-tool-call .thinking-tool-calling-icon {
+    color: var(--theme-info, rgba(59, 130, 246, 0.9));
+    flex-shrink: 0;
+}
+
+.thinking-content .thinking-segment {
+    display: block;
+}
+
+/* Tool details - JSON input/output, matches thinking-content style */
+.thinking-tool-details {
+    padding: 8px 0 12px 0;
+    padding-left: 16px;
+    margin-left: 4px;
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.thinking-tool-json {
+    margin-bottom: 12px;
+}
+
+.thinking-tool-json:last-child {
+    margin-bottom: 0;
+}
+
+.thinking-tool-json-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 4px;
+}
+
+.thinking-tool-meta {
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.thinking-tool-json pre {
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.75);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 
 /* ==== THINKING HEADER ==== */
 

@@ -15,7 +15,7 @@ const WEB_SEARCH_SYSTEM_PROMPT = `You have access to the web_search tool for rea
 - Facts, figures, or statistics you cannot verify from context
 - Verification of uncertain information
 
-Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release 2025" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
+Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
 Decide how many searches you need based on the user's question. Simple questions may need one search; complex research may need several. Search as many times as needed, then provide your answer. If you already know the answer confidently, respond directly without searching.`
 

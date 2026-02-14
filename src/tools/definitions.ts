@@ -6,6 +6,12 @@ export interface ToolParameter {
   description: string
   enum?: string[]
   default?: string | number | boolean
+  /** For type: 'array' - schema of array items */
+  items?: {
+    type: 'object'
+    properties: Record<string, { type: string; description: string; enum?: string[] }>
+    required?: string[]
+  }
 }
 
 export interface ToolDefinition {
@@ -31,7 +37,7 @@ export const toolDefinitions: ToolDefinition[] = [
 
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
-- Use keyword-focused phrasing: "OpenAI GPT-5 release date 2025" not "Can you tell me when OpenAI will release GPT-5?"
+- Use keyword-focused phrasing: "OpenAI GPT-5 release date ${new Date().getFullYear()}" not "Can you tell me when OpenAI will release GPT-5?"
 - Break complex topics into separate focused searches (overview, recent developments, specifics, verification).
 - For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
@@ -39,7 +45,7 @@ Query formulation best practices:
       properties: {
         query: {
           type: 'string',
-          description: 'Search query. Use concise keywords (e.g. "X market size 2025", "latest AI developments"). Avoid conversational phrasing like "Can you find..." or "I want to know...".'
+          description: `Search query. Use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). Avoid conversational phrasing like "Can you find..." or "I want to know...".`
         },
         num_results: {
           type: 'number',
@@ -65,6 +71,34 @@ Query formulation best practices:
         }
       },
       required: ['query']
+    },
+    category: 'search'
+  },
+  {
+    name: 'research_plan',
+    description: 'Submit your research plan before executing. Call this FIRST with 2-6 search steps. We will execute each step and return combined results.',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Short topic summary of the research'
+        },
+        steps: {
+          type: 'array',
+          description: '2-6 search steps to execute in order',
+          items: {
+            type: 'object',
+            properties: {
+              stepNumber: { type: 'number', description: '1-based step index' },
+              query: { type: 'string', description: 'Search query for this step' },
+              rationale: { type: 'string', description: 'Optional reason for this search' }
+            },
+            required: ['stepNumber', 'query']
+          }
+        }
+      },
+      required: ['topic', 'steps']
     },
     category: 'search'
   },

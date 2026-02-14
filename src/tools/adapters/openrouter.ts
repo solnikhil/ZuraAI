@@ -25,6 +25,11 @@ export interface OpenAITool {
                 description: string
                 enum?: string[]
                 default?: unknown
+                items?: {
+                    type: string
+                    properties: Record<string, { type: string; description: string; enum?: string[] }>
+                    required: string[]
+                }
             }>
             required: string[]
         }
@@ -39,6 +44,28 @@ export type OpenAIToolCall = OpenRouterToolCall
 /**
  * Convert Zura tool definitions to OpenAI/OpenRouter format
  */
+function convertProperty(value: import('../definitions').ToolParameter): Record<string, unknown> {
+    const base: Record<string, unknown> = {
+        type: value.type,
+        description: value.description,
+        ...(value.enum && { enum: value.enum }),
+        ...(value.default !== undefined && { default: value.default })
+    }
+    if (value.type === 'array' && value.items) {
+        base.items = {
+            type: 'object',
+            properties: Object.fromEntries(
+                Object.entries(value.items.properties).map(([k, v]) => [
+                    k,
+                    { type: v.type, description: v.description, ...(v.enum && { enum: v.enum }) }
+                ])
+            ),
+            required: value.items.required || []
+        }
+    }
+    return base
+}
+
 export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[] {
     return tools.map(tool => ({
         type: 'function',
@@ -50,14 +77,9 @@ export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[]
                 properties: Object.fromEntries(
                     Object.entries(tool.parameters.properties).map(([key, value]) => [
                         key,
-                        {
-                            type: value.type,
-                            description: value.description,
-                            ...(value.enum && { enum: value.enum }),
-                            ...(value.default !== undefined && { default: value.default })
-                        }
+                        convertProperty(value)
                     ])
-                ),
+                ) as OpenAITool['function']['parameters']['properties'],
                 required: tool.parameters.required
             }
         }
@@ -227,6 +249,51 @@ function extractFallbackQuery(
     return null
 }
 
+/**
+ * Try to repair incomplete JSON by appending closing braces/brackets.
+ * Handles common streaming truncation (e.g. {"query": "value" without final }).
+ */
+function tryRepairIncompleteJson(str: string): string | null {
+    const trimmed = str.trim()
+    if (!trimmed || trimmed.length < 2) return null
+
+    let openBraces = 0
+    let openBrackets = 0
+    let inString = false
+    let escapeNext = false
+    let inStringChar = ''
+
+    for (const char of trimmed) {
+        if (escapeNext) {
+            escapeNext = false
+            continue
+        }
+        if (char === '\\') {
+            escapeNext = true
+            continue
+        }
+        if ((char === '"' || char === "'") && !inString) {
+            inString = true
+            inStringChar = char
+            continue
+        }
+        if (char === inStringChar) {
+            inString = false
+            continue
+        }
+        if (!inString) {
+            if (char === '{') openBraces++
+            if (char === '}') openBraces--
+            if (char === '[') openBrackets++
+            if (char === ']') openBrackets--
+        }
+    }
+
+    if (openBraces <= 0 && openBrackets <= 0) return null
+    const suffix = ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces))
+    return trimmed + suffix
+}
+
 function parseToolArguments(toolName: string, rawArgs: string): Record<string, unknown> | null {
     const argsStr = rawArgs?.trim() || ''
     if (!argsStr) return null
@@ -246,6 +313,18 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
             })
         }
     } else {
+        const repaired = tryRepairIncompleteJson(argsStr)
+        if (repaired) {
+            try {
+                const parsed = JSON.parse(repaired)
+                const normalized = normalizeParsedArgs(toolName, parsed)
+                if (normalized) {
+                    return normalized
+                }
+            } catch {
+                /* fall through to extractFallbackArgs */
+            }
+        }
         console.warn('[openrouter] Incomplete JSON for tool call, falling back:', {
             tool: toolName,
             argsLength: argsStr.length,
@@ -299,20 +378,30 @@ export function parseOpenRouterToolCalls(response: OpenRouterResponse & { _fallb
     return toolCalls
 }
 
+/** Max chars per tool result to avoid 400 from oversized payloads */
+const MAX_TOOL_RESULT_CHARS = 32000
+
 /**
- * Format tool results for sending back to OpenRouter
+ * Format tool results for sending back to OpenRouter.
+ * Truncates large results to avoid 400 errors from context limits.
  */
 export function formatToolResultsForOpenRouter(
     toolCalls: Array<{ id: string; name: string }>,
     results: ToolResult[]
 ): OpenRouterToolResultMessage[] {
-    return toolCalls.map((tc, i) => ({
-        role: 'tool' as const,
-        tool_call_id: tc.id,
-        content: results[i].success 
+    return toolCalls.map((tc, i) => {
+        const content = results[i].success
             ? JSON.stringify(results[i].data)
             : `Error: ${results[i].error}`
-    }))
+        const truncated = content.length > MAX_TOOL_RESULT_CHARS
+            ? content.slice(0, MAX_TOOL_RESULT_CHARS) + '...[truncated]'
+            : content
+        return {
+            role: 'tool' as const,
+            tool_call_id: tc.id,
+            content: truncated
+        }
+    })
 }
 
 /**

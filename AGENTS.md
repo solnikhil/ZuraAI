@@ -13,7 +13,7 @@ Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
-- Tool calling system (restricted; only `web_search` is enabled end-to-end)
+- Tool calling system (restricted; `web_search` and `research_plan` — the latter expands to `web_search` in renderer)
 
 ---
 
@@ -156,7 +156,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
 - **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
-- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): 3-phase flow for OpenRouter: (1) Planning: `researchPlanner.ts` — LLM generates search plan; (2) Execution: `researchExecutor.ts` — runs `web_search` per step; (3) Synthesis: `streamResearchSynthesis` in `openrouter.ts` — LLM synthesizes final answer.
+- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme.
@@ -195,7 +195,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Tool schemas: `src/tools/definitions.ts` (**currently only `web_search`**) 
+  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` when structured research enabled) 
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
 
