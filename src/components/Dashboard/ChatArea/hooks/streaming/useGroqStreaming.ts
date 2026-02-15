@@ -281,6 +281,7 @@ export function useGroqStreaming({
         let researchRound = 1
 
         const SAFETY_CAP = 50
+        const MAX_RESEARCH_ROUNDS = 6
         while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
           let toolChoice: any = undefined
@@ -288,6 +289,9 @@ export function useGroqStreaming({
           const followUpMessages: any[] = []
           if (researchContextMsg) {
             followUpMessages.push({ role: 'system', content: researchContextMsg })
+          }
+          if (researchRound >= 4) {
+            followUpMessages.push({ role: 'system', content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n` })
           }
           followUpMessages.push(...optimizedHistory, lastAssistantMessage, ...toolResult.formattedResults)
 
@@ -337,11 +341,11 @@ export function useGroqStreaming({
             accumulatedContent
           )
 
-          if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+          if (followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)) {
             const reconstructedFollowUp = {
               role: 'assistant',
               content: followUpContent,
-              tool_calls: followUpToolCalls.filter(tc => tc.function.name).map(tc => ({
+              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
                 id: tc.id, type: tc.type || 'function',
                 function: { name: tc.function.name, arguments: tc.function.arguments }
               }))
@@ -401,7 +405,11 @@ export function useGroqStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            hasMoreToolCalls = nextToolResult.needsFollowUp
+            if (researchRound >= MAX_RESEARCH_ROUNDS) {
+              hasMoreToolCalls = false
+            } else {
+              hasMoreToolCalls = nextToolResult.needsFollowUp
+            }
           } else {
             hasMoreToolCalls = false
           }

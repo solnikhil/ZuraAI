@@ -43,7 +43,7 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledWith('test', expect.any(Object))
         })
 
-        it('clamps num_results to 1-10', async () => {
+        it('clamps num_results to 1-20', async () => {
             vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
                 results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
                 noResults: false,

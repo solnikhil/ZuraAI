@@ -145,6 +145,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,
     streamResponses: settings.streamResponses,
+    webSearchPrompt: settings.webSearchPrompt,
     ollamaUrl: settings.ollamaUrl,
     openRouterApiKey: settings.openRouterApiKey,
     perplexityApiKey: settings.perplexityApiKey,

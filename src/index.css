@@ -376,6 +376,74 @@ html.frosted-mode body {
     animation: tooltip-out 0.15s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 
+/* Token Context Details panel - polished entrance with bounce + stagger */
+@keyframes token-context-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.88) translateY(14px);
+    }
+    55% {
+        opacity: 1;
+    }
+    75% {
+        transform: scale(1.03) translateY(-4px);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes token-context-out {
+    0% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.94) translateY(6px);
+    }
+}
+
+@keyframes token-context-item-in {
+    0% {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-token-context-in {
+    animation: token-context-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-token-context-out {
+    animation: token-context-out 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.animate-token-context-item {
+    animation: token-context-item-in 0.3s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+    opacity: 0;
+}
+
+.animate-token-context-item-delay-1 { animation-delay: 0.05s; }
+.animate-token-context-item-delay-2 { animation-delay: 0.1s; }
+.animate-token-context-item-delay-3 { animation-delay: 0.15s; }
+.animate-token-context-item-delay-4 { animation-delay: 0.2s; }
+.animate-token-context-item-delay-5 { animation-delay: 0.25s; }
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-token-context-in,
+    .animate-token-context-out,
+    .animate-token-context-item {
+        animation: none;
+        opacity: 1;
+    }
+}
+
 
 /* === KaTeX Math Styling - Clean & Minimal === */
 

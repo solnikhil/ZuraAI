@@ -19,7 +19,6 @@ import { Separator } from '@/components/ui/separator'
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
-import { ResearchPlanBlock } from './ResearchPlanBlock'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
@@ -880,52 +879,6 @@ function MessageRendererComponent({
     return images
   }, [message.toolResults])
 
-  // Derived Search Plan for web_search mode (when no research_plan / structured research)
-  // Shows a structured plan block so users see the search strategy, not just raw thinking
-  const derivedWebSearchPlan = useMemo(() => {
-    if (message.researchPlan?.steps?.length) return null // Structured research has its own block
-    const searchBlocks = (message.thinkingBlocks || []).filter((b) => b.type === 'searching')
-    const isSearching = message.researchStatus?.isSearching
-    const currentSearch = message.researchStatus?.currentSearch
-    const pendingWebSearch = (activeToolCalls || []).find(
-      (tc) => tc.name === 'web_search' && (tc.arguments as { query?: string })?.query
-    )
-    const pendingQuery = pendingWebSearch
-      ? String((pendingWebSearch.arguments as { query?: string })?.query || '')
-      : ''
-    const hasWebSearch =
-      searchBlocks.length > 0 || (isSearching && currentSearch) || pendingQuery
-    if (!hasWebSearch) return null
-
-    const steps: Array<{ stepNumber: number; query: string }> = searchBlocks.map((b, i) => ({
-      stepNumber: i + 1,
-      query: b.query || ''
-    }))
-    if (isSearching && currentSearch && !steps.some((s) => s.query === currentSearch)) {
-      steps.push({ stepNumber: steps.length + 1, query: currentSearch })
-    } else if (pendingQuery && !steps.some((s) => s.query === pendingQuery)) {
-      steps.push({ stepNumber: steps.length + 1, query: pendingQuery })
-    }
-    if (steps.length === 0) return null
-
-    const firstQuery = steps[0]?.query || ''
-    const topic = firstQuery.length > 50 ? firstQuery.slice(0, 47) + '...' : firstQuery || 'Web search'
-    const completedCount = searchBlocks.length
-    return {
-      topic,
-      steps,
-      currentStep: completedCount,
-      totalSteps: steps.length,
-      currentQuery: isSearching ? currentSearch : pendingQuery || undefined
-    }
-  }, [
-    message.researchPlan,
-    message.thinkingBlocks,
-    message.researchStatus?.isSearching,
-    message.researchStatus?.currentSearch,
-    activeToolCalls
-  ])
-
   const isUser = message.role === 'user'
   const hasThinking = typeof (message as any).thinking === 'string' && (message as any).thinking.trim().length > 0
   const showThinkingSpinner = isStreaming && !hasThinking
@@ -1051,32 +1004,6 @@ function MessageRendererComponent({
       onKeyDown={handleKeyDown}
       ref={messageRef}
     >
-      {/* Research Plan Block (structured research mode) */}
-      {message.researchPlan && message.researchPlan.steps.length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <ResearchPlanBlock
-            topic={message.researchPlan.topic}
-            steps={message.researchPlan.steps}
-            currentStep={message.researchProgress?.currentStep}
-            totalSteps={message.researchProgress?.totalSteps}
-            currentQuery={message.researchProgress?.currentQuery}
-          />
-        </div>
-      )}
-
-      {/* Derived Search Plan (web_search mode) - shows plan when no research_plan */}
-      {derivedWebSearchPlan && (
-        <div style={{ marginBottom: '8px' }}>
-          <ResearchPlanBlock
-            topic={derivedWebSearchPlan.topic}
-            steps={derivedWebSearchPlan.steps}
-            currentStep={derivedWebSearchPlan.currentStep}
-            totalSteps={derivedWebSearchPlan.totalSteps}
-            currentQuery={derivedWebSearchPlan.currentQuery}
-          />
-        </div>
-      )}
-
       {/* Thinking Block */}
       {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>

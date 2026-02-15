@@ -17,7 +17,9 @@ const WEB_SEARCH_BASE_PROMPT = `You have access to the web_search tool for real-
 
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
-PLANNING IN YOUR THINKING: Before calling web_search, briefly outline in your reasoning what searches you plan to make and why. For ambiguous queries (e.g. "what is X" when X could be a name, company, or place), plan 2–3 searches to cover different angles.
+For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use num_results=15-20 in your first search. If the first search results seem incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search before synthesizing—do NOT answer with an incomplete list.
+
+EXPLORE-FIRST: For research questions where you need to discover information, start with ONE broad exploratory search. Do NOT pre-plan multiple searches from your knowledge. After the first search returns results, use those results to decide what follow-up searches (if any) are needed. Let the search results guide your next steps.
 
 MULTI-TURN SEARCHES: You can call web_search multiple times. After each search you receive results and get another turn—you may search again or provide your answer. There is no single-tool-call limit. If the first search is insufficient or the topic is ambiguous, call web_search again with a different query.
 
@@ -27,12 +29,13 @@ Decide how many searches you need based on the user's question. Simple questions
  * Follow-up prompt when searchCount >= 1 - encourages additional searches when needed
  */
 function getFollowUpResearchPrompt(searchCount: number): string {
+  const hasMultipleSearches = searchCount >= 2
   return `\n\n*** WEB SEARCH PROGRESS ***
-You have completed ${searchCount} search(es). Consider:
-- Do you need more specific information, different angles, or verification?
-- Is the topic ambiguous (e.g. name vs company vs place)? If so, do follow-up searches.
-- If you have sufficient information, provide your answer now.
-- If continuing, call web_search again with a different query.`
+You have completed ${searchCount} search(es).${hasMultipleSearches ? `
+
+IMPORTANT: You have search results above. Provide your synthesized answer NOW based on those results. Do NOT output planning, meta-commentary, or "I should..." reasoning—output the actual answer directly.` : `
+
+For list/comparison questions (e.g. "what providers offer X"): If your results seem incomplete or miss major players, call web_search again with a different query before answering. Do NOT synthesize an incomplete list. For other questions: If you have sufficient information, provide your answer now.`}`
 }
 
 const FORCE_WEB_SEARCH_PREFIX = `The user has requested a web search. Call web_search at least once before answering.
@@ -87,6 +90,8 @@ export interface ResearchModeSettings {
 export interface UseResearchModeOptions {
   /** Whether tools can be used with current provider/model */
   canUseTools: boolean
+  /** Custom web search prompt (appended when Web Search is enabled) */
+  webSearchPrompt?: string
 }
 
 /**
@@ -154,6 +159,7 @@ function checkUserRequestsWebSearch(message: string): boolean {
  */
 export function useResearchMode({
   canUseTools,
+  webSearchPrompt,
 }: UseResearchModeOptions): UseResearchModeReturn {
   const [researchState, setResearchState] = useState<ResearchModeState>(INITIAL_STATE)
 
@@ -252,8 +258,9 @@ export function useResearchMode({
       return prefix + getFollowUpResearchPrompt(searchCount)
     }
 
-    return `\n\n${prefix}${WEB_SEARCH_BASE_PROMPT}`
-  }, [researchState])
+    const basePrompt = webSearchPrompt ?? WEB_SEARCH_BASE_PROMPT
+    return `\n\n${prefix}${basePrompt}`
+  }, [researchState, webSearchPrompt])
 
   return {
     researchState,

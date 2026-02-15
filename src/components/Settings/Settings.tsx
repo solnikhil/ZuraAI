@@ -263,6 +263,7 @@ export default function Settings({
           {activeSection === 'systemprompt' && (
             <SystemPromptSection
               systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
+              webSearchPrompt={pendingSettings.webSearchPrompt ?? settings.webSearchPrompt}
               onChange={(changes) => handleChange(changes)}
             />
           )}

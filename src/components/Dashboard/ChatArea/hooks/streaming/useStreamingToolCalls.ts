@@ -154,7 +154,10 @@ export function useStreamingToolCalls({
   } = useToolCalling()
 
   // Use useResearchMode for research-specific logic (unified web search prompt)
-  const { startResearchMode, getResearchContext } = useResearchMode({ canUseTools })
+  const { startResearchMode, getResearchContext } = useResearchMode({
+    canUseTools,
+    webSearchPrompt: _settings.webSearchPrompt,
+  })
 
   /**
    * Create a new tool call accumulator state

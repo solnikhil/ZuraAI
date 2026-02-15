@@ -19,6 +19,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
+import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -69,6 +70,8 @@ export interface SettingsConfig {
     temperature: number
     maxTokens: number
     systemPrompt: string
+    /** Web search instructions appended when Web Search is enabled */
+    webSearchPrompt: string
     streamResponses: boolean
     
     // Tool settings
@@ -235,6 +238,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     temperature: 0.7,
     maxTokens: 8000,
     systemPrompt: defaultSystemPrompt,
+    webSearchPrompt: defaultWebSearchPrompt,
     streamResponses: false,
     
     // Tool settings

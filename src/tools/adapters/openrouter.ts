@@ -250,8 +250,8 @@ function extractFallbackQuery(
 }
 
 /**
- * Try to repair incomplete JSON by appending closing braces/brackets.
- * Handles common streaming truncation (e.g. {"query": "value" without final }).
+ * Try to repair incomplete JSON by closing unclosed strings and appending braces/brackets.
+ * Handles common streaming truncation (e.g. {"query": "value" without final } or {"query": "world pop without closing).
  */
 function tryRepairIncompleteJson(str: string): string | null {
     const trimmed = str.trim()
@@ -289,8 +289,11 @@ function tryRepairIncompleteJson(str: string): string | null {
         }
     }
 
-    if (openBraces <= 0 && openBrackets <= 0) return null
-    const suffix = ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces))
+    if (openBraces <= 0 && openBrackets <= 0 && !inString) return null
+
+    let suffix = ''
+    if (inString) suffix += inStringChar
+    suffix += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces))
     return trimmed + suffix
 }
 
@@ -312,6 +315,7 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
                 args: argsStr.slice(0, 200)
             })
         }
+        return extractFallbackArgs(toolName, argsStr)
     } else {
         const repaired = tryRepairIncompleteJson(argsStr)
         if (repaired) {
@@ -325,14 +329,21 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
                 /* fall through to extractFallbackArgs */
             }
         }
-        console.warn('[openrouter] Incomplete JSON for tool call, falling back:', {
-            tool: toolName,
-            argsLength: argsStr.length,
-            argsPreview: argsStr.slice(0, 100)
-        })
+        const fallback = extractFallbackArgs(toolName, argsStr)
+        if (fallback) {
+            console.info('[openrouter] Incomplete JSON for tool call, recovered via fallback:', {
+                tool: toolName,
+                argsPreview: argsStr.slice(0, 80)
+            })
+        } else {
+            console.warn('[openrouter] Incomplete JSON for tool call, fallback failed:', {
+                tool: toolName,
+                argsLength: argsStr.length,
+                argsPreview: argsStr.slice(0, 100)
+            })
+        }
+        return fallback
     }
-
-    return extractFallbackArgs(toolName, argsStr)
 }
 
 /**
@@ -354,12 +365,19 @@ export function parseOpenRouterToolCalls(response: OpenRouterResponse & { _fallb
         let args = parseToolArguments(tc.function.name, rawArgs)
 
         if (!args) {
-            const fallbackQuery = extractFallbackQuery(tc.function.name, fallbackContext)
+            let fallbackQuery = extractFallbackQuery(tc.function.name, fallbackContext)
+            if (!fallbackQuery && tc.function.name === 'web_search' && rawArgs.trim().length > 0) {
+                const m = rawArgs.match(/"query"\s*:\s*"((?:[^"\\]|\\.)*)"?/i) ?? rawArgs.match(/"query"\s*:\s*"([^"]*)/i)
+                const extracted = m?.[1]?.trim()
+                if (extracted && extracted.length > 0) {
+                    fallbackQuery = extracted.replace(/\\(.)/g, '$1')
+                }
+            }
             if (fallbackQuery) {
                 args = { query: fallbackQuery }
                 console.info('[openrouter] Empty args for web_search, used fallback from context:', { query: fallbackQuery.slice(0, 60) + (fallbackQuery.length > 60 ? '...' : '') })
-            } else {
-                console.warn('[openrouter] Tool call had empty/invalid arguments, using synthetic error args so model receives a result:', {
+        } else {
+            console.warn('[openrouter] Tool call had empty/invalid arguments, using synthetic error args so model receives a result:', {
                     tool: tc.function.name,
                     argsLength: rawArgs.length,
                     argsPreview: rawArgs.slice(0, 100)

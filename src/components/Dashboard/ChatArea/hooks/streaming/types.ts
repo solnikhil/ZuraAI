@@ -120,6 +120,8 @@ export interface StreamingSettings {
   temperature: number
   maxTokens: number
   streamResponses: boolean
+  /** Web search prompt appended when Web Search is enabled */
+  webSearchPrompt?: string
   // Provider-specific API keys
   ollamaUrl?: string
   openRouterApiKey?: string

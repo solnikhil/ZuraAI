@@ -204,11 +204,11 @@ export function useOpenRouterStreaming({
     }
 
     // Handle tool calls with research loop
-    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc?.id).length > 0) {
+    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter((tc: any) => tc?.id).length > 0) {
       const reconstructedMessage = {
         role: 'assistant',
         content: accumulatedContent,
-        tool_calls: toolCallsAccumulator.filter(tc => tc.id).map(tc => ({
+        tool_calls: toolCallsAccumulator.filter((tc: any) => tc?.id).map((tc: any) => ({
           id: tc.id, type: tc.type || 'function',
           function: { name: tc.function.name, arguments: tc.function.arguments }
         }))
@@ -248,7 +248,7 @@ export function useOpenRouterStreaming({
       try {
         toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
       } catch (toolError: any) {
-        console.error('Tool calls processing error:', toolError)
+        console.error('[Zura] Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
@@ -319,18 +319,26 @@ export function useOpenRouterStreaming({
         let researchRound = 1
 
         const SAFETY_CAP = 50
+        const MAX_RESEARCH_ROUNDS = 6 // Cap to prevent infinite loop when model keeps calling web_search
         while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          let toolChoice: any = undefined
+          // Do NOT use tool_choice: "none" - many OpenRouter providers return 404 "No endpoints found that support the provided 'tool_choice' value"
+          let toolChoice: 'auto' | 'none' | undefined = undefined
 
           const followUpMessages: any[] = []
           if (researchContextMsg) followUpMessages.push({ role: 'system', content: researchContextMsg })
+          if (researchRound >= 4) {
+            followUpMessages.push({ role: 'system', content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n` })
+          }
           followUpMessages.push(...openRouterMessages, lastAssistantMessage, ...toolResult.formattedResults)
 
           let followUpContent = ''
           let followUpReasoning = ''
           let followUpToolCalls: any[] = []
           let followUpUsage: any = {}
+          let chunkCount = 0
+          let chunksWithContent = 0
+          let chunksWithToolCalls = 0
 
           const loopResearchStatus = { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
           throttledUpdateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
@@ -342,7 +350,12 @@ export function useOpenRouterStreaming({
             followUpMessages,
             { temperature: settings.temperature, tools: openRouterTools, toolChoice, signal }
           )) {
+            chunkCount++
+            if ((chunk as any).error) {
+              console.error('[Zura] Research loop stream error:', (chunk as any).error)
+            }
             const delta = chunk.choices?.[0]?.delta?.content || ''
+            if (delta) chunksWithContent++
             followUpContent += delta
 
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
@@ -356,6 +369,7 @@ export function useOpenRouterStreaming({
             }
 
             if (chunk.choices?.[0]?.delta?.tool_calls) {
+              chunksWithToolCalls++
               const deltaToolCalls = chunk.choices[0].delta.tool_calls
               deltaToolCalls?.forEach((tc: any) => {
                 const index = tc.index ?? 0
@@ -400,10 +414,11 @@ export function useOpenRouterStreaming({
             cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
           }
 
-          if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+          const hasValidToolCalls = followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)
+          if (hasValidToolCalls) {
             const reconstructedFollowUp = {
               role: 'assistant', content: followUpContent,
-              tool_calls: followUpToolCalls.filter(tc => tc.function.name).map(tc => ({
+              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
                 id: tc.id, type: tc.type || 'function',
                 function: { name: tc.function.name, arguments: tc.function.arguments }
               }))
@@ -421,6 +436,7 @@ export function useOpenRouterStreaming({
             try {
               nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
             } catch (e: any) {
+              console.error('[Zura] Research loop: handleToolCalls failed:', e?.message, 'Round:', researchRound)
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
@@ -470,7 +486,11 @@ export function useOpenRouterStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            hasMoreToolCalls = nextToolResult.needsFollowUp
+            if (researchRound >= MAX_RESEARCH_ROUNDS) {
+              hasMoreToolCalls = false
+            } else {
+              hasMoreToolCalls = nextToolResult.needsFollowUp
+            }
           } else {
             hasMoreToolCalls = false
           }

@@ -103,15 +103,15 @@ function reformulateQueryIfNeeded(query: string): string {
  */
 export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult> {
     // Coerce num_results to number
-    let num_results = args.num_results ?? 5
+    let num_results = args.num_results ?? 10
     if (typeof num_results === 'string') {
         const parsed = Number(num_results)
-        num_results = isNaN(parsed) ? 5 : parsed
+        num_results = isNaN(parsed) ? 10 : parsed
     }
     if (typeof num_results !== 'number' || num_results < 1) {
-        num_results = 5
+        num_results = 10
     }
-    num_results = Math.min(Math.max(num_results, 1), 10)
+    num_results = Math.min(Math.max(num_results, 1), 20)
 
     const search_depth = coerceSearchDepth(args.search_depth ?? 'basic')
     const time_range = coerceTimeRange(args.time_range)
@@ -251,7 +251,7 @@ async function searchWithTavily(
             api_key: apiKey,
             query,
             search_depth: searchDepth,
-            max_results: Math.min(numResults, 10),
+            max_results: Math.min(numResults, 20),
             include_answer: true,
             include_raw_content: false,
             include_images: true
@@ -341,8 +341,8 @@ async function searchWithTavily(
  * Fallback search using duck-duck-scrape (real DuckDuckGo web search)
  * Returns actual search results for any query - no API key needed
  */
-async function searchWithDuckDuckScrape(query: string, numResults: number = 5): Promise<ToolResult> {
-    const maxResults = Math.min(numResults, 10)
+async function searchWithDuckDuckScrape(query: string, numResults: number = 10): Promise<ToolResult> {
+    const maxResults = Math.min(numResults, 20)
 
     let searchResults: Awaited<ReturnType<typeof duckDuckScrapeSearch>>
     try {

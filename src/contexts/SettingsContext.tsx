@@ -145,6 +145,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         ) {
             parsed.systemPrompt = defaultSettings.systemPrompt
         }
+        if (parsed.webSearchPrompt === undefined) parsed.webSearchPrompt = defaultSettings.webSearchPrompt
 
         // Initialize new fields if missing
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
@@ -305,6 +306,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         temperature: storedSettings.temperature,
         maxTokens: storedSettings.maxTokens,
         systemPrompt: storedSettings.systemPrompt,
+        webSearchPrompt: storedSettings.webSearchPrompt,
         streamResponses: storedSettings.streamResponses,
         toolsEnabled: storedSettings.toolsEnabled,
         enabledTools: storedSettings.enabledTools,
