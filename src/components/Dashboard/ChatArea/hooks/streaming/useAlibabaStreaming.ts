@@ -34,13 +34,18 @@ function fillMissingUsage(
   usage: { inputTokens: number; outputTokens: number; totalTokens: number },
   content: string
 ): { inputTokens: number; outputTokens: number; totalTokens: number } {
-  if (usage.outputTokens > 0 && usage.totalTokens > 0) return usage
-  const estimatedOutput = usage.outputTokens > 0 ? usage.outputTokens : estimateOutputTokens(content)
-  if (estimatedOutput === 0) return usage
+  let { inputTokens, outputTokens, totalTokens } = usage
+  // Derive input from total - output when API returns total but not input
+  if (inputTokens === 0 && totalTokens > 0 && outputTokens > 0) {
+    inputTokens = Math.max(0, totalTokens - outputTokens)
+  }
+  if (outputTokens > 0 && totalTokens > 0 && inputTokens > 0) return { inputTokens, outputTokens, totalTokens }
+  const estimatedOutput = outputTokens > 0 ? outputTokens : estimateOutputTokens(content)
+  if (estimatedOutput === 0) return { inputTokens, outputTokens, totalTokens }
   return {
-    inputTokens: usage.inputTokens,
+    inputTokens,
     outputTokens: estimatedOutput,
-    totalTokens: usage.totalTokens > 0 ? usage.totalTokens : usage.inputTokens + estimatedOutput
+    totalTokens: totalTokens > 0 ? totalTokens : inputTokens + estimatedOutput
   }
 }
 
@@ -164,9 +169,9 @@ export function useAlibabaStreaming({
 
     let usage = fillMissingUsage(
       {
-        inputTokens: finalUsage.prompt_tokens || 0,
-        outputTokens: finalUsage.completion_tokens || 0,
-        totalTokens: finalUsage.total_tokens || 0
+        inputTokens: finalUsage.prompt_tokens ?? finalUsage.input_tokens ?? 0,
+        outputTokens: finalUsage.completion_tokens ?? finalUsage.output_tokens ?? 0,
+        totalTokens: finalUsage.total_tokens ?? 0
       },
       accumulatedContent
     )
@@ -334,9 +339,9 @@ export function useAlibabaStreaming({
 
           usage = fillMissingUsage(
             {
-              inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
-              outputTokens: (usage.outputTokens || 0) + (followUpUsage.completion_tokens || 0),
-              totalTokens: (usage.totalTokens || 0) + (followUpUsage.total_tokens || 0)
+              inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens ?? followUpUsage.input_tokens ?? 0),
+              outputTokens: (usage.outputTokens || 0) + (followUpUsage.completion_tokens ?? followUpUsage.output_tokens ?? 0),
+              totalTokens: (usage.totalTokens || 0) + (followUpUsage.total_tokens ?? 0)
             },
             accumulatedContent
           )

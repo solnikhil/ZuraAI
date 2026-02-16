@@ -69,6 +69,7 @@ interface AlibabaRequestBody {
     model: string
     messages: ChatMessage[]
     stream?: boolean
+    stream_options?: { include_usage?: boolean }
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
@@ -95,7 +96,8 @@ export async function* streamAlibabaCompletion(
     const requestBody: AlibabaRequestBody = {
         model,
         messages,
-        stream: true
+        stream: true,
+        stream_options: { include_usage: true }
     }
 
     if (options?.temperature !== undefined) {

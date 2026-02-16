@@ -187,12 +187,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         parsed.nvidiaModels = merged
         // Initialize Alibaba fields if missing
         if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
+        // Always merge with full default list (expanded model catalog); preserve user's enabled state
         const userAlibaba = parsed.alibabaModels
         const mergedAlibaba = defaultSettings.alibabaModels.map((d) => {
             const existing = Array.isArray(userAlibaba) ? userAlibaba.find((m: { code: string }) => m.code === d.code) : undefined
             return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
         })
-        parsed.alibabaModels = mergedAlibaba
+        // Append any user-added custom models not in defaults
+        const defaultCodes = new Set(defaultSettings.alibabaModels.map((d) => d.code))
+        const customModels = Array.isArray(userAlibaba)
+            ? userAlibaba.filter((m: { code: string }) => !defaultCodes.has(m.code))
+            : []
+        parsed.alibabaModels = [...mergedAlibaba, ...customModels]
         // Migrate deprecated Groq model IDs when modelProvider is groq
         const deprecatedGroqModelMap: Record<string, string> = {
             'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -350,6 +356,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         localStorage.setItem('zura-settings', JSON.stringify(combinedSettings))
     }, [combinedSettings])
+
 
     // Listen for storage events from other windows/tabs
     useEffect(() => {

@@ -128,6 +128,17 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'qwen3-32b',
         'qwen3-14b',
         'qwen3-8b',
+        'qwen3-next-80b',
+        'qwen3-235b',
+        'qwen3-30b',
+        'qwen3.5-397b',
+        'qwen2.5-72b',
+        'qwen2.5-32b',
+        'qwen2.5-14b',
+        'qwen2.5-7b',
+        'qwq-plus',
+        'qwen3-coder-plus',
+        'qwen3-coder-flash',
     ],
 }
 
