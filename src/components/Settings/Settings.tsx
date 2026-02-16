@@ -130,13 +130,14 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
         { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
         { key: 'nvidiaApiKey', current: pendingSettings.nvidiaApiKey, original: settings.nvidiaApiKey },
+        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -236,6 +237,7 @@ export default function Settings({
               perplexityApiKey={pendingSettings.perplexityApiKey}
               groqApiKey={pendingSettings.groqApiKey}
               nvidiaApiKey={pendingSettings.nvidiaApiKey}
+              alibabaApiKey={pendingSettings.alibabaApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
               toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
@@ -247,6 +249,7 @@ export default function Settings({
               perplexityModels={pendingSettings.perplexityModels || []}
               groqModels={pendingSettings.groqModels || []}
               nvidiaModels={pendingSettings.nvidiaModels || []}
+              alibabaModels={pendingSettings.alibabaModels || []}
               ollamaModels={pendingSettings.ollamaModels || []}
               maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
               titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}

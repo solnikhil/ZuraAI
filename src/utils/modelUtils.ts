@@ -28,7 +28,7 @@ import { modelSupportsTools } from '../tools/adapters'
 export interface ModelInfo {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia' | 'alibaba'
 }
 
 /**

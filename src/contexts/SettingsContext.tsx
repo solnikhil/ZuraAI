@@ -185,6 +185,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
         })
         parsed.nvidiaModels = merged
+        // Initialize Alibaba fields if missing
+        if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
+        const userAlibaba = parsed.alibabaModels
+        const mergedAlibaba = defaultSettings.alibabaModels.map((d) => {
+            const existing = Array.isArray(userAlibaba) ? userAlibaba.find((m: { code: string }) => m.code === d.code) : undefined
+            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+        })
+        parsed.alibabaModels = mergedAlibaba
         // Migrate deprecated Groq model IDs when modelProvider is groq
         const deprecatedGroqModelMap: Record<string, string> = {
             'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -298,6 +306,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         groqApiKey: storedSettings.groqApiKey,
         tavilyApiKey: storedSettings.tavilyApiKey,
         nvidiaApiKey: storedSettings.nvidiaApiKey,
+        alibabaApiKey: storedSettings.alibabaApiKey,
         aiModel: storedSettings.aiModel,
         modelProvider: storedSettings.modelProvider,
         configuredModels: storedSettings.configuredModels,
@@ -306,6 +315,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         perplexityModels: storedSettings.perplexityModels,
         groqModels: storedSettings.groqModels,
         nvidiaModels: storedSettings.nvidiaModels,
+        alibabaModels: storedSettings.alibabaModels,
         temperature: storedSettings.temperature,
         maxTokens: storedSettings.maxTokens,
         systemPrompt: storedSettings.systemPrompt,

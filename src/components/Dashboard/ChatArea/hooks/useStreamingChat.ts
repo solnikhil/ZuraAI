@@ -31,6 +31,7 @@ import {
   useGroqStreaming,
   useOpenRouterStreaming,
   useNvidiaStreaming,
+  useAlibabaStreaming,
   useStreamingToolCalls,
   useResearchMode,
   type StreamingSettings,
@@ -42,6 +43,7 @@ import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamPerplexityCompletion } from '../../../../services/perplexity'
 import { streamGroqCompletion } from '../../../../services/groq'
 import { streamNvidiaCompletion } from '../../../../services/nvidia'
+import { streamAlibabaCompletion } from '../../../../services/alibaba'
 import { streamOpenRouterCompletion } from '../../../../services/openrouter'
 
 export interface UseStreamingChatOptions {
@@ -151,6 +153,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     perplexityApiKey: settings.perplexityApiKey,
     groqApiKey: settings.groqApiKey,
     nvidiaApiKey: settings.nvidiaApiKey,
+    alibabaApiKey: settings.alibabaApiKey,
   }), [settings])
 
   // Use the streaming tool calls hook
@@ -212,6 +215,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   })
 
   const { streamNvidia } = useNvidiaStreaming({
+    settings: streamingSettings,
+    toolCalling,
+    updateStreamingMessage,
+    flushThrottledUpdates,
+    throttledUpdateStreamingMessage,
+  })
+
+  const { streamAlibaba } = useAlibabaStreaming({
     settings: streamingSettings,
     toolCalling,
     updateStreamingMessage,
@@ -336,13 +347,21 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       // Validate API key before sending
       const isOpenRouter = settings.modelProvider === 'openrouter' ||
-        !['ollama', 'perplexity', 'groq', 'nvidia'].includes(settings.modelProvider)
+        !['ollama', 'perplexity', 'groq', 'nvidia', 'alibaba'].includes(settings.modelProvider)
       const isNvidia = settings.modelProvider === 'nvidia'
+      const isAlibaba = settings.modelProvider === 'alibaba'
       if (isNvidia && !settings.nvidiaApiKey?.trim()) {
         deleteMessageFromSession(targetSessionId!, streamingMessageId)
         streamingMessageRef.current = null
         setIsLoading(false)
         showToast('NVIDIA API key is required. Add it in Settings > Providers and save.', 'error')
+        return
+      }
+      if (isAlibaba && !settings.alibabaApiKey?.trim()) {
+        deleteMessageFromSession(targetSessionId!, streamingMessageId)
+        streamingMessageRef.current = null
+        setIsLoading(false)
+        showToast('Alibaba API key is required. Add it in Settings > Providers and save.', 'error')
         return
       }
       if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
@@ -385,6 +404,16 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         })
       } else if (settings.modelProvider === 'nvidia') {
         await streamNvidia({
+          sessionId: targetSessionId!,
+          messageId: streamingMessageId,
+          messages: optimizedHistory,
+          startTime,
+          researchMaxRounds,
+          researchMandatory,
+          signal: abortControllerRef.current?.signal,
+        })
+      } else if (settings.modelProvider === 'alibaba') {
+        await streamAlibaba({
           sessionId: targetSessionId!,
           messageId: streamingMessageId,
           messages: optimizedHistory,
@@ -483,7 +512,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     createSession, addMessageToSession, updateStreamingMessage, updateSessionTitle,
     deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
-    streamOllama, streamPerplexity, streamGroq, streamNvidia, streamOpenRouter,
+    streamOllama, streamPerplexity, streamGroq, streamNvidia, streamAlibaba, streamOpenRouter,
   ])
 
   /**
@@ -590,6 +619,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
+        } else if (settings.modelProvider === 'alibaba') {
+          for await (const chunk of streamAlibabaCompletion(settings.alibabaApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
+            const delta = chunk.choices?.[0]?.delta?.content || ''
+            accumulatedContent += delta
+            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
+          }
         } else {
           for await (const chunk of streamOpenRouterCompletion(
             getOpenRouterApiKey(settings.openRouterApiKey), settings.aiModel, apiMessages,
@@ -664,6 +699,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
     if (settings.nvidiaModels) {
       settings.nvidiaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+    }
+    if (settings.alibabaModels) {
+      settings.alibabaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
 
     return allModels

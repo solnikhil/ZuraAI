@@ -6,6 +6,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     groqApiKey: string
     tavilyApiKey: string
     nvidiaApiKey: string
+    alibabaApiKey: string
 }> {
     const defaults = {
         openRouterApiKey: '',
@@ -13,6 +14,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
         groqApiKey: '',
         tavilyApiKey: '',
         nvidiaApiKey: '',
+        alibabaApiKey: '',
     }
 
     if (!window.secureStorage) {
@@ -27,6 +29,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
             groqApiKey: allKeys.groqApiKey || '',
             tavilyApiKey: allKeys.tavilyApiKey || '',
             nvidiaApiKey: allKeys.nvidiaApiKey || '',
+            alibabaApiKey: allKeys.alibabaApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)
@@ -35,7 +38,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
 }
 
 export async function saveApiKeyToSecureStorage(
-    key: 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey',
+    key: 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey',
     value: string
 ): Promise<boolean> {
     if (!window.secureStorage) {
@@ -51,12 +54,13 @@ export async function saveApiKeyToSecureStorage(
 }
 
 export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boolean> {
-    const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey'> = [
+    const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'> = [
         'openRouterApiKey',
         'perplexityApiKey',
         'groqApiKey',
         'tavilyApiKey',
         'nvidiaApiKey',
+        'alibabaApiKey',
     ]
 
     const hasMigrated = localStorage.getItem('zura-api-keys-migrated') === 'true'

@@ -11,7 +11,7 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA)
+- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; `web_search` and `research_plan` — the latter expands to `web_search` in renderer)
 
@@ -147,6 +147,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
+  - `src/services/nvidia.ts` (`streamNvidiaCompletion`)
+  - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
 - Tool calling:
@@ -156,7 +158,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
 - **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
-- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
+- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA/Alibaba. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -165,7 +167,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`) now support optional `enabled?: boolean`.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`, `alibabaModels`) now support optional `enabled?: boolean`.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
 
 ### Data Persistence
@@ -190,7 +192,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `nvidiaApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `nvidiaApiKey`, `alibabaApiKey`, `tavilyApiKey`
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
@@ -212,6 +214,7 @@ Tool execution is intentionally restricted.
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - NVIDIA: `src/services/nvidia.ts` (NVIDIA NIM API; OpenAI-compatible tool calling)
+- Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)

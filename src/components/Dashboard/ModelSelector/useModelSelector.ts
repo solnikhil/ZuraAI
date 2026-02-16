@@ -87,7 +87,7 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'nvidia'] as const
+  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'nvidia', 'alibaba'] as const
 
   const isProviderEnabled = useCallback((provider: string): boolean => {
     switch (provider) {
@@ -101,10 +101,12 @@ export function useModelSelector(): UseModelSelectorReturn {
         return Boolean(settings.groqApiKey?.trim())
       case 'nvidia':
         return Boolean(settings.nvidiaApiKey?.trim())
+      case 'alibaba':
+        return Boolean(settings.alibabaApiKey?.trim())
       default:
         return false
     }
-  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.nvidiaApiKey])
+  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.nvidiaApiKey, settings.alibabaApiKey])
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
@@ -121,7 +123,8 @@ export function useModelSelector(): UseModelSelectorReturn {
     perplexity: false,
     openrouter: false,
     groq: false,
-    nvidia: false
+    nvidia: false,
+    alibaba: false
   })
   
   // Refs
@@ -212,6 +215,11 @@ export function useModelSelector(): UseModelSelectorReturn {
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'nvidia' }))
     }
+    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
+      settings.alibabaModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'alibaba' }))
+    }
     return models
   }, [settings, isProviderEnabled])
   
@@ -227,7 +235,8 @@ export function useModelSelector(): UseModelSelectorReturn {
       perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
       openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
       groq: filteredModels.filter(m => m.provider === 'groq'),
-      nvidia: filteredModels.filter(m => m.provider === 'nvidia')
+      nvidia: filteredModels.filter(m => m.provider === 'nvidia'),
+      alibaba: filteredModels.filter(m => m.provider === 'alibaba')
     }
   }, [filteredModels])
   

@@ -35,13 +35,14 @@ export type ProviderToolFormat = OpenAITool[]
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
         case 'nvidia':
+        case 'alibaba':
             // All use OpenAI-compatible format
             return convertToOpenRouterFormat(tools)
 
@@ -60,7 +61,7 @@ export function convertToolsForProvider(
  * EXCLUDED: perplexity (see header comment)
  */
 export function providerSupportsTools(provider: string): boolean {
-    return ['openrouter', 'groq', 'ollama', 'nvidia'].includes(provider)
+    return ['openrouter', 'groq', 'ollama', 'nvidia', 'alibaba'].includes(provider)
 }
 
 /**
@@ -115,6 +116,18 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'moonshotai/kimi-k2-5',
         'moonshotai/kimi-k2-instruct',
         'moonshotai/kimi-k2-instruct-0905',
+    ],
+    alibaba: [
+        'qwen-plus',
+        'qwen-max',
+        'qwen-turbo',
+        'qwen-flash',
+        'qwen3-max',
+        'qwen3-max-preview',
+        'qwen3.5-plus',
+        'qwen3-32b',
+        'qwen3-14b',
+        'qwen3-8b',
     ],
 }
 

@@ -1,5 +1,6 @@
 import { generateGroqCompletion } from './groq'
 import { generateNvidiaCompletion } from './nvidia'
+import { generateAlibabaCompletion } from './alibaba'
 import { generateOllamaCompletion } from './ollama'
 import { generatePerplexityCompletion } from './perplexity'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
@@ -63,6 +64,11 @@ User message: "${userMessage.slice(0, 200)}"`
         const isNvidia = (settings.modelProvider === 'nvidia' && settings.nvidiaApiKey) ||
             (configuredNvidiaModels.includes(titleModel) && settings.nvidiaApiKey)
 
+        const configuredAlibabaModels = settings.alibabaModels?.map((m: any) => m.code) || []
+        const knownAlibabaModels = ['qwen-plus', 'qwen-max', 'qwen-flash', 'qwen-turbo', 'qwen3-max', 'qwen3.5-plus']
+        const isAlibaba = (settings.modelProvider === 'alibaba' && settings.alibabaApiKey) ||
+            ((configuredAlibabaModels.includes(titleModel) || knownAlibabaModels.includes(titleModel)) && settings.alibabaApiKey)
+
         if (isGroq) {
             const res = await generateGroqCompletion(
                 settings.groqApiKey,
@@ -90,6 +96,14 @@ User message: "${userMessage.slice(0, 200)}"`
         } else if (isNvidia) {
             const res = await generateNvidiaCompletion(
                 settings.nvidiaApiKey,
+                titleModel || settings.aiModel,
+                [{ role: 'user', content: prompt }],
+                { temperature: 0.3, max_tokens: 20 }
+            )
+            title = res.choices?.[0]?.message?.content || ''
+        } else if (isAlibaba) {
+            const res = await generateAlibabaCompletion(
+                settings.alibabaApiKey,
                 titleModel || settings.aiModel,
                 [{ role: 'user', content: prompt }],
                 { temperature: 0.3, max_tokens: 20 }

@@ -115,7 +115,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
@@ -155,6 +155,7 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'groq':
         case 'ollama':
         case 'nvidia':
+        case 'alibaba':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -174,6 +175,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'groq':
         case 'ollama':
         case 'nvidia':
+        case 'alibaba':
             return hasToolCalls(response as OpenRouterResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -199,6 +201,7 @@ export function formatResultsForProvider(
         case 'groq':
         case 'ollama':
         case 'nvidia':
+        case 'alibaba':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
@@ -312,6 +315,8 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
+        case 'nvidia':
+        case 'alibaba':
             return [
                 ...originalMessages,
                 assistantMessage,

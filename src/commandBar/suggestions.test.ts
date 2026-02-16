@@ -113,6 +113,18 @@ describe('commandBar suggestions', () => {
       expect(groqSuggestion?.title).toBe('Groq Settings')
     })
 
+    it('offers Alibaba Cloud settings when typing alibaba', () => {
+      const suggestions = getCommandBarSuggestions('alibaba', {
+        toolsEnabled: true,
+        webSearchEnabled: true,
+        hasCurrentSession: false,
+      })
+
+      const alibabaSuggestion = suggestions.find((s) => s.id === 'go-settings-alibaba')
+      expect(alibabaSuggestion).toBeDefined()
+      expect(alibabaSuggestion?.title).toBe('Alibaba Cloud Settings')
+    })
+
     it('offers Search APIs settings when typing tavily', () => {
       const suggestions = getCommandBarSuggestions('tavily', {
         toolsEnabled: true,

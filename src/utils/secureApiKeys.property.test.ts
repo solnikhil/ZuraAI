@@ -67,8 +67,9 @@ describe('Secure API Keys Property Tests', () => {
             'perplexityApiKey',
             'groqApiKey',
             'tavilyApiKey',
-            'nvidiaApiKey'
-        ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey'>
+            'nvidiaApiKey',
+            'alibabaApiKey'
+        ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'>
 
         it('should return identical value after save and load for any API key', async () => {
             await fc.assert(
@@ -144,7 +145,8 @@ describe('Secure API Keys Property Tests', () => {
                         perplexityApiKey: apiKeyArb,
                         groqApiKey: apiKeyArb,
                         tavilyApiKey: apiKeyArb,
-                        nvidiaApiKey: apiKeyArb
+                        nvidiaApiKey: apiKeyArb,
+                        alibabaApiKey: apiKeyArb
                     }),
                     async (allKeys) => {
                         // Setup mock to return all keys
@@ -159,6 +161,7 @@ describe('Secure API Keys Property Tests', () => {
                         expect(loadedKeys.groqApiKey).toBe(allKeys.groqApiKey)
                         expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
                         expect(loadedKeys.nvidiaApiKey).toBe(allKeys.nvidiaApiKey)
+                        expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
                     }
                 ),
                 { numRuns: 100 }
@@ -190,8 +193,9 @@ describe('Secure API Keys Property Tests', () => {
                 'perplexityApiKey',
                 'groqApiKey',
                 'tavilyApiKey',
-                'nvidiaApiKey'
-            ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey'>
+                'nvidiaApiKey',
+                'alibabaApiKey'
+            ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'>
 
             await fc.assert(
                 fc.asyncProperty(saveKeyArb, apiKeyArb, async (keyName, keyValue) => {

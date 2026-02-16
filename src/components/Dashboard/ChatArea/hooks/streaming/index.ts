@@ -35,6 +35,9 @@ export type { UseOpenRouterStreamingOptions, UseOpenRouterStreamingReturn } from
 export { useNvidiaStreaming } from './useNvidiaStreaming'
 export type { UseNvidiaStreamingOptions, UseNvidiaStreamingReturn } from './useNvidiaStreaming'
 
+export { useAlibabaStreaming } from './useAlibabaStreaming'
+export type { UseAlibabaStreamingOptions, UseAlibabaStreamingReturn } from './useAlibabaStreaming'
+
 // Tool calling hook for streaming
 export { useStreamingToolCalls } from './useStreamingToolCalls'
 export type {

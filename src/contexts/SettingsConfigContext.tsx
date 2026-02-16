@@ -55,16 +55,18 @@ export interface SettingsConfig {
     groqApiKey: string
     tavilyApiKey: string
     nvidiaApiKey: string
+    alibabaApiKey: string
 
     // Model settings
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
     configuredModels: ConfiguredModel[]
     ollamaUrl: string
     ollamaModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
     nvidiaModels: ConfiguredModel[]
+    alibabaModels: ConfiguredModel[]
 
     // AI parameters
     temperature: number
@@ -109,6 +111,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     groqApiKey: '',
     tavilyApiKey: '',
     nvidiaApiKey: '',
+    alibabaApiKey: '',
 
     // Model settings
     aiModel: 'x-ai/grok-4.1-fast',
@@ -233,6 +236,26 @@ export const defaultSettingsConfig: SettingsConfig = {
         { code: 'bigcode/starcoder2-7b', displayName: 'StarCoder2 7B', enabled: false, maxContext: 16384 },
         { code: 'bigcode/starcoder2-15b', displayName: 'StarCoder2 15B', enabled: false, maxContext: 16384 },
     ],
+    alibabaModels: [
+        // Commercial (enabled)
+        { code: 'qwen-plus', displayName: 'Qwen Plus', enabled: true, maxContext: 128000 },
+        { code: 'qwen-max', displayName: 'Qwen Max', enabled: true, maxContext: 128000 },
+        { code: 'qwen-flash', displayName: 'Qwen Flash', enabled: true, maxContext: 128000 },
+        { code: 'qwen-turbo', displayName: 'Qwen Turbo', enabled: true, maxContext: 128000 },
+        { code: 'qwen3-max', displayName: 'Qwen3 Max', enabled: true, maxContext: 128000 },
+        { code: 'qwen3-max-preview', displayName: 'Qwen3 Max Preview', enabled: true, maxContext: 128000 },
+        { code: 'qwen3.5-plus', displayName: 'Qwen3.5 Plus', enabled: true, maxContext: 128000 },
+        // Open source (enabled)
+        { code: 'qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 32768 },
+        { code: 'qwen3-14b', displayName: 'Qwen3 14B', enabled: true, maxContext: 32768 },
+        { code: 'qwen3-8b', displayName: 'Qwen3 8B', enabled: true, maxContext: 32768 },
+        // Open source (disabled)
+        { code: 'qwen3-4b', displayName: 'Qwen3 4B', enabled: false, maxContext: 8192 },
+        { code: 'qwen3-1.7b', displayName: 'Qwen3 1.7B', enabled: false, maxContext: 4096 },
+        { code: 'qwen2.5-72b-instruct', displayName: 'Qwen2.5 72B', enabled: false, maxContext: 131072 },
+        { code: 'qwen2.5-32b-instruct', displayName: 'Qwen2.5 32B', enabled: false, maxContext: 32768 },
+        { code: 'qwen2.5-14b-instruct', displayName: 'Qwen2.5 14B', enabled: false, maxContext: 32768 },
+    ],
 
     // AI parameters
     temperature: 0.7,
@@ -316,6 +339,7 @@ export function SettingsConfigProvider({
                     groqApiKey: settingsConfig.groqApiKey,
                     tavilyApiKey: settingsConfig.tavilyApiKey,
                     nvidiaApiKey: settingsConfig.nvidiaApiKey,
+                    alibabaApiKey: settingsConfig.alibabaApiKey,
                 })
 
                 // Load from secure storage
@@ -323,7 +347,7 @@ export function SettingsConfigProvider({
 
                 // Check if we got any keys
                 const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
-                    secureKeys.groqApiKey || secureKeys.tavilyApiKey || secureKeys.nvidiaApiKey
+                    secureKeys.groqApiKey || secureKeys.tavilyApiKey || secureKeys.nvidiaApiKey || secureKeys.alibabaApiKey
 
                 if (hasSecureKeys) {
                     // Update settings with secure keys - prefer secure storage values
@@ -334,6 +358,7 @@ export function SettingsConfigProvider({
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                         tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
                         nvidiaApiKey: secureKeys.nvidiaApiKey || prev.nvidiaApiKey,
+                        alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
                     }))
                 }
 

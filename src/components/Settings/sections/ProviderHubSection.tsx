@@ -44,7 +44,7 @@ import {
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia'
+type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 
 interface ProviderDefinition {
@@ -52,7 +52,7 @@ interface ProviderDefinition {
   name: string
   description: string
   apiKeyField?: keyof Pick<ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'nvidiaApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
   >
 }
 
@@ -76,6 +76,12 @@ const PROVIDERS: ProviderDefinition[] = [
     apiKeyField: 'nvidiaApiKey',
   },
   {
+    key: 'alibaba',
+    name: 'Alibaba Cloud',
+    description: 'Qwen models via DashScope API (Tongyi).',
+    apiKeyField: 'alibabaApiKey',
+  },
+  {
     key: 'perplexity',
     name: 'Perplexity',
     description: 'Research-focused model provider with search-native reasoning models.',
@@ -94,6 +100,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   groq: 'https://api.groq.com/openai/v1',
   ollama: 'http://localhost:11434',
   nvidia: 'https://integrate.api.nvidia.com',
+  alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 }
 
 type SearchApiKey = 'tavily' | 'runtime'
@@ -162,17 +169,19 @@ export interface ProviderHubSectionProps {
   perplexityApiKey: string
   groqApiKey: string
   nvidiaApiKey: string
+  alibabaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
   toolsEnabled: boolean
   webSearchEnabled: boolean
   structuredResearchEnabled?: boolean
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
+  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
   configuredModels: ConfiguredModel[]
   perplexityModels: ModelBasic[]
   groqModels: ModelBasic[]
   nvidiaModels: ModelBasic[]
+  alibabaModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   maxTokens: number
   titleModel: string
@@ -184,6 +193,7 @@ export interface ProviderHubSectionProps {
     perplexityApiKey: string
     groqApiKey: string
     nvidiaApiKey: string
+    alibabaApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
     toolsEnabled: boolean
@@ -193,11 +203,12 @@ export interface ProviderHubSectionProps {
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
     nvidiaModels: ConfiguredModel[]
+    alibabaModels: ConfiguredModel[]
     ollamaModels: ConfiguredModel[]
     maxTokens: number
     titleModel: string
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
   }>) => void
 }
 
@@ -206,6 +217,7 @@ export function ProviderHubSection({
   perplexityApiKey,
   groqApiKey,
   nvidiaApiKey,
+  alibabaApiKey,
   tavilyApiKey,
   ollamaUrl,
   toolsEnabled,
@@ -217,6 +229,7 @@ export function ProviderHubSection({
   perplexityModels,
   groqModels,
   nvidiaModels,
+  alibabaModels,
   ollamaModels,
   titleModel,
   initialProvider,
@@ -290,6 +303,7 @@ export function ProviderHubSection({
     perplexity: perplexityModels,
     groq: groqModels,
     nvidia: nvidiaModels,
+    alibaba: alibabaModels,
     ollama: ollamaModels,
   }
 
@@ -344,6 +358,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
     if (provider.apiKeyField === 'nvidiaApiKey') return nvidiaApiKey ?? ''
+    if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
     return ''
   }
 
@@ -358,6 +373,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
     if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: value })
+    if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
   }
 
   const clearProvider = (provider: ProviderDefinition) => {
@@ -370,6 +386,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: '' })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: '' })
     if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: '' })
+    if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: '' })
   }
 
   const addCustomModel = (model: ConfiguredModel) => {
@@ -395,6 +412,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'nvidia') updates.nvidiaModels = updatedModels
+    if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
@@ -420,6 +438,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'nvidia') updates.nvidiaModels = updatedModels
+    if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     onChange(updates)
@@ -434,6 +453,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'nvidia') updates.nvidiaModels = updatedModels
+    if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (modelProvider === provider && aiModel === modelCode) {

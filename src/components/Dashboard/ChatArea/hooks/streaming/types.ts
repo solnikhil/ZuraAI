@@ -128,4 +128,5 @@ export interface StreamingSettings {
   perplexityApiKey?: string
   groqApiKey?: string
   nvidiaApiKey?: string
+  alibabaApiKey?: string
 }
