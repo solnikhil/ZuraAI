@@ -7,10 +7,11 @@ export interface ExperimentalSectionProps {
   frostedSidebar: boolean
   frostedPrompt: boolean
   sidebarAutoHideOnResize: boolean
-  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean; frostedPrompt?: boolean; sidebarAutoHideOnResize?: boolean }) => void
+  softenedContrast: boolean
+  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean; frostedPrompt?: boolean; sidebarAutoHideOnResize?: boolean; softenedContrast?: boolean }) => void
 }
 
-export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPrompt, sidebarAutoHideOnResize, onChange }: ExperimentalSectionProps): React.ReactElement {
+export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPrompt, sidebarAutoHideOnResize, softenedContrast, onChange }: ExperimentalSectionProps): React.ReactElement {
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">
@@ -56,6 +57,20 @@ export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPr
             checked={frostedPrompt}
             onCheckedChange={(checked) => onChange({ frostedPrompt: checked })}
             aria-label="Enable frosted prompt"
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>Softened contrast</h3>
+            <div className="section-desc">Reduce the harshness of text and surfaces for a gentler, easier-on-the-eyes look.</div>
+          </div>
+          <Switch
+            checked={softenedContrast}
+            onCheckedChange={(checked) => onChange({ softenedContrast: checked })}
+            aria-label="Enable softened contrast"
           />
         </div>
       </Card>

@@ -80,9 +80,9 @@ if (document.readyState === 'complete') {
 const savedSettings = localStorage.getItem('zura-settings')
 if (savedSettings) {
     try {
-        const parsed = JSON.parse(savedSettings) as { activeTheme?: string }
+        const parsed = JSON.parse(savedSettings) as { activeTheme?: string; softenedContrast?: boolean }
         const theme = parsed.activeTheme ? getThemeById(parsed.activeTheme) : getDefaultTheme()
-        applyThemeToDocument(theme || getDefaultTheme())
+        applyThemeToDocument(theme || getDefaultTheme(), { softenedContrast: parsed.softenedContrast })
     } catch {
         applyThemeToDocument(getDefaultTheme())
     }

@@ -67,7 +67,7 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
             'modelSelector'
         ]
         
@@ -249,6 +249,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
         // Initialize sidebarAutoHideOnResize if missing
         if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
+        // Initialize softenedContrast if missing
+        if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
         // Initialize/migrate chatSelectedOverlayStyle if missing
@@ -285,6 +287,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         frostedSidebar: storedSettings.frostedSidebar,
         frostedPrompt: storedSettings.frostedPrompt,
         sidebarAutoHideOnResize: storedSettings.sidebarAutoHideOnResize,
+        softenedContrast: storedSettings.softenedContrast,
         chatBubbleStyle: storedSettings.chatBubbleStyle,
         chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
     }), [storedSettings])

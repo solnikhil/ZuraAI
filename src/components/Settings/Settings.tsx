@@ -275,6 +275,7 @@ export default function Settings({
               frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
               frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
               sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
+              softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
               onChange={(changes) => handleChange(changes)}
             />
           )}

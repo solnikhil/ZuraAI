@@ -159,7 +159,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
 
 #### Theme + Windows Titlebar Overlay
-- Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme.
+- Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`).
 - `set-titlebar-overlay` remains exposed for compatibility, but `electron/windows/mainWindow.ts#setTitleBarOverlay` is currently a guarded no-op when native overlay is disabled.
 
@@ -173,6 +173,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
+  - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
 - Last active chat session: `zura-ui:lastChatSessionId`
