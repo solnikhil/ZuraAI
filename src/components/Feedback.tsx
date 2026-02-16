@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { X, Send, Bug, MessageSquare, Lightbulb } from './icons'
+import { Send, Bug, MessageSquare, Lightbulb } from './icons'
 import { useToast } from './shared/Toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

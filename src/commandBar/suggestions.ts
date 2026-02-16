@@ -1,6 +1,8 @@
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'open_settings_section'; section: string }
+  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis' }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
@@ -150,8 +152,8 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     {
       id: 'go-settings',
       title: 'Go to Settings',
-      subtitle: 'Preferences & API Keys',
-      keywords: ['preferences', 'config', 'api keys'],
+      subtitle: 'Providers & configuration',
+      keywords: ['providers', 'config', 'api keys', 'models'],
       action: { type: 'open_dashboard_view', view: 'settings' }
     },
     {
@@ -162,11 +164,60 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'usage' }
     },
     {
-      id: 'go-settings-models',
-      title: 'Model Settings',
-      subtitle: 'AI model selection',
-      keywords: ['models', 'ai', 'model', 'provider', 'llm'],
-      action: { type: 'open_settings_section', section: 'models' }
+      id: 'go-settings-providers',
+      title: 'Providers Settings',
+      subtitle: 'Models, API keys, and search APIs',
+      keywords: ['providers', 'models', 'api', 'keys', 'llm'],
+      action: { type: 'open_settings_section', section: 'providers' }
+    },
+    {
+      id: 'go-settings-openrouter',
+      title: 'OpenRouter Settings',
+      subtitle: 'API keys & models',
+      keywords: ['openrouter', 'api', 'models'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'openrouter' }
+    },
+    {
+      id: 'go-settings-groq',
+      title: 'Groq Settings',
+      subtitle: 'Ultra-low-latency models',
+      keywords: ['groq'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'groq' }
+    },
+    {
+      id: 'go-settings-perplexity',
+      title: 'Perplexity Settings',
+      subtitle: 'Research-focused models',
+      keywords: ['perplexity'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'perplexity' }
+    },
+    {
+      id: 'go-settings-ollama',
+      title: 'Ollama Settings',
+      subtitle: 'Local models',
+      keywords: ['ollama', 'local'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' }
+    },
+    {
+      id: 'go-settings-nvidia',
+      title: 'NVIDIA Settings',
+      subtitle: 'NIM API models',
+      keywords: ['nvidia', 'nim'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'nvidia' }
+    },
+    {
+      id: 'go-settings-alibaba',
+      title: 'Alibaba Cloud Settings',
+      subtitle: 'Qwen models via DashScope',
+      keywords: ['alibaba', 'qwen', 'dashscope', 'tongyi'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'alibaba' }
+    },
+    {
+      id: 'go-settings-search-apis',
+      title: 'Search APIs Settings',
+      subtitle: 'Tavily & web search',
+      keywords: ['tavily', 'search api', 'web search', 'tools'],
+      action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' }
     },
     {
       id: 'go-settings-themes',
@@ -174,13 +225,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       subtitle: 'Appearance & themes',
       keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
       action: { type: 'open_settings_section', section: 'themes' }
-    },
-    {
-      id: 'go-settings-preferences',
-      title: 'API Keys & Preferences',
-      subtitle: 'Configure providers & tools',
-      keywords: ['api', 'keys', 'preferences', 'api keys', 'providers', 'tools'],
-      action: { type: 'open_settings_section', section: 'preferences' }
     },
     {
       id: 'go-settings-systemprompt',

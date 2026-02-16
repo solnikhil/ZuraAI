@@ -12,6 +12,7 @@ import {
 
 // Import IPC handlers
 import { registerAllHandlers } from './ipc'
+import { registerToolHandlers } from './tools'
 
 // Import auto-updater
 import {
@@ -130,32 +131,12 @@ app.whenReady().then(async () => {
         },
     });
 
-    // Defer tool handler loading (100ms after window creation)
-    // This ensures window creation is not blocked (Requirement 1.2)
-    deferredInitializer.registerTask({
-        name: 'tool-handlers',
-        priority: 'high',
-        delayMs: 100,
-        execute: async () => {
-            try {
-                // Use require for deferred loading to avoid TypeScript dynamic import issues
-                // eslint-disable-next-line @typescript-eslint/no-var-requires
-                const toolsModule = require('./tools/index')
-                if (typeof toolsModule.registerToolHandlers === 'function') {
-                    toolsModule.registerToolHandlers()
-                    console.log('[MAIN] Tool handlers registered')
-                }
-            } catch (error) {
-                console.error('[MAIN] Failed to load tool handlers:', error)
-            }
-        },
-    });
-
     // Initialize Tavily API key from settings on startup
     (global as any).tavilyApiKey = undefined
 
-    // Register all IPC handlers
+    // Register all IPC handlers (including execute-tool for web_search)
     registerAllHandlers()
+    registerToolHandlers()
     registerUpdaterHandlers()
     deferredInitializer.markIPCReady()
 

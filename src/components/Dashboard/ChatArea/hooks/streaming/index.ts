@@ -26,17 +26,17 @@ export type { UseOllamaStreamingOptions, UseOllamaStreamingReturn } from './useO
 export { usePerplexityStreaming } from './usePerplexityStreaming'
 export type { UsePerplexityStreamingOptions, UsePerplexityStreamingReturn } from './usePerplexityStreaming'
 
-export { useGeminiStreaming } from './useGeminiStreaming'
-export type { UseGeminiStreamingOptions, UseGeminiStreamingReturn } from './useGeminiStreaming'
-
 export { useGroqStreaming } from './useGroqStreaming'
 export type { UseGroqStreamingOptions, UseGroqStreamingReturn } from './useGroqStreaming'
 
-export { useMiniMaxStreaming } from './useMiniMaxStreaming'
-export type { UseMiniMaxStreamingOptions, UseMiniMaxStreamingReturn } from './useMiniMaxStreaming'
-
 export { useOpenRouterStreaming } from './useOpenRouterStreaming'
 export type { UseOpenRouterStreamingOptions, UseOpenRouterStreamingReturn } from './useOpenRouterStreaming'
+
+export { useNvidiaStreaming } from './useNvidiaStreaming'
+export type { UseNvidiaStreamingOptions, UseNvidiaStreamingReturn } from './useNvidiaStreaming'
+
+export { useAlibabaStreaming } from './useAlibabaStreaming'
+export type { UseAlibabaStreamingOptions, UseAlibabaStreamingReturn } from './useAlibabaStreaming'
 
 // Tool calling hook for streaming
 export { useStreamingToolCalls } from './useStreamingToolCalls'

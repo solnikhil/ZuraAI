@@ -1,15 +1,13 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { themes, themeCategories, getThemesByCategory } from '../themes/themeRegistry'
-import { Theme } from '../themes/themeDefinitions'
 import { useTheme } from '../themes/useTheme'
 import { useSettings } from '../contexts/SettingsContext'
-import ThemePreview from './ThemePreview'
 import { Card } from '@/components/ui/card'
 import './ThemesPage.css'
 
 export default function ThemesPage() {
     const { currentTheme, setTheme } = useTheme()
-    const { settings, updateSettings } = useSettings()
+    useSettings()
     const [selectedCategory, setSelectedCategory] = useState('all')
     const [previewThemeId, setPreviewThemeId] = useState<string | null>(null)
     

@@ -5,9 +5,11 @@
  * @module SystemPromptSection
  */
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
+import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
+import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
  * Props for SystemPromptSection component
@@ -15,8 +17,10 @@ import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 export interface SystemPromptSectionProps {
   /** Current system prompt value */
   systemPrompt: string
+  /** Current web search prompt value */
+  webSearchPrompt: string
   /** Callback when system prompt changes */
-  onChange: (changes: { systemPrompt: string }) => void
+  onChange: (changes: { systemPrompt?: string; webSearchPrompt?: string }) => void
 }
 
 /**
@@ -24,34 +28,84 @@ export interface SystemPromptSectionProps {
  */
 export function SystemPromptSection({
   systemPrompt,
+  webSearchPrompt,
   onChange
 }: SystemPromptSectionProps): React.ReactElement {
-  const [isDirty, setIsDirty] = useState(false)
+  const [isDirtySystem, setIsDirtySystem] = useState(false)
+  const [isDirtyWebSearch, setIsDirtyWebSearch] = useState(false)
   const [localValue, setLocalValue] = useState(systemPrompt)
+  const [localWebSearchValue, setLocalWebSearchValue] = useState(webSearchPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
+  const [charCountWebSearch, setCharCountWebSearch] = useState(webSearchPrompt.length)
+
+  const isDirty = isDirtySystem || isDirtyWebSearch
+
+  // Sync local state when prop changes, but not while user has unsaved edits
+  useEffect(() => {
+    if (!isDirtySystem) {
+      setLocalValue(systemPrompt)
+      setCharCount(systemPrompt.length)
+    }
+  }, [systemPrompt, isDirtySystem])
+
+  useEffect(() => {
+    if (!isDirtyWebSearch) {
+      setLocalWebSearchValue(webSearchPrompt)
+      setCharCountWebSearch(webSearchPrompt.length)
+    }
+  }, [webSearchPrompt, isDirtyWebSearch])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
     setCharCount(value.length)
-    setIsDirty(true)
+    setIsDirtySystem(true)
+  }
+
+  const handleWebSearchChange = (value: string) => {
+    setLocalWebSearchValue(value)
+    setCharCountWebSearch(value.length)
+    setIsDirtyWebSearch(true)
   }
 
   const handleSave = () => {
-    onChange({ systemPrompt: localValue })
-    setIsDirty(false)
+    const changes: { systemPrompt?: string; webSearchPrompt?: string } = {}
+    if (isDirtySystem) changes.systemPrompt = localValue
+    if (isDirtyWebSearch) changes.webSearchPrompt = localWebSearchValue
+    onChange(changes)
+    setIsDirtySystem(false)
+    setIsDirtyWebSearch(false)
   }
 
   const handleReset = () => {
     setLocalValue(defaultSystemPrompt)
     setCharCount(defaultSystemPrompt.length)
-    setIsDirty(true)
+    setIsDirtySystem(true)
+  }
+
+  const handleWebSearchReset = () => {
+    setLocalWebSearchValue(defaultWebSearchPrompt)
+    setCharCountWebSearch(defaultWebSearchPrompt.length)
+    setIsDirtyWebSearch(true)
   }
 
   const handleCancel = () => {
     setLocalValue(systemPrompt)
     setCharCount(systemPrompt.length)
-    setIsDirty(false)
+    setLocalWebSearchValue(webSearchPrompt)
+    setCharCountWebSearch(webSearchPrompt.length)
+    setIsDirtySystem(false)
+    setIsDirtyWebSearch(false)
   }
+
+  const estTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localValue }),
+    [localValue]
+  )
+
+  const estTokensWebSearch = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localWebSearchValue }),
+    [localWebSearchValue]
+  )
 
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
@@ -88,17 +142,44 @@ export function SystemPromptSection({
             <div className="section-desc">
               Define the system prompt that shapes the AI's personality, capabilities, and guidelines
             </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: '0.8rem',
+                color: 'var(--theme-text-muted)',
+                lineHeight: 1.5
+              }}
+            >
+              When Web Search is enabled, web search instructions are appended at the end of this basic prompt.
+            </div>
           </div>
           <div
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
               fontSize: '0.75rem',
-              color: 'var(--theme-text-muted)',
-              padding: '4px 10px',
-              background: 'rgba(255,255,255,0.05)',
-              borderRadius: 6
+              color: 'var(--theme-text-muted)'
             }}
           >
-            {charCount.toLocaleString()} characters
+            <span
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
+              }}
+            >
+              {charCount.toLocaleString()} chars
+            </span>
+            <span
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
+              }}
+            >
+              ~{estTokensInput.toLocaleString()} tokens input
+            </span>
           </div>
         </div>
 
@@ -115,8 +196,8 @@ export function SystemPromptSection({
               fontSize: '0.9rem',
               lineHeight: 1.6,
               fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              background: '#1B1913',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'var(--theme-surface)',
+              border: '1px solid var(--theme-border)',
               borderRadius: 8,
               color: 'var(--theme-text-primary)',
               resize: 'vertical',
@@ -126,7 +207,7 @@ export function SystemPromptSection({
               e.target.style.borderColor = 'var(--theme-accent)'
             }}
             onBlur={e => {
-              e.target.style.borderColor = 'rgba(255,255,255,0.1)'
+              e.target.style.borderColor = 'var(--theme-border)'
             }}
             placeholder="Enter your system prompt here..."
           />
@@ -177,7 +258,7 @@ export function SystemPromptSection({
           </div>
         </div>
 
-        {/* Action Footer */}
+        {/* Action Footer - shared when either card is dirty */}
         {isDirty && (
           <div
             style={{
@@ -248,7 +329,7 @@ export function SystemPromptSection({
         )}
       </Card>
 
-      {/* Tips Section */}
+      {/* Web Search Prompt Editor */}
       <Card
         className="settings-section-card"
         style={{
@@ -256,83 +337,135 @@ export function SystemPromptSection({
           background: 'var(--theme-surface)',
           border: '1px solid var(--theme-border)',
           borderRadius: 12,
-          padding: '20px 24px'
+          padding: 0,
+          overflow: 'hidden'
         }}
       >
-        <h3 className="section-head" style={{ marginBottom: 12 }}>
-          Tips for Effective System Prompts
-        </h3>
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 16
+            padding: '20px 24px',
+            borderBottom: '1px solid var(--theme-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
           }}
         >
-          <div
-            style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(0, 188, 212, 0.08)',
-              border: '1px solid rgba(0, 188, 212, 0.15)'
-            }}
-          >
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>
+              Web Search Prompt
+            </h3>
+            <div className="section-desc">
+              Instructions appended when Web Search is enabled
+            </div>
             <div
               style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: 'var(--theme-accent)',
-                marginBottom: 6
+                marginTop: 8,
+                fontSize: '0.8rem',
+                color: 'var(--theme-text-muted)',
+                lineHeight: 1.5
               }}
             >
-              Be Specific
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Clearly define the AI's role, expertise, and boundaries to get more relevant responses.
+              This prompt is appended at the end of the basic system prompt when Web Search is enabled.
             </div>
           </div>
           <div
             style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(34, 197, 94, 0.08)',
-              border: '1px solid rgba(34, 197, 94, 0.15)'
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: '0.75rem',
+              color: 'var(--theme-text-muted)'
             }}
           >
-            <div
+            <span
               style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: '#22c55e',
-                marginBottom: 6
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
               }}
             >
-              Define Style
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Specify desired tone, formatting preferences, and communication style.
-            </div>
+              {charCountWebSearch.toLocaleString()} chars
+            </span>
+            <span
+              style={{
+                padding: '4px 10px',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: 6
+              }}
+            >
+              ~{estTokensWebSearch.toLocaleString()} tokens input
+            </span>
           </div>
+        </div>
+
+        <div style={{ padding: '20px 24px' }}>
+          <textarea
+            value={localWebSearchValue}
+            onChange={e => handleWebSearchChange(e.target.value)}
+            className="setting-input-scira"
+            style={{
+              width: '100%',
+              minHeight: '280px',
+              padding: '16px',
+              fontSize: '0.9rem',
+              lineHeight: 1.6,
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+              background: 'var(--theme-surface)',
+              border: '1px solid var(--theme-border)',
+              borderRadius: 8,
+              color: 'var(--theme-text-primary)',
+              resize: 'vertical',
+              transition: 'border-color 0.2s ease'
+            }}
+            onFocus={e => {
+              e.target.style.borderColor = 'var(--theme-accent)'
+            }}
+            onBlur={e => {
+              e.target.style.borderColor = 'var(--theme-border)'
+            }}
+            placeholder="Enter web search instructions here..."
+          />
+
           <div
             style={{
-              padding: 12,
-              borderRadius: 8,
-              background: 'rgba(168, 85, 247, 0.08)',
-              border: '1px solid rgba(168, 85, 247, 0.15)'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginTop: 12
             }}
           >
-            <div
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: '#a855f7',
-                marginBottom: 6
-              }}
-            >
-              Set Constraints
+            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+              {charCountWebSearch > 5000 && (
+                <span style={{ color: '#f59e0b' }}>
+                  Note: Very long prompts may impact response quality
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)' }}>
-              Define what the AI should and shouldn't do, including safety guidelines.
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleWebSearchReset}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  border: '1px solid var(--theme-border)',
+                  color: 'var(--theme-text-secondary)',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--theme-accent)'
+                  e.currentTarget.style.color = 'var(--theme-accent)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--theme-border)'
+                  e.currentTarget.style.color = 'var(--theme-text-secondary)'
+                }}
+              >
+                Load Default Prompt
+              </button>
             </div>
           </div>
         </div>

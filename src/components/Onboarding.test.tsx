@@ -108,8 +108,8 @@ describe('Onboarding Component', () => {
         it('renders all provider options', () => {
             expect(screen.getByText('OpenRouter')).toBeInTheDocument()
             expect(screen.getByText('Perplexity')).toBeInTheDocument()
-            expect(screen.getByText('Google Gemini')).toBeInTheDocument()
             expect(screen.getByText('Groq')).toBeInTheDocument()
+            expect(screen.getByText('NVIDIA')).toBeInTheDocument()
         })
 
         it('renders API key input', () => {

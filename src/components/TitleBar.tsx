@@ -1,22 +1,20 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { EyeIcon, EyeOffIcon } from './icons'
-import { useToast } from './shared/Toast'
 import TitleBarCommandBar from './TitleBarCommandBar'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
-    models: 'Models',
+    providers: 'Providers',
     themes: 'Appearance',
-    preferences: 'API Keys',
-    tools: 'Tools',
     systemprompt: 'System Prompt',
+    experimental: 'Experimental',
 }
 
 function getModelDisplayName(settings: Settings): string {
@@ -24,7 +22,6 @@ function getModelDisplayName(settings: Settings): string {
         ...(settings.ollamaModels || []),
         ...(settings.perplexityModels || []),
         ...(settings.configuredModels || []),
-        ...(settings.geminiModels || []),
         ...(settings.groqModels || []),
     ]
 
@@ -34,24 +31,24 @@ function getModelDisplayName(settings: Settings): string {
 
 export default function TitleBar() {
     const location = useLocation()
-    const navigate = useNavigate()
     const { settings } = useSettings()
     const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        setDashboardView,
+        setDashboardView: _setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
+        sidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
-    const { showToast } = useToast()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const isSettingsRoute = location.pathname === '/settings'
     const isLegacyChatRoute = location.pathname === '/chat'
+    const hasSidebar = isDashboardRoute || isLegacyChatRoute
 
     const currentSession = useMemo(() => {
         return sessions.find(s => s.id === currentSessionId)
@@ -88,26 +85,7 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
-    const sidebarWidthPx = sidebarHidden ? 0 : 260
-
-    const handleDashboardTabChange = (nextView: 'chat') => {
-        if (dashboardView === nextView) return
-
-        if (hasUnsavedSettings && dashboardView === 'settings') {
-            showToast('You have unsaved settings changes', 'warning')
-            return
-        }
-
-        if (nextView === 'chat') {
-            setDashboardView('chat')
-            if (!isDashboardRoute) {
-                navigate('/dashboard')
-            }
-            return
-        }
-    }
-
-    const showDashboardTabs = false
+    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {
@@ -162,7 +140,15 @@ export default function TitleBar() {
             onDoubleClick={handleTitleBarDoubleClick}
         >
             {/* Solid background for the content (right) side of the titlebar in frosted mode */}
-            {frostedSidebar && isDashboardRoute && (
+            {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
+                <div
+                    className="app-titlebar__sidebar-glass"
+                    style={{
+                        width: `${sidebarWidthPx}px`,
+                    }}
+                />
+            )}
+            {frostedSidebar && hasSidebar && (
                 <div
                     className="app-titlebar__content-bg"
                     style={{
@@ -172,7 +158,7 @@ export default function TitleBar() {
             )}
 
             <div className="app-titlebar__left">
-                {isDashboardRoute && (
+                {hasSidebar && (
                     <div className="app-titlebar__controls no-drag">
                         <button
                             type="button"

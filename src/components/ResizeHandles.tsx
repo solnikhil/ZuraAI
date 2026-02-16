@@ -159,7 +159,7 @@ export default function ResizeHandles({ disabled }: ResizeHandlesProps) {
     window.ipcRenderer?.invoke('window-resize', newBounds)
   }, [])
 
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>) => {
     const state = dragStateRef.current
     if (!state) return
 
@@ -185,8 +185,8 @@ export default function ResizeHandles({ disabled }: ResizeHandlesProps) {
           className={className}
           style={{
             cursor: CURSOR_MAP[direction],
-            WebkitAppRegion: 'no-drag' as unknown as string,
-          }}
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
           data-direction={direction}
           onPointerDown={(e) => handlePointerDown(direction, e)}
           onPointerMove={handlePointerMove}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, lazy, Suspense } from 'react'
+import { useState, useCallback, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import { useAppShell } from '../../contexts/AppShellContext'

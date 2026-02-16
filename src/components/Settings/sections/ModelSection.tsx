@@ -31,12 +31,8 @@ export interface ModelSectionProps {
   configuredModels: ModelConfig[]
   /** Perplexity models */
   perplexityModels: ModelConfig[]
-  /** Gemini models */
-  geminiModels: ModelConfig[]
   /** Groq models */
   groqModels: ModelConfig[]
-  /** MiniMax models */
-  minimaxModels: ModelConfig[]
   /** Ollama models */
   ollamaModels: ModelConfig[]
   /** Callback when models change */
@@ -53,9 +49,7 @@ export interface ModelSectionProps {
 export function ModelSection({
   configuredModels,
   perplexityModels,
-  geminiModels,
   groqModels,
-  minimaxModels,
   ollamaModels,
   onModelsChange,
   titleModel,
@@ -72,9 +66,7 @@ export function ModelSection({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     openrouter: false,
     perplexity: false,
-    gemini: false,
     groq: false,
-    minimax: false,
     ollama: false
   })
   const [titleModelDropdownOpen, setTitleModelDropdownOpen] = useState(false)
@@ -83,9 +75,6 @@ export function ModelSection({
   const allModelsByProvider = useMemo(() => {
     const groups: Array<{ provider: string; providerKey: string; models: ModelConfig[] }> = []
     
-    if (geminiModels.length > 0) {
-      groups.push({ provider: 'Gemini', providerKey: 'gemini', models: geminiModels })
-    }
     if (groqModels.length > 0) {
       groups.push({ provider: 'Groq', providerKey: 'groq', models: groqModels })
     }
@@ -95,15 +84,12 @@ export function ModelSection({
     if (perplexityModels.length > 0) {
       groups.push({ provider: 'Perplexity', providerKey: 'perplexity', models: perplexityModels })
     }
-    if (minimaxModels.length > 0) {
-      groups.push({ provider: 'MiniMax', providerKey: 'minimax', models: minimaxModels })
-    }
     if (ollamaModels.length > 0) {
       groups.push({ provider: 'Ollama', providerKey: 'ollama', models: ollamaModels })
     }
     
     return groups
-  }, [configuredModels, geminiModels, groqModels, minimaxModels, perplexityModels, ollamaModels])
+  }, [configuredModels, groqModels, perplexityModels, ollamaModels])
 
   // Find the currently selected title model's display info
   const selectedTitleModel = useMemo(() => {
@@ -638,14 +624,8 @@ export function ModelSection({
         {/* Perplexity Models */}
         {perplexityModels.length > 0 && renderProviderGroup('Perplexity', 'perplexity', perplexityModels)}
 
-        {/* Gemini Models */}
-        {geminiModels.length > 0 && renderProviderGroup('Gemini', 'gemini', geminiModels)}
-
         {/* Groq Models */}
         {groqModels.length > 0 && renderProviderGroup('Groq', 'groq', groqModels)}
-
-        {/* MiniMax Models */}
-        {minimaxModels.length > 0 && renderProviderGroup('MiniMax', 'minimax', minimaxModels)}
 
         {/* Ollama Models */}
         {ollamaModels.length > 0 && renderProviderGroup('Ollama', 'ollama', ollamaModels)}

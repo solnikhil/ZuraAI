@@ -23,7 +23,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSettings } from './SettingsContext'
-import { ChatSessionManager, type SessionMetadata, type LoadedSession } from './ChatSessionManager'
+import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext, shallowEqual, type Selector } from './createSelectableContext'
 
 // Re-export SessionMetadata for consumers
@@ -58,6 +58,10 @@ export interface ThinkingBlock {
     query?: string // For searching blocks
     duration?: number // Duration in milliseconds (for thinking)
     timestamp: number // When this block was created
+    /** Tool call arguments (for searching blocks - JSON input) */
+    toolInput?: Record<string, unknown>
+    /** Tool call result (for searching blocks - JSON output) */
+    toolOutput?: { success: boolean; data?: unknown; error?: string; executionTime?: number }
 }
 
 export interface ResponseVersion {
@@ -88,6 +92,10 @@ export interface Message {
         currentSearch?: string // The search query being executed
         isSearching: boolean
     }
+    /** Structured research plan (step-by-step mode) */
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    /** Progress during structured research execution */
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
     usage?: {
         inputTokens: number
         outputTokens: number
@@ -200,7 +208,7 @@ interface ChatHistoryState {
 const {
     Provider: SelectableChatHistoryProvider,
     useSelector: useChatHistoryStateSelector,
-    useStore: useChatHistoryStore,
+    useStore: _useChatHistoryStore,
 } = createSelectableContext<ChatHistoryState>()
 
 const ChatHistoryContext = createContext<ChatHistoryContextType | undefined>(undefined)
@@ -282,7 +290,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             
             // Get metadata and create lightweight session objects for backward compatibility
             // Sessions without full messages loaded will have empty messages array
-            const metadata = manager.getSessionMetadata()
+            manager.getSessionMetadata()
             
             // For backward compatibility, we need to provide sessions with messages
             // Load full data for all sessions initially (will be optimized in future)

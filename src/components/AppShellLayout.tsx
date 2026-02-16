@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
+
+/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
+const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
+import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
@@ -10,12 +14,29 @@ const NOISE_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 function AppShellContent() {
     const navigate = useNavigate()
     const location = useLocation()
+    const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
-    const { frostedSidebar } = settingsUI
-    const { sidebarCollapsed, sidebarHidden } = useAppShell()
+    const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
+    const { sidebarCollapsed, sidebarHidden, setSidebarHidden } = useAppShell()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
+    const hasSidebar = isDashboardRoute || location.pathname === '/chat'
+
+    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle
+    useEffect(() => {
+        if (!hasSidebar || !sidebarAutoHideOnResize) return
+        const handler = () => {
+            const width = window.innerWidth
+            if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+                setSidebarHidden(true)
+            }
+        }
+        handler() // Initial check on mount
+        window.addEventListener('resize', handler)
+        return () => window.removeEventListener('resize', handler)
+    }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
     const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 
     // Detect Windows platform (same pattern as TitleBar)
     const isWindows = useMemo(() => {
@@ -71,17 +92,17 @@ function AppShellContent() {
             backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
             position: 'relative'
         }}>
-            {/* Single continuous glass panel spanning full height — eliminates seam between titlebar and sidebar */}
+            {/* Glass panel under the titlebar for frosted mode */}
             {frostedSidebar && isDashboardRoute && sidebarWidthPx > 0 && (
                 <div style={{
                     position: 'absolute',
                     left: 0,
-                    top: 0,
+                    top: titlebarHeightPx,
                     bottom: 0,
                     width: `${sidebarWidthPx}px`,
-                    background: 'linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%)',
-                    borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-                    boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.04)',
+                    background: 'var(--frosted-glass-gradient)',
+                    borderRight: 'var(--frosted-glass-border)',
+                    boxShadow: 'var(--frosted-glass-shadow)',
                     transition: 'width 0.2s ease',
                     zIndex: 0,
                     pointerEvents: 'none',
@@ -92,7 +113,7 @@ function AppShellContent() {
                         inset: 0,
                         backgroundImage: NOISE_SVG,
                         backgroundSize: '200px 200px',
-                        opacity: 0.09,
+                        opacity: 'var(--frosted-glass-noise-opacity)',
                         mixBlendMode: 'overlay' as const,
                         pointerEvents: 'none' as const
                     }} />

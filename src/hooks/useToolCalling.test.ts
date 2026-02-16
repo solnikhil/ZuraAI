@@ -15,15 +15,13 @@ const allToolNames = toolDefinitions.map(t => t.name)
 /**
  * Helper function to simulate getEnabledToolsForProvider logic
  * This mirrors the logic in useToolCalling.ts for testing purposes
- * 
+ *
  * @param webSearchEnabled - Whether web search toggle is ON
- * @param deepResearchEnabled - Whether deep research toggle is ON
  * @param enabledTools - List of enabled tools (defaults to all tools)
  * @returns Filtered list of enabled tools
  */
 function getEnabledToolsForProviderLogic(
     webSearchEnabled: boolean,
-    deepResearchEnabled: boolean,
     enabledTools?: string[]
 ): string[] {
     const allToolNames = getAllToolDefinitions().map(tool => tool.name)
@@ -31,13 +29,8 @@ function getEnabledToolsForProviderLogic(
         ? [...enabledTools]
         : allToolNames
 
-    // Gate web_search based on BOTH toggles
-    // web_search is excluded only when BOTH webSearchEnabled AND deepResearchEnabled are OFF
-    // This ensures web_search is available when:
-    // - webSearchEnabled is ON (normal web search mode)
-    // - deepResearchEnabled is ON (deep research mode, regardless of webSearchEnabled)
-    // Validates: Requirements 1.1, 1.3, 1.4
-    if (!webSearchEnabled && !deepResearchEnabled) {
+    // Gate web_search based on webSearchEnabled toggle
+    if (!webSearchEnabled) {
         tools = tools.filter(tool => tool !== 'web_search')
     }
 
@@ -136,48 +129,25 @@ describe('Tool Definitions Validation', () => {
  * 
  * **Validates: Requirements 1.1, 1.3, 1.4, 5.4**
  * 
- * Property 1: For any combination of webSearchEnabled and deepResearchEnabled settings,
- * web_search SHALL be included in the enabled tools list if and only if at least one
- * of the toggles is ON.
- * 
+ * Property 1: web_search is included if and only if webSearchEnabled is ON.
+ *
  * Requirements:
- * - 1.1: WHEN webSearchEnabled is OFF AND deepResearchEnabled is OFF, web_search SHALL NOT be included
- * - 1.3: WHEN webSearchEnabled is ON, web_search SHALL be included
- * - 1.4: WHEN deepResearchEnabled is ON, web_search SHALL be included regardless of webSearchEnabled state
- * - 5.4: IF both toggles are OFF, THE system SHALL disable web search entirely
+ * - WHEN webSearchEnabled is OFF, web_search SHALL NOT be included
+ * - WHEN webSearchEnabled is ON, web_search SHALL be included
  */
 describe('Tool Filtering Based on Toggle States', () => {
     /**
-     * Property 1: Tool filtering based on toggle states
-     * 
-     * **Validates: Requirements 1.1, 1.3, 1.4, 5.4**
-     * 
-     * For any combination of webSearchEnabled and deepResearchEnabled settings,
-     * web_search SHALL be included in the enabled tools list if and only if
-     * at least one of the toggles is ON.
+     * Property 1: Tool filtering based on webSearchEnabled
      */
-    it('Property 1: web_search is included if and only if at least one toggle is ON', () => {
+    it('Property 1: web_search is included if and only if webSearchEnabled is ON', () => {
         fc.assert(
             fc.property(
                 fc.boolean(), // webSearchEnabled
-                fc.boolean(), // deepResearchEnabled
-                (webSearchEnabled, deepResearchEnabled) => {
-                    // Get the enabled tools based on toggle states
-                    const enabledTools = getEnabledToolsForProviderLogic(
-                        webSearchEnabled,
-                        deepResearchEnabled
-                    )
-
-                    // Check if web_search is in the enabled tools
+                (webSearchEnabled) => {
+                    const enabledTools = getEnabledToolsForProviderLogic(webSearchEnabled)
                     const hasWebSearch = enabledTools.includes('web_search')
-
-                    // Expected: web_search should be included if at least one toggle is ON
-                    const expectedHasWebSearch = webSearchEnabled || deepResearchEnabled
-
-                    // Verify the property
-                    expect(hasWebSearch).toBe(expectedHasWebSearch)
-
-                    return hasWebSearch === expectedHasWebSearch
+                    expect(hasWebSearch).toBe(webSearchEnabled)
+                    return hasWebSearch === webSearchEnabled
                 }
             ),
             { numRuns: 100 }
@@ -185,112 +155,36 @@ describe('Tool Filtering Based on Toggle States', () => {
     })
 
     /**
-     * Requirement 1.1: WHEN webSearchEnabled is OFF AND deepResearchEnabled is OFF,
-     * web_search SHALL NOT be included
-     * 
-     * **Validates: Requirements 1.1, 5.4**
+     * Requirement: WHEN webSearchEnabled is OFF, web_search SHALL NOT be included
      */
-    it('Requirement 1.1: Both toggles OFF excludes web_search', () => {
-        fc.assert(
-            fc.property(
-                fc.constant(false), // webSearchEnabled = OFF
-                fc.constant(false), // deepResearchEnabled = OFF
-                (webSearchEnabled, deepResearchEnabled) => {
-                    const enabledTools = getEnabledToolsForProviderLogic(
-                        webSearchEnabled,
-                        deepResearchEnabled
-                    )
-
-                    // web_search should NOT be included
-                    expect(enabledTools).not.toContain('web_search')
-
-                    return !enabledTools.includes('web_search')
-                }
-            ),
-            { numRuns: 100 }
-        )
+    it('webSearchEnabled OFF excludes web_search', () => {
+        const enabledTools = getEnabledToolsForProviderLogic(false)
+        expect(enabledTools).not.toContain('web_search')
     })
 
     /**
-     * Requirement 1.3: WHEN webSearchEnabled is ON, web_search SHALL be included
-     * 
-     * **Validates: Requirements 1.3**
+     * Requirement: WHEN webSearchEnabled is ON, web_search SHALL be included
      */
-    it('Requirement 1.3: webSearchEnabled ON includes web_search', () => {
-        fc.assert(
-            fc.property(
-                fc.constant(true),  // webSearchEnabled = ON
-                fc.boolean(),       // deepResearchEnabled = any
-                (webSearchEnabled, deepResearchEnabled) => {
-                    const enabledTools = getEnabledToolsForProviderLogic(
-                        webSearchEnabled,
-                        deepResearchEnabled
-                    )
-
-                    // web_search should be included
-                    expect(enabledTools).toContain('web_search')
-
-                    return enabledTools.includes('web_search')
-                }
-            ),
-            { numRuns: 100 }
-        )
-    })
-
-    /**
-     * Requirement 1.4: WHEN deepResearchEnabled is ON, web_search SHALL be included
-     * regardless of webSearchEnabled state
-     * 
-     * **Validates: Requirements 1.4**
-     */
-    it('Requirement 1.4: deepResearchEnabled ON includes web_search regardless of webSearchEnabled', () => {
-        fc.assert(
-            fc.property(
-                fc.boolean(),       // webSearchEnabled = any
-                fc.constant(true),  // deepResearchEnabled = ON
-                (webSearchEnabled, deepResearchEnabled) => {
-                    const enabledTools = getEnabledToolsForProviderLogic(
-                        webSearchEnabled,
-                        deepResearchEnabled
-                    )
-
-                    // web_search should be included regardless of webSearchEnabled
-                    expect(enabledTools).toContain('web_search')
-
-                    return enabledTools.includes('web_search')
-                }
-            ),
-            { numRuns: 100 }
-        )
+    it('webSearchEnabled ON includes web_search', () => {
+        const enabledTools = getEnabledToolsForProviderLogic(true)
+        expect(enabledTools).toContain('web_search')
     })
 
     /**
      * Property: Tool filtering preserves other tools
-     * 
-     * When filtering based on toggle states, only web_search should be affected.
-     * Other tools should remain in the enabled list.
      */
     it('Tool filtering only affects web_search, other tools are preserved', () => {
         fc.assert(
             fc.property(
                 fc.boolean(), // webSearchEnabled
-                fc.boolean(), // deepResearchEnabled
-                (webSearchEnabled, deepResearchEnabled) => {
-                    const enabledTools = getEnabledToolsForProviderLogic(
-                        webSearchEnabled,
-                        deepResearchEnabled
-                    )
-
-                    // Get all non-web_search tools from definitions
+                (webSearchEnabled) => {
+                    const enabledTools = getEnabledToolsForProviderLogic(webSearchEnabled)
                     const otherTools = getAllToolDefinitions()
                         .map(t => t.name)
                         .filter(name => name !== 'web_search')
-
-                    // All other tools should still be present
                     for (const tool of otherTools) {
                         expect(enabledTools).toContain(tool)
                     }
-
                     return true
                 }
             ),
@@ -299,29 +193,11 @@ describe('Tool Filtering Based on Toggle States', () => {
     })
 
     /**
-     * Property: Exhaustive toggle combinations
-     * 
-     * Test all four possible combinations of toggle states explicitly
+     * Property: Both toggle states produce correct results
      */
-    it('All four toggle combinations produce correct results', () => {
-        // Test all combinations explicitly
-        const testCases = [
-            { webSearch: false, deepResearch: false, expectWebSearch: false },
-            { webSearch: true, deepResearch: false, expectWebSearch: true },
-            { webSearch: false, deepResearch: true, expectWebSearch: true },
-            { webSearch: true, deepResearch: true, expectWebSearch: true },
-        ]
-
-        for (const testCase of testCases) {
-            const enabledTools = getEnabledToolsForProviderLogic(
-                testCase.webSearch,
-                testCase.deepResearch
-            )
-
-            const hasWebSearch = enabledTools.includes('web_search')
-
-            expect(hasWebSearch).toBe(testCase.expectWebSearch)
-        }
+    it('Both toggle states produce correct results', () => {
+        expect(getEnabledToolsForProviderLogic(false).includes('web_search')).toBe(false)
+        expect(getEnabledToolsForProviderLogic(true).includes('web_search')).toBe(true)
     })
 })
 

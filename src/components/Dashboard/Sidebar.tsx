@@ -1,18 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
-    ChartNoAxesCombined, Cpu,
-    Key, ArrowLeft, Paintbrush, FlaskConical, FileText
+    ChartNoAxesCombined, Cloud,
+    ArrowLeft, Paintbrush, FlaskConical, FileText
 } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import { useSettings } from '../../contexts/SettingsContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
 
 import SidebarHeader from './Sidebar/SidebarHeader'
 import SidebarChatList from './Sidebar/SidebarChatList'
 import SidebarFooter from './Sidebar/SidebarFooter'
-import { filterSessions } from './Sidebar/utils/filterSessions'
+import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
 
@@ -26,9 +25,10 @@ interface SidebarProps {
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
-    const { sidebarHidden } = useAppShell()
+    const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
+    const { sidebarHidden, sidebarCollapsed } = useAppShell()
     const {
         sessions,
         folders,
@@ -40,13 +40,13 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         pinSession,
         unpinSession,
         archiveSession,
-        unarchiveSession,
+        unarchiveSession: _unarchiveSession,
         duplicateSession: duplicateSessionAction,
         assignFolder,
     } = useChatHistory()
-    const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
-    const { frostedSidebar } = settingsUI
+    const { frostedSidebar, chatSelectedOverlayStyle = 'linear' } = settingsUI
+    const userStripPadding = view === 'chat' ? 76 : 8
 
     // Sidebar state
     const [focusIndex, setFocusIndex] = useState(-1)
@@ -58,23 +58,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     // Settings navigation items
     const navItems = [
         { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
-        { id: 'models', label: 'Models', icon: <Cpu size={18} /> },
+        { id: 'providers', label: 'Providers', icon: <Cloud size={18} /> },
         { id: 'themes', label: 'Appearance', icon: <Paintbrush size={18} /> },
-        { id: 'preferences', label: 'API Keys', icon: <Key size={18} /> },
         { id: 'systemprompt', label: 'System Prompt', icon: <FileText size={18} /> },
         { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
     ]
 
-    // Filter sessions by search query
-    const filteredSessions = useMemo(() =>
-        filterSessions(sessions, searchQuery),
-        [sessions, searchQuery]
-    )
-
-    // Group filtered sessions
+    // Group sessions for sidebar list
     const groupedSessions = useMemo(() =>
-        groupSessions(filteredSessions, folders),
-        [filteredSessions, folders]
+        groupSessions(sessions, folders),
+        [sessions, folders]
     )
 
     // Archived sessions (excluded from main list, shown on demand)
@@ -121,6 +114,26 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         return () => window.removeEventListener('keydown', handler)
     }, [clearCurrentSession])
 
+    useEffect(() => {
+        if (view !== 'chat' && searchOverlayOpen) {
+            setSearchOverlayOpen(false)
+            setSearchQuery('')
+        }
+    }, [view, searchOverlayOpen])
+
+    const openSearchOverlay = useCallback(() => {
+        setSearchOverlayOpen(true)
+    }, [])
+
+    const closeSearchOverlay = useCallback(() => {
+        setSearchOverlayOpen(false)
+        setSearchQuery('')
+    }, [])
+
+    const handleSelectSessionFromSearch = useCallback((sessionId: string) => {
+        switchSession(sessionId)
+    }, [switchSession])
+
     // Keyboard navigation handler (Requirements 4.4, 4.5, 4.6, 4.7)
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         const listLength = flatVisibleSessions.length
@@ -141,8 +154,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 }
                 break
             case 'Escape': {
-                const searchEl = document.querySelector('[data-sidebar-search]') as HTMLInputElement
-                searchEl?.focus()
+                setSearchOverlayOpen(true)
                 setFocusIndex(-1)
                 break
             }
@@ -205,21 +217,22 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         }}>
             <SidebarHeader
                 onNewChat={clearCurrentSession}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                onOpenSearch={openSearchOverlay}
             />
 
             <SidebarChatList
                     groupedSessions={groupedSessions}
                     folders={folders}
+                    chatSelectedOverlayStyle={chatSelectedOverlayStyle}
                     currentSessionId={currentSessionId}
                     streamingSessionId={null}
                     focusIndex={focusIndex}
                     flatVisibleSessions={flatVisibleSessions}
                     renamingSessionId={renamingSessionId}
-                    searchQuery={searchQuery}
+                    searchQuery=""
                     showArchived={showArchived}
                     archivedSessions={archivedSessions}
+                    bottomPadding={userStripPadding}
                     onSelectSession={switchSession}
                     onContextAction={handleContextAction}
                     onRenameStart={(id) => setRenamingSessionId(id)}
@@ -229,11 +242,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     onToggleArchived={() => setShowArchived(prev => !prev)}
                     onKeyDown={handleKeyDown}
                 />
-
-            <SidebarFooter
-                currentModel={settings.aiModel}
-                onOpenSettings={onOpenSettings}
-            />
         </div>
     )
 
@@ -254,7 +262,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
             boxSizing: 'border-box'
         }}>
             {/* Content Area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '8px 12px 0', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '8px 8px 0', overflow: 'hidden' }}>
                 <div className="nav-menu" style={{
                     background: 'transparent',
                     border: 'none',
@@ -263,7 +271,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'center'
+                    alignItems: 'stretch'
                 }}>
                     {navItems.map((item, index) => (
                         <button
@@ -271,7 +279,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                             onClick={() => onNavigateSettings(item.id)}
                             className={`nav-item settings-nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
-                                padding: '10px 12px',
+                                padding: '10px 8px',
                                 fontSize: '0.9rem',
                                 justifyContent: 'flex-start',
                                 animationDelay: `${index * 0.05}s`,
@@ -352,7 +360,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         <div
             className={`sidebar-container${shouldApplyGlass ? ' frosted' : ''}`}
             style={{
-                width: sidebarHidden ? '0px' : '260px',
+                width: sidebarHidden ? '0px' : (sidebarCollapsed ? '60px' : '260px'),
                 background: shouldApplyGlass
                     ? 'transparent'
                     : 'var(--theme-surface)',
@@ -378,6 +386,21 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 {renderChatContent()}
                 {renderSettingsContent()}
             </div>
+
+            {view === 'chat' && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: 10,
+                        right: 10,
+                        bottom: 10,
+                        zIndex: 3,
+                        pointerEvents: 'auto'
+                    }}
+                >
+                    <SidebarFooter onOpenSettings={onOpenSettings} />
+                </div>
+            )}
 
             <style>{`
                 /* Custom Scrollbar */
@@ -426,6 +449,16 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     50% { opacity: 0.4; }
                 }
             `}</style>
+
+            <SidebarSearchOverlay
+                isOpen={view === 'chat' && searchOverlayOpen}
+                query={searchQuery}
+                sessions={sessions}
+                currentSessionId={currentSessionId}
+                onQueryChange={setSearchQuery}
+                onSelectSession={handleSelectSessionFromSearch}
+                onClose={closeSearchOverlay}
+            />
         </div>
     )
 }

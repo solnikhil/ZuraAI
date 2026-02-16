@@ -48,14 +48,21 @@ export function useToolCalling() {
             ? [...settings.enabledTools]
             : allToolNames
 
-        // Gate web_search based on BOTH toggles
-        // web_search is excluded only when BOTH webSearchEnabled AND deepResearchEnabled are OFF
-        // This ensures web_search is available when:
-        // - webSearchEnabled is ON (normal web search mode)
-        // - deepResearchEnabled is ON (deep research mode, regardless of webSearchEnabled)
-        // Validates: Requirements 1.1, 1.3, 1.4
-        if (!settings.webSearchEnabled && !settings.deepResearchEnabled) {
+        // Gate web_search based on webSearchEnabled toggle
+        if (!settings.webSearchEnabled) {
             enabledTools = enabledTools.filter(tool => tool !== 'web_search')
+        }
+
+        // When structured research (step-by-step) is enabled: use research_plan only, hide web_search
+        // so the model must plan first; we execute the plan via web_search internally
+        if (settings.structuredResearchEnabled && settings.webSearchEnabled) {
+            enabledTools = enabledTools.filter(tool => tool === 'research_plan')
+            if (enabledTools.length === 0) {
+                enabledTools = ['research_plan']
+            }
+        } else if (settings.webSearchEnabled) {
+            // Normal mode: hide research_plan (only used when structured research enabled)
+            enabledTools = enabledTools.filter(tool => tool !== 'research_plan')
         }
 
         return enabledTools
@@ -102,7 +109,8 @@ export function useToolCalling() {
     const handleToolCalls = async (
         response: any,
         onToolStart?: (toolCall: ToolCall) => void,
-        onToolComplete?: (result: ToolCallResult) => void
+        onToolComplete?: (result: ToolCallResult) => void,
+        onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
@@ -137,10 +145,15 @@ export function useToolCalling() {
                 },
                 onToolComplete: (result) => {
                     setToolState(prev => {
-                        // Track web_search calls for research mode
+                        // Track web_search and research_plan for research mode
                         const isWebSearch = result.toolCall.name === 'web_search'
-                        const newSearchCount = isWebSearch && prev.researchMode.isActive
-                            ? prev.researchMode.searchCount + 1
+                        const isResearchPlan = result.toolCall.name === 'research_plan'
+                        const planSteps = isResearchPlan && Array.isArray(result.toolCall.arguments?.steps)
+                            ? result.toolCall.arguments.steps.length
+                            : 0
+                        const searchDelta = isWebSearch ? 1 : (isResearchPlan ? planSteps : 0)
+                        const newSearchCount = (isWebSearch || isResearchPlan) && prev.researchMode.isActive
+                            ? prev.researchMode.searchCount + searchDelta
                             : prev.researchMode.searchCount
 
                         return {
@@ -154,7 +167,8 @@ export function useToolCalling() {
                         }
                     })
                     onToolComplete?.(result)
-                }
+                },
+                onResearchPlanProgress
             })
 
             setToolState(prev => ({ ...prev, isProcessingTools: false }))

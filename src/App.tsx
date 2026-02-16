@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'

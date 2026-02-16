@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, ChevronRight, ChevronLeft, Zap, Image, Command } from './icons'
 import { useSettings } from '../contexts/SettingsContext'
 import { useToast } from './shared'
@@ -7,10 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import {
-  Dialog,
-  DialogContent,
-} from '@/components/ui/dialog'
 import './Onboarding.css'
 
 interface OnboardingProps {
@@ -19,10 +15,10 @@ interface OnboardingProps {
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
     const [step, setStep] = useState(0)
-    const { settings, updateSettings } = useSettings()
+    const { updateSettings } = useSettings()
     const { showToast } = useToast()
     const [apiKey, setApiKey] = useState('')
-    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'gemini' | 'groq'>('openrouter')
+    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'groq' | 'nvidia'>('openrouter')
 
     const validateApiKey = async (provider: string, key: string): Promise<boolean> => {
         try {
@@ -45,18 +41,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     })
                 })
                 return response.ok || response.status === 400 // 400 means auth worked but request was invalid
-            } else if (provider === 'gemini') {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
-                })
-                return response.ok
             } else if (provider === 'groq') {
                 const response = await fetch('https://api.groq.com/openai/v1/models', {
                     headers: { 'Authorization': `Bearer ${key}` }
                 })
                 return response.ok
+            } else if (provider === 'nvidia') {
+                const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${key}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'meta/llama3-8b',
+                        messages: [{ role: 'user', content: 'test' }],
+                        max_tokens: 1
+                    })
+                })
+                return response.ok || response.status === 400
             }
             return false
         } catch {
@@ -88,12 +91,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             } else if (selectedProvider === 'perplexity') {
                 await saveApiKeyToSecureStorage('perplexityApiKey', trimmedKey)
                 updates.perplexityApiKey = trimmedKey
-            } else if (selectedProvider === 'gemini') {
-                await saveApiKeyToSecureStorage('geminiApiKey', trimmedKey)
-                updates.geminiApiKey = trimmedKey
             } else if (selectedProvider === 'groq') {
                 await saveApiKeyToSecureStorage('groqApiKey', trimmedKey)
                 updates.groqApiKey = trimmedKey
+            } else if (selectedProvider === 'nvidia') {
+                await saveApiKeyToSecureStorage('nvidiaApiKey', trimmedKey)
+                updates.nvidiaApiKey = trimmedKey
             }
 
             updateSettings(updates)
@@ -166,19 +169,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         </button>
 
                         <button
-                            className={`provider-option ${selectedProvider === 'gemini' ? 'active' : ''}`}
-                            onClick={() => setSelectedProvider('gemini')}
-                        >
-                            <div className="provider-header">
-                                <span className="provider-name">Google Gemini</span>
-                            </div>
-                            <p className="provider-desc">Google's powerful AI models with vision support</p>
-                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="provider-link">
-                                Get API Key →
-                            </a>
-                        </button>
-
-                        <button
                             className={`provider-option ${selectedProvider === 'groq' ? 'active' : ''}`}
                             onClick={() => setSelectedProvider('groq')}
                         >
@@ -187,6 +177,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                             </div>
                             <p className="provider-desc">Ultra-fast inference with Llama models</p>
                             <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="provider-link">
+                                Get API Key →
+                            </a>
+                        </button>
+
+                        <button
+                            className={`provider-option ${selectedProvider === 'nvidia' ? 'active' : ''}`}
+                            onClick={() => setSelectedProvider('nvidia')}
+                        >
+                            <div className="provider-header">
+                                <span className="provider-name">NVIDIA</span>
+                            </div>
+                            <p className="provider-desc">Access Llama, Mistral, Nemotron and more via NVIDIA API</p>
+                            <a href="https://build.nvidia.com/getting-started" target="_blank" rel="noopener noreferrer" className="provider-link">
                                 Get API Key →
                             </a>
                         </button>

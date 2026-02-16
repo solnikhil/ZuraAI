@@ -3,17 +3,27 @@ import { useSettings } from './SettingsContext'
 
 export type DashboardView = 'chat' | 'settings'
 
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+
+export interface SettingsSectionParams {
+    provider?: ProviderKey
+    manageMode?: 'providers' | 'search-apis'
+}
+
 interface AppShellContextType {
     dashboardView: DashboardView
     setDashboardView: (view: DashboardView) => void
     activeSettingsSection: string
     setActiveSettingsSection: (section: string) => void
+    settingsSectionParams: SettingsSectionParams | null
+    setSettingsSectionParams: (params: SettingsSectionParams | null) => void
     hasUnsavedSettings: boolean
     setHasUnsavedSettings: (hasUnsaved: boolean) => void
     sidebarCollapsed: boolean
     toggleSidebarCollapsed: () => void
     sidebarHidden: boolean
     toggleSidebarHidden: () => void
+    setSidebarHidden: (hidden: boolean) => void
 }
 
 const AppShellContext = createContext<AppShellContextType | undefined>(undefined)
@@ -27,16 +37,15 @@ const STORAGE_KEYS = {
 
 const VALID_SETTINGS_SECTIONS = new Set<string>([
     'usage',
-    'models',
+    'providers',
     'themes',
-    'preferences',
     'systemprompt',
     'experimental',
 ])
 
 function normalizeSettingsSection(section: string | null): string | null {
     if (!section) return null
-    if (section === 'tools') return 'preferences'
+    if (section === 'tools' || section === 'models' || section === 'preferences') return 'providers'
     if (section === 'commandbar') return 'themes'
     const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
     return normalized
@@ -89,19 +98,25 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         return false
     })
 
-    const [sidebarHidden, setSidebarHidden] = useState<boolean>(() => {
+    const [sidebarHidden, setSidebarHiddenState] = useState<boolean>(() => {
         if (settings.rememberLastDashboardView) {
             return readStoredBoolean(STORAGE_KEYS.sidebarHidden) ?? false
         }
         return false
     })
 
+    const [settingsSectionParams, setSettingsSectionParamsState] = useState<SettingsSectionParams | null>(null)
+
     const toggleSidebarCollapsed = useCallback(() => {
         setSidebarCollapsed(prev => !prev)
     }, [])
 
     const toggleSidebarHidden = useCallback(() => {
-        setSidebarHidden(prev => !prev)
+        setSidebarHiddenState(prev => !prev)
+    }, [])
+
+    const setSidebarHidden = useCallback((hidden: boolean) => {
+        setSidebarHiddenState(hidden)
     }, [])
 
     const setDashboardView = useCallback((view: DashboardView) => {
@@ -111,6 +126,10 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     const setActiveSettingsSection = useCallback((section: string) => {
         const normalized = normalizeSettingsSection(section) ?? 'usage'
         setActiveSettingsSectionState(normalized)
+    }, [])
+
+    const setSettingsSectionParamsCallback = useCallback((params: SettingsSectionParams | null) => {
+        setSettingsSectionParamsState(params)
     }, [])
 
 
@@ -151,18 +170,24 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         setDashboardView,
         activeSettingsSection,
         setActiveSettingsSection,
+        settingsSectionParams,
+        setSettingsSectionParams: setSettingsSectionParamsCallback,
         hasUnsavedSettings,
         setHasUnsavedSettings,
         sidebarCollapsed,
         toggleSidebarCollapsed,
         sidebarHidden,
         toggleSidebarHidden,
+        setSidebarHidden,
     }), [
         activeSettingsSection,
         dashboardView,
         hasUnsavedSettings,
         setActiveSettingsSection,
         setDashboardView,
+        setSettingsSectionParamsCallback,
+        setSidebarHidden,
+        settingsSectionParams,
         sidebarCollapsed,
         sidebarHidden,
         toggleSidebarCollapsed,
@@ -188,12 +213,15 @@ export function useAppShell() {
                 setDashboardView: () => {},
                 activeSettingsSection: 'usage',
                 setActiveSettingsSection: () => {},
+                settingsSectionParams: null,
+                setSettingsSectionParams: () => {},
                 hasUnsavedSettings: false,
                 setHasUnsavedSettings: () => {},
                 sidebarCollapsed: false,
                 toggleSidebarCollapsed: () => {},
                 sidebarHidden: false,
                 toggleSidebarHidden: () => {},
+                setSidebarHidden: () => {},
             }
         }
         throw new Error('useAppShell must be used within a AppShellProvider')

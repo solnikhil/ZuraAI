@@ -6,10 +6,12 @@ export interface ExperimentalSectionProps {
   streamResponses: boolean
   frostedSidebar: boolean
   frostedPrompt: boolean
-  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean; frostedPrompt?: boolean }) => void
+  sidebarAutoHideOnResize: boolean
+  softenedContrast: boolean
+  onChange: (changes: { streamResponses?: boolean; frostedSidebar?: boolean; frostedPrompt?: boolean; sidebarAutoHideOnResize?: boolean; softenedContrast?: boolean }) => void
 }
 
-export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPrompt, onChange }: ExperimentalSectionProps): React.ReactElement {
+export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPrompt, sidebarAutoHideOnResize, softenedContrast, onChange }: ExperimentalSectionProps): React.ReactElement {
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">
@@ -55,6 +57,34 @@ export function ExperimentalSection({ streamResponses, frostedSidebar, frostedPr
             checked={frostedPrompt}
             onCheckedChange={(checked) => onChange({ frostedPrompt: checked })}
             aria-label="Enable frosted prompt"
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>Softened contrast</h3>
+            <div className="section-desc">Reduce the harshness of text and surfaces for a gentler, easier-on-the-eyes look.</div>
+          </div>
+          <Switch
+            checked={softenedContrast}
+            onCheckedChange={(checked) => onChange({ softenedContrast: checked })}
+            aria-label="Enable softened contrast"
+          />
+        </div>
+      </Card>
+
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <h3 className="section-head" style={{ marginBottom: 4 }}>Sidebar auto-hide on resize</h3>
+            <div className="section-desc">Hide the sidebar when the window is at or below minimum width (900px). You can unhide it anytime with the eye icon in the title bar.</div>
+          </div>
+          <Switch
+            checked={sidebarAutoHideOnResize}
+            onCheckedChange={(checked) => onChange({ sidebarAutoHideOnResize: checked })}
+            aria-label="Enable sidebar auto-hide on resize"
           />
         </div>
       </Card>

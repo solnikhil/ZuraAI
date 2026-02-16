@@ -67,7 +67,8 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'chatBubbleStyle'
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
+            'modelSelector'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -135,24 +136,84 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.systemPrompt?.includes('Keep responses concise and actionable')) {
             parsed.systemPrompt = defaultSettings.systemPrompt
         }
+        // Migrate truncated or outdated defaults (e.g. old ~800 char truncation, or "You are Zura" variant)
+        const defaultLen = defaultSettings.systemPrompt.length
+        if (
+            typeof parsed.systemPrompt === 'string' &&
+            (parsed.systemPrompt.includes('You are Zura') ||
+                (parsed.systemPrompt.startsWith('Role & Identity') && parsed.systemPrompt.length < defaultLen - 10))
+        ) {
+            parsed.systemPrompt = defaultSettings.systemPrompt
+        }
+        if (parsed.webSearchPrompt === undefined) parsed.webSearchPrompt = defaultSettings.webSearchPrompt
 
         // Initialize new fields if missing
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
+        // Migrate removed providers to openrouter
+        if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
+            parsed.modelProvider = 'openrouter'
+        }
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
         if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
         if (!parsed.perplexityModels) parsed.perplexityModels = defaultSettings.perplexityModels
-        if (!parsed.geminiApiKey) parsed.geminiApiKey = defaultSettings.geminiApiKey
-        // Force migration: Always use latest Gemini models
-        parsed.geminiModels = defaultSettings.geminiModels
+        else {
+            // Merge: use default list, preserve user's enabled and maxContext from defaults for models that exist in both
+            const merged = defaultSettings.perplexityModels.map((d) => {
+                const existing = parsed.perplexityModels.find((m: { code: string }) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            parsed.perplexityModels = merged
+        }
         // Initialize Groq fields if missing
         if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
         if (!parsed.groqModels) parsed.groqModels = defaultSettings.groqModels
-        // Initialize MiniMax fields if missing
-        if (!parsed.minimaxApiKey) parsed.minimaxApiKey = defaultSettings.minimaxApiKey
-        if (!parsed.minimaxModels) parsed.minimaxModels = defaultSettings.minimaxModels
-        // Ensure titleModel exists
+        else {
+            // Merge: use new default list, preserve user's enabled state for models that exist in both
+            const merged = defaultSettings.groqModels.map((d) => {
+                const existing = parsed.groqModels.find((m: { code: string }) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            parsed.groqModels = merged
+        }
+        // Initialize NVIDIA fields if missing
+        if (!parsed.nvidiaApiKey) parsed.nvidiaApiKey = defaultSettings.nvidiaApiKey
+        // Always use full default list; merge preserves user's enabled state for models that exist in both
+        const userNvidia = parsed.nvidiaModels
+        const merged = defaultSettings.nvidiaModels.map((d) => {
+            const existing = Array.isArray(userNvidia) ? userNvidia.find((m: { code: string }) => m.code === d.code) : undefined
+            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+        })
+        parsed.nvidiaModels = merged
+        // Initialize Alibaba fields if missing
+        if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
+        // Always merge with full default list (expanded model catalog); preserve user's enabled state
+        const userAlibaba = parsed.alibabaModels
+        const mergedAlibaba = defaultSettings.alibabaModels.map((d) => {
+            const existing = Array.isArray(userAlibaba) ? userAlibaba.find((m: { code: string }) => m.code === d.code) : undefined
+            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+        })
+        // Append any user-added custom models not in defaults
+        const defaultCodes = new Set(defaultSettings.alibabaModels.map((d) => d.code))
+        const customModels = Array.isArray(userAlibaba)
+            ? userAlibaba.filter((m: { code: string }) => !defaultCodes.has(m.code))
+            : []
+        parsed.alibabaModels = [...mergedAlibaba, ...customModels]
+        // Migrate deprecated Groq model IDs when modelProvider is groq
+        const deprecatedGroqModelMap: Record<string, string> = {
+            'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
+            'deepseek-r1-distill-llama-70b': 'llama-3.3-70b-versatile',
+            'mixtral-8x7b-32768': 'llama-3.1-8b-instant',
+            'gemma2-9b-it': 'llama-3.1-8b-instant',
+        }
+        if (parsed.modelProvider === 'groq' && parsed.aiModel && deprecatedGroqModelMap[parsed.aiModel]) {
+            parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
+        }
+        // Ensure titleModel exists; migrate gemini-* to OpenRouter model
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
+        if (parsed.titleModel?.startsWith('gemini-')) {
+            parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+        }
 
         // Max tokens sanity + migration
         if (typeof parsed.maxTokens !== 'number' || !Number.isFinite(parsed.maxTokens) || parsed.maxTokens <= 0) {
@@ -168,9 +229,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
-        if (parsed.deepResearchEnabled === undefined) parsed.deepResearchEnabled = defaultSettings.deepResearchEnabled
+        // Migration: deep research removed - ensure webSearchEnabled if it was on
+        if ((parsed as Record<string, unknown>).deepResearchEnabled === true) {
+            parsed.webSearchEnabled = true
+        }
+        delete (parsed as Record<string, unknown>).deepResearchEnabled
+        // structuredResearchEnabled restored - initialize if missing
+        if (parsed.structuredResearchEnabled === undefined) parsed.structuredResearchEnabled = defaultSettings.structuredResearchEnabled
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
+
 
         // Title bar personalization - always use compact (narrow) mode
         parsed.titleBarDensity = 'compact'
@@ -193,8 +261,30 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.frostedSidebar === undefined) parsed.frostedSidebar = defaultSettings.frostedSidebar
         // Initialize frostedPrompt if missing (glassmorphism effect)
         if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
+        // Initialize sidebarAutoHideOnResize if missing
+        if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
+        // Initialize softenedContrast if missing
+        if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
+        // Initialize/migrate chatSelectedOverlayStyle if missing
+        const legacyChatSelectedOverlayMap: Partial<Record<string, NonNullable<SettingsUI['chatSelectedOverlayStyle']>>> = {
+            pill: 'linear',
+            soft: 'notion',
+            outline: 'github',
+            glow: 'slack',
+        }
+        const rawChatSelectedOverlayStyle = parsed.chatSelectedOverlayStyle as string | undefined
+        if (!rawChatSelectedOverlayStyle) {
+            parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
+        } else {
+            const migratedStyle = legacyChatSelectedOverlayMap[rawChatSelectedOverlayStyle]
+            if (migratedStyle) {
+                parsed.chatSelectedOverlayStyle = migratedStyle
+            } else if (!['linear', 'notion', 'slack', 'discord', 'github'].includes(rawChatSelectedOverlayStyle)) {
+                parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
+            }
+        }
 
         return parsed
     })
@@ -210,33 +300,37 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         commandBar: storedSettings.commandBar,
         frostedSidebar: storedSettings.frostedSidebar,
         frostedPrompt: storedSettings.frostedPrompt,
+        sidebarAutoHideOnResize: storedSettings.sidebarAutoHideOnResize,
+        softenedContrast: storedSettings.softenedContrast,
         chatBubbleStyle: storedSettings.chatBubbleStyle,
+        chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
     }), [storedSettings])
 
     const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
         openRouterApiKey: storedSettings.openRouterApiKey,
         perplexityApiKey: storedSettings.perplexityApiKey,
-        geminiApiKey: storedSettings.geminiApiKey,
         groqApiKey: storedSettings.groqApiKey,
-        minimaxApiKey: storedSettings.minimaxApiKey,
         tavilyApiKey: storedSettings.tavilyApiKey,
+        nvidiaApiKey: storedSettings.nvidiaApiKey,
+        alibabaApiKey: storedSettings.alibabaApiKey,
         aiModel: storedSettings.aiModel,
         modelProvider: storedSettings.modelProvider,
         configuredModels: storedSettings.configuredModels,
         ollamaUrl: storedSettings.ollamaUrl,
         ollamaModels: storedSettings.ollamaModels,
         perplexityModels: storedSettings.perplexityModels,
-        geminiModels: storedSettings.geminiModels,
         groqModels: storedSettings.groqModels,
-        minimaxModels: storedSettings.minimaxModels,
+        nvidiaModels: storedSettings.nvidiaModels,
+        alibabaModels: storedSettings.alibabaModels,
         temperature: storedSettings.temperature,
         maxTokens: storedSettings.maxTokens,
         systemPrompt: storedSettings.systemPrompt,
+        webSearchPrompt: storedSettings.webSearchPrompt,
         streamResponses: storedSettings.streamResponses,
         toolsEnabled: storedSettings.toolsEnabled,
         enabledTools: storedSettings.enabledTools,
         webSearchEnabled: storedSettings.webSearchEnabled,
-        deepResearchEnabled: storedSettings.deepResearchEnabled,
+        structuredResearchEnabled: storedSettings.structuredResearchEnabled,
         titleModel: storedSettings.titleModel,
         favoriteModels: storedSettings.favoriteModels,
         quickPrompts: storedSettings.quickPrompts,
@@ -262,6 +356,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         localStorage.setItem('zura-settings', JSON.stringify(combinedSettings))
     }, [combinedSettings])
+
 
     // Listen for storage events from other windows/tabs
     useEffect(() => {

@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Ellipsis } from '../../icons'
-import { formatRelativeTime } from './utils/formatRelativeTime'
 import type { ChatSession } from '../../../contexts/ChatHistoryContext'
+import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
 export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'archive' | 'delete' | 'duplicate'
 
 interface ChatRowProps {
     session: ChatSession
+    selectedOverlayStyle: ChatSelectedOverlayStyle
     isActive: boolean
+    isMenuOpen: boolean
     isFocused: boolean
     isStreaming: boolean
     isRenaming: boolean
@@ -15,20 +17,56 @@ interface ChatRowProps {
     onRenameStart: (id: string) => void
     onRenameConfirm: (id: string, newTitle: string) => void
     onRenameCancel: () => void
-    onContextMenu: (e: React.MouseEvent, sessionId: string) => void
     onMoreClick: (e: React.MouseEvent, sessionId: string) => void
+}
+
+function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle) {
+    switch (style) {
+        case 'notion':
+            return {
+                background: 'color-mix(in srgb, var(--theme-surface-hover) 82%, transparent)',
+                border: '1px solid transparent',
+                boxShadow: 'none',
+            }
+        case 'slack':
+            return {
+                background: 'color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface-active))',
+                border: '1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent)',
+                boxShadow: 'none',
+            }
+        case 'discord':
+            return {
+                background: 'color-mix(in srgb, var(--theme-surface-active) 92%, var(--theme-surface) 8%)',
+                border: '1px solid color-mix(in srgb, var(--theme-border) 62%, transparent)',
+                boxShadow: 'none',
+            }
+        case 'github':
+            return {
+                background: 'color-mix(in srgb, var(--theme-surface-active) 86%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+                boxShadow: 'none',
+            }
+        case 'linear':
+        default:
+            return {
+                background: 'color-mix(in srgb, var(--theme-surface-active) 88%, black 12%)',
+                border: '1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent)',
+                boxShadow: 'none',
+            }
+    }
 }
 
 export default function ChatRow({
     session,
+    selectedOverlayStyle,
     isActive,
+    isMenuOpen,
     isFocused,
     isStreaming,
     isRenaming,
     onSelect,
     onRenameConfirm,
     onRenameCancel,
-    onContextMenu,
     onMoreClick,
 }: ChatRowProps) {
     const [renameValue, setRenameValue] = useState(session.title)
@@ -56,31 +94,34 @@ export default function ChatRow({
         onRenameConfirm(session.id, trimmed || session.title)
     }
 
+    const selectedOverlay = getSelectedOverlayStyles(selectedOverlayStyle)
+
     return (
         <div
             onClick={() => !isRenaming && onSelect(session.id)}
-            onContextMenu={(e) => onContextMenu(e, session.id)}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             style={{
                 display: 'flex',
-                alignItems: 'flex-start',
-                padding: '6px 8px',
-                paddingLeft: isActive ? '5px' : '8px',
+                alignItems: 'center',
+                padding: '6px 6px',
                 cursor: isRenaming ? 'default' : 'pointer',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 height: '34px',
                 boxSizing: 'border-box',
                 position: 'relative',
-                transition: 'background 0.12s ease',
-                backgroundColor: isActive
-                    ? 'color-mix(in srgb, var(--theme-accent) 14%, transparent)'
+                transition: 'background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease',
+                background: isActive
+                    ? selectedOverlay.background
                     : isFocused
                         ? 'var(--theme-surface-hover)'
                         : isHovered
                             ? 'var(--theme-surface-hover)'
                             : 'transparent',
-                borderLeft: isActive ? '3px solid var(--theme-accent)' : '3px solid transparent',
+                border: isActive
+                    ? selectedOverlay.border
+                    : '1px solid transparent',
+                boxShadow: isActive ? selectedOverlay.boxShadow : 'none',
                 outline: isFocused ? '1px solid var(--theme-accent)' : 'none',
                 outlineOffset: '-1px',
             }}
@@ -96,10 +137,9 @@ export default function ChatRow({
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                gap: '1px',
                 height: '100%',
             }}>
-                {/* Top line: title + timestamp */}
+                {/* Top line: title + actions */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
                     {isRenaming ? (
                         <input
@@ -129,7 +169,7 @@ export default function ChatRow({
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             fontSize: '0.8rem',
-                            fontWeight: isActive ? 600 : 500,
+                            fontWeight: 500,
                             color: 'var(--theme-text-primary)',
                             minWidth: 0,
                         }}>
@@ -138,63 +178,75 @@ export default function ChatRow({
                     )}
 
                     {!isRenaming && (
-                        <span style={{
-                            fontSize: '0.65rem',
-                            color: 'var(--theme-text-muted)',
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap',
-                        }}>
-                            {formatRelativeTime(session.updatedAt)}
-                        </span>
+                        isStreaming ? (
+                            <div
+                                style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'var(--theme-accent)',
+                                    animation: 'pulse 1.5s ease-in-out infinite',
+                                    marginRight: '5px',
+                                    flexShrink: 0,
+                                }}
+                            />
+                        ) : isActive ? (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onMoreClick(e, session.id)
+                                }}
+                                aria-label="Chat options"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    borderRadius: '4px',
+                                    color: 'var(--theme-text-muted)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: isHovered ? 1 : 0.86,
+                                    transition: 'opacity 0.15s ease, background 0.1s ease, color 0.1s ease',
+                                    flexShrink: 0,
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-active)' }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                            >
+                                <Ellipsis size={14} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onMoreClick(e, session.id)
+                                }}
+                                aria-label="Chat options"
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                    borderRadius: '4px',
+                                    color: 'var(--theme-text-muted)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: isHovered || isMenuOpen ? 1 : 0,
+                                    pointerEvents: isHovered || isMenuOpen ? 'auto' : 'none',
+                                    transition: 'opacity 0.15s ease, background 0.1s ease, color 0.1s ease',
+                                    flexShrink: 0,
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-active)' }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                            >
+                                <Ellipsis size={14} />
+                            </button>
+                        )
                     )}
                 </div>
 
-            </div>
-
-            {/* Right area: streaming dot or more button */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0,
-                width: '24px',
-                justifyContent: 'center',
-                height: '100%',
-            }}>
-                {isStreaming ? (
-                    <div
-                        style={{
-                            width: '6px',
-                            height: '6px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--theme-accent)',
-                            animation: 'pulse 1.5s ease-in-out infinite',
-                        }}
-                    />
-                ) : (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onMoreClick(e, session.id)
-                        }}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '2px',
-                            borderRadius: '4px',
-                            color: 'var(--theme-text-muted)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            opacity: isHovered ? 1 : 0,
-                            transition: 'opacity 0.15s ease, background 0.1s ease',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-active)' }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                    >
-                        <Ellipsis size={14} />
-                    </button>
-                )}
             </div>
 
             {/* Tag badges */}
@@ -202,7 +254,7 @@ export default function ChatRow({
                 <div style={{
                     position: 'absolute',
                     bottom: '2px',
-                    right: '28px',
+                    right: '26px',
                     display: 'flex',
                     gap: '2px',
                 }}>

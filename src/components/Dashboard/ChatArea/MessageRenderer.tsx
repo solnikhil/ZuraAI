@@ -10,10 +10,8 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
-import ReactDOM from 'react-dom'
 import {
-  Copy, Check, Info, Clock, ArrowDown, ArrowUp, Sigma, Cpu, Brain,
-  Wrench, X, File, FileText, RotateCcw, Sparkles, Edit2, Zap, Database,
+  Copy, Check, Info, Wrench, X, File, RotateCcw,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -48,8 +46,12 @@ export interface MessageRendererProps {
       toolCall: { id: string; name: string; arguments: any }
       result: { success: boolean; data?: any; error?: string; executionTime?: number }
     }>
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
   isStreaming?: boolean
+  /** Active tool calls during streaming (for in-message tool calling animation) */
+  activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   onCopy?: (content: string) => void
   onRegenerate?: (instruction: string) => void
 }
@@ -61,7 +63,7 @@ function convertUrlsToMarkdownLinks(content: string): string {
   if (!content) return content
 
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (match, prefix, num, url) => {
+  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (_match, prefix, num, url) => {
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
     return `${prefix}[[${num}]](${cleanUrl})`
   })
@@ -261,155 +263,163 @@ function ToolDetailsModal({ toolResults, onClose }: {
 
 /**
  * Web Search Image Carousel Component
+ * Renders inline with the message flow—no card container, minimal chrome.
+ * Uses smooth scroll animation when navigating between pages.
  */
 function WebSearchImageCarousel({ images }: { images: Array<{ url: string; description?: string }> }) {
-  const [startIndex, setStartIndex] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [currentPage, setCurrentPage] = useState(0)
   const imagesPerPage = 4
   const totalPages = Math.ceil(images.length / imagesPerPage)
-  const currentPage = Math.floor(startIndex / imagesPerPage)
-  const visibleImages = images.slice(startIndex, startIndex + imagesPerPage)
+
+  const scrollToPage = (page: number) => {
+    const el = scrollRef.current
+    if (!el) return
+    const pageWidth = el.offsetWidth
+    el.scrollTo({ left: page * pageWidth, behavior: 'smooth' })
+    setCurrentPage(page)
+  }
 
   const handlePrev = () => {
-    setStartIndex(prev => {
-      const newIndex = prev - imagesPerPage
-      return newIndex < 0 ? (totalPages - 1) * imagesPerPage : newIndex
-    })
+    const nextPage = currentPage <= 0 ? totalPages - 1 : currentPage - 1
+    scrollToPage(nextPage)
   }
 
   const handleNext = () => {
-    setStartIndex(prev => {
-      const newIndex = prev + imagesPerPage
-      return newIndex >= images.length ? 0 : newIndex
-    })
+    const nextPage = currentPage >= totalPages - 1 ? 0 : currentPage + 1
+    scrollToPage(nextPage)
   }
 
   if (images.length === 0) return null
 
   return (
-    <div style={{
-      marginBottom: '16px',
-      padding: '12px',
-      background: 'rgba(255, 255, 255, 0.02)',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      borderRadius: '12px'
-    }}>
+    <div style={{ marginBottom: '12px' }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: '8px'
+        marginBottom: '6px',
+        gap: '8px'
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          color: 'var(--theme-text-secondary)',
-          fontSize: '0.85rem'
+        <span style={{
+          color: 'var(--theme-text-muted)',
+          fontSize: '0.8rem',
+          fontWeight: 500
         }}>
-          <span>Web Search Images</span>
-          <span style={{ color: 'var(--theme-text-muted)' }}>
-            ({images.length} {images.length === 1 ? 'image' : 'images'})
-          </span>
-        </div>
+          {images.length} {images.length === 1 ? 'image' : 'images'} from search
+        </span>
         {images.length > imagesPerPage && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '4px'
           }}>
             <button
               onClick={handlePrev}
+              type="button"
+              aria-label="Previous images"
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '6px',
-                padding: '4px 8px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '2px 4px',
                 cursor: 'pointer',
-                color: 'var(--theme-text-secondary)',
+                color: 'var(--theme-text-muted)',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'all 0.2s'
+                transition: 'color 0.15s'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+                e.currentTarget.style.color = 'var(--theme-text-secondary)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                e.currentTarget.style.color = 'var(--theme-text-muted)'
               }}
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={14} />
             </button>
             <span style={{
               color: 'var(--theme-text-muted)',
-              fontSize: '0.75rem',
-              minWidth: '40px',
+              fontSize: '0.7rem',
+              minWidth: '32px',
               textAlign: 'center'
             }}>
               {currentPage + 1}/{totalPages}
             </span>
             <button
               onClick={handleNext}
+              type="button"
+              aria-label="Next images"
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '6px',
-                padding: '4px 8px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '2px 4px',
                 cursor: 'pointer',
-                color: 'var(--theme-text-secondary)',
+                color: 'var(--theme-text-muted)',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'all 0.2s'
+                transition: 'color 0.15s'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
+                e.currentTarget.style.color = 'var(--theme-text-secondary)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                e.currentTarget.style.color = 'var(--theme-text-muted)'
               }}
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={14} />
             </button>
           </div>
         )}
       </div>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '8px'
-      }}>
-        {visibleImages.map((img, idx) => (
+      <div
+        ref={scrollRef}
+        style={{
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollBehavior: 'smooth',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          display: 'flex',
+          gap: '6px',
+          scrollSnapType: 'x mandatory'
+        }}
+        className="scrollbar-hide"
+      >
+        {images.map((img, idx) => (
           <a
-            key={`${startIndex + idx}-${img.url}`}
+            key={`${idx}-${img.url}`}
             href={img.url}
             target="_blank"
             rel="noopener noreferrer"
             style={{
+              flex: '0 0 calc((100% - 18px) / 4)',
+              minWidth: 'calc((100% - 18px) / 4)',
               aspectRatio: '16/10',
               overflow: 'hidden',
-              borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '6px',
               display: 'block',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              cursor: 'pointer'
+              transition: 'opacity 0.15s',
+              cursor: 'pointer',
+              scrollSnapAlign: 'start'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'scale(1.02)'
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)'
+              e.currentTarget.style.opacity = '0.9'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'scale(1)'
-              e.currentTarget.style.boxShadow = 'none'
+              e.currentTarget.style.opacity = '1'
             }}
           >
             <img
               src={img.url}
-              alt={img.description || `Search result image ${startIndex + idx + 1}`}
+              alt={img.description || `Search result image ${idx + 1}`}
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
-                display: 'block'
+                display: 'block',
+                borderRadius: 'inherit'
               }}
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = 'none'
@@ -601,6 +611,13 @@ function areMessagePropsEqual(
     return false
   }
 
+  // Compare activeToolCalls (for tool calling animation)
+  const prevActive = prevProps.activeToolCalls || []
+  const nextActive = nextProps.activeToolCalls || []
+  if (prevActive.length !== nextActive.length) {
+    return false
+  }
+
   // Compare callback references (these should be stable via useCallback in parent)
   // Note: We compare by reference since callbacks should be memoized
   if (prevProps.onCopy !== nextProps.onCopy) {
@@ -681,6 +698,19 @@ function areMessagePropsEqual(
     return false
   }
 
+  // Compare research plan and progress
+  const prevPlan = prevMsg.researchPlan
+  const nextPlan = nextMsg.researchPlan
+  if (prevPlan?.topic !== nextPlan?.topic || prevPlan?.steps?.length !== nextPlan?.steps?.length) {
+    return false
+  }
+  const prevProgress = prevMsg.researchProgress
+  const nextProgress = nextMsg.researchProgress
+  if (prevProgress?.currentStep !== nextProgress?.currentStep ||
+      prevProgress?.totalSteps !== nextProgress?.totalSteps) {
+    return false
+  }
+
   // Compare tool results (by length - deep comparison would be expensive)
   const prevToolResults = prevMsg.toolResults || []
   const nextToolResults = nextMsg.toolResults || []
@@ -745,6 +775,7 @@ function areMessagePropsEqual(
 function MessageRendererComponent({
   message,
   isStreaming = false,
+  activeToolCalls,
   onCopy,
   onRegenerate
 }: MessageRendererProps) {
@@ -974,15 +1005,16 @@ function MessageRendererComponent({
       ref={messageRef}
     >
       {/* Thinking Block */}
-      {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching) && (
+      {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
             thinking={(message as any).thinking || ''}
-            isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching}
+            isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching && (!activeToolCalls || activeToolCalls.length === 0)}
             thinkingDuration={message.thinkingDuration}
             isSearching={message.researchStatus?.isSearching || false}
             searchQuery={message.researchStatus?.currentSearch}
             completedBlocks={message.thinkingBlocks || []}
+            activeToolCalls={activeToolCalls}
           />
         </div>
       )}

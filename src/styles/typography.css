@@ -31,8 +31,14 @@
     font-weight: 800; /* font-extrabold */
     letter-spacing: -0.025em; /* tracking-tight */
     text-wrap: balance;
-    margin: 0;
+    margin: 0 0 0.75rem;
     color: var(--theme-text-primary);
+}
+
+.markdown-body h1:not(:first-child),
+.markdown-content h1:not(:first-child),
+.markdown-typography h1:not(:first-child) {
+    margin-top: 2rem;
 }
 
 .markdown-body h2,
@@ -44,7 +50,7 @@
     font-size: 1.875rem; /* text-3xl */
     font-weight: 600; /* font-semibold */
     letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0;
+    margin: 0 0 0.75rem;
     color: var(--theme-text-primary);
 }
 
@@ -54,6 +60,12 @@
     margin-top: 0;
 }
 
+.markdown-body h2:not(:first-child),
+.markdown-content h2:not(:first-child),
+.markdown-typography h2:not(:first-child) {
+    margin-top: 1.75rem;
+}
+
 .markdown-body h3,
 .markdown-content h3,
 .markdown-typography h3 {
@@ -61,8 +73,14 @@
     font-size: 1.5rem; /* text-2xl */
     font-weight: 600; /* font-semibold */
     letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0;
+    margin: 0 0 0.65rem;
     color: var(--theme-text-primary);
+}
+
+.markdown-body h3:not(:first-child),
+.markdown-content h3:not(:first-child),
+.markdown-typography h3:not(:first-child) {
+    margin-top: 1.5rem;
 }
 
 .markdown-body h4,
@@ -72,8 +90,14 @@
     font-size: 1.25rem; /* text-xl */
     font-weight: 600; /* font-semibold */
     letter-spacing: -0.025em; /* tracking-tight */
-    margin: 0;
+    margin: 0 0 0.5rem;
     color: var(--theme-text-primary);
+}
+
+.markdown-body h4:not(:first-child),
+.markdown-content h4:not(:first-child),
+.markdown-typography h4:not(:first-child) {
+    margin-top: 1.25rem;
 }
 
 .markdown-body h5,
@@ -84,8 +108,78 @@
 .markdown-typography h6 {
     scroll-margin-top: 5rem;
     font-weight: 600;
-    margin: 0;
+    margin: 0 0 0.4rem;
     color: var(--theme-text-primary);
+}
+
+.markdown-body h5:not(:first-child),
+.markdown-content h5:not(:first-child),
+.markdown-typography h5:not(:first-child),
+.markdown-body h6:not(:first-child),
+.markdown-content h6:not(:first-child),
+.markdown-typography h6:not(:first-child) {
+    margin-top: 1rem;
+}
+
+/* Tighten spacing when headings are followed by text or lists */
+.markdown-body h1 + p,
+.markdown-content h1 + p,
+.markdown-typography h1 + p,
+.markdown-body h2 + p,
+.markdown-content h2 + p,
+.markdown-typography h2 + p,
+.markdown-body h3 + p,
+.markdown-content h3 + p,
+.markdown-typography h3 + p,
+.markdown-body h4 + p,
+.markdown-content h4 + p,
+.markdown-typography h4 + p,
+.markdown-body h5 + p,
+.markdown-content h5 + p,
+.markdown-typography h5 + p,
+.markdown-body h6 + p,
+.markdown-content h6 + p,
+.markdown-typography h6 + p {
+    margin-top: 0.75rem;
+}
+
+.markdown-body h1 + ul,
+.markdown-content h1 + ul,
+.markdown-typography h1 + ul,
+.markdown-body h2 + ul,
+.markdown-content h2 + ul,
+.markdown-typography h2 + ul,
+.markdown-body h3 + ul,
+.markdown-content h3 + ul,
+.markdown-typography h3 + ul,
+.markdown-body h4 + ul,
+.markdown-content h4 + ul,
+.markdown-typography h4 + ul,
+.markdown-body h5 + ul,
+.markdown-content h5 + ul,
+.markdown-typography h5 + ul,
+.markdown-body h6 + ul,
+.markdown-content h6 + ul,
+.markdown-typography h6 + ul,
+.markdown-body h1 + ol,
+.markdown-content h1 + ol,
+.markdown-typography h1 + ol,
+.markdown-body h2 + ol,
+.markdown-content h2 + ol,
+.markdown-typography h2 + ol,
+.markdown-body h3 + ol,
+.markdown-content h3 + ol,
+.markdown-typography h3 + ol,
+.markdown-body h4 + ol,
+.markdown-content h4 + ol,
+.markdown-typography h4 + ol,
+.markdown-body h5 + ol,
+.markdown-content h5 + ol,
+.markdown-typography h5 + ol,
+.markdown-body h6 + ol,
+.markdown-content h6 + ol,
+.markdown-typography h6 + ol {
+    margin-top: 0.75rem;
 }
 
 /* Blockquotes */
@@ -94,8 +188,11 @@
 .markdown-typography blockquote {
     margin-top: 1.5rem; /* mt-6 */
     margin-bottom: 1.5rem;
-    border-left: 2px solid var(--theme-border);
-    padding-left: 1.5rem; /* pl-6 */
+    border-left: 3px solid var(--theme-accent);
+    padding: 0.75rem 0 0.75rem 1.5rem;
+    margin-left: 0;
+    background: var(--theme-surface-hover);
+    border-radius: 0 0.25rem 0.25rem 0;
     font-style: italic;
     color: var(--theme-text-secondary);
 }
@@ -118,6 +215,12 @@
     list-style-type: disc; /* list-disc */
 }
 
+.markdown-body ol,
+.markdown-content ol,
+.markdown-typography ol {
+    list-style-type: decimal;
+}
+
 .markdown-body li,
 .markdown-content li,
 .markdown-typography li {
@@ -137,6 +240,9 @@
     width: 100%;
     overflow-x: auto;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0.5rem;
+    border: 1px solid var(--theme-border);
 }
 
 .markdown-body table,
@@ -145,6 +251,7 @@
     margin-top: 1.5rem;
     margin-bottom: 1.5rem;
     width: 100%;
+    min-width: 300px;
     border-collapse: collapse;
 }
 
@@ -159,22 +266,31 @@
 .markdown-content td,
 .markdown-typography td {
     border: 1px solid var(--theme-border);
-    padding: 0.5rem;
+    padding: 0.625rem 0.875rem;
 }
 
 .markdown-body th,
 .markdown-content th,
 .markdown-typography th {
-    background: var(--theme-surface-hover);
+    background: color-mix(in srgb, var(--theme-surface-hover) 80%, var(--theme-surface));
     font-weight: 600;
     color: var(--theme-text-primary);
     text-align: left;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--theme-border-active);
 }
 
 .markdown-body td,
 .markdown-content td,
 .markdown-typography td {
     color: var(--theme-text-secondary);
+}
+
+/* Zebra striping for table body rows */
+.markdown-body tbody tr:nth-child(even),
+.markdown-content tbody tr:nth-child(even),
+.markdown-typography tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--theme-surface-hover) 40%, transparent);
 }
 
 /* Inline Code */
@@ -188,6 +304,7 @@
     font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; /* font-mono */
     font-size: 0.875rem; /* text-sm */
     font-weight: 600; /* font-semibold */
+    font-style: normal; /* prevent italic inheritance from blockquote/em */
 }
 
 .markdown-body pre,
@@ -207,21 +324,7 @@
     font-weight: normal;
 }
 
-/* Links */
-.markdown-body a,
-.markdown-content a,
-.markdown-typography a {
-    color: var(--theme-accent);
-    text-decoration: none;
-    transition: color 0.2s;
-}
-
-.markdown-body a:hover,
-.markdown-content a:hover,
-.markdown-typography a:hover {
-    color: var(--theme-accent-hover);
-    text-decoration: underline;
-}
+/* Links - all rendered via WebSourceCitation (blur/highlight style) */
 
 /* Lead text */
 .markdown-body .lead,
@@ -261,4 +364,83 @@
 .markdown-typography strong {
     color: var(--theme-text-primary);
     font-weight: 600;
+}
+
+.markdown-body em,
+.markdown-content em,
+.markdown-typography em {
+    font-style: italic;
+    color: var(--theme-text-primary);
+}
+
+/* Strikethrough (GFM ~~text~~) */
+.markdown-body del,
+.markdown-content del,
+.markdown-typography del,
+.markdown-body s,
+.markdown-content s,
+.markdown-typography s {
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: var(--theme-text-muted);
+    color: var(--theme-text-muted);
+}
+
+/* Task lists (GFM - [ ] / - [x]) */
+.markdown-body ul.contains-task-list,
+.markdown-content ul.contains-task-list,
+.markdown-typography ul.contains-task-list {
+    list-style: none;
+    padding-left: 1.5rem; /* align with other lists */
+}
+
+.markdown-body .task-list-item,
+.markdown-content .task-list-item,
+.markdown-typography .task-list-item {
+    list-style: none;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.markdown-body .task-list-item:first-child,
+.markdown-content .task-list-item:first-child,
+.markdown-typography .task-list-item:first-child {
+    margin-top: 0;
+}
+
+.markdown-body .task-list-item input[type="checkbox"],
+.markdown-content .task-list-item input[type="checkbox"],
+.markdown-typography .task-list-item input[type="checkbox"] {
+    margin: 0.25rem 0 0 0;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--theme-accent);
+    cursor: default;
+}
+
+.markdown-body .task-list-item:has(input[type="checkbox"]:checked),
+.markdown-content .task-list-item:has(input[type="checkbox"]:checked),
+.markdown-typography .task-list-item:has(input[type="checkbox"]:checked) {
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: var(--theme-text-muted);
+    color: var(--theme-text-muted);
+}
+
+/* Horizontal rules (GFM ---) */
+.markdown-body hr,
+.markdown-content hr,
+.markdown-typography hr {
+    margin: 1.5rem 0;
+    border: none;
+    border-top: 1px solid var(--theme-border);
+}
+
+/* Skeleton animation for loading states */
+@keyframes markdown-skeleton-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }

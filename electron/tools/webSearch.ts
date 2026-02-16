@@ -1,13 +1,20 @@
 // Web Search Tool - Search the internet for information
-// Supports multiple search providers: Tavily (recommended), SerpAPI, Brave
+// Primary: Tavily API (best for AI applications)
+// Fallback: duck-duck-scrape (real DuckDuckGo web search, no key needed)
 
+import { search as duckDuckScrapeSearch, SafeSearchType } from 'duck-duck-scrape'
 import type { ToolResult } from './types'
 import { getSecureValueAsync } from '../secureStorage'
+
+const FETCH_TIMEOUT_MS = 20000
+const MAX_QUERY_LENGTH = 500
 
 interface WebSearchArgs {
     query: string
     num_results?: number
     search_depth?: 'basic' | 'advanced'
+    time_range?: 'day' | 'week' | 'month' | 'year'
+    topic?: 'general' | 'news'
 }
 
 interface SearchResult {
@@ -15,10 +22,9 @@ interface SearchResult {
     url: string
     snippet: string
     favicon?: string
-    // LobeHub-compatible metadata fields
-    source?: string // Domain name (e.g., "example.com")
-    displayed_link?: string // Display-friendly link (e.g., "example.com › path")
-    date?: string // Publication date if available
+    source?: string
+    displayed_link?: string
+    date?: string
 }
 
 interface ImageResult {
@@ -27,42 +33,133 @@ interface ImageResult {
 }
 
 /**
+ * Coerce search_depth to valid value
+ */
+function coerceSearchDepth(value: unknown): 'basic' | 'advanced' {
+    if (value === 'advanced') return 'advanced'
+    return 'basic'
+}
+
+/**
+ * Coerce time_range to valid value
+ */
+function coerceTimeRange(value: unknown): 'day' | 'week' | 'month' | 'year' | undefined {
+    if (value === 'day' || value === 'week' || value === 'month' || value === 'year') return value
+    return undefined
+}
+
+/**
+ * Coerce topic to valid value
+ */
+function coerceTopic(value: unknown): 'general' | 'news' | undefined {
+    if (value === 'news') return 'news'
+    if (value === 'general') return 'general'
+    return undefined
+}
+
+/**
+ * Reformulate poor queries (long or conversational) into keyword-focused search queries.
+ * Uses heuristics only - no LLM call. Keeps queries under 400 chars per Tavily best practices.
+ */
+function reformulateQueryIfNeeded(query: string): string {
+    const trimmed = query.trim()
+    if (!trimmed) return trimmed
+
+    const CONVERSATIONAL_PREFIXES = [
+        /^can you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^could you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^would you (?:please )?(?:find|search|look up|tell me|get)\s+/i,
+        /^i want to know (?:about )?/i,
+        /^i need to (?:find|know|search for)\s+/i,
+        /^please (?:find|search|look up|tell me)\s+/i,
+        /^what (?:is|are) (?:the )?(?:latest|best|current)\s+/i,
+        /^tell me (?:about )?/i,
+        /^search for\s+/i,
+        /^look up\s+/i,
+        /^find (?:out )?(?:about )?/i
+    ]
+
+    let result = trimmed
+
+    // Strip conversational prefixes
+    for (const re of CONVERSATIONAL_PREFIXES) {
+        result = result.replace(re, '').trim()
+    }
+
+    // Remove trailing question marks and "?" for cleaner keywords
+    result = result.replace(/\?+$/, '').trim()
+
+    // If still over 400 chars, truncate to first 400 (Tavily recommends under 400)
+    if (result.length > 400) {
+        result = result.slice(0, 397) + '...'
+    }
+
+    return result || trimmed
+}
+
+/**
  * Execute web search using available API
- * Priority: Tavily > DuckDuckGo (fallback, no key needed)
+ * Priority: Tavily > duck-duck-scrape (fallback when no key or Tavily fails)
  */
 export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult> {
-    // Coerce num_results to number if it's a string
-    let num_results = args.num_results ?? 5
+    // Coerce num_results to number
+    let num_results = args.num_results ?? 10
     if (typeof num_results === 'string') {
         const parsed = Number(num_results)
-        num_results = isNaN(parsed) ? 5 : parsed
+        num_results = isNaN(parsed) ? 10 : parsed
     }
     if (typeof num_results !== 'number' || num_results < 1) {
-        num_results = 5
+        num_results = 10
     }
+    num_results = Math.min(Math.max(num_results, 1), 20)
 
-    const { query, search_depth = 'basic' } = args
+    const search_depth = coerceSearchDepth(args.search_depth ?? 'basic')
+    const time_range = coerceTimeRange(args.time_range)
+    const topic = coerceTopic(args.topic)
 
+    // Validate and sanitize query
+    let query = args.query
     if (!query || typeof query !== 'string') {
         return {
             success: false,
             error: 'Search query is required'
         }
     }
+    query = query.trim()
+    if (!query) {
+        return {
+            success: false,
+            error: 'Search query cannot be empty'
+        }
+    }
+    if (query.length > MAX_QUERY_LENGTH) {
+        query = query.slice(0, MAX_QUERY_LENGTH)
+    }
 
-    // Use the query as-is - don't append date automatically
-    // The model can add specific dates if needed (e.g., "2025", "January 2025")
-    const enhancedQuery = query
+    // Reformulate poor queries (long or conversational) into keyword-focused search queries
+    query = reformulateQueryIfNeeded(query)
 
-    // Try to get API key from environment or secure storage
     const tavilyKey = process.env.TAVILY_API_KEY || await getSecureValueAsync('tavilyApiKey')
 
     if (tavilyKey && tavilyKey.trim()) {
-        return searchWithTavily(enhancedQuery, num_results, tavilyKey, search_depth)
+        const tavilyResult = await searchWithTavily(query, num_results, tavilyKey.trim(), search_depth, time_range, topic)
+        if (tavilyResult.success) {
+            return tavilyResult
+        }
+        // Tavily failed - try fallback before giving up
+        const fallbackResult = await searchWithDuckDuckScrape(query, num_results)
+        if (fallbackResult.success) {
+            return fallbackResult
+        }
+        // Both failed - return user-friendly message
+        return {
+            success: false,
+            error: `Web search failed. ${tavilyResult.error} Fallback also failed. Please check your internet connection and try again. For best results, add a valid Tavily API key in Settings > Search APIs.`
+        }
     }
 
-    // Fallback to DuckDuckGo Instant Answer API (limited but free)
-    return searchWithDuckDuckGo(enhancedQuery, num_results)
+    // No Tavily key - use duck-duck-scrape directly
+    return searchWithDuckDuckScrape(query, num_results)
 }
 
 /**
@@ -90,31 +187,50 @@ function getSourceFromUrl(url: string): string {
 
 /**
  * Generate displayed_link from URL (LobeHub-style)
- * Example: "example.com › path › to › page"
  */
 function getDisplayedLink(url: string): string {
     try {
         const urlObj = new URL(url)
         const hostname = urlObj.hostname.replace(/^www\./, '')
         const pathname = urlObj.pathname
-        
+
         if (pathname === '/' || !pathname) {
             return hostname
         }
-        
-        // Clean up pathname and create display-friendly version
+
         const pathParts = pathname
             .split('/')
             .filter(part => part && part !== 'index.html' && part !== 'index')
-            .slice(0, 2) // Limit to 2 path segments for readability
-        
+            .slice(0, 2)
+
         if (pathParts.length === 0) {
             return hostname
         }
-        
+
         return `${hostname} › ${pathParts.join(' › ')}`
     } catch {
         return url
+    }
+}
+
+/**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(
+    url: string,
+    options: RequestInit,
+    timeoutMs: number
+): Promise<Response> {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        })
+        return response
+    } finally {
+        clearTimeout(timeoutId)
     }
 }
 
@@ -126,24 +242,42 @@ async function searchWithTavily(
     query: string,
     numResults: number,
     apiKey: string,
-    searchDepth: 'basic' | 'advanced' = 'basic'
+    searchDepth: 'basic' | 'advanced' = 'basic',
+    timeRange?: 'day' | 'week' | 'month' | 'year',
+    topic?: 'general' | 'news'
 ): Promise<ToolResult> {
     try {
-        const response = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
+        const body: Record<string, unknown> = {
+            api_key: apiKey,
+            query,
+            search_depth: searchDepth,
+            max_results: Math.min(numResults, 20),
+            include_answer: true,
+            include_raw_content: false,
+            include_images: true
+        }
+
+        // Tavily best practices: advanced depth + chunks for specific queries
+        if (searchDepth === 'advanced') {
+            body.chunks_per_source = 3
+        }
+
+        if (timeRange) {
+            body.time_range = timeRange
+        }
+        if (topic) {
+            body.topic = topic
+        }
+
+        const response = await fetchWithTimeout(
+            'https://api.tavily.com/search',
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
             },
-            body: JSON.stringify({
-                api_key: apiKey,
-                query,
-                search_depth: searchDepth,
-                max_results: Math.min(numResults, 10),
-                include_answer: true,
-                include_raw_content: false,
-                include_images: true
-            })
-        })
+            FETCH_TIMEOUT_MS
+        )
 
         if (!response.ok) {
             const error = await response.text()
@@ -165,7 +299,6 @@ async function searchWithTavily(
             }
         })
 
-        // Parse image results from Tavily response
         const images: ImageResult[] = (data.images || []).map((img: any) => {
             if (typeof img === 'string') {
                 return { url: img }
@@ -189,108 +322,82 @@ async function searchWithTavily(
                 searchDepth
             }
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to search with Tavily'
+        if (message.includes('abort')) {
+            return {
+                success: false,
+                error: 'Search request timed out. Please try again.'
+            }
+        }
         return {
             success: false,
-            error: error.message || 'Failed to search with Tavily'
+            error: message
         }
     }
 }
 
 /**
- * Fallback search using DuckDuckGo Instant Answer API
- * Limited functionality but doesn't require API key
+ * Fallback search using duck-duck-scrape (real DuckDuckGo web search)
+ * Returns actual search results for any query - no API key needed
  */
-async function searchWithDuckDuckGo(query: string, numResults: number = 5): Promise<ToolResult> {
+async function searchWithDuckDuckScrape(query: string, numResults: number = 10): Promise<ToolResult> {
+    const maxResults = Math.min(numResults, 20)
+
+    let searchResults: Awaited<ReturnType<typeof duckDuckScrapeSearch>>
     try {
-        const encodedQuery = encodeURIComponent(query)
-        const response = await fetch(
-            `https://api.duckduckgo.com/?q=${encodedQuery}&format=json&no_html=1&skip_disambig=1&pretty=1`
-        )
-        
-        if (!response.ok) {
-            throw new Error(`DuckDuckGo API error: ${response.status}`)
+        searchResults = await Promise.race([
+            duckDuckScrapeSearch(query, { safeSearch: SafeSearchType.MODERATE }),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Search timed out')), FETCH_TIMEOUT_MS)
+            )
+        ])
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to search with DuckDuckGo'
+        return {
+            success: false,
+            error: message
         }
-        
-        const data = await response.json()
-        
-        const results: SearchResult[] = []
-        const seenUrls = new Set<string>()
-        const maxResults = Math.min(numResults, 10) // Cap at 10 like Tavily
-        
-        // Helper to add result with deduplication and metadata
-        const addResult = (title: string, url: string, snippet: string) => {
-            if (!url || seenUrls.has(url) || results.length >= maxResults) {
-                return
-            }
-            seenUrls.add(url)
-            results.push({
-                title: title || url,
-                url,
-                snippet: snippet || '',
-                favicon: getFaviconUrl(url),
-                source: getSourceFromUrl(url),
-                displayed_link: getDisplayedLink(url)
-            })
+    }
+
+    const rawResults = searchResults?.results || []
+    const results: SearchResult[] = rawResults.slice(0, maxResults).map((r: any) => {
+        const url = r.url || ''
+        return {
+            title: r.title || url,
+            url,
+            snippet: r.description || r.rawDescription || '',
+            favicon: getFaviconUrl(url),
+            source: getSourceFromUrl(url),
+            displayed_link: getDisplayedLink(url)
         }
-        
-        // Add abstract if available (prioritize it)
-        if (data.Abstract && data.AbstractURL) {
-            addResult(data.Heading || query, data.AbstractURL, data.Abstract)
-        }
-        
-        // Add related topics (web results) - prioritize those with FirstURL
-        if (data.RelatedTopics) {
-            for (const topic of data.RelatedTopics) {
-                if (results.length >= maxResults) break
-                // Skip if it's not a web result topic (has no FirstURL)
-                if (!topic.FirstURL) continue
-                if (topic.Text) {
-                    const title = topic.Text.split(' - ')[0] || topic.Text.slice(0, 80)
-                    addResult(title, topic.FirstURL, topic.Text)
-                }
-            }
-        }
-        
-        // Add results from data.Results if available
-        if (data.Results && data.Results.length > 0) {
-            for (const result of data.Results) {
-                if (results.length >= maxResults) break
-                if (result.FirstURL) {
-                    addResult(result.Text || result.FirstURL, result.FirstURL, result.Text || '')
-                }
-            }
-        }
-        
-        if (results.length === 0) {
-            return {
-                success: true,
-                data: {
-                    query,
-                    answer: null,
-                    results: [],
-                    resultCount: 0,
-                    source: 'duckduckgo',
-                    message: 'No results found. Try a different search query.'
-                }
-            }
-        }
-        
+    })
+
+    const emptyHint =
+        'No results found. For better search quality, add a Tavily API key in Settings > Search APIs.'
+
+    if (results.length === 0) {
         return {
             success: true,
             data: {
                 query,
-                answer: data.Abstract || null,
-                results,
-                resultCount: results.length,
-                source: 'duckduckgo'
+                answer: null,
+                results: [],
+                resultCount: 0,
+                source: 'duckduckgo',
+                message: emptyHint
             }
         }
-    } catch (error: any) {
-        return {
-            success: false,
-            error: error.message || 'Failed to search with DuckDuckGo'
+    }
+
+    return {
+        success: true,
+        data: {
+            query,
+            answer: null,
+            results,
+            resultCount: results.length,
+            source: 'duckduckgo'
         }
     }
 }
-

@@ -6,9 +6,8 @@
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { streamOllamaCompletion } from '../../../../../services/ollama'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -63,28 +62,43 @@ export function useOllamaStreaming({
     const ollamaTools = tools && Array.isArray(tools) ? tools : undefined
 
     let accumulatedContent = ''
+    let accumulatedReasoning = ''
     let lastUpdateTime = Date.now()
     let finalUsage: any = {}
     let hasToolCalls = false
     let finalMessage: any = null
     let isDone = false
     let savedToolResults: any = null
-    let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
+    let thinkingStartTime: number | null = null
+    let thinkingEndTime: number | null = null
+    let thinkingDuration: number | undefined = undefined
 
     try {
       for await (const chunk of streamOllamaCompletion(
         settings.ollamaUrl || 'http://localhost:11434',
         settings.aiModel,
         optimizedHistory,
-        { temperature: settings.temperature, tools: ollamaTools, signal }
+        { temperature: settings.temperature, think: true, tools: ollamaTools, signal }
       )) {
-        if (!firstTokenTime && chunk.message?.content) {
+        if (!firstTokenTime && (chunk.message?.content || chunk.message?.thinking)) {
           firstTokenTime = performance.now()
+        }
+
+        const thinkingDelta = chunk.message?.thinking || ''
+        if (thinkingDelta) {
+          if (!thinkingStartTime) thinkingStartTime = performance.now()
+          accumulatedReasoning += thinkingDelta
         }
 
         if (chunk.message?.content) {
           accumulatedContent += chunk.message.content
+          if (accumulatedReasoning && !thinkingEndTime) {
+            thinkingEndTime = performance.now()
+            if (thinkingStartTime) {
+              thinkingDuration = thinkingEndTime - thinkingStartTime
+            }
+          }
         }
 
         if (chunk.message) {
@@ -105,14 +119,29 @@ export function useOllamaStreaming({
 
         const now = Date.now()
         if (now - lastUpdateTime >= updateInterval && !isDone) {
-          throttledUpdateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+          throttledUpdateStreamingMessage(sessionId, messageId, {
+            content: accumulatedContent,
+            thinking: accumulatedReasoning || undefined,
+            thinkingDuration
+          })
           lastUpdateTime = now
+        }
+      }
+
+      if (accumulatedReasoning && !thinkingEndTime) {
+        thinkingEndTime = performance.now()
+        if (thinkingStartTime) {
+          thinkingDuration = thinkingEndTime - thinkingStartTime
         }
       }
 
       // Flush throttled updates and apply final content state
       flushThrottledUpdates()
-      updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+      updateStreamingMessage(sessionId, messageId, {
+        content: accumulatedContent,
+        thinking: accumulatedReasoning || undefined,
+        thinkingDuration
+      })
     } catch (streamError: any) {
       console.error('Ollama streaming failed, trying non-streaming:', streamError)
 
@@ -124,6 +153,7 @@ export function useOllamaStreaming({
           model: settings.aiModel,
           messages: optimizedHistory,
           stream: false,
+          think: true,
           tools: ollamaTools,
           tool_choice: ollamaTools ? 'auto' : undefined,
           options: { temperature: settings.temperature }
@@ -133,6 +163,7 @@ export function useOllamaStreaming({
       if (nonStreamingResponse.ok) {
         const data = await nonStreamingResponse.json()
         accumulatedContent = data.message?.content || ''
+        accumulatedReasoning = data.message?.thinking || ''
         finalUsage = {
           inputTokens: data.prompt_eval_count || 0,
           outputTokens: data.eval_count || 0,
@@ -142,13 +173,20 @@ export function useOllamaStreaming({
           hasToolCalls = true
           finalMessage = data.message
         }
-        updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+        updateStreamingMessage(sessionId, messageId, {
+          content: accumulatedContent,
+          thinking: accumulatedReasoning || undefined
+        })
       } else {
         throw new Error(`Ollama API Error: ${nonStreamingResponse.statusText}`)
       }
     }
 
-    updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+    updateStreamingMessage(sessionId, messageId, {
+      content: accumulatedContent,
+      thinking: accumulatedReasoning || undefined,
+      thinkingDuration
+    })
 
     if (!accumulatedContent) {
       // If still no content, return empty
@@ -180,6 +218,7 @@ export function useOllamaStreaming({
       if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
         // Stream follow-up response
         let followUpContent = ''
+        let followUpReasoning = ''
         let followUpLastUpdate = Date.now()
         let followUpUsage: any = {}
 
@@ -200,8 +239,10 @@ export function useOllamaStreaming({
           settings.ollamaUrl || 'http://localhost:11434',
           settings.aiModel,
           followUpMessages,
-          { temperature: settings.temperature, tools: ollamaTools, signal }
+          { temperature: settings.temperature, think: true, tools: ollamaTools, signal }
         )) {
+          const thinkingDelta = chunk.message?.thinking || ''
+          if (thinkingDelta) followUpReasoning += thinkingDelta
           if (chunk.message?.content) {
             followUpContent += chunk.message.content
           }
@@ -216,15 +257,20 @@ export function useOllamaStreaming({
           const now = Date.now()
           if (now - followUpLastUpdate >= updateInterval && !chunk.done) {
             throttledUpdateStreamingMessage(sessionId, messageId, {
-              content: accumulatedContent + followUpContent
+              content: accumulatedContent + followUpContent,
+              thinking: (accumulatedReasoning + followUpReasoning) || undefined
             })
             followUpLastUpdate = now
           }
         }
 
         accumulatedContent += followUpContent
+        accumulatedReasoning += followUpReasoning
         flushThrottledUpdates()
-        updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+        updateStreamingMessage(sessionId, messageId, {
+          content: accumulatedContent,
+          thinking: accumulatedReasoning || undefined
+        })
 
         finalUsage = {
           inputTokens: (finalUsage.inputTokens || 0) + (followUpUsage.inputTokens || 0),
@@ -250,7 +296,9 @@ export function useOllamaStreaming({
       model: `ollama/${settings.aiModel}`,
       latency,
       usage: { ...finalUsage, tps, ttft },
-      toolResults: savedToolResults
+      toolResults: savedToolResults,
+      thinking: accumulatedReasoning || undefined,
+      thinkingDuration
     })
 
     return {
@@ -259,6 +307,8 @@ export function useOllamaStreaming({
       toolResults: savedToolResults,
       usage: { ...finalUsage, tps, ttft },
       latency,
+      thinking: accumulatedReasoning || undefined,
+      thinkingDuration
     }
   }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
 

@@ -12,6 +12,7 @@ import { Paperclip, Globe, Image, X, SendHorizonal, Square } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
+import { TokenUsageIndicator } from './TokenUsageIndicator'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -142,10 +143,7 @@ export function InputArea({
   }
 
   const toggleSearch = () => {
-    updateSettings({ 
-      webSearchEnabled: !settings.webSearchEnabled,
-      deepResearchEnabled: false // Always disable deep research
-    })
+    updateSettings({ webSearchEnabled: !settings.webSearchEnabled })
   }
 
   const handleContainerClick = () => {
@@ -210,9 +208,13 @@ export function InputArea({
             aria-label="Chat input container"
             initial={false}
             animate={{
-              boxShadow: isFocused
-                ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
-                : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)"
+              boxShadow: frostedPrompt
+                ? (isFocused
+                  ? "0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)"
+                  : "0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)")
+                : (isFocused
+                  ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
+                  : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)")
             }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
@@ -367,8 +369,11 @@ export function InputArea({
                 </AnimatePresence>
               </div>
 
-              {/* Right side controls - Attach + Send */}
+              {/* Right side controls - Token indicator + Attach + Send */}
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                {/* Separator + Token usage circle */}
+                <div className="mx-1 h-4 w-px bg-white/10" />
+                <TokenUsageIndicator input={input} />
                 {/* Attach file button - no background when no files */}
                 <input
                   type="file"

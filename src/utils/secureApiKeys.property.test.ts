@@ -1,10 +1,8 @@
 /**
  * Property-Based Tests for Secure API Keys Storage
- * 
- * Feature: minimax-provider
- * 
- * These tests verify the correctness properties defined in the design document
- * for secure storage of API keys including the MiniMax API key.
+ *
+ * These tests verify the correctness properties for secure storage of API keys
+ * including OpenRouter, Perplexity, Groq, Tavily, and NVIDIA.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -67,11 +65,11 @@ describe('Secure API Keys Property Tests', () => {
         const apiKeyNameArb = fc.constantFrom(
             'openRouterApiKey',
             'perplexityApiKey',
-            'geminiApiKey',
             'groqApiKey',
             'tavilyApiKey',
-            'minimaxApiKey'
-        ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey'>
+            'nvidiaApiKey',
+            'alibabaApiKey'
+        ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'>
 
         it('should return identical value after save and load for any API key', async () => {
             await fc.assert(
@@ -98,26 +96,26 @@ describe('Secure API Keys Property Tests', () => {
             )
         })
 
-        it('should preserve minimaxApiKey specifically through round-trip', async () => {
+        it('should preserve nvidiaApiKey specifically through round-trip', async () => {
             await fc.assert(
                 fc.asyncProperty(apiKeyArb, async (keyValue) => {
                     // Setup mock to simulate successful save
                     mockSecureStorage.set.mockResolvedValue(true)
-                    
+
                     // Setup mock to return the saved value on getAll
                     mockSecureStorage.getAll.mockResolvedValue({
-                        minimaxApiKey: keyValue
+                        nvidiaApiKey: keyValue
                     })
 
-                    // Save the MiniMax API key
-                    const saveResult = await saveApiKeyToSecureStorage('minimaxApiKey', keyValue)
+                    // Save the NVIDIA API key
+                    const saveResult = await saveApiKeyToSecureStorage('nvidiaApiKey', keyValue)
                     expect(saveResult).toBe(true)
 
                     // Load all keys
                     const loadedKeys = await loadApiKeysFromSecureStorage()
 
-                    // Property: The loaded minimaxApiKey should be identical to the saved value
-                    expect(loadedKeys.minimaxApiKey).toBe(keyValue)
+                    // Property: The loaded nvidiaApiKey should be identical to the saved value
+                    expect(loadedKeys.nvidiaApiKey).toBe(keyValue)
                 }),
                 { numRuns: 100 }
             )
@@ -145,10 +143,10 @@ describe('Secure API Keys Property Tests', () => {
                     fc.record({
                         openRouterApiKey: apiKeyArb,
                         perplexityApiKey: apiKeyArb,
-                        geminiApiKey: apiKeyArb,
                         groqApiKey: apiKeyArb,
                         tavilyApiKey: apiKeyArb,
-                        minimaxApiKey: apiKeyArb
+                        nvidiaApiKey: apiKeyArb,
+                        alibabaApiKey: apiKeyArb
                     }),
                     async (allKeys) => {
                         // Setup mock to return all keys
@@ -160,10 +158,10 @@ describe('Secure API Keys Property Tests', () => {
                         // Property: All keys should be preserved
                         expect(loadedKeys.openRouterApiKey).toBe(allKeys.openRouterApiKey)
                         expect(loadedKeys.perplexityApiKey).toBe(allKeys.perplexityApiKey)
-                        expect(loadedKeys.geminiApiKey).toBe(allKeys.geminiApiKey)
                         expect(loadedKeys.groqApiKey).toBe(allKeys.groqApiKey)
                         expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
-                        expect(loadedKeys.minimaxApiKey).toBe(allKeys.minimaxApiKey)
+                        expect(loadedKeys.nvidiaApiKey).toBe(allKeys.nvidiaApiKey)
+                        expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
                     }
                 ),
                 { numRuns: 100 }
@@ -190,8 +188,17 @@ describe('Secure API Keys Property Tests', () => {
             // Remove secureStorage from window
             ;(global as any).window = {}
 
+            const saveKeyArb = fc.constantFrom(
+                'openRouterApiKey',
+                'perplexityApiKey',
+                'groqApiKey',
+                'tavilyApiKey',
+                'nvidiaApiKey',
+                'alibabaApiKey'
+            ) as fc.Arbitrary<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'>
+
             await fc.assert(
-                fc.asyncProperty(apiKeyNameArb, apiKeyArb, async (keyName, keyValue) => {
+                fc.asyncProperty(saveKeyArb, apiKeyArb, async (keyName, keyValue) => {
                     // Try to save
                     const saveResult = await saveApiKeyToSecureStorage(keyName, keyValue)
 
@@ -207,20 +214,20 @@ describe('Secure API Keys Property Tests', () => {
      * Additional property tests for migration logic
      */
     describe('Migration Logic Properties', () => {
-        it('should migrate minimaxApiKey from localStorage to secure storage', async () => {
+        it('should migrate nvidiaApiKey from localStorage to secure storage', async () => {
             await fc.assert(
                 fc.asyncProperty(
                     fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
-                    async (minimaxKey) => {
+                    async (nvidiaKey) => {
                         // Reset migration flag
                         delete mockLocalStorage['zura-api-keys-migrated']
-                        
+
                         // Setup mock to simulate successful save
                         mockSecureStorage.set.mockResolvedValue(true)
 
-                        // Settings object with minimaxApiKey
+                        // Settings object with nvidiaApiKey
                         const settings = {
-                            minimaxApiKey: minimaxKey
+                            nvidiaApiKey: nvidiaKey
                         }
 
                         // Migrate
@@ -229,8 +236,8 @@ describe('Secure API Keys Property Tests', () => {
                         // Property: Migration should succeed
                         expect(result).toBe(true)
 
-                        // Property: secureStorage.set should have been called with minimaxApiKey
-                        expect(mockSecureStorage.set).toHaveBeenCalledWith('minimaxApiKey', minimaxKey)
+                        // Property: secureStorage.set should have been called with nvidiaApiKey
+                        expect(mockSecureStorage.set).toHaveBeenCalledWith('nvidiaApiKey', nvidiaKey)
                     }
                 ),
                 { numRuns: 100 }
@@ -241,13 +248,13 @@ describe('Secure API Keys Property Tests', () => {
             await fc.assert(
                 fc.asyncProperty(
                     fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
-                    async (minimaxKey) => {
+                    async (nvidiaKey) => {
                         // Set migration flag
                         mockLocalStorage['zura-api-keys-migrated'] = 'true'
 
-                        // Settings object with minimaxApiKey
+                        // Settings object with nvidiaApiKey
                         const settings = {
-                            minimaxApiKey: minimaxKey
+                            nvidiaApiKey: nvidiaKey
                         }
 
                         // Migrate
@@ -271,20 +278,20 @@ describe('Secure API Keys Property Tests', () => {
                     async (emptyKey) => {
                         // Reset migration flag
                         delete mockLocalStorage['zura-api-keys-migrated']
-                        
+
                         // Setup mock
                         mockSecureStorage.set.mockResolvedValue(true)
 
-                        // Settings object with empty minimaxApiKey
+                        // Settings object with empty nvidiaApiKey
                         const settings = {
-                            minimaxApiKey: emptyKey
+                            nvidiaApiKey: emptyKey
                         }
 
                         // Migrate
                         await migrateApiKeysFromLocalStorage(settings)
 
                         // Property: secureStorage.set should NOT have been called for empty keys
-                        expect(mockSecureStorage.set).not.toHaveBeenCalledWith('minimaxApiKey', expect.anything())
+                        expect(mockSecureStorage.set).not.toHaveBeenCalledWith('nvidiaApiKey', expect.anything())
                     }
                 ),
                 { numRuns: 100 }

@@ -13,9 +13,9 @@
  * @module StreamingMessage
  */
 
-import React, { memo, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useMessageStreamingState } from '../../../contexts/StreamingContext'
-import { MessageRenderer, type MessageRendererProps } from './MessageRenderer'
+import { MessageRenderer } from './MessageRenderer'
 import type { Message } from '../../../contexts/ChatHistoryContext'
 
 interface StreamingMessageProps {
@@ -30,12 +30,16 @@ interface StreamingMessageProps {
       currentSearch?: string
       isSearching: boolean
     }
+    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
     responseVersions?: any[]
     currentVersionIndex?: number
     toolResults?: any[]
   }
   /** Session ID for checking streaming state */
   sessionId: string
+  /** Active tool calls during streaming (for in-message tool calling animation) */
+  activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   /** Callback when content is copied */
   onCopy?: (content: string) => void
   /** Callback when regenerate is requested */
@@ -55,6 +59,7 @@ interface StreamingMessageProps {
 function StreamingMessageComponent({
   message,
   sessionId,
+  activeToolCalls,
   onCopy,
   onRegenerate,
 }: StreamingMessageProps) {
@@ -78,6 +83,8 @@ function StreamingMessageComponent({
       thinkingDuration: streamingState.thinkingDuration ?? message.thinkingDuration,
       thinkingBlocks: streamingState.thinkingBlocks ?? message.thinkingBlocks,
       researchStatus: streamingState.researchStatus ?? message.researchStatus,
+      researchPlan: streamingState.researchPlan ?? message.researchPlan,
+      researchProgress: streamingState.researchProgress ?? message.researchProgress,
       toolResults: streamingState.toolResults ?? message.toolResults,
       model: streamingState.model ?? message.model,
       latency: streamingState.latency ?? message.latency,
@@ -92,6 +99,7 @@ function StreamingMessageComponent({
     <MessageRenderer
       message={displayMessage}
       isStreaming={isStreaming}
+      activeToolCalls={activeToolCalls}
       onCopy={onCopy}
       onRegenerate={onRegenerate}
     />
@@ -152,6 +160,13 @@ function arePropsEqual(
   const prevToolResults = prevProps.message.toolResults || []
   const nextToolResults = nextProps.message.toolResults || []
   if (prevToolResults.length !== nextToolResults.length) {
+    return false
+  }
+
+  // Compare activeToolCalls (for tool calling animation)
+  const prevActive = prevProps.activeToolCalls || []
+  const nextActive = nextProps.activeToolCalls || []
+  if (prevActive.length !== nextActive.length) {
     return false
   }
   

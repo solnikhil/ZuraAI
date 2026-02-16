@@ -221,7 +221,6 @@ export default function WebSourceCitation({ href, children, source }: WebSourceC
         style={{
           color: '#60a5fa',
           textDecoration: 'none',
-          borderBottom: '1px dotted #60a5fa',
           backgroundColor: hovered ? 'rgba(59,130,246,0.15)' : 'rgba(59,130,246,0.1)',
           padding: '1px 5px',
           borderRadius: '4px',

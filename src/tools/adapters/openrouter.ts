@@ -25,6 +25,11 @@ export interface OpenAITool {
                 description: string
                 enum?: string[]
                 default?: unknown
+                items?: {
+                    type: string
+                    properties: Record<string, { type: string; description: string; enum?: string[] }>
+                    required: string[]
+                }
             }>
             required: string[]
         }
@@ -39,6 +44,28 @@ export type OpenAIToolCall = OpenRouterToolCall
 /**
  * Convert Zura tool definitions to OpenAI/OpenRouter format
  */
+function convertProperty(value: import('../definitions').ToolParameter): Record<string, unknown> {
+    const base: Record<string, unknown> = {
+        type: value.type,
+        description: value.description,
+        ...(value.enum && { enum: value.enum }),
+        ...(value.default !== undefined && { default: value.default })
+    }
+    if (value.type === 'array' && value.items) {
+        base.items = {
+            type: 'object',
+            properties: Object.fromEntries(
+                Object.entries(value.items.properties).map(([k, v]) => [
+                    k,
+                    { type: v.type, description: v.description, ...(v.enum && { enum: v.enum }) }
+                ])
+            ),
+            required: value.items.required || []
+        }
+    }
+    return base
+}
+
 export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[] {
     return tools.map(tool => ({
         type: 'function',
@@ -50,14 +77,9 @@ export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[]
                 properties: Object.fromEntries(
                     Object.entries(tool.parameters.properties).map(([key, value]) => [
                         key,
-                        {
-                            type: value.type,
-                            description: value.description,
-                            ...(value.enum && { enum: value.enum }),
-                            ...(value.default !== undefined && { default: value.default })
-                        }
+                        convertProperty(value)
                     ])
-                ),
+                ) as OpenAITool['function']['parameters']['properties'],
                 required: tool.parameters.required
             }
         }
@@ -165,6 +187,116 @@ function normalizeParsedArgs(toolName: string, parsed: unknown): Record<string, 
     return wrapPrimitiveArgs(toolName, parsed)
 }
 
+/**
+ * Return synthetic args that will fail validation when a tool call has empty/invalid arguments.
+ * Ensures we send an error result back to the model so the stream continues instead of hanging.
+ */
+function getSyntheticErrorArgs(toolName: string): Record<string, unknown> {
+    const toolDef = getToolByName(toolName)
+    if (!toolDef?.parameters?.required?.length) {
+        return {}
+    }
+    const required = toolDef.parameters.required
+    return Object.fromEntries(required.map(p => [p, '']))
+}
+
+/**
+ * Fallback context for tool calls when parsing fails (e.g. empty args from streaming).
+ * Attach to response as response._fallbackContext when calling handleToolCalls.
+ */
+export interface ToolCallFallbackContext {
+    lastUserMessage?: string
+    reasoning?: string
+}
+
+/**
+ * Extract a fallback search query from conversation context when tool args are empty.
+ * Tries: last user message (trimmed) → patterns in reasoning.
+ */
+function extractFallbackQuery(
+    toolName: string,
+    fallbackContext?: ToolCallFallbackContext | null
+): string | null {
+    if (toolName !== 'web_search' || !fallbackContext) return null
+
+    const { lastUserMessage, reasoning } = fallbackContext
+
+    // 1. Use last user message as query (most reliable for "what is X?" type questions)
+    if (lastUserMessage && typeof lastUserMessage === 'string') {
+        const trimmed = lastUserMessage.trim()
+        if (trimmed.length > 0) {
+            return trimmed.length > 300 ? trimmed.slice(0, 300) : trimmed
+        }
+    }
+
+    // 2. Search for query-like patterns in reasoning (e.g. "search for 'kiro'", "I'll look up X")
+    if (reasoning && typeof reasoning === 'string') {
+        const patterns = [
+            /search\s+for\s+['"]([^'"]+)['"]/i,
+            /search\s+for\s+(\S[^.]{2,80}?)(?:\s|\.|$)/i,
+            /web\s+search[:\s]+['"]?([^'"]+)['"]?/i,
+            /look\s+up\s+['"]?([^'".]+)['"]?/i,
+            /search\s+['"]?([^'"]+)['"]?\s+(?:to|for)/i,
+            /query\s*[=:]\s*['"]?([^'"]+)['"]?/i,
+            /["']([^"']{3,100})["']\s+(?:to\s+)?search/i
+        ]
+        for (const re of patterns) {
+            const m = reasoning.match(re)
+            if (m?.[1]?.trim()) return m[1].trim().slice(0, 300)
+        }
+    }
+
+    return null
+}
+
+/**
+ * Try to repair incomplete JSON by closing unclosed strings and appending braces/brackets.
+ * Handles common streaming truncation (e.g. {"query": "value" without final } or {"query": "world pop without closing).
+ */
+function tryRepairIncompleteJson(str: string): string | null {
+    const trimmed = str.trim()
+    if (!trimmed || trimmed.length < 2) return null
+
+    let openBraces = 0
+    let openBrackets = 0
+    let inString = false
+    let escapeNext = false
+    let inStringChar = ''
+
+    for (const char of trimmed) {
+        if (escapeNext) {
+            escapeNext = false
+            continue
+        }
+        if (char === '\\') {
+            escapeNext = true
+            continue
+        }
+        if ((char === '"' || char === "'") && !inString) {
+            inString = true
+            inStringChar = char
+            continue
+        }
+        if (char === inStringChar) {
+            inString = false
+            continue
+        }
+        if (!inString) {
+            if (char === '{') openBraces++
+            if (char === '}') openBraces--
+            if (char === '[') openBrackets++
+            if (char === ']') openBrackets--
+        }
+    }
+
+    if (openBraces <= 0 && openBrackets <= 0 && !inString) return null
+
+    let suffix = ''
+    if (inString) suffix += inStringChar
+    suffix += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces))
+    return trimmed + suffix
+}
+
 function parseToolArguments(toolName: string, rawArgs: string): Record<string, unknown> | null {
     const argsStr = rawArgs?.trim() || ''
     if (!argsStr) return null
@@ -183,39 +315,75 @@ function parseToolArguments(toolName: string, rawArgs: string): Record<string, u
                 args: argsStr.slice(0, 200)
             })
         }
+        return extractFallbackArgs(toolName, argsStr)
     } else {
-        console.warn('[openrouter] Incomplete JSON for tool call, falling back:', {
-            tool: toolName,
-            argsLength: argsStr.length,
-            argsPreview: argsStr.slice(0, 100)
-        })
+        const repaired = tryRepairIncompleteJson(argsStr)
+        if (repaired) {
+            try {
+                const parsed = JSON.parse(repaired)
+                const normalized = normalizeParsedArgs(toolName, parsed)
+                if (normalized) {
+                    return normalized
+                }
+            } catch {
+                /* fall through to extractFallbackArgs */
+            }
+        }
+        const fallback = extractFallbackArgs(toolName, argsStr)
+        if (fallback) {
+            console.info('[openrouter] Incomplete JSON for tool call, recovered via fallback:', {
+                tool: toolName,
+                argsPreview: argsStr.slice(0, 80)
+            })
+        } else {
+            console.warn('[openrouter] Incomplete JSON for tool call, fallback failed:', {
+                tool: toolName,
+                argsLength: argsStr.length,
+                argsPreview: argsStr.slice(0, 100)
+            })
+        }
+        return fallback
     }
-
-    return extractFallbackArgs(toolName, argsStr)
 }
 
 /**
  * Parse tool calls from OpenRouter/OpenAI response
+ * Supports optional fallback context (response._fallbackContext) to infer query when args are empty.
  */
-export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall[] {
+export function parseOpenRouterToolCalls(response: OpenRouterResponse & { _fallbackContext?: ToolCallFallbackContext }): ToolCall[] {
     const message = response.choices?.[0]?.message
 
     if (!message?.tool_calls || message.tool_calls.length === 0) {
         return []
     }
 
+    const fallbackContext = response._fallbackContext
     const toolCalls: ToolCall[] = []
 
     message.tool_calls.forEach((tc: OpenRouterToolCall) => {
         const rawArgs = tc.function.arguments || ''
-        const args = parseToolArguments(tc.function.name, rawArgs)
+        let args = parseToolArguments(tc.function.name, rawArgs)
+
         if (!args) {
-            console.warn('[openrouter] Skipping tool call with empty/invalid arguments:', {
-                tool: tc.function.name,
-                argsLength: rawArgs.length,
-                argsPreview: rawArgs.slice(0, 100)
-            })
-            return
+            let fallbackQuery = extractFallbackQuery(tc.function.name, fallbackContext)
+            if (!fallbackQuery && tc.function.name === 'web_search' && rawArgs.trim().length > 0) {
+                const m = rawArgs.match(/"query"\s*:\s*"((?:[^"\\]|\\.)*)"?/i) ?? rawArgs.match(/"query"\s*:\s*"([^"]*)/i)
+                const extracted = m?.[1]?.trim()
+                if (extracted && extracted.length > 0) {
+                    fallbackQuery = extracted.replace(/\\(.)/g, '$1')
+                }
+            }
+            if (fallbackQuery) {
+                args = { query: fallbackQuery }
+                console.info('[openrouter] Empty args for web_search, used fallback from context:', { query: fallbackQuery.slice(0, 60) + (fallbackQuery.length > 60 ? '...' : '') })
+        } else {
+            console.warn('[openrouter] Tool call had empty/invalid arguments, using synthetic error args so model receives a result:', {
+                    tool: tc.function.name,
+                    argsLength: rawArgs.length,
+                    argsPreview: rawArgs.slice(0, 100)
+                })
+                args = getSyntheticErrorArgs(tc.function.name)
+            }
         }
 
         toolCalls.push({
@@ -228,20 +396,30 @@ export function parseOpenRouterToolCalls(response: OpenRouterResponse): ToolCall
     return toolCalls
 }
 
+/** Max chars per tool result to avoid 400 from oversized payloads */
+const MAX_TOOL_RESULT_CHARS = 32000
+
 /**
- * Format tool results for sending back to OpenRouter
+ * Format tool results for sending back to OpenRouter.
+ * Truncates large results to avoid 400 errors from context limits.
  */
 export function formatToolResultsForOpenRouter(
     toolCalls: Array<{ id: string; name: string }>,
     results: ToolResult[]
 ): OpenRouterToolResultMessage[] {
-    return toolCalls.map((tc, i) => ({
-        role: 'tool' as const,
-        tool_call_id: tc.id,
-        content: results[i].success 
+    return toolCalls.map((tc, i) => {
+        const content = results[i].success
             ? JSON.stringify(results[i].data)
             : `Error: ${results[i].error}`
-    }))
+        const truncated = content.length > MAX_TOOL_RESULT_CHARS
+            ? content.slice(0, MAX_TOOL_RESULT_CHARS) + '...[truncated]'
+            : content
+        return {
+            role: 'tool' as const,
+            tool_call_id: tc.id,
+            content: truncated
+        }
+    })
 }
 
 /**

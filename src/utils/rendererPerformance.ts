@@ -79,7 +79,7 @@ class RendererPerformanceTracker {
    */
   initialize(): void {
     if (this.initialized) {
-      console.log('[RendererPerformance] Already initialized');
+      if (import.meta.env.DEV) console.log('[RendererPerformance] Already initialized');
       return;
     }
 
@@ -89,7 +89,7 @@ class RendererPerformanceTracker {
     }
 
     this.initialized = true;
-    console.log('[RendererPerformance] Initializing performance tracking');
+    if (import.meta.env.DEV) console.log('[RendererPerformance] Initializing performance tracking');
 
     // Get navigation timing
     this.collectNavigationTiming();
@@ -137,7 +137,7 @@ class RendererPerformanceTracker {
       const existingEntries = performance.getEntriesByName('first-contentful-paint', 'paint');
       if (existingEntries.length > 0) {
         this.metrics.fcp = existingEntries[0].startTime;
-        console.log(`[RendererPerformance] FCP (existing): ${this.metrics.fcp.toFixed(2)}ms`);
+        if (import.meta.env.DEV) console.log(`[RendererPerformance] FCP (existing): ${this.metrics.fcp.toFixed(2)}ms`);
         this.notifyCallbacks({ fcp: this.metrics.fcp });
         return;
       }
@@ -147,7 +147,7 @@ class RendererPerformanceTracker {
         for (const entry of entries) {
           if (entry.name === 'first-contentful-paint') {
             this.metrics.fcp = entry.startTime;
-            console.log(`[RendererPerformance] FCP: ${this.metrics.fcp.toFixed(2)}ms`);
+            if (import.meta.env.DEV) console.log(`[RendererPerformance] FCP: ${this.metrics.fcp.toFixed(2)}ms`);
             this.notifyCallbacks({ fcp: this.metrics.fcp });
             observer.disconnect();
             break;
@@ -173,7 +173,7 @@ class RendererPerformanceTracker {
         const lastEntry = entries[entries.length - 1];
         if (lastEntry) {
           this.metrics.lcp = lastEntry.startTime;
-          console.log(`[RendererPerformance] LCP: ${this.metrics.lcp.toFixed(2)}ms`);
+          if (import.meta.env.DEV) console.log(`[RendererPerformance] LCP: ${this.metrics.lcp.toFixed(2)}ms`);
           this.notifyCallbacks({ lcp: this.metrics.lcp });
         }
       });
@@ -196,7 +196,7 @@ class RendererPerformanceTracker {
           // FID is the processing start time minus the event timestamp
           if (entry.processingStart && entry.startTime) {
             this.metrics.fid = entry.processingStart - entry.startTime;
-            console.log(`[RendererPerformance] FID: ${this.metrics.fid.toFixed(2)}ms`);
+            if (import.meta.env.DEV) console.log(`[RendererPerformance] FID: ${this.metrics.fid.toFixed(2)}ms`);
             this.notifyCallbacks({ fid: this.metrics.fid });
             observer.disconnect();
             break;
@@ -279,11 +279,11 @@ class RendererPerformanceTracker {
 
     // Wait for 5 seconds of quiet time (no long tasks)
     this.ttiTimeout = setTimeout(() => {
-      if (!this.ttiResolved && this.metrics.fcp !== null) {
+        if (!this.ttiResolved && this.metrics.fcp !== null) {
         // TTI is the later of FCP or the end of the last long task
         this.metrics.tti = Math.max(this.metrics.fcp, this.lastLongTaskEnd);
         this.ttiResolved = true;
-        console.log(`[RendererPerformance] TTI: ${this.metrics.tti.toFixed(2)}ms`);
+        if (import.meta.env.DEV) console.log(`[RendererPerformance] TTI: ${this.metrics.tti.toFixed(2)}ms`);
         this.notifyCallbacks({ tti: this.metrics.tti });
       }
     }, 5000);
@@ -310,7 +310,7 @@ class RendererPerformanceTracker {
     if (navEntries.length > 0 && navEntries[0].loadEventEnd > 0) {
       this.metrics.tti = navEntries[0].loadEventEnd;
       this.ttiResolved = true;
-      console.log(`[RendererPerformance] TTI (fallback): ${this.metrics.tti.toFixed(2)}ms`);
+      if (import.meta.env.DEV) console.log(`[RendererPerformance] TTI (fallback): ${this.metrics.tti.toFixed(2)}ms`);
       this.notifyCallbacks({ tti: this.metrics.tti });
     }
   }
@@ -448,7 +448,7 @@ class RendererPerformanceTracker {
     }
     
     this.initialized = false;
-    console.log('[RendererPerformance] Cleaned up');
+    if (import.meta.env.DEV) console.log('[RendererPerformance] Cleaned up');
   }
 }
 
@@ -483,7 +483,7 @@ export async function reportRendererMetricsToMain(): Promise<void> {
   try {
     const metrics = rendererPerformanceTracker.getMetrics();
     await window.ipcRenderer.invoke('performance:report-renderer-metrics', metrics);
-    console.log('[RendererPerformance] Metrics reported to main process');
+    if (import.meta.env.DEV) console.log('[RendererPerformance] Metrics reported to main process');
   } catch (error) {
     console.error('[RendererPerformance] Failed to report metrics:', error);
   }

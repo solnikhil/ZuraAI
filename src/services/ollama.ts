@@ -19,6 +19,7 @@ export interface OllamaResponse {
     message: {
         role: string
         content: string
+        thinking?: string
         images?: string[]
     }
     done: boolean
@@ -57,6 +58,7 @@ export interface OllamaStreamChunk {
     message?: {
         role: string
         content: string
+        thinking?: string
         tool_calls?: Array<{
             id?: string
             type?: 'function'
@@ -82,6 +84,7 @@ export async function* streamOllamaCompletion(
     options?: {
         temperature?: number
         num_ctx?: number
+        think?: boolean | string
         tools?: any[]
         onChunk?: (chunk: OllamaStreamChunk) => void
         signal?: AbortSignal
@@ -97,6 +100,7 @@ export async function* streamOllamaCompletion(
                 model,
                 messages,
                 stream: true,
+                think: options?.think ?? true,
                 tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
                 tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
                 options: {
@@ -162,6 +166,7 @@ export const generateOllamaCompletion = async (
     options?: {
         temperature?: number
         num_ctx?: number // Context window size
+        think?: boolean | string
         tools?: any[]
     }
 ): Promise<OllamaResponse> => {
@@ -174,6 +179,7 @@ export const generateOllamaCompletion = async (
             model,
             messages,
             stream: false, // For now, we use non-streaming
+            think: options?.think ?? true,
             tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
             tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
             options: {

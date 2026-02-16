@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, gemini, groq, ollama, minimax
+// Providers WITH tool support: openrouter, groq, ollama
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -19,22 +19,20 @@
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { parseOpenRouterToolCalls, hasToolCalls, formatToolResultsForOpenRouter } from './adapters/openrouter'
-import { parseGeminiFunctionCalls, hasGeminiFunctionCalls, formatToolResultsForGemini } from './adapters/gemini'
 import { executeToolCalls } from './executor'
+import { executeResearchPlanTool } from './researchPlanHandler'
 import { 
     ToolCall, 
     ToolCallResult,
     OpenRouterResponse,
-    GeminiResponse,
-    OpenRouterToolResultMessage,
-    GeminiFunctionResponse
+    OpenRouterToolResultMessage
 } from './types'
 
 // Type for provider API responses
-type ProviderResponse = OpenRouterResponse | GeminiResponse
+type ProviderResponse = OpenRouterResponse
 
 // Type for formatted tool results
-type FormattedToolResults = OpenRouterToolResultMessage[] | GeminiFunctionResponse[]
+type FormattedToolResults = OpenRouterToolResultMessage[]
 
 /**
  * Validate that all required parameters are present in tool arguments
@@ -117,11 +115,13 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'gemini' | 'groq' | 'ollama' | 'perplexity' | 'minimax'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
     onToolComplete?: (result: ToolCallResult) => void
+    /** Called during research_plan execution for step-by-step progress (currentStep, totalSteps, query) */
+    onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
 }
 
 /**
@@ -154,10 +154,9 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
+        case 'nvidia':
+        case 'alibaba':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
-        case 'gemini':
-            return parseGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return []
@@ -175,10 +174,9 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
+        case 'nvidia':
+        case 'alibaba':
             return hasToolCalls(response as OpenRouterResponse)
-        case 'gemini':
-            return hasGeminiFunctionCalls(response as GeminiResponse)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return false
@@ -202,10 +200,9 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
+        case 'nvidia':
+        case 'alibaba':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
-        case 'gemini':
-            return formatToolResultsForGemini(toolCalls, toolResults)
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities
             return []
@@ -257,12 +254,21 @@ export async function processToolCalls(
             continue
         }
         
-        // Notify tool start
+        // Notify tool start (UI can show research plan from toolCall.arguments when name === 'research_plan')
         config.onToolStart?.(coercedToolCall)
         
-        // Execute tool with coerced arguments - wrap in try-catch to prevent crashes
+        // Execute tool - research_plan is handled in renderer (expands to web_search per step)
         try {
-            const result = await executeToolCalls([coercedToolCall])
+            let result: ToolCallResult[]
+            if (coercedToolCall.name === 'research_plan') {
+                const singleResult = await executeResearchPlanTool(
+                    coercedToolCall,
+                    config.onResearchPlanProgress
+                )
+                result = [singleResult]
+            } else {
+                result = await executeToolCalls([coercedToolCall])
+            }
             results.push(...result)
             
             // Notify tool complete
@@ -293,12 +299,7 @@ interface OpenRouterMessage {
     tool_calls?: unknown[]
 }
 
-interface GeminiMessage {
-    role: string
-    parts: unknown[]
-}
-
-type ProviderMessage = OpenRouterMessage | GeminiMessage
+type ProviderMessage = OpenRouterMessage
 
 /**
  * Build messages array with tool results for follow-up API call
@@ -314,20 +315,13 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'minimax':
+        case 'nvidia':
+        case 'alibaba':
             return [
                 ...originalMessages,
                 assistantMessage,
                 ...toolResults
             ] as ProviderMessage[]
-
-        case 'gemini':
-            // Gemini handles this differently - tool results go in content parts
-            return [
-                ...originalMessages,
-                { role: 'model', parts: [assistantMessage] },
-                { role: 'function', parts: toolResults }
-            ]
 
         case 'perplexity':
             // EXCLUDED: This provider has native capabilities

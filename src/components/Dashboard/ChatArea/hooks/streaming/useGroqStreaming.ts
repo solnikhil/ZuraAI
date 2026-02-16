@@ -8,8 +8,8 @@
  */
 
 import { useCallback } from 'react'
+import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamGroqCompletion } from '../../../../../services/groq'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -18,9 +18,32 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
+import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
+
+/** ~4 chars per token heuristic when Groq doesn't return usage (e.g. compound models) */
+function estimateOutputTokens(content: string): number {
+  if (!content || content.length === 0) return 0
+  return Math.ceil(content.length / 4)
+}
+
+/** Fill missing usage with estimates when API returns no usage data */
+function fillMissingUsage(
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number },
+  content: string
+): { inputTokens: number; outputTokens: number; totalTokens: number } {
+  if (usage.outputTokens > 0 && usage.totalTokens > 0) return usage
+  const estimatedOutput = usage.outputTokens > 0 ? usage.outputTokens : estimateOutputTokens(content)
+  if (estimatedOutput === 0) return usage
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: estimatedOutput,
+    totalTokens: usage.totalTokens > 0 ? usage.totalTokens : usage.inputTokens + estimatedOutput
+  }
+}
 
 export interface UseGroqStreamingOptions {
   settings: StreamingSettings
@@ -44,6 +67,7 @@ export function useGroqStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseGroqStreamingOptions): UseGroqStreamingReturn {
+  const { updateStreaming } = useStreamingActions()
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
 
   const streamGroq = useCallback(async (
@@ -71,8 +95,8 @@ export function useGroqStreaming({
     let toolCallsAccumulator: any[] = []
     let finishReason: string | null = null
     let savedToolResults: any = null
-    let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
+    let localThinkingBlocks: ThinkingBlock[] = []
 
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
@@ -86,7 +110,6 @@ export function useGroqStreaming({
       optimizedHistory,
       {
         temperature: settings.temperature,
-        max_tokens: settings.maxTokens,
         tools: groqTools,
         toolChoice: initialToolChoice,
         signal
@@ -139,11 +162,14 @@ export function useGroqStreaming({
       thinking: accumulatedReasoning || undefined
     })
 
-    let usage = {
-      inputTokens: finalUsage.prompt_tokens || 0,
-      outputTokens: finalUsage.completion_tokens || 0,
-      totalTokens: finalUsage.total_tokens || 0
-    }
+    let usage = fillMissingUsage(
+      {
+        inputTokens: finalUsage.prompt_tokens || 0,
+        outputTokens: finalUsage.completion_tokens || 0,
+        totalTokens: finalUsage.total_tokens || 0
+      },
+      accumulatedContent
+    )
 
     // Handle tool calls with research loop
     if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc?.id).length > 0) {
@@ -157,21 +183,79 @@ export function useGroqStreaming({
         }))
       }
 
+      const lastUserMsg = [...optimizedHistory].reverse().find((m: any) => m?.role === 'user')
+      const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : null
+
+      const responseWithFallback = {
+        choices: [{ message: reconstructedMessage }],
+        _fallbackContext: {
+          lastUserMessage: lastUserContent ?? undefined,
+          reasoning: accumulatedReasoning || undefined
+        }
+      }
+
+      const researchPlanCallbacks = {
+          onToolStart: (toolCall: any) => {
+            if (toolCall?.name === 'research_plan') {
+              const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
+              if (args?.topic && Array.isArray(args?.steps)) {
+                const plan = { topic: args.topic, steps: args.steps }
+                updateStreaming({ researchPlan: plan })
+                throttledUpdateStreamingMessage(sessionId, messageId, { researchPlan: plan })
+              }
+            }
+          },
+          onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
+            updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              researchProgress: { currentStep, totalSteps, currentQuery: query }
+            })
+          }
+        }
+
       let toolResult
       try {
-        toolResult = await handleToolCalls({ choices: [{ message: reconstructedMessage }] })
+        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
       } catch (toolError: any) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Update researchStatus for web searches
+      // Update researchStatus for web searches or research_plan and add thinkingBlocks
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      if (webSearchCalls.length > 0) {
-        const firstSearchQuery = webSearchCalls[0]
-        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
-          ? firstSearchQuery.toolCall.arguments?.query
-          : firstSearchQuery.toolCall.arguments
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
+      if (hasSearchCalls) {
+        const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
+        const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
+          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          : (typeof firstSearch?.toolCall?.arguments === 'object'
+            ? firstSearch?.toolCall?.arguments?.query
+            : firstSearch?.toolCall?.arguments)
+
+        for (const tr of toolResult.toolResults || []) {
+          if (tr.toolCall.name === 'web_search') {
+            const args = tr.toolCall.arguments
+            const q = typeof args === 'object' ? args?.query : args
+            localThinkingBlocks.push({
+              type: 'searching',
+              query: String(q || ''),
+              timestamp: Date.now(),
+              toolInput: typeof args === 'object' ? args : { query: args },
+              toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+            })
+          } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+            for (const step of tr.toolCall.arguments.steps) {
+              localThinkingBlocks.push({
+                type: 'searching',
+                query: String(step?.query || ''),
+                timestamp: Date.now(),
+                toolInput: { query: step?.query },
+                toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+              })
+            }
+          }
+        }
 
         updateStreamingMessage(sessionId, messageId, {
           researchStatus: {
@@ -179,7 +263,8 @@ export function useGroqStreaming({
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
-          }
+          },
+          thinkingBlocks: localThinkingBlocks
         })
       }
 
@@ -195,16 +280,18 @@ export function useGroqStreaming({
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < researchMaxRounds) {
+        const SAFETY_CAP = 50
+        const MAX_RESEARCH_ROUNDS = 6
+        while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          const remainingSearches = researchMaxRounds - totalSearchCount
-          const forceToolUse = researchMandatory && remainingSearches > 0
-
-          let toolChoice: any = forceToolUse ? { type: 'function', function: { name: 'web_search' } } : undefined
+          let toolChoice: any = undefined
 
           const followUpMessages: any[] = []
           if (researchContextMsg) {
             followUpMessages.push({ role: 'system', content: researchContextMsg })
+          }
+          if (researchRound >= 4) {
+            followUpMessages.push({ role: 'system', content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n` })
           }
           followUpMessages.push(...optimizedHistory, lastAssistantMessage, ...toolResult.formattedResults)
 
@@ -216,7 +303,7 @@ export function useGroqStreaming({
             settings.groqApiKey || '',
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, max_tokens: settings.maxTokens, tools: groqTools, toolChoice, signal }
+            { temperature: settings.temperature, tools: groqTools, toolChoice, signal }
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
@@ -245,31 +332,68 @@ export function useGroqStreaming({
           flushThrottledUpdates()
           updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
 
-          usage = {
-            inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
-            outputTokens: (usage.outputTokens || 0) + (followUpUsage.completion_tokens || 0),
-            totalTokens: (usage.totalTokens || 0) + (followUpUsage.total_tokens || 0)
-          }
+          usage = fillMissingUsage(
+            {
+              inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
+              outputTokens: (usage.outputTokens || 0) + (followUpUsage.completion_tokens || 0),
+              totalTokens: (usage.totalTokens || 0) + (followUpUsage.total_tokens || 0)
+            },
+            accumulatedContent
+          )
 
-          if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+          if (followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)) {
             const reconstructedFollowUp = {
               role: 'assistant',
               content: followUpContent,
-              tool_calls: followUpToolCalls.filter(tc => tc.function.name).map(tc => ({
+              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
                 id: tc.id, type: tc.type || 'function',
                 function: { name: tc.function.name, arguments: tc.function.arguments }
               }))
             }
 
+            const followUpResponseWithFallback = {
+              choices: [{ message: reconstructedFollowUp }],
+              _fallbackContext: {
+                lastUserMessage: lastUserContent ?? undefined,
+                reasoning: accumulatedReasoning || undefined
+              }
+            }
+
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUp }] })
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
             } catch (e: any) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
-            totalSearchCount += newWebSearches
+            const newResearchPlanSteps = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'research_plan')
+              .flatMap((r: any) => r.toolCall.arguments?.steps || []).length || 0
+            totalSearchCount += newWebSearches + newResearchPlanSteps
+
+            for (const tr of nextToolResult.toolResults || []) {
+              if (tr.toolCall.name === 'web_search') {
+                const args = tr.toolCall.arguments
+                const q = typeof args === 'object' ? args?.query : args
+                localThinkingBlocks.push({
+                  type: 'searching',
+                  query: String(q || ''),
+                  timestamp: Date.now(),
+                  toolInput: typeof args === 'object' ? args : { query: args },
+                  toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+                })
+              } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+                for (const step of tr.toolCall.arguments.steps) {
+                  localThinkingBlocks.push({
+                    type: 'searching',
+                    query: String(step?.query || ''),
+                    timestamp: Date.now(),
+                    toolInput: { query: step?.query },
+                    toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+                  })
+                }
+              }
+            }
 
             const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
@@ -281,8 +405,11 @@ export function useGroqStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            const remainingAfter = researchMaxRounds - totalSearchCount
-            hasMoreToolCalls = remainingAfter > 0 && (researchMandatory || nextToolResult.needsFollowUp)
+            if (researchRound >= MAX_RESEARCH_ROUNDS) {
+              hasMoreToolCalls = false
+            } else {
+              hasMoreToolCalls = nextToolResult.needsFollowUp
+            }
           } else {
             hasMoreToolCalls = false
           }
@@ -293,25 +420,33 @@ export function useGroqStreaming({
     const endTime = performance.now()
     const latency = Math.round(endTime - startTime)
     const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
+    usage = fillMissingUsage(usage, accumulatedContent)
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
+    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+      r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
+    )
+    const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent
+
     updateStreamingMessage(sessionId, messageId, {
-      content: accumulatedContent,
+      content: finalContent,
       model: `groq/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
-      toolResults: savedToolResults
+      toolResults: savedToolResults,
+      ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {})
     })
 
     return {
-      content: accumulatedContent,
+      content: finalContent,
       model: `groq/${settings.aiModel}`,
       toolResults: savedToolResults,
+      thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
       usage: { ...usage, tps, ttft },
       latency,
       finishReason: finishReason || undefined,
     }
-  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
+  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateStreaming, updateInterval])
 
   return { streamGroq }
 }

@@ -1,17 +1,21 @@
 import React from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import PinnedSection from './PinnedSection'
 import FolderSection from './FolderSection'
 import TimeGroup from './TimeGroup'
+import { ChevronDown } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
+import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
 interface SidebarChatListProps {
     groupedSessions: GroupedSessions
     folders: Folder[]
+    chatSelectedOverlayStyle: ChatSelectedOverlayStyle
     currentSessionId: string | null
     streamingSessionId: string | null
     focusIndex: number
@@ -20,6 +24,7 @@ interface SidebarChatListProps {
     searchQuery: string
     showArchived: boolean
     archivedSessions: ChatSession[]
+    bottomPadding?: number
     onSelectSession: (id: string) => void
     onContextAction: (action: ChatRowAction, sessionId: string) => void
     onRenameStart: (id: string) => void
@@ -33,6 +38,7 @@ interface SidebarChatListProps {
 export default function SidebarChatList({
     groupedSessions,
     folders,
+    chatSelectedOverlayStyle,
     currentSessionId,
     streamingSessionId,
     focusIndex,
@@ -41,6 +47,7 @@ export default function SidebarChatList({
     searchQuery,
     showArchived,
     archivedSessions,
+    bottomPadding = 8,
     onSelectSession,
     onContextAction,
     onRenameStart,
@@ -51,6 +58,14 @@ export default function SidebarChatList({
     onKeyDown,
 }: SidebarChatListProps) {
     const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
+    const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
+    const chronologicalSessions = [
+        ...groupedSessions.today,
+        ...groupedSessions.yesterday,
+        ...groupedSessions.previous7Days,
+        ...groupedSessions.previous30Days,
+        ...groupedSessions.older,
+    ]
 
     const renderChatRow = (session: ChatSession) => {
         const flatIndex = flatVisibleSessions.findIndex(s => s.id === session.id)
@@ -62,7 +77,11 @@ export default function SidebarChatList({
                 isArchived={session.archived === true}
                 onAction={(action) => onContextAction(action, session.id)}
                 dropdownOpen={dropdownOpenId === session.id}
-                onDropdownOpenChange={(open) => setDropdownOpenId(open ? session.id : null)}
+                onDropdownOpenChange={(open) => {
+                    if (!open) {
+                        setDropdownOpenId(null)
+                    }
+                }}
             >
                 <div
                     draggable
@@ -73,7 +92,9 @@ export default function SidebarChatList({
                 >
                     <ChatRow
                         session={session}
+                        selectedOverlayStyle={chatSelectedOverlayStyle}
                         isActive={currentSessionId === session.id}
+                        isMenuOpen={dropdownOpenId === session.id}
                         isFocused={flatIndex === focusIndex}
                         isStreaming={streamingSessionId === session.id}
                         isRenaming={renamingSessionId === session.id}
@@ -81,10 +102,7 @@ export default function SidebarChatList({
                         onRenameStart={onRenameStart}
                         onRenameConfirm={onRenameConfirm}
                         onRenameCancel={onRenameCancel}
-                        onContextMenu={(e, id) => {
-                            // Context menu handled by ChatRowContextMenu wrapper
-                        }}
-                        onMoreClick={(e, id) => {
+                        onMoreClick={(_e, id) => {
                             setDropdownOpenId(id)
                         }}
                     />
@@ -101,7 +119,8 @@ export default function SidebarChatList({
             viewportStyle={{
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '0 8px',
+                paddingLeft: '8px',
+                paddingRight: '14px',
             }}
         >
             <div
@@ -113,21 +132,9 @@ export default function SidebarChatList({
                     flexDirection: 'column',
                     gap: '2px',
                     outline: 'none',
-                    paddingBottom: '8px',
+                    paddingBottom: bottomPadding,
                 }}
             >
-                {/* Section header */}
-                <div style={{
-                    fontSize: '0.7rem',
-                    color: 'var(--theme-text-muted)',
-                    padding: '8px 4px 4px',
-                    fontWeight: 600,
-                    letterSpacing: '0.5px',
-                    textTransform: 'uppercase',
-                }}>
-                    Chats
-                </div>
-
                 {!hasAnyVisibleSessions && searchQuery && (
                     <div style={{
                         fontSize: '0.8rem',
@@ -172,18 +179,40 @@ export default function SidebarChatList({
                     )
                 })}
 
-                {/* Time Groups */}
-                {[
-                    { label: 'Today', sessions: groupedSessions.today },
-                    { label: 'Yesterday', sessions: groupedSessions.yesterday },
-                    { label: 'Previous 7 Days', sessions: groupedSessions.previous7Days },
-                    { label: 'Previous 30 Days', sessions: groupedSessions.previous30Days },
-                    { label: 'Older', sessions: groupedSessions.older },
-                ].map(group => (
-                    <TimeGroup key={group.label} label={group.label} sessions={group.sessions}>
-                        {group.sessions.map(s => renderChatRow(s))}
-                    </TimeGroup>
-                ))}
+                <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
+                    <CollapsibleTrigger asChild>
+                        <div style={{
+                            fontSize: '0.82rem',
+                            color: 'var(--theme-text-secondary)',
+                            padding: '8px 6px 4px',
+                            fontWeight: 500,
+                            letterSpacing: '0.01em',
+                            textTransform: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            borderRadius: '8px',
+                            width: 'fit-content',
+                        }}>
+                            <span>Your chats</span>
+                            <ChevronDown
+                                size={10}
+                                style={{
+                                    transition: 'transform 0.15s ease',
+                                    transform: isYourChatsOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                                    flexShrink: 0,
+                                }}
+                            />
+                        </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingTop: '2px' }}>
+                            {chronologicalSessions.map(s => renderChatRow(s))}
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
 
                 {/* Archived toggle */}
                 <div

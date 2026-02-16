@@ -15,9 +15,45 @@
 
 import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
-import { applyThemeToDocument } from '../themes/themeUtils'
+import { applyThemeToDocument, softenThemeColors } from '../themes/themeUtils'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
+export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
+
+/**
+ * Model Selector settings
+ */
+export interface ModelSelectorSettings {
+  // Layout
+  sidebarPosition: 'left' | 'right'
+  sidebarShowLabels: boolean
+  sidebarShowModelCount: boolean
+  dropdownWidth: 'compact' | 'default' | 'wide'
+  
+  // Display
+  showDescriptions: boolean
+  showCapabilityBadges: boolean
+  /** How capability badges are shown: icon only, text only, or both */
+  capabilityBadgeDisplay: 'icon' | 'text' | 'both'
+  showProviderLogos: boolean
+  showFavoriteStars: boolean
+  showContextLength: boolean
+  showInfoTooltips: boolean
+  activeIndicatorStyle: 'dot' | 'checkmark' | 'highlight'
+  
+  // Density
+  itemDensity: 'compact' | 'comfortable' | 'spacious'
+  
+  // Behavior
+  defaultView: 'favorites' | 'lastUsed'
+  autoCloseOnSelect: boolean
+  rememberProvider: boolean
+  showSearch: boolean
+  
+  // Animations
+  enableAnimations: boolean
+  staggerSpeed: 'fast' | 'normal' | 'slow'
+}
 
 /**
  * UI-related settings that change frequently
@@ -54,8 +90,20 @@ export interface SettingsUI {
     // Frosted prompt (glassmorphism effect)
     frostedPrompt: boolean
 
+    // Sidebar auto-hide when window is narrow
+    sidebarAutoHideOnResize: boolean
+
+    // Softened contrast (reduce harshness of text and surfaces)
+    softenedContrast: boolean
+
     // Chat bubble style
     chatBubbleStyle?: ChatBubbleStyle
+
+    // Sidebar selected chat overlay style
+    chatSelectedOverlayStyle?: ChatSelectedOverlayStyle
+
+    // Model Selector settings
+    modelSelector?: ModelSelectorSettings
 }
 
 /**
@@ -83,7 +131,31 @@ export const defaultSettingsUI: SettingsUI = {
     },
     frostedSidebar: false,
     frostedPrompt: false,
+    sidebarAutoHideOnResize: true,
+    softenedContrast: false,
     chatBubbleStyle: 'solid',
+    chatSelectedOverlayStyle: 'linear',
+    modelSelector: {
+        sidebarPosition: 'left',
+        sidebarShowLabels: true,
+        sidebarShowModelCount: true,
+        dropdownWidth: 'default',
+        showDescriptions: true,
+        showCapabilityBadges: true,
+        capabilityBadgeDisplay: 'both',
+        showProviderLogos: true,
+        showFavoriteStars: true,
+        showContextLength: true,
+        showInfoTooltips: true,
+        activeIndicatorStyle: 'dot',
+        itemDensity: 'comfortable',
+        defaultView: 'lastUsed',
+        autoCloseOnSelect: true,
+        rememberProvider: true,
+        showSearch: true,
+        enableAnimations: true,
+        staggerSpeed: 'normal',
+    },
 }
 
 interface SettingsUIContextType {
@@ -111,33 +183,53 @@ export function SettingsUIProvider({
     onSettingsChange 
 }: SettingsUIProviderProps) {
     const [settingsUI, setSettingsUI] = useState<SettingsUI>(() => {
-        return { ...defaultSettingsUI, ...initialSettings }
+        // Deep merge modelSelector if present
+        const merged = { ...defaultSettingsUI, ...initialSettings }
+        if (initialSettings?.modelSelector) {
+            merged.modelSelector = {
+                ...defaultSettingsUI.modelSelector!,
+                ...initialSettings.modelSelector,
+            }
+        }
+        return merged
     })
 
     // Sync with parent when initialSettings change (e.g., from storage events)
     useEffect(() => {
         if (initialSettings) {
-            setSettingsUI(prev => ({ ...prev, ...initialSettings }))
+            setSettingsUI(prev => {
+                const merged = { ...prev, ...initialSettings }
+                // Deep merge modelSelector
+                if (initialSettings.modelSelector) {
+                    merged.modelSelector = {
+                        ...defaultSettingsUI.modelSelector!,
+                        ...prev.modelSelector,
+                        ...initialSettings.modelSelector,
+                    }
+                }
+                return merged
+            })
         }
     }, [initialSettings])
 
     // Apply theme to document
     useLayoutEffect(() => {
         const theme = getThemeById(settingsUI.activeTheme) || getDefaultTheme()
-        applyThemeToDocument(theme)
+        applyThemeToDocument(theme, { softenedContrast: settingsUI.softenedContrast })
 
         // Keep native Windows title bar overlay in sync
         if (window.ipcRenderer) {
             const height = settingsUI.titleBarDensity === 'compact' ? 36 : 44
-            const overlayColor = settingsUI.frostedSidebar ? '#00000000' : theme.colors.background
-            const overlaySymbolColor = settingsUI.frostedSidebar ? '#00000000' : theme.colors.textPrimary
+            const effectiveTheme = settingsUI.softenedContrast ? softenThemeColors(theme) : theme
+            const overlayColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.background
+            const overlaySymbolColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.textPrimary
             window.ipcRenderer.send('set-titlebar-overlay', {
                 color: overlayColor,
                 symbolColor: overlaySymbolColor,
                 height,
             })
         }
-    }, [settingsUI.activeTheme, settingsUI.titleBarDensity, settingsUI.frostedSidebar])
+    }, [settingsUI.activeTheme, settingsUI.titleBarDensity, settingsUI.frostedSidebar, settingsUI.softenedContrast])
 
     // Notify parent of changes
     useEffect(() => {
@@ -145,7 +237,18 @@ export function SettingsUIProvider({
     }, [settingsUI, onSettingsChange])
 
     const updateSettingsUI = useCallback((newSettings: Partial<SettingsUI>) => {
-        setSettingsUI(prev => ({ ...prev, ...newSettings }))
+        setSettingsUI(prev => {
+            const merged = { ...prev, ...newSettings }
+            // Deep merge modelSelector if present
+            if (newSettings.modelSelector) {
+                merged.modelSelector = {
+                    ...defaultSettingsUI.modelSelector!,
+                    ...prev.modelSelector,
+                    ...newSettings.modelSelector,
+                }
+            }
+            return merged
+        })
     }, [])
 
     const contextValue = useMemo(() => ({

@@ -8,7 +8,9 @@
  */
 
 import { useCallback } from 'react'
+import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
+import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
 import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
@@ -18,6 +20,7 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
+import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
@@ -44,6 +47,7 @@ export function useOpenRouterStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseOpenRouterStreamingOptions): UseOpenRouterStreamingReturn {
+  const { updateStreaming } = useStreamingActions()
   const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
 
   const streamOpenRouter = useCallback(async (
@@ -81,28 +85,22 @@ export function useOpenRouterStreaming({
     let thinkingEndTime: number | null = null
     let thinkingDuration: number | undefined = undefined
 
-    // For OpenRouter, avoid accidentally pinning max_tokens to 1000 from legacy settings.
-    const requestedMaxTokens = (() => {
-      const base = (typeof settings.maxTokens === 'number' && Number.isFinite(settings.maxTokens) && settings.maxTokens > 0)
-        ? settings.maxTokens
-        : 8000
-      if (researchMaxRounds > 0) return 8000
-      if (/:free\b/.test(String(settings.aiModel || '')) && base <= 1000) return 8000
-      return base
-    })()
-
-    // Set tool choice for mandatory research mode to force web_search
+    // Set tool choice to force tool use when needed
+    const hasResearchPlanOnly = openRouterTools?.some((t: any) => t?.function?.name === 'research_plan') &&
+      !openRouterTools?.some((t: any) => t?.function?.name === 'web_search')
     const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
-    if (initialForceToolUse) {
+    if (hasResearchPlanOnly) {
+      initialToolChoice = { type: 'function', function: { name: 'research_plan' } }
+    } else if (initialForceToolUse) {
       initialToolChoice = { type: 'function', function: { name: 'web_search' } }
     }
 
     for await (const chunk of streamOpenRouterCompletion(
-      settings.openRouterApiKey || '',
+      getOpenRouterApiKey(settings.openRouterApiKey),
       settings.aiModel,
       openRouterMessages,
-      { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice: initialToolChoice, signal }
+      { temperature: settings.temperature, tools: openRouterTools, toolChoice: initialToolChoice, signal }
     )) {
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) {
@@ -206,40 +204,106 @@ export function useOpenRouterStreaming({
     }
 
     // Handle tool calls with research loop
-    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc?.id).length > 0) {
+    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter((tc: any) => tc?.id).length > 0) {
       const reconstructedMessage = {
         role: 'assistant',
         content: accumulatedContent,
-        tool_calls: toolCallsAccumulator.filter(tc => tc.id).map(tc => ({
+        tool_calls: toolCallsAccumulator.filter((tc: any) => tc?.id).map((tc: any) => ({
           id: tc.id, type: tc.type || 'function',
           function: { name: tc.function.name, arguments: tc.function.arguments }
         }))
       }
 
+      const lastUserMsg = [...openRouterMessages].reverse().find((m: any) => m?.role === 'user')
+      const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : null
+
+      const responseWithFallback = {
+        choices: [{ message: reconstructedMessage }],
+        _fallbackContext: {
+          lastUserMessage: lastUserContent ?? undefined,
+          reasoning: accumulatedReasoning || undefined
+        }
+      }
+
+      const researchPlanCallbacks = {
+          onToolStart: (toolCall: any) => {
+            if (toolCall?.name === 'research_plan') {
+              const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
+              if (args?.topic && Array.isArray(args?.steps)) {
+                const plan = { topic: args.topic, steps: args.steps }
+                updateStreaming({ researchPlan: plan })
+                throttledUpdateStreamingMessage(sessionId, messageId, { researchPlan: plan })
+              }
+            }
+          },
+          onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
+            updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              researchProgress: { currentStep, totalSteps, currentQuery: query }
+            })
+          }
+        }
+
       let toolResult
       try {
-        toolResult = await handleToolCalls({ choices: [{ message: reconstructedMessage }] })
+        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
       } catch (toolError: any) {
-        console.error('Tool calls processing error:', toolError)
+        console.error('[Zura] Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
-      // Update researchStatus for web searches
+      // Update researchStatus for web searches or research_plan (use throttled for display, updateStreamingMessage for session)
       const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      if (webSearchCalls.length > 0) {
-        const firstSearchQuery = webSearchCalls[0]
-        const searchQuery = typeof firstSearchQuery.toolCall.arguments === 'object'
-          ? firstSearchQuery.toolCall.arguments?.query
-          : firstSearchQuery.toolCall.arguments
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
 
-        updateStreamingMessage(sessionId, messageId, {
+      if (hasSearchCalls) {
+        const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
+        const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
+          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          : (typeof firstSearch?.toolCall?.arguments === 'object'
+            ? firstSearch?.toolCall?.arguments?.query
+            : firstSearch?.toolCall?.arguments)
+
+        // Add thinkingBlocks for each web search or research_plan step
+        for (const tr of toolResult.toolResults || []) {
+          if (tr.toolCall.name === 'web_search') {
+            const args = tr.toolCall.arguments
+            const q = typeof args === 'object' ? args?.query : args
+            localThinkingBlocks.push({
+              type: 'searching',
+              query: String(q || ''),
+              timestamp: Date.now(),
+              toolInput: typeof args === 'object' ? args : { query: args },
+              toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+            })
+          } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+            for (const step of tr.toolCall.arguments.steps) {
+              localThinkingBlocks.push({
+                type: 'searching',
+                query: String(step?.query || ''),
+                timestamp: Date.now(),
+                toolInput: { query: step?.query },
+                toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+              })
+            }
+          }
+        }
+
+        const researchStatusUpdate = {
           researchStatus: {
             currentRound: 1,
             maxRounds: researchMaxRounds,
             currentSearch: String(searchQuery || ''),
             isSearching: true
           }
+        }
+        throttledUpdateStreamingMessage(sessionId, messageId, {
+          ...researchStatusUpdate,
+          ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+          thinkingBlocks: localThinkingBlocks
         })
+        updateStreamingMessage(sessionId, messageId, { ...researchStatusUpdate, thinkingBlocks: localThinkingBlocks })
       }
 
       savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
@@ -254,44 +318,58 @@ export function useOpenRouterStreaming({
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
 
-        while (hasMoreToolCalls && researchRound < 10) {
+        const SAFETY_CAP = 50
+        const MAX_RESEARCH_ROUNDS = 6 // Cap to prevent infinite loop when model keeps calling web_search
+        while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          const remainingSearches = researchMaxRounds - totalSearchCount
-          const forceToolUse = researchMandatory && remainingSearches > 0
-          let toolChoice: any = forceToolUse ? { type: 'function', function: { name: 'web_search' } } : undefined
+          // Do NOT use tool_choice: "none" - many OpenRouter providers return 404 "No endpoints found that support the provided 'tool_choice' value"
+          let toolChoice: 'auto' | 'none' | undefined = undefined
 
           const followUpMessages: any[] = []
           if (researchContextMsg) followUpMessages.push({ role: 'system', content: researchContextMsg })
+          if (researchRound >= 4) {
+            followUpMessages.push({ role: 'system', content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n` })
+          }
           followUpMessages.push(...openRouterMessages, lastAssistantMessage, ...toolResult.formattedResults)
 
           let followUpContent = ''
           let followUpReasoning = ''
           let followUpToolCalls: any[] = []
           let followUpUsage: any = {}
+          let chunkCount = 0
+          let chunksWithContent = 0
+          let chunksWithToolCalls = 0
 
-          updateStreamingMessage(sessionId, messageId, {
-            researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
-          })
+          const loopResearchStatus = { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+          throttledUpdateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
+          updateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
 
           for await (const chunk of streamOpenRouterCompletion(
-            settings.openRouterApiKey || '',
+            getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,
             followUpMessages,
-            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, toolChoice, signal }
+            { temperature: settings.temperature, tools: openRouterTools, toolChoice, signal }
           )) {
+            chunkCount++
+            if ((chunk as any).error) {
+              console.error('[Zura] Research loop stream error:', (chunk as any).error)
+            }
             const delta = chunk.choices?.[0]?.delta?.content || ''
+            if (delta) chunksWithContent++
             followUpContent += delta
 
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
             if (reasoningDelta) {
               followUpReasoning += reasoningDelta
+              const combinedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + followUpContent,
-                thinking: followUpReasoning
+                thinking: combinedThinking
               })
             }
 
             if (chunk.choices?.[0]?.delta?.tool_calls) {
+              chunksWithToolCalls++
               const deltaToolCalls = chunk.choices[0].delta.tool_calls
               deltaToolCalls?.forEach((tc: any) => {
                 const index = tc.index ?? 0
@@ -311,18 +389,21 @@ export function useOpenRouterStreaming({
 
             const now = Date.now()
             if (now - lastUpdateTime >= updateInterval) {
+              const combinedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + followUpContent,
-                thinking: followUpReasoning || undefined
+                thinking: combinedThinking || undefined
               })
               lastUpdateTime = now
             }
           }
 
           accumulatedContent += followUpContent
-          if (followUpReasoning) accumulatedReasoning = followUpReasoning
+          if (followUpReasoning) accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
           flushThrottledUpdates()
-          updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
+          const contentUpdate = { content: accumulatedContent, ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}) }
+          throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
+          updateStreamingMessage(sessionId, messageId, contentUpdate)
 
           usage = {
             inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
@@ -333,44 +414,67 @@ export function useOpenRouterStreaming({
             cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
           }
 
-          if (followUpToolCalls.length > 0 && followUpToolCalls.some(tc => tc.function.name)) {
+          const hasValidToolCalls = followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)
+          if (hasValidToolCalls) {
             const reconstructedFollowUp = {
               role: 'assistant', content: followUpContent,
-              tool_calls: followUpToolCalls.filter(tc => tc.function.name).map(tc => ({
+              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
                 id: tc.id, type: tc.type || 'function',
                 function: { name: tc.function.name, arguments: tc.function.arguments }
               }))
             }
 
+            const followUpResponseWithFallback = {
+              choices: [{ message: reconstructedFollowUp }],
+              _fallbackContext: {
+                lastUserMessage: lastUserContent ?? undefined,
+                reasoning: followUpReasoning || accumulatedReasoning || undefined
+              }
+            }
+
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls({ choices: [{ message: reconstructedFollowUp }] })
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
             } catch (e: any) {
+              console.error('[Zura] Research loop: handleToolCalls failed:', e?.message, 'Round:', researchRound)
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
             const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
             totalSearchCount += newWebSearches
 
-            // Update thinking blocks and researchStatus
+            // Add thinkingBlocks for Web Search UI (no raw --- in thinking; tool call shows in block)
             for (const tr of nextToolResult.toolResults || []) {
               if (tr.toolCall.name === 'web_search') {
-                const searchQuery = typeof tr.toolCall.arguments === 'object' ? tr.toolCall.arguments?.query : tr.toolCall.arguments
-                if (accumulatedReasoning?.trim()) {
-                  localThinkingBlocks.push({ type: 'thinking', content: accumulatedReasoning, duration: 0, timestamp: Date.now() })
-                }
-                updateStreamingMessage(sessionId, messageId, {
-                  thinking: '', thinkingDuration: undefined, thinkingBlocks: [...localThinkingBlocks],
-                  researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true }
+                const args = tr.toolCall.arguments
+                const searchQuery = typeof args === 'object' ? args?.query : args
+                localThinkingBlocks.push({
+                  type: 'searching',
+                  query: String(searchQuery || ''),
+                  timestamp: Date.now(),
+                  toolInput: typeof args === 'object' ? args : { query: args },
+                  toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
                 })
-                accumulatedReasoning = ''
+                const webSearchUpdate = {
+                  thinking: accumulatedReasoning,
+                  thinkingDuration: thinkingDuration,
+                  researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, currentSearch: String(searchQuery || ''), isSearching: true },
+                  thinkingBlocks: localThinkingBlocks
+                }
+                throttledUpdateStreamingMessage(sessionId, messageId, webSearchUpdate)
+                updateStreamingMessage(sessionId, messageId, webSearchUpdate)
               }
             }
 
-            // Update researchStatus to stop searching
-            updateStreamingMessage(sessionId, messageId, {
-              researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
-            })
+            // Update researchStatus to stop searching - include full thinking for session sync
+            flushThrottledUpdates()
+            const doneSearchingStatus = { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false }
+            const doneSearchingUpdate = {
+              researchStatus: doneSearchingStatus,
+              ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {})
+            }
+            throttledUpdateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
+            updateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
 
             const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
@@ -382,79 +486,13 @@ export function useOpenRouterStreaming({
             toolResult = nextToolResult
             researchRound++
 
-            const remainingAfter = researchMaxRounds - totalSearchCount
-            hasMoreToolCalls = remainingAfter > 0 && (researchMandatory || nextToolResult.needsFollowUp)
+            if (researchRound >= MAX_RESEARCH_ROUNDS) {
+              hasMoreToolCalls = false
+            } else {
+              hasMoreToolCalls = nextToolResult.needsFollowUp
+            }
           } else {
             hasMoreToolCalls = false
-          }
-        }
-
-        // Final answer request for mandatory research
-        if (researchMandatory && totalSearchCount >= researchMaxRounds) {
-          const finalAnswerMessages: any[] = [
-            { role: 'system', content: `\n\n*** ALL RESEARCH COMPLETE ***\nYou have completed all ${totalSearchCount} required web searches.\n\nYou MUST now provide your FINAL COMPREHENSIVE ANSWER based on all the information gathered.\n\nDo NOT make any more tool calls.\nSynthesize all the search results into a coherent, well-structured response that directly answers the user's question.\nInclude relevant details from the searches and cite sources where appropriate.` },
-            ...openRouterMessages, lastAssistantMessage, ...toolResult.formattedResults
-          ]
-
-          let finalAnswerContent = ''
-          let finalAnswerReasoning = ''
-          let finalAnswerUsage: any = {}
-
-          for await (const chunk of streamOpenRouterCompletion(
-            settings.openRouterApiKey || '',
-            settings.aiModel,
-            finalAnswerMessages,
-            { temperature: settings.temperature, maxTokens: requestedMaxTokens, tools: openRouterTools, signal }
-          )) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            finalAnswerContent += delta
-
-            const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
-            if (reasoningDelta) {
-              finalAnswerReasoning += reasoningDelta
-              const updatedThinking = accumulatedReasoning + (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
-              throttledUpdateStreamingMessage(sessionId, messageId, {
-                content: accumulatedContent + finalAnswerContent,
-                thinking: updatedThinking
-              })
-            }
-
-            if (chunk.usage) {
-              finalAnswerUsage = chunk.usage
-              const reasoningTokens = chunk.usage.completion_tokens_details?.reasoning_tokens || chunk.usage.reasoning_tokens || 0
-              if (reasoningTokens > 0) totalThinkingTokens += reasoningTokens
-            }
-
-            const now = Date.now()
-            if (now - lastUpdateTime >= updateInterval) {
-              const fullThinking = accumulatedReasoning + (finalAnswerReasoning ? '\n\n---\n\n' + finalAnswerReasoning : '')
-              throttledUpdateStreamingMessage(sessionId, messageId, {
-                content: accumulatedContent + finalAnswerContent,
-                thinking: fullThinking || undefined
-              })
-              lastUpdateTime = now
-            }
-          }
-
-          accumulatedContent += finalAnswerContent
-          if (finalAnswerReasoning) {
-            accumulatedReasoning += (accumulatedReasoning ? '\n\n---\n\n' : '') + finalAnswerReasoning
-          }
-
-          flushThrottledUpdates()
-          updateStreamingMessage(sessionId, messageId, {
-            content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
-            researchStatus: undefined
-          })
-
-          usage = {
-            inputTokens: (usage.inputTokens || 0) + (finalAnswerUsage.prompt_tokens || 0),
-            outputTokens: (usage.outputTokens || 0) + (finalAnswerUsage.completion_tokens || 0),
-            totalTokens: (usage.totalTokens || 0) + (finalAnswerUsage.total_tokens || 0),
-            thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
-            cachedInputTokens: ((usage.cachedInputTokens || 0) + (finalAnswerUsage.prompt_cache_tokens || 0)) || undefined,
-            cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (finalAnswerUsage.completion_cache_tokens || 0)) || undefined
           }
         }
       }
@@ -465,19 +503,42 @@ export function useOpenRouterStreaming({
     const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
+    // When web search or research_plan was used, strip standalone --- so user sees Web Search block instead
+    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+      r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
+    )
+    const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent
+
+    // Persist research plan and progress for research_plan tool results
+    const researchPlanResult = (savedToolResults || []).find((r: any) => r?.toolCall?.name === 'research_plan')
+    const researchPlanData = researchPlanResult?.toolCall?.arguments?.topic && Array.isArray(researchPlanResult?.toolCall?.arguments?.steps)
+      ? {
+          researchPlan: {
+            topic: researchPlanResult.toolCall.arguments.topic,
+            steps: researchPlanResult.toolCall.arguments.steps
+          },
+          researchProgress: {
+            currentStep: researchPlanResult.toolCall.arguments.steps.length,
+            totalSteps: researchPlanResult.toolCall.arguments.steps.length
+          }
+        }
+      : {}
+
     updateStreamingMessage(sessionId, messageId, {
-      content: accumulatedContent,
-      thinking: accumulatedReasoning || undefined,
+      content: finalContent,
+      ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+      ...(thinkingDuration !== undefined ? { thinkingDuration } : {}),
+      ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
+      ...researchPlanData,
       model: `openrouter/${settings.aiModel}`,
       latency,
       usage: { ...usage, tps, ttft },
       finishReason: finishReason || undefined,
-      requestedMaxTokens,
       toolResults: savedToolResults
     })
 
     return {
-      content: accumulatedContent,
+      content: finalContent,
       model: `openrouter/${settings.aiModel}`,
       thinking: accumulatedReasoning || undefined,
       thinkingDuration,
@@ -487,7 +548,7 @@ export function useOpenRouterStreaming({
       latency,
       finishReason: finishReason || undefined,
     }
-  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateInterval])
+  }, [settings, toolCalling, updateStreamingMessage, flushThrottledUpdates, throttledUpdateStreamingMessage, updateStreaming, updateInterval])
 
   return { streamOpenRouter }
 }

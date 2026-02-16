@@ -19,6 +19,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { checkOllamaStatus, listOllamaModels } from '../services/ollama'
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
+import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -28,6 +29,22 @@ export interface TodoItem {
     createdAt: number
 }
 
+export interface ConfiguredModel {
+    code: string
+    displayName: string
+    enabled?: boolean
+    description?: string
+    maxContext?: number
+    extendedParameters?: string[]
+    modelType?: 'chat' | 'reasoning' | 'image' | 'video' | 'embedding' | 'other'
+    supportsToolCall?: boolean
+    supportsVision?: boolean
+    supportsDeepThinking?: boolean
+    supportsWebSearch?: boolean
+    supportsImageGeneration?: boolean
+    supportsVideoRecognition?: boolean
+}
+
 /**
  * Configuration-related settings that change infrequently
  */
@@ -35,33 +52,36 @@ export interface SettingsConfig {
     // API Keys
     openRouterApiKey: string
     perplexityApiKey: string
-    geminiApiKey: string
     groqApiKey: string
-    minimaxApiKey: string
     tavilyApiKey: string
-    
+    nvidiaApiKey: string
+    alibabaApiKey: string
+
     // Model settings
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'gemini' | 'groq' | 'minimax'
-    configuredModels: Array<{ code: string; displayName: string }>
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
+    configuredModels: ConfiguredModel[]
     ollamaUrl: string
-    ollamaModels: Array<{ code: string; displayName: string }>
-    perplexityModels: Array<{ code: string; displayName: string }>
-    geminiModels: Array<{ code: string; displayName: string }>
-    groqModels: Array<{ code: string; displayName: string }>
-    minimaxModels: Array<{ code: string; displayName: string }>
-    
+    ollamaModels: ConfiguredModel[]
+    perplexityModels: ConfiguredModel[]
+    groqModels: ConfiguredModel[]
+    nvidiaModels: ConfiguredModel[]
+    alibabaModels: ConfiguredModel[]
+
     // AI parameters
     temperature: number
     maxTokens: number
     systemPrompt: string
+    /** Web search instructions appended when Web Search is enabled */
+    webSearchPrompt: string
     streamResponses: boolean
     
     // Tool settings
     toolsEnabled: boolean
     enabledTools: string[]
     webSearchEnabled: boolean
-    deepResearchEnabled: boolean
+    /** Step-by-step research: plan → execute web searches → synthesize */
+    structuredResearchEnabled: boolean
     
     // Title generation
     titleModel: string
@@ -88,11 +108,11 @@ export const defaultSettingsConfig: SettingsConfig = {
     // API Keys
     openRouterApiKey: '',
     perplexityApiKey: '',
-    geminiApiKey: '',
     groqApiKey: '',
-    minimaxApiKey: '',
     tavilyApiKey: '',
-    
+    nvidiaApiKey: '',
+    alibabaApiKey: '',
+
     // Model settings
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter',
@@ -123,59 +143,168 @@ export const defaultSettingsConfig: SettingsConfig = {
     ollamaModels: [],
     perplexityModels: [
         // Sonar Models (2025)
-        { code: 'sonar', displayName: 'Sonar' },
-        { code: 'sonar-pro', displayName: 'Sonar Pro' },
-        { code: 'sonar-reasoning', displayName: 'Sonar Reasoning' },
-        { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro' },
-        { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' },
+        { code: 'sonar', displayName: 'Sonar', maxContext: 200000 },
+        { code: 'sonar-pro', displayName: 'Sonar Pro', maxContext: 200000 },
+        { code: 'sonar-reasoning', displayName: 'Sonar Reasoning', maxContext: 200000 },
+        { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro', maxContext: 200000 },
+        { code: 'sonar-deep-research', displayName: 'Sonar Deep Research', maxContext: 200000 },
         // Llama 3.1 Sonar Variants (128k Context)
-        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online' },
-        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online' },
-        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online' },
-        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online' },
-    ],
-    geminiModels: [
-        // Gemini 3.0 Models (Preview - Text Only)
-        { code: 'gemini-3-flash-preview', displayName: 'Gemini 3 Flash (Preview)' },
-        { code: 'gemini-3-pro-preview', displayName: 'Gemini 3 Pro (Preview)' },
-        // Gemini 2.5 Models (Stable - Text Only)
-        { code: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
-        { code: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-        { code: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
+        { code: 'llama-3.1-sonar-small-128k-online', displayName: 'Llama 3.1 Sonar Small 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-medium-128k-online', displayName: 'Llama 3.1 Sonar Medium 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-large-128k-online', displayName: 'Llama 3.1 Sonar Large 128k Online', maxContext: 131072 },
+        { code: 'llama-3.1-sonar-huge-128k-online', displayName: 'Llama 3.1 Sonar Huge 128k Online', maxContext: 131072 },
     ],
     groqModels: [
-        // Llama 4 (Latest 2025)
-        { code: 'llama-4-scout', displayName: 'Llama 4 Scout' },
-        // Llama 3.3
-        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile' },
-        // Llama 3.1
-        { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' },
-        // DeepSeek R1 Distill
-        { code: 'deepseek-r1-distill-llama-70b', displayName: 'DeepSeek R1 Distill Llama 70B' },
-        // Other models
-        { code: 'mixtral-8x7b-32768', displayName: 'Mixtral 8x7B' },
-        { code: 'gemma2-9b-it', displayName: 'Gemma 2 9B' },
+        // Production Models (enabled: most famous)
+        { code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant', enabled: true, maxContext: 131072 },
+        { code: 'llama-3.3-70b-versatile', displayName: 'Llama 3.3 70B Versatile', enabled: true, maxContext: 131072 },
+        { code: 'openai/gpt-oss-120b', displayName: 'GPT OSS 120B', enabled: true, maxContext: 131072 },
+        { code: 'openai/gpt-oss-20b', displayName: 'GPT OSS 20B', enabled: true, maxContext: 131072 },
+        // Production Systems (enabled)
+        { code: 'groq/compound', displayName: 'Groq Compound', enabled: true, maxContext: 131072 },
+        { code: 'groq/compound-mini', displayName: 'Groq Compound Mini', enabled: true, maxContext: 131072 },
+        // Preview Models (enabled: well-known)
+        { code: 'meta-llama/llama-4-scout-17b-16e-instruct', displayName: 'Llama 4 Scout 17B', enabled: true, maxContext: 131072 },
+        { code: 'qwen/qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 131072 },
+        { code: 'moonshotai/kimi-k2-instruct-0905', displayName: 'Kimi K2', enabled: true, maxContext: 262144 },
+        // Preview Models (disabled: less known)
+        { code: 'meta-llama/llama-4-maverick-17b-128e-instruct', displayName: 'Llama 4 Maverick 17B', enabled: false, maxContext: 131072 },
+        { code: 'openai/gpt-oss-safeguard-20b', displayName: 'GPT OSS Safeguard 20B', enabled: false, maxContext: 131072 },
     ],
-    minimaxModels: [
-        { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' },
-        { code: 'MiniMax-M2.1-lightning', displayName: 'MiniMax M2.1 Lightning' },
-        { code: 'MiniMax-M2', displayName: 'MiniMax M2' },
+    nvidiaModels: [
+        // Meta (well-known)
+        { code: 'meta/llama3-70b', displayName: 'Llama 3 70B', enabled: true, maxContext: 8192 },
+        { code: 'meta/llama3-8b', displayName: 'Llama 3 8B', enabled: true, maxContext: 8192 },
+        { code: 'meta/llama2-70b', displayName: 'Llama 2 70B', enabled: false, maxContext: 4096 },
+        { code: 'meta/codellama-70b', displayName: 'Code Llama 70B', enabled: false, maxContext: 16384 },
+        // NVIDIA (well-known)
+        { code: 'nvidia/nemotron-4-340b-instruct', displayName: 'Nemotron 4 340B', enabled: true, maxContext: 4096 },
+        { code: 'nvidia/llama3-chatqa-1.5-70b', displayName: 'Llama 3 ChatQA 1.5 70B', enabled: true, maxContext: 8192 },
+        { code: 'nvidia/llama3-chatqa-1.5-8b', displayName: 'Llama 3 ChatQA 1.5 8B', enabled: false, maxContext: 8192 },
+        // Mistral (well-known)
+        { code: 'mistralai/mistral-large', displayName: 'Mistral Large', enabled: true, maxContext: 128000 },
+        { code: 'mistralai/mistral-large-2-instruct', displayName: 'Mistral Large 2', enabled: true, maxContext: 128000 },
+        { code: 'mistralai/mixtral-8x7b-instruct', displayName: 'Mixtral 8x7B', enabled: true, maxContext: 32768 },
+        { code: 'mistralai/mixtral-8x22b-instruct', displayName: 'Mixtral 8x22B', enabled: false, maxContext: 65536 },
+        { code: 'mistralai/mistral-7b-instruct', displayName: 'Mistral 7B', enabled: false, maxContext: 32768 },
+        { code: 'mistralai/mistral-7b-instruct-v0.3', displayName: 'Mistral 7B v0.3', enabled: false, maxContext: 32768 },
+        { code: 'mistralai/codestral-22b-instruct-v0.1', displayName: 'Codestral 22B', enabled: false, maxContext: 32768 },
+        { code: 'mistralai/mathstral-7b-v0.1', displayName: 'Mathstral 7B', enabled: false, maxContext: 32768 },
+        // Google (well-known: Gemma 2 9B)
+        { code: 'google/gemma-2b', displayName: 'Gemma 2B', enabled: false, maxContext: 8192 },
+        { code: 'google/gemma-7b', displayName: 'Gemma 7B', enabled: false, maxContext: 8192 },
+        { code: 'google/gemma-2-2b-it', displayName: 'Gemma 2 2B IT', enabled: false, maxContext: 8192 },
+        { code: 'google/gemma-2-9b-it', displayName: 'Gemma 2 9B IT', enabled: true, maxContext: 8192 },
+        { code: 'google/gemma-2-27b-it', displayName: 'Gemma 2 27B IT', enabled: false, maxContext: 8192 },
+        { code: 'google/codegemma-1.1-7b', displayName: 'CodeGemma 1.1 7B', enabled: false, maxContext: 8192 },
+        { code: 'google/codegemma-7b', displayName: 'CodeGemma 7B', enabled: false, maxContext: 8192 },
+        { code: 'google/recurrentgemma-2b', displayName: 'RecurrentGemma 2B', enabled: false, maxContext: 8192 },
+        { code: 'google/shieldgemma-9b', displayName: 'ShieldGemma 9B', enabled: false, maxContext: 8192 },
+        // Microsoft (well-known: Phi-3 Medium 4K)
+        { code: 'microsoft/phi-3-medium-4k-instruct', displayName: 'Phi-3 Medium 4K', enabled: true, maxContext: 4096 },
+        { code: 'microsoft/phi-3-medium-128k-instruct', displayName: 'Phi-3 Medium 128K', enabled: false, maxContext: 131072 },
+        { code: 'microsoft/phi-3-mini-4k-instruct', displayName: 'Phi-3 Mini 4K', enabled: false, maxContext: 4096 },
+        { code: 'microsoft/phi-3-mini-128k-instruct', displayName: 'Phi-3 Mini 128K', enabled: false, maxContext: 131072 },
+        { code: 'microsoft/phi-3-small-8k-instruct', displayName: 'Phi-3 Small 8K', enabled: false, maxContext: 8192 },
+        { code: 'microsoft/phi-3-small-128k-instruct', displayName: 'Phi-3 Small 128K', enabled: false, maxContext: 131072 },
+        // DeepSeek (well-known)
+        { code: 'deepseek-ai/deepseek-r1', displayName: 'DeepSeek R1', enabled: true, maxContext: 64000 },
+        // Snowflake (well-known)
+        { code: 'snowflake/arctic', displayName: 'Snowflake Arctic', enabled: false, maxContext: 4096 },
+        // GLM / Zhipu (well-known: GLM 4.7)
+        { code: 'z-ai/glm4.7', displayName: 'GLM 4.7', enabled: false, maxContext: 131072 },
+        { code: 'thudm/chatglm3-6b', displayName: 'ChatGLM3 6B', enabled: false, maxContext: 8192 },
+        // MiniMax (well-known)
+        { code: 'minimaxai/minimax-m2', displayName: 'MiniMax M2', enabled: false, maxContext: 128000 },
+        // Kimi / Moonshot (well-known: K2.5)
+        { code: 'moonshotai/kimi-k2-5', displayName: 'Kimi K2.5', enabled: false, maxContext: 262144 },
+        { code: 'moonshotai/kimi-k2-instruct', displayName: 'Kimi K2 Instruct', enabled: false, maxContext: 131072 },
+        { code: 'moonshotai/kimi-k2-instruct-0905', displayName: 'Kimi K2 Instruct 0905', enabled: false, maxContext: 262144 },
+        // Others (disabled by default)
+        { code: '01-ai/yi-large', displayName: 'Yi Large', enabled: false, maxContext: 4096 },
+        { code: 'abacusai/dracarys-llama-3.1-70b-instruct', displayName: 'Dracarys Llama 3.1 70B', enabled: false, maxContext: 8192 },
+        { code: 'aisingapore/sea-lion-7b-instruct', displayName: 'Sea-Lion 7B', enabled: false, maxContext: 4096 },
+        { code: 'databricks/dbrx-instruct', displayName: 'DBRX Instruct', enabled: false, maxContext: 32768 },
+        { code: 'ibm/granite-34b-code-instruct', displayName: 'Granite 34B Code', enabled: false, maxContext: 8192 },
+        { code: 'ibm/granite-8b-code-instruct', displayName: 'Granite 8B Code', enabled: false, maxContext: 8192 },
+        { code: 'mediatek/breeze-7b-instruct', displayName: 'Breeze 7B', enabled: false, maxContext: 4096 },
+        { code: 'qwen/qwen2-7b-instruct', displayName: 'Qwen2 7B', enabled: false, maxContext: 32768 },
+        { code: 'rakuten/rakutenai-7b-chat', displayName: 'Rakuten AI 7B Chat', enabled: false, maxContext: 4096 },
+        { code: 'rakuten/rakutenai-7b-instruct', displayName: 'Rakuten AI 7B Instruct', enabled: false, maxContext: 4096 },
+        { code: 'seallms/seallm-7b-v2.5', displayName: 'SEALLM 7B v2.5', enabled: false, maxContext: 4096 },
+        { code: 'upstage/solar-10.7b-instruct', displayName: 'Solar 10.7B', enabled: false, maxContext: 4096 },
+        { code: 'bigcode/starcoder2-7b', displayName: 'StarCoder2 7B', enabled: false, maxContext: 16384 },
+        { code: 'bigcode/starcoder2-15b', displayName: 'StarCoder2 15B', enabled: false, maxContext: 16384 },
     ],
-    
+    alibabaModels: [
+        // === Commercial (enabled) ===
+        { code: 'qwen3-max', displayName: 'Qwen3 Max', enabled: true, maxContext: 128000 },
+        { code: 'qwen3-max-preview', displayName: 'Qwen3 Max Preview', enabled: true, maxContext: 128000 },
+        { code: 'qwen-max', displayName: 'Qwen Max', enabled: true, maxContext: 128000 },
+        { code: 'qwen3.5-plus', displayName: 'Qwen3.5 Plus', enabled: true, maxContext: 128000 },
+        { code: 'qwen-plus', displayName: 'Qwen Plus', enabled: true, maxContext: 128000 },
+        { code: 'qwen-flash', displayName: 'Qwen Flash', enabled: true, maxContext: 128000 },
+        { code: 'qwen-turbo', displayName: 'Qwen Turbo', enabled: true, maxContext: 128000 },
+        { code: 'qwq-plus', displayName: 'QwQ Plus', enabled: true, maxContext: 128000 },
+        // Qwen-Coder (specialized)
+        { code: 'qwen3-coder-plus', displayName: 'Qwen3 Coder Plus', enabled: true, maxContext: 128000 },
+        { code: 'qwen3-coder-flash', displayName: 'Qwen3 Coder Flash', enabled: true, maxContext: 128000 },
+        // === Thinking models (enabled) ===
+        { code: 'qwen3-next-80b-a3b-thinking', displayName: 'Qwen3-Next 80B Thinking', enabled: true, maxContext: 262000 },
+        { code: 'qwen3-next-80b-a3b-instruct', displayName: 'Qwen3-Next 80B Instruct', enabled: true, maxContext: 262000 },
+        { code: 'qwen3-235b-a22b-thinking-2507', displayName: 'Qwen3 235B Thinking', enabled: true, maxContext: 131072 },
+        { code: 'qwen3-235b-a22b-instruct-2507', displayName: 'Qwen3 235B Instruct', enabled: true, maxContext: 131072 },
+        { code: 'qwen3-30b-a3b-thinking-2507', displayName: 'Qwen3 30B Thinking', enabled: true, maxContext: 131072 },
+        { code: 'qwen3-30b-a3b-instruct-2507', displayName: 'Qwen3 30B Instruct', enabled: true, maxContext: 131072 },
+        { code: 'qwen3.5-397b-a17b', displayName: 'Qwen3.5 397B', enabled: true, maxContext: 131072 },
+        // === Open source (enabled) ===
+        { code: 'qwen3-235b-a22b', displayName: 'Qwen3 235B', enabled: true, maxContext: 131072 },
+        { code: 'qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 32768 },
+        { code: 'qwen3-30b-a3b', displayName: 'Qwen3 30B', enabled: true, maxContext: 32768 },
+        { code: 'qwen3-14b', displayName: 'Qwen3 14B', enabled: true, maxContext: 32768 },
+        { code: 'qwen3-8b', displayName: 'Qwen3 8B', enabled: true, maxContext: 32768 },
+        { code: 'qwen2.5-72b-instruct', displayName: 'Qwen2.5 72B', enabled: true, maxContext: 131072 },
+        { code: 'qwen2.5-32b-instruct', displayName: 'Qwen2.5 32B', enabled: true, maxContext: 32768 },
+        { code: 'qwen2.5-14b-instruct', displayName: 'Qwen2.5 14B', enabled: true, maxContext: 32768 },
+        { code: 'qwen2.5-14b-instruct-1m', displayName: 'Qwen2.5 14B 1M', enabled: true, maxContext: 1000000 },
+        { code: 'qwen2.5-7b-instruct', displayName: 'Qwen2.5 7B', enabled: true, maxContext: 32768 },
+        { code: 'qwen2.5-7b-instruct-1m', displayName: 'Qwen2.5 7B 1M', enabled: true, maxContext: 1000000 },
+        // === Least popular (disabled) ===
+        { code: 'qwen3-4b', displayName: 'Qwen3 4B', enabled: false, maxContext: 8192 },
+        { code: 'qwen3-1.7b', displayName: 'Qwen3 1.7B', enabled: false, maxContext: 4096 },
+        { code: 'qwen3-0.6b', displayName: 'Qwen3 0.6B', enabled: false, maxContext: 4096 },
+        { code: 'qwen2.5-3b-instruct', displayName: 'Qwen2.5 3B', enabled: false, maxContext: 32768 },
+        { code: 'qwen2.5-1.5b-instruct', displayName: 'Qwen2.5 1.5B', enabled: false, maxContext: 4096 },
+        { code: 'qwen2.5-0.5b-instruct', displayName: 'Qwen2.5 0.5B', enabled: false, maxContext: 4096 },
+        // Snapshot / regional variants (disabled)
+        { code: 'qwen3-max-2025-09-23', displayName: 'Qwen3 Max (2025-09-23)', enabled: false, maxContext: 128000 },
+        { code: 'qwen-plus-latest', displayName: 'Qwen Plus Latest', enabled: false, maxContext: 128000 },
+        { code: 'qwen-plus-2025-01-25', displayName: 'Qwen Plus (2025-01-25)', enabled: false, maxContext: 128000 },
+        { code: 'qwen-max-latest', displayName: 'Qwen Max Latest', enabled: false, maxContext: 128000 },
+        { code: 'qwen-max-2025-01-25', displayName: 'Qwen Max (2025-01-25)', enabled: false, maxContext: 128000 },
+        { code: 'qwen-flash-2025-07-28', displayName: 'Qwen Flash (2025-07-28)', enabled: false, maxContext: 128000 },
+        { code: 'qwen-turbo-latest', displayName: 'Qwen Turbo Latest', enabled: false, maxContext: 128000 },
+        { code: 'qwen-turbo-2024-11-01', displayName: 'Qwen Turbo (2024-11-01)', enabled: false, maxContext: 128000 },
+        { code: 'qwen3.5-plus-2026-02-15', displayName: 'Qwen3.5 Plus (2026-02-15)', enabled: false, maxContext: 128000 },
+        { code: 'qwen-plus-us', displayName: 'Qwen Plus US', enabled: false, maxContext: 128000 },
+        { code: 'qwen-flash-us', displayName: 'Qwen Flash US', enabled: false, maxContext: 128000 },
+    ],
+
     // AI parameters
     temperature: 0.7,
     maxTokens: 8000,
     systemPrompt: defaultSystemPrompt,
+    webSearchPrompt: defaultWebSearchPrompt,
     streamResponses: false,
     
     // Tool settings
     toolsEnabled: true,
     enabledTools: ['web_search', 'get_datetime'],
     webSearchEnabled: true,
-    deepResearchEnabled: false,
+    structuredResearchEnabled: false,
     
     // Title generation
-    titleModel: 'gemini-2.5-flash',
+    titleModel: 'google/gemini-2.0-flash-exp:free',
     
     // Favorites
     favoriteModels: [],
@@ -232,6 +361,24 @@ export function SettingsConfigProvider({
         }
     }, [initialSettings])
 
+    // Migration: expand Alibaba models if user has cached old list (missing new models)
+    useEffect(() => {
+        const current = settingsConfig.alibabaModels ?? []
+        const defaultList = defaultSettingsConfig.alibabaModels
+        const needsExpansion = current.length < defaultList.length
+        if (needsExpansion && defaultList.length > 0) {
+            const merged = defaultList.map((d) => {
+                const existing = current.find((m) => m.code === d.code)
+                return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+            })
+            const defaultCodes = new Set(defaultList.map((d) => d.code))
+            const custom = current.filter((m) => !defaultCodes.has(m.code))
+            const expanded = [...merged, ...custom]
+            setSettingsConfig(prev => ({ ...prev, alibabaModels: expanded }))
+            onSettingsChange?.({ ...settingsConfig, alibabaModels: expanded } as SettingsConfig)
+        }
+    }, []) // Run once on mount
+
     // Load API keys from secure storage on startup
     useEffect(() => {
         const loadSecureKeys = async () => {
@@ -240,10 +387,10 @@ export function SettingsConfigProvider({
                 await migrateApiKeysFromLocalStorage({
                     openRouterApiKey: settingsConfig.openRouterApiKey,
                     perplexityApiKey: settingsConfig.perplexityApiKey,
-                    geminiApiKey: settingsConfig.geminiApiKey,
                     groqApiKey: settingsConfig.groqApiKey,
                     tavilyApiKey: settingsConfig.tavilyApiKey,
-                    minimaxApiKey: settingsConfig.minimaxApiKey,
+                    nvidiaApiKey: settingsConfig.nvidiaApiKey,
+                    alibabaApiKey: settingsConfig.alibabaApiKey,
                 })
 
                 // Load from secure storage
@@ -251,8 +398,7 @@ export function SettingsConfigProvider({
 
                 // Check if we got any keys
                 const hasSecureKeys = secureKeys.openRouterApiKey || secureKeys.perplexityApiKey ||
-                    secureKeys.geminiApiKey || secureKeys.groqApiKey || secureKeys.tavilyApiKey ||
-                    secureKeys.minimaxApiKey
+                    secureKeys.groqApiKey || secureKeys.tavilyApiKey || secureKeys.nvidiaApiKey || secureKeys.alibabaApiKey
 
                 if (hasSecureKeys) {
                     // Update settings with secure keys - prefer secure storage values
@@ -260,10 +406,10 @@ export function SettingsConfigProvider({
                         ...prev,
                         openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
                         perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
-                        geminiApiKey: secureKeys.geminiApiKey || prev.geminiApiKey,
                         groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
                         tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
-                        minimaxApiKey: secureKeys.minimaxApiKey || prev.minimaxApiKey,
+                        nvidiaApiKey: secureKeys.nvidiaApiKey || prev.nvidiaApiKey,
+                        alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
                     }))
                 }
 

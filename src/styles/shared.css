@@ -1,33 +1,63 @@
 /* ==== SHARED CSS UTILITIES ==== */
 
+
+/* Frosted sidebar/titlebar glass - single source for consistency */
+
+:root {
+    --frosted-glass-gradient: linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%);
+    --frosted-glass-border: 1px solid rgba(255, 255, 255, 0.08);
+    --frosted-glass-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    --frosted-glass-noise-opacity: 0.09;
+}
+
+
 /* Glass/Blur Effect */
+
 .glass-effect {
     background: rgba(27, 25, 19, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
 }
 
+
 /* Subtle Border */
+
 .border-subtle {
     border: 1px solid var(--theme-border);
 }
 
+
 /* Subtle Background */
+
 .bg-subtle {
     background: var(--theme-surface-hover);
 }
 
+
 /* Hover Background */
+
 .bg-hover:hover {
     background: var(--theme-surface-hover);
 }
 
+
 /* Standard Border Radius */
-.rounded-sm { border-radius: 8px; }
-.rounded-md { border-radius: 12px; }
-.rounded-lg { border-radius: 14px; }
+
+.rounded-sm {
+    border-radius: 8px;
+}
+
+.rounded-md {
+    border-radius: 12px;
+}
+
+.rounded-lg {
+    border-radius: 14px;
+}
+
 
 /* Scrollbar Styling */
+
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -46,10 +76,26 @@
     background: var(--theme-scrollbar-hover, var(--theme-border-hover));
 }
 
+/* Hide scrollbar (e.g. for horizontal carousels) */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+
 /* Animation Keyframes */
+
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideUp {
@@ -74,7 +120,9 @@
     }
 }
 
+
 /* Transition Utilities */
+
 .transition-fast {
     transition: all 0.15s ease;
 }
@@ -87,7 +135,9 @@
     transition: all 0.3s ease;
 }
 
+
 /* Button Base */
+
 .btn-base {
     display: inline-flex;
     align-items: center;
@@ -121,7 +171,9 @@
     border-color: var(--theme-border-hover);
 }
 
+
 /* Glass Effect Variants */
+
 .glass-light {
     background: rgba(27, 25, 19, 0.6);
     backdrop-filter: blur(20px);
@@ -146,21 +198,27 @@
     -webkit-backdrop-filter: blur(8px);
 }
 
+
 /* Message Glass Effect */
+
 .glass-message {
     background: var(--theme-assistant-message-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
 }
 
+
 /* Input Area Glass Effect */
+
 .glass-input {
     background: rgba(20, 18, 11, 0.95);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
 }
 
+
 /* Overlay Glass Effect */
+
 .glass-overlay-content {
     background: rgba(20, 18, 11, 0.92);
     backdrop-filter: blur(40px);

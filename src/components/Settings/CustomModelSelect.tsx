@@ -29,8 +29,6 @@ export interface CustomModelSelectProps {
   value: string
   /** Callback when selection changes */
   onChange: (value: string) => void
-  /** Gemini models */
-  geminiModels: ModelOption[]
   /** Groq models */
   groqModels: ModelOption[]
   /** OpenRouter models */
@@ -48,7 +46,6 @@ export interface CustomModelSelectProps {
 export function CustomModelSelect({
   value,
   onChange,
-  geminiModels,
   groqModels,
   openRouterModels,
   perplexityModels,
@@ -70,12 +67,11 @@ export function CustomModelSelect({
 
   // Get all models grouped by provider
   const allModels = useMemo(() => [
-    ...geminiModels.map(m => ({ ...m, provider: 'Gemini' })),
     ...groqModels.map(m => ({ ...m, provider: 'Groq' })),
     ...openRouterModels.map(m => ({ ...m, provider: 'OpenRouter' })),
     ...perplexityModels.map(m => ({ ...m, provider: 'Perplexity' })),
     ...ollamaModels.map(m => ({ ...m, provider: 'Ollama' }))
-  ], [geminiModels, groqModels, openRouterModels, perplexityModels, ollamaModels])
+  ], [groqModels, openRouterModels, perplexityModels, ollamaModels])
 
   // Find selected model
   const selectedModel = allModels.find(m => m.code === value)
@@ -94,7 +90,6 @@ export function CustomModelSelect({
   // Group filtered models by provider
   const groupedModels = useMemo(() => {
     const groups: Record<string, ModelOption[]> = {
-      Gemini: [],
       Groq: [],
       OpenRouter: [],
       Perplexity: [],
@@ -293,7 +288,6 @@ export function CustomModelSelect({
             style={{ maxHeight: '300px' }}
             viewportStyle={{ paddingRight: '4px' }}
           >
-            {renderGroup('Gemini', groupedModels.Gemini)}
             {renderGroup('Groq', groupedModels.Groq)}
             {renderGroup('OpenRouter', groupedModels.OpenRouter)}
             {renderGroup('Perplexity', groupedModels.Perplexity)}

@@ -1,4 +1,3 @@
-import React from 'react'
 import { Info, Zap, Clock } from './icons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

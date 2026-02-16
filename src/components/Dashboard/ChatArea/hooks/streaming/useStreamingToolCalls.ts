@@ -7,10 +7,10 @@
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { useToolCalling } from '../../../../../hooks/useToolCalling'
+import { useResearchMode } from './useResearchMode'
 import { useToast } from '../../../../shared/Toast'
-import type { Message, ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
 import type { UpdateStreamingCallback, StreamingSettings } from './types'
 
 /**
@@ -65,7 +65,7 @@ export interface UseStreamingToolCallsReturn {
   /** Clear tool state */
   clearToolState: () => void
   /** Start research mode */
-  startResearchMode: (maxRounds: number, mandatory: boolean) => void
+  startResearchMode: (maxRounds: number, mandatory?: boolean, forceWebSearch?: boolean) => void
   /** Get research context for system prompt */
   getResearchContext: (searchCount: number, maxRounds: number, mandatory: boolean) => string
   /** Tool call accumulator utilities */
@@ -141,7 +141,7 @@ export interface ProcessToolCallsResult {
  * Hook for handling tool execution and result handling during streaming
  */
 export function useStreamingToolCalls({
-  settings,
+  settings: _settings,
 }: UseStreamingToolCallsOptions): UseStreamingToolCallsReturn {
   const { showToast } = useToast()
   
@@ -150,11 +150,14 @@ export function useStreamingToolCalls({
     canUseTools,
     getToolsForRequest,
     handleToolCalls: baseHandleToolCalls,
-    toolState,
     clearToolState,
-    startResearchMode,
-    getResearchContext,
   } = useToolCalling()
+
+  // Use useResearchMode for research-specific logic (unified web search prompt)
+  const { startResearchMode, getResearchContext } = useResearchMode({
+    canUseTools,
+    webSearchPrompt: _settings.webSearchPrompt,
+  })
 
   /**
    * Create a new tool call accumulator state
@@ -219,9 +222,17 @@ export function useStreamingToolCalls({
   /**
    * Handle tool calls with error handling and toast notifications
    */
-  const handleToolCalls = useCallback(async (response: any): Promise<ToolCallProcessingResult> => {
+  const handleToolCalls = useCallback(async (
+    response: any,
+    options?: { onToolStart?: (tc: any) => void; onToolComplete?: (r: any) => void; onResearchPlanProgress?: (step: number, total: number, query?: string) => void }
+  ): Promise<ToolCallProcessingResult> => {
     try {
-      return await baseHandleToolCalls(response)
+      return await baseHandleToolCalls(
+        response,
+        options?.onToolStart,
+        options?.onToolComplete,
+        options?.onResearchPlanProgress
+      )
     } catch (toolError: any) {
       console.error('Tool calls processing error:', toolError)
       showToast(`Tool execution error: ${toolError.message || 'Unknown error'}`, 'error')
@@ -280,7 +291,7 @@ export function useStreamingToolCalls({
       sessionId,
       messageId,
       researchMaxRounds,
-      researchMandatory,
+      researchMandatory: _researchMandatory,
       updateStreamingMessage,
     } = options
 
@@ -328,10 +339,8 @@ export function useStreamingToolCalls({
       (r: any) => r.toolCall.name === 'web_search'
     ).length || 0
 
-    // Determine if more tool calls are needed
-    const needsMoreToolCalls = toolResult.needsFollowUp && 
-      toolResult.formattedResults.length > 0 &&
-      (researchMandatory || totalSearchCount < researchMaxRounds)
+    // Determine if more tool calls are needed (model decides - no cap)
+    const needsMoreToolCalls = toolResult.needsFollowUp && toolResult.formattedResults.length > 0
 
     return {
       toolResults: savedToolResults.length > 0 ? savedToolResults : null,

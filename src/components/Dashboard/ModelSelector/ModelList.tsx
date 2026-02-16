@@ -1,17 +1,24 @@
 /**
- * ModelList component - renders the list of models
+ * ModelList component - renders the list of models with Framer Motion animations
  * 
  * @module ModelSelector/ModelList
  * Requirements: 3.2 - Matches t3.chat design
  */
 
-import React, { useState } from 'react'
-import { Check, Star, Search, Eye, Code, Info, Zap, Globe, Brain, Sparkles } from 'lucide-react'
-import { getModelAttributes, detectModelCapabilities, getProviderTitle } from '../../../utils/modelUtils'
-import type { ModelCapability } from '../../../utils/modelUtils'
+import React from 'react'
+import { motion } from 'framer-motion'
+import { Star, Search, Info } from 'lucide-react'
+import {
+  getModelAttributes,
+  getCapabilitiesForModelPicker,
+  getProviderTitle,
+  getModelDescription,
+  CAPABILITY_BADGES,
+} from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ModelIcon } from './ModelIcon'
 
 /**
  * Props for ModelList component
@@ -31,66 +38,40 @@ export interface ModelListProps {
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }
 
-/**
- * Get description for a model based on its attributes
- */
-function getModelDescription(model: ModelWithProvider): string {
-  const name = model.displayName.toLowerCase()
-  const code = model.code.toLowerCase()
-
-  // Provider-specific descriptions
-  if (model.provider === 'gemini') {
-    if (name.includes('flash')) return 'Lightning-fast with surprising capability'
-    if (name.includes('pro')) return "Google's newest flagship with advanced reasoning"
-    return 'Google AI model with multimodal capabilities'
-  }
-
-  if (model.provider === 'openrouter') {
-    if (code.includes('claude')) return "Anthropic's most advanced Sonnet yet"
-    if (code.includes('gpt-4')) return "OpenAI's latest with breakthrough speed and intelligence"
-    if (code.includes('gpt-5')) return "OpenAI's next-generation language model"
-    if (code.includes('llama')) return 'Meta AI open source model'
-    if (code.includes('mistral')) return 'Efficient European AI model'
-    if (code.includes('deepseek')) return 'Advanced reasoning with deep thinking'
-    if (code.includes('grok')) return 'xAI model with real-time knowledge'
-    if (code.includes('kimi')) return 'Enhanced version with longer context'
-    if (code.includes('qwen')) return 'Alibaba AI with strong multilingual support'
-    return 'Available via OpenRouter'
-  }
-
-  if (model.provider === 'perplexity') {
-    if (name.includes('deep research')) return 'In-depth research with citations'
-    if (name.includes('reasoning')) return 'Advanced reasoning capabilities'
-    return 'Real-time web search powered'
-  }
-
-  if (model.provider === 'groq') {
-    return 'Ultra-fast inference on Groq hardware'
-  }
-
-  if (model.provider === 'minimax') {
-    if (name.includes('lightning')) return 'Ultra-fast inference with M2.1 performance'
-    if (name.includes('m2.1')) return 'Advanced reasoning with interleaved thinking'
-    if (name.includes('m2')) return 'Powerful model with 200k context'
-    return 'MiniMax AI model with advanced capabilities'
-  }
-
-  if (model.provider === 'ollama') {
-    return 'Running locally on your machine'
-  }
-
-  // Fallback for any unhandled provider
-  const providerName = model.provider as string
-  return `${providerName.charAt(0).toUpperCase() + providerName.slice(1)} model`
-}
-
-const CAPABILITY_LABELS: Record<ModelCapability, string> = {
+const LEGACY_CAPABILITY_LABELS: Record<string, string> = {
   vision: 'Vision',
   code: 'Functions',
-  reasoning: 'Reasoning',
-  fast: 'Fast',
-  online: 'Online',
-  'deep-research': 'Deep Research'
+  toolCall: 'Tool Calling',
+  deepThinking: 'Deep Thinking',
+  webSearch: 'Web Search',
+  imageGen: 'Image Gen',
+  videoRec: 'Video',
+}
+
+/**
+ * Animation variants for staggered list
+ */
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.03
+    }
+  }
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -8 },
+  show: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      type: "spring" as const,
+      stiffness: 400,
+      damping: 30
+    }
+  }
 }
 
 /**
@@ -107,40 +88,35 @@ export function ModelList({
 }: ModelListProps): React.ReactElement {
   if (models.length === 0) {
     return (
-      <div style={{
-        padding: '24px 16px',
-        textAlign: 'center',
-        color: '#666'
-      }}>
-        <Search size={20} style={{ opacity: 0.3, marginBottom: '8px' }} />
-        <div style={{ fontSize: '0.8rem' }}>No models found</div>
+      <div className="py-6 px-4 text-center text-muted-foreground">
+        <Search size={20} className="opacity-30 mx-auto mb-2" />
+        <div className="text-sm">No models found</div>
       </div>
     )
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px',
-      animation: 'fadeIn 0.2s ease',
-      position: 'relative',
-      zIndex: 2
-    }}>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="flex flex-col gap-1"
+    >
       {models.map(model => {
         const isActive = selectedModelCode === model.code && selectedModelProvider === model.provider
         return (
-          <ModelItem
-            key={`${model.provider}-${model.code}`}
-            model={model}
-            isActive={isActive}
-            isFavorite={favoriteModels.includes(model.code)}
-            onSelect={onModelSelect}
-            onToggleFavorite={onToggleFavorite}
-          />
+          <motion.div key={`${model.provider}-${model.code}`} variants={itemVariants}>
+            <ModelItem
+              model={model}
+              isActive={isActive}
+              isFavorite={favoriteModels.includes(model.code)}
+              onSelect={onModelSelect}
+              onToggleFavorite={onToggleFavorite}
+            />
+          </motion.div>
         )
       })}
-    </div>
+    </motion.div>
   )
 }
 
@@ -166,178 +142,99 @@ function ModelItem({
   onToggleFavorite
 }: ModelItemProps): React.ReactElement {
   const { color, badge } = getModelAttributes(model)
-  const capabilities = detectModelCapabilities(model.code + ' ' + model.displayName)
-  const hasVision = capabilities.includes('vision')
-  const hasCode = capabilities.includes('code')
+  const capabilities = getCapabilitiesForModelPicker(model)
   const description = getModelDescription(model)
   const providerTitle = getProviderTitle(model.provider)
-  const capabilityChips = capabilities.map(capability => (
-    <span key={capability} className="model-info-chip">
-      {CAPABILITY_LABELS[capability]}
-    </span>
-  ))
+  const capabilityChips = capabilities.map((capKey) => {
+    const badgeConfig = CAPABILITY_BADGES[capKey]
+    const label = badgeConfig?.label ?? LEGACY_CAPABILITY_LABELS[capKey] ?? capKey
+    return (
+      <span key={capKey} className="model-info-chip">
+        {label}
+      </span>
+    )
+  })
 
   return (
-    <div
+    <motion.div
       onClick={(e) => onSelect(model, e)}
       onMouseDown={(e) => e.stopPropagation()}
-      className={`model-item-t3 ${isActive ? 'model-item-t3-active' : ''}`}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '10px',
-        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
-        cursor: 'pointer',
-        minWidth: 0,
-        transition: 'all 0.15s ease'
-      }}
-      onMouseEnter={e => {
-        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-      }}
-      onMouseLeave={e => {
-        if (!isActive) e.currentTarget.style.background = 'transparent'
-      }}
+      whileHover={{ x: 2 }}
+      className={`
+        flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer
+        transition-colors min-w-0
+        ${isActive ? 'bg-primary/10' : 'hover:bg-muted/50'}
+      `}
     >
       {/* Provider Logo/Icon */}
-      <div style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
-        background: `linear-gradient(145deg, ${color}20, transparent)`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        overflow: 'hidden'
-      }}>
-        <ModelIcon model={model} color={color} size={22} />
+      <div className="w-8 h-8 shrink-0 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden"
+        style={{ background: `linear-gradient(145deg, ${color}20, transparent)` }}
+      >
+        <ModelIcon
+          model={model}
+          icon={getModelAttributes(model).icon}
+          color={color}
+          size={22}
+        />
       </div>
 
       {/* Model Info */}
-      <div style={{
-        flex: 1,
-        minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px'
-      }}>
+      <div className="flex flex-1 flex-col gap-0.5 min-w-0">
         {/* Top row: Name + Favorite Star + Badge */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          minWidth: 0
-        }}>
-          <span style={{
-            fontSize: '0.85rem',
-            color: 'var(--theme-text-primary)',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate text-sm font-semibold text-foreground">
             {removeEmojis(model.displayName)}
           </span>
 
           {/* Inline Favorite Star */}
-          <button
-            className={`star-btn-inline ${isFavorite ? 'favorited' : ''}`}
+          <motion.button
             onClick={(e) => {
               e.stopPropagation()
               onToggleFavorite(model.code, e)
             }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
+            transition={{ type: "spring", stiffness: 500, damping: 15 }}
+            className="p-0.5 shrink-0 transition-opacity"
             style={{
-              padding: '2px',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
-              opacity: isFavorite ? 1 : 0.4,
-              transition: 'all 0.15s ease',
-              flexShrink: 0
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.opacity = '1'
-              e.currentTarget.style.transform = 'scale(1.1)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.opacity = isFavorite ? '1' : '0.4'
-              e.currentTarget.style.transform = 'scale(1)'
+              color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
+              opacity: isFavorite ? 1 : 0.4
             }}
           >
             <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
-          </button>
+          </motion.button>
 
           {/* Badge (if any) */}
           {badge && (
-            <div style={{ flexShrink: 0 }}>
+            <div className="shrink-0">
               {badge}
             </div>
           )}
         </div>
 
         {/* Description line */}
-        <span style={{
-          fontSize: '0.7rem',
-          color: 'var(--theme-text-muted)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          opacity: 0.7
-        }}>
+        <span className="text-xs text-muted-foreground truncate opacity-70">
           {description}
         </span>
       </div>
 
       {/* Feature Badges (Right side) */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        flexShrink: 0
-      }}>
-        {/* Vision Badge */}
-        {hasVision && (
-          <div
-            title="Supports vision/images"
-            className="feature-badge"
-            style={{
-              padding: '4px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--theme-text-muted)',
-              opacity: 0.6
-            }}
-          >
-            <Eye size={14} />
-          </div>
-        )}
-
-        {/* Function Calling Badge */}
-        {hasCode && (
-          <div
-            title="Supports function calling"
-            className="feature-badge"
-            style={{
-              padding: '4px',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--theme-text-muted)',
-              opacity: 0.6
-            }}
-          >
-            <Code size={14} />
-          </div>
-        )}
+      <div className="flex items-center gap-1 shrink-0">
+        {capabilities.map((capKey) => {
+          const badgeConfig = CAPABILITY_BADGES[capKey]
+          if (!badgeConfig) return null
+          const Icon = badgeConfig.icon
+          return (
+            <div
+              key={capKey}
+              title={badgeConfig.label}
+              className="p-1 rounded opacity-60 hover:opacity-80 transition-opacity"
+            >
+              <Icon size={14} className="text-muted-foreground" />
+            </div>
+          )
+        })}
 
         {/* Info Button */}
         <Tooltip>
@@ -345,13 +242,13 @@ function ModelItem({
             <button
               type="button"
               aria-label="Model information"
-              className="model-info-btn feature-badge"
+              className="model-info-btn p-1 rounded transition-all opacity-55 hover:opacity-85"
               onClick={(e) => e.stopPropagation()}
             >
-              <Info size={14} />
+              <Info size={14} className="text-muted-foreground" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="left" sideOffset={8} className="rounded-full model-info-tooltip">
+          <TooltipContent side="left" sideOffset={8} className="rounded-lg model-info-tooltip">
             <div className="model-info-tooltip__title">Model info</div>
             <div className="model-info-tooltip__name">{removeEmojis(model.displayName)}</div>
             <div className="model-info-tooltip__description">{description}</div>
@@ -363,58 +260,18 @@ function ModelItem({
             )}
           </TooltipContent>
         </Tooltip>
+
+        {/* Active Indicator */}
+        {isActive && (
+          <motion.div
+            layoutId="active-model-indicator-list"
+            className="h-2 w-2 rounded-full bg-primary"
+            initial={false}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          />
+        )}
       </div>
-    </div>
-  )
-}
-
-/**
- * ModelIcon component - renders provider logo with fallback
- */
-function ModelIcon({
-  model,
-  color,
-  size = 24
-}: {
-  model: ModelWithProvider
-  color: string
-  size?: number
-}): React.ReactElement {
-  const [imgError, setImgError] = useState(false)
-
-  if (!imgError) {
-    return (
-      <img
-        src={`/provider-logos/${model.provider}.png`}
-        alt={model.displayName}
-        onError={() => setImgError(true)}
-        style={{
-          width: `${size}px`,
-          height: `${size}px`,
-          objectFit: 'contain',
-          borderRadius: '6px'
-        }}
-      />
-    )
-  }
-
-  // Fallback icon based on model name
-  const name = model.displayName.toLowerCase()
-  let FallbackIcon = Sparkles
-
-  if (name.includes('gpt') || name.includes('openai')) FallbackIcon = Zap
-  else if (name.includes('claude')) FallbackIcon = Brain
-  else if (name.includes('llama')) FallbackIcon = Globe
-
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: color
-    }}>
-      <FallbackIcon size={size * 0.75} />
-    </div>
+    </motion.div>
   )
 }
 

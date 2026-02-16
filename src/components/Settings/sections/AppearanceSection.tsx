@@ -10,6 +10,8 @@ import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { useSettings } from '../../../contexts/SettingsContext'
+import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
+import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
 
@@ -91,13 +93,78 @@ const chatBubblePresets = [
   }
 ] as const
 
+const chatSelectedOverlayPresets: Array<{
+  id: ChatSelectedOverlayStyle
+  label: string
+  description: string
+  previewStyle: React.CSSProperties
+}> = [
+  {
+    id: 'linear',
+    label: 'Linear Solid',
+    description: 'Dense neutral surface with precise edge',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 88%, black 12%)',
+      border: '1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent)',
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+    }
+  },
+  {
+    id: 'notion',
+    label: 'Notion Soft',
+    description: 'Calm, low-contrast solid selection',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-hover) 82%, transparent)',
+      border: '1px solid transparent',
+      boxShadow: 'none',
+    }
+  },
+  {
+    id: 'slack',
+    label: 'Slack Tint',
+    description: 'Solid accent-tinted selection for focus',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface-active))',
+      border: '1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent)',
+      boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)',
+    }
+  },
+  {
+    id: 'discord',
+    label: 'Discord Solid',
+    description: 'Chunky neutral fill with soft border',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 92%, var(--theme-surface) 8%)',
+      border: '1px solid color-mix(in srgb, var(--theme-border) 62%, transparent)',
+      boxShadow: 'none',
+    }
+  },
+  {
+    id: 'github',
+    label: 'GitHub Subtle',
+    description: 'Clean card-like active row with restraint',
+    previewStyle: {
+      background: 'color-mix(in srgb, var(--theme-surface-active) 86%, transparent)',
+      border: '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+      boxShadow: 'none',
+    }
+  },
+]
+
 export interface AppearanceSectionProps {}
 
 export function AppearanceSection(_props: AppearanceSectionProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
+  const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
-  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles'>('themes')
+  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles' | 'modelselector'>('themes')
+  
+  // Helper to get modelSelector with defaults
+  const getModelSelector = () => ({
+    ...defaultSettingsUI.modelSelector!,
+    ...settings.modelSelector,
+  })
   const commandBar = settings.commandBar
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
@@ -123,6 +190,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
     const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
     applyThemeToDocument(theme)
   }, [settings.activeTheme])
+
 
   return (
     <div style={{ width: '100%', padding: '32px', paddingBottom: 100 }}>
@@ -193,6 +261,23 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           }}
         >
           Chat Bubbles
+        </button>
+        <button
+          onClick={() => setAppearancePage('modelselector')}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid var(--theme-border)',
+            background: appearancePage === 'modelselector' ? 'var(--theme-surface-active)' : 'transparent',
+            color: 'var(--theme-text-primary)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: appearancePage === 'modelselector' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
+          }}
+        >
+          Model Selector
         </button>
       </div>
 
@@ -605,7 +690,570 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
               )
             })}
           </div>
+
+          <div style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: '1px solid var(--theme-border-subtle)'
+          }}>
+            <h4 style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)'
+            }}>
+              Chat Selected Overlay
+            </h4>
+            <p style={{
+              margin: '0 0 14px',
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)'
+            }}>
+              Choose the selected chat highlight style in the sidebar.
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px'
+            }}>
+              {chatSelectedOverlayPresets.map((preset) => {
+                const isActive = currentChatSelectedOverlayStyle === preset.id
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
+                    style={{
+                      textAlign: 'left',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                      background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                      boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{
+                      height: 34,
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 10px',
+                      marginBottom: 10,
+                      ...preset.previewStyle
+                    }}>
+                      <span style={{
+                        fontSize: '0.82rem',
+                        color: 'var(--theme-text-primary)',
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        Prompt Optimization Guide
+                      </span>
+                      <span style={{
+                        marginLeft: 8,
+                        color: 'var(--theme-text-muted)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1
+                      }}>
+                        ...
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
+                      {preset.label}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                      {preset.description}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </Card>
+      )}
+
+      {appearancePage === 'modelselector' && (
+        <>
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <PanelLeft size={20} style={{ color: 'var(--theme-accent)' }} />
+              Layout
+            </h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Configure the model selector layout and positioning.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Sidebar position</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Place provider sidebar on left or right</div>
+                </div>
+                <select
+                  value={getModelSelector().sidebarPosition}
+                  onChange={(e) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      sidebarPosition: e.target.value as 'left' | 'right'
+                    } 
+                  })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                >
+                  <option value="left">Left</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show sidebar labels</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display provider names alongside icons</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().sidebarShowLabels}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      sidebarShowLabels: checked
+                    } 
+                  })}
+                  aria-label="Show sidebar labels"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show model count badges</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display number of models per provider</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().sidebarShowModelCount}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      sidebarShowModelCount: checked
+                    } 
+                  })}
+                  aria-label="Show model count badges"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown width</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Control the overall selector size</div>
+                </div>
+                <select
+                  value={getModelSelector().dropdownWidth}
+                  onChange={(e) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      dropdownWidth: e.target.value as 'compact' | 'default' | 'wide'
+                    } 
+                  })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                >
+                  <option value="compact">Compact (420px)</option>
+                  <option value="default">Default (520px)</option>
+                  <option value="wide">Wide (640px)</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <MessageSquare size={20} style={{ color: 'var(--theme-accent)' }} />
+              Display
+            </h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Control what information is shown for each model.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show model descriptions</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display model capability descriptions</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showDescriptions}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showDescriptions: checked
+                    } 
+                  })}
+                  aria-label="Show model descriptions"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show capability badges</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display tools, vision, search & other capability labels</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showCapabilityBadges}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showCapabilityBadges: checked
+                    } 
+                  })}
+                  aria-label="Show capability badges"
+                />
+              </div>
+
+              {getModelSelector().showCapabilityBadges && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingLeft: 8, borderLeft: '2px solid var(--theme-border)' }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>Badge display</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show icon only, text only, or both</div>
+                  </div>
+                  <select
+                    value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
+                    onChange={(e) => updateSettings({ 
+                      modelSelector: { 
+                        ...getModelSelector(),
+                        capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both'
+                      } 
+                    })}
+                    className="setting-input-scira"
+                    style={{ width: 140 }}
+                  >
+                    <option value="icon">Icon only</option>
+                    <option value="text">Text only</option>
+                    <option value="both">Icon + text</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show provider logos</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Use provider logos instead of fallback icons</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showProviderLogos}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showProviderLogos: checked
+                    } 
+                  })}
+                  aria-label="Show provider logos"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show favorite stars</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display favorite toggle buttons</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showFavoriteStars}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showFavoriteStars: checked
+                    } 
+                  })}
+                  aria-label="Show favorite stars"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show context length</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display context length (e.g. 200K, 1M) next to each model</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showContextLength !== false}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showContextLength: checked
+                    } 
+                  })}
+                  aria-label="Show context length"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show info tooltips</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Enable hover tooltips with model details</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showInfoTooltips}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showInfoTooltips: checked
+                    } 
+                  })}
+                  aria-label="Show info tooltips"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Active indicator style</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How the selected model is highlighted</div>
+                </div>
+                <select
+                  value={getModelSelector().activeIndicatorStyle}
+                  onChange={(e) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight'
+                    } 
+                  })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                >
+                  <option value="dot">Dot</option>
+                  <option value="checkmark">Checkmark</option>
+                  <option value="highlight">Highlight</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Paintbrush size={20} style={{ color: 'var(--theme-accent)' }} />
+              Density
+            </h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Control spacing between model items.
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: 12
+            }}>
+              {(['compact', 'comfortable', 'spacious'] as const).map((density) => {
+                const isActive = getModelSelector().itemDensity === density
+                return (
+                  <button
+                    key={density}
+                    onClick={() => updateSettings({ 
+                      modelSelector: { 
+                        ...getModelSelector(),
+                        itemDensity: density
+                      } 
+                    })}
+                    style={{
+                      textAlign: 'left',
+                      padding: 14,
+                      borderRadius: 12,
+                      border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                      background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                      boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px', textTransform: 'capitalize' }}>
+                      {density}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                      {density === 'compact' && 'Tighter spacing, more models visible'}
+                      {density === 'comfortable' && 'Balanced spacing for readability'}
+                      {density === 'spacious' && 'More breathing room between items'}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </Card>
+
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Command size={18} style={{ color: 'var(--theme-accent)' }} />
+              Behavior
+            </h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Configure how the model selector behaves.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Default view on open</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>What to show when selector opens</div>
+                </div>
+                <select
+                  value={getModelSelector().defaultView}
+                  onChange={(e) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      defaultView: e.target.value as 'favorites' | 'lastUsed'
+                    } 
+                  })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                >
+                  <option value="lastUsed">Last Used Provider</option>
+                  <option value="favorites">Favorites</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Auto-close on select</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Close dropdown when a model is selected</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().autoCloseOnSelect}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      autoCloseOnSelect: checked
+                    } 
+                  })}
+                  aria-label="Auto-close on select"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Remember last provider</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Restore last selected provider on open</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().rememberProvider}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      rememberProvider: checked
+                    } 
+                  })}
+                  aria-label="Remember last provider"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show search bar</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display search input for filtering models</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().showSearch}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      showSearch: checked
+                    } 
+                  })}
+                  aria-label="Show search bar"
+                />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="settings-section-card" style={{ marginTop: 24 }}>
+            <h3 style={{
+              margin: '0 0 8px',
+              fontSize: '1.05rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <Paintbrush size={20} style={{ color: 'var(--theme-accent)' }} />
+              Animations
+            </h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+              Control animation effects and timing.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable animations</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Smooth transitions and effects</div>
+                </div>
+                <Switch
+                  checked={getModelSelector().enableAnimations}
+                  onCheckedChange={(checked) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      enableAnimations: checked
+                    } 
+                  })}
+                  aria-label="Enable animations"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Stagger animation speed</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How quickly items appear in sequence</div>
+                </div>
+                <select
+                  value={getModelSelector().staggerSpeed}
+                  onChange={(e) => updateSettings({ 
+                    modelSelector: { 
+                      ...getModelSelector(),
+                      staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow'
+                    } 
+                  })}
+                  className="setting-input-scira"
+                  style={{ width: 160 }}
+                  disabled={!getModelSelector().enableAnimations}
+                >
+                  <option value="fast">Fast</option>
+                  <option value="normal">Normal</option>
+                  <option value="slow">Slow</option>
+                </select>
+              </div>
+            </div>
+          </Card>
+        </>
       )}
     </div>
   )

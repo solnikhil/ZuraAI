@@ -14,6 +14,11 @@ export type { ModelSectionProps } from './ModelSection'
 export { ApiKeysSection } from './ApiKeysSection'
 export type { ApiKeysSectionProps } from './ApiKeysSection'
 
+export { ProviderHubSection } from './ProviderHubSection'
+export type { ProviderHubSectionProps } from './ProviderHubSection'
+
+export { CreateCustomModelDialog } from './CreateCustomModelDialog'
+
 export { AppearanceSection } from './AppearanceSection'
 export type { AppearanceSectionProps } from './AppearanceSection'
 

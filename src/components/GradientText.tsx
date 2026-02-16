@@ -1,5 +1,5 @@
 import './GradientText.css';
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { useSettings } from '../contexts/SettingsContext';
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry';
 

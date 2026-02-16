@@ -1,9 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight } from './icons'
+import { ChevronRight, Loader2, Search } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
+
+const toolDisplayNames: Record<string, string> = {
+    web_search: 'Web Search',
+}
+
+function formatToolDisplayName(name: string): string {
+    return toolDisplayNames[name] || name.replace(/_/g, ' ')
+}
+
+function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
+    const displayName = formatToolDisplayName(tool.name)
+    if (tool.name === 'web_search' && tool.arguments?.query) {
+        return `Using ${displayName}: "${String(tool.arguments.query)}"`
+    }
+    return `Using ${displayName}...`
+}
 
 interface ThinkingBlockProps {
     thinking: string
@@ -11,6 +27,8 @@ interface ThinkingBlockProps {
     thinkingDuration?: number // in milliseconds
     isSearching?: boolean // Show "Searching" state instead of "Thinking"
     searchQuery?: string // The search query being searched
+    /** Active tool calls during streaming (shows tool calling animation) */
+    activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
     // New props for showing completed blocks
     completedBlocks?: ThinkingBlockType[]
 }
@@ -26,25 +44,167 @@ function formatDuration(ms: number): string {
     return `${remainingSeconds}s`
 }
 
+/** Inline Web Search tool call - dropdown with JSON input/output, follows thinking block style */
+function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
+        (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
+    const query = block.query || ''
+
+    return (
+        <div className="thinking-block thinking-inline-tool-call">
+            <div
+                className={`thinking-header tool-call ${isExpanded ? 'expanded' : ''} ${hasDetails ? 'clickable' : ''}`}
+                onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+            >
+                <div className="thinking-label">
+                    <span className="thinking-tool-calling-icon">
+                        <Search size={14} />
+                    </span>
+                    <span className="thinking-text">
+                        Web Search{query ? `: "${query}"` : ''}
+                    </span>
+                    {hasDetails && (
+                        <motion.div
+                            animate={{ rotate: isExpanded ? 90 : 0 }}
+                            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                        >
+                            <ChevronRight size={14} className="thinking-chevron" />
+                        </motion.div>
+                    )}
+                </div>
+            </div>
+            <AnimatePresence initial={false}>
+                {isExpanded && hasDetails && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{
+                            height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                            opacity: { duration: 0.15, ease: 'easeInOut' }
+                        }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div className="thinking-content thinking-tool-details">
+                            {block.toolInput && Object.keys(block.toolInput).length > 0 && (
+                                <div className="thinking-tool-json">
+                                    <div className="thinking-tool-json-label">Input</div>
+                                    <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
+                                </div>
+                            )}
+                            {block.toolOutput && (
+                                <div className="thinking-tool-json">
+                                    <div className="thinking-tool-json-label">
+                                        Output
+                                        {block.toolOutput.executionTime != null && (
+                                            <span className="thinking-tool-meta"> ({block.toolOutput.executionTime}ms)</span>
+                                        )}
+                                    </div>
+                                    <pre>
+                                        {block.toolOutput.error
+                                            ? block.toolOutput.error
+                                            : block.toolOutput.data !== undefined
+                                                ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                : '{}'}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+/** Split thinking by --- and interleave with Web Search blocks (replaces --- with tool call UI) */
+function renderThinkingWithToolCalls(thinking: string, searchBlocks: ThinkingBlockType[]): React.ReactNode {
+    const separator = /\n\s*---\s*\n?/g
+    const segments = thinking.split(separator)
+    const searchBlocksFiltered = searchBlocks.filter(b => b.type === 'searching')
+    if (segments.length <= 1 || searchBlocksFiltered.length === 0) {
+        return thinking
+    }
+    const nodes: React.ReactNode[] = []
+    for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i]
+        if (seg != null && seg.length > 0) {
+            nodes.push(<span key={`seg-${i}`} className="thinking-segment">{seg}</span>)
+        }
+        if (i < segments.length - 1 && searchBlocksFiltered[i]) {
+            nodes.push(<InlineWebSearchBlock key={`search-${i}`} block={searchBlocksFiltered[i]!} />)
+        }
+    }
+    return <>{nodes}</>
+}
+
 // Component for a single completed block (collapsed by default)
 function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; defaultExpanded?: boolean }) {
     const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : block.type === 'thinking'
     const [isExpanded, setIsExpanded] = useState(shouldExpand)
 
     if (block.type === 'searching') {
+        const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
+            (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
         return (
-            <div className="thinking-block completed">
-                <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
+            <div className="thinking-block completed thinking-tool-call">
+                <div
+                    className={`thinking-header completed tool-call ${hasDetails ? 'clickable' : ''}`}
+                    onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+                >
                     <div className="thinking-label">
-                        <span className="thinking-text">
-                            Tool: Web Search req{block.query ? ` "${block.query}"` : ''}
+                        <span className="thinking-tool-calling-icon">
+                            <Search size={14} />
                         </span>
-                        <ChevronRight
-                            size={14}
-                            className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`}
-                        />
+                        <span className="thinking-text">
+                            Web Search{block.query ? `: "${block.query}"` : ''}
+                        </span>
+                        {hasDetails && (
+                            <ChevronRight size={14} className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`} />
+                        )}
                     </div>
                 </div>
+                <AnimatePresence initial={false}>
+                    {isExpanded && hasDetails && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{
+                                height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                                opacity: { duration: 0.15, ease: 'easeInOut' }
+                            }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className="thinking-content thinking-tool-details">
+                                {block.toolInput && Object.keys(block.toolInput).length > 0 && (
+                                    <div className="thinking-tool-json">
+                                        <div className="thinking-tool-json-label">Input</div>
+                                        <pre>{JSON.stringify(block.toolInput, null, 2)}</pre>
+                                    </div>
+                                )}
+                                {block.toolOutput && (
+                                    <div className="thinking-tool-json">
+                                        <div className="thinking-tool-json-label">
+                                            Output
+                                            {block.toolOutput.executionTime != null && (
+                                                <span className="thinking-tool-meta"> ({block.toolOutput.executionTime}ms)</span>
+                                            )}
+                                        </div>
+                                        <pre>
+                                            {block.toolOutput.error
+                                                ? block.toolOutput.error
+                                                : block.toolOutput.data !== undefined
+                                                    ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                    : '{}'}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         )
     }
@@ -93,8 +253,9 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
     )
 }
 
-export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, completedBlocks = [] }: ThinkingBlockProps) {
-    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching) // Expand only for active state
+export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, activeToolCalls = [], completedBlocks = [] }: ThinkingBlockProps) {
+    const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
+    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls) // Expand only for active state
     const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
     // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
     const [finalTime, setFinalTime] = useState<number | null>(
@@ -132,45 +293,64 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isThinking])
 
-    // Auto-expand only while actively thinking, collapse when done
+    // Auto-expand while actively thinking, tool calling, or searching; expand when we have content to show
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
-        } else if (!isThinking && !isSearching) {
-            // Collapse immediately when thinking/searching is done
-            setIsExpanded(false)
+        } else if (hasActiveToolCalls) {
+            setIsExpanded(true)
+        } else if (isSearching) {
+            setIsExpanded(true)
+        } else if (!isThinking && !isSearching && !hasActiveToolCalls) {
+            const hasContentToShow = (thinking && thinking.trim().length > 0) || completedBlocks.length > 0
+            setIsExpanded(hasContentToShow)
         }
-    }, [isThinking, isSearching, thinking])
+    }, [isThinking, isSearching, hasActiveToolCalls, thinking, completedBlocks.length])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
     }
 
-    if (!thinking && !isThinking && !isSearching && completedBlocks.length === 0) return null
+    if (!thinking && !isThinking && !isSearching && !hasActiveToolCalls && completedBlocks.length === 0) return null
 
     const hasThinkingContent = thinking && thinking.trim().length > 0
-    const showActiveBlock = hasThinkingContent || isThinking || isSearching
+    const showActiveBlock = hasThinkingContent || isThinking || isSearching || hasActiveToolCalls
 
     // Use finalTime when thinking is complete, otherwise use live elapsedTime
     const displayTime = finalTime !== null ? finalTime : elapsedTime
 
+    // When thinking contains --- and we have search blocks, show them inline (don't duplicate above)
+    const searchBlocks = completedBlocks.filter(b => b.type === 'searching')
+    const hasThinkingWithToolCalls = hasThinkingContent && /\n\s*---\s*\n?/.test(thinking) && searchBlocks.length > 0
+    const blocksToRender = hasThinkingWithToolCalls ? completedBlocks.filter(b => b.type !== 'searching') : completedBlocks
+
     return (
         <div className="thinking-blocks-container">
-            {/* Render completed blocks first */}
-            {completedBlocks.map((block, index) => (
+            {/* Render completed blocks first - exclude search when shown inline in thinking */}
+            {blocksToRender.map((block, index) => (
                 <CompletedBlock
                     key={`completed-${index}-${block.timestamp}`}
                     block={block}
-                    defaultExpanded={false}
+                    defaultExpanded={!!(block.content && block.content.trim().length > 0)}
                 />
             ))}
 
             {/* Current active block */}
             {showActiveBlock && (
                 <div className={`thinking-block ${isExpanded ? 'expanded' : ''}`}>
-                    <div className={`thinking-header ${isSearching ? 'searching' : ''}`} onClick={handleToggle}>
+                    <div className={`thinking-header ${hasActiveToolCalls ? 'tool-calling' : isSearching ? 'searching' : ''}`} onClick={handleToggle}>
                         <div className="thinking-label">
-                            {isSearching ? (
+                            {hasActiveToolCalls ? (
+                                <span className="thinking-text thinking-tool-calling">
+                                    <span className="thinking-tool-calling-icon">
+                                        <Loader2 size={14} className="tool-call-spinner" />
+                                    </span>
+                                    <AITextLoading
+                                        text={getToolCallText(activeToolCalls[0])}
+                                        animationKey="tool-calling"
+                                    />
+                                </span>
+                            ) : isSearching ? (
                                 <span className="thinking-text">
                                     <AITextLoading 
                                         text={`Searching web${searchQuery ? `: "${searchQuery}"` : ''}`}
@@ -222,7 +402,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                                 style={{ overflow: 'hidden' }}
                             >
                                 <div className="thinking-content">
-                                    {thinking}
+                                    {renderThinkingWithToolCalls(thinking, completedBlocks)}
                                 </div>
                             </motion.div>
                         )}

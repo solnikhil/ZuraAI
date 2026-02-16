@@ -7,7 +7,8 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
-import { filterModels, groupModelsByProvider } from '../../../utils/modelUtils'
+import { checkOllamaStatus, listOllamaModels } from '../../../services/ollama'
+import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
 
@@ -25,6 +26,8 @@ export interface ModelSelectorState {
   selectedProvider: string
   /** Collapsed state for each provider group */
   collapsedGroups: Record<string, boolean>
+  /** Focused model index for keyboard navigation */
+  focusedIndex: number
 }
 
 /**
@@ -51,10 +54,12 @@ export interface UseModelSelectorReturn {
   setSearchQuery: (query: string) => void
   setViewMode: (mode: ViewMode) => void
   setSelectedProvider: (provider: string) => void
+  setFocusedIndex: (index: number) => void
   toggleOpen: () => void
   toggleGroup: (provider: string) => void
   toggleFavorite: (modelCode: string, e: React.MouseEvent) => void
   handleSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
+  handleKeyboardNav: (e: KeyboardEvent) => void
 }
 
 /**
@@ -64,11 +69,52 @@ export interface UseModelSelectorReturn {
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
   
+  const modelSelector = settings.modelSelector || {
+    defaultView: 'lastUsed',
+    rememberProvider: true,
+    autoCloseOnSelect: true,
+  }
+  
+  // Determine initial view mode based on settings
+  const getInitialViewMode = (): ViewMode => {
+    if (modelSelector.defaultView === 'favorites') {
+      return 'favorites'
+    }
+    return 'all'
+  }
+  
   // State
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('all')
-  const [selectedProvider, setSelectedProviderState] = useState<string>(settings.modelProvider || 'openrouter')
+  const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
+  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'nvidia', 'alibaba'] as const
+
+  const isProviderEnabled = useCallback((provider: string): boolean => {
+    switch (provider) {
+      case 'ollama':
+        return Boolean(settings.ollamaUrl?.trim())
+      case 'openrouter':
+        return Boolean(settings.openRouterApiKey?.trim())
+      case 'perplexity':
+        return Boolean(settings.perplexityApiKey?.trim())
+      case 'groq':
+        return Boolean(settings.groqApiKey?.trim())
+      case 'nvidia':
+        return Boolean(settings.nvidiaApiKey?.trim())
+      case 'alibaba':
+        return Boolean(settings.alibabaApiKey?.trim())
+      default:
+        return false
+    }
+  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.nvidiaApiKey, settings.alibabaApiKey])
+
+  const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
+    if (modelSelector.rememberProvider && settings.modelProvider) {
+      const p = settings.modelProvider
+      return (validProviders as readonly string[]).includes(p) ? p : 'openrouter'
+    }
+    return 'openrouter'
+  })
   
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
@@ -76,46 +122,106 @@ export function useModelSelector(): UseModelSelectorReturn {
     ollama: false,
     perplexity: false,
     openrouter: false,
-    gemini: false,
     groq: false,
-    minimax: false
+    nvidia: false,
+    alibaba: false
   })
   
   // Refs
   const searchInputRef = useRef<HTMLInputElement>(null)
   
+  // Keyboard navigation state
+  const [focusedIndex, setFocusedIndex] = useState(-1)
+  
   // Sync selectedProvider with settings.modelProvider when dropdown opens
   useEffect(() => {
     if (isOpen) {
-      setSelectedProvider(settings.modelProvider || 'openrouter')
+      // Set initial view mode based on defaultView setting
+      if (modelSelector.defaultView === 'favorites') {
+        setViewMode('favorites')
+      } else {
+        setViewMode('all')
+        // Restore provider if rememberProvider is enabled and provider is valid and enabled
+        let provider = modelSelector.rememberProvider && settings.modelProvider ? settings.modelProvider : 'openrouter'
+        if (!validProviders.includes(provider as typeof validProviders[number]) || !isProviderEnabled(provider)) {
+          provider = validProviders.find(p => isProviderEnabled(p)) ?? 'openrouter'
+        }
+        setSelectedProvider(provider)
+      }
+      setFocusedIndex(-1) // Reset focus when opening
+    } else {
+      setFocusedIndex(-1) // Reset focus when closing
     }
-  }, [isOpen, settings.modelProvider])
+  }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider, isProviderEnabled])
+
+  // Refresh Ollama models when dropdown opens so models added via terminal appear immediately
+  const prevOpenRef = useRef(false)
+  useEffect(() => {
+    if (!isOpen) {
+      prevOpenRef.current = false
+      return
+    }
+    if (prevOpenRef.current) return // Already fetched for this open session
+    prevOpenRef.current = true
+    const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
+    const existing = (settings.ollamaModels || []).map(m => [m.code, m.enabled] as const)
+    const refresh = async () => {
+      try {
+        const connected = await checkOllamaStatus(url)
+        if (!connected) return
+        const models = await listOllamaModels(url)
+        if (models.length === 0) return
+        const formatted = models.map(m => ({
+          code: m.name,
+          displayName: `${m.name} (${m.details.parameter_size})`
+        }))
+        const enabledMap = new Map(existing)
+        const merged = formatted.map(m => ({
+          ...m,
+          enabled: enabledMap.get(m.code) ?? true
+        }))
+        updateSettings({ ollamaModels: merged })
+      } catch { /* Ollama not available */ }
+    }
+    void refresh()
+  }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
   
-  // Get ALL models from ALL providers
+  // Get ALL models from ENABLED providers only (provider has API key or ollamaUrl)
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
-    
-    if (settings.ollamaModels) {
-      settings.ollamaModels.forEach(m => models.push({ ...m, provider: 'ollama' }))
+
+    if (isProviderEnabled('ollama') && settings.ollamaModels) {
+      settings.ollamaModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'ollama' }))
     }
-    if (settings.perplexityModels) {
-      settings.perplexityModels.forEach(m => models.push({ ...m, provider: 'perplexity' }))
+    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
+      settings.perplexityModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'perplexity' }))
     }
-    if (settings.configuredModels) {
-      settings.configuredModels.forEach(m => models.push({ ...m, provider: 'openrouter' }))
+    if (isProviderEnabled('openrouter') && settings.configuredModels) {
+      settings.configuredModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'openrouter' }))
     }
-    if (settings.geminiModels) {
-      settings.geminiModels.forEach(m => models.push({ ...m, provider: 'gemini' }))
+    if (isProviderEnabled('groq') && settings.groqModels) {
+      settings.groqModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'groq' }))
     }
-    if (settings.groqModels) {
-      settings.groqModels.forEach(m => models.push({ ...m, provider: 'groq' }))
+    if (isProviderEnabled('nvidia') && settings.nvidiaModels) {
+      settings.nvidiaModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'nvidia' }))
     }
-    if (settings.minimaxModels) {
-      settings.minimaxModels.forEach(m => models.push({ ...m, provider: 'minimax' }))
+    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
+      settings.alibabaModels
+        .filter(m => m.enabled !== false)
+        .forEach(m => models.push({ ...m, provider: 'alibaba' }))
     }
-    
     return models
-  }, [settings])
+  }, [settings, isProviderEnabled])
   
   // Filter models based on search query
   const filteredModels = useMemo(() => {
@@ -128,9 +234,9 @@ export function useModelSelector(): UseModelSelectorReturn {
       ollama: filteredModels.filter(m => m.provider === 'ollama'),
       perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
       openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
-      gemini: filteredModels.filter(m => m.provider === 'gemini'),
       groq: filteredModels.filter(m => m.provider === 'groq'),
-      minimax: filteredModels.filter(m => m.provider === 'minimax')
+      nvidia: filteredModels.filter(m => m.provider === 'nvidia'),
+      alibaba: filteredModels.filter(m => m.provider === 'alibaba')
     }
   }, [filteredModels])
   
@@ -165,6 +271,24 @@ export function useModelSelector(): UseModelSelectorReturn {
     return removeEmojis(nameRaw)
   }, [currentModel, settings.aiModel])
   
+  // Reset focused index when models change
+  useEffect(() => {
+    if (focusedIndex >= currentModels.length) {
+      setFocusedIndex(Math.max(0, currentModels.length - 1))
+    }
+  }, [currentModels.length, focusedIndex])
+
+  // Auto-switch when current model is from a disabled provider (no longer in allModels)
+  useEffect(() => {
+    const currentInList = allModels.some(
+      m => m.code === settings.aiModel && m.provider === settings.modelProvider
+    )
+    if (!currentInList && allModels.length > 0) {
+      const fallback = allModels[0]
+      updateSettings({ aiModel: fallback.code, modelProvider: fallback.provider })
+    }
+  }, [allModels, settings.aiModel, settings.modelProvider, updateSettings])
+  
   // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {
     setIsOpen(prev => !prev)
@@ -194,9 +318,53 @@ export function useModelSelector(): UseModelSelectorReturn {
       e.stopPropagation()
       e.preventDefault()
     }
-    setIsOpen(false)
+    if (modelSelector.autoCloseOnSelect) {
+      setIsOpen(false)
+    }
+    setFocusedIndex(-1)
     updateSettings({ aiModel: model.code, modelProvider: model.provider })
-  }, [updateSettings])
+  }, [updateSettings, modelSelector.autoCloseOnSelect])
+  
+  // Keyboard navigation handlers
+  const handleKeyboardNav = useCallback((e: KeyboardEvent) => {
+    if (!isOpen) return
+    
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setFocusedIndex(prev => 
+          prev < currentModels.length - 1 ? prev + 1 : 0
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setFocusedIndex(prev => 
+          prev > 0 ? prev - 1 : currentModels.length - 1
+        )
+        break
+      case 'Enter':
+        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
+          e.preventDefault()
+          handleSelect(currentModels[focusedIndex])
+        }
+        break
+      case 'Escape':
+        e.preventDefault()
+        setIsOpen(false)
+        setFocusedIndex(-1)
+        break
+    }
+  }, [isOpen, currentModels, focusedIndex, handleSelect])
+  
+  // Attach keyboard event listener when dropdown is open
+  useEffect(() => {
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyboardNav)
+      return () => {
+        window.removeEventListener('keydown', handleKeyboardNav)
+      }
+    }
+  }, [isOpen, handleKeyboardNav])
   
   
   return {
@@ -205,7 +373,8 @@ export function useModelSelector(): UseModelSelectorReturn {
       searchQuery,
       viewMode,
       selectedProvider,
-      collapsedGroups
+      collapsedGroups,
+      focusedIndex
     },
     searchInputRef,
     allModels,
@@ -219,10 +388,12 @@ export function useModelSelector(): UseModelSelectorReturn {
     setSearchQuery,
     setViewMode,
     setSelectedProvider,
+    setFocusedIndex,
     toggleOpen,
     toggleGroup,
     toggleFavorite,
-    handleSelect
+    handleSelect,
+    handleKeyboardNav
   }
 }
 

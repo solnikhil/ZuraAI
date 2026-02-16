@@ -3,16 +3,15 @@
  * @module Settings
  * Requirements: 2.5, 2.6
  */
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Card } from '@/components/ui/card'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import { useAppShell } from '../../contexts/AppShellContext'
 import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
-import { ModelSection } from './sections/ModelSection'
-import { ApiKeysSection } from './sections/ApiKeysSection'
+import { ProviderHubSection } from './sections/ProviderHubSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
@@ -32,7 +31,9 @@ export default function Settings({
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
+  const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
   const [pendingSettings, setPendingSettings] = useState(settings)
+  const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   useEffect(() => {
   }, [activeSection])
@@ -129,14 +130,14 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'geminiApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'minimaxApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
-        { key: 'geminiApiKey', current: pendingSettings.geminiApiKey, original: settings.geminiApiKey },
         { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'minimaxApiKey', current: pendingSettings.minimaxApiKey, original: settings.minimaxApiKey }
+        { key: 'nvidiaApiKey', current: pendingSettings.nvidiaApiKey, original: settings.nvidiaApiKey },
+        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -154,7 +155,26 @@ export default function Settings({
   }
 
   const cancelChanges = () => setPendingSettings(settings)
-  const hasChanges = JSON.stringify(pendingSettings) !== JSON.stringify(settings)
+
+  // ollamaModels list is auto-discovered from the user's Ollama server (terminal). Only
+  // user-controlled enabled flags matter for "unsaved changes"; list add/remove from server
+  // state should not prompt "Save changes". Compare only models present in both lists.
+  const ollamaModelsMatchUserIntent = (a: typeof settings.ollamaModels, b: typeof settings.ollamaModels) => {
+    const aMap = new Map((a || []).map(m => [m.code, m.enabled]))
+    const bMap = new Map((b || []).map(m => [m.code, m.enabled]))
+    const commonCodes = [...aMap.keys()].filter(c => bMap.has(c))
+    for (const code of commonCodes) {
+      if (aMap.get(code) !== bMap.get(code)) return false
+    }
+    return true
+  }
+  const withoutOllamaModels = (s: typeof settings) => {
+    const { ollamaModels: _om, ...rest } = s
+    return rest
+  }
+  const baseChanged = JSON.stringify(withoutOllamaModels(pendingSettings)) !== JSON.stringify(withoutOllamaModels(settings))
+  const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(pendingSettings.ollamaModels, settings.ollamaModels)
+  const hasChanges = baseChanged || ollamaEnabledChanged
 
   useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
 
@@ -207,108 +227,34 @@ export default function Settings({
             />
           )}
 
-          {/* API Keys Section */}
-          {(activeSection === 'preferences' || activeSection === 'tools') && (
-            <ApiKeysSection
+          {/* Providers Section (all-in-one models + API keys + search APIs) */}
+          {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences' || activeSection === 'tools') && (
+            <ProviderHubSection
+              initialProvider={settingsSectionParams?.provider}
+              initialManageMode={settingsSectionParams?.manageMode}
+              onParamsConsumed={clearParams}
               openRouterApiKey={pendingSettings.openRouterApiKey}
               perplexityApiKey={pendingSettings.perplexityApiKey}
-              geminiApiKey={pendingSettings.geminiApiKey}
               groqApiKey={pendingSettings.groqApiKey}
-              minimaxApiKey={pendingSettings.minimaxApiKey}
+              nvidiaApiKey={pendingSettings.nvidiaApiKey}
+              alibabaApiKey={pendingSettings.alibabaApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
-              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
+              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
+              webSearchEnabled={pendingSettings.webSearchEnabled ?? settings.webSearchEnabled}
+              structuredResearchEnabled={pendingSettings.structuredResearchEnabled ?? settings.structuredResearchEnabled}
+              aiModel={pendingSettings.aiModel ?? settings.aiModel}
+              modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
+              configuredModels={pendingSettings.configuredModels || []}
+              perplexityModels={pendingSettings.perplexityModels || []}
+              groqModels={pendingSettings.groqModels || []}
+              nvidiaModels={pendingSettings.nvidiaModels || []}
+              alibabaModels={pendingSettings.alibabaModels || []}
+              ollamaModels={pendingSettings.ollamaModels || []}
+              maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
+              titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}
               onChange={handleChange}
             />
-          )}
-
-          {/* Models Section */}
-          {activeSection === 'models' && (
-            <>
-              <Card
-                className="settings-section-card"
-                style={{
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 12,
-                  padding: '20px',
-                  marginTop: '32px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                      Generation Settings
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', marginTop: 4 }}>
-                      Max output tokens controls response length. Some models may still enforce their own caps.
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {[1000, 4000, 8000, 16000].map(v => (
-                      <button
-                        key={v}
-                        onClick={() => handleChange({ maxTokens: v })}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: 8,
-                          border: '1px solid var(--theme-border)',
-                          background: pendingSettings.maxTokens === v ? 'rgba(0, 188, 212, 0.15)' : 'var(--theme-surface-hover)',
-                          color: 'var(--theme-text-primary)',
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s, border-color 0.15s'
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--theme-accent)' }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--theme-border)' }}
-                      >
-                        {v.toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ minWidth: 200, flex: 1 }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)', marginBottom: 6 }}>Max Output Tokens</div>
-                    <input
-                      className="setting-input-scira"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      step={1}
-                      value={Number.isFinite(pendingSettings.maxTokens) ? pendingSettings.maxTokens : 1000}
-                      onChange={(e) => {
-                        const next = Number.parseInt(e.target.value, 10)
-                        if (!Number.isFinite(next)) return
-                        handleChange({ maxTokens: Math.max(1, next) })
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px',
-                        fontSize: '0.9rem',
-                        background: 'var(--theme-surface-hover)',
-                        border: '1px solid var(--theme-border)',
-                        borderRadius: 8,
-                        color: 'var(--theme-text-primary)'
-                      }}
-                    />
-                  </div>
-                </div>
-              </Card>
-
-              <ModelSection
-                configuredModels={pendingSettings.configuredModels || []}
-                perplexityModels={pendingSettings.perplexityModels || []}
-                geminiModels={pendingSettings.geminiModels || []}
-                groqModels={pendingSettings.groqModels || []}
-                minimaxModels={pendingSettings.minimaxModels || []}
-                ollamaModels={pendingSettings.ollamaModels || []}
-                onModelsChange={(models) => handleChange({ configuredModels: models })}
-                titleModel={pendingSettings.titleModel || 'gemini-2.0-flash'}
-                onTitleModelChange={(model) => handleChange({ titleModel: model })}
-              />
-            </>
           )}
 
           {/* Appearance Section */}
@@ -320,6 +266,7 @@ export default function Settings({
           {activeSection === 'systemprompt' && (
             <SystemPromptSection
               systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
+              webSearchPrompt={pendingSettings.webSearchPrompt ?? settings.webSearchPrompt}
               onChange={(changes) => handleChange(changes)}
             />
           )}
@@ -330,6 +277,8 @@ export default function Settings({
               streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
               frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
               frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
+              sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
+              softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
               onChange={(changes) => handleChange(changes)}
             />
           )}

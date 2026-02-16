@@ -1,76 +1,79 @@
-import React from 'react'
 import { SettingsIcon } from '../../icons'
+import { useSettingsUI } from '../../../contexts/SettingsUIContext'
 
 interface SidebarFooterProps {
-    currentModel: string
     onOpenSettings: () => void
 }
 
 export default function SidebarFooter({
-    currentModel,
     onOpenSettings,
 }: SidebarFooterProps) {
-    const displayModel = currentModel.includes('/')
-        ? currentModel.split('/').pop() || currentModel
-        : currentModel
+    const { settingsUI } = useSettingsUI()
+    const isFrosted = settingsUI.frostedSidebar
+    const baseBackground = isFrosted
+        ? 'rgba(14, 16, 20, 0.75)'
+        : 'var(--theme-surface)'
+    const hoverBackground = isFrosted
+        ? 'rgba(18, 20, 26, 0.82)'
+        : 'var(--theme-surface)'
+    const baseBorder = isFrosted ? 'rgba(255, 255, 255, 0.14)' : 'var(--theme-border)'
+    const hoverBorder = isFrosted ? 'rgba(255, 255, 255, 0.22)' : 'var(--theme-border-hover)'
+    const baseShadow = isFrosted
+        ? '0 6px 16px rgba(0, 0, 0, 0.35)'
+        : '0 6px 14px rgba(0, 0, 0, 0.18)'
+    const hoverShadow = isFrosted
+        ? '0 8px 18px rgba(0, 0, 0, 0.4)'
+        : '0 8px 16px rgba(0, 0, 0, 0.22)'
 
     return (
         <div style={{
-            marginTop: 'auto',
-            borderTop: '1px solid var(--theme-border)',
-            padding: '8px',
+            padding: 0,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'stretch',
-            gap: '4px',
+            gap: '6px',
             minWidth: 0,
         }}>
-            {/* Model indicator */}
-            <div style={{
-                fontSize: '0.65rem',
-                color: 'var(--theme-text-muted)',
-                padding: '0 8px 2px',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-            }}>
-                {displayModel}
-            </div>
-
-            {/* Settings button */}
             <button
-                onClick={onOpenSettings}
+                type="button"
                 title="Settings"
+                onClick={onOpenSettings}
                 style={{
                     width: '100%',
-                    padding: '8px',
+                    padding: '8px 12px',
                     cursor: 'pointer',
-                    borderRadius: '6px',
-                    border: 'none',
-                    background: 'transparent',
+                    borderRadius: '10px',
+                    border: `1px solid ${baseBorder}`,
+                    background: baseBackground,
                     color: 'var(--theme-text-primary)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'flex-start',
+                    justifyContent: 'center',
                     gap: '10px',
                     fontSize: '0.85rem',
-                    fontWeight: 500,
+                    fontWeight: 600,
                     minWidth: 0,
                     overflow: 'hidden',
+                    boxShadow: baseShadow,
+                    backdropFilter: isFrosted ? 'blur(12px)' : 'none',
+                    WebkitBackdropFilter: isFrosted ? 'blur(12px)' : 'none',
+                    transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-hover)' }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                onMouseEnter={e => {
+                    e.currentTarget.style.background = hoverBackground
+                    e.currentTarget.style.borderColor = hoverBorder
+                    e.currentTarget.style.boxShadow = hoverShadow
+                }}
+                onMouseLeave={e => {
+                    e.currentTarget.style.background = baseBackground
+                    e.currentTarget.style.borderColor = baseBorder
+                    e.currentTarget.style.boxShadow = baseShadow
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'translateY(1px)' }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'translateY(0)' }}
             >
-                <div style={{
-                    width: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                }}>
-                    <SettingsIcon size={18} strokeWidth={2} />
-                </div>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>
+                <SettingsIcon size={16} strokeWidth={2} />
+                Settings
             </button>
         </div>
     )

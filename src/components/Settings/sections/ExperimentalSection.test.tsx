@@ -15,6 +15,8 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
         streamResponses: false,
         frostedSidebar: false,
         frostedPrompt: false,
+        sidebarAutoHideOnResize: true,
+        softenedContrast: false,
         onChange: vi.fn()
     }
 
@@ -53,6 +55,35 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
             render(<ExperimentalSection {...defaultProps} />)
 
             const toggle = screen.getByRole('switch', { name: /enable frosted prompt/i })
+            expect(toggle).toBeInTheDocument()
+        })
+
+        it('renders Softened contrast toggle with correct label', () => {
+            render(<ExperimentalSection {...defaultProps} />)
+            expect(screen.getByText('Softened contrast')).toBeInTheDocument()
+        })
+
+        it('renders Softened contrast toggle switch with correct aria-label', () => {
+            render(<ExperimentalSection {...defaultProps} />)
+            const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
+            expect(toggle).toBeInTheDocument()
+        })
+
+        it('renders toggle in checked state when softenedContrast is true', () => {
+            const props = { ...defaultProps, softenedContrast: true }
+            render(<ExperimentalSection {...props} />)
+            const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
+            expect(toggle).toHaveAttribute('data-state', 'checked')
+        })
+
+        it('renders Sidebar auto-hide toggle with correct label', () => {
+            render(<ExperimentalSection {...defaultProps} />)
+            expect(screen.getByText('Sidebar auto-hide on resize')).toBeInTheDocument()
+        })
+
+        it('renders Sidebar auto-hide toggle switch with correct aria-label', () => {
+            render(<ExperimentalSection {...defaultProps} />)
+            const toggle = screen.getByRole('switch', { name: /enable sidebar auto-hide on resize/i })
             expect(toggle).toBeInTheDocument()
         })
 
@@ -112,6 +143,17 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
             fireEvent.click(toggle)
             
             expect(onChange).toHaveBeenCalledWith({ frostedSidebar: false })
+        })
+
+        it('calls onChange with { sidebarAutoHideOnResize: false } when toggle is clicked from on state', () => {
+            const onChange = vi.fn()
+            const props = { ...defaultProps, sidebarAutoHideOnResize: true, onChange }
+            render(<ExperimentalSection {...props} />)
+            
+            const toggle = screen.getByRole('switch', { name: /enable sidebar auto-hide on resize/i })
+            fireEvent.click(toggle)
+            
+            expect(onChange).toHaveBeenCalledWith({ sidebarAutoHideOnResize: false })
         })
 
         it('calls onChange only once per click', () => {
@@ -182,6 +224,26 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
 
             expect(onChange).toHaveBeenCalledWith({ streamResponses: true })
             expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ frostedPrompt: expect.anything() }))
+        })
+    })
+
+    describe('Softened Contrast Toggle', () => {
+        it('calls onChange with { softenedContrast: true } when toggle is clicked from off state', () => {
+            const onChange = vi.fn()
+            const props = { ...defaultProps, softenedContrast: false, onChange }
+            render(<ExperimentalSection {...props} />)
+            const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
+            fireEvent.click(toggle)
+            expect(onChange).toHaveBeenCalledWith({ softenedContrast: true })
+        })
+
+        it('calls onChange with { softenedContrast: false } when toggle is clicked from on state', () => {
+            const onChange = vi.fn()
+            const props = { ...defaultProps, softenedContrast: true, onChange }
+            render(<ExperimentalSection {...props} />)
+            const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
+            fireEvent.click(toggle)
+            expect(onChange).toHaveBeenCalledWith({ softenedContrast: false })
         })
     })
 })
