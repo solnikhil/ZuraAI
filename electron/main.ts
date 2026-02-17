@@ -1,4 +1,4 @@
-import { app, globalShortcut, protocol } from 'electron'
+import { app, globalShortcut, protocol, session } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
@@ -79,6 +79,38 @@ app.on('will-quit', () => {
 
 app.whenReady().then(async () => {
     deferredInitializer.markAppReady()
+
+    // ---------------------------------------------------------------------------
+    // CORS fix for APIs that don't return proper CORS headers (e.g. NVIDIA NIM).
+    // The renderer calls these APIs directly via fetch(); without the
+    // Access-Control-Allow-* headers the browser engine blocks the response.
+    // We inject the missing headers at the Electron session level so the
+    // renderer code doesn't need to change.
+    // ---------------------------------------------------------------------------
+    const CORS_BYPASS_DOMAINS = [
+        'integrate.api.nvidia.com',
+    ]
+
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        let url: URL | null = null
+        try { url = new URL(details.url) } catch { /* ignore invalid URLs */ }
+
+        if (url && CORS_BYPASS_DOMAINS.includes(url.hostname)) {
+            const headers = { ...details.responseHeaders }
+            // Only inject if the server didn't already provide the header
+            const hasACAO = Object.keys(headers).some(
+                k => k.toLowerCase() === 'access-control-allow-origin'
+            )
+            if (!hasACAO) {
+                headers['Access-Control-Allow-Origin'] = ['*']
+                headers['Access-Control-Allow-Methods'] = ['GET,POST,PUT,DELETE,OPTIONS']
+                headers['Access-Control-Allow-Headers'] = ['Authorization,Content-Type']
+            }
+            callback({ responseHeaders: headers })
+        } else {
+            callback({})
+        }
+    })
 
     // Defer DevTools installation in development mode (2000ms after window visible)
     // Skip entirely in production builds (Requirement 1.4)

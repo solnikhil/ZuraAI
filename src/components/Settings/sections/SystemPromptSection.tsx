@@ -31,70 +31,48 @@ export function SystemPromptSection({
   webSearchPrompt,
   onChange
 }: SystemPromptSectionProps): React.ReactElement {
-  const [isDirtySystem, setIsDirtySystem] = useState(false)
-  const [isDirtyWebSearch, setIsDirtyWebSearch] = useState(false)
   const [localValue, setLocalValue] = useState(systemPrompt)
   const [localWebSearchValue, setLocalWebSearchValue] = useState(webSearchPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
   const [charCountWebSearch, setCharCountWebSearch] = useState(webSearchPrompt.length)
 
-  const isDirty = isDirtySystem || isDirtyWebSearch
-
-  // Sync local state when prop changes, but not while user has unsaved edits
+  // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
-    if (!isDirtySystem) {
+    if (systemPrompt !== localValue) {
       setLocalValue(systemPrompt)
       setCharCount(systemPrompt.length)
     }
-  }, [systemPrompt, isDirtySystem])
+  }, [systemPrompt, localValue])
 
   useEffect(() => {
-    if (!isDirtyWebSearch) {
+    if (webSearchPrompt !== localWebSearchValue) {
       setLocalWebSearchValue(webSearchPrompt)
       setCharCountWebSearch(webSearchPrompt.length)
     }
-  }, [webSearchPrompt, isDirtyWebSearch])
+  }, [webSearchPrompt, localWebSearchValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
     setCharCount(value.length)
-    setIsDirtySystem(true)
+    onChange({ systemPrompt: value })
   }
 
   const handleWebSearchChange = (value: string) => {
     setLocalWebSearchValue(value)
     setCharCountWebSearch(value.length)
-    setIsDirtyWebSearch(true)
-  }
-
-  const handleSave = () => {
-    const changes: { systemPrompt?: string; webSearchPrompt?: string } = {}
-    if (isDirtySystem) changes.systemPrompt = localValue
-    if (isDirtyWebSearch) changes.webSearchPrompt = localWebSearchValue
-    onChange(changes)
-    setIsDirtySystem(false)
-    setIsDirtyWebSearch(false)
+    onChange({ webSearchPrompt: value })
   }
 
   const handleReset = () => {
     setLocalValue(defaultSystemPrompt)
     setCharCount(defaultSystemPrompt.length)
-    setIsDirtySystem(true)
+    onChange({ systemPrompt: defaultSystemPrompt })
   }
 
   const handleWebSearchReset = () => {
     setLocalWebSearchValue(defaultWebSearchPrompt)
     setCharCountWebSearch(defaultWebSearchPrompt.length)
-    setIsDirtyWebSearch(true)
-  }
-
-  const handleCancel = () => {
-    setLocalValue(systemPrompt)
-    setCharCount(systemPrompt.length)
-    setLocalWebSearchValue(webSearchPrompt)
-    setCharCountWebSearch(webSearchPrompt.length)
-    setIsDirtySystem(false)
-    setIsDirtyWebSearch(false)
+    onChange({ webSearchPrompt: defaultWebSearchPrompt })
   }
 
   const estTokensInput = useMemo(
@@ -258,75 +236,6 @@ export function SystemPromptSection({
           </div>
         </div>
 
-        {/* Action Footer - shared when either card is dirty */}
-        {isDirty && (
-          <div
-            style={{
-              padding: '16px 24px',
-              borderTop: '1px solid var(--theme-border)',
-              background: 'rgba(0,0,0,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 12
-            }}
-          >
-            <span
-              style={{
-                fontSize: '0.85rem',
-                color: 'var(--theme-text-muted)',
-                marginRight: 'auto'
-              }}
-            >
-              You have unsaved changes
-            </span>
-            <button
-              onClick={handleCancel}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid var(--theme-border)',
-                color: 'var(--theme-text-secondary)',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              style={{
-                padding: '8px 20px',
-                background: 'var(--theme-accent)',
-                border: 'none',
-                color: '#fff',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 188, 212, 0.3)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              Save Changes
-            </button>
-          </div>
-        )}
       </Card>
 
       {/* Web Search Prompt Editor */}

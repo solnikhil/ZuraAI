@@ -105,6 +105,11 @@ Core capabilities:
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
   - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
 
+### CORS Bypass (Main Process)
+Some provider APIs (currently NVIDIA at `integrate.api.nvidia.com`) do not return CORS headers, which causes the browser engine inside Electron to block renderer `fetch()` calls. To work around this, `electron/main.ts` registers a `session.defaultSession.webRequest.onHeadersReceived` handler that injects `Access-Control-Allow-Origin: *` (plus related headers) for responses from domains listed in `CORS_BYPASS_DOMAINS`. This allows the renderer to call these APIs directly without needing a main-process proxy or new IPC channels.
+
+If a new provider also lacks CORS headers, add its hostname to the `CORS_BYPASS_DOMAINS` array in `electron/main.ts`.
+
 ### IPC Surface (Security-Critical)
 The renderer never imports Electron APIs directly; it uses what preload exposes.
 

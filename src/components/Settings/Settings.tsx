@@ -1,8 +1,3 @@
-/**
- * Settings container component - Orchestrates settings sections and manages state
- * @module Settings
- * Requirements: 2.5, 2.6
- */
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '../../contexts/SettingsContext'
@@ -25,7 +20,6 @@ interface SettingsProps {
   showWarning?: boolean
 }
 
-/** Settings - Main container component that manages settings state and renders appropriate section */
 export default function Settings({
   activeSection = 'usage', onUnsavedChange, showWarning = false
 }: SettingsProps): React.ReactElement {
@@ -33,12 +27,10 @@ export default function Settings({
   const { sessions } = useChatHistory()
   const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
   const [pendingSettings, setPendingSettings] = useState(settings)
+  const [isSaving, setIsSaving] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
-  useEffect(() => {
-  }, [activeSection])
-
-  // Calculate usage statistics
   const usageStats = useMemo(() => {
     const now = Date.now()
     const todayStart = new Date().setHours(0, 0, 0, 0)
@@ -54,11 +46,9 @@ export default function Settings({
       })
     })
 
-    // Activity data calculation - 30 days of token usage
     const activityData: ActivityData[] = []
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-    // Initialize 30 days with zero tokens
     for (let i = 29; i >= 0; i--) {
       const d = new Date(now - i * 24 * 60 * 60 * 1000)
       activityData.push({
@@ -69,7 +59,6 @@ export default function Settings({
       })
     }
 
-    // Accumulate tokens per day and per model
     sessions.forEach(session => {
       session.messages.forEach(msg => {
         const diffTime = now - msg.timestamp
@@ -79,7 +68,6 @@ export default function Settings({
           const dayData = activityData[29 - diffDays]
           dayData.tokens += tokenCount
           
-          // Track per-model usage
           if (msg.model) {
             const modelName = msg.model.split('/').pop() || msg.model
             dayData.modelBreakdown = dayData.modelBreakdown || {}
@@ -89,7 +77,6 @@ export default function Settings({
       })
     })
 
-    // Most used model calculation
     let maxModel = 'N/A', maxCount = 0, imagesProcessed = 0, assistantMsgCount = 0, totalAssistantChars = 0
     const modelCounts: Record<string, number> = {}
 
@@ -118,15 +105,18 @@ export default function Settings({
     }
   }, [sessions])
 
-  // Sync settings when they change externally
   useEffect(() => {
     if (JSON.stringify(settings) !== JSON.stringify(pendingSettings)) setPendingSettings(settings)
   }, [settings])
 
   const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
 
-  // Save changes to secure storage
   const saveChanges = async () => {
+    if (isSaving) return
+
+    setIsSaving(true)
+    setStatusMessage('Saving settings...')
+
     let allSaved = true
     const failedKeys: string[] = []
     try {
@@ -150,15 +140,25 @@ export default function Settings({
       console.error('[Settings] Failed to save API keys to secure storage:', error)
       allSaved = false
     }
+
     updateSettings(pendingSettings)
-    if (!allSaved && failedKeys.length > 0) console.warn('[Settings] Some API keys may not have been saved')
+
+    if (!allSaved && failedKeys.length > 0) {
+      console.warn('[Settings] Some API keys may not have been saved')
+      setStatusMessage('Saved with warnings. Some API keys could not be stored securely.')
+    } else {
+      setStatusMessage('Settings saved.')
+    }
+
+    setIsSaving(false)
   }
 
-  const cancelChanges = () => setPendingSettings(settings)
+  const cancelChanges = () => {
+    if (isSaving) return
+    setPendingSettings(settings)
+    setStatusMessage('Changes discarded.')
+  }
 
-  // ollamaModels list is auto-discovered from the user's Ollama server (terminal). Only
-  // user-controlled enabled flags matter for "unsaved changes"; list add/remove from server
-  // state should not prompt "Save changes". Compare only models present in both lists.
   const ollamaModelsMatchUserIntent = (a: typeof settings.ollamaModels, b: typeof settings.ollamaModels) => {
     const aMap = new Map((a || []).map(m => [m.code, m.enabled]))
     const bMap = new Map((b || []).map(m => [m.code, m.enabled]))
@@ -178,7 +178,24 @@ export default function Settings({
 
   useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
 
-  // Check Ollama connection
+  useEffect(() => {
+    if (!hasChanges) return
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasChanges])
+
+  useEffect(() => {
+    if (!statusMessage || statusMessage === 'Saving settings...') return
+    const timeoutId = window.setTimeout(() => setStatusMessage(''), 3500)
+    return () => window.clearTimeout(timeoutId)
+  }, [statusMessage])
+
   const checkOllama = async () => {
     const connected = await checkOllamaStatus(pendingSettings.ollamaUrl)
     if (connected) {
@@ -189,12 +206,10 @@ export default function Settings({
     }
   }
 
-  // Check Ollama connection on mount (regardless of model provider)
   useEffect(() => {
     void checkOllama()
-  }, []) // Run once on mount
+  }, [])
 
-  // Also check Ollama when provider changes to ollama or URL changes
   useEffect(
     () => { if (pendingSettings.modelProvider === 'ollama') void checkOllama() },
     [pendingSettings.modelProvider, pendingSettings.ollamaUrl]
@@ -219,7 +234,6 @@ export default function Settings({
           padding: '0 24px',
           transition: 'max-width 0.3s ease'
         }}>
-          {/* Usage Section */}
           {activeSection === 'usage' && (
             <UsageSection
               stats={usageStats}
@@ -227,7 +241,6 @@ export default function Settings({
             />
           )}
 
-          {/* Providers Section (all-in-one models + API keys + search APIs) */}
           {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences' || activeSection === 'tools') && (
             <ProviderHubSection
               initialProvider={settingsSectionParams?.provider}
@@ -257,12 +270,10 @@ export default function Settings({
             />
           )}
 
-          {/* Appearance Section */}
           {activeSection === 'themes' && (
             <AppearanceSection />
           )}
 
-          {/* System Prompt Section */}
           {activeSection === 'systemprompt' && (
             <SystemPromptSection
               systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
@@ -271,7 +282,6 @@ export default function Settings({
             />
           )}
 
-          {/* Experimental Section */}
           {activeSection === 'experimental' && (
             <ExperimentalSection
               streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
@@ -286,54 +296,57 @@ export default function Settings({
         </div>
       </ScrollArea>
 
-      {/* Unsaved Changes Bar */}
       {hasChanges && (
         <div style={{
+          left: 20,
+          right: 20,
           position: 'absolute',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          padding: '12px 24px',
+          bottom: 16,
+          padding: '12px 16px',
           background: showWarning ? 'rgba(239, 68, 68, 0.95)' : 'rgba(30, 34, 42, 0.98)',
           backdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          gap: 24,
+          justifyContent: 'space-between',
+          gap: 16,
           borderRadius: 12,
           border: showWarning ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.1)',
           boxShadow: showWarning ? '0 8px 32px rgba(239, 68, 68, 0.3)' : '0 8px 32px rgba(0,0,0,0.4)',
           zIndex: 100,
-          animation: showWarning ? 'shake 0.5s ease' : 'slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           transition: 'background 0.3s, border-color 0.3s, box-shadow 0.3s'
-        }}>
+        }} role="region" aria-label="Unsaved settings changes">
           <span style={{
             color: showWarning ? '#fff' : '#a0a0a0',
             fontSize: '0.9rem',
-            fontWeight: showWarning ? 600 : 400
+            fontWeight: showWarning ? 600 : 400,
+            flex: 1
           }}>
-            {showWarning ? 'Save or discard changes first!' : 'Careful — you have unsaved changes!'}
+            {showWarning ? 'Save or discard changes before leaving this section.' : 'You have unsaved settings changes.'}
           </span>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={cancelChanges}
+              disabled={isSaving}
               style={{
                 background: 'transparent',
-                border: 'none',
+                border: '1px solid rgba(255,255,255,0.16)',
                 color: showWarning ? 'rgba(255,255,255,0.8)' : '#6b7280',
                 fontSize: '0.9rem',
-                cursor: 'pointer',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
                 padding: '6px 12px',
+                borderRadius: 8,
+                opacity: isSaving ? 0.6 : 1,
                 transition: 'color 0.2s'
               }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
               onMouseLeave={e => e.currentTarget.style.color = showWarning ? 'rgba(255,255,255,0.8)' : '#6b7280'}
             >
-              Discard
+              Discard changes
             </button>
             <button
               onClick={saveChanges}
+              disabled={isSaving}
               style={{
                 background: showWarning ? '#fff' : '#22c55e',
                 border: 'none',
@@ -342,33 +355,41 @@ export default function Settings({
                 fontWeight: 600,
                 padding: '8px 16px',
                 borderRadius: 6,
-                cursor: 'pointer',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                opacity: isSaving ? 0.8 : 1,
                 transition: 'all 0.2s'
               }}
               onMouseEnter={e => {
+                if (isSaving) return
                 e.currentTarget.style.background = showWarning ? '#f0f0f0' : '#16a34a'
               }}
               onMouseLeave={e => {
+                if (isSaving) return
                 e.currentTarget.style.background = showWarning ? '#fff' : '#22c55e'
               }}
             >
-              Save Changes
+              {isSaving ? 'Saving...' : 'Save settings'}
             </button>
           </div>
         </div>
       )}
 
-      <style>{`
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
-          to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(-50%) translateX(0); }
-          20%, 60% { transform: translateX(-50%) translateX(-8px); }
-          40%, 80% { transform: translateX(-50%) translateX(8px); }
-        }
-      `}</style>
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: 'hidden',
+          clip: 'rect(0, 0, 0, 0)',
+          border: 0
+        }}
+      >
+        {statusMessage}
+      </div>
     </div>
   )
 }

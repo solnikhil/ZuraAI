@@ -452,9 +452,26 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // Commit streaming content to the session
       // **Validates: Property 22: Isolated Streaming Updates**
       if (streamingMessageRef.current) {
-        completeStreaming()
-        // The final update is already applied by the provider functions via updateStreamingMessage
-        // Just clear the streaming ref
+        const finalState = completeStreaming()
+        // Explicitly commit the captured streaming state to ChatHistoryContext.
+        // The provider hooks call updateStreamingMessage too, but that setState
+        // may still be batched/pending when completeStreaming() resets the
+        // ephemeral StreamingContext, causing the content to vanish on re-render.
+        if (finalState.sessionId && finalState.messageId && finalState.content) {
+          updateStreamingMessage(finalState.sessionId, finalState.messageId, {
+            content: finalState.content,
+            thinking: finalState.thinking,
+            thinkingDuration: finalState.thinkingDuration,
+            thinkingBlocks: finalState.thinkingBlocks,
+            researchStatus: finalState.researchStatus,
+            researchPlan: finalState.researchPlan,
+            researchProgress: finalState.researchProgress,
+            toolResults: finalState.toolResults,
+            model: finalState.model,
+            latency: finalState.latency,
+            usage: finalState.usage,
+          })
+        }
         streamingMessageRef.current = null
       }
 
