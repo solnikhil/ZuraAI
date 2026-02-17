@@ -57,8 +57,7 @@ describe('Property 1: Search filtering returns only matching sessions', () => {
 
                     for (const session of result) {
                         const titleMatch = session.title.toLowerCase().includes(lower)
-                        const recentMessages = session.messages.slice(-20)
-                        const contentMatch = recentMessages.some(m =>
+                        const contentMatch = session.messages.some(m =>
                             m.content.toLowerCase().includes(lower)
                         )
                         expect(titleMatch || contentMatch).toBe(true)
@@ -82,8 +81,7 @@ describe('Property 1: Search filtering returns only matching sessions', () => {
                     for (const session of sessions) {
                         if (!resultIds.has(session.id)) {
                             const titleMatch = session.title.toLowerCase().includes(lower)
-                            const recentMessages = session.messages.slice(-20)
-                            const contentMatch = recentMessages.some(m =>
+                            const contentMatch = session.messages.some(m =>
                                 m.content.toLowerCase().includes(lower)
                             )
                             expect(titleMatch || contentMatch).toBe(false)

@@ -3,9 +3,23 @@
   "version": "1.0.0",
   "description": "Zura AI - Desktop AI Assistant",
   "author": "Nikhil",
+  "license": "MIT",
   "main": "dist-electron/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solnikhil/ZuraAI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/solnikhil/ZuraAI/issues"
+  },
+  "homepage": "https://github.com/solnikhil/ZuraAI#readme",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build:renderer": "tsc && vite build",
     "build": "tsc && vite build && electron-builder",
     "build:dir": "tsc && vite build && electron-builder --dir",
     "preview": "vite preview",
@@ -81,7 +95,7 @@
     "compression": "maximum",
     "publish": {
       "provider": "github",
-      "owner": "YOUR_GITHUB_USERNAME",
+      "owner": "solnikhil",
       "repo": "ZuraAI"
     },
     "win": {

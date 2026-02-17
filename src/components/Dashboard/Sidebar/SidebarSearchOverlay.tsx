@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircle, Search, X } from '../../icons'
 import type { ChatSession } from '../../../contexts/ChatHistoryContext'
-import { filterSessions } from './utils/filterSessions'
+import { filterSessions, getMatchSnippet } from './utils/filterSessions'
 
 interface SidebarSearchOverlayProps {
     isOpen: boolean
@@ -275,6 +275,7 @@ export default function SidebarSearchOverlay({
                     {results.map((session, index) => {
                         const isHighlighted = index === highlightedIndex
                         const isCurrentSession = currentSessionId === session.id
+                        const snippet = query.trim() ? getMatchSnippet(session, query) : null
 
                         return (
                             <button
@@ -289,12 +290,12 @@ export default function SidebarSearchOverlay({
                                         : 'transparent',
                                     color: 'inherit',
                                     width: '100%',
-                                    minHeight: '42px',
+                                    minHeight: snippet ? '54px' : '42px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
                                     gap: '12px',
-                                    padding: '0 16px',
+                                    padding: snippet ? '6px 16px' : '0 16px',
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     transition: 'background 0.12s ease',
@@ -303,7 +304,7 @@ export default function SidebarSearchOverlay({
                             >
                                 <div style={{
                                     display: 'flex',
-                                    alignItems: 'center',
+                                    alignItems: 'flex-start',
                                     gap: '10px',
                                     minWidth: 0,
                                     flex: 1,
@@ -315,20 +316,45 @@ export default function SidebarSearchOverlay({
                                                 ? 'rgba(255, 255, 255, 0.92)'
                                                 : 'rgba(255, 255, 255, 0.66)',
                                             flexShrink: 0,
+                                            marginTop: '3px',
                                         }}
                                     />
-                                    <span style={{
-                                        color: isCurrentSession
-                                            ? 'rgba(255, 255, 255, 0.95)'
-                                            : 'rgba(255, 255, 255, 0.86)',
-                                        fontSize: '1.02rem',
-                                        fontWeight: 500,
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '2px',
+                                        minWidth: 0,
+                                        flex: 1,
                                     }}>
-                                        {session.title}
-                                    </span>
+                                        <span style={{
+                                            color: isCurrentSession
+                                                ? 'rgba(255, 255, 255, 0.95)'
+                                                : 'rgba(255, 255, 255, 0.86)',
+                                            fontSize: '1.02rem',
+                                            fontWeight: 500,
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                        }}>
+                                            {session.title}
+                                        </span>
+                                        {snippet && (
+                                            <span style={{
+                                                color: 'rgba(255, 255, 255, 0.44)',
+                                                fontSize: '0.82rem',
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                lineHeight: 1.3,
+                                            }}>
+                                                <span style={{
+                                                    color: 'rgba(255, 255, 255, 0.56)',
+                                                    fontWeight: 500,
+                                                }}>{snippet.role}:</span>{' '}
+                                                {snippet.snippet}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <span style={{
@@ -336,6 +362,8 @@ export default function SidebarSearchOverlay({
                                     fontSize: '0.95rem',
                                     whiteSpace: 'nowrap',
                                     flexShrink: 0,
+                                    alignSelf: 'flex-start',
+                                    marginTop: '2px',
                                 }}>
                                     {getTimeLabel(session.updatedAt)}
                                 </span>

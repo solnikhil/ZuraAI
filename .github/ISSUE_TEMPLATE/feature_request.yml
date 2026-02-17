@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose an improvement
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve?
+      placeholder: I am frustrated when...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should change?
+      placeholder: Add a setting to...
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Any other solutions you tried or considered
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      placeholder: Mockups, references, constraints, etc.

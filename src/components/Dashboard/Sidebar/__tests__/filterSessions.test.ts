@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { filterSessions } from '../utils/filterSessions'
+import { filterSessions, getMatchSnippet } from '../utils/filterSessions'
 import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
 
 // ============================================================================
@@ -121,16 +121,16 @@ describe('filterSessions', () => {
       expect(result[0].title).toBe('Python Data Analysis')
     })
 
-    it('should only search last 20 messages', () => {
-      // Create a session with 25 messages where the match is in message #3 (outside last 20)
+    it('should search all messages regardless of count', () => {
+      // Create a session with 25 messages where the match is in message #3
       const messages = Array.from({ length: 25 }, (_, i) =>
         makeMessage(i === 2 ? 'unique-keyword-xyz' : `Message number ${i}`)
       )
       const longSession = makeSession('Long Chat', messages)
 
-      // The keyword is at index 2, which is outside the last 20 (indices 5-24)
+      // The keyword is at index 2 — should still be found since we search all messages
       const result = filterSessions([longSession], 'unique-keyword-xyz')
-      expect(result).toHaveLength(0)
+      expect(result).toHaveLength(1)
     })
 
     it('should find match in last 20 messages', () => {
@@ -186,5 +186,83 @@ describe('filterSessions', () => {
       const result = filterSessions([session], 'closures')
       expect(result).toHaveLength(1)
     })
+  })
+})
+
+// ============================================================================
+// getMatchSnippet Tests
+// ============================================================================
+
+describe('getMatchSnippet', () => {
+  it('should return null for empty query', () => {
+    const session = makeSession('Chat', [makeMessage('Hello world')])
+    expect(getMatchSnippet(session, '')).toBeNull()
+    expect(getMatchSnippet(session, '   ')).toBeNull()
+  })
+
+  it('should return null when no message matches', () => {
+    const session = makeSession('Chat', [makeMessage('Hello world')])
+    expect(getMatchSnippet(session, 'nonexistent')).toBeNull()
+  })
+
+  it('should return snippet with role "You" for user messages', () => {
+    const session = makeSession('Chat', [
+      makeMessage('How do I use React hooks?', { role: 'user' }),
+    ])
+    const result = getMatchSnippet(session, 'React')
+    expect(result).not.toBeNull()
+    expect(result!.role).toBe('You')
+    expect(result!.snippet).toContain('React')
+  })
+
+  it('should return snippet with role "Assistant" for assistant messages', () => {
+    const session = makeSession('Chat', [
+      makeMessage('Tell me about closures', { role: 'user' }),
+      makeMessage('Closures are a fundamental concept in JavaScript.', { role: 'assistant' }),
+    ])
+    const result = getMatchSnippet(session, 'fundamental')
+    expect(result).not.toBeNull()
+    expect(result!.role).toBe('Assistant')
+    expect(result!.snippet).toContain('fundamental')
+  })
+
+  it('should return snippet with role "System" for system messages', () => {
+    const session = makeSession('Chat', [
+      makeMessage('You are a helpful assistant.', { role: 'system' }),
+    ])
+    const result = getMatchSnippet(session, 'helpful')
+    expect(result).not.toBeNull()
+    expect(result!.role).toBe('System')
+  })
+
+  it('should return the first matching message', () => {
+    const session = makeSession('Chat', [
+      makeMessage('First message with keyword', { role: 'user' }),
+      makeMessage('Second message with keyword', { role: 'assistant' }),
+    ])
+    const result = getMatchSnippet(session, 'keyword')
+    expect(result).not.toBeNull()
+    expect(result!.role).toBe('You')
+    expect(result!.snippet).toContain('First')
+  })
+
+  it('should match case-insensitively', () => {
+    const session = makeSession('Chat', [
+      makeMessage('TypeScript is great', { role: 'assistant' }),
+    ])
+    const result = getMatchSnippet(session, 'typescript')
+    expect(result).not.toBeNull()
+    expect(result!.snippet).toContain('TypeScript')
+  })
+
+  it('should truncate long content with ellipsis', () => {
+    const longContent = 'A'.repeat(40) + ' keyword ' + 'B'.repeat(40)
+    const session = makeSession('Chat', [
+      makeMessage(longContent, { role: 'assistant' }),
+    ])
+    const result = getMatchSnippet(session, 'keyword', 40)
+    expect(result).not.toBeNull()
+    expect(result!.snippet).toContain('...')
+    expect(result!.snippet).toContain('keyword')
   })
 })
