@@ -77,14 +77,27 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
   const { currentModel } = useModelSelector()
 
   const breakdown = useMemo((): TokenBreakdown => {
-    const messages = currentSessionId
+    const sessionMessages = currentSessionId
       ? sessions.find(s => s.id === currentSessionId)?.messages ?? []
       : []
+    const hasActiveStreamingMessage = Boolean(
+      streamingState.isStreaming &&
+      currentSessionId &&
+      streamingState.sessionId === currentSessionId &&
+      streamingState.messageId
+    )
+    const streamingMessageId = hasActiveStreamingMessage ? streamingState.messageId : null
+    const streamingMessage = streamingMessageId
+      ? sessionMessages.find(m => m.id === streamingMessageId)
+      : undefined
+    const messages = streamingMessageId
+      ? sessionMessages.filter(m => m.id !== streamingMessageId)
+      : sessionMessages
     const systemPrompt = settings.systemPrompt ?? ''
 
     const messagesForEstimate = messages.map(m => ({
       role: m.role,
-      content: m.content + (m.thinking ? `\n${m.thinking}` : ''),
+      content: m.content,
     }))
 
     const systemPromptTokens = systemPrompt
@@ -95,10 +108,13 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
       0
     )
     const currentInputTokens = estimateTokens(input)
-    const streamingOutputTokens =
-      streamingState.isStreaming && streamingState.content
-        ? estimateOutputTokens(streamingState.content)
-        : 0
+    const effectiveStreamingContent =
+      hasActiveStreamingMessage
+        ? (streamingState.content || streamingMessage?.content || '')
+        : ''
+    const streamingOutputTokens = effectiveStreamingContent
+      ? estimateOutputTokens(effectiveStreamingContent)
+      : 0
 
     const totalUsed =
       systemPromptTokens +
@@ -125,6 +141,8 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
     settings.systemPrompt,
     input,
     streamingState.isStreaming,
+    streamingState.sessionId,
+    streamingState.messageId,
     streamingState.content,
     currentModel?.maxContext,
   ])
@@ -189,8 +207,15 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
       clearTimeout(hoverTimeoutRef.current)
       hoverTimeoutRef.current = null
     }
-    setIsPinned((p) => !p)
-    setOpen((o) => !o)
+
+    if (isPinned) {
+      setIsPinned(false)
+      setOpen(false)
+      return
+    }
+
+    setIsPinned(true)
+    setOpen(true)
   }
 
   useEffect(() => {
