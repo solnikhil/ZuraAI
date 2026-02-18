@@ -70,7 +70,6 @@ export default function ChatRow({
     onMoreClick,
 }: ChatRowProps) {
     const [renameValue, setRenameValue] = useState(session.title)
-    const [isHovered, setIsHovered] = useState(false)
     const renameInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -94,53 +93,42 @@ export default function ChatRow({
         onRenameConfirm(session.id, trimmed || session.title)
     }
 
-    const selectedOverlay = getSelectedOverlayStyles(selectedOverlayStyle)
+    // Build class list
+    const rowClasses = [
+        'sidebar-chat-row',
+        isActive && 'sidebar-chat-row--active',
+        isFocused && 'sidebar-chat-row--focused',
+        isRenaming && 'sidebar-chat-row--renaming',
+    ].filter(Boolean).join(' ')
+
+    // Active row gets overlay styles applied inline (since they vary by selectedOverlayStyle setting)
+    const selectedOverlay = isActive ? getSelectedOverlayStyles(selectedOverlayStyle) : undefined
+
+    // More button visibility class
+    const getMoreBtnClass = () => {
+        if (isActive) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--always'
+        if (isMenuOpen) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--visible'
+        return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--hidden'
+    }
 
     return (
         <div
             onClick={() => !isRenaming && onSelect(session.id)}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '6px 6px',
-                cursor: isRenaming ? 'default' : 'pointer',
-                borderRadius: '10px',
-                height: '34px',
-                boxSizing: 'border-box',
-                position: 'relative',
-                transition: 'background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease',
-                background: isActive
-                    ? selectedOverlay.background
-                    : isFocused
-                        ? 'var(--theme-surface-hover)'
-                        : isHovered
-                            ? 'var(--theme-surface-hover)'
-                            : 'transparent',
-                border: isActive
-                    ? selectedOverlay.border
-                    : '1px solid transparent',
-                boxShadow: isActive ? selectedOverlay.boxShadow : 'none',
-                outline: isFocused ? '1px solid var(--theme-accent)' : 'none',
-                outlineOffset: '-1px',
-            }}
+            className={rowClasses}
+            style={selectedOverlay ? {
+                background: selectedOverlay.background,
+                border: selectedOverlay.border,
+                boxShadow: selectedOverlay.boxShadow,
+            } : undefined}
             data-active={isActive ? 'true' : 'false'}
             role="option"
             aria-selected={isActive}
             tabIndex={-1}
         >
             {/* Content area */}
-            <div style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                height: '100%',
-            }}>
+            <div className="sidebar-chat-row__content">
                 {/* Top line: title + actions */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0 }}>
+                <div className="sidebar-chat-row__title-row">
                     {isRenaming ? (
                         <input
                             ref={renameInputRef}
@@ -149,73 +137,17 @@ export default function ChatRow({
                             onKeyDown={handleRenameKeyDown}
                             onBlur={handleRenameBlur}
                             onClick={e => e.stopPropagation()}
-                            style={{
-                                flex: 1,
-                                background: 'var(--theme-surface-active)',
-                                border: '1px solid var(--theme-accent)',
-                                borderRadius: '4px',
-                                padding: '1px 4px',
-                                color: 'var(--theme-text-primary)',
-                                fontSize: '0.8rem',
-                                fontFamily: 'inherit',
-                                outline: 'none',
-                                minWidth: 0,
-                            }}
+                            className="sidebar-chat-row__rename-input"
                         />
                     ) : (
-                        <span style={{
-                            flex: 1,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            fontSize: '0.8rem',
-                            fontWeight: 500,
-                            color: 'var(--theme-text-primary)',
-                            minWidth: 0,
-                        }}>
+                        <span className="sidebar-chat-row__title">
                             {session.title}
                         </span>
                     )}
 
                     {!isRenaming && (
                         isStreaming ? (
-                            <div
-                                style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    borderRadius: '50%',
-                                    backgroundColor: 'var(--theme-accent)',
-                                    animation: 'pulse 1.5s ease-in-out infinite',
-                                    marginRight: '5px',
-                                    flexShrink: 0,
-                                }}
-                            />
-                        ) : isActive ? (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    onMoreClick(e, session.id)
-                                }}
-                                aria-label="Chat options"
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '2px',
-                                    borderRadius: '4px',
-                                    color: 'var(--theme-text-muted)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    opacity: isHovered ? 1 : 0.86,
-                                    transition: 'opacity 0.15s ease, background 0.1s ease, color 0.1s ease',
-                                    flexShrink: 0,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-active)' }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
-                            >
-                                <Ellipsis size={14} />
-                            </button>
+                            <div className="sidebar-chat-row__streaming-dot" />
                         ) : (
                             <button
                                 onClick={(e) => {
@@ -223,53 +155,20 @@ export default function ChatRow({
                                     onMoreClick(e, session.id)
                                 }}
                                 aria-label="Chat options"
-                                style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '2px',
-                                    borderRadius: '4px',
-                                    color: 'var(--theme-text-muted)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    opacity: isHovered || isMenuOpen ? 1 : 0,
-                                    pointerEvents: isHovered || isMenuOpen ? 'auto' : 'none',
-                                    transition: 'opacity 0.15s ease, background 0.1s ease, color 0.1s ease',
-                                    flexShrink: 0,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--theme-surface-active)' }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                                className={getMoreBtnClass()}
                             >
                                 <Ellipsis size={14} />
                             </button>
                         )
                     )}
                 </div>
-
             </div>
 
             {/* Tag badges */}
             {session.tags && session.tags.length > 0 && (
-                <div style={{
-                    position: 'absolute',
-                    bottom: '2px',
-                    right: '26px',
-                    display: 'flex',
-                    gap: '2px',
-                }}>
+                <div className="sidebar-chat-row__tags">
                     {session.tags.slice(0, 2).map(tag => (
-                        <span
-                            key={tag}
-                            style={{
-                                fontSize: '0.55rem',
-                                padding: '0 3px',
-                                borderRadius: '3px',
-                                background: 'color-mix(in srgb, var(--theme-accent) 20%, transparent)',
-                                color: 'var(--theme-accent)',
-                                lineHeight: 1.5,
-                            }}
-                        >
+                        <span key={tag} className="sidebar-chat-row__tag">
                             {tag}
                         </span>
                     ))}

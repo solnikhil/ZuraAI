@@ -12,7 +12,6 @@ import { ExperimentalSection } from './ExperimentalSection'
 
 describe('ExperimentalSection Frosted Sidebar Toggle', () => {
     const defaultProps = {
-        streamResponses: false,
         frostedSidebar: false,
         frostedPrompt: false,
         sidebarAutoHideOnResize: true,
@@ -165,65 +164,6 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
             fireEvent.click(toggle)
             
             expect(onChange).toHaveBeenCalledTimes(1)
-        })
-    })
-
-    describe('Integration with Smooth Streaming Toggle', () => {
-        it('renders both Smooth streaming and Frosted Sidebar toggles', () => {
-            render(<ExperimentalSection {...defaultProps} />)
-            
-            expect(screen.getByText('Smooth streaming')).toBeInTheDocument()
-            expect(screen.getByText('Frosted Sidebar')).toBeInTheDocument()
-        })
-
-        it('Frosted Sidebar onChange does not affect streamResponses', () => {
-            const onChange = vi.fn()
-            const props = { ...defaultProps, streamResponses: true, onChange }
-            render(<ExperimentalSection {...props} />)
-            
-            const frostedToggle = screen.getByRole('switch', { name: /enable frosted sidebar/i })
-            fireEvent.click(frostedToggle)
-            
-            // Should only call onChange with frostedSidebar
-            expect(onChange).toHaveBeenCalledWith({ frostedSidebar: true })
-            expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ streamResponses: expect.anything() }))
-        })
-
-        it('Frosted Prompt onChange does not affect streamResponses', () => {
-            const onChange = vi.fn()
-            const props = { ...defaultProps, streamResponses: true, onChange }
-            render(<ExperimentalSection {...props} />)
-
-            const frostedToggle = screen.getByRole('switch', { name: /enable frosted prompt/i })
-            fireEvent.click(frostedToggle)
-
-            expect(onChange).toHaveBeenCalledWith({ frostedPrompt: true })
-            expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ streamResponses: expect.anything() }))
-        })
-
-        it('Smooth streaming onChange does not affect frostedSidebar', () => {
-            const onChange = vi.fn()
-            const props = { ...defaultProps, frostedSidebar: true, onChange }
-            render(<ExperimentalSection {...props} />)
-            
-            const streamingToggle = screen.getByRole('switch', { name: /enable smooth streaming/i })
-            fireEvent.click(streamingToggle)
-            
-            // Should only call onChange with streamResponses
-            expect(onChange).toHaveBeenCalledWith({ streamResponses: true })
-            expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ frostedSidebar: expect.anything() }))
-        })
-
-        it('Smooth streaming onChange does not affect frostedPrompt', () => {
-            const onChange = vi.fn()
-            const props = { ...defaultProps, frostedPrompt: true, onChange }
-            render(<ExperimentalSection {...props} />)
-
-            const streamingToggle = screen.getByRole('switch', { name: /enable smooth streaming/i })
-            fireEvent.click(streamingToggle)
-
-            expect(onChange).toHaveBeenCalledWith({ streamResponses: true })
-            expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ frostedPrompt: expect.anything() }))
         })
     })
 

@@ -154,7 +154,7 @@ export default function Chat() {
     }
 
     const callOpenRouter = async (userPrompt: string, image?: string) => {
-        const apiKey = settings.openRouterApiKey || import.meta.env.VITE_OPENROUTER_API_KEY
+        const apiKey = settings.openRouterApiKey
 
         if (!apiKey) {
             throw new Error("Please configure your OpenRouter API Key in Settings.")

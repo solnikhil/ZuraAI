@@ -30,21 +30,14 @@ Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScr
 git clone https://github.com/solnikhil/ZuraAI.git
 cd ZuraAI
 npm install
-# macOS/Linux/Git Bash
-cp .env.example .env
-# Windows Command Prompt
-copy .env.example .env
 npm run dev
 ```
 
-## Environment variables
+## API keys
 
-Create `.env` from `.env.example`.
+No `.env` setup is required.
 
-- `VITE_OPENROUTER_API_KEY` (optional): default OpenRouter key for renderer use
-- `TAVILY_API_KEY` (optional): Tavily key for main-process web search tool
-
-You can also add keys through Settings in the app.
+Add provider/search API keys in the app under Settings.
 
 ## Scripts
 

@@ -135,7 +135,7 @@ export class MemoryMonitor {
     if (rssMB > warningThresholdMB) {
       if (!this.warningLogged) {
         console.warn(
-          `[MemoryMonitor] ⚠️ WARNING: Memory usage (${rssMB.toFixed(1)}MB) exceeds ${warningThresholdMB}MB threshold!`
+          `[MemoryMonitor] WARNING: Memory usage (${rssMB.toFixed(1)}MB) exceeds ${warningThresholdMB}MB threshold!`
         );
         console.warn('[MemoryMonitor] Performance regression detected - memory > 800MB');
         this.logDetailedMetrics(metrics);
@@ -163,14 +163,13 @@ export class MemoryMonitor {
    * Log detailed memory metrics
    */
   private logDetailedMetrics(metrics: MemoryMetrics): void {
-    console.log('\n╔══════════════════════════════════════════════════════════╗');
-    console.log('║              MEMORY USAGE DETAILS                         ║');
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log(`║  Heap Used:     ${bytesToMB(metrics.heapUsed).toFixed(1).padStart(8)} MB                        ║`);
-    console.log(`║  Heap Total:    ${bytesToMB(metrics.heapTotal).toFixed(1).padStart(8)} MB                        ║`);
-    console.log(`║  External:      ${bytesToMB(metrics.external).toFixed(1).padStart(8)} MB                        ║`);
-    console.log(`║  RSS (Total):   ${bytesToMB(metrics.rss).toFixed(1).padStart(8)} MB                        ║`);
-    console.log('╚══════════════════════════════════════════════════════════╝\n');
+    console.log('\n[MemoryMonitor] MEMORY USAGE DETAILS');
+    console.log('[MemoryMonitor] ------------------------------------------------------------');
+    console.log(`[MemoryMonitor] Heap Used:   ${bytesToMB(metrics.heapUsed).toFixed(1).padStart(8)} MB`);
+    console.log(`[MemoryMonitor] Heap Total:  ${bytesToMB(metrics.heapTotal).toFixed(1).padStart(8)} MB`);
+    console.log(`[MemoryMonitor] External:    ${bytesToMB(metrics.external).toFixed(1).padStart(8)} MB`);
+    console.log(`[MemoryMonitor] RSS (Total): ${bytesToMB(metrics.rss).toFixed(1).padStart(8)} MB`);
+    console.log('[MemoryMonitor] ------------------------------------------------------------\n');
   }
 
   /**

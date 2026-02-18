@@ -14,6 +14,7 @@ import SidebarFooter from './Sidebar/SidebarFooter'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
+import './Sidebar/Sidebar.css'
 
 interface SidebarProps {
     view: 'chat' | 'settings'
@@ -202,82 +203,69 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
         assignFolder(sessionId, folderId)
     }, [assignFolder])
 
+    // Build container class list
+    const containerClasses = [
+        'sidebar-container',
+        shouldApplyGlass ? 'frosted' : '',
+    ].filter(Boolean).join(' ')
+
+    // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
+    const containerStyle: React.CSSProperties = {
+        width: sidebarHidden ? '0px' : (sidebarCollapsed ? '60px' : '260px'),
+        background: shouldApplyGlass ? 'transparent' : 'var(--theme-surface)',
+        borderRight: sidebarHidden
+            ? 'none'
+            : shouldApplyGlass
+                ? 'none'
+                : '1px solid var(--theme-border)',
+        boxShadow: shouldApplyGlass ? '4px 0 20px rgba(0, 0, 0, 0.35)' : 'none',
+        pointerEvents: sidebarHidden ? 'none' : 'auto',
+    }
+
     // Chat content view
     const renderChatContent = () => (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            opacity: view === 'chat' ? 1 : 0,
-            transform: view === 'chat' ? 'translateX(0)' : 'translateX(-20px)',
-            transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
-            pointerEvents: view === 'chat' ? 'all' : 'none',
-            position: view === 'chat' ? 'relative' : 'absolute',
-            width: '100%'
-        }}>
+        <div className={`sidebar-view sidebar-view--chat ${view === 'chat' ? 'active' : 'inactive'}`}>
             <SidebarHeader
                 onNewChat={clearCurrentSession}
                 onOpenSearch={openSearchOverlay}
             />
 
             <SidebarChatList
-                    groupedSessions={groupedSessions}
-                    folders={folders}
-                    chatSelectedOverlayStyle={chatSelectedOverlayStyle}
-                    currentSessionId={currentSessionId}
-                    streamingSessionId={null}
-                    focusIndex={focusIndex}
-                    flatVisibleSessions={flatVisibleSessions}
-                    renamingSessionId={renamingSessionId}
-                    searchQuery=""
-                    showArchived={showArchived}
-                    archivedSessions={archivedSessions}
-                    bottomPadding={userStripPadding}
-                    onSelectSession={switchSession}
-                    onContextAction={handleContextAction}
-                    onRenameStart={(id) => setRenamingSessionId(id)}
-                    onRenameConfirm={handleRenameConfirm}
-                    onRenameCancel={handleRenameCancel}
-                    onDropSessionToFolder={handleDropSessionToFolder}
-                    onToggleArchived={() => setShowArchived(prev => !prev)}
-                    onKeyDown={handleKeyDown}
-                />
+                groupedSessions={groupedSessions}
+                folders={folders}
+                chatSelectedOverlayStyle={chatSelectedOverlayStyle}
+                currentSessionId={currentSessionId}
+                streamingSessionId={null}
+                focusIndex={focusIndex}
+                flatVisibleSessions={flatVisibleSessions}
+                renamingSessionId={renamingSessionId}
+                searchQuery=""
+                showArchived={showArchived}
+                archivedSessions={archivedSessions}
+                bottomPadding={userStripPadding}
+                onSelectSession={switchSession}
+                onContextAction={handleContextAction}
+                onRenameStart={(id) => setRenamingSessionId(id)}
+                onRenameConfirm={handleRenameConfirm}
+                onRenameCancel={handleRenameCancel}
+                onDropSessionToFolder={handleDropSessionToFolder}
+                onToggleArchived={() => setShowArchived(prev => !prev)}
+                onKeyDown={handleKeyDown}
+            />
         </div>
     )
 
-    // Settings content view (preserved from original)
+    // Settings content view
     const renderSettingsContent = () => (
-        <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            opacity: view === 'settings' ? 1 : 0,
-            transform: view === 'settings' ? 'translateX(0)' : 'translateX(20px)',
-            transition: 'all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1)',
-            pointerEvents: view === 'settings' ? 'all' : 'none',
-            boxSizing: 'border-box'
-        }}>
+        <div className={`sidebar-view sidebar-view--settings ${view === 'settings' ? 'active' : 'inactive'}`}>
             {/* Content Area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '8px 8px 0', overflow: 'hidden' }}>
-                <div className="nav-menu" style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'stretch'
-                }}>
+            <div className="sidebar-settings-content">
+                <div className="sidebar-settings-nav">
                     {navItems.map((item, index) => (
                         <button
                             key={item.id}
                             onClick={() => onNavigateSettings(item.id)}
-                            className={`nav-item settings-nav-item animate-sidebar-item ${activeSettingsSection === item.id ? 'active' : ''}`}
+                            className={`sidebar-nav-item sidebar-nav-item--settings sidebar-animate-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
                                 padding: '10px 8px',
                                 fontSize: '0.9rem',
@@ -288,167 +276,43 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                                 width: '100%'
                             }}
                         >
-                            <div style={{
-                                width: '20px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                            }}>
+                            <div className="sidebar-nav-item__icon">
                                 {item.icon}
                             </div>
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>
+                            <span className="sidebar-nav-item__label">{item.label}</span>
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Footer - Back to Chat Button */}
-            <div style={{
-                marginTop: 'auto',
-                borderTop: '1px solid var(--theme-border)',
-                padding: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'stretch',
-                minWidth: 0
-            }}>
+            <div className="sidebar-settings-footer">
                 <button
                     onClick={onCloseSettings}
-                    style={{
-                        width: '100%',
-                        padding: '8px',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: 'transparent',
-                        color: 'var(--theme-text-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-start',
-                        gap: '12px',
-                        fontSize: '0.9rem',
-                        fontWeight: 500,
-                        transition: 'all 0.2s ease',
-                        minWidth: 0,
-                        overflow: 'hidden'
-                    }}
-                    onMouseEnter={e => {
-                        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)'
-                    }}
-                    onMouseLeave={e => {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                    }}
+                    className="sidebar-settings-back-btn"
                     title=""
                 >
-                    <div style={{
-                        width: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                    }}>
+                    <div className="sidebar-nav-item__icon">
                         <ArrowLeft size={20} strokeWidth={2} />
                     </div>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Back to Chat</span>
+                    <span className="sidebar-nav-item__label">Back to Chat</span>
                 </button>
             </div>
         </div>
     )
 
     return (
-        <div
-            className={`sidebar-container${shouldApplyGlass ? ' frosted' : ''}`}
-            style={{
-                width: sidebarHidden ? '0px' : (sidebarCollapsed ? '60px' : '260px'),
-                background: shouldApplyGlass
-                    ? 'transparent'
-                    : 'var(--theme-surface)',
-                borderRight: sidebarHidden
-                    ? 'none'
-                    : shouldApplyGlass
-                        ? 'none'
-                        : '1px solid var(--theme-border)',
-                boxShadow: shouldApplyGlass
-                    ? '4px 0 20px rgba(0, 0, 0, 0.35)'
-                    : 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                height: '100%',
-                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-                transition: 'width 0.2s ease, opacity 0.15s ease, background 0.2s ease',
-                position: 'relative',
-                overflow: 'hidden',
-                pointerEvents: sidebarHidden ? 'none' : 'auto',
-                zIndex: 1
-            }}>
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div className={containerClasses} style={containerStyle}>
+            <div className="sidebar__inner">
                 {renderChatContent()}
                 {renderSettingsContent()}
             </div>
 
             {view === 'chat' && (
-                <div
-                    style={{
-                        position: 'absolute',
-                        left: 10,
-                        right: 10,
-                        bottom: 10,
-                        zIndex: 3,
-                        pointerEvents: 'auto'
-                    }}
-                >
+                <div className="sidebar-footer-wrapper">
                     <SidebarFooter onOpenSettings={onOpenSettings} />
                 </div>
             )}
-
-            <style>{`
-                /* Custom Scrollbar */
-                ::-webkit-scrollbar {
-                    width: 4px;
-                }
-                ::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                ::-webkit-scrollbar-thumb {
-                    background: var(--theme-border);
-                    border-radius: 2px;
-                }
-                ::-webkit-scrollbar-thumb:hover {
-                    background: var(--theme-border-hover);
-                }
-                ::-webkit-scrollbar-thumb:active {
-                    background: var(--theme-border-active);
-                }
-
-                .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; color: var(--theme-text-primary); background: transparent; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; font-weight: 500; transition: background 0.15s ease, color 0.15s ease; width: 100%; box-sizing: border-box; }
-                .nav-item:hover { background: var(--theme-surface-hover); }
-                .nav-item.active { background: var(--theme-surface-active); }
-
-                .settings-nav-item { transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; will-change: transform; }
-                .settings-nav-item:active { transform: translateY(1px) scale(0.98); background: var(--theme-surface-active); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08); transition-duration: 0.06s; }
-                .settings-nav-item:focus-visible { box-shadow: 0 0 0 2px var(--theme-accent-muted); outline: none; }
-                .settings-nav-item:focus-visible:active { box-shadow: 0 0 0 2px var(--theme-accent-muted), inset 0 1px 2px rgba(0, 0, 0, 0.08); }
-                @media (prefers-reduced-motion: reduce) {
-                    .sidebar-container { transition: none !important; }
-                    .sidebar-container * { transition: none !important; animation: none !important; }
-                    .settings-nav-item { transition: background 0.15s ease, color 0.15s ease; }
-                    .settings-nav-item:active { transform: none; box-shadow: none; }
-                }
-
-                @keyframes blur-in-up {
-                    0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
-                    100% { opacity: 1; transform: translateY(0); filter: blur(0); }
-                }
-                .animate-sidebar-item {
-                    animation: blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
-                }
-
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.4; }
-                }
-            `}</style>
 
             <SidebarSearchOverlay
                 isOpen={view === 'chat' && searchOverlayOpen}

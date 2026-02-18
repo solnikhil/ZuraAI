@@ -202,27 +202,26 @@ export class DeferredInitializer {
     const timeToVisible = m.windowVisibleAt - m.processStartAt;
     const timeToFullyLoaded = m.fullyLoadedAt - m.processStartAt;
     
-    console.log('\n╔══════════════════════════════════════════════════════════╗');
-    console.log('║              STARTUP PERFORMANCE METRICS                  ║');
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log(`║  Process Start → App Ready:     ${String(m.appReadyAt - m.processStartAt).padStart(6)}ms              ║`);
-    console.log(`║  App Ready → Window Created:    ${String(m.windowCreatedAt - m.appReadyAt).padStart(6)}ms              ║`);
-    console.log(`║  Window Created → Visible:      ${String(m.windowVisibleAt - m.windowCreatedAt).padStart(6)}ms              ║`);
-    console.log(`║  IPC Ready:                     ${String(m.ipcReadyAt - m.processStartAt).padStart(6)}ms              ║`);
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log(`║  Time to Window Visible:        ${String(timeToVisible).padStart(6)}ms              ║`);
-    console.log(`║  Time to Fully Loaded:          ${String(timeToFullyLoaded).padStart(6)}ms              ║`);
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║  Deferred Task Phases:                                    ║');
+    console.log('\n[DeferredInit] STARTUP PERFORMANCE METRICS');
+    console.log('[DeferredInit] ------------------------------------------------------------');
+    console.log(`[DeferredInit] Process Start -> App Ready:   ${String(m.appReadyAt - m.processStartAt).padStart(6)}ms`);
+    console.log(`[DeferredInit] App Ready -> Window Created:  ${String(m.windowCreatedAt - m.appReadyAt).padStart(6)}ms`);
+    console.log(`[DeferredInit] Window Created -> Visible:    ${String(m.windowVisibleAt - m.windowCreatedAt).padStart(6)}ms`);
+    console.log(`[DeferredInit] IPC Ready:                    ${String(m.ipcReadyAt - m.processStartAt).padStart(6)}ms`);
+    console.log('[DeferredInit] ------------------------------------------------------------');
+    console.log(`[DeferredInit] Time to Window Visible:       ${String(timeToVisible).padStart(6)}ms`);
+    console.log(`[DeferredInit] Time to Fully Loaded:         ${String(timeToFullyLoaded).padStart(6)}ms`);
+    console.log('[DeferredInit] ------------------------------------------------------------');
+    console.log('[DeferredInit] Deferred Task Phases:');
     
     for (const [name, phase] of Object.entries(m.phases)) {
       if (name.startsWith('deferred:')) {
         const taskName = name.replace('deferred:', '').substring(0, 25).padEnd(25);
-        console.log(`║    ${taskName} ${String(phase.durationMs).padStart(6)}ms              ║`);
+        console.log(`[DeferredInit]   ${taskName} ${String(phase.durationMs).padStart(6)}ms`);
       }
     }
     
-    console.log('╚══════════════════════════════════════════════════════════╝\n');
+    console.log('[DeferredInit] ------------------------------------------------------------\n');
   }
 
   /**

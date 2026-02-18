@@ -99,7 +99,7 @@ function reformulateQueryIfNeeded(query: string): string {
 
 /**
  * Execute web search using available API
- * Priority: Tavily > duck-duck-scrape (fallback when no key or Tavily fails)
+ * Priority: Tavily (secure storage key) > duck-duck-scrape fallback
  */
 export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult> {
     // Coerce num_results to number
@@ -139,7 +139,7 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
     // Reformulate poor queries (long or conversational) into keyword-focused search queries
     query = reformulateQueryIfNeeded(query)
 
-    const tavilyKey = process.env.TAVILY_API_KEY || await getSecureValueAsync('tavilyApiKey')
+    const tavilyKey = await getSecureValueAsync('tavilyApiKey')
 
     if (tavilyKey && tavilyKey.trim()) {
         const tavilyResult = await searchWithTavily(query, num_results, tavilyKey.trim(), search_depth, time_range, topic)

@@ -1,0 +1,720 @@
+/* ============================================================
+   Sidebar — unified stylesheet
+   All sidebar visual styles live here. Components use classNames.
+   Tokens: var(--theme-*) from the global theme.
+   ============================================================ */
+
+/* ── Container ─────────────────────────────────────────────── */
+
+.sidebar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  background: var(--theme-surface);
+  border-right: 1px solid var(--theme-border);
+  transition: width 0.2s ease, opacity 0.15s ease, background 0.2s ease;
+}
+
+.sidebar-container--hidden {
+  width: 0 !important;
+  border-right: none;
+  pointer-events: none;
+}
+
+.sidebar-container--collapsed {
+  width: 60px;
+}
+
+.sidebar-container--expanded {
+  width: 260px;
+}
+
+.sidebar-container.frosted {
+  background: transparent;
+  border-right: none;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ── Scrollbar (scoped to sidebar) ─────────────────────────── */
+
+.sidebar-container ::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-container ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-container ::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+  border-radius: 2px;
+}
+.sidebar-container ::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-border-hover);
+}
+.sidebar-container ::-webkit-scrollbar-thumb:active {
+  background: var(--theme-border-active);
+}
+
+/* ── Chat / Settings view transitions ──────────────────────── */
+
+.sidebar-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  transition: all 0.18s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.sidebar-view--chat {
+  height: 100%;
+}
+.sidebar-view--chat.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: all;
+  position: relative;
+}
+.sidebar-view--chat.inactive {
+  opacity: 0;
+  transform: translateX(-20px);
+  pointer-events: none;
+  position: absolute;
+}
+
+.sidebar-view--settings {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+.sidebar-view--settings.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: all;
+}
+.sidebar-view--settings.inactive {
+  opacity: 0;
+  transform: translateX(20px);
+  pointer-events: none;
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+
+.sidebar-header {
+  padding: 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: color-mix(in srgb, var(--theme-surface) 94%, transparent);
+}
+
+.sidebar-container.frosted .sidebar-header {
+  background: transparent;
+}
+
+.sidebar-header__btn {
+  width: 100%;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--theme-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.sidebar-header__btn:hover {
+  background: var(--theme-surface-hover);
+}
+
+.sidebar-container.frosted .sidebar-header__btn:hover {
+  background: color-mix(in srgb, var(--theme-surface-hover) 72%, transparent);
+  border-color: color-mix(in srgb, var(--theme-border) 68%, transparent);
+}
+
+.sidebar-header__btn:focus-visible {
+  box-shadow: 0 0 0 2px var(--theme-accent-muted);
+}
+
+/* "New chat" button — primary action accent tint */
+.sidebar-header__btn--primary {
+  background: color-mix(in srgb, var(--theme-accent) 8%, transparent);
+  font-weight: 600;
+}
+.sidebar-header__btn--primary:hover {
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+}
+.sidebar-container.frosted .sidebar-header__btn--primary:hover {
+  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
+}
+
+.sidebar-header__icon {
+  color: var(--theme-text-secondary);
+  flex-shrink: 0;
+}
+
+/* ── Section labels (unified) ──────────────────────────────── */
+
+.sidebar-section-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--theme-text-muted);
+  padding: 10px 6px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
+
+.sidebar-section-label:hover {
+  opacity: 1;
+}
+
+
+.sidebar-section-label__chevron {
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.sidebar-section-label__chevron--open {
+  transform: rotate(0deg);
+}
+.sidebar-section-label__chevron--closed {
+  transform: rotate(-90deg);
+}
+
+.sidebar-section-label__icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.sidebar-section-label__count {
+  font-size: 0.55rem;
+  opacity: 0.5;
+  margin-left: auto;
+}
+
+.sidebar-section-label__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Section content (children wrapper) ────────────────────── */
+
+.sidebar-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+/* Indent chat rows inside folders */
+.sidebar-section-content--folder {
+  padding-left: 8px;
+}
+
+/* ── Chat list (scrollable area) ───────────────────────────── */
+
+.sidebar-chatlist {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-chatlist__viewport {
+  display: flex;
+  flex-direction: column;
+  padding-left: 8px;
+  padding-right: 14px;
+}
+
+.sidebar-chatlist__listbox {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  outline: none;
+}
+
+/* ── Chat row ──────────────────────────────────────────────── */
+
+.sidebar-chat-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 6px;
+  cursor: pointer;
+  border-radius: 10px;
+  height: 34px;
+  box-sizing: border-box;
+  position: relative;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.sidebar-chat-row:hover {
+  background: var(--theme-surface-hover);
+  border-color: color-mix(in srgb, var(--theme-border) 30%, transparent);
+}
+
+.sidebar-chat-row--focused {
+  background: var(--theme-surface-hover);
+  outline: 1px solid var(--theme-accent);
+  outline-offset: -1px;
+}
+
+.sidebar-chat-row--renaming {
+  cursor: default;
+}
+
+/* Active row: left accent bar via pseudo-element */
+.sidebar-chat-row--active {
+  /* background is set inline per overlay style, but we add the bar here */
+  position: relative;
+}
+.sidebar-chat-row--active::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 5px;
+  bottom: 5px;
+  width: 2.5px;
+  border-radius: 0 2px 2px 0;
+  background: var(--theme-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sidebar-chat-row--active::before {
+  opacity: 1;
+}
+
+.sidebar-chat-row__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+
+.sidebar-chat-row__title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sidebar-chat-row__title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--theme-text-primary);
+  min-width: 0;
+}
+
+/* Active row title gets slightly bolder */
+.sidebar-chat-row--active .sidebar-chat-row__title {
+  font-weight: 500;
+}
+
+.sidebar-chat-row__rename-input {
+  flex: 1;
+  background: var(--theme-surface-active);
+  border: 1px solid var(--theme-accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  color: var(--theme-text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+/* ── Chat row actions (ellipsis / streaming dot) ───────────── */
+
+.sidebar-chat-row__streaming-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--theme-accent);
+  animation: sidebar-pulse 1.5s ease-in-out infinite;
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+
+.sidebar-chat-row__more-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--theme-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, background 0.1s ease, color 0.1s ease;
+}
+
+.sidebar-chat-row__more-btn:hover {
+  background: var(--theme-surface-active);
+}
+
+/* Show on row hover or when active */
+.sidebar-chat-row__more-btn--visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sidebar-chat-row__more-btn--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.sidebar-chat-row__more-btn--always {
+  opacity: 0.86;
+  pointer-events: auto;
+}
+.sidebar-chat-row:hover .sidebar-chat-row__more-btn--hidden {
+  opacity: 1;
+  pointer-events: auto;
+}
+.sidebar-chat-row:hover .sidebar-chat-row__more-btn--always {
+  opacity: 1;
+}
+
+/* ── Tag badges ────────────────────────────────────────────── */
+
+.sidebar-chat-row__tags {
+  position: absolute;
+  bottom: 2px;
+  right: 26px;
+  display: flex;
+  gap: 2px;
+}
+
+.sidebar-chat-row__tag {
+  font-size: 0.55rem;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--theme-accent) 20%, transparent);
+  color: var(--theme-accent);
+  line-height: 1.5;
+}
+
+/* ── Folder drop zone ──────────────────────────────────────── */
+
+.sidebar-folder-dropzone {
+  border-radius: 6px;
+  border: 1px dashed transparent;
+  transition: border 0.15s ease;
+}
+
+.sidebar-folder-dropzone--over {
+  border-color: var(--theme-accent);
+}
+
+.sidebar-folder-empty {
+  font-size: 0.7rem;
+  color: var(--theme-text-muted);
+  padding: 8px 12px;
+  text-align: center;
+  opacity: 0.6;
+}
+
+/* ── Archived toggle ───────────────────────────────────────── */
+
+.sidebar-archived-toggle {
+  font-size: 0.7rem;
+  color: var(--theme-text-muted);
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-archived-toggle:hover {
+  opacity: 1;
+}
+
+/* ── Empty state ───────────────────────────────────────────── */
+
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.sidebar-empty__icon {
+  color: var(--theme-text-muted);
+  opacity: 0.35;
+}
+
+.sidebar-empty__text {
+  font-size: 0.8rem;
+  color: var(--theme-text-muted);
+  opacity: 0.7;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+
+.sidebar-footer-wrapper {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+/* Gradient fade above footer so content doesn't abruptly cut off */
+.sidebar-footer-wrapper::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  bottom: 100%;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--theme-surface));
+  pointer-events: none;
+}
+
+.sidebar-container.frosted .sidebar-footer-wrapper::before {
+  background: linear-gradient(to bottom, transparent, rgba(14, 16, 20, 0.6));
+}
+
+.sidebar-footer {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sidebar-footer__btn {
+  width: 100%;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-footer__btn:hover {
+  border-color: var(--theme-border-hover);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.22);
+}
+
+.sidebar-footer__btn:active {
+  transform: translateY(1px);
+}
+
+/* Frosted footer */
+.sidebar-container.frosted .sidebar-footer__btn {
+  background: rgba(14, 16, 20, 0.75);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.sidebar-container.frosted .sidebar-footer__btn:hover {
+  background: rgba(18, 20, 26, 0.82);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Settings nav ──────────────────────────────────────────── */
+
+.sidebar-settings-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 8px 0;
+  overflow: hidden;
+}
+
+.sidebar-settings-nav {
+  background: transparent;
+  border: none;
+  padding: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 6px;
+  color: var(--theme-text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--theme-surface-hover);
+}
+
+.sidebar-nav-item.active {
+  background: var(--theme-surface-active);
+}
+
+.sidebar-nav-item--settings {
+  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1), background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  will-change: transform;
+}
+
+.sidebar-nav-item--settings:active {
+  transform: translateY(1px) scale(0.98);
+  background: var(--theme-surface-active);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition-duration: 0.06s;
+}
+
+.sidebar-nav-item--settings:focus-visible {
+  box-shadow: 0 0 0 2px var(--theme-accent-muted);
+  outline: none;
+}
+
+.sidebar-nav-item--settings:focus-visible:active {
+  box-shadow: 0 0 0 2px var(--theme-accent-muted), inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-nav-item__icon {
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-item__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-settings-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--theme-border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.sidebar-settings-back-btn {
+  width: 100%;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-settings-back-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+
+@keyframes sidebar-blur-in-up {
+  0% { opacity: 0; transform: translateY(10px); filter: blur(5px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.sidebar-animate-item {
+  animation: sidebar-blur-in-up 0.25s cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+}
+
+@keyframes sidebar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Reduced motion ────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-container {
+    transition: none !important;
+  }
+  .sidebar-container * {
+    transition: none !important;
+    animation: none !important;
+  }
+  .sidebar-nav-item--settings {
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .sidebar-nav-item--settings:active {
+    transform: none;
+    box-shadow: none;
+  }
+}

@@ -210,7 +210,7 @@ Tool execution is intentionally restricted.
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (**currently only `web_search` enabled**)
   - Web search: `electron/tools/webSearch.ts`
-    - Primary: Tavily API when key exists (`TAVILY_API_KEY` env or secure storage `tavilyApiKey`)
+    - Primary: Tavily API when key exists in secure storage (`tavilyApiKey`)
     - Fallback: duck-duck-scrape (real DuckDuckGo web search) when no key or Tavily fails
 
 **Note:** Other tool implementations exist in `electron/tools/*` (e.g. `datetime`, `clipboard`, `calculator`, `urlFetcher`) but are not wired to IPC by default.
@@ -225,9 +225,9 @@ Tool execution is intentionally restricted.
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)
 
 ### Environment & Secrets
-- `VITE_OPENROUTER_API_KEY` — optional default OpenRouter key for renderer (Vite env)
-- `TAVILY_API_KEY` — optional Tavily key for main-process `web_search`
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)
+
+API keys are configured in-app and stored via secure storage (`secure-storage.json` under `app.getPath('userData')`).
 
 Never commit `.env` or API keys.
 

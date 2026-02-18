@@ -264,111 +264,102 @@ app.whenReady().then(async () => {
             return suffix === 'ms' ? `${value.toFixed(0)}${suffix}` : value.toFixed(3)
         }
         
-        console.log('\n╔════════════════════════════════════════════════════════════════════╗')
-        console.log('║                    ZURA AI PERFORMANCE METRICS                      ║')
-        console.log('║                    (Shift+Escape Debug Output)                      ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
+        console.log('\n[MAIN] ZURA AI PERFORMANCE METRICS (Shift+Escape Debug Output)')
+        console.log('[MAIN] ===========================================================')
         
         // ==================== STARTUP TIMING ====================
-        console.log('║  📊 STARTUP TIMING                                                  ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log(`║    Window Created:              ${formatMs(perfMetrics.startup.windowCreated).padStart(10)}                       ║`)
-        console.log(`║    Window Visible:              ${formatMs(perfMetrics.startup.windowVisible).padStart(10)}                       ║`)
-        console.log(`║    IPC Ready:                   ${formatMs(perfMetrics.startup.ipcReady).padStart(10)}                       ║`)
-        console.log(`║    Fully Loaded:                ${formatMs(perfMetrics.startup.fullyLoaded).padStart(10)}                       ║`)
+        console.log('[MAIN] STARTUP TIMING')
+        console.log(`[MAIN]   Window Created: ${formatMs(perfMetrics.startup.windowCreated).padStart(10)}`)
+        console.log(`[MAIN]   Window Visible: ${formatMs(perfMetrics.startup.windowVisible).padStart(10)}`)
+        console.log(`[MAIN]   IPC Ready:      ${formatMs(perfMetrics.startup.ipcReady).padStart(10)}`)
+        console.log(`[MAIN]   Fully Loaded:   ${formatMs(perfMetrics.startup.fullyLoaded).padStart(10)}`)
         
         // ==================== MEMORY USAGE ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log('║  💾 MEMORY USAGE                                                    ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log(`║    Heap Used:                   ${formatMB(perfMetrics.memory.heapUsed).padStart(10)}                       ║`)
-        console.log(`║    Heap Total:                  ${formatMB(perfMetrics.memory.heapTotal).padStart(10)}                       ║`)
-        console.log(`║    External:                    ${formatMB(perfMetrics.memory.external).padStart(10)}                       ║`)
-        console.log(`║    RSS (Total):                 ${formatMB(perfMetrics.memory.rss).padStart(10)}                       ║`)
+        console.log('[MAIN] -----------------------------------------------------------')
+        console.log('[MAIN] MEMORY USAGE')
+        console.log(`[MAIN]   Heap Used:   ${formatMB(perfMetrics.memory.heapUsed).padStart(10)}`)
+        console.log(`[MAIN]   Heap Total:  ${formatMB(perfMetrics.memory.heapTotal).padStart(10)}`)
+        console.log(`[MAIN]   External:    ${formatMB(perfMetrics.memory.external).padStart(10)}`)
+        console.log(`[MAIN]   RSS (Total): ${formatMB(perfMetrics.memory.rss).padStart(10)}`)
         
         // ==================== IPC METRICS ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log('║  📡 IPC METRICS                                                     ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log(`║    Total Calls:                 ${String(perfMetrics.ipc.callCount).padStart(10)}                       ║`)
-        console.log(`║    Average Latency:             ${perfMetrics.ipc.averageLatency.toFixed(2).padStart(7)}ms                       ║`)
-        console.log(`║    Batched Calls:               ${String(perfMetrics.ipc.batchedCalls).padStart(10)}                       ║`)
+        console.log('[MAIN] -----------------------------------------------------------')
+        console.log('[MAIN] IPC METRICS')
+        console.log(`[MAIN]   Total Calls:     ${String(perfMetrics.ipc.callCount).padStart(10)}`)
+        console.log(`[MAIN]   Average Latency: ${perfMetrics.ipc.averageLatency.toFixed(2).padStart(7)}ms`)
+        console.log(`[MAIN]   Batched Calls:   ${String(perfMetrics.ipc.batchedCalls).padStart(10)}`)
         
         // ==================== RENDERER METRICS (Web Vitals) ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log('║  🌐 RENDERER METRICS (Web Vitals)                                   ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
+        console.log('[MAIN] -----------------------------------------------------------')
+        console.log('[MAIN] RENDERER METRICS (Web Vitals)')
         if (perfMetrics.renderer) {
             const r = perfMetrics.renderer
-            console.log(`║    FCP (First Contentful Paint):${formatMetricValue(r.fcp).padStart(10)}                       ║`)
-            console.log(`║    TTI (Time To Interactive):   ${formatMetricValue(r.tti).padStart(10)}                       ║`)
-            console.log(`║    LCP (Largest Contentful):    ${formatMetricValue(r.lcp).padStart(10)}                       ║`)
-            console.log(`║    FID (First Input Delay):     ${formatMetricValue(r.fid).padStart(10)}                       ║`)
-            console.log(`║    CLS (Cumulative Layout Shift):${formatMetricValue(r.cls, '').padStart(9)}                       ║`)
+            console.log(`[MAIN]   FCP (First Contentful Paint): ${formatMetricValue(r.fcp).padStart(10)}`)
+            console.log(`[MAIN]   TTI (Time To Interactive):    ${formatMetricValue(r.tti).padStart(10)}`)
+            console.log(`[MAIN]   LCP (Largest Contentful):     ${formatMetricValue(r.lcp).padStart(10)}`)
+            console.log(`[MAIN]   FID (First Input Delay):      ${formatMetricValue(r.fid).padStart(10)}`)
+            console.log(`[MAIN]   CLS (Cumulative Layout Shift):${formatMetricValue(r.cls, '').padStart(9)}`)
             if (r.domContentLoaded !== null) {
                 const domLoaded = r.domContentLoaded - r.navigationStart
-                console.log(`║    DOM Content Loaded:          ${formatMs(domLoaded).padStart(10)}                       ║`)
+                console.log(`[MAIN]   DOM Content Loaded:          ${formatMs(domLoaded).padStart(10)}`)
             }
             if (r.loadComplete !== null) {
                 const loadTime = r.loadComplete - r.navigationStart
-                console.log(`║    Load Complete:               ${formatMs(loadTime).padStart(10)}                       ║`)
+                console.log(`[MAIN]   Load Complete:               ${formatMs(loadTime).padStart(10)}`)
             }
         } else {
-            console.log('║    (Renderer metrics not yet reported)                              ║')
+            console.log('[MAIN]   (Renderer metrics not yet reported)')
         }
         
         // ==================== ELECTRON PROCESS BREAKDOWN ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log('║  ⚡ ELECTRON PROCESS BREAKDOWN                                      ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
+        console.log('[MAIN] -----------------------------------------------------------')
+        console.log('[MAIN] ELECTRON PROCESS BREAKDOWN')
         processMetrics.forEach((metric) => {
             const memMB = (metric.memory.workingSetSize / 1024).toFixed(1)
             const cpuPercent = metric.cpu.percentCPUUsage.toFixed(1)
-            console.log(`║    PID ${String(metric.pid).padEnd(6)} │ ${metric.type.padEnd(12)} │ ${cpuPercent.padStart(5)}% CPU │ ${memMB.padStart(7)} MB  ║`)
+            console.log(`[MAIN]   PID ${String(metric.pid).padEnd(6)} | ${metric.type.padEnd(12)} | ${cpuPercent.padStart(5)}% CPU | ${memMB.padStart(7)} MB`)
         })
-        console.log(`║    ─────────────────────────────────────────────────────────────   ║`)
-        console.log(`║    TOTAL                        │ ${totalCPU.toFixed(1).padStart(5)}% CPU │ ${totalMemoryMB.toFixed(1).padStart(7)} MB  ║`)
+        console.log('[MAIN]   --------------------------------------------------------')
+        console.log(`[MAIN]   TOTAL                     | ${totalCPU.toFixed(1).padStart(5)}% CPU | ${totalMemoryMB.toFixed(1).padStart(7)} MB`)
         
         // ==================== THRESHOLD STATUS ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        console.log('║  🎯 THRESHOLD STATUS                                                ║')
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
-        const startupStatus = perfMetrics.startup.windowVisible > 2000 ? '🚨 EXCEEDED' : '✅ OK'
-        const cleanupStatus = totalMemoryMB > config.thresholds.cleanupThresholdMB ? '⚠️ EXCEEDED' : '✅ OK'
-        const warningStatus = totalMemoryMB > config.thresholds.warningThresholdMB ? '🚨 EXCEEDED' : '✅ OK'
-        console.log(`║    Startup Time (< 2000ms):     ${startupStatus.padEnd(15)}                      ║`)
-        console.log(`║    Memory Cleanup (< ${config.thresholds.cleanupThresholdMB}MB):    ${cleanupStatus.padEnd(15)}                      ║`)
-        console.log(`║    Memory Warning (< ${config.thresholds.warningThresholdMB}MB):    ${warningStatus.padEnd(15)}                      ║`)
+        console.log('[MAIN] -----------------------------------------------------------')
+        console.log('[MAIN] THRESHOLD STATUS')
+        const startupStatus = perfMetrics.startup.windowVisible > 2000 ? 'EXCEEDED' : 'OK'
+        const cleanupStatus = totalMemoryMB > config.thresholds.cleanupThresholdMB ? 'EXCEEDED' : 'OK'
+        const warningStatus = totalMemoryMB > config.thresholds.warningThresholdMB ? 'EXCEEDED' : 'OK'
+        console.log(`[MAIN]   Startup Time (< 2000ms): ${startupStatus}`)
+        console.log(`[MAIN]   Memory Cleanup (< ${config.thresholds.cleanupThresholdMB}MB): ${cleanupStatus}`)
+        console.log(`[MAIN]   Memory Warning (< ${config.thresholds.warningThresholdMB}MB): ${warningStatus}`)
         
         // Check renderer-specific thresholds
         if (perfMetrics.renderer) {
-            const fcpStatus = perfMetrics.renderer.fcp !== null && perfMetrics.renderer.fcp > 500 ? '⚠️ EXCEEDED' : '✅ OK'
-            const lcpStatus = perfMetrics.renderer.lcp !== null && perfMetrics.renderer.lcp > 2500 ? '⚠️ EXCEEDED' : '✅ OK'
-            console.log(`║    FCP (< 500ms):               ${fcpStatus.padEnd(15)}                      ║`)
-            console.log(`║    LCP (< 2500ms):              ${lcpStatus.padEnd(15)}                      ║`)
+            const fcpStatus = perfMetrics.renderer.fcp !== null && perfMetrics.renderer.fcp > 500 ? 'EXCEEDED' : 'OK'
+            const lcpStatus = perfMetrics.renderer.lcp !== null && perfMetrics.renderer.lcp > 2500 ? 'EXCEEDED' : 'OK'
+            console.log(`[MAIN]   FCP (< 500ms): ${fcpStatus}`)
+            console.log(`[MAIN]   LCP (< 2500ms): ${lcpStatus}`)
         }
         
         // ==================== ACTIVE WARNINGS ====================
         if (thresholdResults.warnings.length > 0) {
-            console.log('╠════════════════════════════════════════════════════════════════════╣')
-            console.log('║  ⚠️  ACTIVE WARNINGS                                                ║')
-            console.log('╠════════════════════════════════════════════════════════════════════╣')
+            console.log('[MAIN] -----------------------------------------------------------')
+            console.log('[MAIN] ACTIVE WARNINGS')
             thresholdResults.warnings.forEach((warning) => {
                 // Truncate long warnings to fit in the box
                 const maxLen = 60
                 const truncatedWarning = warning.length > maxLen ? warning.substring(0, maxLen - 3) + '...' : warning
-                console.log(`║    • ${truncatedWarning.padEnd(62)}║`)
+                console.log(`[MAIN]   - ${truncatedWarning}`)
             })
         } else {
-            console.log('╠════════════════════════════════════════════════════════════════════╣')
-            console.log('║  ✅ NO ACTIVE WARNINGS                                              ║')
+            console.log('[MAIN] -----------------------------------------------------------')
+            console.log('[MAIN] NO ACTIVE WARNINGS')
         }
         
         // ==================== FOOTER ====================
-        console.log('╠════════════════════════════════════════════════════════════════════╣')
+        console.log('[MAIN] -----------------------------------------------------------')
         const timestamp = new Date().toISOString()
-        console.log(`║  Collected at: ${timestamp}                          ║`)
-        console.log('╚════════════════════════════════════════════════════════════════════╝\n')
+        console.log(`[MAIN] Collected at: ${timestamp}`)
+        console.log('[MAIN] ===========================================================\n')
     })
 
 })

@@ -17,34 +17,16 @@ export default function TimeGroup({ label, sessions, children }: TimeGroupProps)
     return (
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
             <CollapsibleTrigger asChild>
-                <div
-                    style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '6px 6px 2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        fontWeight: 500,
-                        letterSpacing: '0.3px',
-                        textTransform: 'uppercase',
-                    }}
-                >
+                <div className="sidebar-section-label">
                     <ChevronDown
                         size={10}
-                        style={{
-                            transition: 'transform 0.15s ease',
-                            transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                            flexShrink: 0,
-                        }}
+                        className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
                     />
                     <span>{label}</span>
                 </div>
             </CollapsibleTrigger>
             <CollapsibleContent>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '2px' }}>
+                <div className="sidebar-section-content">
                     {children}
                 </div>
             </CollapsibleContent>

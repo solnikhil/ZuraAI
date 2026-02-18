@@ -14,7 +14,6 @@ Thanks for taking the time to contribute.
 git clone https://github.com/solnikhil/ZuraAI.git
 cd ZuraAI
 npm install
-cp .env.example .env
 ```
 
 Run locally:

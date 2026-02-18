@@ -1,6 +1,7 @@
 import React from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { MessageCircle } from '../../icons'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
@@ -35,6 +36,12 @@ interface SidebarChatListProps {
     onKeyDown: (e: React.KeyboardEvent) => void
 }
 
+/** Time-group definition for sub-labels inside "Your chats" */
+interface TimeGroupBucket {
+    label: string
+    sessions: ChatSession[]
+}
+
 export default function SidebarChatList({
     groupedSessions,
     folders,
@@ -59,13 +66,18 @@ export default function SidebarChatList({
 }: SidebarChatListProps) {
     const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
     const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
-    const chronologicalSessions = [
-        ...groupedSessions.today,
-        ...groupedSessions.yesterday,
-        ...groupedSessions.previous7Days,
-        ...groupedSessions.previous30Days,
-        ...groupedSessions.older,
-    ]
+
+    // Build time-group buckets (only include non-empty ones)
+    const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
+        const buckets: TimeGroupBucket[] = [
+            { label: 'Today', sessions: groupedSessions.today },
+            { label: 'Yesterday', sessions: groupedSessions.yesterday },
+            { label: 'Previous 7 days', sessions: groupedSessions.previous7Days },
+            { label: 'Previous 30 days', sessions: groupedSessions.previous30Days },
+            { label: 'Older', sessions: groupedSessions.older },
+        ]
+        return buckets.filter(b => b.sessions.length > 0)
+    }, [groupedSessions])
 
     const renderChatRow = (session: ChatSession) => {
         const flatIndex = flatVisibleSessions.findIndex(s => s.id === session.id)
@@ -115,7 +127,7 @@ export default function SidebarChatList({
 
     return (
         <ScrollArea
-            style={{ flex: 1, minWidth: 0 }}
+            className="sidebar-chatlist"
             viewportStyle={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -127,33 +139,20 @@ export default function SidebarChatList({
                 role="listbox"
                 tabIndex={0}
                 onKeyDown={onKeyDown}
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    outline: 'none',
-                    paddingBottom: bottomPadding,
-                }}
+                className="sidebar-chatlist__listbox"
+                style={{ paddingBottom: bottomPadding }}
             >
                 {!hasAnyVisibleSessions && searchQuery && (
-                    <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '16px 8px',
-                        textAlign: 'center',
-                    }}>
-                        No chats found
+                    <div className="sidebar-empty">
+                        <MessageCircle size={24} className="sidebar-empty__icon" />
+                        <span className="sidebar-empty__text">No chats found</span>
                     </div>
                 )}
 
                 {!hasAnyVisibleSessions && !searchQuery && (
-                    <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '16px 8px',
-                        textAlign: 'center',
-                    }}>
-                        No chats yet
+                    <div className="sidebar-empty">
+                        <MessageCircle size={24} className="sidebar-empty__icon" />
+                        <span className="sidebar-empty__text">No chats yet</span>
                     </div>
                 )}
 
@@ -179,37 +178,24 @@ export default function SidebarChatList({
                     )
                 })}
 
+                {/* "Your chats" — with time-group sub-labels */}
                 <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
                     <CollapsibleTrigger asChild>
-                        <div style={{
-                            fontSize: '0.82rem',
-                            color: 'var(--theme-text-secondary)',
-                            padding: '8px 6px 4px',
-                            fontWeight: 500,
-                            letterSpacing: '0.01em',
-                            textTransform: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            borderRadius: '8px',
-                            width: 'fit-content',
-                        }}>
-                            <span>Your chats</span>
+                        <div className="sidebar-section-label">
                             <ChevronDown
                                 size={10}
-                                style={{
-                                    transition: 'transform 0.15s ease',
-                                    transform: isYourChatsOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                    flexShrink: 0,
-                                }}
+                                className={`sidebar-section-label__chevron ${isYourChatsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
                             />
+                            <span>Your chats</span>
                         </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingTop: '2px' }}>
-                            {chronologicalSessions.map(s => renderChatRow(s))}
+                        <div className="sidebar-section-content" style={{ paddingTop: '2px' }}>
+                            {timeGroups.map(group => (
+                                <React.Fragment key={group.label}>
+                                    {group.sessions.map(s => renderChatRow(s))}
+                                </React.Fragment>
+                            ))}
                         </div>
                     </CollapsibleContent>
                 </Collapsible>
@@ -217,17 +203,7 @@ export default function SidebarChatList({
                 {/* Archived toggle */}
                 <div
                     onClick={onToggleArchived}
-                    style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '8px 4px',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        opacity: 0.7,
-                        transition: 'opacity 0.15s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '0.7' }}
+                    className="sidebar-archived-toggle"
                 >
                     {showArchived ? 'Hide archived' : `Archived (${archivedSessions.length})`}
                 </div>

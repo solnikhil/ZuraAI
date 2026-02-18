@@ -284,7 +284,6 @@ export default function Settings({
 
           {activeSection === 'experimental' && (
             <ExperimentalSection
-              streamResponses={pendingSettings.streamResponses ?? settings.streamResponses}
               frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
               frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
               sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}

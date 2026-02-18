@@ -207,7 +207,7 @@ export class PerformanceMonitor {
     
     // Check FCP threshold (500ms from Requirement 7.6)
     if (metrics.fcp !== null && metrics.fcp > 500 && !this.fcpWarningLogged) {
-      console.warn(`[PerformanceMonitor] ⚠️ WARNING: FCP (${metrics.fcp.toFixed(0)}ms) exceeds 500ms threshold`);
+      console.warn(`[PerformanceMonitor] WARNING: FCP (${metrics.fcp.toFixed(0)}ms) exceeds 500ms threshold`);
       this.fcpWarningLogged = true;
     }
   }
@@ -249,45 +249,44 @@ export class PerformanceMonitor {
     const metrics = this.getMetrics();
     const memMB = bytesToMB(metrics.memory.rss);
     
-    console.log('\n╔══════════════════════════════════════════════════════════╗');
-    console.log('║           PERFORMANCE MONITOR METRICS                     ║');
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║  STARTUP TIMING                                           ║');
-    console.log(`║    Window Created:              ${String(metrics.startup.windowCreated).padStart(6)}ms              ║`);
-    console.log(`║    Window Visible:              ${String(metrics.startup.windowVisible).padStart(6)}ms              ║`);
-    console.log(`║    IPC Ready:                   ${String(metrics.startup.ipcReady).padStart(6)}ms              ║`);
-    console.log(`║    Fully Loaded:                ${String(metrics.startup.fullyLoaded).padStart(6)}ms              ║`);
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║  MEMORY USAGE                                             ║');
-    console.log(`║    Heap Used:                   ${bytesToMB(metrics.memory.heapUsed).toFixed(1).padStart(6)} MB              ║`);
-    console.log(`║    Heap Total:                  ${bytesToMB(metrics.memory.heapTotal).toFixed(1).padStart(6)} MB              ║`);
-    console.log(`║    External:                    ${bytesToMB(metrics.memory.external).toFixed(1).padStart(6)} MB              ║`);
-    console.log(`║    RSS (Total):                 ${memMB.toFixed(1).padStart(6)} MB              ║`);
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║  IPC METRICS                                              ║');
-    console.log(`║    Total Calls:                 ${String(metrics.ipc.callCount).padStart(6)}                 ║`);
-    console.log(`║    Average Latency:             ${metrics.ipc.averageLatency.toFixed(1).padStart(6)}ms              ║`);
-    console.log(`║    Batched Calls:               ${String(metrics.ipc.batchedCalls).padStart(6)}                 ║`);
+    console.log('\n[PerformanceMonitor] PERFORMANCE MONITOR METRICS');
+    console.log('[PerformanceMonitor] ------------------------------------------------------------');
+    console.log('[PerformanceMonitor] STARTUP TIMING');
+    console.log(`[PerformanceMonitor]   Window Created: ${String(metrics.startup.windowCreated).padStart(6)}ms`);
+    console.log(`[PerformanceMonitor]   Window Visible: ${String(metrics.startup.windowVisible).padStart(6)}ms`);
+    console.log(`[PerformanceMonitor]   IPC Ready:      ${String(metrics.startup.ipcReady).padStart(6)}ms`);
+    console.log(`[PerformanceMonitor]   Fully Loaded:   ${String(metrics.startup.fullyLoaded).padStart(6)}ms`);
+    console.log('[PerformanceMonitor] ------------------------------------------------------------');
+    console.log('[PerformanceMonitor] MEMORY USAGE');
+    console.log(`[PerformanceMonitor]   Heap Used:  ${bytesToMB(metrics.memory.heapUsed).toFixed(1).padStart(6)} MB`);
+    console.log(`[PerformanceMonitor]   Heap Total: ${bytesToMB(metrics.memory.heapTotal).toFixed(1).padStart(6)} MB`);
+    console.log(`[PerformanceMonitor]   External:   ${bytesToMB(metrics.memory.external).toFixed(1).padStart(6)} MB`);
+    console.log(`[PerformanceMonitor]   RSS (Total):${memMB.toFixed(1).padStart(6)} MB`);
+    console.log('[PerformanceMonitor] ------------------------------------------------------------');
+    console.log('[PerformanceMonitor] IPC METRICS');
+    console.log(`[PerformanceMonitor]   Total Calls:     ${String(metrics.ipc.callCount).padStart(6)}`);
+    console.log(`[PerformanceMonitor]   Average Latency: ${metrics.ipc.averageLatency.toFixed(1).padStart(6)}ms`);
+    console.log(`[PerformanceMonitor]   Batched Calls:   ${String(metrics.ipc.batchedCalls).padStart(6)}`);
     
     // Log renderer metrics if available
     if (metrics.renderer) {
-      console.log('╠══════════════════════════════════════════════════════════╣');
-      console.log('║  RENDERER METRICS (Web Vitals)                            ║');
+      console.log('[PerformanceMonitor] ------------------------------------------------------------');
+      console.log('[PerformanceMonitor] RENDERER METRICS (Web Vitals)');
       const formatMetric = (value: number | null, suffix = 'ms'): string => {
         if (value === null) return '   N/A';
         return suffix === 'ms' ? `${value.toFixed(0).padStart(6)}${suffix}` : value.toFixed(3).padStart(6);
       };
-      console.log(`║    FCP (First Contentful Paint):${formatMetric(metrics.renderer.fcp)}              ║`);
-      console.log(`║    TTI (Time To Interactive):   ${formatMetric(metrics.renderer.tti)}              ║`);
-      console.log(`║    LCP (Largest Contentful):    ${formatMetric(metrics.renderer.lcp)}              ║`);
-      console.log(`║    FID (First Input Delay):     ${formatMetric(metrics.renderer.fid)}              ║`);
-      console.log(`║    CLS (Cumulative Layout Shift):${formatMetric(metrics.renderer.cls, '')}                 ║`);
+      console.log(`[PerformanceMonitor]   FCP (First Contentful Paint): ${formatMetric(metrics.renderer.fcp)}`);
+      console.log(`[PerformanceMonitor]   TTI (Time To Interactive):    ${formatMetric(metrics.renderer.tti)}`);
+      console.log(`[PerformanceMonitor]   LCP (Largest Contentful):     ${formatMetric(metrics.renderer.lcp)}`);
+      console.log(`[PerformanceMonitor]   FID (First Input Delay):      ${formatMetric(metrics.renderer.fid)}`);
+      console.log(`[PerformanceMonitor]   CLS (Cumulative Layout Shift):${formatMetric(metrics.renderer.cls, '')}`);
     } else {
-      console.log('╠══════════════════════════════════════════════════════════╣');
-      console.log('║  RENDERER METRICS: Not yet reported                       ║');
+      console.log('[PerformanceMonitor] ------------------------------------------------------------');
+      console.log('[PerformanceMonitor] RENDERER METRICS: Not yet reported');
     }
     
-    console.log('╚══════════════════════════════════════════════════════════╝\n');
+    console.log('[PerformanceMonitor] ------------------------------------------------------------\n');
   }
 
   /**
@@ -312,7 +311,7 @@ export class PerformanceMonitor {
       warnings.push(warning);
       
       if (!this.startupWarningLogged) {
-        console.warn(`[PerformanceMonitor] ⚠️ WARNING: ${warning}`);
+        console.warn(`[PerformanceMonitor] WARNING: ${warning}`);
         console.warn('[PerformanceMonitor] Performance regression detected - startup > 2s');
         this.startupWarningLogged = true;
       }
@@ -327,7 +326,7 @@ export class PerformanceMonitor {
       warnings.push(warning);
       
       if (!this.memoryWarningLogged) {
-        console.warn(`[PerformanceMonitor] ⚠️ WARNING: ${warning}`);
+        console.warn(`[PerformanceMonitor] WARNING: ${warning}`);
         console.warn('[PerformanceMonitor] Performance regression detected - memory > 800MB');
         this.memoryWarningLogged = true;
       }
@@ -428,7 +427,7 @@ export class PerformanceMonitor {
       const warning = `Startup time (${startupTime}ms) exceeds threshold (${this.thresholds.startupWarningMs}ms)`;
       
       if (!this.startupWarningLogged) {
-        console.warn(`[PerformanceMonitor] ⚠️ WARNING: ${warning}`);
+        console.warn(`[PerformanceMonitor] WARNING: ${warning}`);
         console.warn('[PerformanceMonitor] Performance regression detected - startup > 2s');
         this.startupWarningLogged = true;
       }
@@ -467,7 +466,7 @@ export class PerformanceMonitor {
       const warning = `Memory usage (${memoryMB.toFixed(1)}MB) exceeds threshold (${this.thresholds.memoryWarningMB}MB)`;
       
       if (!this.memoryWarningLogged) {
-        console.warn(`[PerformanceMonitor] ⚠️ WARNING: ${warning}`);
+        console.warn(`[PerformanceMonitor] WARNING: ${warning}`);
         console.warn('[PerformanceMonitor] Performance regression detected - memory > 800MB');
         this.memoryWarningLogged = true;
       }
