@@ -4,7 +4,7 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { EyeIcon, EyeOffIcon } from './icons'
+import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
 import TitleBarCommandBar from './TitleBarCommandBar'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
@@ -35,7 +35,7 @@ export default function TitleBar() {
     const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        setDashboardView: _setDashboardView,
+        setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
@@ -85,6 +85,8 @@ export default function TitleBar() {
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
     const showModel = settings.titleBarShowModel !== false
+    const isSettingsView = dashboardView === 'settings'
+    const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
 
     // Detect macOS platform
@@ -127,6 +129,17 @@ export default function TitleBar() {
         handleToggleMaximize()
     }, [handleToggleMaximize])
 
+    const handleSettingsButtonClick = useCallback(() => {
+        if (isSettingsView) {
+            if (!hasUnsavedSettings) {
+                setDashboardView('chat')
+            }
+            return
+        }
+
+        setDashboardView('settings')
+    }, [hasUnsavedSettings, isSettingsView, setDashboardView])
+
     return (
         <div
             className={[
@@ -168,6 +181,26 @@ export default function TitleBar() {
                             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
                         >
                             {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
+                        </button>
+                        <button
+                            type="button"
+                            className={[
+                                'app-titlebar__icon-btn',
+                                isSettingsView ? 'app-titlebar__icon-btn--back' : 'app-titlebar__icon-btn--settings',
+                                settingsButtonDisabled ? 'app-titlebar__icon-btn--disabled' : null,
+                            ].filter(Boolean).join(' ')}
+                            onClick={handleSettingsButtonClick}
+                            aria-label={isSettingsView ? 'Back to chat' : 'Open settings'}
+                            title={
+                                settingsButtonDisabled
+                                    ? 'Save or discard changes to go back'
+                                    : isSettingsView
+                                        ? 'Back to chat'
+                                        : 'Open settings'
+                            }
+                            disabled={settingsButtonDisabled}
+                        >
+                            {isSettingsView ? <ArrowLeft size={16} /> : <SettingsIcon size={16} />}
                         </button>
                     </div>
                 )}

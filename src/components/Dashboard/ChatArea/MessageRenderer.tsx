@@ -20,7 +20,7 @@ import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
-import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { Message, ThinkingBlock, ToolCallResult, FileAttachment } from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
 
 export interface MessageRendererProps {
@@ -42,10 +42,7 @@ export interface MessageRendererProps {
       model?: string
     }>
     currentVersionIndex?: number
-    toolResults?: Array<{
-      toolCall: { id: string; name: string; arguments: any }
-      result: { success: boolean; data?: any; error?: string; executionTime?: number }
-    }>
+    toolResults?: ToolCallResult[]
     researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
@@ -502,7 +499,7 @@ function UserMessageBubble({
           maxWidth: '70%',
           width: '100%'
         }}>
-          {message.files.map((file: any) => (
+          {message.files.map((file: FileAttachment) => (
             file.type === 'image' ? (
               <div
                 key={file.id}
@@ -837,15 +834,17 @@ function MessageRendererComponent({
     if (!message.toolResults) return map
     for (const tr of message.toolResults) {
       if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
-        const results = tr.result.data.results || tr.result.data
+        const dataObj = tr.result.data as Record<string, unknown>
+        const results = (dataObj.results as unknown[]) || tr.result.data
         if (Array.isArray(results)) {
-          for (const entry of results) {
+          for (const rawEntry of results) {
+            const entry = rawEntry as Record<string, unknown>
             if (entry.url) {
-              map.set(entry.url, {
-                title: entry.title || '',
-                url: entry.url,
-                snippet: entry.snippet || entry.description || '',
-                favicon: entry.favicon || ''
+              map.set(String(entry.url), {
+                title: String(entry.title || ''),
+                url: String(entry.url),
+                snippet: String(entry.snippet || entry.description || ''),
+                favicon: String(entry.favicon || '')
               })
             }
           }
@@ -861,16 +860,20 @@ function MessageRendererComponent({
     if (!message.toolResults) return images
     for (const tr of message.toolResults) {
       if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
-        const resultImages = tr.result.data.images || []
+        const dataObj = tr.result.data as Record<string, unknown>
+        const resultImages = (dataObj.images as unknown[]) || []
         if (Array.isArray(resultImages)) {
           for (const img of resultImages) {
             if (typeof img === 'string') {
               images.push({ url: img })
-            } else if (img?.url) {
-              images.push({
-                url: img.url,
-                description: img.description || img.alt || undefined
-              })
+            } else if (img && typeof img === 'object') {
+              const imgObj = img as Record<string, unknown>
+              if (imgObj.url) {
+                images.push({
+                  url: String(imgObj.url),
+                  description: String(imgObj.description || imgObj.alt || '') || undefined
+                })
+              }
             }
           }
         }
@@ -880,7 +883,7 @@ function MessageRendererComponent({
   }, [message.toolResults])
 
   const isUser = message.role === 'user'
-  const hasThinking = typeof (message as any).thinking === 'string' && (message as any).thinking.trim().length > 0
+  const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
   const showThinkingSpinner = isStreaming && !hasThinking
 
   // Handle copy
@@ -997,6 +1000,17 @@ function MessageRendererComponent({
   }
 
   // Render assistant message
+  const shouldShowInfoTooltip = !isStreaming && (
+    Boolean(message.content) ||
+    Boolean(message.thinking) ||
+    Boolean(message.model) ||
+    Boolean(message.usage) ||
+    Boolean(message.finishReason) ||
+    typeof message.requestedMaxTokens === 'number' ||
+    typeof message.latency === 'number' ||
+    Boolean(message.toolResults)
+  )
+
   return (
     <div
       style={{ marginBottom: '24px' }}
@@ -1008,7 +1022,7 @@ function MessageRendererComponent({
       {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
-            thinking={(message as any).thinking || ''}
+            thinking={message.thinking || ''}
             isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching && (!activeToolCalls || activeToolCalls.length === 0)}
             thinkingDuration={message.thinkingDuration}
             isSearching={message.researchStatus?.isSearching || false}
@@ -1152,7 +1166,7 @@ function MessageRendererComponent({
         )}
 
         {/* Info Tooltip */}
-        {(message.usage || message.toolResults) && (
+        {shouldShowInfoTooltip && (
           <div
             ref={infoTriggerRef}
             style={{
@@ -1182,7 +1196,7 @@ function MessageRendererComponent({
                 }}
               />
               {/* Sources badge */}
-              {message.toolResults && message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length > 0 && (
+              {message.toolResults && message.toolResults.filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search').length > 0 && (
                 <span style={{
                   position: 'absolute',
                   top: '-6px',
@@ -1201,7 +1215,7 @@ function MessageRendererComponent({
                   border: '2px solid var(--theme-bg)',
                   pointerEvents: 'none'
                 }}>
-                  {message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length}
+                  {message.toolResults.filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search').length}
                 </span>
               )}
             </div>

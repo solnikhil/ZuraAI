@@ -20,7 +20,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
-import type { ThinkingBlock } from './ChatHistoryContext'
+import type { ThinkingBlock, ToolCallResult } from './ChatHistoryContext'
 
 /**
  * Streaming message state - contains all data for the currently streaming message
@@ -46,7 +46,7 @@ export interface StreamingMessageState {
     isSearching: boolean
   }
   /** Tool results from function calls */
-  toolResults?: any[]
+  toolResults?: ToolCallResult[]
   /** Structured research plan (step-by-step mode) */
   researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
   /** Progress during structured research execution */

@@ -16,14 +16,14 @@
 import { memo, useMemo } from 'react'
 import { useMessageStreamingState } from '../../../contexts/StreamingContext'
 import { MessageRenderer } from './MessageRenderer'
-import type { Message } from '../../../contexts/ChatHistoryContext'
+import type { Message, ToolCallResult, ThinkingBlock, ResponseVersion } from '../../../contexts/ChatHistoryContext'
 
 interface StreamingMessageProps {
   /** The base message from the session (may have stale content during streaming) */
   message: Message & {
     thinking?: string
     thinkingDuration?: number
-    thinkingBlocks?: any[]
+    thinkingBlocks?: ThinkingBlock[]
     researchStatus?: {
       currentRound: number
       maxRounds: number
@@ -32,9 +32,9 @@ interface StreamingMessageProps {
     }
     researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
-    responseVersions?: any[]
+    responseVersions?: ResponseVersion[]
     currentVersionIndex?: number
-    toolResults?: any[]
+    toolResults?: ToolCallResult[]
   }
   /** Session ID for checking streaming state */
   sessionId: string

@@ -29,12 +29,12 @@ export async function executeTool(toolName: string, args: Record<string, unknown
             )
         })
 
-        let result: any
+        let result: { success: boolean; data?: unknown; error?: string }
         try {
             result = await Promise.race([
                 window.ipcRenderer.invoke('execute-tool', toolName, args),
                 timeoutPromise
-            ])
+            ]) as { success: boolean; data?: unknown; error?: string }
         } finally {
             if (timeoutId) clearTimeout(timeoutId)
         }

@@ -16,6 +16,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { ChevronDown } from 'lucide-react'
+import type { ToolCallResult } from '../../../contexts/ChatHistoryContext'
 
 interface Message {
   id: string
@@ -25,7 +26,7 @@ interface Message {
   model?: string
   image?: string
   thinking?: string
-  toolResults?: any[]
+  toolResults?: ToolCallResult[]
   usage?: {
     inputTokens: number
     outputTokens: number

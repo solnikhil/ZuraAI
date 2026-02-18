@@ -53,7 +53,7 @@ export async function saveApiKeyToSecureStorage(
     }
 }
 
-export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boolean> {
+export async function migrateApiKeysFromLocalStorage(settings: Record<string, string | undefined>): Promise<boolean> {
     const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'> = [
         'openRouterApiKey',
         'perplexityApiKey',

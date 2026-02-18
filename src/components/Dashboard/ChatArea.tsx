@@ -21,6 +21,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
@@ -169,8 +170,8 @@ export default function ChatArea() {
         {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
           <div style={{ marginBottom: '12px' }}>
             {msg.toolResults
-              .filter((r: any) => r.toolCall.name !== 'web_search')
-              .map((result: any, i: number) => (
+              .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
+              .map((result: ToolCallResult, i: number) => (
                 <ToolResultDisplay
                   key={`stored-${i}`}
                   toolName={result.toolCall.name}
@@ -338,8 +339,8 @@ export default function ChatArea() {
                   {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
                     <div style={{ marginBottom: '12px' }}>
                       {msg.toolResults
-                        .filter((r: any) => r.toolCall.name !== 'web_search')
-                        .map((result: any, i: number) => (
+                        .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
+                        .map((result: ToolCallResult, i: number) => (
                           <ToolResultDisplay
                             key={`stored-${i}`}
                             toolName={result.toolCall.name}

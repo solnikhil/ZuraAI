@@ -69,7 +69,7 @@ const SECTION_VARIANTS = {
   },
 } as const
 
-function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: any, iconClass: string } {
+function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: React.ComponentType<{ size?: number; className?: string }>, iconClass: string } {
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
@@ -127,14 +127,14 @@ function loadCommandBarHistory(): CommandBarHistoryEntry[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
 
-    return parsed
-      .filter((entry: any) => entry && typeof entry === 'object')
-      .filter((entry: any) => typeof entry.suggestionId === 'string')
-      .filter((entry: any) => typeof entry.title === 'string')
-      .filter((entry: any) => entry.action && typeof entry.action === 'object')
-      .map((entry: any) => ({
-        suggestionId: entry.suggestionId,
-        title: entry.title,
+    return (parsed as unknown[])
+      .filter((entry): entry is Record<string, unknown> => entry != null && typeof entry === 'object')
+      .filter((entry) => typeof entry.suggestionId === 'string')
+      .filter((entry) => typeof entry.title === 'string')
+      .filter((entry) => entry.action != null && typeof entry.action === 'object')
+      .map((entry) => ({
+        suggestionId: entry.suggestionId as string,
+        title: entry.title as string,
         subtitle: typeof entry.subtitle === 'string' ? entry.subtitle : undefined,
         input: typeof entry.input === 'string' ? entry.input : '',
         action: entry.action as CommandBarAction,
@@ -294,13 +294,14 @@ export default function TitleBarCommandBar({ idlePlaceholder }: TitleBarCommandB
       ? 'clamp(420px, 44vw, 540px)'
       : 'clamp(360px, 40vw, 480px)'
 
-    return {
-      ['--commandbar-width' as any]: width,
-      ['--commandbar-field-surface' as any]: `${commandBar.fieldSurface}%`,
-      ['--commandbar-field-surface-focused' as any]: `${commandBar.fieldSurfaceFocused}%`,
-      ['--commandbar-dropdown-surface' as any]: `${commandBar.dropdownSurface}%`,
-      ['--commandbar-dropdown-blur' as any]: commandBar.enableBlur ? `${commandBar.blurPx}px` : '0px',
-    } as React.CSSProperties
+    const style: React.CSSProperties & Record<string, string> = {
+      '--commandbar-width': width,
+      '--commandbar-field-surface': `${commandBar.fieldSurface}%`,
+      '--commandbar-field-surface-focused': `${commandBar.fieldSurfaceFocused}%`,
+      '--commandbar-dropdown-surface': `${commandBar.dropdownSurface}%`,
+      '--commandbar-dropdown-blur': commandBar.enableBlur ? `${commandBar.blurPx}px` : '0px',
+    }
+    return style
   }, [commandBar.blurPx, commandBar.dropdownSurface, commandBar.enableBlur, commandBar.fieldSurface, commandBar.fieldSurfaceFocused, commandBar.size])
 
 

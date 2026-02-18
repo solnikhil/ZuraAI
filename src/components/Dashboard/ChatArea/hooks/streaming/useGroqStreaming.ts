@@ -18,11 +18,19 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type { OpenRouterResponse } from '../../../../../tools/types'
 import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
+
+interface DeltaToolCall {
+  index?: number
+  id?: string
+  type?: string
+  function?: { name?: string; arguments?: string }
+}
 
 /** ~4 chars per token heuristic when Groq doesn't return usage (e.g. compound models) */
 function estimateOutputTokens(content: string): number {
@@ -90,11 +98,11 @@ export function useGroqStreaming({
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     let lastUpdateTime = Date.now()
-    let finalUsage: any = {}
+    let finalUsage: Record<string, number> = {}
     let hasToolCalls = false
-    let toolCallsAccumulator: any[] = []
+    let toolCallsAccumulator: DeltaToolCall[] = []
     let finishReason: string | null = null
-    let savedToolResults: any = null
+    let savedToolResults: ToolCallResult[] | undefined = undefined
     let firstTokenTime: number | null = null
     let localThinkingBlocks: ThinkingBlock[] = []
 
@@ -124,7 +132,7 @@ export function useGroqStreaming({
       if (chunk.choices?.[0]?.delta?.tool_calls) {
         hasToolCalls = true
         const deltaToolCalls = chunk.choices[0].delta.tool_calls
-        deltaToolCalls?.forEach((tc: any) => {
+        deltaToolCalls?.forEach((tc: DeltaToolCall) => {
           const index = tc.index ?? 0
           if (!toolCallsAccumulator[index]) {
             toolCallsAccumulator[index] = {
@@ -133,8 +141,8 @@ export function useGroqStreaming({
               function: { name: '', arguments: '' }
             }
           }
-          if (tc.function?.name) toolCallsAccumulator[index].function.name += tc.function.name
-          if (tc.function?.arguments) toolCallsAccumulator[index].function.arguments += tc.function.arguments
+          if (tc.function?.name) toolCallsAccumulator[index].function!.name += tc.function.name
+          if (tc.function?.arguments) toolCallsAccumulator[index].function!.arguments += tc.function.arguments
         })
       }
 
@@ -177,13 +185,13 @@ export function useGroqStreaming({
         role: 'assistant',
         content: accumulatedContent,
         tool_calls: toolCallsAccumulator.filter(tc => tc.id).map(tc => ({
-          id: tc.id,
-          type: tc.type || 'function',
-          function: { name: tc.function.name, arguments: tc.function.arguments }
+          id: tc.id || '',
+          type: (tc.type || 'function') as 'function',
+          function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' }
         }))
       }
 
-      const lastUserMsg = [...optimizedHistory].reverse().find((m: any) => m?.role === 'user')
+      const lastUserMsg = [...optimizedHistory].reverse().find((m: Record<string, unknown>) => m?.role === 'user')
       const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : null
 
       const responseWithFallback = {
@@ -195,7 +203,7 @@ export function useGroqStreaming({
       }
 
       const researchPlanCallbacks = {
-          onToolStart: (toolCall: any) => {
+          onToolStart: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => {
             if (toolCall?.name === 'research_plan') {
               const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
               if (args?.topic && Array.isArray(args?.steps)) {
@@ -215,22 +223,22 @@ export function useGroqStreaming({
 
       let toolResult
       try {
-        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
-      } catch (toolError: any) {
+        toolResult = await handleToolCalls(responseWithFallback as OpenRouterResponse, researchPlanCallbacks)
+      } catch (toolError: unknown) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
       // Update researchStatus for web searches or research_plan and add thinkingBlocks
-      const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const webSearchCalls = (toolResult.toolResults || []).filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search')
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: ToolCallResult) => tr.toolCall.name === 'research_plan')
       const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
       if (hasSearchCalls) {
         const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
         const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
-          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          ? ((firstSearch.toolCall.arguments as Record<string, unknown>)?.steps as Array<{ query?: string }> | undefined)?.[0]?.query ?? ''
           : (typeof firstSearch?.toolCall?.arguments === 'object'
-            ? firstSearch?.toolCall?.arguments?.query
+            ? (firstSearch?.toolCall?.arguments as Record<string, unknown>)?.query
             : firstSearch?.toolCall?.arguments)
 
         for (const tr of toolResult.toolResults || []) {
@@ -268,14 +276,14 @@ export function useGroqStreaming({
         })
       }
 
-      savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+      savedToolResults = toolResult?.toolResults?.map((tr: ToolCallResult) => ({
         toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
         result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
-      })) || null
+      })) || undefined
 
       if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
         // Research loop
-        let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+        let totalSearchCount = toolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
         let hasMoreToolCalls = true
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
@@ -284,9 +292,9 @@ export function useGroqStreaming({
         const MAX_RESEARCH_ROUNDS = 6
         while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
           const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
-          let toolChoice: any = undefined
+          let toolChoice: string | undefined = undefined
 
-          const followUpMessages: any[] = []
+          const followUpMessages: Array<{ role: string; content: string; tool_calls?: unknown[] }> = []
           if (researchContextMsg) {
             followUpMessages.push({ role: 'system', content: researchContextMsg })
           }
@@ -296,8 +304,8 @@ export function useGroqStreaming({
           followUpMessages.push(...optimizedHistory, lastAssistantMessage, ...toolResult.formattedResults)
 
           let followUpContent = ''
-          let followUpToolCalls: any[] = []
-          let followUpUsage: any = {}
+          let followUpToolCalls: DeltaToolCall[] = []
+          let followUpUsage: Record<string, number> = {}
 
           for await (const chunk of streamGroqCompletion(
             settings.groqApiKey || '',
@@ -310,12 +318,12 @@ export function useGroqStreaming({
 
             if (chunk.choices?.[0]?.delta?.tool_calls) {
               const deltaToolCalls = chunk.choices[0].delta.tool_calls
-              deltaToolCalls?.forEach((tc: any, idx: number) => {
+              deltaToolCalls?.forEach((tc: DeltaToolCall, idx: number) => {
                 if (!followUpToolCalls[tc.index ?? idx]) {
                   followUpToolCalls[tc.index ?? idx] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
                 }
-                if (tc.function?.name) followUpToolCalls[tc.index ?? idx].function.name += tc.function.name
-                if (tc.function?.arguments) followUpToolCalls[tc.index ?? idx].function.arguments += tc.function.arguments
+                if (tc.function?.name) followUpToolCalls[tc.index ?? idx].function!.name += tc.function.name
+                if (tc.function?.arguments) followUpToolCalls[tc.index ?? idx].function!.arguments += tc.function.arguments
               })
             }
 
@@ -341,13 +349,13 @@ export function useGroqStreaming({
             accumulatedContent
           )
 
-          if (followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)) {
+          if (followUpToolCalls.length > 0 && followUpToolCalls.some((tc: DeltaToolCall) => tc?.function?.name)) {
             const reconstructedFollowUp = {
               role: 'assistant',
               content: followUpContent,
-              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
-                id: tc.id, type: tc.type || 'function',
-                function: { name: tc.function.name, arguments: tc.function.arguments }
+              tool_calls: followUpToolCalls.filter((tc: DeltaToolCall) => tc?.function?.name).map((tc: DeltaToolCall) => ({
+                id: tc.id || '', type: (tc.type || 'function') as 'function',
+                function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' }
               }))
             }
 
@@ -362,13 +370,13 @@ export function useGroqStreaming({
             let nextToolResult
             try {
               nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
-            } catch (e: any) {
+            } catch (e: unknown) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
-            const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
-            const newResearchPlanSteps = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'research_plan')
-              .flatMap((r: any) => r.toolCall.arguments?.steps || []).length || 0
+            const newWebSearches = nextToolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
+            const newResearchPlanSteps = nextToolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'research_plan')
+              .flatMap((r: ToolCallResult) => (r.toolCall.arguments as Record<string, unknown>)?.steps as unknown[] || []).length || 0
             totalSearchCount += newWebSearches + newResearchPlanSteps
 
             for (const tr of nextToolResult.toolResults || []) {
@@ -395,7 +403,7 @@ export function useGroqStreaming({
               }
             }
 
-            const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
+            const newSavedResults = nextToolResult.toolResults?.map((tr: ToolCallResult) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
               result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
             })) || []
@@ -423,7 +431,7 @@ export function useGroqStreaming({
     usage = fillMissingUsage(usage, accumulatedContent)
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
-    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+    const hasWebSearch = (savedToolResults || []).some((r: ToolCallResult) =>
       r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
     )
     const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent

@@ -11,6 +11,7 @@ import {
     ToolCallResult
 } from '../tools/toolManager'
 import { ToolCall } from '../tools/executor'
+import type { OpenRouterResponse } from '../tools/types'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { shouldEnableTools } from '../utils/promptSelection'
 
@@ -107,14 +108,14 @@ export function useToolCalling() {
      * **Validates: Requirements 2.1**
      */
     const handleToolCalls = async (
-        response: any,
+        response: OpenRouterResponse,
         onToolStart?: (toolCall: ToolCall) => void,
         onToolComplete?: (result: ToolCallResult) => void,
         onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
-        formattedResults: any[]
+        formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
         needsFollowUp: boolean
     }> => {
         if (!canUseTools() || !responseHasToolCalls(response, settings.modelProvider)) {
@@ -179,9 +180,9 @@ export function useToolCalling() {
                 formattedResults,
                 needsFollowUp: formattedResults.length > 0
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             setToolState(prev => ({ ...prev, isProcessingTools: false }))
-            console.error('Tool processing error:', error)
+            console.error('Tool processing error:', error instanceof Error ? error.message : error)
 
             return {
                 hasTools: false,

@@ -5,9 +5,9 @@
  * Requirements: 3.6 - Retry with exponential backoff up to 3 times on failure
  */
 
-interface BatchedCall<T = any> {
+interface BatchedCall<T = unknown> {
   channel: string
-  args: any[]
+  args: unknown[]
   resolve: (value: T) => void
   reject: (error: Error) => void
   timestamp: number
@@ -50,7 +50,7 @@ export class IPCBatcher {
    * @param args - Arguments to pass to the IPC handler
    * @returns Promise that resolves with the IPC result
    */
-  async invoke<T = any>(channel: string, ...args: any[]): Promise<T> {
+  async invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const call: BatchedCall<T> = {
         channel,
@@ -65,7 +65,7 @@ export class IPCBatcher {
         this.pendingCalls.set(channel, [])
       }
       const channelCalls = this.pendingCalls.get(channel)!
-      channelCalls.push(call)
+      channelCalls.push(call as BatchedCall)
 
       // If we've reached max batch size, flush immediately
       if (channelCalls.length >= this.config.maxBatchSize) {
@@ -122,9 +122,9 @@ export class IPCBatcher {
         }
 
         const result = await window.ipcRenderer.invoke(call.channel, ...call.args)
-        call.resolve(result)
+        call.resolve(result as T)
         return
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error instanceof Error ? error : new Error(String(error))
         
         // Don't retry on certain errors

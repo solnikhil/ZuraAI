@@ -24,9 +24,18 @@ interface ImageResult {
     description?: string
 }
 
+interface WebSearchResult {
+    query?: string
+    results?: SearchResult[]
+    images?: ImageResult[]
+    imageCount?: number
+    searchDepth?: string
+    answer?: string
+}
+
 interface ToolResultDisplayProps {
     toolName: string
-    result: any
+    result: unknown
     error?: string
 }
 
@@ -49,8 +58,9 @@ export default function ToolResultDisplay({ toolName, result, error }: ToolResul
     
     // Web Search Results
     if (toolName === 'web_search') {
-        const hasImages = result?.images?.length > 0
-        const imageCount = result?.imageCount || result?.images?.length || 0
+        const searchResult = result as WebSearchResult | undefined
+        const hasImages = (searchResult?.images?.length ?? 0) > 0
+        const imageCount = searchResult?.imageCount || searchResult?.images?.length || 0
 
         return (
             <div className="tool-result tool-result-search">
@@ -59,27 +69,27 @@ export default function ToolResultDisplay({ toolName, result, error }: ToolResul
                     onClick={() => setIsExpanded(!isExpanded)}
                 >
                     <Search size={16} />
-                    <span>Web Search: {result?.query}</span>
+                    <span>Web Search: {searchResult?.query}</span>
                     <span className="tool-result-count">
-                        {result?.results?.length || 0} results
+                        {searchResult?.results?.length || 0} results
                         {imageCount > 0 && ` • ${imageCount} images`}
                     </span>
-                    {result?.searchDepth === 'advanced' && (
+                    {searchResult?.searchDepth === 'advanced' && (
                         <span className="tool-result-badge">Advanced</span>
                     )}
                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </div>
 
-                {result?.answer && (
+                {searchResult?.answer && (
                     <div className="tool-result-answer">
-                        {result.answer}
+                        {searchResult.answer}
                     </div>
                 )}
 
                 {/* Image Gallery */}
                 {isExpanded && hasImages && (
                     <div className="search-images-gallery">
-                        {result.images.slice(0, 6).map((img: ImageResult, i: number) => (
+                        {searchResult!.images!.slice(0, 6).map((img: ImageResult, i: number) => (
                             <a
                                 key={i}
                                 href={img.url}
@@ -100,9 +110,9 @@ export default function ToolResultDisplay({ toolName, result, error }: ToolResul
                     </div>
                 )}
 
-                {isExpanded && result?.results?.length > 0 && (
+                {isExpanded && (searchResult?.results?.length ?? 0) > 0 && (
                     <div className="search-results-list">
-                        {result.results.map((r: SearchResult, i: number) => (
+                        {searchResult!.results!.map((r: SearchResult, i: number) => (
                             <div key={i} className="search-result-item">
                                 <a
                                     href={r.url}

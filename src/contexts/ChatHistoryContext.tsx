@@ -33,11 +33,11 @@ export interface ToolCallResult {
     toolCall: {
         id: string
         name: string
-        arguments: Record<string, any>
+        arguments: Record<string, unknown>
     }
     result: {
         success: boolean
-        data?: any
+        data?: unknown
         error?: string
         executionTime?: number
     }
@@ -236,7 +236,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             const sessionLoader = async (id: string): Promise<ChatSession | null> => {
                 try {
                     if (isElectron) {
-                        const allSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                        const allSessions = await window.ipcRenderer.invoke('chat-store:get-all') as ChatSession[] | undefined
                         return allSessions?.find((s: ChatSession) => s.id === id) ?? null
                     } else {
                         const saved = localStorage.getItem('zura-chat-history')
@@ -253,7 +253,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             const allSessionsLoader = async (): Promise<ChatSession[]> => {
                 try {
                     if (isElectron) {
-                        const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                        const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all') as ChatSession[] | undefined
                         return storedSessions || []
                     } else {
                         const saved = localStorage.getItem('zura-chat-history')
@@ -298,7 +298,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             let fullSessions: ChatSession[] = []
             
             if (isElectron) {
-                const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all') as ChatSession[] | undefined
                 fullSessions = storedSessions || []
             } else {
                 const saved = localStorage.getItem('zura-chat-history')
@@ -316,7 +316,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             // Validates: Requirements 8.1, 8.2
             if (isElectron) {
                 try {
-                    const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders')
+                    const storedFolders = await window.ipcRenderer.invoke('chat-store:get-all-folders') as Folder[] | undefined
                     setFolders(storedFolders || [])
                 } catch (folderError) {
                     console.error('Failed to load folders:', folderError)
@@ -340,10 +340,10 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
             if (isElectron) {
                 try {
                     // Check if electron-store has data
-                    const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all')
+                    const storedSessions = await window.ipcRenderer.invoke('chat-store:get-all') as ChatSession[] | undefined
 
                     // If empty, try to migrate from localStorage
-                    if (!storedSessions || storedSessions.length === 0) {
+                    if (!storedSessions || (storedSessions as ChatSession[]).length === 0) {
                         const localData = localStorage.getItem('zura-chat-history')
                         if (localData) {
                             const parsed = JSON.parse(localData)

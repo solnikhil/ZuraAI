@@ -190,7 +190,13 @@ export default function ModelSelector({ minimal }: { minimal?: boolean }) {
     }
 
     // Helper component for Logo with fallback
-    const ModelIcon = ({ model, icon, color, size = 24 }: any) => {
+    interface ModelIconProps {
+        model: { provider: string; displayName: string }
+        icon: React.ReactNode
+        color: string
+        size?: number
+    }
+    const ModelIcon = ({ model, icon, color, size = 24 }: ModelIconProps) => {
         const [imgError, setImgError] = useState(false)
         const provider = model.provider
 

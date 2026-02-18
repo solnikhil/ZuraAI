@@ -18,7 +18,7 @@ function joinPath(parent: string, name: string): string {
   return `${parent}/${clean}`
 }
 
-function normalizeChildren(input: any, parentId: string): FileTreeNode[] {
+function normalizeChildren(input: unknown, parentId: string): FileTreeNode[] {
   if (!Array.isArray(input)) return []
 
   return input
@@ -51,10 +51,10 @@ export function parseZuraTreeJson(content: string): FileTreeNode[] {
   const parsed = JSON.parse(trimmed)
   if (Array.isArray(parsed)) return normalizeChildren(parsed, '')
   if (parsed && typeof parsed === 'object') {
-    if (Array.isArray((parsed as any).nodes)) return normalizeChildren((parsed as any).nodes, '')
-    const name = safeString((parsed as any).name || (parsed as any).label || (parsed as any).title) || 'root'
-    const rootId = safeString((parsed as any).id) || name
-    const children = normalizeChildren((parsed as any).children, rootId)
+    if (Array.isArray((parsed as Record<string, unknown>).nodes)) return normalizeChildren((parsed as Record<string, unknown>).nodes, '')
+    const name = safeString((parsed as Record<string, unknown>).name || (parsed as Record<string, unknown>).label || (parsed as Record<string, unknown>).title) || 'root'
+    const rootId = safeString((parsed as Record<string, unknown>).id) || name
+    const children = normalizeChildren((parsed as Record<string, unknown>).children, rootId)
     if (children.length > 0) {
       return [{ id: rootId, name, type: 'folder', children }]
     }

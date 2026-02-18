@@ -11,7 +11,7 @@ import { useCallback } from 'react'
 import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
 import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
-import type { ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   OpenRouterStreamingOptions,
@@ -24,6 +24,13 @@ import { stripStandaloneHorizontalRule } from './streamingUtils'
 
 const UPDATE_INTERVAL = 120 // ms
 const SMOOTH_UPDATE_INTERVAL = 40 // ms
+
+interface DeltaToolCall {
+  index?: number
+  id?: string
+  type?: string
+  function?: { name?: string; arguments?: string }
+}
 
 export interface UseOpenRouterStreamingOptions {
   settings: StreamingSettings
@@ -71,12 +78,12 @@ export function useOpenRouterStreaming({
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     let lastUpdateTime = Date.now()
-    let finalUsage: any = {}
+    let finalUsage: Record<string, unknown> = {}
     let totalThinkingTokens = 0
     let hasToolCalls = false
-    let toolCallsAccumulator: any[] = []
+    let toolCallsAccumulator: DeltaToolCall[] = []
     let finishReason: string | null = null
-    let savedToolResults: any = null
+    let savedToolResults: ToolCallResult[] | undefined = undefined
     let localThinkingBlocks: ThinkingBlock[] = []
     let firstTokenTime: number | null = null
 
@@ -86,8 +93,8 @@ export function useOpenRouterStreaming({
     let thinkingDuration: number | undefined = undefined
 
     // Set tool choice to force tool use when needed
-    const hasResearchPlanOnly = openRouterTools?.some((t: any) => t?.function?.name === 'research_plan') &&
-      !openRouterTools?.some((t: any) => t?.function?.name === 'web_search')
+    const hasResearchPlanOnly = openRouterTools?.some((t: DeltaToolCall) => t?.function?.name === 'research_plan') &&
+      !openRouterTools?.some((t: DeltaToolCall) => t?.function?.name === 'web_search')
     const initialForceToolUse = (((researchMandatory && researchMaxRounds > 0) || forceWebSearch) && !!openRouterTools)
     let initialToolChoice: 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined
     if (hasResearchPlanOnly) {
@@ -146,13 +153,13 @@ export function useOpenRouterStreaming({
       if (chunk.choices?.[0]?.delta?.tool_calls) {
         hasToolCalls = true
         const deltaToolCalls = chunk.choices[0].delta.tool_calls
-        deltaToolCalls?.forEach((tc: any) => {
+              deltaToolCalls?.forEach((tc: DeltaToolCall) => {
           const index = tc.index ?? 0
           if (!toolCallsAccumulator[index]) {
             toolCallsAccumulator[index] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
           }
-          if (tc.function?.name) toolCallsAccumulator[index].function.name += tc.function.name
-          if (tc.function?.arguments) toolCallsAccumulator[index].function.arguments += tc.function.arguments
+          if (tc.function?.name) toolCallsAccumulator[index].function!.name += tc.function.name
+          if (tc.function?.arguments) toolCallsAccumulator[index].function!.arguments += tc.function.arguments
         })
       }
 
@@ -194,27 +201,27 @@ export function useOpenRouterStreaming({
       thinkingDuration
     })
 
-    let usage: any = {
-      inputTokens: finalUsage.prompt_tokens || 0,
-      outputTokens: finalUsage.completion_tokens || 0,
-      totalTokens: finalUsage.total_tokens || 0,
+    let usage: { inputTokens: number; outputTokens: number; totalTokens: number; thinkingTokens?: number; cachedInputTokens?: number; cachedOutputTokens?: number } = {
+      inputTokens: (finalUsage as Record<string, number>).prompt_tokens || 0,
+      outputTokens: (finalUsage as Record<string, number>).completion_tokens || 0,
+      totalTokens: (finalUsage as Record<string, number>).total_tokens || 0,
       thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
-      cachedInputTokens: finalUsage.prompt_cache_tokens || undefined,
-      cachedOutputTokens: finalUsage.completion_cache_tokens || undefined
+      cachedInputTokens: (finalUsage as Record<string, number>).prompt_cache_tokens || undefined,
+      cachedOutputTokens: (finalUsage as Record<string, number>).completion_cache_tokens || undefined
     }
 
     // Handle tool calls with research loop
-    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter((tc: any) => tc?.id).length > 0) {
+    if (canUseTools && hasToolCalls && finishReason === 'tool_calls' && toolCallsAccumulator.filter((tc: DeltaToolCall) => tc?.id).length > 0) {
       const reconstructedMessage = {
         role: 'assistant',
         content: accumulatedContent,
-        tool_calls: toolCallsAccumulator.filter((tc: any) => tc?.id).map((tc: any) => ({
-          id: tc.id, type: tc.type || 'function',
-          function: { name: tc.function.name, arguments: tc.function.arguments }
+        tool_calls: toolCallsAccumulator.filter((tc: DeltaToolCall) => tc?.id).map((tc: DeltaToolCall) => ({
+          id: tc.id || '', type: (tc.type || 'function') as 'function',
+          function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' }
         }))
       }
 
-      const lastUserMsg = [...openRouterMessages].reverse().find((m: any) => m?.role === 'user')
+      const lastUserMsg = [...openRouterMessages].reverse().find((m: Record<string, unknown>) => m?.role === 'user')
       const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : null
 
       const responseWithFallback = {
@@ -226,7 +233,7 @@ export function useOpenRouterStreaming({
       }
 
       const researchPlanCallbacks = {
-          onToolStart: (toolCall: any) => {
+          onToolStart: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => {
             if (toolCall?.name === 'research_plan') {
               const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
               if (args?.topic && Array.isArray(args?.steps)) {
@@ -247,22 +254,22 @@ export function useOpenRouterStreaming({
       let toolResult
       try {
         toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
-      } catch (toolError: any) {
+      } catch (toolError: unknown) {
         console.error('[Zura] Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
 
       // Update researchStatus for web searches or research_plan (use throttled for display, updateStreamingMessage for session)
-      const webSearchCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'web_search')
-      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: any) => tr.toolCall.name === 'research_plan')
+      const webSearchCalls = (toolResult.toolResults || []).filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search')
+      const researchPlanCalls = (toolResult.toolResults || []).filter((tr: ToolCallResult) => tr.toolCall.name === 'research_plan')
       const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
 
       if (hasSearchCalls) {
         const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
         const searchQuery = firstSearch?.toolCall?.name === 'research_plan'
-          ? (firstSearch.toolCall.arguments?.steps?.[0]?.query ?? '')
+          ? ((firstSearch.toolCall.arguments as Record<string, unknown>)?.steps as Array<{ query?: string }> | undefined)?.[0]?.query ?? ''
           : (typeof firstSearch?.toolCall?.arguments === 'object'
-            ? firstSearch?.toolCall?.arguments?.query
+            ? (firstSearch?.toolCall?.arguments as Record<string, unknown>)?.query
             : firstSearch?.toolCall?.arguments)
 
         // Add thinkingBlocks for each web search or research_plan step
@@ -306,14 +313,14 @@ export function useOpenRouterStreaming({
         updateStreamingMessage(sessionId, messageId, { ...researchStatusUpdate, thinkingBlocks: localThinkingBlocks })
       }
 
-      savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+      savedToolResults = toolResult?.toolResults?.map((tr: ToolCallResult) => ({
         toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
         result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
-      })) || null
+      })) || undefined
 
       if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
         // Research loop
-        let totalSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+        let totalSearchCount = toolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
         let hasMoreToolCalls = true
         let lastAssistantMessage = reconstructedMessage
         let researchRound = 1
@@ -325,7 +332,7 @@ export function useOpenRouterStreaming({
           // Do NOT use tool_choice: "none" - many OpenRouter providers return 404 "No endpoints found that support the provided 'tool_choice' value"
           let toolChoice: 'auto' | 'none' | undefined = undefined
 
-          const followUpMessages: any[] = []
+          const followUpMessages: Array<{ role: string; content: string; tool_calls?: unknown[] }> = []
           if (researchContextMsg) followUpMessages.push({ role: 'system', content: researchContextMsg })
           if (researchRound >= 4) {
             followUpMessages.push({ role: 'system', content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n` })
@@ -334,8 +341,8 @@ export function useOpenRouterStreaming({
 
           let followUpContent = ''
           let followUpReasoning = ''
-          let followUpToolCalls: any[] = []
-          let followUpUsage: any = {}
+          let followUpToolCalls: DeltaToolCall[] = []
+          let followUpUsage: Record<string, unknown> = {}
           let chunkCount = 0
           let chunksWithContent = 0
           let chunksWithToolCalls = 0
@@ -351,8 +358,8 @@ export function useOpenRouterStreaming({
             { temperature: settings.temperature, tools: openRouterTools, toolChoice, signal }
           )) {
             chunkCount++
-            if ((chunk as any).error) {
-              console.error('[Zura] Research loop stream error:', (chunk as any).error)
+            if ((chunk as unknown as Record<string, unknown>).error) {
+              console.error('[Zura] Research loop stream error:', (chunk as unknown as Record<string, unknown>).error)
             }
             const delta = chunk.choices?.[0]?.delta?.content || ''
             if (delta) chunksWithContent++
@@ -371,13 +378,13 @@ export function useOpenRouterStreaming({
             if (chunk.choices?.[0]?.delta?.tool_calls) {
               chunksWithToolCalls++
               const deltaToolCalls = chunk.choices[0].delta.tool_calls
-              deltaToolCalls?.forEach((tc: any) => {
+        deltaToolCalls?.forEach((tc: DeltaToolCall) => {
                 const index = tc.index ?? 0
                 if (!followUpToolCalls[index]) {
                   followUpToolCalls[index] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
                 }
-                if (tc.function?.name) followUpToolCalls[index].function.name += tc.function.name
-                if (tc.function?.arguments) followUpToolCalls[index].function.arguments += tc.function.arguments
+                if (tc.function?.name) followUpToolCalls[index].function!.name += tc.function.name
+                if (tc.function?.arguments) followUpToolCalls[index].function!.arguments += tc.function.arguments
               })
             }
 
@@ -405,22 +412,23 @@ export function useOpenRouterStreaming({
           throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
           updateStreamingMessage(sessionId, messageId, contentUpdate)
 
+          const fuUsage = followUpUsage as Record<string, number>
           usage = {
-            inputTokens: (usage.inputTokens || 0) + (followUpUsage.prompt_tokens || 0),
-            outputTokens: (usage.outputTokens || 0) + (followUpUsage.completion_tokens || 0),
-            totalTokens: (usage.totalTokens || 0) + (followUpUsage.total_tokens || 0),
+            inputTokens: (usage.inputTokens || 0) + (fuUsage.prompt_tokens || 0),
+            outputTokens: (usage.outputTokens || 0) + (fuUsage.completion_tokens || 0),
+            totalTokens: (usage.totalTokens || 0) + (fuUsage.total_tokens || 0),
             thinkingTokens: totalThinkingTokens > 0 ? totalThinkingTokens : undefined,
-            cachedInputTokens: ((usage.cachedInputTokens || 0) + (followUpUsage.prompt_cache_tokens || 0)) || undefined,
-            cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (followUpUsage.completion_cache_tokens || 0)) || undefined
+            cachedInputTokens: ((usage.cachedInputTokens || 0) + (fuUsage.prompt_cache_tokens || 0)) || undefined,
+            cachedOutputTokens: ((usage.cachedOutputTokens || 0) + (fuUsage.completion_cache_tokens || 0)) || undefined
           }
 
-          const hasValidToolCalls = followUpToolCalls.length > 0 && followUpToolCalls.some((tc: any) => tc?.function?.name)
+          const hasValidToolCalls = followUpToolCalls.length > 0 && followUpToolCalls.some((tc: DeltaToolCall) => tc?.function?.name)
           if (hasValidToolCalls) {
             const reconstructedFollowUp = {
               role: 'assistant', content: followUpContent,
-              tool_calls: followUpToolCalls.filter((tc: any) => tc?.function?.name).map((tc: any) => ({
-                id: tc.id, type: tc.type || 'function',
-                function: { name: tc.function.name, arguments: tc.function.arguments }
+              tool_calls: followUpToolCalls.filter((tc: DeltaToolCall) => tc?.function?.name).map((tc: DeltaToolCall) => ({
+                id: tc.id || '', type: (tc.type || 'function') as 'function',
+                function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' }
               }))
             }
 
@@ -435,12 +443,12 @@ export function useOpenRouterStreaming({
             let nextToolResult
             try {
               nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
-            } catch (e: any) {
-              console.error('[Zura] Research loop: handleToolCalls failed:', e?.message, 'Round:', researchRound)
+            } catch (e: unknown) {
+              console.error('[Zura] Research loop: handleToolCalls failed:', e instanceof Error ? e.message : e, 'Round:', researchRound)
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
-            const newWebSearches = nextToolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
+            const newWebSearches = nextToolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
             totalSearchCount += newWebSearches
 
             // Add thinkingBlocks for Web Search UI (no raw --- in thinking; tool call shows in block)
@@ -476,7 +484,7 @@ export function useOpenRouterStreaming({
             throttledUpdateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
             updateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
 
-            const newSavedResults = nextToolResult.toolResults?.map((tr: any) => ({
+            const newSavedResults = nextToolResult.toolResults?.map((tr: ToolCallResult) => ({
               toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
               result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
             })) || []
@@ -504,22 +512,23 @@ export function useOpenRouterStreaming({
     const tps = usage.outputTokens > 0 && latency > 0 ? (usage.outputTokens / (latency / 1000)) : undefined
 
     // When web search or research_plan was used, strip standalone --- so user sees Web Search block instead
-    const hasWebSearch = (savedToolResults || []).some((r: any) =>
+    const hasWebSearch = (savedToolResults || []).some((r: ToolCallResult) =>
       r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
     )
     const finalContent = hasWebSearch ? stripStandaloneHorizontalRule(accumulatedContent) : accumulatedContent
 
     // Persist research plan and progress for research_plan tool results
-    const researchPlanResult = (savedToolResults || []).find((r: any) => r?.toolCall?.name === 'research_plan')
-    const researchPlanData = researchPlanResult?.toolCall?.arguments?.topic && Array.isArray(researchPlanResult?.toolCall?.arguments?.steps)
+    const researchPlanResult = (savedToolResults || []).find((r: ToolCallResult) => r?.toolCall?.name === 'research_plan')
+    const rpArgs = researchPlanResult?.toolCall?.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> } | undefined
+    const researchPlanData = rpArgs?.topic && Array.isArray(rpArgs?.steps)
       ? {
           researchPlan: {
-            topic: researchPlanResult.toolCall.arguments.topic,
-            steps: researchPlanResult.toolCall.arguments.steps
+            topic: rpArgs.topic,
+            steps: rpArgs.steps
           },
           researchProgress: {
-            currentStep: researchPlanResult.toolCall.arguments.steps.length,
-            totalSteps: researchPlanResult.toolCall.arguments.steps.length
+            currentStep: rpArgs.steps.length,
+            totalSteps: rpArgs.steps.length
           }
         }
       : {}

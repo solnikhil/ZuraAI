@@ -246,6 +246,7 @@ These are useful breadcrumbs for agents:
 - Treat the renderer as untrusted; validate/sanitize everything in main-process handlers.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for all BrowserWindows.
 - Use shadcn UI components for all UI work; do not introduce other UI component libraries.
+- Keep shared interaction states (hover/active/focus) centralized in base classes for reusable controls (e.g. titlebar icon buttons) so variants stay visually consistent.
 - When changing IPC:
   - update `electron/preload.ts` allowlists
   - update typings in `src/electron.d.ts`
@@ -259,6 +260,7 @@ These are useful breadcrumbs for agents:
 - Don’t add new tools (or allow arbitrary tool names) without a clear security review.
 - Don’t commit secrets (API keys, tokens) or `.env` files.
 - Don’t edit generated output (`dist/`, `dist-electron/`).
+- Don’t add variant-specific hover/active styles for shared titlebar icon controls unless intentional and documented in the PR.
 
 ---
 

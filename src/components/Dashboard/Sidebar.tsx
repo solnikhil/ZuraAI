@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     ChartNoAxesCombined, Cloud,
-    ArrowLeft, Paintbrush, FlaskConical, FileText
+    Paintbrush, FlaskConical, FileText
 } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
@@ -10,7 +10,6 @@ import { useSettingsUI } from '../../contexts/SettingsUIContext'
 
 import SidebarHeader from './Sidebar/SidebarHeader'
 import SidebarChatList from './Sidebar/SidebarChatList'
-import SidebarFooter from './Sidebar/SidebarFooter'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
@@ -26,7 +25,7 @@ interface SidebarProps {
     hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onCloseSettings: _onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
     const { sidebarHidden, sidebarCollapsed } = useAppShell()
@@ -47,7 +46,7 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
     } = useChatHistory()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar, chatSelectedOverlayStyle = 'linear' } = settingsUI
-    const userStripPadding = view === 'chat' ? 76 : 8
+    const userStripPadding = 8
 
     // Sidebar state
     const [focusIndex, setFocusIndex] = useState(-1)
@@ -284,20 +283,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                     ))}
                 </div>
             </div>
-
-            {/* Footer - Back to Chat Button */}
-            <div className="sidebar-settings-footer">
-                <button
-                    onClick={onCloseSettings}
-                    className="sidebar-settings-back-btn"
-                    title=""
-                >
-                    <div className="sidebar-nav-item__icon">
-                        <ArrowLeft size={20} strokeWidth={2} />
-                    </div>
-                    <span className="sidebar-nav-item__label">Back to Chat</span>
-                </button>
-            </div>
         </div>
     )
 
@@ -307,12 +292,6 @@ export default function Sidebar({ view, onOpenSettings, onCloseSettings, onNavig
                 {renderChatContent()}
                 {renderSettingsContent()}
             </div>
-
-            {view === 'chat' && (
-                <div className="sidebar-footer-wrapper">
-                    <SidebarFooter onOpenSettings={onOpenSettings} />
-                </div>
-            )}
 
             <SidebarSearchOverlay
                 isOpen={view === 'chat' && searchOverlayOpen}

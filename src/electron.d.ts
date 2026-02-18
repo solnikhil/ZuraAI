@@ -1,8 +1,8 @@
 export interface IElectronAPI {
-    on: (channel: string, listener: (event: any, ...args: any[]) => void) => void
-    off: (channel: string, listener: (event: any, ...args: any[]) => void) => void
-    send: (channel: string, ...args: any[]) => void
-    invoke: (channel: string, ...args: any[]) => Promise<any>
+    on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
+    off: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
+    send: (channel: string, ...args: unknown[]) => void
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
 }
 
 export interface StorageStatus {
@@ -22,7 +22,7 @@ export interface SecureStorageAPI {
 }
 
 export interface UpdaterAPI {
-    checkForUpdates: () => Promise<any>
+    checkForUpdates: () => Promise<unknown>
     quitAndInstall: () => Promise<boolean>
     getVersion: () => Promise<string>
     onUpdateAvailable: (callback: () => void) => () => void

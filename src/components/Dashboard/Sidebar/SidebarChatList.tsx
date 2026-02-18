@@ -13,6 +13,9 @@ import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
+const CHAT_LIST_BASE_HORIZONTAL_PADDING = 8
+const CHAT_LIST_SCROLLBAR_GUTTER = 6
+
 interface SidebarChatListProps {
     groupedSessions: GroupedSessions
     folders: Folder[]
@@ -66,6 +69,50 @@ export default function SidebarChatList({
 }: SidebarChatListProps) {
     const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
     const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
+    const viewportRef = React.useRef<HTMLDivElement | null>(null)
+    const [hasVerticalScrollbar, setHasVerticalScrollbar] = React.useState(false)
+
+    const updateScrollbarState = React.useCallback(() => {
+        const viewport = viewportRef.current
+        if (!viewport) return
+
+        const shouldShowVerticalScrollbar = viewport.scrollHeight > viewport.clientHeight + 1
+        setHasVerticalScrollbar(prev => prev === shouldShowVerticalScrollbar ? prev : shouldShowVerticalScrollbar)
+    }, [])
+
+    React.useEffect(() => {
+        updateScrollbarState()
+
+        const viewport = viewportRef.current
+        if (!viewport) return
+
+        const onScroll = () => updateScrollbarState()
+        const onResize = () => updateScrollbarState()
+
+        viewport.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', onResize)
+
+        let resizeObserver: ResizeObserver | null = null
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(() => {
+                updateScrollbarState()
+            })
+
+            resizeObserver.observe(viewport)
+            const viewportContent = viewport.firstElementChild
+            if (viewportContent instanceof HTMLElement) {
+                resizeObserver.observe(viewportContent)
+            }
+        }
+
+        return () => {
+            viewport.removeEventListener('scroll', onScroll)
+            window.removeEventListener('resize', onResize)
+            resizeObserver?.disconnect()
+        }
+    }, [updateScrollbarState])
+
+    const horizontalPadding = `${CHAT_LIST_BASE_HORIZONTAL_PADDING + (hasVerticalScrollbar ? CHAT_LIST_SCROLLBAR_GUTTER : 0)}px`
 
     // Build time-group buckets (only include non-empty ones)
     const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
@@ -128,11 +175,12 @@ export default function SidebarChatList({
     return (
         <ScrollArea
             className="sidebar-chatlist"
+            viewportRef={viewportRef}
             viewportStyle={{
                 display: 'flex',
                 flexDirection: 'column',
-                paddingLeft: '8px',
-                paddingRight: '14px',
+                paddingLeft: horizontalPadding,
+                paddingRight: horizontalPadding,
             }}
         >
             <div

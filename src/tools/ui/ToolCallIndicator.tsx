@@ -20,7 +20,7 @@ const toolDisplayNames: Record<string, string> = {
 interface ToolCallIndicatorProps {
     toolName: string
     status: 'pending' | 'executing' | 'complete' | 'error'
-    arguments?: Record<string, any>
+    arguments?: Record<string, unknown>
 }
 
 export default function ToolCallIndicator({ toolName, status, arguments: args }: ToolCallIndicatorProps) {

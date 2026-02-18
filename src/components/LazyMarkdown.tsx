@@ -7,6 +7,7 @@ import { Check, Copy, Code } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
+import type { ExtraProps } from 'react-markdown'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 // Lazy load markdown dependencies
@@ -45,11 +46,12 @@ async function getPrismStyles() {
 }
 
 function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
-    const [remarkPlugin, setRemarkPlugin] = useState<any>(null)
-    const [remarkMath, setRemarkMath] = useState<any>(null)
-    const [rehypeKatex, setRehypeKatex] = useState<any>(null)
-    const [syntaxHighlighter, setSyntaxHighlighter] = useState<any>(null)
-    const [prismStyle, setPrismStyle] = useState<any>(null)
+    const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(null)
+    const [remarkMath, setRemarkMath] = useState<(() => void) | null>(null)
+    const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [syntaxHighlighter, setSyntaxHighlighter] = useState<React.ComponentType<any> | null>(null)
+    const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(null)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
     const [loadAttempted, setLoadAttempted] = useState(false)
 
@@ -199,15 +201,16 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
 
     const SyntaxHighlighter = syntaxHighlighter
     const normalizedContent = normalizeMathDelimiters(content)
-    const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean)
-    const rehypePlugins = [rehypeKatex].filter(Boolean)
+    const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean) as (() => void)[]
+    const rehypePlugins = [rehypeKatex].filter(Boolean) as (() => void)[]
 
     return (
         <ReactMarkdown
             remarkPlugins={remarkPlugins}
             rehypePlugins={rehypePlugins}
             components={{
-                code({ node, inline, className, children, ...props }: any) {
+                code(codeProps: React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & ExtraProps & { inline?: boolean }) {
+                    const { className, children, node: _node, inline, ...props } = codeProps
                     const match = /language-([\w-]+)/.exec(className || '')
                     const codeString = Array.isArray(children) ? children.join('') : String(children ?? '')
                     const isInline = inline === true
@@ -411,7 +414,7 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                 ),
                 th: ({ node, ...props }) => <th {...props} />,
                 td: ({ node, ...props }) => <td {...props} />,
-                a: ({ node, href, children, ...props }: any) => {
+                a: ({ href, children, ...props }: React.ClassAttributes<HTMLAnchorElement> & React.AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) => {
                     if (!href) return <span {...props}>{children}</span>
                     let source = webSources?.get(href) || webSources?.get(href.replace(/\/+$/, ''))
                     if (!source) {
