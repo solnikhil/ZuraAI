@@ -7,7 +7,6 @@ import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import PinnedSection from './PinnedSection'
 import FolderSection from './FolderSection'
-import TimeGroup from './TimeGroup'
 import { ChevronDown } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
@@ -26,8 +25,6 @@ interface SidebarChatListProps {
     flatVisibleSessions: ChatSession[]
     renamingSessionId: string | null
     searchQuery: string
-    showArchived: boolean
-    archivedSessions: ChatSession[]
     bottomPadding?: number
     onSelectSession: (id: string) => void
     onContextAction: (action: ChatRowAction, sessionId: string) => void
@@ -35,7 +32,6 @@ interface SidebarChatListProps {
     onRenameConfirm: (id: string, newTitle: string) => void
     onRenameCancel: () => void
     onDropSessionToFolder: (sessionId: string, folderId: string) => void
-    onToggleArchived: () => void
     onKeyDown: (e: React.KeyboardEvent) => void
 }
 
@@ -55,8 +51,6 @@ export default function SidebarChatList({
     flatVisibleSessions,
     renamingSessionId,
     searchQuery,
-    showArchived,
-    archivedSessions,
     bottomPadding = 8,
     onSelectSession,
     onContextAction,
@@ -64,7 +58,6 @@ export default function SidebarChatList({
     onRenameConfirm,
     onRenameCancel,
     onDropSessionToFolder,
-    onToggleArchived,
     onKeyDown,
 }: SidebarChatListProps) {
     const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
@@ -133,7 +126,6 @@ export default function SidebarChatList({
             <ChatRowContextMenu
                 key={session.id}
                 isPinned={session.pinned === true}
-                isArchived={session.archived === true}
                 onAction={(action) => onContextAction(action, session.id)}
                 dropdownOpen={dropdownOpenId === session.id}
                 onDropdownOpenChange={(open) => {
@@ -248,20 +240,6 @@ export default function SidebarChatList({
                     </CollapsibleContent>
                 </Collapsible>
 
-                {/* Archived toggle */}
-                <div
-                    onClick={onToggleArchived}
-                    className="sidebar-archived-toggle"
-                >
-                    {showArchived ? 'Hide archived' : `Archived (${archivedSessions.length})`}
-                </div>
-
-                {/* Archived sessions */}
-                {showArchived && archivedSessions.length > 0 && (
-                    <TimeGroup label="Archived" sessions={archivedSessions}>
-                        {archivedSessions.map(s => renderChatRow(s))}
-                    </TimeGroup>
-                )}
             </div>
         </ScrollArea>
     )

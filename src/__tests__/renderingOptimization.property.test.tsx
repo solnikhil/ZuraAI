@@ -67,7 +67,7 @@ const fileAttachmentArbitrary = fc.record({
 const toolResultArbitrary = fc.record({
     toolCall: fc.record({
         id: fc.uuid(),
-        name: fc.constantFrom('web_search', 'get_datetime', 'calculator'),
+        name: fc.constantFrom('web_search', 'research_plan'),
         arguments: fc.record({
             query: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: undefined }),
         }),

@@ -27,14 +27,12 @@ describe('migrateSession', () => {
         const v1Session = makeV1Session()
         // Ensure no sidebar fields exist
         delete (v1Session as any).pinned
-        delete (v1Session as any).archived
         delete (v1Session as any).folderId
         delete (v1Session as any).tags
 
         const migrated = migrateSession(v1Session)
 
         expect(migrated.pinned).toBe(false)
-        expect(migrated.archived).toBe(false)
         expect(migrated.folderId).toBeNull()
         expect(migrated.tags).toEqual([])
     })
@@ -46,7 +44,6 @@ describe('migrateSession', () => {
             totalTokens: 999,
         })
         delete (v1Session as any).pinned
-        delete (v1Session as any).archived
         delete (v1Session as any).folderId
         delete (v1Session as any).tags
 
@@ -63,7 +60,6 @@ describe('migrateSession', () => {
     it('preserves existing v2 field values (does not overwrite)', () => {
         const v2Session = makeV1Session({
             pinned: true,
-            archived: true,
             folderId: 'folder-abc',
             tags: ['important', 'work'],
         })
@@ -71,7 +67,6 @@ describe('migrateSession', () => {
         const migrated = migrateSession(v2Session)
 
         expect(migrated.pinned).toBe(true)
-        expect(migrated.archived).toBe(true)
         expect(migrated.folderId).toBe('folder-abc')
         expect(migrated.tags).toEqual(['important', 'work'])
     })
@@ -102,7 +97,6 @@ describe('migrateData', () => {
         expect(migrated.version).toBe(2)
         expect(migrated.folders).toEqual([])
         expect(migrated.sessions[0].pinned).toBe(false)
-        expect(migrated.sessions[0].archived).toBe(false)
         expect(migrated.sessions[0].folderId).toBeNull()
         expect(migrated.sessions[0].tags).toEqual([])
         expect(migrated.sessions[1].pinned).toBe(false)

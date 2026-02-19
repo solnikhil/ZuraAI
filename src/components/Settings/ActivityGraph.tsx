@@ -6,7 +6,7 @@
  * Requirements: 2.2
  */
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, XAxis, YAxis } from 'recharts'
 import {
   ChartContainer,
@@ -148,6 +148,26 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
  * ActivityGraph - Interactive 30-day token usage bar chart
  */
 export function ActivityGraph({ data, embedded = false, className }: ActivityGraphProps): React.ReactElement {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setPrefersReducedMotion(media.matches)
+    update()
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', update)
+      return () => media.removeEventListener('change', update)
+    }
+
+    media.addListener(update)
+    return () => media.removeListener(update)
+  }, [])
+
   // Transform data and extract unique models
   const { chartData, uniqueModels, chartConfig, modelColors } = useMemo(() => {
     const modelsSet = new Set<string>()
@@ -247,6 +267,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
       </div>
 
       <div
+        className="usage-chart-surface usage-motion-surface"
         style={{
           minHeight: 280,
           width: '100%',
@@ -292,14 +313,17 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
                 cursor={{ fill: 'rgba(255, 255, 255, 0.08)', radius: 4 }}
                 content={<CustomTooltip />}
               />
-              {uniqueModels.map((model) => (
+              {uniqueModels.map((model, index) => (
                 <Bar
                   key={model}
                   dataKey={model}
                   stackId="models"
                   fill={modelColors[model]}
                   radius={[3, 3, 0, 0]}
-                  isAnimationActive={false}
+                  isAnimationActive={!prefersReducedMotion}
+                  animationBegin={Math.min(index * 50, 260)}
+                  animationDuration={420}
+                  animationEasing="ease-out"
                 />
               ))}
             </BarChart>

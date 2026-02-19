@@ -18,7 +18,7 @@
 // - formatResultsForProvider() switch cases
 // - buildMessagesWithToolResults() switch cases
 //
-// Providers WITH tool support: openrouter, groq, ollama
+// Providers WITH tool support: openrouter, groq, ollama, nvidia, alibaba
 // ============================================================================
 
 // Tool Adapters - Convert tool definitions to provider-specific formats

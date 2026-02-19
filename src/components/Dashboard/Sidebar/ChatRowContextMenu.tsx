@@ -14,13 +14,12 @@ import {
     DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog'
-import { Edit2, Copy, Trash2, Pin, Archive } from '../../icons'
+import { Edit2, Copy, Trash2, Pin } from '../../icons'
 import { useSettingsUI } from '../../../contexts/SettingsUIContext'
 import type { ChatRowAction } from './ChatRow'
 
 interface ChatRowContextMenuProps {
     isPinned: boolean
-    isArchived: boolean
     onAction: (action: ChatRowAction) => void
     children: React.ReactNode
     dropdownOpen: boolean
@@ -29,7 +28,6 @@ interface ChatRowContextMenuProps {
 
 export default function ChatRowContextMenu({
     isPinned,
-    isArchived,
     onAction,
     children,
     dropdownOpen,
@@ -76,10 +74,6 @@ export default function ChatRowContextMenu({
                     <DropdownMenuItem onClick={() => handleAction('duplicate')}>
                         <Copy size={14} />
                         Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAction('archive')}>
-                        <Archive size={14} />
-                        {isArchived ? 'Unarchive' : 'Archive'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

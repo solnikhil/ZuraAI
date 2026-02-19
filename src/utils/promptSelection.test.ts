@@ -40,8 +40,8 @@ describe('Tool Enablement', () => {
 
                     const toolsAvailable = shouldEnableTools(settings)
 
-                    // Should be true if either setting is enabled
-                    expect(toolsAvailable).toBe(toolsEnabled || webSearchEnabled)
+                    // Master toolsEnabled toggle controls tool availability
+                    expect(toolsAvailable).toBe(toolsEnabled)
                 }
             ),
             { numRuns: 100 }

@@ -3,7 +3,7 @@ import { Ellipsis } from '../../icons'
 import type { ChatSession } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
-export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'archive' | 'delete' | 'duplicate'
+export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'delete' | 'duplicate'
 
 interface ChatRowProps {
     session: ChatSession

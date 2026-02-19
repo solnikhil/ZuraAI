@@ -206,8 +206,8 @@
 
 .usage-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
     width: 100%;
 }
 
@@ -237,23 +237,13 @@
     padding: 16px;
     position: relative;
     overflow: hidden;
-    transition: all 0.2s ease;
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
 }
 
 .stat-card:hover {
     border-color: var(--theme-border-hover);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow: var(--theme-shadow-md);
-}
-
-
-/* Compact Stat Cards Grid - Fixed responsive grid layout */
-
-.usage-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 12px;
-    width: 100%;
 }
 
 
@@ -270,13 +260,12 @@
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     min-width: 0;
-    transition: all 0.2s ease;
+    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 180ms ease;
 }
 
 .stat-card.compact:hover {
     border-color: var(--theme-border-hover);
-    transform: translateY(-2px);
-    box-shadow: var(--theme-shadow-md);
+    box-shadow: var(--theme-shadow-sm);
 }
 
 
@@ -350,12 +339,12 @@
     flex-direction: column;
     gap: 8px;
     min-width: 0;
-    transition: all 0.2s ease;
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
 }
 
 .detail-card-small:hover {
     border-color: var(--theme-border-hover);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
     box-shadow: var(--theme-shadow-md);
 }
 
@@ -413,11 +402,12 @@
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
-    transition: all 0.2s ease;
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease;
 }
 
 .activity-section:hover {
     border-color: var(--theme-border-hover);
+    box-shadow: var(--theme-shadow-sm);
 }
 
 .activity-header {
@@ -450,7 +440,7 @@
     font-weight: 500;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 150ms ease, color 150ms ease;
 }
 
 .activity-tab:hover {
@@ -485,6 +475,13 @@
     padding: 20px;
     border-radius: 16px;
     min-height: 140px;
+    transition: border-color 180ms ease, background-color 180ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.usage-bento-card:hover {
+    border-color: var(--theme-border-hover);
+    box-shadow: var(--theme-shadow-md);
+    transform: translateY(-1px);
 }
 
 .usage-bento-graph {
@@ -511,6 +508,81 @@
 
 .usage-bento-top {
     grid-column: span 6;
+}
+
+.usage-chart-surface {
+    transition: border-color 180ms ease, box-shadow 220ms ease;
+}
+
+.usage-chart-surface:hover {
+    border-color: var(--theme-border-hover) !important;
+    box-shadow: var(--theme-shadow-sm);
+}
+
+.usage-motion-card {
+    --usage-delay: 0ms;
+    opacity: 0;
+    animation: usage-card-enter 360ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+    animation-delay: var(--usage-delay);
+}
+
+.usage-motion-card--compact {
+    animation-duration: 280ms;
+}
+
+.usage-motion-card--surface {
+    animation-duration: 360ms;
+}
+
+.usage-motion-surface {
+    animation: usage-surface-enter 320ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+@keyframes usage-card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes usage-surface-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .usage-motion-card,
+    .usage-motion-surface {
+        animation: none !important;
+        opacity: 1;
+        transform: none;
+    }
+
+    .stat-card:hover,
+    .detail-card-small:hover,
+    .usage-bento-card:hover {
+        transform: none;
+    }
+
+    .stat-card,
+    .stat-card.compact,
+    .detail-card-small,
+    .activity-section,
+    .usage-bento-card,
+    .usage-chart-surface,
+    .activity-tab {
+        transition-duration: 0ms !important;
+    }
 }
 
 

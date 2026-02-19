@@ -25,7 +25,6 @@ const chatSessionArb: fc.Arbitrary<ChatSession> = fc.record({
     createdAt: fc.integer({ min: 0, max: Date.now() }),
     updatedAt: fc.integer({ min: 0, max: Date.now() }),
     pinned: fc.option(fc.boolean(), { nil: undefined }),
-    archived: fc.option(fc.boolean(), { nil: undefined }),
     folderId: fc.option(fc.uuid(), { nil: undefined }),
     tags: fc.option(
         fc.array(fc.string({ minLength: 1, maxLength: 30 }), { minLength: 0, maxLength: 5 }),

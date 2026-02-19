@@ -39,8 +39,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
         updateSessionTitle,
         pinSession,
         unpinSession,
-        archiveSession,
-        unarchiveSession: _unarchiveSession,
         duplicateSession: duplicateSessionAction,
         assignFolder,
     } = useChatHistory()
@@ -51,7 +49,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
     // Sidebar state
     const [focusIndex, setFocusIndex] = useState(-1)
     const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
-    const [showArchived, setShowArchived] = useState(false)
     // Glassmorphism styles
     const shouldApplyGlass = frostedSidebar && !sidebarHidden
 
@@ -68,12 +65,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
     const groupedSessions = useMemo(() =>
         groupSessions(sessions, folders),
         [sessions, folders]
-    )
-
-    // Archived sessions (excluded from main list, shown on demand)
-    const archivedSessions = useMemo(() =>
-        sessions.filter(s => s.archived === true),
-        [sessions]
     )
 
     // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
@@ -173,13 +164,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
             case 'unpin':
                 unpinSession(sessionId)
                 break
-            case 'archive':
-                // If archiving the active session, clear current
-                if (currentSessionId === sessionId) {
-                    clearCurrentSession()
-                }
-                archiveSession(sessionId)
-                break
             case 'delete':
                 deleteSession(sessionId)
                 break
@@ -187,7 +171,7 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                 duplicateSessionAction(sessionId)
                 break
         }
-    }, [pinSession, unpinSession, archiveSession, deleteSession, duplicateSessionAction, currentSessionId, clearCurrentSession])
+    }, [pinSession, unpinSession, deleteSession, duplicateSessionAction])
 
     const handleRenameConfirm = useCallback((id: string, newTitle: string) => {
         updateSessionTitle(id, newTitle)
@@ -239,8 +223,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                 flatVisibleSessions={flatVisibleSessions}
                 renamingSessionId={renamingSessionId}
                 searchQuery=""
-                showArchived={showArchived}
-                archivedSessions={archivedSessions}
                 bottomPadding={userStripPadding}
                 onSelectSession={switchSession}
                 onContextAction={handleContextAction}
@@ -248,7 +230,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                 onRenameConfirm={handleRenameConfirm}
                 onRenameCancel={handleRenameCancel}
                 onDropSessionToFolder={handleDropSessionToFolder}
-                onToggleArchived={() => setShowArchived(prev => !prev)}
                 onKeyDown={handleKeyDown}
             />
         </div>

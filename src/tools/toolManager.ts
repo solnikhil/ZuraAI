@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, groq, ollama
+// Providers WITH tool support: openrouter, groq, ollama, nvidia, alibaba
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow

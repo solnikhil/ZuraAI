@@ -14,7 +14,7 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
-import { useStreamingActions } from '../../../../contexts/StreamingContext'
+import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import { generateChatTitle } from '../../../../services/titleGenerator'
@@ -88,6 +88,25 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     completeStreaming,
     cancelStreaming,
   } = useStreamingActions()
+
+  const buildFinalStreamingUpdates = useCallback((finalState: StreamingMessageState): Partial<Message> => {
+    const updates: Partial<Message> = {
+      content: finalState.content,
+    }
+
+    if (finalState.thinking !== undefined) updates.thinking = finalState.thinking
+    if (finalState.thinkingDuration !== undefined) updates.thinkingDuration = finalState.thinkingDuration
+    if (finalState.thinkingBlocks !== undefined) updates.thinkingBlocks = finalState.thinkingBlocks
+    if (finalState.researchStatus !== undefined) updates.researchStatus = finalState.researchStatus
+    if (finalState.researchPlan !== undefined) updates.researchPlan = finalState.researchPlan
+    if (finalState.researchProgress !== undefined) updates.researchProgress = finalState.researchProgress
+    if (finalState.toolResults !== undefined) updates.toolResults = finalState.toolResults
+    if (finalState.model !== undefined) updates.model = finalState.model
+    if (finalState.latency !== undefined) updates.latency = finalState.latency
+    if (finalState.usage !== undefined) updates.usage = finalState.usage
+
+    return updates
+  }, [])
 
   // Track current streaming message for isolated updates
   const streamingMessageRef = useRef<{ sessionId: string; messageId: string } | null>(null)
@@ -240,19 +259,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       const finalState = completeStreaming()
       if (finalState.sessionId && finalState.messageId && finalState.content) {
         // Commit final content to the session
-        updateStreamingMessage(finalState.sessionId, finalState.messageId, {
-          content: finalState.content,
-          thinking: finalState.thinking,
-          thinkingDuration: finalState.thinkingDuration,
-          thinkingBlocks: finalState.thinkingBlocks,
-          researchStatus: finalState.researchStatus,
-          researchPlan: finalState.researchPlan,
-          researchProgress: finalState.researchProgress,
-          toolResults: finalState.toolResults,
-          model: finalState.model,
-          latency: finalState.latency,
-          usage: finalState.usage,
-        })
+        updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
       }
       streamingMessageRef.current = null
     }
@@ -264,7 +271,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     setIsLoading(false)
     clearToolState()
     options.onStreamEnd?.()
-  }, [clearToolState, options, flushThrottledUpdates, completeStreaming, updateStreamingMessage])
+  }, [clearToolState, options, flushThrottledUpdates, completeStreaming, updateStreamingMessage, buildFinalStreamingUpdates])
 
   /**
    * Main send message function
@@ -309,6 +316,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // Research mode setup - single web search toggle, model-driven depth, no caps
       const researchConfig = calculateResearchConfig({
         webSearchEnabled: settings.webSearchEnabled,
+        structuredResearchEnabled: settings.structuredResearchEnabled,
         modelProvider: settings.modelProvider,
         enabledTools: settings.enabledTools,
       }, content)
@@ -458,19 +466,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // may still be batched/pending when completeStreaming() resets the
         // ephemeral StreamingContext, causing the content to vanish on re-render.
         if (finalState.sessionId && finalState.messageId && finalState.content) {
-          updateStreamingMessage(finalState.sessionId, finalState.messageId, {
-            content: finalState.content,
-            thinking: finalState.thinking,
-            thinkingDuration: finalState.thinkingDuration,
-            thinkingBlocks: finalState.thinkingBlocks,
-            researchStatus: finalState.researchStatus,
-            researchPlan: finalState.researchPlan,
-            researchProgress: finalState.researchProgress,
-            toolResults: finalState.toolResults,
-            model: finalState.model,
-            latency: finalState.latency,
-            usage: finalState.usage,
-          })
+          updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
         }
         streamingMessageRef.current = null
       }
@@ -530,6 +526,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
     streamOllama, streamPerplexity, streamGroq, streamNvidia, streamAlibaba, streamOpenRouter,
+    buildFinalStreamingUpdates,
   ])
 
   /**

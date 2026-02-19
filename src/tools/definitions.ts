@@ -28,7 +28,8 @@ export interface ToolDefinition {
 
 /**
  * Active tools in Zura AI
- * NOTE: Per request, only "web_search" is enabled.
+ * web_search is the only main-process IPC tool.
+ * research_plan is renderer-only and expands into web_search steps.
  */
 export const toolDefinitions: ToolDefinition[] = [
   {

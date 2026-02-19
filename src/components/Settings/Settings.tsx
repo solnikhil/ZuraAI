@@ -10,8 +10,8 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
+import { computeUsageStats } from './sections/usageMetrics'
 
-import { ActivityData } from './ActivityGraph'
 import './Settings.css'
 
 interface SettingsProps {
@@ -31,79 +31,7 @@ export default function Settings({
   const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
-  const usageStats = useMemo(() => {
-    const now = Date.now()
-    const todayStart = new Date().setHours(0, 0, 0, 0)
-    let totalMessages = 0, totalTokens = 0, todayMessages = 0
-    const activeDaysSet = new Set<string>()
-
-    sessions.forEach(session => {
-      session.messages.forEach(msg => {
-        totalMessages++
-        if (msg.usage) totalTokens += msg.usage.totalTokens || 0
-        if (msg.timestamp >= todayStart) todayMessages++
-        activeDaysSet.add(new Date(msg.timestamp).toDateString())
-      })
-    })
-
-    const activityData: ActivityData[] = []
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now - i * 24 * 60 * 60 * 1000)
-      activityData.push({
-        label: `${months[d.getMonth()]} ${d.getDate()}`,
-        date: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-        tokens: 0,
-        modelBreakdown: {}
-      })
-    }
-
-    sessions.forEach(session => {
-      session.messages.forEach(msg => {
-        const diffTime = now - msg.timestamp
-        const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000))
-        if (diffDays >= 0 && diffDays < 30 && msg.usage) {
-          const tokenCount = msg.usage.totalTokens || (msg.usage.inputTokens || 0) + (msg.usage.outputTokens || 0)
-          const dayData = activityData[29 - diffDays]
-          dayData.tokens += tokenCount
-          
-          if (msg.model) {
-            const modelName = msg.model.split('/').pop() || msg.model
-            dayData.modelBreakdown = dayData.modelBreakdown || {}
-            dayData.modelBreakdown[modelName] = (dayData.modelBreakdown[modelName] || 0) + tokenCount
-          }
-        }
-      })
-    })
-
-    let maxModel = 'N/A', maxCount = 0, imagesProcessed = 0, assistantMsgCount = 0, totalAssistantChars = 0
-    const modelCounts: Record<string, number> = {}
-
-    sessions.forEach(session => {
-      session.messages.forEach(msg => {
-        if (msg.role === 'assistant') {
-          assistantMsgCount++
-          totalAssistantChars += msg.content.length
-          if (msg.model) {
-            const mName = msg.model.split('/').pop() || msg.model
-            modelCounts[mName] = (modelCounts[mName] || 0) + 1
-            if (modelCounts[mName] > maxCount) { maxCount = modelCounts[mName]; maxModel = mName }
-          }
-        }
-        if (msg.image) imagesProcessed++
-      })
-    })
-
-    return {
-      totalSessions: sessions.length, totalMessages, totalTokens, todayMessages, activityData,
-      storageUsed: Math.round((totalMessages * 500) / 1024),
-      avgTokens: totalMessages > 0 ? Math.round(totalTokens / totalMessages) : 0,
-      mostUsedModel: maxModel, imagesProcessed,
-      avgResponseLength: assistantMsgCount > 0 ? Math.round(totalAssistantChars / assistantMsgCount) : 0,
-      activeDays: activeDaysSet.size
-    }
-  }, [sessions])
+  const usageStats = useMemo(() => computeUsageStats(sessions), [sessions])
 
   useEffect(() => {
     if (JSON.stringify(settings) !== JSON.stringify(pendingSettings)) setPendingSettings(settings)
@@ -237,7 +165,6 @@ export default function Settings({
           {activeSection === 'usage' && (
             <UsageSection
               stats={usageStats}
-              sessions={sessions}
             />
           )}
 

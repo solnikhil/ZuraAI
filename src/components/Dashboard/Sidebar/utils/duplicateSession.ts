@@ -5,7 +5,7 @@ import type { ChatSession, Message } from '../../../../contexts/ChatHistoryConte
  * prefixed with "Copy of ", and fresh timestamps. Each message in the
  * duplicate also receives a new unique ID.
  *
- * The duplicate is always created as unpinned and unarchived, but
+ * The duplicate is always created as unpinned, but
  * preserves the original session's folderId, tags, and totalTokens.
  *
  * Requirements: 7.8
@@ -27,7 +27,6 @@ export function duplicateSession(session: ChatSession): ChatSession {
     updatedAt: now,
     totalTokens: session.totalTokens,
     pinned: false,
-    archived: false,
     folderId: session.folderId,
     tags: session.tags ? [...session.tags] : [],
   }

@@ -13,7 +13,7 @@ export default function SidebarHeader({
         <div className="sidebar-header">
             <button
                 onClick={onNewChat}
-                className="sidebar-header__btn sidebar-header__btn--primary"
+                className="sidebar-header__btn"
             >
                 <FileEdit size={15} className="sidebar-header__icon" />
                 <span style={{ textAlign: 'left' }}>New chat</span>

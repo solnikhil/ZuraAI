@@ -299,7 +299,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     
     // Tool settings
     toolsEnabled: true,
-    enabledTools: ['web_search', 'get_datetime'],
+    enabledTools: ['web_search'],
     webSearchEnabled: true,
     structuredResearchEnabled: false,
     

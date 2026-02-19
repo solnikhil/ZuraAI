@@ -1,8 +1,8 @@
 /**
  * useResearchMode - Hook for managing web search mode state and logic
  *
- * Single unified web search mode: model decides how many searches to perform
- * based on the user's question. No caps, no deep/structured research modes.
+ * Unified web search mode: model decides depth based on the user's question.
+ * Structured mode is supported via research_plan (configured elsewhere).
  */
 
 import { useState, useCallback } from 'react'
@@ -78,6 +78,8 @@ export interface ResearchModeConfig {
 export interface ResearchModeSettings {
   /** Whether web search is enabled */
   webSearchEnabled: boolean
+  /** Whether structured research mode is enabled */
+  structuredResearchEnabled?: boolean
   /** Model provider */
   modelProvider: string
   /** Enabled tools list */
@@ -219,12 +221,15 @@ export function useResearchMode({
     settings: ResearchModeSettings,
     userMessage: string
   ): ResearchModeConfig => {
-    const webSearchEnabledBySettings =
-      (settings.enabledTools?.length ? settings.enabledTools.includes('web_search') : true) &&
-      settings.webSearchEnabled
+    const enabledTools = settings.enabledTools?.length ? settings.enabledTools : ['web_search']
+    const hasWebSearch = enabledTools.includes('web_search')
+    const hasStructuredEntryPoint = enabledTools.includes('research_plan') || hasWebSearch
+    const webSearchEnabledBySettings = settings.webSearchEnabled && (
+      settings.structuredResearchEnabled ? hasStructuredEntryPoint : hasWebSearch
+    )
 
     const forceWebSearch =
-      ['openrouter', 'groq', 'nvidia'].includes(settings.modelProvider) &&
+      ['openrouter', 'groq', 'nvidia', 'alibaba', 'ollama'].includes(settings.modelProvider) &&
       canUseTools &&
       webSearchEnabledBySettings &&
       checkUserRequestsWebSearch(userMessage)

@@ -104,6 +104,41 @@ function convertUrlsToMarkdownLinks(content: string): string {
 }
 
 /**
+ * Convert numeric citations like [1] or [2,3] to markdown links
+ * using the ordered URLs from web search results.
+ */
+function convertNumericCitationsToMarkdownLinks(content: string, orderedSourceUrls: string[]): string {
+  if (!content || orderedSourceUrls.length === 0) return content
+
+  const parts = content.split(/(```[\s\S]*?```)/g)
+
+  return parts.map((part, index) => {
+    // Keep fenced code blocks unchanged
+    if (index % 2 === 1) return part
+
+    return part.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (match, refs, offset, sourceText) => {
+      const prevChar = offset > 0 ? sourceText[offset - 1] : ''
+      const nextChar = sourceText[offset + match.length] || ''
+
+      // Skip markdown links like [text](url) and already-converted forms like [[1]](url)
+      if (nextChar === '(' || prevChar === '[') return match
+
+      const refNumbers = String(refs)
+        .split(',')
+        .map((s) => Number.parseInt(s.trim(), 10))
+
+      if (refNumbers.some((n) => !Number.isInteger(n) || n < 1 || n > orderedSourceUrls.length)) {
+        return match
+      }
+
+      return refNumbers
+        .map((n) => `[[${n}]](${orderedSourceUrls[n - 1]})`)
+        .join(', ')
+    })
+  }).join('')
+}
+
+/**
  * Tool Details Modal Component
  */
 function ToolDetailsModal({ toolResults, onClose }: {
@@ -826,12 +861,15 @@ function MessageRendererComponent({
   }
 
   const displayMessage = getVersionContent()
-  const processedContent = convertUrlsToMarkdownLinks(displayMessage?.content || '')
 
   // Build web source map from tool results
-  const webSourceMap = useMemo(() => {
+  const { webSourceMap, orderedWebSourceUrls } = useMemo(() => {
     const map = new Map<string, WebSource>()
-    if (!message.toolResults) return map
+    const orderedUrls: string[] = []
+    if (!message.toolResults) {
+      return { webSourceMap: map, orderedWebSourceUrls: orderedUrls }
+    }
+
     for (const tr of message.toolResults) {
       if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
         const dataObj = tr.result.data as Record<string, unknown>
@@ -840,9 +878,13 @@ function MessageRendererComponent({
           for (const rawEntry of results) {
             const entry = rawEntry as Record<string, unknown>
             if (entry.url) {
+              const url = String(entry.url)
+              if (!map.has(url)) {
+                orderedUrls.push(url)
+              }
               map.set(String(entry.url), {
                 title: String(entry.title || ''),
-                url: String(entry.url),
+                url,
                 snippet: String(entry.snippet || entry.description || ''),
                 favicon: String(entry.favicon || '')
               })
@@ -851,8 +893,13 @@ function MessageRendererComponent({
         }
       }
     }
-    return map
+    return { webSourceMap: map, orderedWebSourceUrls: orderedUrls }
   }, [message.toolResults])
+
+  const processedContent = useMemo(() => {
+    const withUrlLinks = convertUrlsToMarkdownLinks(displayMessage?.content || '')
+    return convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+  }, [displayMessage?.content, orderedWebSourceUrls])
 
   // Extract all images from web_search tool results
   const webSearchImages = useMemo(() => {

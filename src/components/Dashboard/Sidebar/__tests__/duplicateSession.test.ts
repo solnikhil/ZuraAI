@@ -10,7 +10,7 @@
  * - Messages are deep-copied with new unique IDs
  * - Message content is preserved exactly
  * - createdAt and updatedAt are set to current time
- * - pinned and archived are always false
+ * - pinned is always false
  * - folderId and tags are preserved (tags as a new array copy)
  * - totalTokens is preserved
  * - Edge cases (empty messages, no tags, no folderId)
@@ -55,7 +55,6 @@ describe('duplicateSession', () => {
   ], {
     totalTokens: 150,
     pinned: true,
-    archived: true,
     folderId: 'folder-123',
     tags: ['important', 'work'],
   })
@@ -151,16 +150,11 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: pinned and archived are always false
-  describe('pinned and archived', () => {
+  // Requirement 7.8: pinned is always false
+  describe('pinned', () => {
     it('should set pinned to false even if original is pinned', () => {
       const duplicate = duplicateSession(baseSession)
       expect(duplicate.pinned).toBe(false)
-    })
-
-    it('should set archived to false even if original is archived', () => {
-      const duplicate = duplicateSession(baseSession)
-      expect(duplicate.archived).toBe(false)
     })
   })
 

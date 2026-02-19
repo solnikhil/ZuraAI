@@ -21,6 +21,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { SettingsUIProvider, useSettingsUI, defaultSettingsUI, type SettingsUI } from './SettingsUIContext'
 import { SettingsConfigProvider, useSettingsConfig, defaultSettingsConfig, type SettingsConfig, type TodoItem } from './SettingsConfigContext'
+import { getAllToolDefinitions } from '../tools/definitions'
 
 // Re-export types for backward compatibility
 export type { TodoItem }
@@ -227,7 +228,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize tool settings if missing
         if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
-        if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
+        const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
+        if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
+            parsed.enabledTools = defaultSettings.enabledTools
+        } else {
+            parsed.enabledTools = parsed.enabledTools.filter((tool: string) => availableToolNames.has(tool))
+            if (parsed.enabledTools.length === 0) {
+                parsed.enabledTools = defaultSettings.enabledTools
+            }
+        }
         if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
         // Migration: deep research removed - ensure webSearchEnabled if it was on
         if ((parsed as Record<string, unknown>).deepResearchEnabled === true) {

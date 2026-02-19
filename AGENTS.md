@@ -167,13 +167,19 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
-- Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`).
+- Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - `set-titlebar-overlay` remains exposed for compatibility, but `electron/windows/mainWindow.ts#setTitleBarOverlay` is currently a guarded no-op when native overlay is disabled.
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
 - Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`, `alibabaModels`) now support optional `enabled?: boolean`.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
+
+#### Sidebar Session Organization
+- The chat sidebar no longer supports archiving/unarchiving sessions.
+- Session grouping is now based on pinning, folder assignment, and recency buckets only.
+- Search overlays and list rendering include all sessions (subject to active filters), with no archive-only section or archive toggle.
+- Chat session metadata includes `pinned`, `folderId`, and `tags`; legacy `archived` values in persisted data are ignored during migration.
 
 ### Data Persistence
 
@@ -233,8 +239,7 @@ Never commit `.env` or API keys.
 
 ### Known Architecture Gaps / TODOs (Current Code)
 These are useful breadcrumbs for agents:
-- No `globalShortcut.register(...)` calls were found; shortcut strings exist in settings, but main-process global hotkey registration appears pending.
-- `src/contexts/SettingsContext.tsx` sends `settings-changed`, but that channel is not allowlisted/handled; settings sync primarily happens via `localStorage` + `storage` events.
+- Only the built-in debug shortcut (`Shift+Escape`) is registered in main; user-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
 - **Title bar command bar** (`src/components/TitleBarCommandBar.tsx`, `src/components/TitleBar.css`): The expanded-state styling (shadows, borders) has been reported to cause visual discomfort. Consider switching up the renderer/styling approach (e.g. frosted glass, different elevation treatment, or alternative component structure) if users report discomfort.
 
 ---

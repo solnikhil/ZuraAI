@@ -23,6 +23,8 @@ function getModelDisplayName(settings: Settings): string {
         ...(settings.perplexityModels || []),
         ...(settings.configuredModels || []),
         ...(settings.groqModels || []),
+        ...(settings.nvidiaModels || []),
+        ...(settings.alibabaModels || []),
     ]
 
     const currentModel = allModels.find(m => m.code === settings.aiModel)

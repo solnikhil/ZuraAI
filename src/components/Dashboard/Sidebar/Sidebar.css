@@ -430,22 +430,6 @@
   opacity: 0.6;
 }
 
-/* ── Archived toggle ───────────────────────────────────────── */
-
-.sidebar-archived-toggle {
-  font-size: 0.7rem;
-  color: var(--theme-text-muted);
-  padding: 8px 4px;
-  cursor: pointer;
-  text-align: center;
-  opacity: 0.5;
-  transition: opacity 0.15s ease;
-}
-
-.sidebar-archived-toggle:hover {
-  opacity: 1;
-}
-
 /* ── Empty state ───────────────────────────────────────────── */
 
 .sidebar-empty {

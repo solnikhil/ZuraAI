@@ -7,6 +7,32 @@ import {
 } from '../windows'
 import { memoryMonitor, type MemoryMetrics } from '../performance/memoryMonitor'
 
+const windowStateListenersAttached = new WeakSet<BrowserWindow>()
+
+function emitWindowState(win: BrowserWindow): void {
+  if (win.isDestroyed()) return
+  win.webContents.send('window-controls:state', {
+    isMaximized: win.isMaximized(),
+  })
+}
+
+function ensureWindowStateListeners(win: BrowserWindow): void {
+  if (windowStateListenersAttached.has(win)) {
+    return
+  }
+
+  const sendCurrentState = () => emitWindowState(win)
+  win.on('maximize', sendCurrentState)
+  win.on('unmaximize', sendCurrentState)
+  win.on('enter-full-screen', sendCurrentState)
+  win.on('leave-full-screen', sendCurrentState)
+  win.on('closed', () => {
+    windowStateListenersAttached.delete(win)
+  })
+
+  windowStateListenersAttached.add(win)
+}
+
 /**
  * Register all system IPC handlers
  */
@@ -63,17 +89,22 @@ export function registerSystemHandlers(): void {
 
   // Window controls handlers
   ipcMain.handle('window-controls:minimize', (event) => {
-    BrowserWindow.fromWebContents(event.sender)?.minimize()
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return
+    ensureWindowStateListeners(win)
+    win.minimize()
   })
 
   ipcMain.handle('window-controls:toggle-maximize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return
+    ensureWindowStateListeners(win)
     if (win.isMaximized()) {
       win.unmaximize()
     } else {
       win.maximize()
     }
+    emitWindowState(win)
   })
 
   ipcMain.handle('window-controls:close', (event) => {
@@ -83,6 +114,7 @@ export function registerSystemHandlers(): void {
   ipcMain.handle('window-controls:is-maximized', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return false
+    ensureWindowStateListeners(win)
     return win.isMaximized()
   })
 

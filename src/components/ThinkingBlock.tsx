@@ -259,7 +259,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
     // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
     const [finalTime, setFinalTime] = useState<number | null>(
-        thinkingDuration ? thinkingDuration / 1000 : null
+        thinkingDuration !== undefined ? thinkingDuration / 1000 : null
     )
     const thinkingStartRef = useRef<number | null>(null)
 
@@ -292,6 +292,16 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
             if (interval) clearInterval(interval)
         }
     }, [isThinking])
+
+    // Keep final time in sync with provider-reported duration updates.
+    useEffect(() => {
+        if (isThinking || thinkingDuration === undefined) return
+
+        const durationInSeconds = Math.max(0, thinkingDuration / 1000)
+        setFinalTime(durationInSeconds)
+        setElapsedTime(durationInSeconds)
+        thinkingStartRef.current = null
+    }, [thinkingDuration, isThinking])
 
     // Auto-expand while actively thinking, tool calling, or searching; expand when we have content to show
     useEffect(() => {

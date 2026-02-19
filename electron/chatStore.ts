@@ -24,7 +24,6 @@ export interface ChatSession {
     totalTokens?: number
     // Sidebar redesign fields (Requirements 11.1, 11.2, 11.3, 11.4)
     pinned?: boolean          // default: false
-    archived?: boolean        // default: false
     folderId?: string | null  // default: null
     tags?: string[]           // default: []
 }
@@ -64,10 +63,11 @@ function getStorePath(): string {
  * Exported for testing (Property 7).
  */
 export function migrateSession(session: ChatSession): ChatSession {
+    const rest = { ...(session as ChatSession & { archived?: boolean }) }
+    delete rest.archived
     return {
-        ...session,
+        ...rest,
         pinned: session.pinned ?? false,
-        archived: session.archived ?? false,
         folderId: session.folderId ?? null,
         tags: Array.isArray(session.tags) ? session.tags : [],
     }

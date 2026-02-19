@@ -121,7 +121,6 @@ export interface ChatSession {
     totalTokens?: number
     // Sidebar redesign fields (Requirements 11.1, 11.2, 11.3, 11.4)
     pinned?: boolean          // default: false
-    archived?: boolean        // default: false
     folderId?: string | null  // default: null
     tags?: string[]           // default: []
 }
@@ -163,10 +162,6 @@ interface ChatHistoryContextType {
     // Sidebar redesign: Pin operations (Requirements 5.4, 5.5)
     pinSession: (id: string) => void
     unpinSession: (id: string) => void
-
-    // Sidebar redesign: Archive operations (Requirements 7.7, 12.3)
-    archiveSession: (id: string) => void
-    unarchiveSession: (id: string) => void
 
     // Sidebar redesign: Duplicate operation (Requirement 7.8)
     duplicateSession: (id: string) => void
@@ -719,24 +714,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }, [])
 
     // =========================================================================
-    // Sidebar redesign: Archive operations (Requirements 7.7, 12.3)
-    // =========================================================================
-
-    const archiveSession = useCallback((id: string) => {
-        setSessions(prev => prev.map(s =>
-            s.id === id ? { ...s, archived: true, updatedAt: Date.now() } : s
-        ))
-        // If the archived session is the current one, clear it
-        setCurrentSessionId(prev => prev === id ? null : prev)
-    }, [])
-
-    const unarchiveSession = useCallback((id: string) => {
-        setSessions(prev => prev.map(s =>
-            s.id === id ? { ...s, archived: false, updatedAt: Date.now() } : s
-        ))
-    }, [])
-
-    // =========================================================================
     // Sidebar redesign: Duplicate operation (Requirement 7.8)
     // =========================================================================
 
@@ -758,7 +735,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
                 updatedAt: now,
                 totalTokens: original.totalTokens,
                 pinned: false,
-                archived: false,
                 folderId: original.folderId,
                 tags: [...(original.tags || [])],
             }
@@ -881,8 +857,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         // Sidebar redesign actions
         pinSession,
         unpinSession,
-        archiveSession,
-        unarchiveSession,
         duplicateSession,
         assignFolder,
         removeFromFolder,
@@ -913,8 +887,6 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         // Sidebar redesign actions
         pinSession,
         unpinSession,
-        archiveSession,
-        unarchiveSession,
         duplicateSession,
         assignFolder,
         removeFromFolder,
@@ -1114,8 +1086,6 @@ export function useChatHistoryActions() {
         // Sidebar redesign actions
         pinSession: context.pinSession,
         unpinSession: context.unpinSession,
-        archiveSession: context.archiveSession,
-        unarchiveSession: context.unarchiveSession,
         duplicateSession: context.duplicateSession,
         assignFolder: context.assignFolder,
         removeFromFolder: context.removeFromFolder,
@@ -1142,8 +1112,6 @@ export function useChatHistoryActions() {
         // Sidebar redesign actions
         context.pinSession,
         context.unpinSession,
-        context.archiveSession,
-        context.unarchiveSession,
         context.duplicateSession,
         context.assignFolder,
         context.removeFromFolder,

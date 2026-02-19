@@ -99,7 +99,6 @@ export {
   ThumbsDown,
   Flag,
   Pin,
-  Archive,
   Ellipsis,
   MoreVertical,
   ZoomIn,

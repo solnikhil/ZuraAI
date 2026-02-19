@@ -28,17 +28,16 @@ function startOfDay(date: Date): Date {
  * Groups chat sessions into pinned, folder-assigned, and time-based groups.
  *
  * Grouping logic:
- * 1. Exclude archived sessions entirely (archived === true)
- * 2. Pinned sessions (pinned === true, non-archived) go to the pinned group
- * 3. Folder-assigned sessions (folderId != null, non-pinned, non-archived) go to folder groups
- * 4. Remaining sessions (non-archived, non-pinned, no folder) are grouped by updatedAt:
+ * 1. Pinned sessions (pinned === true) go to the pinned group
+ * 2. Folder-assigned sessions (folderId != null, non-pinned) go to folder groups
+ * 3. Remaining sessions (non-pinned, no folder) are grouped by updatedAt:
  *    - Today: updatedAt is within the current calendar day
  *    - Yesterday: updatedAt is within the previous calendar day
  *    - Previous 7 Days: updatedAt is within the last 7 days (excluding today and yesterday)
  *    - Previous 30 Days: updatedAt is within the last 30 days (excluding the above)
  *    - Older: everything else
  *
- * Requirements: 5.1, 5.2, 5.3, 12.1
+ * Requirements: 5.1, 5.2, 5.3
  */
 export function groupSessions(
   sessions: ChatSession[],
@@ -78,18 +77,13 @@ export function groupSessions(
   }
 
   for (const session of sessions) {
-    // 1. Exclude archived sessions entirely
-    if (session.archived === true) {
-      continue
-    }
-
-    // 2. Pinned sessions go to pinned group
+    // 1. Pinned sessions go to pinned group
     if (session.pinned === true) {
       result.pinned.push(session)
       continue
     }
 
-    // 3. Folder-assigned sessions (non-pinned) go to folder groups
+    // 2. Folder-assigned sessions (non-pinned) go to folder groups
     if (session.folderId != null && session.folderId !== '') {
       const folderSessions = result.folders.get(session.folderId)
       if (folderSessions) {
@@ -105,7 +99,7 @@ export function groupSessions(
       }
     }
 
-    // 4. Remaining sessions grouped by updatedAt
+    // 3. Remaining sessions grouped by updatedAt
     const updatedAt = session.updatedAt
 
     if (updatedAt >= todayMs) {
