@@ -50,6 +50,14 @@ let cachedData: ChatHistoryData | null = null
 let cacheTimestamp = 0
 const CACHE_TTL = 1000 // 1 second cache
 
+// Write serialization: prevents out-of-order async writes from corrupting
+// the on-disk file and reverting the in-memory cache to stale data.
+// Each write increments writeVersion; the async callback only updates the
+// cache when its captured version still matches the latest.
+// pendingWrite chains writes so they hit disk in order.
+let writeVersion = 0
+let pendingWrite: Promise<void> = Promise.resolve()
+
 // Get the storage file path
 function getStorePath(): string {
     const userDataPath = app.getPath('userData')
@@ -114,21 +122,35 @@ async function readStoreAsync(): Promise<ChatHistoryData> {
     return { sessions: [], folders: [], version: 2 }
 }
 
-// Write data to file (async)
+// Write data to file (async, serialized)
+// Writes are chained via pendingWrite so they reach disk in order.
+// The cache is only updated by the async callback when its version is
+// still the latest, preventing a slow earlier write from reverting a
+// newer cache entry.
 async function writeStoreAsync(data: ChatHistoryData): Promise<void> {
-    const filePath = getStorePath()
-    try {
-        const dir = path.dirname(filePath)
-        if (!fsSync.existsSync(dir)) {
-            await fs.mkdir(dir, { recursive: true })
+    const myVersion = ++writeVersion
+
+    const doWrite = async () => {
+        const filePath = getStorePath()
+        try {
+            const dir = path.dirname(filePath)
+            if (!fsSync.existsSync(dir)) {
+                await fs.mkdir(dir, { recursive: true })
+            }
+            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+            // Only update cache if no newer write has been queued
+            if (myVersion === writeVersion) {
+                cachedData = data
+                cacheTimestamp = Date.now()
+            }
+        } catch (error) {
+            console.error('Failed to write chat history:', error)
         }
-        await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
-        // Update cache
-        cachedData = data
-        cacheTimestamp = Date.now()
-    } catch (error) {
-        console.error('Failed to write chat history:', error)
     }
+
+    // Chain after any in-flight write to serialize disk I/O
+    pendingWrite = pendingWrite.then(doWrite)
+    await pendingWrite
 }
 
 // Sync versions for backward compatibility (uses cache when possible)
