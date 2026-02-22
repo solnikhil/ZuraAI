@@ -12,11 +12,14 @@ export default function SidebarHeader({
     return (
         <div className="sidebar-header">
             <button
+                type="button"
                 onClick={onNewChat}
                 className="sidebar-header__btn"
             >
-                <FileEdit size={15} className="sidebar-header__icon" />
-                <span style={{ textAlign: 'left' }}>New chat</span>
+                <span className="sidebar-header__icon-slot" aria-hidden="true">
+                    <FileEdit size={16} className="sidebar-header__icon sidebar-header__icon--new-chat" />
+                </span>
+                <span className="sidebar-header__label">New chat</span>
             </button>
 
             <button
@@ -24,8 +27,10 @@ export default function SidebarHeader({
                 onClick={onOpenSearch}
                 className="sidebar-header__btn"
             >
-                <Search size={15} className="sidebar-header__icon" />
-                <span style={{ textAlign: 'left' }}>Search chats</span>
+                <span className="sidebar-header__icon-slot" aria-hidden="true">
+                    <Search size={16} className="sidebar-header__icon sidebar-header__icon--search" />
+                </span>
+                <span className="sidebar-header__label">Search chats</span>
             </button>
         </div>
     )

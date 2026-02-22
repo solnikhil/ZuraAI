@@ -154,7 +154,7 @@ export default function TitleBar() {
             style={{}}
             onDoubleClick={handleTitleBarDoubleClick}
         >
-            {/* Solid background for the content (right) side of the titlebar in frosted mode */}
+            {/* Frosted mode: glass overlay for sidebar region, solid for content region */}
             {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
                 <div
                     className="app-titlebar__sidebar-glass"
@@ -168,6 +168,16 @@ export default function TitleBar() {
                     className="app-titlebar__content-bg"
                     style={{
                         left: `${sidebarWidthPx}px`,
+                    }}
+                />
+            )}
+
+            {/* Non-frosted mode: solid surface overlay so titlebar above sidebar matches sidebar color */}
+            {!frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
+                <div
+                    className="app-titlebar__sidebar-solid"
+                    style={{
+                        width: `${sidebarWidthPx}px`,
                     }}
                 />
             )}

@@ -1,4 +1,5 @@
 .app-titlebar {
+    --titlebar-nav-icon-color: rgb(198 197 199);
     position: relative;
     z-index: 50;
     display: flex;
@@ -18,6 +19,20 @@
 .app-titlebar--frosted {
     background: transparent !important;
     border-bottom: none;
+}
+
+
+/* Non-frosted: solid surface panel above sidebar so titlebar matches sidebar color */
+
+.app-titlebar__sidebar-solid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--theme-surface);
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
 }
 
 
@@ -88,6 +103,10 @@
 
 .app-titlebar--compact {
     height: 36px;
+}
+
+.app-titlebar--custom-controls {
+    padding-right: 0;
 }
 
 .app-titlebar__left,
@@ -233,6 +252,10 @@
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
+.app-titlebar__controls .app-titlebar__icon-btn {
+    color: var(--titlebar-nav-icon-color);
+}
+
 .app-titlebar__icon-btn:hover {
     background: var(--theme-surface-hover);
     border-color: var(--theme-border);
@@ -248,11 +271,11 @@
 }
 
 .app-titlebar__icon-btn--settings {
-    color: color-mix(in srgb, var(--theme-text-primary) 88%, var(--theme-accent));
+    color: var(--titlebar-nav-icon-color);
 }
 
 .app-titlebar__icon-btn--back {
-    color: var(--theme-text-primary);
+    color: var(--titlebar-nav-icon-color);
     border-color: transparent;
     background: transparent;
 }
@@ -271,32 +294,52 @@
 }
 
 .app-titlebar__window-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 46px;
+    height: 100%;
+    border-radius: 0;
 }
-
-.app-titlebar__window-btn--close:hover {
-    background: #c42b1c;
-    border-color: #c42b1c;
-    color: #ffffff;
-}
-
-.app-titlebar__window-btn--close:active {
-    background: #a5271b;
-    border-color: #a5271b;
-}
-
 
 /* WindowControlButtons wrapper (frosted mode custom controls) */
 
 .app-titlebar__window-controls {
     display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    align-items: stretch;
+    gap: 0;
+    height: 100%;
+    position: relative;
+    z-index: 7000;
+    background: var(--theme-background);
+    border-left: 1px solid var(--theme-border-subtle);
+    overflow: hidden;
     -webkit-app-region: no-drag;
 }
 
+.app-titlebar__window-controls .app-titlebar__window-btn {
+    width: 46px;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    background: var(--theme-background);
+    color: color-mix(in srgb, var(--theme-text-primary) 76%, transparent);
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:hover {
+    background: color-mix(in srgb, var(--theme-surface-hover) 90%, var(--theme-background));
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:active {
+    transform: none;
+    background: color-mix(in srgb, var(--theme-surface-active) 90%, var(--theme-background));
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn--close:hover {
+    background: #c42b1c;
+    color: #ffffff;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn--close:active {
+    background: #a5271b;
+}
 
 /* Close button red hover state (icon-btn modifier for frosted mode) */
 
