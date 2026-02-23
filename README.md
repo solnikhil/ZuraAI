@@ -1,6 +1,6 @@
 # Zura AI
 
-Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript.
+A Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript.
 
 ![Zura AI](public/icon.png)
 
