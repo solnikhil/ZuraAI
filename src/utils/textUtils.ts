@@ -54,14 +54,20 @@ export function truncateText(
   ellipsis: string = '...'
 ): string {
   if (!text) return ''
-  if (text.length <= maxLength) return text
+  if (!Number.isFinite(maxLength)) {
+    return maxLength > 0 ? text : ''
+  }
+  const safeMaxLength = Math.max(0, Math.floor(maxLength))
+  if (safeMaxLength === 0) return ''
+  if (text.length <= safeMaxLength) return text
+  if (safeMaxLength <= ellipsis.length) return ellipsis.slice(0, safeMaxLength)
   
   // Ensure we don't cut in the middle of a word if possible
-  const truncated = text.slice(0, maxLength - ellipsis.length)
+  const truncated = text.slice(0, safeMaxLength - ellipsis.length)
   const lastSpace = truncated.lastIndexOf(' ')
   
   // If there's a space in the last 20% of the truncated text, cut at the word boundary
-  if (lastSpace > maxLength * 0.8) {
+  if (lastSpace > safeMaxLength * 0.8) {
     return truncated.slice(0, lastSpace) + ellipsis
   }
   
@@ -146,13 +152,13 @@ export function formatNumber(num: number, locale: string = 'en-US'): string {
  * @returns Human readable string (e.g., "1.5 MB")
  */
 export function formatBytes(bytes: number, decimals: number = 2): string {
-  if (bytes === 0) return '0 Bytes'
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 Bytes'
   
   const k = 1024
-  const dm = decimals < 0 ? 0 : decimals
+  const dm = Number.isFinite(decimals) ? (decimals < 0 ? 0 : decimals) : 2
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1)
   
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
 }

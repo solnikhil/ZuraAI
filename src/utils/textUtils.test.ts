@@ -88,6 +88,22 @@ describe('textUtils', () => {
       const result = truncateText('Hello World', 8, '…')
       expect(result).toContain('…')
     })
+
+    it('handles maxLength shorter than ellipsis', () => {
+      expect(truncateText('Hello World', 2)).toBe('..')
+      expect(truncateText('Hello World', 1)).toBe('.')
+    })
+
+    it('handles non-positive maxLength', () => {
+      expect(truncateText('Hello World', 0)).toBe('')
+      expect(truncateText('Hello World', -5)).toBe('')
+    })
+
+    it('handles non-finite maxLength', () => {
+      expect(truncateText('Hello World', Number.NaN)).toBe('')
+      expect(truncateText('Hello World', Number.POSITIVE_INFINITY)).toBe('Hello World')
+      expect(truncateText('Hello World', Number.NEGATIVE_INFINITY)).toBe('')
+    })
   })
 
   describe('sanitizeDisplayText', () => {
@@ -226,6 +242,16 @@ describe('textUtils', () => {
 
     it('handles large values', () => {
       expect(formatBytes(1099511627776)).toBe('1 TB')
+    })
+
+    it('handles invalid and negative byte values', () => {
+      expect(formatBytes(-1)).toBe('0 Bytes')
+      expect(formatBytes(Number.NaN)).toBe('0 Bytes')
+      expect(formatBytes(Number.POSITIVE_INFINITY)).toBe('0 Bytes')
+    })
+
+    it('clamps very large units to TB label', () => {
+      expect(formatBytes(1152921504606847000)).toContain('TB')
     })
   })
 })
