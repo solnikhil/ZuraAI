@@ -12,3 +12,4 @@
 - Check `README.md` setup instructions
 - Search existing issues for duplicates
 - Include steps to reproduce and logs/screenshots when possible
+- Include app version (`window.updater.getVersion()` in Electron builds) and OS details

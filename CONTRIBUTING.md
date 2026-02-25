@@ -42,7 +42,7 @@ npm test
 If your change affects packaging, also run:
 
 ```bash
-npm run build:renderer
+npm run build
 ```
 
 ## Pull requests

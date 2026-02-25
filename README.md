@@ -39,6 +39,11 @@ No `.env` setup is required.
 
 Add provider/search API keys in the app under Settings.
 
+Notes:
+
+- Ollama does not require an API key, but the Ollama server must be running (`http://localhost:11434` by default).
+- Keys are stored through Electron secure storage (`safeStorage` when available).
+
 ## Scripts
 
 - `npm run dev` - start development server
@@ -57,6 +62,14 @@ Add provider/search API keys in the app under Settings.
 - Preload exposes a narrow allowlisted IPC surface
 
 See `AGENTS.md` for architecture details.
+
+## Project docs
+
+- `AGENTS.md` - architecture and security boundaries
+- `CONTRIBUTING.md` - contribution workflow and quality checks
+- `SECURITY.md` - vulnerability reporting process
+- `SUPPORT.md` - user support and issue reporting guidance
+- `docs/release-checklist.md` - release steps for maintainers
 
 ## Contributing
 
