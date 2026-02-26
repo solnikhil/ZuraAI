@@ -2,10 +2,9 @@
 
 ## Getting help
 
-- For bugs and regressions, open a GitHub issue:
-  https://github.com/solnikhil/ZuraAI/issues/new/choose
-- For feature ideas, use the feature request template
-- For security concerns, use `SECURITY.md` reporting instructions
+- For bugs and regressions, open a [GitHub issue](https://github.com/solnikhil/ZuraAI/issues/new/choose).
+- For feature ideas, use the [feature request template](https://github.com/solnikhil/ZuraAI/issues/new?template=feature_request.yml).
+- For security concerns, follow the reporting instructions in `SECURITY.md`.
 
 ## Before opening an issue
 
