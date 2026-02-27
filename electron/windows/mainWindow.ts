@@ -10,7 +10,6 @@ const isProduction = require('electron').app.isPackaged
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
-const USE_NATIVE_TITLEBAR_OVERLAY = false
 
 function isExternalHttpUrl(url: string): boolean {
     if (!url.startsWith('http:') && !url.startsWith('https:')) return false
@@ -47,14 +46,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
         title: 'Zura AI - Dashboard',
         icon: path.join(process.env.PUBLIC || '', 'icon.png'),
         ...(isWindows ? {
-            titleBarStyle: 'hidden',
-            ...(USE_NATIVE_TITLEBAR_OVERLAY ? {
-                titleBarOverlay: {
-                    color: '#14120B',
-                    symbolColor: '#E5E0D5',
-                    height: 44,
-                },
-            } : {}),
+            frame: false,
             backgroundMaterial: 'none' as const,
         } : {}),
         ...(isMacOS ? {
@@ -73,7 +65,9 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
             additionalArguments: ['--process-name=Zura-Dashboard'],
         },
         autoHideMenuBar: true,
-        backgroundColor: '#00000000',
+        // Solid background eliminates the visible DWM frame border on Windows.
+        // Frosted mode switches this to transparent at runtime via setNativeBlur().
+        backgroundColor: '#14120B',
         show: false,
     })
 
@@ -137,13 +131,17 @@ export function showMainWindow(): void {
 }
 
 /**
- * Toggle native background blur (acrylic on Windows, vibrancy on macOS)
+ * Toggle native background blur (acrylic on Windows, vibrancy on macOS).
+ * Also toggles the window backgroundColor between transparent (for acrylic
+ * compositing) and solid (to hide the DWM frame border in normal mode).
  */
 export function setNativeBlur(enabled: boolean): void {
     if (!mainWindow) return
 
     try {
         if (process.platform === 'win32') {
+            // Transparent background is required for acrylic; solid hides the DWM border
+            mainWindow.setBackgroundColor(enabled ? '#00000000' : '#14120B')
             mainWindow.setBackgroundMaterial(enabled ? 'acrylic' : 'none')
         } else if (process.platform === 'darwin') {
             mainWindow.setVibrancy(enabled ? 'sidebar' : null as any)
@@ -154,21 +152,9 @@ export function setNativeBlur(enabled: boolean): void {
 }
 
 /**
- * Set the titlebar overlay colors (Windows only)
+ * Set the titlebar overlay colors (Windows only).
+ * No-op: native titlebar overlay is not used (window is frameless on Windows).
  */
-export function setTitleBarOverlay(color: string, symbolColor: string, height?: number): void {
-    if (process.platform !== 'win32') return
-    if (!mainWindow) return
-    if (!USE_NATIVE_TITLEBAR_OVERLAY) return
-
-    const overlay: Electron.TitleBarOverlay = { color, symbolColor }
-    if (typeof height === 'number' && Number.isFinite(height)) {
-        overlay.height = height
-    }
-
-    try {
-        mainWindow.setTitleBarOverlay(overlay)
-    } catch {
-        // Ignore if unsupported
-    }
+export function setTitleBarOverlay(_color: string, _symbolColor: string, _height?: number): void {
+    // Frameless window — no native overlay to configure
 }

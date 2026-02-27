@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build Windows artifacts
+        run: npm run build
+
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          # Find the previous tag for changelog range
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(npx tsx scripts/generate-changelog.ts --from-tag "$PREV_TAG" --to-ref "$CURRENT_TAG")
+          else
+            CHANGELOG=$(npx tsx scripts/generate-changelog.ts --to-ref "$CURRENT_TAG")
+          fi
+
+          # Write changelog to a file for the release step
+          echo "$CHANGELOG" > release-notes.md
+
+      - name: Compute SHA-256 checksums
+        id: checksums
+        shell: bash
+        run: |
+          echo "## SHA-256 Checksums" > checksums.md
+          echo "" >> checksums.md
+          echo '```' >> checksums.md
+          for file in dist/*.exe dist/*.blockmap; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" | sed 's|dist/||' >> checksums.md
+            fi
+          done
+          echo '```' >> checksums.md
+
+          # Append checksums to release notes
+          echo "" >> release-notes.md
+          cat checksums.md >> release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            dist/*.exe
+            dist/*.blockmap
+          fail_on_unmatched_files: false

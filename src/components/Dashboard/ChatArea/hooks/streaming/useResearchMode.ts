@@ -33,9 +33,9 @@ function getFollowUpResearchPrompt(searchCount: number): string {
   return `\n\n*** WEB SEARCH PROGRESS ***
 You have completed ${searchCount} search(es).${hasMultipleSearches ? `
 
-IMPORTANT: You have search results above. Provide your synthesized answer NOW based on those results. Do NOT output planning, meta-commentary, or "I should..." reasoning—output the actual answer directly.` : `
+IMPORTANT: You have sufficient search results. Provide your synthesized answer NOW. Do NOT search again—output the actual answer directly.` : `
 
-For list/comparison questions (e.g. "what providers offer X"): If your results seem incomplete or miss major players, call web_search again with a different query before answering. Do NOT synthesize an incomplete list. For other questions: If you have sufficient information, provide your answer now.`}`
+You have search results above. For most questions, one search is enough—provide your answer now. Only search again if the results are clearly incomplete or missing critical information for the specific question asked.`}`
 }
 
 const FORCE_WEB_SEARCH_PREFIX = `The user has requested a web search. Call web_search at least once before answering.

@@ -44,6 +44,32 @@ function formatDuration(ms: number): string {
     return `${remainingSeconds}s`
 }
 
+/**
+ * Strip UI-only fields from web search tool output for cleaner display.
+ * Removes favicon, source, displayed_link from results and images array
+ * since those are rendered separately in the UI (image carousel, source badges).
+ */
+function cleanToolOutputForDisplay(data: unknown): unknown {
+    if (!data || typeof data !== 'object') return data
+    const obj = data as Record<string, unknown>
+
+    // Clean web search results array
+    if (Array.isArray(obj.results)) {
+        const cleaned = { ...obj }
+        cleaned.results = (obj.results as Array<Record<string, unknown>>).map(r => {
+            const { favicon, source, displayed_link, ...rest } = r
+            return rest
+        })
+        // Strip images array (shown in carousel), and metadata fields
+        delete cleaned.images
+        delete cleaned.imageCount
+        delete cleaned.source
+        return cleaned
+    }
+
+    return data
+}
+
 /** Inline Web Search tool call - dropdown with JSON input/output, follows thinking block style */
 function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
     const [isExpanded, setIsExpanded] = useState(false)
@@ -105,7 +131,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
                                         {block.toolOutput.error
                                             ? block.toolOutput.error
                                             : block.toolOutput.data !== undefined
-                                                ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
                                                 : '{}'}
                                     </pre>
                                 </div>
@@ -141,7 +167,7 @@ function renderThinkingWithToolCalls(thinking: string, searchBlocks: ThinkingBlo
 
 // Component for a single completed block (collapsed by default)
 function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; defaultExpanded?: boolean }) {
-    const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : block.type === 'thinking'
+    const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : false
     const [isExpanded, setIsExpanded] = useState(shouldExpand)
 
     if (block.type === 'searching') {
@@ -196,7 +222,7 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                                             {block.toolOutput.error
                                                 ? block.toolOutput.error
                                                 : block.toolOutput.data !== undefined
-                                                    ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                    ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
                                                     : '{}'}
                                         </pre>
                                     </div>
@@ -263,25 +289,28 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     )
     const thinkingStartRef = useRef<number | null>(null)
 
-    // Start timer immediately when isThinking becomes true
-    useEffect(() => {
-        if (isThinking && !thinkingStartRef.current) {
-            thinkingStartRef.current = Date.now()
-            setFinalTime(null)
-            setElapsedTime(0)
-        }
-    }, [isThinking])
+    // Compute whether we're in an active session (thinking, searching, or tool calling).
+    // Timer should run continuously across all these states without resetting.
+    const isActiveSession = isThinking || isSearching || hasActiveToolCalls
 
-    // Live timer effect - runs while isThinking is true
+    // Unified timer: starts when any active state begins, stops only when ALL end.
+    // This prevents the timer from resetting between web search rounds.
     useEffect(() => {
         let interval: NodeJS.Timeout
 
-        if (isThinking && thinkingStartRef.current) {
+        if (isActiveSession) {
+            // Start timer if not already running
+            if (!thinkingStartRef.current) {
+                thinkingStartRef.current = Date.now()
+                setFinalTime(null)
+                setElapsedTime(0)
+            }
+            // Run live timer
             interval = setInterval(() => {
                 setElapsedTime((Date.now() - thinkingStartRef.current!) / 1000)
-            }, 100) // Update every 100ms for smoother display
-        } else if (!isThinking && thinkingStartRef.current) {
-            // isThinking just became false - capture final time
+            }, 100)
+        } else if (thinkingStartRef.current) {
+            // Session just ended — capture final time
             const elapsed = (Date.now() - thinkingStartRef.current) / 1000
             setFinalTime(elapsed)
             setElapsedTime(elapsed)
@@ -291,19 +320,20 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         return () => {
             if (interval) clearInterval(interval)
         }
-    }, [isThinking])
+    }, [isActiveSession])
 
     // Keep final time in sync with provider-reported duration updates.
     useEffect(() => {
-        if (isThinking || thinkingDuration === undefined) return
+        if (isActiveSession || thinkingDuration === undefined) return
 
         const durationInSeconds = Math.max(0, thinkingDuration / 1000)
         setFinalTime(durationInSeconds)
         setElapsedTime(durationInSeconds)
         thinkingStartRef.current = null
-    }, [thinkingDuration, isThinking])
+    }, [thinkingDuration, isActiveSession])
 
-    // Auto-expand while actively thinking, tool calling, or searching; expand when we have content to show
+    // Auto-expand while actively thinking, tool calling, or searching.
+    // Once complete, leave the expanded state alone so the user's toggle is respected.
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
@@ -311,11 +341,18 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
             setIsExpanded(true)
         } else if (isSearching) {
             setIsExpanded(true)
-        } else if (!isThinking && !isSearching && !hasActiveToolCalls) {
-            const hasContentToShow = (thinking && thinking.trim().length > 0) || completedBlocks.length > 0
-            setIsExpanded(hasContentToShow)
         }
-    }, [isThinking, isSearching, hasActiveToolCalls, thinking, completedBlocks.length])
+    }, [isThinking, isSearching, hasActiveToolCalls, thinking])
+
+    // When thinking content changes while NOT actively thinking (e.g. switching chats),
+    // reset to collapsed so old expanded state doesn't carry over.
+    const prevThinkingRef = useRef(thinking)
+    useEffect(() => {
+        if (prevThinkingRef.current !== thinking && !isThinking && !isSearching && !hasActiveToolCalls) {
+            setIsExpanded(false)
+        }
+        prevThinkingRef.current = thinking
+    }, [thinking, isThinking, isSearching, hasActiveToolCalls])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
@@ -341,7 +378,6 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                 <CompletedBlock
                     key={`completed-${index}-${block.timestamp}`}
                     block={block}
-                    defaultExpanded={!!(block.content && block.content.trim().length > 0)}
                 />
             ))}
 

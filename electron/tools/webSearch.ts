@@ -6,7 +6,7 @@ import { search as duckDuckScrapeSearch, SafeSearchType } from 'duck-duck-scrape
 import type { ToolResult } from './types'
 import { getSecureValueAsync } from '../secureStorage'
 
-const FETCH_TIMEOUT_MS = 20000
+const FETCH_TIMEOUT_MS = 12000
 const MAX_QUERY_LENGTH = 500
 
 interface WebSearchArgs {
@@ -252,7 +252,7 @@ async function searchWithTavily(
             query,
             search_depth: searchDepth,
             max_results: Math.min(numResults, 20),
-            include_answer: true,
+            include_answer: false,
             include_raw_content: false,
             include_images: true
         }
@@ -313,7 +313,6 @@ async function searchWithTavily(
             success: true,
             data: {
                 query,
-                answer: data.answer,
                 results,
                 images,
                 resultCount: results.length,

@@ -1,123 +1,129 @@
 import { Info, Zap, Clock } from './icons'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 
 interface ResponseInfoProps {
     model: string
-    latency?: number // in milliseconds
+    latency?: number
     usage?: {
         inputTokens: number
         outputTokens: number
         totalTokens: number
-        tps?: number // Tokens per second
-        ttft?: number // Time to first token in ms
+        tps?: number
+        ttft?: number
     }
     finishReason?: string
     requestedMaxTokens?: number
 }
 
 export default function ResponseInfo({ model, latency, usage, finishReason, requestedMaxTokens }: ResponseInfoProps) {
-    // Format duration: 46.7s
     const formattedDuration = latency ? `${(latency / 1000).toFixed(1)}s` : '-'
-
-    // Format numbers with commas
     const fmt = (n?: number) => n?.toLocaleString() || '0'
     const fmtTps = (n?: number) => n ? n.toFixed(1) : '-'
-
-    // Clean model name (remove provider prefix if present)
     const displayModel = model.split('/').pop() || model
 
-    // Handle legacy usage keys (snake_case)
     const inputTokens = usage?.inputTokens ?? (usage as any)?.prompt_tokens ?? (usage as any)?.prompt_eval_count ?? 0
     const outputTokens = usage?.outputTokens ?? (usage as any)?.completion_tokens ?? (usage as any)?.eval_count ?? 0
     const totalTokens = usage?.totalTokens ?? (usage as any)?.total_tokens ?? 0
 
     return (
-        <Card className="bg-card/50 border-border backdrop-blur-sm">
-            <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                    <Info size={16} />
-                    Response Info
-                </CardTitle>
-            </CardHeader>
+        <div style={{
+            backgroundColor: 'var(--theme-surface)',
+            border: '1px solid var(--theme-border)',
+            borderRadius: '12px',
+            padding: '16px',
+            width: '260px',
+            boxShadow: 'var(--theme-shadow-md)',
+            color: 'var(--theme-text-primary)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px'
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theme-text-tertiary)', fontSize: '13px', fontWeight: 500 }}>
+                <Info size={14} />
+                Response Info
+            </div>
 
-            <CardContent className="space-y-3">
-                {/* Model */}
-                <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Model</span>
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                        <Zap size={12} fill="currentColor" />
-                        {displayModel}
-                    </Badge>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Model</span>
+                <span style={{
+                    background: 'var(--theme-accent-muted)',
+                    color: 'var(--theme-accent)',
+                    padding: '3px 10px',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    maxWidth: '160px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                }}>
+                    <Zap size={10} fill="currentColor" />
+                    {displayModel}
+                </span>
+            </div>
 
-                {/* Generation Time */}
-                <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">Generation Time</span>
-                    <span className="text-sm flex items-center gap-1">
-                        <Clock size={12} />
-                        {formattedDuration}
-                    </span>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Generation Time</span>
+                <span style={{ fontSize: '13px', color: 'var(--theme-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Clock size={12} />
+                    {formattedDuration}
+                </span>
+            </div>
 
-                {(finishReason || typeof requestedMaxTokens === 'number') && (
-                    <>
-                        <Separator />
-                        {typeof requestedMaxTokens === 'number' && (
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">Requested Max</span>
-                                <span className="text-sm font-medium">{fmt(requestedMaxTokens)}</span>
-                            </div>
-                        )}
-                        {finishReason && (
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs text-muted-foreground">Stop Reason</span>
-                                <span className="text-sm font-medium">{finishReason}</span>
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {usage && (
-                    <>
-                        <Separator />
-
-                        <div className="space-y-2">
-                            <span className="text-xs font-medium text-muted-foreground">Token Usage</span>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="bg-secondary/50 rounded-md p-2 text-center">
-                                    <div className="text-xs text-muted-foreground">Input</div>
-                                    <div className="text-sm font-medium">{fmt(inputTokens)}</div>
-                                </div>
-                                <div className="bg-secondary/50 rounded-md p-2 text-center">
-                                    <div className="text-xs text-muted-foreground">Output</div>
-                                    <div className="text-sm font-medium">{fmt(outputTokens)}</div>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-between pt-1">
-                                <span className="text-xs text-muted-foreground">Total Tokens</span>
-                                <span className="text-sm font-medium">{fmt(totalTokens)}</span>
-                            </div>
-
-                            {(usage.tps !== undefined || usage.ttft !== undefined) && (
-                                <div className="grid grid-cols-2 gap-2 pt-2">
-                                    <div className="bg-secondary/50 rounded-md p-2 text-center">
-                                        <div className="text-xs text-muted-foreground">Speed</div>
-                                        <div className="text-sm font-medium">{fmtTps(usage.tps)} t/s</div>
-                                    </div>
-                                    <div className="bg-secondary/50 rounded-md p-2 text-center">
-                                        <div className="text-xs text-muted-foreground">First Token</div>
-                                        <div className="text-sm font-medium">{fmt(usage.ttft)}ms</div>
-                                    </div>
-                                </div>
-                            )}
+            {(finishReason || typeof requestedMaxTokens === 'number') && (
+                <>
+                    <div style={{ height: '1px', background: 'var(--theme-border)' }} />
+                    {typeof requestedMaxTokens === 'number' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Requested Max</span>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)' }}>{fmt(requestedMaxTokens)}</span>
                         </div>
-                    </>
-                )}
-            </CardContent>
-        </Card>
+                    )}
+                    {finishReason && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Stop Reason</span>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)' }}>{finishReason}</span>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {usage && (
+                <>
+                    <div style={{ height: '1px', background: 'var(--theme-border)' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--theme-text-muted)' }}>Token Usage</span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                            <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Input</div>
+                                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(inputTokens)}</div>
+                            </div>
+                            <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
+                                <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Output</div>
+                                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(outputTokens)}</div>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Total Tokens</span>
+                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalTokens)}</span>
+                        </div>
+                        {(usage.tps !== undefined || usage.ttft !== undefined) && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Speed</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmtTps(usage.tps)} t/s</div>
+                                </div>
+                                <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>First Token</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(usage.ttft)}ms</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
     )
 }

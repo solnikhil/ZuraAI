@@ -134,6 +134,13 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     /^\s*\w+\s*[=\(]\s*/.test(content) // e.g. "const " or "fn("
                 if (isCodeLike) return match
 
+                // Skip content containing URLs - URLs have slashes that false-positive as math
+                if (/https?:\/\//.test(content)) return match
+
+                // Skip content that looks like shell commands or file paths
+                if (/^(git|npm|yarn|pnpm|npx|pip|curl|wget|docker|cd|ls|cat|mkdir|rm|cp|mv|chmod|chown|ssh|scp)\s/.test(content)) return match
+                if (/^[.~]?\//.test(content) || /\w\/\w.*\/\w/.test(content)) return match
+
                 // Check if content looks like a math formula
                 const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
                 const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)

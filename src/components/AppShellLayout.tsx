@@ -126,8 +126,8 @@ function AppShellContent() {
             }}>
                 <Outlet />
             </div>
-            {/* Render CSS-based resize handles when frosted mode is active on Windows */}
-            {frostedSidebar && isWindows && (
+            {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}
+            {isWindows && (
                 <ResizeHandles disabled={isMaximized} />
             )}
         </div>

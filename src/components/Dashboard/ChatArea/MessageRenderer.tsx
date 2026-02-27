@@ -54,13 +54,37 @@ export interface MessageRendererProps {
 }
 
 /**
- * Convert reference-style URLs to markdown links
+ * Convert reference-style URLs to markdown links.
+ * Skips URLs inside fenced code blocks and inline code spans.
  */
 function convertUrlsToMarkdownLinks(content: string): string {
   if (!content) return content
 
+  // Split by fenced code blocks first — preserve them untouched
+  const fencedParts = content.split(/(```[\s\S]*?```)/g)
+
+  const processed = fencedParts.map((part, fIdx) => {
+    // Odd indices are fenced code blocks — skip
+    if (fIdx % 2 === 1) return part
+
+    // Split by inline code spans — preserve them untouched
+    const inlineParts = part.split(/(`[^`]+`)/g)
+
+    return inlineParts.map((seg, iIdx) => {
+      // Odd indices are inline code spans — skip
+      if (iIdx % 2 === 1) return seg
+
+      return convertUrlsInText(seg)
+    }).join('')
+  }).join('')
+
+  return processed
+}
+
+/** Apply URL→link conversion to a plain-text (non-code) segment */
+function convertUrlsInText(text: string): string {
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (_match, prefix, num, url) => {
+  let result = text.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm, (_match, prefix, num, url) => {
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
     return `${prefix}[[${num}]](${cleanUrl})`
   })
@@ -77,8 +101,8 @@ function convertUrlsToMarkdownLinks(content: string): string {
       return `${indent}[[${num}]](${cleanUrl})`
     }
 
-    // Pattern 3: Plain URLs
-    const urlRegex = /(https?:\/\/[^\s\)\]\[]+)/g
+    // Pattern 3: Plain URLs (exclude backticks from URL chars)
+    const urlRegex = /(https?:\/\/[^\s\)\]\[`]+)/g
     let lastIndex = 0
     let lineResult = ''
 
@@ -813,7 +837,7 @@ function MessageRendererComponent({
 }: MessageRendererProps) {
   const { settings } = useSettings()
   const [copied, setCopied] = useState(false)
-  const [showToolModal, setShowToolModal] = useState(false)
+
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
   const [isHoveringInfo, setIsHoveringInfo] = useState(false)
   const [showRegenerateModal, setShowRegenerateModal] = useState(false)
@@ -1142,30 +1166,7 @@ function MessageRendererComponent({
           </>
         )}
 
-        {/* Tools Button */}
-        {message.toolResults && message.toolResults.length > 0 && (
-          <button
-            onClick={() => setShowToolModal(true)}
-            style={{
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              color: '#60a5fa',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              transition: 'all 0.2s',
-              fontSize: '0.8rem',
-              fontFamily: 'inherit',
-              fontWeight: 500
-            }}
-          >
-            <Wrench size={14} />
-            <span>{message.toolResults.length} {message.toolResults.length === 1 ? 'tool' : 'tools'}</span>
-          </button>
-        )}
+
 
         {/* Copy Button - hide while streaming */}
         {!isStreaming && (
@@ -1242,29 +1243,7 @@ function MessageRendererComponent({
                   height: '14px'
                 }}
               />
-              {/* Sources badge */}
-              {message.toolResults && message.toolResults.filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search').length > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-6px',
-                  right: '-8px',
-                  background: '#60a5fa',
-                  color: 'white',
-                  fontSize: '0.65rem',
-                  fontWeight: 'bold',
-                  minWidth: '16px',
-                  height: '16px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 4px',
-                  border: '2px solid var(--theme-bg)',
-                  pointerEvents: 'none'
-                }}>
-                  {message.toolResults.filter((tr: ToolCallResult) => tr.toolCall.name === 'web_search').length}
-                </span>
-              )}
+
             </div>
           </div>
         )}
@@ -1293,13 +1272,7 @@ function MessageRendererComponent({
         )}
       </div>
 
-      {/* Tool Details Modal */}
-      {showToolModal && message.toolResults && (
-        <ToolDetailsModal
-          toolResults={message.toolResults}
-          onClose={() => setShowToolModal(false)}
-        />
-      )}
+
 
       {/* Regenerate Modal */}
       {showRegenerateModal && (
