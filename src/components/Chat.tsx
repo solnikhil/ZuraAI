@@ -189,7 +189,9 @@ export default function Chat() {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://zura.ai",
+                "X-Title": "Zura AI"
             },
             body: JSON.stringify({
                 "model": settings.aiModel,

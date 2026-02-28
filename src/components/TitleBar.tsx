@@ -5,7 +5,6 @@ import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
-import TitleBarCommandBar from './TitleBarCommandBar'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
 
@@ -226,7 +225,9 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__center">
-                <TitleBarCommandBar idlePlaceholder={showTitle ? centerTitle : undefined} />
+                {showTitle && (
+                    <span className="app-titlebar__center-title">{centerTitle}</span>
+                )}
             </div>
 
             <div className="app-titlebar__right">

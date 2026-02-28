@@ -54,6 +54,22 @@ export interface MessageRendererProps {
 }
 
 /**
+ * Strip trailing "References" or "Sources" sections that the model may generate.
+ * These are redundant because the app renders numbered citations as interactive links.
+ * Matches a heading (e.g. "## References", "**References**", "References") followed by
+ * numbered entries like "[1] ..." until the end of the content.
+ */
+function stripReferencesSection(content: string): string {
+  if (!content) return content
+  // Match a References/Sources heading (markdown ## or bold ** or plain) followed by
+  // numbered list entries through end of string
+  return content.replace(
+    /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
+    ''
+  ).trimEnd()
+}
+
+/**
  * Convert reference-style URLs to markdown links.
  * Skips URLs inside fenced code blocks and inline code spans.
  */
@@ -922,7 +938,9 @@ function MessageRendererComponent({
 
   const processedContent = useMemo(() => {
     const withUrlLinks = convertUrlsToMarkdownLinks(displayMessage?.content || '')
-    return convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+    const withCitations = convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+    // Strip model-generated References/Sources sections — citations are rendered as interactive links
+    return orderedWebSourceUrls.length > 0 ? stripReferencesSection(withCitations) : withCitations
   }, [displayMessage?.content, orderedWebSourceUrls])
 
   // Extract all images from web_search tool results

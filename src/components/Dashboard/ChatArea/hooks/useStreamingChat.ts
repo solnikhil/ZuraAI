@@ -476,11 +476,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       options.onStreamEnd?.()
       options.onMessageSent?.()
 
-      // Generate title for new sessions
+      // Generate title for new sessions (slight delay to avoid request burst after streaming)
       if (isNewSession && targetSessionId) {
-        generateChatTitle(content, settings).then(title => {
-          if (title) updateSessionTitle(targetSessionId!, title)
-        }).catch(console.error)
+        setTimeout(() => {
+          generateChatTitle(content, settings).then(title => {
+            if (title) updateSessionTitle(targetSessionId!, title)
+          }).catch(console.error)
+        }, 1500)
       }
 
     } catch (error: any) {
@@ -498,21 +500,31 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       setIsLoading(false)
       let errorMsg = 'An unexpected error occurred.'
+      const msg = error.message || ''
 
-      if (error.message?.includes('429') || error.message?.includes('rate limit')) {
-        errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        // Surface the actual error detail from the provider
+        // Error messages now include [status] prefix from retry logic
+        const statusMatch = msg.match(/\[(\d+)\]\s*(.+)/)
+        if (statusMatch) {
+          errorMsg = `Provider error (${statusMatch[1]}): ${statusMatch[2]}`
+        } else if (msg.includes('Provider returned error') || msg.includes('provider:')) {
+          errorMsg = 'The upstream model provider returned an error (429). This usually means the model is temporarily overloaded. Try a different model or wait a moment.'
+        } else {
+          errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+        }
         showToast(errorMsg, 'warning')
-      } else if (error.message?.includes('401') || error.message?.includes('403')) {
+      } else if (msg.includes('401') || msg.includes('403')) {
         errorMsg = 'Invalid API key. Please check your API key in Settings.'
         showToast(errorMsg, 'error')
-      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      } else if (msg.includes('network') || msg.includes('fetch')) {
         errorMsg = 'Network error. Please check your internet connection.'
         showToast(errorMsg, 'error')
-      } else if (error.message?.includes('API Key') || error.message?.includes('missing')) {
+      } else if (msg.includes('API Key') || msg.includes('missing')) {
         errorMsg = 'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
         showToast(errorMsg, 'error')
       } else {
-        errorMsg = `Error: ${error.message || 'Unknown error'}`
+        errorMsg = `Error: ${msg || 'Unknown error'}`
         showToast(errorMsg, 'error')
       }
 

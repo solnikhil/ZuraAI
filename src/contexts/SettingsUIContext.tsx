@@ -4,7 +4,7 @@
  * This context contains settings that change frequently during user interaction:
  * - Theme settings (theme, activeTheme)
  * - Title bar customization
- * - Command bar settings
+ * - Command palette settings
  * 
  * **Validates: Requirements 8.1**
  * - THE SettingsContext SHALL split into separate contexts for frequently-changing 
@@ -69,7 +69,7 @@ export interface SettingsUI {
     titleBarShowChatTitle: boolean
     titleBarShowModel: boolean
     
-    // Command bar settings
+    // Command palette settings
     commandBar: {
         enabled: boolean
         size: 'small' | 'medium' | 'large'
@@ -82,6 +82,9 @@ export interface SettingsUI {
         showRecents: boolean
         maxRecents: number
         enableTabAutocomplete: boolean
+        overlayOpacity: number                          // range: 0–80
+        paletteWidth: 'narrow' | 'default' | 'wide'
+        palettePosition: 'top' | 'center' | 'lower'
     }
     
     // Frosted sidebar (glassmorphism effect)
@@ -128,6 +131,9 @@ export const defaultSettingsUI: SettingsUI = {
         showRecents: true,
         maxRecents: 3,
         enableTabAutocomplete: true,
+        overlayOpacity: 45,
+        paletteWidth: 'default',
+        palettePosition: 'center',
     },
     frostedSidebar: false,
     frostedPrompt: false,
@@ -183,8 +189,14 @@ export function SettingsUIProvider({
     onSettingsChange 
 }: SettingsUIProviderProps) {
     const [settingsUI, setSettingsUI] = useState<SettingsUI>(() => {
-        // Deep merge modelSelector if present
+        // Deep merge nested objects so new fields get defaults
         const merged = { ...defaultSettingsUI, ...initialSettings }
+        if (initialSettings?.commandBar) {
+            merged.commandBar = {
+                ...defaultSettingsUI.commandBar,
+                ...initialSettings.commandBar,
+            }
+        }
         if (initialSettings?.modelSelector) {
             merged.modelSelector = {
                 ...defaultSettingsUI.modelSelector!,
@@ -199,6 +211,14 @@ export function SettingsUIProvider({
         if (initialSettings) {
             setSettingsUI(prev => {
                 const merged = { ...prev, ...initialSettings }
+                // Deep merge commandBar so new fields keep defaults
+                if (initialSettings.commandBar) {
+                    merged.commandBar = {
+                        ...defaultSettingsUI.commandBar,
+                        ...prev.commandBar,
+                        ...initialSettings.commandBar,
+                    }
+                }
                 // Deep merge modelSelector
                 if (initialSettings.modelSelector) {
                     merged.modelSelector = {
@@ -265,7 +285,7 @@ export function SettingsUIProvider({
 
 /**
  * Hook to access UI-related settings
- * Use this hook when you only need theme, title bar, or command bar settings
+ * Use this hook when you only need theme, title bar, or command palette settings
  */
 export function useSettingsUI() {
     const context = useContext(SettingsUIContext)

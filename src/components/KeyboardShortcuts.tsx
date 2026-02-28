@@ -10,7 +10,7 @@ export default function KeyboardShortcuts() {
             category: 'General',
             items: [
                 { keys: ['Ctrl', 'N'], description: 'Start new chat' },
-                { keys: ['Ctrl', 'Space'], description: 'Toggle command bar' },
+                { keys: ['Ctrl', 'Space'], description: 'Toggle command palette' },
             ]
         },
         {
@@ -24,7 +24,7 @@ export default function KeyboardShortcuts() {
         {
             category: 'Navigation',
             items: [
-                { keys: ['Ctrl', 'K'], description: 'Focus command bar' },
+                { keys: ['Ctrl', 'K'], description: 'Focus command palette' },
                 { keys: ['Ctrl', ','], description: 'Open Settings (when main window focused)' },
             ]
         }

@@ -198,7 +198,10 @@ export default function Settings({
           )}
 
           {activeSection === 'themes' && (
-            <AppearanceSection />
+            <AppearanceSection
+              initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
+              onParamsConsumed={clearParams}
+            />
           )}
 
           {activeSection === 'systemprompt' && (

@@ -2,12 +2,11 @@ export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvi
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis' }
+  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis'; commandPaletteTab?: boolean }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
   | { type: 'export_chat'; format: 'markdown' | 'text' }
-  | { type: 'run_tool'; toolName: string; args: Record<string, unknown> }
 
 export interface CommandBarSuggestion {
   id: string
@@ -19,8 +18,6 @@ export interface CommandBarSuggestion {
 }
 
 export interface CommandBarSuggestionContext {
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
   hasCurrentSession: boolean
 }
 
@@ -127,7 +124,7 @@ export function normalizeUrlCandidate(input: string): string | null {
   }
 }
 
-// Kept for future actions; currently not exposed in the command bar.
+// Kept for future actions; currently not exposed in the command palette.
 export function looksLikeMathExpression(input: string): boolean {
   const trimmed = input.trim()
   if (!trimmed) return false
@@ -235,10 +232,10 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     },
     {
       id: 'go-settings-commandbar',
-      title: 'Command Bar Settings',
-      subtitle: 'Customize command bar in Appearance',
-      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette'],
-      action: { type: 'open_settings_section', section: 'themes' }
+      title: 'Command Palette Settings',
+      subtitle: 'Customize floating command palette',
+      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating', 'overlay'],
+      action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true }
     },
     {
       id: 'go-settings-experimental',
@@ -305,21 +302,6 @@ export function getCommandBarSuggestions(
 
   const results: CommandBarSuggestion[] = []
   const base = buildBaseSuggestions(ctx)
-
-  // Quick actions (only when not in commands-only mode)
-  if (!commandsOnly && query) {
-    // Quick web search action
-    if (ctx.toolsEnabled && ctx.webSearchEnabled && query.trim().length >= 3) {
-      results.push({
-        id: 'quick-web-search',
-        title: `Web Search: ${query}`,
-        subtitle: 'Search & add to chat',
-        keywords: ['search', 'web', 'tavily'],
-        action: { type: 'run_tool', toolName: 'web_search', args: { query } },
-        score: 40 + Math.min(query.trim().length, 20)
-      })
-    }
-  }
 
   // Base suggestions (filter on query if provided)
   for (let index = 0; index < base.length; index++) {

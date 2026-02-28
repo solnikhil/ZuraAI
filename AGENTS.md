@@ -197,7 +197,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `zura-ui:sidebarHidden`
 - Command bar:
   - History: `zura-commandbar-history-v1`
-  - UI collapsed flags: `zura-commandbar-recents-collapsed`, `zura-commandbar-shortcuts-collapsed`
 
 **Main process (`app.getPath('userData')`)**
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
@@ -240,7 +239,6 @@ Never commit `.env` or API keys.
 ### Known Architecture Gaps / TODOs (Current Code)
 These are useful breadcrumbs for agents:
 - Only the built-in debug shortcut (`Shift+Escape`) is registered in main; user-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
-- **Title bar command bar** (`src/components/TitleBarCommandBar.tsx`, `src/components/TitleBar.css`): The expanded-state styling (shadows, borders) has been reported to cause visual discomfort. Consider switching up the renderer/styling approach (e.g. frosted glass, different elevation treatment, or alternative component structure) if users report discomfort.
 
 ---
 

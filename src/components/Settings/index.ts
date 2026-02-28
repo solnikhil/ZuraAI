@@ -23,6 +23,5 @@ export { UsageSection } from './sections/UsageSection'
 export { ModelSection } from './sections/ModelSection'
 export { ApiKeysSection } from './sections/ApiKeysSection'
 export { AppearanceSection } from './sections/AppearanceSection'
-export { CommandBarSection } from './sections/CommandBarSection'
 export { ProviderHubSection } from './sections/ProviderHubSection'
 

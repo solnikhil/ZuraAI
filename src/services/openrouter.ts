@@ -2,6 +2,32 @@ import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } 
 
 // OpenRouter API service with streaming support
 
+// Retry configuration for transient errors (429, 502, 503, 529)
+const MAX_RETRIES = 3
+const INITIAL_BACKOFF_MS = 1500
+const BACKOFF_MULTIPLIER = 2
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 529]
+
+/**
+ * Parse retry delay from OpenRouter error response or use exponential backoff.
+ * OpenRouter 429 responses may include metadata.retry_after (seconds).
+ */
+function getRetryDelay(attempt: number, errorBody?: string): number {
+    if (errorBody) {
+        try {
+            const parsed = JSON.parse(errorBody)
+            const retryAfter = parsed?.error?.metadata?.retry_after
+            if (typeof retryAfter === 'number' && retryAfter > 0) {
+                return Math.min(retryAfter * 1000, 30000) // Cap at 30s, convert to ms
+            }
+        } catch { /* ignore parse errors */ }
+    }
+    return INITIAL_BACKOFF_MS * Math.pow(BACKOFF_MULTIPLIER, attempt)
+}
+
+/** Sleep helper */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 export interface OpenRouterStreamChunk {
     id: string
     choices: Array<{
@@ -158,25 +184,46 @@ export async function generateOpenRouterCompletion(
         requestBody.response_format = options.responseFormat
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
+    let lastError: Error | null = null
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+            const delay = getRetryDelay(attempt - 1, lastError?.message)
+            console.log(`[Zura] OpenRouter retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
+            await sleep(delay)
+        }
 
-    if (!response.ok) {
-        const errorText = await response.text()
-        const errorData = parseErrorResponse(errorText)
-        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://zura.ai",
+                "X-Title": "Zura AI"
+            },
+            body: JSON.stringify(requestBody),
+            signal: options?.signal
+        })
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            const errorData = parseErrorResponse(errorText)
+            const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
+
+            // Retry on transient errors
+            if (RETRYABLE_STATUS_CODES.includes(response.status) && attempt < MAX_RETRIES) {
+                console.warn(`[Zura] OpenRouter ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
+                lastError = new Error(errorText)
+                continue
+            }
+
+            throw new Error(`[${response.status}] ${errorMessage}`)
+        }
+
+        const result = await response.json()
+        return result
     }
 
-    const result = await response.json()
-    return result
+    throw lastError || new Error('OpenRouter request failed after retries')
 }
 
 export async function* streamOpenRouterCompletion(
@@ -226,21 +273,45 @@ export async function* streamOpenRouterCompletion(
         requestBody.reasoning = options.reasoning
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
+    // Retry loop for the initial HTTP request (before streaming starts)
+    let response: Response | null = null
+    let lastError: Error | null = null
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+            const delay = getRetryDelay(attempt - 1, lastError?.message)
+            console.log(`[Zura] OpenRouter stream retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
+            await sleep(delay)
+        }
 
-    if (!response.ok) {
+        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://zura.ai",
+                "X-Title": "Zura AI"
+            },
+            body: JSON.stringify(requestBody),
+            signal: options?.signal
+        })
+
+        if (response.ok) break // Success, proceed to streaming
+
         const errorText = await response.text()
         const errorData = parseErrorResponse(errorText)
         const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
+
+        if (RETRYABLE_STATUS_CODES.includes(response.status) && attempt < MAX_RETRIES) {
+            console.warn(`[Zura] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
+            lastError = new Error(errorText)
+            continue
+        }
+
+        throw new Error(`[${response.status}] ${errorMessage}`)
+    }
+
+    if (!response || !response.ok) {
+        throw lastError || new Error('OpenRouter stream request failed after retries')
     }
 
     const reader = response.body?.getReader()
@@ -268,12 +339,28 @@ export async function* streamOpenRouterCompletion(
                         return
                     }
                     try {
-                        const chunk: OpenRouterStreamChunk = JSON.parse(data)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
+                        const chunk = JSON.parse(data)
+                        // OpenRouter can send error objects inside the SSE stream
+                        // when the upstream provider fails mid-generation
+                        if (chunk.error) {
+                            const errorMsg = chunk.error.message || 'Stream error from provider'
+                            const code = chunk.error.code || 'unknown'
+                            const provider = chunk.error.metadata?.provider_name || ''
+                            const raw = chunk.error.metadata?.raw || ''
+                            const detail = provider ? ` (provider: ${provider})` : ''
+                            const rawDetail = raw && raw !== errorMsg ? ` — ${String(raw).slice(0, 200)}` : ''
+                            throw new Error(`${code} ${errorMsg}${detail}${rawDetail}`)
                         }
-                        yield chunk
+                        if (options?.onChunk) {
+                            options.onChunk(chunk as OpenRouterStreamChunk)
+                        }
+                        yield chunk as OpenRouterStreamChunk
                     } catch (e) {
+                        // Re-throw stream errors (from error chunk handling above)
+                        if (e instanceof Error && e.message && !e.message.startsWith('Failed to parse')) {
+                            // Only re-throw if it's our error, not a JSON parse error
+                            if (data.includes('"error"')) throw e
+                        }
                         // Skip invalid JSON
                         console.warn('Failed to parse chunk:', data)
                     }

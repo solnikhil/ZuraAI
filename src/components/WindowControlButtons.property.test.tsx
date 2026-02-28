@@ -117,11 +117,6 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }))
 
-// Mock TitleBarCommandBar to avoid its complex dependencies
-vi.mock('./TitleBarCommandBar', () => ({
-  default: () => React.createElement('div', { 'data-testid': 'mock-command-bar' }),
-}))
-
 // Mock Toast context
 vi.mock('./shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),

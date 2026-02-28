@@ -27,7 +27,7 @@ describe('KeyboardShortcuts Component', () => {
             render(<KeyboardShortcuts />)
 
             expect(screen.getByText('Start new chat')).toBeInTheDocument()
-            expect(screen.getByText('Toggle command bar')).toBeInTheDocument()
+            expect(screen.getByText('Toggle command palette')).toBeInTheDocument()
         })
 
         it('renders Chat shortcuts', () => {
@@ -41,7 +41,7 @@ describe('KeyboardShortcuts Component', () => {
         it('renders Navigation shortcuts', () => {
             render(<KeyboardShortcuts />)
 
-            expect(screen.getByText('Focus command bar')).toBeInTheDocument()
+            expect(screen.getByText('Focus command palette')).toBeInTheDocument()
             expect(screen.getByText('Open Settings (when main window focused)')).toBeInTheDocument()
         })
 
@@ -76,11 +76,11 @@ describe('KeyboardShortcuts Component', () => {
             // General: 2, Chat: 3, Navigation: 2 = 7 total
             const descriptions = [
                 'Start new chat',
-                'Toggle command bar',
+                'Toggle command palette',
                 'Send message',
                 'New line in message',
                 'Select all text in message (when focused)',
-                'Focus command bar',
+                'Focus command palette',
                 'Open Settings (when main window focused)'
             ]
 

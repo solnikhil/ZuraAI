@@ -281,40 +281,61 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
 
 export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, activeToolCalls = [], completedBlocks = [] }: ThinkingBlockProps) {
     const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
-    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls) // Expand only for active state
-    const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
-    // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
+    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
+    const [elapsedTime, setElapsedTime] = useState(0)
     const [finalTime, setFinalTime] = useState<number | null>(
         thinkingDuration !== undefined ? thinkingDuration / 1000 : null
     )
     const thinkingStartRef = useRef<number | null>(null)
+    // Grace-period timeout ref — keeps the timer alive during brief gaps between
+    // research loop rounds so the displayed time doesn't jump back to 0.
+    const graceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Compute whether we're in an active session (thinking, searching, or tool calling).
-    // Timer should run continuously across all these states without resetting.
+    // Whether any active state is happening right now.
     const isActiveSession = isThinking || isSearching || hasActiveToolCalls
 
-    // Unified timer: starts when any active state begins, stops only when ALL end.
-    // This prevents the timer from resetting between web search rounds.
+    // Unified timer: starts when any active state begins, keeps running across
+    // brief inactive gaps (grace period), and only finalizes when the response
+    // is truly done. This prevents the timer from resetting between web search rounds.
     useEffect(() => {
-        let interval: NodeJS.Timeout
+        let interval: ReturnType<typeof setInterval> | undefined
 
         if (isActiveSession) {
-            // Start timer if not already running
+            // Cancel any pending grace-period finalization — we're active again.
+            if (graceTimeoutRef.current) {
+                clearTimeout(graceTimeoutRef.current)
+                graceTimeoutRef.current = null
+            }
+
+            // Start timer if not already running (never reset an existing one).
             if (!thinkingStartRef.current) {
                 thinkingStartRef.current = Date.now()
                 setFinalTime(null)
                 setElapsedTime(0)
             }
-            // Run live timer
+
+            // Live tick
             interval = setInterval(() => {
                 setElapsedTime((Date.now() - thinkingStartRef.current!) / 1000)
             }, 100)
         } else if (thinkingStartRef.current) {
-            // Session just ended — capture final time
+            // All active states ended. Update the displayed time immediately but
+            // don't finalize yet — a new round may start within the grace window.
             const elapsed = (Date.now() - thinkingStartRef.current) / 1000
-            setFinalTime(elapsed)
             setElapsedTime(elapsed)
-            thinkingStartRef.current = null
+
+            // Grace period: if no new active state within 2s, finalize the timer.
+            // 2s is enough to cover the gap between tool-result processing and the
+            // next streaming round starting.
+            graceTimeoutRef.current = setTimeout(() => {
+                if (thinkingStartRef.current) {
+                    const finalElapsed = (Date.now() - thinkingStartRef.current) / 1000
+                    setFinalTime(finalElapsed)
+                    setElapsedTime(finalElapsed)
+                    thinkingStartRef.current = null
+                }
+                graceTimeoutRef.current = null
+            }, 2000)
         }
 
         return () => {
@@ -322,14 +343,25 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
         }
     }, [isActiveSession])
 
+    // Cleanup grace timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (graceTimeoutRef.current) {
+                clearTimeout(graceTimeoutRef.current)
+            }
+        }
+    }, [])
+
     // Keep final time in sync with provider-reported duration updates.
     useEffect(() => {
         if (isActiveSession || thinkingDuration === undefined) return
+        // Only sync if the timer has already been finalized (no active start ref
+        // and no pending grace timeout).
+        if (thinkingStartRef.current || graceTimeoutRef.current) return
 
         const durationInSeconds = Math.max(0, thinkingDuration / 1000)
         setFinalTime(durationInSeconds)
         setElapsedTime(durationInSeconds)
-        thinkingStartRef.current = null
     }, [thinkingDuration, isActiveSession])
 
     // Auto-expand while actively thinking, tool calling, or searching.

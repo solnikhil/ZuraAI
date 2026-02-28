@@ -2,7 +2,7 @@
  * SettingsContext - Combined settings context for backward compatibility
  * 
  * This module provides a unified settings interface that wraps both:
- * - SettingsUIContext: For frequently changing UI state (theme, title bar, command bar)
+ * - SettingsUIContext: For frequently changing UI state (theme, title bar, command palette)
  * - SettingsConfigContext: For stable configuration (API keys, models, AI parameters, tools)
  * 
  * **Validates: Requirements 8.1**
@@ -10,7 +10,7 @@
  *   values (theme, UI state) and stable values (API keys, model configs)
  * 
  * For new code, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, and command bar settings
+ * - useSettingsUI() - For theme, title bar, and command palette settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  * 
  * The combined useSettings() hook is maintained for backward compatibility.
@@ -257,8 +257,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.rememberLastChatSession === undefined) parsed.rememberLastChatSession = defaultSettings.rememberLastChatSession
         if (parsed.rememberLastSettingsSection === undefined) parsed.rememberLastSettingsSection = defaultSettings.rememberLastSettingsSection
         if (parsed.rememberLastDashboardView === undefined) parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
-        // Initialize commandBar settings if missing
-        if (!parsed.commandBar) parsed.commandBar = defaultSettings.commandBar
+        // Initialize commandBar settings if missing; deep-merge with defaults
+        // so that new fields (overlayOpacity, paletteWidth, palettePosition)
+        // get their default values when upgrading from older persisted data
+        if (!parsed.commandBar) {
+            parsed.commandBar = defaultSettings.commandBar
+        } else {
+            parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
+        }
 
         // Initialize configuredModels if missing or empty
         if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
@@ -400,7 +406,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
  * Combined settings hook for backward compatibility
  * 
  * For better performance, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, and command bar settings
+ * - useSettingsUI() - For theme, title bar, and command palette settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  */
 export function useSettings() {

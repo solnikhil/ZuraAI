@@ -116,7 +116,9 @@ User message: "${userMessage.slice(0, 200)}"`
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${openRouterKey}`,
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://zura.ai",
+                    "X-Title": "Zura AI"
                 },
                 body: JSON.stringify({
                     model: titleModel.includes('openrouter') ? titleModel.replace('openrouter/', '') : titleModel,
@@ -124,6 +126,10 @@ User message: "${userMessage.slice(0, 200)}"`
                     max_tokens: 20
                 })
             })
+            if (!res.ok) {
+                const errorBody = await res.text().catch(() => '')
+                throw new Error(`OpenRouter ${res.status}: ${errorBody.slice(0, 200)}`)
+            }
             const data = await res.json()
             title = data.choices?.[0]?.message?.content || ''
         }
@@ -143,9 +149,13 @@ User message: "${userMessage.slice(0, 200)}"`
     } catch (error) {
         console.error('Primary title generation failed:', error)
 
-        // Fallback to free OpenRouter model
+        // Don't retry on rate limit or auth errors — retrying makes it worse
+        const errMsg = error instanceof Error ? error.message : ''
+        const isRateLimitOrAuth = errMsg.includes('429') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('rate')
+
+        // Fallback to free OpenRouter model (only if primary wasn't already OpenRouter or wasn't a rate limit)
         const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
-        if (openRouterKey && !settings.titleModel?.includes('openrouter')) {
+        if (openRouterKey && !isRateLimitOrAuth && !settings.titleModel?.includes('openrouter')) {
             try {
                 const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                     method: "POST",
@@ -161,6 +171,9 @@ User message: "${userMessage.slice(0, 200)}"`
                         max_tokens: 20
                     })
                 })
+                if (!res.ok) {
+                    throw new Error(`Fallback OpenRouter ${res.status}`)
+                }
                 const data = await res.json()
                 const fallbackTitle = data.choices?.[0]?.message?.content || ''
                 if (fallbackTitle) {

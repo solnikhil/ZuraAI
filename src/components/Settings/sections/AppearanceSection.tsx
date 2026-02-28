@@ -5,7 +5,7 @@
  * @module AppearanceSection
  */
 
-import React, { useLayoutEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -151,14 +151,35 @@ const chatSelectedOverlayPresets: Array<{
   },
 ]
 
-export interface AppearanceSectionProps {}
+export interface AppearanceSectionProps {
+  initialCommandPaletteTab?: boolean
+  onParamsConsumed?: () => void
+}
 
 export function AppearanceSection(_props: AppearanceSectionProps): React.ReactElement {
-  const { settings, updateSettings } = useSettings()
+  const { settings, updateSettings: _updateSettings } = useSettings()
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false)
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Wrap updateSettings to flash a "saved" indicator on every change
+  const updateSettings = (changes: Partial<typeof settings>) => {
+    _updateSettings(changes)
+    setShowSavedIndicator(true)
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    savedTimerRef.current = setTimeout(() => setShowSavedIndicator(false), 1800)
+  }
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
-  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles' | 'modelselector'>('themes')
+  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'commandpalette' | 'chatbubbles' | 'modelselector'>(_props.initialCommandPaletteTab ? 'commandpalette' : 'themes')
+
+  // Auto-select Command Palette tab when navigated via "commandbar" route
+  useEffect(() => {
+    if (_props.initialCommandPaletteTab) {
+      setAppearancePage('commandpalette')
+      _props.onParamsConsumed?.()
+    }
+  }, [_props.initialCommandPaletteTab, _props.onParamsConsumed])
   
   // Helper to get modelSelector with defaults
   const getModelSelector = () => ({
@@ -172,6 +193,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
   const fieldSurface = clampNumber(commandBar.fieldSurface, 20, 90)
   const fieldSurfaceFocused = clampNumber(commandBar.fieldSurfaceFocused, 20, 90)
   const dropdownSurface = clampNumber(commandBar.dropdownSurface, 20, 90)
+  const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
 
   const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
     updateSettings({
@@ -244,6 +266,26 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           }}
         >
           Titlebar
+        </button>
+        <button
+          onClick={() => setAppearancePage('commandpalette')}
+          style={{
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid var(--theme-border)',
+            background: appearancePage === 'commandpalette' ? 'var(--theme-surface-active)' : 'transparent',
+            color: 'var(--theme-text-primary)',
+            cursor: 'pointer',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: appearancePage === 'commandpalette' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Command size={14} />
+            Command Palette
+          </span>
         </button>
         <button
           onClick={() => setAppearancePage('chatbubbles')}
@@ -446,184 +488,259 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
               />
             </div>
           </Card>
+        </>
+      )}
 
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Command size={18} style={{ color: 'var(--theme-accent)' }} />
-              Command Bar
-            </h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Customize titlebar command bar behavior and visual style.
-            </p>
+      {appearancePage === 'commandpalette' && (
+        <Card className="settings-section-card" style={{ marginTop: 24 }}>
+          <h3 style={{
+            margin: '0 0 8px',
+            fontSize: '1.05rem',
+            fontWeight: 600,
+            color: 'var(--theme-text-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <Command size={18} style={{ color: 'var(--theme-accent)' }} />
+            Command Palette
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '2px 8px',
+                fontSize: '0.7rem',
+                fontWeight: 500,
+                borderRadius: 6,
+                backgroundColor: 'var(--theme-bg-tertiary, rgba(255,255,255,0.08))',
+                color: 'var(--theme-text-muted)',
+                border: '1px solid var(--theme-border, rgba(255,255,255,0.1))',
+                userSelect: 'none',
+                lineHeight: 1.4,
+              }}
+              aria-label="Keyboard shortcut to open command palette"
+            >
+              {(navigator.platform?.startsWith('Mac') || (navigator as any).userAgentData?.platform === 'macOS') ? '⌘ Space' : 'Ctrl+Space'}
+            </span>
+          </h3>
+          <p style={{ margin: '0 0 16px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+            Customize the floating command palette behavior and visual style.
+          </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable command bar</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show the command bar in the titlebar</div>
-                </div>
-                <Switch
-                  checked={commandBar.enabled}
-                  onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
-                  aria-label="Enable command bar in titlebar"
-                />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable command palette</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show the floating command palette when activated via keyboard shortcut</div>
               </div>
+              <Switch
+                checked={commandBar.enabled}
+                onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
+                aria-label="Enable command palette"
+              />
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Size</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls command bar width</div>
-                </div>
-                <select
-                  value={commandBar.size === 'medium' ? 'medium' : 'small'}
-                  onChange={(e) => updateCommandBar({ size: e.target.value as 'small' | 'medium' })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                </select>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Recent commands</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show recently executed commands at the top of the palette</div>
               </div>
+              <Switch
+                checked={commandBar.showRecents}
+                onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
+                aria-label="Show recent commands in command palette"
+              />
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Recent commands</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show your last 1-3 commands at the top</div>
-                </div>
-                <Switch
-                  checked={commandBar.showRecents}
-                  onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
-                  aria-label="Show recent commands"
-                />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max recents</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How many recent commands to show</div>
               </div>
+              <select
+                value={maxRecents}
+                onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
+                className="setting-input-scira"
+                style={{ width: 120 }}
+                disabled={!commandBar.showRecents}
+                aria-label="Max recent commands in command palette"
+              >
+                <option value={0}>0</option>
+                <option value={1}>1</option>
+                <option value={2}>2</option>
+                <option value={3}>3</option>
+              </select>
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max recents</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How many recent commands to show</div>
-                </div>
-                <select
-                  value={maxRecents}
-                  onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
-                  className="setting-input-scira"
-                  style={{ width: 120 }}
-                  disabled={!commandBar.showRecents}
-                >
-                  <option value={0}>0</option>
-                  <option value={1}>1</option>
-                  <option value={2}>2</option>
-                  <option value={3}>3</option>
-                </select>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Tab autocomplete</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Press Tab to complete the highlighted command</div>
               </div>
+              <Switch
+                checked={commandBar.enableTabAutocomplete}
+                onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
+                aria-label="Enable tab autocomplete in command palette"
+              />
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Tab autocomplete</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Press Tab to complete commands</div>
-                </div>
-                <Switch
-                  checked={commandBar.enableTabAutocomplete}
-                  onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
-                  aria-label="Enable tab autocomplete"
-                />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max results</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Maximum number of suggestions shown in the results list</div>
               </div>
+              <select
+                value={maxSuggestions}
+                onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
+                className="setting-input-scira"
+                style={{ width: 120 }}
+                aria-label="Max results in command palette"
+              >
+                {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
+                  <option key={count} value={count}>{count}</option>
+                ))}
+              </select>
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max results</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Limit dropdown height and clutter</div>
-                </div>
-                <select
-                  value={maxSuggestions}
-                  onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
-                  className="setting-input-scira"
-                  style={{ width: 120 }}
-                >
-                  {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                    <option key={count} value={count}>{count}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Visual Settings */}
+            <div style={{ borderTop: '1px solid var(--theme-border-subtle)', paddingTop: 18, marginTop: 4 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)', marginBottom: 14 }}>Visual</div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Background blur</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Glass effect for the dropdown</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Background blur</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Glass effect for the palette and results dropdown</div>
+                  </div>
+                  <Switch
+                    checked={commandBar.enableBlur}
+                    onCheckedChange={(checked) => updateCommandBar({ enableBlur: checked })}
+                    aria-label="Enable command palette background blur"
+                  />
                 </div>
-                <Switch
-                  checked={commandBar.enableBlur}
-                  onCheckedChange={(checked) => updateCommandBar({ enableBlur: checked })}
-                  aria-label="Enable command bar background blur"
-                />
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Blur strength</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Higher values look more frosted</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Blur strength</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Higher values look more frosted</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={30}
+                    value={blurPx}
+                    onChange={(e) => updateCommandBar({ blurPx: Number(e.target.value) })}
+                    disabled={!commandBar.enableBlur}
+                    aria-label="Command palette blur strength"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={30}
-                  value={blurPx}
-                  onChange={(e) => updateCommandBar({ blurPx: Number(e.target.value) })}
-                  disabled={!commandBar.enableBlur}
-                />
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Lower values = more transparent</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls search field transparency</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={90}
+                    value={fieldSurface}
+                    onChange={(e) => updateCommandBar({ fieldSurface: Number(e.target.value) })}
+                    aria-label="Command palette field opacity"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={fieldSurface}
-                  onChange={(e) => updateCommandBar({ fieldSurface: Number(e.target.value) })}
-                />
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity (focused)</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Applied when command bar is active</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity (focused)</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Applied when the search field is active</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={90}
+                    value={fieldSurfaceFocused}
+                    onChange={(e) => updateCommandBar({ fieldSurfaceFocused: Number(e.target.value) })}
+                    aria-label="Command palette field opacity focused"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={fieldSurfaceFocused}
-                  onChange={(e) => updateCommandBar({ fieldSurfaceFocused: Number(e.target.value) })}
-                />
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown opacity</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls suggestion transparency</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown opacity</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls results list transparency</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={20}
+                    max={90}
+                    value={dropdownSurface}
+                    onChange={(e) => updateCommandBar({ dropdownSurface: Number(e.target.value) })}
+                    aria-label="Command palette dropdown opacity"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={dropdownSurface}
-                  onChange={(e) => updateCommandBar({ dropdownSurface: Number(e.target.value) })}
-                />
               </div>
             </div>
-          </Card>
-        </>
+
+            {/* Layout Settings */}
+            <div style={{ borderTop: '1px solid var(--theme-border-subtle)', paddingTop: 18, marginTop: 4 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--theme-text-primary)', marginBottom: 14 }}>Layout</div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Overlay opacity</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls how much the background is dimmed</div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    value={overlayOpacity}
+                    onChange={(e) => updateCommandBar({ overlayOpacity: Number(e.target.value) })}
+                    aria-label="Command palette overlay opacity"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Palette width</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls the maximum width of the palette</div>
+                  </div>
+                  <select
+                    value={commandBar.paletteWidth ?? 'default'}
+                    onChange={(e) => updateCommandBar({ paletteWidth: e.target.value as 'narrow' | 'default' | 'wide' })}
+                    className="setting-input-scira"
+                    style={{ width: 160 }}
+                    aria-label="Command palette width"
+                  >
+                    <option value="narrow">Narrow (440px)</option>
+                    <option value="default">Default (560px)</option>
+                    <option value="wide">Wide (680px)</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Vertical position</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls the vertical placement of the palette</div>
+                  </div>
+                  <select
+                    value={commandBar.palettePosition ?? 'center'}
+                    onChange={(e) => updateCommandBar({ palettePosition: e.target.value as 'top' | 'center' | 'lower' })}
+                    className="setting-input-scira"
+                    style={{ width: 160 }}
+                    aria-label="Command palette vertical position"
+                  >
+                    <option value="top">Top (12%)</option>
+                    <option value="center">Center (20%)</option>
+                    <option value="lower">Lower (30%)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
       )}
 
       {appearancePage === 'chatbubbles' && (
@@ -1255,6 +1372,31 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           </Card>
         </>
       )}
+
+      {/* Auto-save indicator */}
+      <div
+        role="status"
+        aria-live="polite"
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          left: '50%',
+          transform: `translateX(-50%) translateY(${showSavedIndicator ? '0' : '20px'})`,
+          opacity: showSavedIndicator ? 1 : 0,
+          padding: '8px 18px',
+          borderRadius: 8,
+          background: 'rgba(34, 197, 94, 0.95)',
+          color: '#fff',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+          pointerEvents: 'none',
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          zIndex: 200,
+        }}
+      >
+        Changes saved
+      </div>
     </div>
   )
 }

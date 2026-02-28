@@ -230,7 +230,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                         </div>
                         <div className="shortcut-item">
                             <kbd>Ctrl</kbd> + <kbd>Space</kbd>
-                            <span>Toggle command bar</span>
+                            <span>Toggle command palette</span>
                         </div>
                         <div className="shortcut-item">
                             <kbd>Enter</kbd>

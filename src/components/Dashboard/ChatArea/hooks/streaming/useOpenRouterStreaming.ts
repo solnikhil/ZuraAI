@@ -351,6 +351,9 @@ export function useOpenRouterStreaming({
           throttledUpdateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
           updateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
 
+          // Brief delay before follow-up call to avoid triggering provider rate limits
+          await new Promise(resolve => setTimeout(resolve, 1500))
+
           for await (const chunk of streamOpenRouterCompletion(
             getOpenRouterApiKey(settings.openRouterApiKey),
             settings.aiModel,

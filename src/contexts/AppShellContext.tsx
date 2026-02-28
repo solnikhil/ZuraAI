@@ -8,6 +8,7 @@ export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvi
 export interface SettingsSectionParams {
     provider?: ProviderKey
     manageMode?: 'providers' | 'search-apis'
+    commandPaletteTab?: boolean
 }
 
 interface AppShellContextType {
