@@ -68,7 +68,9 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast',
+            'notificationsEnabled', 'nativeNotificationsEnabled', 'toastDuration', 'doNotDisturb',
+            'chatBubbleStyle', 'chatSelectedOverlayStyle',
             'modelSelector'
         ]
         
@@ -280,6 +282,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
         // Initialize softenedContrast if missing
         if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
+        // Initialize notification preferences if missing
+        if (parsed.notificationsEnabled === undefined) parsed.notificationsEnabled = defaultSettings.notificationsEnabled
+        if (parsed.nativeNotificationsEnabled === undefined) parsed.nativeNotificationsEnabled = defaultSettings.nativeNotificationsEnabled
+        if (typeof parsed.toastDuration !== 'number' || !Number.isFinite(parsed.toastDuration)) {
+            parsed.toastDuration = defaultSettings.toastDuration
+        } else {
+            parsed.toastDuration = Math.min(10000, Math.max(2000, Math.round(parsed.toastDuration)))
+        }
+        if (parsed.doNotDisturb === undefined) parsed.doNotDisturb = defaultSettings.doNotDisturb
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
         // Initialize/migrate chatSelectedOverlayStyle if missing
@@ -317,6 +328,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         frostedPrompt: storedSettings.frostedPrompt,
         sidebarAutoHideOnResize: storedSettings.sidebarAutoHideOnResize,
         softenedContrast: storedSettings.softenedContrast,
+        notificationsEnabled: storedSettings.notificationsEnabled,
+        nativeNotificationsEnabled: storedSettings.nativeNotificationsEnabled,
+        toastDuration: storedSettings.toastDuration,
+        doNotDisturb: storedSettings.doNotDisturb,
         chatBubbleStyle: storedSettings.chatBubbleStyle,
         chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
     }), [storedSettings])

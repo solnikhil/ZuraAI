@@ -41,6 +41,7 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
     'providers',
     'themes',
     'systemprompt',
+    'notifications',
     'experimental',
 ])
 

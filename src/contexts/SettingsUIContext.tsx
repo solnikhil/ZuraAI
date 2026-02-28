@@ -99,6 +99,12 @@ export interface SettingsUI {
     // Softened contrast (reduce harshness of text and surfaces)
     softenedContrast: boolean
 
+    // Notification preferences
+    notificationsEnabled: boolean
+    nativeNotificationsEnabled: boolean
+    toastDuration: number
+    doNotDisturb: boolean
+
     // Chat bubble style
     chatBubbleStyle?: ChatBubbleStyle
 
@@ -139,6 +145,10 @@ export const defaultSettingsUI: SettingsUI = {
     frostedPrompt: false,
     sidebarAutoHideOnResize: true,
     softenedContrast: false,
+    notificationsEnabled: true,
+    nativeNotificationsEnabled: true,
+    toastDuration: 4000,
+    doNotDisturb: false,
     chatBubbleStyle: 'solid',
     chatSelectedOverlayStyle: 'linear',
     modelSelector: {

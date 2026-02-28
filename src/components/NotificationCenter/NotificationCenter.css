@@ -1,0 +1,198 @@
+.notification-center {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.notification-center__bell {
+  position: relative;
+}
+
+.notification-center__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--theme-error);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid color-mix(in srgb, var(--theme-background) 75%, transparent);
+}
+
+.notification-center__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(520px, calc(100vh - 120px));
+  border-radius: 12px;
+  border: 1px solid var(--theme-border);
+  background: color-mix(in srgb, var(--theme-surface) 94%, black 6%);
+  box-shadow: var(--theme-shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 8200;
+}
+
+.notification-center__panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--theme-border-subtle);
+}
+
+.notification-center__panel-title {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--theme-text-primary);
+}
+
+.notification-center__panel-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: var(--theme-text-muted);
+}
+
+.notification-center__panel-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.notification-center__text-btn {
+  border: 1px solid var(--theme-border);
+  background: transparent;
+  color: var(--theme-text-secondary);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.notification-center__text-btn:hover {
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-primary);
+}
+
+.notification-center__panel-list {
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 8px;
+  gap: 8px;
+}
+
+.notification-center__empty {
+  padding: 20px 12px;
+  color: var(--theme-text-muted);
+  text-align: center;
+  font-size: 0.84rem;
+}
+
+.notification-center__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--theme-border-subtle);
+  background: color-mix(in srgb, var(--theme-background) 74%, transparent);
+  padding: 10px;
+}
+
+.notification-center__item[data-priority='critical'] {
+  border-color: color-mix(in srgb, var(--theme-error) 38%, var(--theme-border-subtle));
+}
+
+.notification-center__item[data-priority='high'] {
+  border-color: color-mix(in srgb, var(--theme-warning) 40%, var(--theme-border-subtle));
+}
+
+.notification-center__item-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--theme-surface);
+  color: var(--theme-text-secondary);
+  flex-shrink: 0;
+}
+
+.notification-center__item-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.notification-center__item-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notification-center__item-title {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--theme-text-primary);
+  line-height: 1.3;
+}
+
+.notification-center__item-time {
+  color: var(--theme-text-muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.notification-center__item-text {
+  margin: 4px 0 0;
+  color: var(--theme-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.notification-center__action-btn {
+  margin-top: 8px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  font-size: 0.74rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.notification-center__action-btn:hover {
+  background: var(--theme-surface-hover);
+}
+
+.notification-center__dismiss-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--theme-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.notification-center__dismiss-btn:hover {
+  background: var(--theme-surface-hover);
+  color: var(--theme-text-primary);
+}

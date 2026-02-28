@@ -122,6 +122,12 @@ vi.mock('./shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
 
+// Mock NotificationBell so TitleBar can render without NotificationProvider
+vi.mock('./NotificationCenter/NotificationBell', () => ({
+  NotificationBell: () => null,
+  default: () => null,
+}))
+
 // ============================================================================
 // Imports under test (after mocks)
 // ============================================================================

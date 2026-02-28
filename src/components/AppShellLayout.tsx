@@ -9,8 +9,7 @@ import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
 import { CommandPalette } from './CommandPalette'
-
-const NOISE_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")`
+import BannerStack from './BannerStack/BannerStack'
 
 function AppShellContent() {
     const navigate = useNavigate()
@@ -108,19 +107,10 @@ function AppShellContent() {
                     zIndex: 0,
                     pointerEvents: 'none',
                     boxSizing: 'border-box'
-                }}>
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundImage: NOISE_SVG,
-                        backgroundSize: '200px 200px',
-                        opacity: 'var(--frosted-glass-noise-opacity)',
-                        mixBlendMode: 'overlay' as const,
-                        pointerEvents: 'none' as const
-                    }} />
-                </div>
+                }} />
             )}
             <TitleBar />
+            <BannerStack />
             <CommandPalette />
             <div className="app-content" style={{
                 backgroundColor: frostedSidebar ? 'transparent' : undefined,

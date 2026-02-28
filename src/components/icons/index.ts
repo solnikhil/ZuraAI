@@ -104,6 +104,7 @@ export {
   ZoomIn,
   ZoomOut,
   Paintbrush,
+  Bell,
 } from 'lucide-react'
 
 // Animated icons

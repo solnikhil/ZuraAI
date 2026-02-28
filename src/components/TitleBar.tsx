@@ -6,6 +6,7 @@ import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
 import WindowControlButtons from './WindowControlButtons'
+import NotificationBell from './NotificationCenter/NotificationBell'
 import './TitleBar.css'
 
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
@@ -13,6 +14,7 @@ const SETTINGS_SECTION_LABELS: Record<string, string> = {
     providers: 'Providers',
     themes: 'Appearance',
     systemprompt: 'System Prompt',
+    notifications: 'Notifications',
     experimental: 'Experimental',
 }
 
@@ -231,6 +233,7 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__right">
+                <NotificationBell />
                 {showModel && dashboardView !== 'settings' && (
                     <span className="app-titlebar__model no-drag" title={settings.aiModel}>
                         {modelDisplayName}

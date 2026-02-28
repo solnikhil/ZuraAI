@@ -2,6 +2,7 @@ import { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatSt
 import { registerSecureStorageHandlers, unregisterSecureStorageHandlers } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 import { registerPerformanceHandlers, unregisterPerformanceHandlers } from './performanceHandlers'
+import { registerNotificationHandlers, unregisterNotificationHandlers } from './notificationHandlers'
 
 /**
  * Register all IPC handlers for the main process
@@ -12,6 +13,7 @@ export function registerAllHandlers(): void {
     registerSecureStorageHandlers()
     registerSystemHandlers()
     registerPerformanceHandlers()
+    registerNotificationHandlers()
 }
 
 /**
@@ -22,6 +24,7 @@ export function unregisterAllHandlers(): void {
     unregisterSecureStorageHandlers()
     unregisterSystemHandlers()
     unregisterPerformanceHandlers()
+    unregisterNotificationHandlers()
 }
 
 // Re-export individual handler modules for granular control
@@ -29,3 +32,4 @@ export { registerChatStoreHandlers, unregisterChatStoreHandlers } from './chatSt
 export { registerSecureStorageHandlers, unregisterSecureStorageHandlers } from './secureStorageHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
 export { registerPerformanceHandlers, unregisterPerformanceHandlers } from './performanceHandlers'
+export { registerNotificationHandlers, unregisterNotificationHandlers } from './notificationHandlers'

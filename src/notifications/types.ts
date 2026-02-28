@@ -6,6 +6,11 @@ export type NotificationType = 'success' | 'error' | 'warning' | 'info'
 
 export type NotificationPriority = 'low' | 'normal' | 'high' | 'critical'
 
+export interface NotificationAction {
+  label: string
+  callback?: () => void
+}
+
 // --- Core interfaces ---
 
 export interface Notification {
@@ -16,14 +21,11 @@ export interface Notification {
   body: string
   timestamp: number
   read: boolean
-  action?: {
-    label: string
-    callback: () => void
-  }
+  action?: NotificationAction
 }
 
 /** Input payload for creating a notification (id, timestamp, read are auto-assigned). */
-export type NotificationPayload = Omit<Notification, 'id' | 'timestamp' | 'read'> & {
+export type NotificationPayload = Omit<Notification, 'id' | 'timestamp' | 'read' | 'priority'> & {
   priority?: NotificationPriority
 }
 
@@ -42,6 +44,7 @@ export interface RenderDecision {
 
 export interface NotificationContextType {
   notifications: Notification[]
+  activeBanners: Notification[]
   unreadCount: number
   addNotification: (payload: NotificationPayload) => void
   dismissNotification: (id: string) => void

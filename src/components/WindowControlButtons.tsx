@@ -10,7 +10,7 @@ export interface WindowControlButtonsProps {
 function MinimizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M1.5 5.5H8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" />
+      <path d="M1 5.5H9" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
     </svg>
   )
 }
@@ -18,7 +18,7 @@ function MinimizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
 function MaximizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="1.6" y="1.6" width="6.8" height="6.8" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="1.5" y="1.5" width="7" height="7" stroke="currentColor" strokeWidth="1" />
     </svg>
   )
 }
@@ -26,8 +26,8 @@ function MaximizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
 function RestoreWindowIcon({ size = 10 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M3.6 1.6H8.4V6.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" />
-      <rect x="1.6" y="3.6" width="4.8" height="4.8" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3.5 1.5H8.5V6.5" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
+      <rect x="1.5" y="3.5" width="5" height="5" stroke="currentColor" strokeWidth="1" />
     </svg>
   )
 }
@@ -35,8 +35,8 @@ function RestoreWindowIcon({ size = 10 }: { size?: number }): ReactElement {
 function CloseWindowIcon({ size = 10 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M1.8 1.8L8.2 8.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" />
-      <path d="M8.2 1.8L1.8 8.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="square" />
+      <path d="M2 2L8 8" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
+      <path d="M8 2L2 8" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
     </svg>
   )
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     ChartNoAxesCombined, Cloud,
-    Paintbrush, FlaskConical, FileText
+    Paintbrush, FlaskConical, FileText, Bell
 } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
@@ -58,6 +58,7 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
         { id: 'providers', label: 'Providers', icon: <Cloud size={18} /> },
         { id: 'themes', label: 'Appearance', icon: <Paintbrush size={18} /> },
         { id: 'systemprompt', label: 'System Prompt', icon: <FileText size={18} /> },
+        { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
         { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
     ]
 

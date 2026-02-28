@@ -65,20 +65,6 @@
 }
 
 
-/* Noise texture overlay for frosted titlebar glass (matches sidebar) */
-
-.app-titlebar__sidebar-glass::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-    background-size: 200px 200px;
-    opacity: var(--frosted-glass-noise-opacity);
-    mix-blend-mode: overlay;
-    pointer-events: none;
-}
-
-
 /* macOS specific: Add padding for traffic lights */
 
 .app-titlebar--macos {
@@ -316,28 +302,31 @@
     height: 100%;
     position: relative;
     z-index: 7000;
-    background: var(--theme-background);
-    border-left: 1px solid var(--theme-border-subtle);
+    background: transparent;
+    border-left: none;
     overflow: hidden;
     -webkit-app-region: no-drag;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn {
     width: 46px;
+    min-width: 46px;
     height: 100%;
+    padding: 0;
     border: none;
     border-radius: 0;
-    background: var(--theme-background);
-    color: color-mix(in srgb, var(--theme-text-primary) 76%, transparent);
+    background: transparent;
+    color: color-mix(in srgb, var(--theme-text-primary) 84%, transparent);
+    transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn:hover {
-    background: color-mix(in srgb, var(--theme-surface-hover) 90%, var(--theme-background));
+    background: color-mix(in srgb, var(--theme-surface-hover) 88%, transparent);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn:active {
     transform: none;
-    background: color-mix(in srgb, var(--theme-surface-active) 90%, var(--theme-background));
+    background: color-mix(in srgb, var(--theme-surface-active) 90%, transparent);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn--close:hover {

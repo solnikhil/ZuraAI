@@ -64,6 +64,21 @@ export interface WindowControlsAPI {
     onWindowState: (callback: (state: { isMaximized: boolean }) => void) => () => void
 }
 
+export interface NotificationPayload {
+    type: 'success' | 'error' | 'warning' | 'info'
+    priority?: 'low' | 'normal' | 'high' | 'critical'
+    title: string
+    body: string
+    action?: {
+        label: string
+    }
+}
+
+export interface NotificationsAPI {
+    onPush: (callback: (payload: NotificationPayload) => void) => () => void
+    onNativeClick: (callback: (payload: { notificationId?: string }) => void) => () => void
+}
+
 declare global {
     interface Window {
         ipcRenderer: IElectronAPI
@@ -71,5 +86,6 @@ declare global {
         updater: UpdaterAPI
         terminal: TerminalAPI
         windowControls: WindowControlsAPI
+        notifications: NotificationsAPI
     }
 }

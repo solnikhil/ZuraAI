@@ -44,16 +44,20 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
+  - `electron/ipc/notificationHandlers.ts` — native notification IPC bridge (`notification:native`)
   - `electron/windows/` — main window, tray
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
   - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
+  - `electron/notifications.ts` — main-process push helper to forward notification payloads to renderer
   - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
   - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`)
-  - `src/contexts/` — app state (settings, chat history, app shell)
+  - `src/contexts/` — app state (settings, chat history, app shell, notifications)
+  - `src/components/NotificationCenter/` — titlebar bell + notification panel/list UI
+  - `src/components/BannerStack/` — in-app critical banner rendering
   - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
   - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
   - `src/tools/` — tool schema + adapters + tool execution coordinator
@@ -130,9 +134,17 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
   - `execute-tool`
   - `window-resize`
+  - `notification:native`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
+  - `notification:push`, `notification:native-click`
+
+Additional preload API:
+- `window.notifications`
+  - `showNative(payload)`
+  - `onPush(callback)`
+  - `onNativeClick(callback)`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also in the preload allowlist.
 
@@ -181,12 +193,33 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Search overlays and list rendering include all sessions (subject to active filters), with no archive-only section or archive toggle.
 - Chat session metadata includes `pinned`, `folderId`, and `tags`; legacy `archived` values in persisted data are ignored during migration.
 
+#### Notification System (Toast + Center + Native Bridge)
+- Main notification state lives in `src/contexts/NotificationContext.tsx` (in-memory store + unread count + banner tracking).
+- Renderer entry points:
+  - `useNotifications()` hook: `src/hooks/useNotifications.ts`
+  - Titlebar bell and panel: `src/components/NotificationCenter/*`
+  - Critical banner stack: `src/components/BannerStack/*`
+- Routing/priority behavior is centralized in `src/notifications/router.ts` and used by `NotificationContext`.
+- UI behavior:
+  - Normal notifications are shown as Sonner toasts and in the notification center list.
+  - Critical notifications are also tracked as active in-app banners.
+- Native OS notifications flow:
+  - Renderer calls `window.notifications.showNative(...)` (allowlisted IPC `notification:native`).
+  - Main handles with `electron/ipc/notificationHandlers.ts` and emits `notification:native-click` back to renderer.
+  - Main can proactively push notifications to renderer via `electron/notifications.ts` (`notification:push`).
+- Updater integration: `electron/updater.ts` emits update lifecycle notifications through `pushNotification(...)`.
+
 ### Data Persistence
 
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
+  - Notification preferences:
+    - `notificationsEnabled`
+    - `nativeNotificationsEnabled`
+    - `toastDuration`
+    - `doNotDisturb`
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
 - Last active chat session: `zura-ui:lastChatSessionId`

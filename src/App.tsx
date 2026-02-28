@@ -5,6 +5,7 @@ import AppShellLayout from './components/AppShellLayout'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
+import { NotificationProvider } from './contexts/NotificationContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 
 // Lazy load Settings component for bundle optimization
@@ -35,25 +36,27 @@ function App() {
         <ErrorBoundary>
             <ToastProvider>
                 <SettingsProvider>
-                    <ChatHistoryProvider>
-                        <StreamingProvider>
-                            <Router>
-                                <Routes>
-                                    <Route element={<AppShellLayout />}>
-                                        <Route path="/" element={<DashboardLayout />} />
-                                        <Route path="/dashboard" element={<DashboardLayout />} />
-                                        <Route path="/settings" element={
-                                            <Suspense fallback={<SettingsLoadingFallback />}>
-                                                <Settings />
-                                            </Suspense>
-                                        } />
-                                        {/* Legacy chat view now uses DashboardLayout to include sidebar */}
-                                        <Route path="/chat" element={<DashboardLayout />} />
-                                    </Route>
-                                </Routes>
-                            </Router>
-                        </StreamingProvider>
-                    </ChatHistoryProvider>
+                    <NotificationProvider>
+                        <ChatHistoryProvider>
+                            <StreamingProvider>
+                                <Router>
+                                    <Routes>
+                                        <Route element={<AppShellLayout />}>
+                                            <Route path="/" element={<DashboardLayout />} />
+                                            <Route path="/dashboard" element={<DashboardLayout />} />
+                                            <Route path="/settings" element={
+                                                <Suspense fallback={<SettingsLoadingFallback />}>
+                                                    <Settings />
+                                                </Suspense>
+                                            } />
+                                            {/* Legacy chat view now uses DashboardLayout to include sidebar */}
+                                            <Route path="/chat" element={<DashboardLayout />} />
+                                        </Route>
+                                    </Routes>
+                                </Router>
+                            </StreamingProvider>
+                        </ChatHistoryProvider>
+                    </NotificationProvider>
                 </SettingsProvider>
             </ToastProvider>
         </ErrorBoundary>

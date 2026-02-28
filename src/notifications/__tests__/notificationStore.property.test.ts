@@ -18,6 +18,7 @@ import * as fc from 'fast-check'
 import React from 'react'
 import { renderHook, act, cleanup } from '@testing-library/react'
 import { NotificationProvider, useNotificationStore } from '../../contexts/NotificationContext'
+import { SettingsUIProvider } from '../../contexts/SettingsUIContext'
 import type { NotificationPayload, NotificationType, NotificationPriority } from '../types'
 
 // ============================================================================
@@ -69,7 +70,11 @@ const payloadArb: fc.Arbitrary<NotificationPayload> = fc.oneof(
 // ============================================================================
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  return React.createElement(NotificationProvider, null, children)
+  return React.createElement(
+    SettingsUIProvider,
+    null,
+    React.createElement(NotificationProvider, null, children)
+  )
 }
 
 // ============================================================================
@@ -966,6 +971,41 @@ describe('NotificationStore Property Tests', () => {
           }
         ),
         CAP_TEST_CONFIG
+      )
+    })
+  })
+
+  // ============================================================================
+  // Feature: notification-system, Property 18: Opening notification center marks all as read
+  // ============================================================================
+
+  describe('Property 18: Opening notification center marks all as read — all notifications read, unreadCount 0', () => {
+    it('markAllAsRead makes all notifications read and sets unreadCount to 0', () => {
+      fc.assert(
+        fc.property(
+          fc.array(payloadArb, { minLength: 1, maxLength: 30 }),
+          (payloads) => {
+            const { result } = renderHook(() => useNotificationStore(), { wrapper })
+
+            act(() => {
+              for (const payload of payloads) {
+                result.current.addNotification(payload)
+              }
+            })
+
+            expect(result.current.unreadCount).toBeGreaterThan(0)
+
+            act(() => {
+              result.current.markAllAsRead()
+            })
+
+            expect(result.current.unreadCount).toBe(0)
+            expect(result.current.notifications.every(notification => notification.read)).toBe(true)
+
+            cleanup()
+          }
+        ),
+        PROPERTY_TEST_CONFIG
       )
     })
   })
