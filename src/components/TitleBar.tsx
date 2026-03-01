@@ -18,13 +18,15 @@ const SETTINGS_SECTION_LABELS: Record<string, string> = {
     experimental: 'Experimental',
 }
 
+const SIDEBAR_COLLAPSED_WIDTH_PX = 60
+const SIDEBAR_EXPANDED_WIDTH_PX = 300
+
 function getModelDisplayName(settings: Settings): string {
     const allModels: Array<{ code: string; displayName: string }> = [
         ...(settings.ollamaModels || []),
         ...(settings.perplexityModels || []),
         ...(settings.configuredModels || []),
         ...(settings.groqModels || []),
-        ...(settings.nvidiaModels || []),
         ...(settings.alibabaModels || []),
     ]
 
@@ -90,7 +92,9 @@ export default function TitleBar() {
     const showModel = settings.titleBarShowModel !== false
     const isSettingsView = dashboardView === 'settings'
     const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
-    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const sidebarWidthPx = sidebarHidden
+        ? 0
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : SIDEBAR_EXPANDED_WIDTH_PX)
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {

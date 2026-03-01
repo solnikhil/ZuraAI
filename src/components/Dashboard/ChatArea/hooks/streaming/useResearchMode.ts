@@ -229,7 +229,7 @@ export function useResearchMode({
     )
 
     const forceWebSearch =
-      ['openrouter', 'groq', 'nvidia', 'alibaba', 'ollama'].includes(settings.modelProvider) &&
+      ['openrouter', 'groq', 'alibaba', 'ollama'].includes(settings.modelProvider) &&
       canUseTools &&
       webSearchEnabledBySettings &&
       checkUserRequestsWebSearch(userMessage)

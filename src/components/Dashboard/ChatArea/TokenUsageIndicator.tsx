@@ -17,19 +17,13 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-const DEFAULT_MAX_CONTEXT = 8192
+export const DEFAULT_MAX_CONTEXT = 8192
 const CIRCLE_SIZE = 18
 const STROKE_WIDTH = 2
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/** ~4 chars per token heuristic for streaming output */
-function estimateOutputTokens(content: string): number {
-  if (!content) return 0
-  return Math.ceil(content.length / 4)
-}
-
-interface TokenBreakdown {
+export interface TokenBreakdown {
   systemPrompt: number
   chatMessages: number
   currentInput: number
@@ -38,6 +32,56 @@ interface TokenBreakdown {
   maxContext: number
   remaining: number
   fillRatio: number
+}
+
+export interface ComputeTokenBreakdownParams {
+  messages: Array<{ role: string; content: string }>
+  systemPrompt: string
+  currentInput: string
+  streamingContent: string
+  maxContext: number | undefined
+}
+
+/**
+ * Pure function to compute the token breakdown for the context details ring.
+ * Extracted for testability.
+ */
+export function computeTokenBreakdown({
+  messages,
+  systemPrompt,
+  currentInput,
+  streamingContent,
+  maxContext: rawMaxContext,
+}: ComputeTokenBreakdownParams): TokenBreakdown {
+  const systemPromptTokens = systemPrompt
+    ? estimateMessageTokens({ role: 'system', content: systemPrompt })
+    : 0
+  const chatMessagesTokens = messages.reduce(
+    (sum, m) => sum + estimateMessageTokens(m),
+    0
+  )
+  const currentInputTokens = estimateTokens(currentInput)
+  const streamingOutputTokens = estimateTokens(streamingContent)
+
+  const totalUsed =
+    systemPromptTokens +
+    chatMessagesTokens +
+    currentInputTokens +
+    streamingOutputTokens
+  const maxContext = rawMaxContext ?? DEFAULT_MAX_CONTEXT
+  const remaining = Math.max(0, maxContext - totalUsed)
+  const fillRatio = maxContext > 0 ? Math.min(1, totalUsed / maxContext) : 0
+
+  return {
+    systemPrompt: systemPromptTokens,
+    chatMessages: chatMessagesTokens,
+    currentInput: currentInputTokens,
+    streamingOutput: streamingOutputTokens,
+    totalUsed,
+    maxContext,
+    remaining,
+    fillRatio,
+  }
 }
 
 function BreakdownRow({
@@ -93,48 +137,19 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
     const messages = streamingMessageId
       ? sessionMessages.filter(m => m.id !== streamingMessageId)
       : sessionMessages
-    const systemPrompt = settings.systemPrompt ?? ''
 
-    const messagesForEstimate = messages.map(m => ({
-      role: m.role,
-      content: m.content,
-    }))
-
-    const systemPromptTokens = systemPrompt
-      ? estimateMessageTokens({ role: 'system', content: systemPrompt })
-      : 0
-    const chatMessagesTokens = messagesForEstimate.reduce(
-      (sum, m) => sum + estimateMessageTokens(m),
-      0
-    )
-    const currentInputTokens = estimateTokens(input)
     const effectiveStreamingContent =
       hasActiveStreamingMessage
         ? (streamingState.content || streamingMessage?.content || '')
         : ''
-    const streamingOutputTokens = effectiveStreamingContent
-      ? estimateOutputTokens(effectiveStreamingContent)
-      : 0
 
-    const totalUsed =
-      systemPromptTokens +
-      chatMessagesTokens +
-      currentInputTokens +
-      streamingOutputTokens
-    const maxContext = currentModel?.maxContext ?? DEFAULT_MAX_CONTEXT
-    const remaining = Math.max(0, maxContext - totalUsed)
-    const fillRatio = maxContext > 0 ? Math.min(1, totalUsed / maxContext) : 0
-
-    return {
-      systemPrompt: systemPromptTokens,
-      chatMessages: chatMessagesTokens,
-      currentInput: currentInputTokens,
-      streamingOutput: streamingOutputTokens,
-      totalUsed,
-      maxContext,
-      remaining,
-      fillRatio,
-    }
+    return computeTokenBreakdown({
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      systemPrompt: settings.systemPrompt ?? '',
+      currentInput: input,
+      streamingContent: effectiveStreamingContent,
+      maxContext: currentModel?.maxContext,
+    })
   }, [
     currentSessionId,
     sessions,

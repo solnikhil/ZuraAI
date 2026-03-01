@@ -297,36 +297,36 @@
 
 .app-titlebar__window-controls {
     display: inline-flex;
-    align-items: stretch;
-    gap: 0;
-    height: 100%;
+    align-items: center;
+    gap: 2px;
+    height: auto;
     position: relative;
     z-index: 7000;
     background: transparent;
     border-left: none;
-    overflow: hidden;
+    padding: 0 4px 0 0;
     -webkit-app-region: no-drag;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn {
-    width: 46px;
-    min-width: 46px;
-    height: 100%;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
     padding: 0;
-    border: none;
-    border-radius: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
     background: transparent;
     color: color-mix(in srgb, var(--theme-text-primary) 84%, transparent);
     transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn:hover {
-    background: color-mix(in srgb, var(--theme-surface-hover) 88%, transparent);
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn:active {
-    transform: none;
-    background: color-mix(in srgb, var(--theme-surface-active) 90%, transparent);
+    background: var(--theme-surface-active);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn--close:hover {

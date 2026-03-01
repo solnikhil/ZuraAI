@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, groq, ollama, nvidia, alibaba
+// Providers WITH tool support: openrouter, groq, ollama, alibaba
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -115,7 +115,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
@@ -154,7 +154,6 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'perplexity':
@@ -174,7 +173,6 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return hasToolCalls(response as OpenRouterResponse)
         case 'perplexity':
@@ -200,7 +198,6 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'perplexity':
@@ -313,7 +310,6 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return [
                 ...originalMessages,

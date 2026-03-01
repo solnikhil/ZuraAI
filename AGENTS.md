@@ -11,7 +11,7 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA, Alibaba Cloud)
+- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; `web_search` and `research_plan` — the latter expands to `web_search` in renderer)
 
@@ -110,9 +110,9 @@ Core capabilities:
   - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
 
 ### CORS Bypass (Main Process)
-Some provider APIs (currently NVIDIA at `integrate.api.nvidia.com`) do not return CORS headers, which causes the browser engine inside Electron to block renderer `fetch()` calls. To work around this, `electron/main.ts` registers a `session.defaultSession.webRequest.onHeadersReceived` handler that injects `Access-Control-Allow-Origin: *` (plus related headers) for responses from domains listed in `CORS_BYPASS_DOMAINS`. This allows the renderer to call these APIs directly without needing a main-process proxy or new IPC channels.
+There is currently no active CORS-bypass header injection in `electron/main.ts`.
 
-If a new provider also lacks CORS headers, add its hostname to the `CORS_BYPASS_DOMAINS` array in `electron/main.ts`.
+If a new provider lacks CORS headers and renderer `fetch()` is blocked, add a narrowly scoped `session.defaultSession.webRequest.onHeadersReceived` handler in main process for that provider domain only.
 
 ### IPC Surface (Security-Critical)
 The renderer never imports Electron APIs directly; it uses what preload exposes.
@@ -128,7 +128,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`, `secure-storage:clear`, `secure-storage:status`
+  - `secure-storage:get`, `secure-storage:set`
   - `get-process-metrics`
   - `memory:get-metrics`, `memory:force-cleanup`
   - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
@@ -164,7 +164,6 @@ Additional preload API:
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
-  - `src/services/nvidia.ts` (`streamNvidiaCompletion`)
   - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
@@ -175,7 +174,7 @@ Additional preload API:
 
 #### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
 - **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
-- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA/Alibaba. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
+- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/Alibaba. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -184,8 +183,19 @@ Additional preload API:
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`, `alibabaModels`) now support optional `enabled?: boolean`.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`) now support optional `enabled?: boolean`.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
+
+#### Command Palette Quick-Send
+- The command palette (`Ctrl+Space`) supports sending a chat message directly via **Shift+Enter**.
+- When the user types text that doesn't match any command well (top score < 100), a "Send as chat message" suggestion appears automatically.
+- Runtime behavior is controlled by `settings.commandBar`: `enabled` gates both mount and hotkey registration, and suggestion/recents limits use `maxSuggestions`, `showRecents`, and `maxRecents`.
+- Architecture uses a **`QuickSendContext`** (`src/contexts/QuickSendContext.tsx`) as a lightweight message queue bridge between the command palette and `ChatArea`:
+  1. Command palette calls `queueMessage(content)` + navigates to `/dashboard` + sets dashboard view to `chat`.
+  2. `ChatArea` (`src/components/Dashboard/ChatArea.tsx`) has a `useEffect` that watches for `pendingMessage` from the context.
+  3. When a pending message is detected and the chat is not currently streaming, `ChatArea` calls `sendMessage()` from `useStreamingChat` and then `consumeMessage()` to clear the queue.
+- This handles the case where the user is on a non-chat page (e.g., Settings): navigation happens first, `ChatArea` mounts, then picks up the pending message.
+- `QuickSendProvider` is mounted in `App.tsx` above the `Router` so it's accessible to both the command palette and `ChatArea`.
 
 #### Sidebar Session Organization
 - The chat sidebar no longer supports archiving/unarchiving sessions.
@@ -235,7 +245,7 @@ Additional preload API:
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `nvidiaApiKey`, `alibabaApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
@@ -256,7 +266,6 @@ Tool execution is intentionally restricted.
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
-- NVIDIA: `src/services/nvidia.ts` (NVIDIA NIM API; OpenAI-compatible tool calling)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)

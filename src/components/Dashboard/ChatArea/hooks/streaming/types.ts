@@ -129,6 +129,5 @@ export interface StreamingSettings {
   openRouterApiKey?: string
   perplexityApiKey?: string
   groqApiKey?: string
-  nvidiaApiKey?: string
   alibabaApiKey?: string
 }

@@ -37,6 +37,58 @@ const defaultSettings: Settings = {
     ...defaultSettingsConfig,
 }
 
+const SECRET_SETTING_KEYS: Array<keyof Pick<Settings, 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'>> = [
+    'openRouterApiKey',
+    'perplexityApiKey',
+    'groqApiKey',
+    'tavilyApiKey',
+    'alibabaApiKey',
+]
+
+function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
+    const sanitized = { ...raw }
+    for (const key of SECRET_SETTING_KEYS) {
+        delete sanitized[key]
+    }
+    return sanitized
+}
+
+function parseStoredSettings(raw: string | null): Partial<Settings> {
+    if (!raw) return {}
+    try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed !== 'object' || parsed == null || Array.isArray(parsed)) {
+            return {}
+        }
+        return stripSecretSettings(parsed as Partial<Settings>)
+    } catch {
+        console.warn('[SettingsContext] Invalid zura-settings in localStorage. Falling back to defaults.')
+        return {}
+    }
+}
+
+function hasSettingsDiff(prev: Settings, updates: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(updates)) {
+        const current = (prev as unknown as Record<string, unknown>)[key]
+        const bothObjects =
+            typeof current === 'object' && current !== null &&
+            typeof value === 'object' && value !== null
+
+        if (bothObjects) {
+            if (JSON.stringify(current) !== JSON.stringify(value)) {
+                return true
+            }
+            continue
+        }
+
+        if (current !== value) {
+            return true
+        }
+    }
+
+    return false
+}
+
 interface SettingsContextType {
     settings: Settings
     updateSettings: (newSettings: Partial<Settings>) => void
@@ -122,7 +174,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Load settings from localStorage
     const [storedSettings] = useState<Settings>(() => {
         const saved = localStorage.getItem('zura-settings')
-        const parsed = saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings
+        const parsed = { ...defaultSettings, ...parseStoredSettings(saved) }
 
         // Remove deprecated overlay-era settings from older persisted state
         delete (parsed as Record<string, unknown>).autoHideOverlay
@@ -152,8 +204,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
         // Initialize new fields if missing
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
-        // Migrate removed providers to openrouter
-        if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
+        // Migrate unknown providers to openrouter
+        if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.modelProvider)) {
             parsed.modelProvider = 'openrouter'
         }
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
@@ -179,15 +231,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             })
             parsed.groqModels = merged
         }
-        // Initialize NVIDIA fields if missing
-        if (!parsed.nvidiaApiKey) parsed.nvidiaApiKey = defaultSettings.nvidiaApiKey
-        // Always use full default list; merge preserves user's enabled state for models that exist in both
-        const userNvidia = parsed.nvidiaModels
-        const merged = defaultSettings.nvidiaModels.map((d) => {
-            const existing = Array.isArray(userNvidia) ? userNvidia.find((m: { code: string }) => m.code === d.code) : undefined
-            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-        })
-        parsed.nvidiaModels = merged
         // Initialize Alibaba fields if missing
         if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
         // Always merge with full default list (expanded model catalog); preserve user's enabled state
@@ -315,85 +358,95 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         return parsed
     })
 
-    // Extract UI and Config settings for child providers
-    const initialUISettings = useMemo<Partial<SettingsUI>>(() => ({
-        theme: storedSettings.theme,
-        activeTheme: storedSettings.activeTheme,
-        titleBarDensity: storedSettings.titleBarDensity,
-        titleBarShowAppName: storedSettings.titleBarShowAppName,
-        titleBarShowChatTitle: storedSettings.titleBarShowChatTitle,
-        titleBarShowModel: storedSettings.titleBarShowModel,
-        commandBar: storedSettings.commandBar,
-        frostedSidebar: storedSettings.frostedSidebar,
-        frostedPrompt: storedSettings.frostedPrompt,
-        sidebarAutoHideOnResize: storedSettings.sidebarAutoHideOnResize,
-        softenedContrast: storedSettings.softenedContrast,
-        notificationsEnabled: storedSettings.notificationsEnabled,
-        nativeNotificationsEnabled: storedSettings.nativeNotificationsEnabled,
-        toastDuration: storedSettings.toastDuration,
-        doNotDisturb: storedSettings.doNotDisturb,
-        chatBubbleStyle: storedSettings.chatBubbleStyle,
-        chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
-    }), [storedSettings])
-
-    const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
-        openRouterApiKey: storedSettings.openRouterApiKey,
-        perplexityApiKey: storedSettings.perplexityApiKey,
-        groqApiKey: storedSettings.groqApiKey,
-        tavilyApiKey: storedSettings.tavilyApiKey,
-        nvidiaApiKey: storedSettings.nvidiaApiKey,
-        alibabaApiKey: storedSettings.alibabaApiKey,
-        aiModel: storedSettings.aiModel,
-        modelProvider: storedSettings.modelProvider,
-        configuredModels: storedSettings.configuredModels,
-        ollamaUrl: storedSettings.ollamaUrl,
-        ollamaModels: storedSettings.ollamaModels,
-        perplexityModels: storedSettings.perplexityModels,
-        groqModels: storedSettings.groqModels,
-        nvidiaModels: storedSettings.nvidiaModels,
-        alibabaModels: storedSettings.alibabaModels,
-        temperature: storedSettings.temperature,
-        maxTokens: storedSettings.maxTokens,
-        systemPrompt: storedSettings.systemPrompt,
-        webSearchPrompt: storedSettings.webSearchPrompt,
-        streamResponses: storedSettings.streamResponses,
-        toolsEnabled: storedSettings.toolsEnabled,
-        enabledTools: storedSettings.enabledTools,
-        webSearchEnabled: storedSettings.webSearchEnabled,
-        structuredResearchEnabled: storedSettings.structuredResearchEnabled,
-        titleModel: storedSettings.titleModel,
-        favoriteModels: storedSettings.favoriteModels,
-        quickPrompts: storedSettings.quickPrompts,
-        todos: storedSettings.todos,
-        rememberLastChatSession: storedSettings.rememberLastChatSession,
-        rememberLastSettingsSection: storedSettings.rememberLastSettingsSection,
-        rememberLastDashboardView: storedSettings.rememberLastDashboardView,
-    }), [storedSettings])
-
     // Track combined settings for localStorage persistence
     const [combinedSettings, setCombinedSettings] = useState<Settings>(storedSettings)
 
+    // Extract UI and Config settings for child providers
+    const initialUISettings = useMemo<Partial<SettingsUI>>(() => ({
+        theme: combinedSettings.theme,
+        activeTheme: combinedSettings.activeTheme,
+        titleBarDensity: combinedSettings.titleBarDensity,
+        titleBarShowAppName: combinedSettings.titleBarShowAppName,
+        titleBarShowChatTitle: combinedSettings.titleBarShowChatTitle,
+        titleBarShowModel: combinedSettings.titleBarShowModel,
+        commandBar: combinedSettings.commandBar,
+        frostedSidebar: combinedSettings.frostedSidebar,
+        frostedPrompt: combinedSettings.frostedPrompt,
+        sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
+        softenedContrast: combinedSettings.softenedContrast,
+        notificationsEnabled: combinedSettings.notificationsEnabled,
+        nativeNotificationsEnabled: combinedSettings.nativeNotificationsEnabled,
+        toastDuration: combinedSettings.toastDuration,
+        doNotDisturb: combinedSettings.doNotDisturb,
+        chatBubbleStyle: combinedSettings.chatBubbleStyle,
+        chatSelectedOverlayStyle: combinedSettings.chatSelectedOverlayStyle,
+        modelSelector: combinedSettings.modelSelector,
+    }), [combinedSettings])
+
+    const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
+        openRouterApiKey: combinedSettings.openRouterApiKey,
+        perplexityApiKey: combinedSettings.perplexityApiKey,
+        groqApiKey: combinedSettings.groqApiKey,
+        tavilyApiKey: combinedSettings.tavilyApiKey,
+        alibabaApiKey: combinedSettings.alibabaApiKey,
+        aiModel: combinedSettings.aiModel,
+        modelProvider: combinedSettings.modelProvider,
+        configuredModels: combinedSettings.configuredModels,
+        ollamaUrl: combinedSettings.ollamaUrl,
+        ollamaModels: combinedSettings.ollamaModels,
+        perplexityModels: combinedSettings.perplexityModels,
+        groqModels: combinedSettings.groqModels,
+        alibabaModels: combinedSettings.alibabaModels,
+        temperature: combinedSettings.temperature,
+        maxTokens: combinedSettings.maxTokens,
+        systemPrompt: combinedSettings.systemPrompt,
+        webSearchPrompt: combinedSettings.webSearchPrompt,
+        streamResponses: combinedSettings.streamResponses,
+        toolsEnabled: combinedSettings.toolsEnabled,
+        enabledTools: combinedSettings.enabledTools,
+        webSearchEnabled: combinedSettings.webSearchEnabled,
+        structuredResearchEnabled: combinedSettings.structuredResearchEnabled,
+        titleModel: combinedSettings.titleModel,
+        favoriteModels: combinedSettings.favoriteModels,
+        quickPrompts: combinedSettings.quickPrompts,
+        todos: combinedSettings.todos,
+        rememberLastChatSession: combinedSettings.rememberLastChatSession,
+        rememberLastSettingsSection: combinedSettings.rememberLastSettingsSection,
+        rememberLastDashboardView: combinedSettings.rememberLastDashboardView,
+    }), [combinedSettings])
+
     // Callbacks to sync settings from child contexts
     const handleUISettingsChange = useCallback((uiSettings: SettingsUI) => {
-        setCombinedSettings(prev => ({ ...prev, ...uiSettings }))
+        setCombinedSettings((prev) => {
+            if (!hasSettingsDiff(prev, uiSettings as unknown as Record<string, unknown>)) {
+                return prev
+            }
+            return { ...prev, ...uiSettings }
+        })
     }, [])
 
     const handleConfigSettingsChange = useCallback((configSettings: SettingsConfig) => {
-        setCombinedSettings(prev => ({ ...prev, ...configSettings }))
+        setCombinedSettings((prev) => {
+            if (!hasSettingsDiff(prev, configSettings as unknown as Record<string, unknown>)) {
+                return prev
+            }
+            return { ...prev, ...configSettings }
+        })
     }, [])
 
     // Persist combined settings to localStorage
     useEffect(() => {
-        localStorage.setItem('zura-settings', JSON.stringify(combinedSettings))
+        const sanitizedSettings = stripSecretSettings(combinedSettings as unknown as Record<string, unknown>) as unknown as Settings
+        localStorage.setItem('zura-settings', JSON.stringify(sanitizedSettings))
     }, [combinedSettings])
 
 
     // Listen for storage events from other windows/tabs
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === 'zura-settings' && e.newValue) {
-                const newSettings = JSON.parse(e.newValue)
-                setCombinedSettings(newSettings)
+            if (e.key === 'zura-settings') {
+                const newSettings = parseStoredSettings(e.newValue)
+                setCombinedSettings((prev) => ({ ...prev, ...newSettings }))
             }
         }
         window.addEventListener('storage', handleStorageChange)

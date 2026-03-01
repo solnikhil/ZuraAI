@@ -69,6 +69,17 @@ vi.mock('../../../utils/chatExport', () => ({
   downloadFile: vi.fn(),
 }))
 
+const mockQueueMessage = vi.fn()
+const mockConsumeMessage = vi.fn(() => null)
+
+vi.mock('../../../contexts/QuickSendContext', () => ({
+  useQuickSend: () => ({
+    pendingMessage: null,
+    queueMessage: mockQueueMessage,
+    consumeMessage: mockConsumeMessage,
+  }),
+}))
+
 // Mock Radix Dialog Portal to render inline
 vi.mock('@radix-ui/react-dialog', async () => {
   const actual = await vi.importActual('@radix-ui/react-dialog')
@@ -246,10 +257,29 @@ describe('CommandPalette unit tests', () => {
   })
 
   // --------------------------------------------------------------------------
-  // Requirement 4.4: "No results found" empty state
+  // Requirement 4.4: "No results found" empty state (commands-only mode)
   // --------------------------------------------------------------------------
   describe('empty state', () => {
-    it('shows "No results found" when query matches nothing', () => {
+    it('shows "No results found" when query matches nothing in commands-only mode', () => {
+      const { container } = render(<CommandPalette />)
+
+      act(() => { pressCtrlSpace() })
+
+      // Use > prefix to enter commands-only mode (no quick-send suggestion)
+      const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
+      act(() => {
+        fireEvent.change(input, { target: { value: '>xyznonexistent123' } })
+      })
+
+      const listbox = container.querySelector('[role="listbox"]')
+      expect(listbox?.textContent).toContain('No results found')
+
+      // No option items should be present
+      const options = container.querySelectorAll('[role="option"]')
+      expect(options.length).toBe(0)
+    })
+
+    it('shows "Send as chat message" when query matches no commands', () => {
       const { container } = render(<CommandPalette />)
 
       act(() => { pressCtrlSpace() })
@@ -259,12 +289,9 @@ describe('CommandPalette unit tests', () => {
         fireEvent.change(input, { target: { value: 'xyznonexistent123' } })
       })
 
-      const listbox = container.querySelector('[role="listbox"]')
-      expect(listbox?.textContent).toContain('No results found')
-
-      // No option items should be present
       const options = container.querySelectorAll('[role="option"]')
-      expect(options.length).toBe(0)
+      expect(options.length).toBe(1)
+      expect(options[0].textContent).toContain('Send as chat message')
     })
   })
 

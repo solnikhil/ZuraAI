@@ -4,6 +4,8 @@ import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
 
 /** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
 const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
+const SIDEBAR_COLLAPSED_WIDTH_PX = 60
+const SIDEBAR_EXPANDED_WIDTH_PX = 300
 import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
@@ -35,7 +37,9 @@ function AppShellContent() {
         window.addEventListener('resize', handler)
         return () => window.removeEventListener('resize', handler)
     }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
-    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const sidebarWidthPx = sidebarHidden
+        ? 0
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : SIDEBAR_EXPANDED_WIDTH_PX)
     const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 
     // Detect Windows platform (same pattern as TitleBar)

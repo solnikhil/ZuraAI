@@ -6,7 +6,7 @@ A Windows-first desktop AI assistant built with Electron, React, Vite, and TypeS
 
 ## What it does
 
-- Multi-provider chat (OpenRouter, Ollama, Perplexity, Groq, NVIDIA, Alibaba Cloud)
+- Multi-provider chat (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Streaming responses with tool support (`web_search`, `research_plan`)
 - Local chat history persistence through the Electron main process
 - Secure key storage using Electron `safeStorage` when available

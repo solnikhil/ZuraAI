@@ -15,6 +15,9 @@ import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
 import './Sidebar/Sidebar.css'
 
+const SIDEBAR_COLLAPSED_WIDTH_PX = 60
+const SIDEBAR_EXPANDED_WIDTH_PX = 300
+
 interface SidebarProps {
     view: 'chat' | 'settings'
     onOpenSettings: () => void
@@ -195,7 +198,9 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
 
     // Structural styles stay inline for testability (JSDOM doesn't load CSS files)
     const containerStyle: React.CSSProperties = {
-        width: sidebarHidden ? '0px' : (sidebarCollapsed ? '60px' : '260px'),
+        width: sidebarHidden
+            ? '0px'
+            : (sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${SIDEBAR_EXPANDED_WIDTH_PX}px`),
         background: shouldApplyGlass ? 'transparent' : 'var(--theme-surface)',
         borderRight: sidebarHidden
             ? 'none'
@@ -248,7 +253,6 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                             onClick={() => onNavigateSettings(item.id)}
                             className={`sidebar-nav-item sidebar-nav-item--settings sidebar-animate-item ${activeSettingsSection === item.id ? 'active' : ''}`}
                             style={{
-                                padding: '10px 8px',
                                 fontSize: '0.9rem',
                                 justifyContent: 'flex-start',
                                 animationDelay: `${index * 0.05}s`,

@@ -3,7 +3,7 @@ import { useSettings } from './SettingsContext'
 
 export type DashboardView = 'chat' | 'settings'
 
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 
 export interface SettingsSectionParams {
     provider?: ProviderKey

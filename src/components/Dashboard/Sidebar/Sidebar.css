@@ -10,6 +10,7 @@
   --sidebar-font-size-xs: 0.74rem;
   --sidebar-font-size-sm: 0.9rem;
   --sidebar-font-size-md: 0.95rem;
+  --sidebar-item-gap: 2px;
   --sidebar-row-height: 38px;
   --sidebar-control-height: 38px;
   display: flex;
@@ -35,7 +36,7 @@
 }
 
 .sidebar-container--expanded {
-  width: 260px;
+  width: 300px;
 }
 
 .sidebar-container.frosted {
@@ -264,7 +265,7 @@
 .sidebar-section-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sidebar-item-gap);
   padding-top: 2px;
 }
 
@@ -290,7 +291,7 @@
 .sidebar-chatlist__listbox {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sidebar-item-gap);
   outline: none;
 }
 
@@ -648,13 +649,14 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  gap: var(--sidebar-item-gap);
 }
 
 .sidebar-nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 9px;
+  padding: 8px 9px;
   border-radius: 6px;
   color: var(--theme-text-primary);
   background: transparent;

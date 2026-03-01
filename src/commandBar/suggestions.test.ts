@@ -138,7 +138,7 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
     'beta', 'feature', 'streaming', 'system', 'prompt',
     'instructions', 'persona', 'behavior', 'usage', 'statistics',
     'tokens', 'activity', 'openrouter', 'groq', 'perplexity',
-    'ollama', 'local', 'nvidia', 'alibaba', 'qwen',
+    'ollama', 'local', 'alibaba', 'qwen',
     'dashscope', 'tavily', 'search', 'tools', 'toggle',
     'collapse', 'expand', 'command', 'palette', 'shortcut',
   ]

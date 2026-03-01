@@ -5,6 +5,7 @@ import { Search } from '../icons'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useToast } from '../shared/Toast'
 import { exportChatToMarkdown, exportChatToText, downloadFile } from '../../utils/chatExport'
 import {
@@ -111,6 +112,7 @@ export default function CommandPalette() {
     currentSessionId,
     createSession,
   } = useChatHistory()
+  const { queueMessage } = useQuickSend()
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -124,6 +126,7 @@ export default function CommandPalette() {
 
   const { settingsUI } = useSettingsUI()
   const { commandBar } = settingsUI
+  const isCommandPaletteEnabled = commandBar.enabled !== false
 
   const widthMap = Object.create(null) as Record<string, number>
   widthMap.narrow = 440; widthMap.default = 560; widthMap.wide = 680
@@ -150,10 +153,11 @@ export default function CommandPalette() {
   const baseSuggestions = useMemo(() => {
     return getCommandBarSuggestions(query, {
       hasCurrentSession: Boolean(currentSession),
-    })
-  }, [currentSession, query])
+    }, commandBar.maxSuggestions)
+  }, [commandBar.maxSuggestions, currentSession, query])
 
   const recentSuggestions = useMemo<CommandBarSuggestion[]>(() => {
+    if (!commandBar.showRecents) return []
     if (history.length === 0) return []
 
     const normalized = query.trim().toLowerCase()
@@ -164,14 +168,14 @@ export default function CommandPalette() {
         )
       : history
 
-    return filtered.slice(0, 3).map((entry) => ({
+    return filtered.slice(0, Math.max(0, commandBar.maxRecents)).map((entry) => ({
       id: entry.suggestionId,
       title: entry.title,
       subtitle: 'Recent',
       action: entry.action,
       score: 1000,
     }))
-  }, [history, query])
+  }, [commandBar.maxRecents, commandBar.showRecents, history, query])
 
   // When query is empty, show recent + commands (deduped).
   // When query is non-empty, show only baseSuggestions (no separate recents).
@@ -230,6 +234,12 @@ export default function CommandPalette() {
   /* ── global keyboard shortcut: Ctrl+Space / Cmd+Space ── */
 
   useEffect(() => {
+    if (!isCommandPaletteEnabled) {
+      setOpen(false)
+      setQuery('')
+      return
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== ' ') return
       if (!(event.ctrlKey || event.metaKey)) return
@@ -246,7 +256,7 @@ export default function CommandPalette() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, openPalette, closePalette])
+  }, [closePalette, isCommandPaletteEnabled, open, openPalette])
 
   /* ── action execution ── */
 
@@ -324,6 +334,21 @@ export default function CommandPalette() {
         showToast('Exported chat as text', 'success')
         return true
       }
+      case 'send_chat_message': {
+        const content = action.content.trim()
+        if (!content) return false
+
+        ensureDashboardRoute()
+
+        if (hasUnsavedSettings && dashboardView === 'settings') {
+          showToast('You have unsaved settings changes', 'warning')
+          return false
+        }
+
+        setDashboardView('chat')
+        queueMessage(content)
+        return true
+      }
       default:
         return false
     }
@@ -331,7 +356,7 @@ export default function CommandPalette() {
     ensureDashboardRoute, ensureDashboardView, setActiveSettingsSection,
     setSettingsSectionParams, toggleSidebarHidden, toggleSidebarCollapsed,
     hasUnsavedSettings, dashboardView, setDashboardView, showToast,
-    createSession, currentSession,
+    createSession, currentSession, queueMessage,
   ])
 
   const recordHistory = useCallback((suggestion: CommandBarSuggestion, input: string) => {
@@ -350,6 +375,19 @@ export default function CommandPalette() {
   /* ── keyboard navigation inside the palette ── */
 
   const handleInputKeyDown = useCallback(async (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Shift+Enter: quick-send the current query as a chat message
+    if (event.key === 'Enter' && event.shiftKey) {
+      event.preventDefault()
+      const content = query.trim()
+      if (content) {
+        const didRun = await runAction({ type: 'send_chat_message', content })
+        if (didRun) {
+          closePalette()
+        }
+      }
+      return
+    }
+
     switch (event.key) {
       case 'ArrowDown': {
         event.preventDefault()
@@ -376,16 +414,30 @@ export default function CommandPalette() {
         closePalette()
         return
       }
+      case 'Tab': {
+        if (!commandBar.enableTabAutocomplete || totalItems === 0) return
+        event.preventDefault()
+        const allItems = [...displayedRecents, ...suggestions]
+        const selected = allItems[highlightIndex]
+        if (selected) {
+          setQuery(selected.title)
+        }
+        return
+      }
       default:
         return
     }
-  }, [totalItems, displayedRecents, suggestions, highlightIndex, runSuggestion, closePalette])
+  }, [commandBar.enableTabAutocomplete, totalItems, displayedRecents, suggestions, highlightIndex, runSuggestion, closePalette, query, runAction])
 
   /* ── active descendant id ── */
 
   const activeDescendantId = totalItems > 0 ? `command-palette-item-${highlightIndex}` : undefined
 
   /* ── render ── */
+
+  if (!isCommandPaletteEnabled) {
+    return null
+  }
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) closePalette() }}>

@@ -62,6 +62,14 @@ vi.mock('../../../utils/chatExport', () => ({
   downloadFile: vi.fn(),
 }))
 
+vi.mock('../../../contexts/QuickSendContext', () => ({
+  useQuickSend: () => ({
+    pendingMessage: null,
+    queueMessage: vi.fn(),
+    consumeMessage: vi.fn(() => null),
+  }),
+}))
+
 // Mock Radix Dialog Portal to render inline (jsdom has no real portals)
 vi.mock('@radix-ui/react-dialog', async () => {
   const actual = await vi.importActual('@radix-ui/react-dialog')

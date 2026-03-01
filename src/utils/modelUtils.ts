@@ -28,7 +28,7 @@ import { modelSupportsTools } from '../tools/adapters'
 export interface ModelInfo {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia' | 'alibaba'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
 }
 
 /**
@@ -496,7 +496,7 @@ export function groupModelsByProvider<T extends ModelInfo>(
     perplexity: [],
     openrouter: [],
     groq: [],
-    nvidia: []
+    alibaba: []
   }
 
   models.forEach(model => {
@@ -516,7 +516,7 @@ export const PROVIDER_CONFIG = {
   perplexity: { title: 'Perplexity', color: '#22c55e' },
   groq: { title: 'Groq', color: '#f97316' },
   ollama: { title: 'Ollama', color: '#339af0' },
-  nvidia: { title: 'NVIDIA', color: '#76b900' },
+  alibaba: { title: 'Alibaba Cloud', color: '#ff6a00' },
 } as const
 
 /**
@@ -575,10 +575,6 @@ export function getModelDescription(model: { provider: string; code: string; dis
 
   if (model.provider === 'ollama') {
     return 'Running locally on your machine'
-  }
-
-  if (model.provider === 'nvidia') {
-    return 'NVIDIA NIM API with optimized inference'
   }
 
   // Fallback for any unhandled provider

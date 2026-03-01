@@ -32,9 +32,6 @@ export type { UseGroqStreamingOptions, UseGroqStreamingReturn } from './useGroqS
 export { useOpenRouterStreaming } from './useOpenRouterStreaming'
 export type { UseOpenRouterStreamingOptions, UseOpenRouterStreamingReturn } from './useOpenRouterStreaming'
 
-export { useNvidiaStreaming } from './useNvidiaStreaming'
-export type { UseNvidiaStreamingOptions, UseNvidiaStreamingReturn } from './useNvidiaStreaming'
-
 export { useAlibabaStreaming } from './useAlibabaStreaming'
 export type { UseAlibabaStreamingOptions, UseAlibabaStreamingReturn } from './useAlibabaStreaming'
 

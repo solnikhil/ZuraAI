@@ -1,4 +1,4 @@
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
@@ -7,6 +7,7 @@ export type CommandBarAction =
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
   | { type: 'export_chat'; format: 'markdown' | 'text' }
+  | { type: 'send_chat_message'; content: string }
 
 export interface CommandBarSuggestion {
   id: string
@@ -196,13 +197,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' }
     },
     {
-      id: 'go-settings-nvidia',
-      title: 'NVIDIA Settings',
-      subtitle: 'NIM API models',
-      keywords: ['nvidia', 'nim'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'nvidia' }
-    },
-    {
       id: 'go-settings-alibaba',
       title: 'Alibaba Cloud Settings',
       subtitle: 'Qwen models via DashScope',
@@ -372,10 +366,28 @@ export function getCommandBarSuggestions(
     }
   }
 
-  return Array.from(deduped.values())
+  const sorted = Array.from(deduped.values())
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score
       return a.title.localeCompare(b.title)
     })
     .slice(0, Math.max(1, limit))
+
+  // If there's a non-empty query and no command scored above the confidence threshold,
+  // append a "Send as chat message" suggestion so the user can quick-send from the palette.
+  const SEND_SUGGESTION_THRESHOLD = 100
+  if (query.length > 0 && !commandsOnly) {
+    const topScore = sorted.length > 0 ? sorted[0].score : 0
+    if (topScore < SEND_SUGGESTION_THRESHOLD) {
+      sorted.push({
+        id: 'quick-send-message',
+        title: 'Send as chat message',
+        subtitle: query,
+        action: { type: 'send_chat_message', content: query },
+        score: -1,
+      })
+    }
+  }
+
+  return sorted
 }

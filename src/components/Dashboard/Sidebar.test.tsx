@@ -263,14 +263,14 @@ describe('Sidebar Glassmorphism Styles', () => {
     })
 
     describe('Expanded Sidebar State', () => {
-        it('has 260px width when sidebar is expanded', () => {
+        it('has 300px width when sidebar is expanded', () => {
             mockAppShell.sidebarCollapsed = false
             mockAppShell.sidebarHidden = false
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ width: '260px' })
+            expect(sidebar).toHaveStyle({ width: '300px' })
         })
 
         it('applies transparent background when expanded and frostedSidebar is true', () => {
@@ -326,7 +326,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             rerender(<Sidebar {...defaultProps} />)
             sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ width: '260px' })
+            expect(sidebar).toHaveStyle({ width: '300px' })
             expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
     })

@@ -23,6 +23,7 @@ import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
+import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useToast } from '../shared/Toast'
 import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
@@ -85,6 +86,16 @@ export default function ChatArea() {
       })
     }
   })
+
+  // Quick-send: consume a pending message queued from the command palette
+  const { pendingMessage, consumeMessage } = useQuickSend()
+  useEffect(() => {
+    if (!pendingMessage || isLoading) return
+    const message = consumeMessage()
+    if (message) {
+      sendMessage(message, [])
+    }
+  }, [pendingMessage, isLoading, consumeMessage, sendMessage])
 
   // Scroll helpers
   const scrollToNewMessage = (smooth = false) => {

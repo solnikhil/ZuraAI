@@ -6,6 +6,7 @@ import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
 import { NotificationProvider } from './contexts/NotificationContext'
+import { QuickSendProvider } from './contexts/QuickSendContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 
 // Lazy load Settings component for bundle optimization
@@ -39,6 +40,7 @@ function App() {
                     <NotificationProvider>
                         <ChatHistoryProvider>
                             <StreamingProvider>
+                                <QuickSendProvider>
                                 <Router>
                                     <Routes>
                                         <Route element={<AppShellLayout />}>
@@ -54,6 +56,7 @@ function App() {
                                         </Route>
                                     </Routes>
                                 </Router>
+                                </QuickSendProvider>
                             </StreamingProvider>
                         </ChatHistoryProvider>
                     </NotificationProvider>

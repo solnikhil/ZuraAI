@@ -16,9 +16,6 @@ export interface StorageStatus {
 export interface SecureStorageAPI {
     get: (key: string) => Promise<string>
     set: (key: string, value: string) => Promise<boolean>
-    getAll: () => Promise<Record<string, string>>
-    clear: () => Promise<boolean>
-    getStatus: () => Promise<StorageStatus>
 }
 
 export interface UpdaterAPI {

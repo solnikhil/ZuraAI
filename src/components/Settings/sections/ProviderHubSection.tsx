@@ -44,7 +44,7 @@ import {
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 
 interface ProviderDefinition {
@@ -52,7 +52,7 @@ interface ProviderDefinition {
   name: string
   description: string
   apiKeyField?: keyof Pick<ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'alibabaApiKey'
   >
 }
 
@@ -68,12 +68,6 @@ const PROVIDERS: ProviderDefinition[] = [
     name: 'Groq',
     description: 'Ultra-low-latency model inference for high-speed chat experiences.',
     apiKeyField: 'groqApiKey',
-  },
-  {
-    key: 'nvidia',
-    name: 'NVIDIA',
-    description: 'NVIDIA NIM API with access to Llama, Mistral, Nemotron, and other text models.',
-    apiKeyField: 'nvidiaApiKey',
   },
   {
     key: 'alibaba',
@@ -99,7 +93,6 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   perplexity: 'https://api.perplexity.ai',
   groq: 'https://api.groq.com/openai/v1',
   ollama: 'http://localhost:11434',
-  nvidia: 'https://integrate.api.nvidia.com',
   alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 }
 
@@ -168,7 +161,6 @@ export interface ProviderHubSectionProps {
   openRouterApiKey: string
   perplexityApiKey: string
   groqApiKey: string
-  nvidiaApiKey: string
   alibabaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
@@ -176,11 +168,10 @@ export interface ProviderHubSectionProps {
   webSearchEnabled: boolean
   structuredResearchEnabled?: boolean
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
+  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
   configuredModels: ConfiguredModel[]
   perplexityModels: ModelBasic[]
   groqModels: ModelBasic[]
-  nvidiaModels: ModelBasic[]
   alibabaModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   maxTokens: number
@@ -192,7 +183,6 @@ export interface ProviderHubSectionProps {
     openRouterApiKey: string
     perplexityApiKey: string
     groqApiKey: string
-    nvidiaApiKey: string
     alibabaApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
@@ -202,13 +192,12 @@ export interface ProviderHubSectionProps {
     configuredModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
-    nvidiaModels: ConfiguredModel[]
     alibabaModels: ConfiguredModel[]
     ollamaModels: ConfiguredModel[]
     maxTokens: number
     titleModel: string
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
   }>) => void
 }
 
@@ -216,7 +205,6 @@ export function ProviderHubSection({
   openRouterApiKey,
   perplexityApiKey,
   groqApiKey,
-  nvidiaApiKey,
   alibabaApiKey,
   tavilyApiKey,
   ollamaUrl,
@@ -228,7 +216,6 @@ export function ProviderHubSection({
   configuredModels,
   perplexityModels,
   groqModels,
-  nvidiaModels,
   alibabaModels,
   ollamaModels,
   titleModel,
@@ -302,7 +289,6 @@ export function ProviderHubSection({
     openrouter: configuredModels,
     perplexity: perplexityModels,
     groq: groqModels,
-    nvidia: nvidiaModels,
     alibaba: alibabaModels,
     ollama: ollamaModels,
   }
@@ -357,7 +343,6 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'openRouterApiKey') return openRouterApiKey ?? ''
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
-    if (provider.apiKeyField === 'nvidiaApiKey') return nvidiaApiKey ?? ''
     if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
     return ''
   }
@@ -372,7 +357,6 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: value })
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
-    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: value })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
   }
 
@@ -385,7 +369,6 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: '' })
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: '' })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: '' })
-    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: '' })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: '' })
   }
 
@@ -411,7 +394,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -437,7 +419,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -452,7 +433,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -584,7 +564,7 @@ export function ProviderHubSection({
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
     const endpoint = providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
-    if (!selectedKey) {
+    if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
       setConnectivityStatus('error')
       setConnectivityMeta(null)
       setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`)
@@ -648,6 +628,25 @@ export function ProviderHubSection({
         if (!response.ok && response.status !== 400) {
           throw new Error(`Perplexity check failed (${response.status}).`)
         }
+      } else if (selectedProviderDef.key === 'alibaba') {
+        const response = await fetch(`${endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${selectedKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: connectivityModel,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        })
+        if (!response.ok && response.status !== 400) {
+          throw new Error(`Alibaba Cloud check failed (${response.status}).`)
+        }
+      } else {
+        throw new Error(`Connectivity check is not supported for provider: ${selectedProviderDef.key}`)
       }
 
       const latencyMs = Math.max(1, Date.now() - startedAt)

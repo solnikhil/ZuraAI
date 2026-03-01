@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProviderHubSection } from './ProviderHubSection'
 
 describe('ProviderHubSection', () => {
@@ -8,7 +8,7 @@ describe('ProviderHubSection', () => {
     openRouterApiKey: '',
     perplexityApiKey: '',
     groqApiKey: '',
-    nvidiaApiKey: '',
+    alibabaApiKey: '',
     tavilyApiKey: '',
     ollamaUrl: 'http://localhost:11434',
     toolsEnabled: true,
@@ -22,7 +22,7 @@ describe('ProviderHubSection', () => {
     ],
     perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
-    nvidiaModels: [{ code: 'meta/llama3-70b', displayName: 'Llama 3 70B' }],
+    alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
     titleModel: 'google/gemini-2.0-flash-exp:free',
@@ -182,5 +182,34 @@ describe('ProviderHubSection', () => {
     expect(onChange.mock.calls[0][0].configuredModels).not.toContainEqual(
       expect.objectContaining({ code: 'x-ai/grok-4.1-fast' })
     )
+  })
+
+  it('runs Alibaba connectivity check against chat completions endpoint', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'ok' }),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} alibabaApiKey="test-key" />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+
+    const checkButton = await screen.findByRole('button', { name: /^check$/i })
+    fireEvent.click(checkButton)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/chat/completions'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-key',
+          }),
+        })
+      )
+    })
+
+    fetchMock.mockRestore()
   })
 })

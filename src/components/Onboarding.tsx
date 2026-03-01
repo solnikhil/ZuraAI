@@ -18,7 +18,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const { updateSettings } = useSettings()
     const { showToast } = useToast()
     const [apiKey, setApiKey] = useState('')
-    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'groq' | 'nvidia'>('openrouter')
+    const [selectedProvider, setSelectedProvider] = useState<'openrouter' | 'perplexity' | 'groq'>('openrouter')
 
     const validateApiKey = async (provider: string, key: string): Promise<boolean> => {
         try {
@@ -46,20 +46,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     headers: { 'Authorization': `Bearer ${key}` }
                 })
                 return response.ok
-            } else if (provider === 'nvidia') {
-                const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${key}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'meta/llama3-8b',
-                        messages: [{ role: 'user', content: 'test' }],
-                        max_tokens: 1
-                    })
-                })
-                return response.ok || response.status === 400
             }
             return false
         } catch {
@@ -94,9 +80,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             } else if (selectedProvider === 'groq') {
                 await saveApiKeyToSecureStorage('groqApiKey', trimmedKey)
                 updates.groqApiKey = trimmedKey
-            } else if (selectedProvider === 'nvidia') {
-                await saveApiKeyToSecureStorage('nvidiaApiKey', trimmedKey)
-                updates.nvidiaApiKey = trimmedKey
             }
 
             updateSettings(updates)
@@ -181,18 +164,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                             </a>
                         </button>
 
-                        <button
-                            className={`provider-option ${selectedProvider === 'nvidia' ? 'active' : ''}`}
-                            onClick={() => setSelectedProvider('nvidia')}
-                        >
-                            <div className="provider-header">
-                                <span className="provider-name">NVIDIA</span>
-                            </div>
-                            <p className="provider-desc">Access Llama, Mistral, Nemotron and more via NVIDIA API</p>
-                            <a href="https://build.nvidia.com/getting-started" target="_blank" rel="noopener noreferrer" className="provider-link">
-                                Get API Key →
-                            </a>
-                        </button>
                     </div>
 
                     <div className="api-key-input space-y-3">

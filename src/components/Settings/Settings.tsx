@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
-import { checkOllamaStatus, listOllamaModels } from '../../services/ollama'
+import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
@@ -28,15 +28,12 @@ export default function Settings({
   const { sessions } = useChatHistory()
   const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
   const [pendingSettings, setPendingSettings] = useState(settings)
+  const lastSyncedSettingsRef = useRef(settings)
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   const usageStats = useMemo(() => computeUsageStats(sessions), [sessions])
-
-  useEffect(() => {
-    if (JSON.stringify(settings) !== JSON.stringify(pendingSettings)) setPendingSettings(settings)
-  }, [settings])
 
   const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
 
@@ -49,13 +46,12 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
+      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
         { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'nvidiaApiKey', current: pendingSettings.nvidiaApiKey, original: settings.nvidiaApiKey },
         { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
@@ -105,6 +101,14 @@ export default function Settings({
   const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(pendingSettings.ollamaModels, settings.ollamaModels)
   const hasChanges = baseChanged || ollamaEnabledChanged
 
+  useEffect(() => {
+    setPendingSettings((previousDraft) => {
+      const hadLocalDraftChanges = JSON.stringify(previousDraft) !== JSON.stringify(lastSyncedSettingsRef.current)
+      lastSyncedSettingsRef.current = settings
+      return hadLocalDraftChanges ? previousDraft : settings
+    })
+  }, [settings])
+
   useEffect(() => { onUnsavedChange?.(hasChanges) }, [hasChanges, onUnsavedChange])
 
   useEffect(() => {
@@ -130,7 +134,9 @@ export default function Settings({
     if (connected) {
       const models = await listOllamaModels(pendingSettings.ollamaUrl)
       if (models.length > 0) {
-        handleChange({ ollamaModels: models.map(m => ({ code: m.name, displayName: `${m.name} (${m.details.parameter_size})` })) })
+        const formatted = models.map(m => ({ code: m.name, displayName: `${m.name} (${m.details.parameter_size})` }))
+        const enriched = await enrichOllamaModelsWithContext(pendingSettings.ollamaUrl, formatted)
+        handleChange({ ollamaModels: enriched })
       }
     }
   }
@@ -177,7 +183,6 @@ export default function Settings({
               openRouterApiKey={pendingSettings.openRouterApiKey}
               perplexityApiKey={pendingSettings.perplexityApiKey}
               groqApiKey={pendingSettings.groqApiKey}
-              nvidiaApiKey={pendingSettings.nvidiaApiKey}
               alibabaApiKey={pendingSettings.alibabaApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
@@ -189,7 +194,6 @@ export default function Settings({
               configuredModels={pendingSettings.configuredModels || []}
               perplexityModels={pendingSettings.perplexityModels || []}
               groqModels={pendingSettings.groqModels || []}
-              nvidiaModels={pendingSettings.nvidiaModels || []}
               alibabaModels={pendingSettings.alibabaModels || []}
               ollamaModels={pendingSettings.ollamaModels || []}
               maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}

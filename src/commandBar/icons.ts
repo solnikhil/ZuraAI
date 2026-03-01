@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Search, SettingsIcon, LayoutDashboard, Plus, PanelLeft,
-  ChartNoAxesCombined, Cloud, Box, Command, FlaskConical, FileText, Globe, Bell
+  ChartNoAxesCombined, Cloud, Box, Command, FlaskConical, FileText, Globe, Bell, Send
 } from '../components/icons'
 import type { CommandBarSuggestion } from './suggestions'
 
@@ -35,6 +35,11 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   // Export actions
   if (suggestion.id.startsWith('export-')) {
     return { Icon: Search, iconClass: 'app-titlebar__commandbar-item-icon--export' }
+  }
+
+  // Quick send action
+  if (suggestion.id === 'quick-send-message') {
+    return { Icon: Send, iconClass: 'app-titlebar__commandbar-item-icon--create' }
   }
 
   return { Icon: Search, iconClass: '' }

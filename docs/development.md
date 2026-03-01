@@ -266,7 +266,7 @@ After rewriting:
 
 Any secret found in git history — even in a commit that was later deleted — must be treated as compromised.
 
-1. Immediately revoke/rotate the exposed credential in the provider's dashboard (OpenRouter, Perplexity, Groq, NVIDIA, Alibaba, Tavily, GitHub, etc.)
+1. Immediately revoke/rotate the exposed credential in the provider's dashboard (OpenRouter, Perplexity, Groq, Alibaba, Tavily, GitHub, etc.)
 2. Generate a new key and update it in the app's secure storage (Settings → API Keys)
 3. Verify the old key no longer works
 4. Document the rotation in the PR that rewrites history

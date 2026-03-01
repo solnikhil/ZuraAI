@@ -47,6 +47,11 @@ export default function CommandPaletteFooter() {
                 <span style={labelStyle}>Select</span>
             </span>
             <span style={groupStyle}>
+                <kbd style={keyBadgeStyle}>Shift</kbd>
+                <kbd style={keyBadgeStyle}>↵</kbd>
+                <span style={labelStyle}>Send</span>
+            </span>
+            <span style={groupStyle}>
                 <kbd style={keyBadgeStyle}>Esc</kbd>
                 <span style={labelStyle}>Close</span>
             </span>
