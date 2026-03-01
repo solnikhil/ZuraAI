@@ -239,6 +239,8 @@ export const defaultSettingsConfig: SettingsConfig = {
 interface SettingsConfigContextType {
     settingsConfig: SettingsConfig
     updateSettingsConfig: (newSettings: Partial<SettingsConfig>) => void
+    /** True once API keys have been loaded from secure storage (or load failed/skipped) */
+    isSecureStorageLoaded: boolean
 }
 
 const SettingsConfigContext = createContext<SettingsConfigContextType | undefined>(undefined)
@@ -263,6 +265,7 @@ export function SettingsConfigProvider({
     const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() => {
         return { ...defaultSettingsConfig, ...initialSettings }
     })
+    const [isSecureStorageLoaded, setIsSecureStorageLoaded] = useState(false)
 
     // Sync with parent when initialSettings change (e.g., from storage events)
     useEffect(() => {
@@ -302,7 +305,7 @@ export function SettingsConfigProvider({
                     alibabaApiKey: settingsConfig.alibabaApiKey,
                 })
 
-                // Load from secure storage
+                // Load from secure storage (single IPC roundtrip via getAll)
                 const secureKeys = await loadApiKeysFromSecureStorage()
 
                 // Check if we got any keys
@@ -323,6 +326,9 @@ export function SettingsConfigProvider({
 
             } catch (error) {
                 console.error('[SettingsConfigContext] Failed to load API keys from secure storage:', error)
+            } finally {
+                // Always mark as loaded so the app doesn't hang, even on error
+                setIsSecureStorageLoaded(true)
             }
         }
         loadSecureKeys()
@@ -361,7 +367,14 @@ export function SettingsConfigProvider({
     const contextValue = useMemo(() => ({
         settingsConfig,
         updateSettingsConfig,
-    }), [settingsConfig, updateSettingsConfig])
+        isSecureStorageLoaded,
+    }), [settingsConfig, updateSettingsConfig, isSecureStorageLoaded])
+
+    // Loading gate: don't render children until secure storage keys are loaded.
+    // This prevents the flash of empty API keys that made providers appear disabled.
+    if (!isSecureStorageLoaded) {
+        return null
+    }
 
     return (
         <SettingsConfigContext.Provider value={contextValue}>
@@ -383,6 +396,7 @@ export function useSettingsConfig() {
             return {
                 settingsConfig: defaultSettingsConfig,
                 updateSettingsConfig: () => {},
+                isSecureStorageLoaded: true,
             }
         }
         throw new Error('useSettingsConfig must be used within a SettingsConfigProvider')

@@ -36,6 +36,12 @@ export function registerSecureStorageHandlers(): void {
         // Use async version to ensure data is written to disk before returning
         return secureStorage.setSecureValueAsync(key, value)
     })
+
+    // Batch endpoint: returns all secure keys in a single IPC roundtrip.
+    // This eliminates the 5-call waterfall that caused a flash of empty keys on startup.
+    ipcMain.handle('secure-storage:get-all', async () => {
+        return secureStorage.getAllSecureValuesAsync()
+    })
 }
 
 /**
@@ -44,4 +50,5 @@ export function registerSecureStorageHandlers(): void {
 export function unregisterSecureStorageHandlers(): void {
     ipcMain.removeHandler('secure-storage:get')
     ipcMain.removeHandler('secure-storage:set')
+    ipcMain.removeHandler('secure-storage:get-all')
 }

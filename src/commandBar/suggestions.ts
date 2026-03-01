@@ -225,13 +225,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'systemprompt' }
     },
     {
-      id: 'go-settings-notifications',
-      title: 'Notifications Settings',
-      subtitle: 'Toasts, banners, and native alerts',
-      keywords: ['notifications', 'alerts', 'dnd', 'do not disturb', 'toast', 'banner'],
-      action: { type: 'open_settings_section', section: 'notifications' }
-    },
-    {
       id: 'go-settings-commandbar',
       title: 'Command Palette Settings',
       subtitle: 'Customize floating command palette',

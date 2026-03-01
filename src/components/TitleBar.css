@@ -162,7 +162,7 @@
 .app-titlebar__right {
     justify-content: flex-end;
     margin-left: auto;
-    gap: 10px;
+    gap: 8px;
     position: relative;
     z-index: 2;
 }
@@ -297,45 +297,56 @@
 
 .app-titlebar__window-controls {
     display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    height: auto;
+    align-items: stretch;
+    gap: 0;
+    height: 32px;
     position: relative;
     z-index: 7000;
     background: transparent;
-    border-left: none;
-    padding: 0 4px 0 0;
+    border-left: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
+    padding: 0;
     -webkit-app-region: no-drag;
+    align-self: flex-start;
+    margin-left: 4px;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
+    width: 38px;
+    min-width: 38px;
+    height: 32px;
     padding: 0;
-    border: 1px solid transparent;
-    border-radius: 8px;
+    border: none;
+    border-radius: 0;
     background: transparent;
     color: color-mix(in srgb, var(--theme-text-primary) 84%, transparent);
     transition: background-color 0.12s ease, color 0.12s ease;
 }
 
+.app-titlebar__window-controls .app-titlebar__window-btn svg {
+    display: block;
+}
+
 .app-titlebar__window-controls .app-titlebar__window-btn:hover {
-    background: var(--theme-surface-hover);
-    border-color: var(--theme-border);
+    background: rgba(79, 84, 92, 0.32);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn:active {
-    background: var(--theme-surface-active);
+    background: rgba(79, 84, 92, 0.24);
+    transform: none;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn--close:hover {
-    background: #c42b1c;
+    background: #ed4245;
     color: #ffffff;
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn--close:active {
-    background: #a5271b;
+    background: #c03537;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:focus-visible {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: -2px;
 }
 
 /* Close button red hover state (icon-btn modifier for frosted mode) */

@@ -5,7 +5,6 @@ import AppShellLayout from './components/AppShellLayout'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
-import { NotificationProvider } from './contexts/NotificationContext'
 import { QuickSendProvider } from './contexts/QuickSendContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 
@@ -37,29 +36,27 @@ function App() {
         <ErrorBoundary>
             <ToastProvider>
                 <SettingsProvider>
-                    <NotificationProvider>
-                        <ChatHistoryProvider>
-                            <StreamingProvider>
-                                <QuickSendProvider>
-                                <Router>
-                                    <Routes>
-                                        <Route element={<AppShellLayout />}>
-                                            <Route path="/" element={<DashboardLayout />} />
-                                            <Route path="/dashboard" element={<DashboardLayout />} />
-                                            <Route path="/settings" element={
-                                                <Suspense fallback={<SettingsLoadingFallback />}>
-                                                    <Settings />
-                                                </Suspense>
-                                            } />
-                                            {/* Legacy chat view now uses DashboardLayout to include sidebar */}
-                                            <Route path="/chat" element={<DashboardLayout />} />
-                                        </Route>
-                                    </Routes>
-                                </Router>
-                                </QuickSendProvider>
-                            </StreamingProvider>
-                        </ChatHistoryProvider>
-                    </NotificationProvider>
+                    <ChatHistoryProvider>
+                        <StreamingProvider>
+                            <QuickSendProvider>
+                            <Router>
+                                <Routes>
+                                    <Route element={<AppShellLayout />}>
+                                        <Route path="/" element={<DashboardLayout />} />
+                                        <Route path="/dashboard" element={<DashboardLayout />} />
+                                        <Route path="/settings" element={
+                                            <Suspense fallback={<SettingsLoadingFallback />}>
+                                                <Settings />
+                                            </Suspense>
+                                        } />
+                                        {/* Legacy chat view now uses DashboardLayout to include sidebar */}
+                                        <Route path="/chat" element={<DashboardLayout />} />
+                                    </Route>
+                                </Routes>
+                            </Router>
+                            </QuickSendProvider>
+                        </StreamingProvider>
+                    </ChatHistoryProvider>
                 </SettingsProvider>
             </ToastProvider>
         </ErrorBoundary>

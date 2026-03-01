@@ -131,9 +131,6 @@ app.whenReady().then(async () => {
         },
     });
 
-    // Initialize Tavily API key from settings on startup
-    (global as any).tavilyApiKey = undefined
-
     // Register all IPC handlers (including execute-tool for web_search)
     registerAllHandlers()
     registerToolHandlers()

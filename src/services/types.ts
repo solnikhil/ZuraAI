@@ -28,27 +28,6 @@ export interface ToolDefinition {
     }
 }
 
-// Tool call format
-export interface ToolCall {
-    id: string
-    type: 'function'
-    function: {
-        name: string
-        arguments: string
-    }
-}
-
-// Streaming tool call (partial)
-export interface StreamingToolCall {
-    index?: number
-    id?: string
-    type?: 'function'
-    function?: {
-        name?: string
-        arguments?: string
-    }
-}
-
 // Common error response structure
 export interface APIErrorResponse {
     error?: {
@@ -65,14 +44,6 @@ export interface APIErrorResponse {
         }
     }
     detail?: string
-}
-
-// Request body base
-export interface BaseRequestBody {
-    model: string
-    messages: ChatMessage[]
-    temperature?: number
-    stream?: boolean
 }
 
 // Parse error response safely

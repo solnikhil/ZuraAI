@@ -11,7 +11,6 @@ import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
 import { CommandPalette } from './CommandPalette'
-import BannerStack from './BannerStack/BannerStack'
 
 function AppShellContent() {
     const navigate = useNavigate()
@@ -114,7 +113,6 @@ function AppShellContent() {
                 }} />
             )}
             <TitleBar />
-            <BannerStack />
             <CommandPalette />
             <div className="app-content" style={{
                 backgroundColor: frostedSidebar ? 'transparent' : undefined,

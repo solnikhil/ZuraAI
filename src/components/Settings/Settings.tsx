@@ -10,7 +10,6 @@ import { ProviderHubSection } from './sections/ProviderHubSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
-import { NotificationsSection } from './sections/NotificationsSection'
 import { computeUsageStats } from './sections/usageMetrics'
 
 import './Settings.css'
@@ -223,16 +222,6 @@ export default function Settings({
               frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
               sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
               softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
-              onChange={(changes) => handleChange(changes)}
-            />
-          )}
-
-          {activeSection === 'notifications' && (
-            <NotificationsSection
-              notificationsEnabled={pendingSettings.notificationsEnabled ?? settings.notificationsEnabled}
-              nativeNotificationsEnabled={pendingSettings.nativeNotificationsEnabled ?? settings.nativeNotificationsEnabled}
-              toastDuration={pendingSettings.toastDuration ?? settings.toastDuration}
-              doNotDisturb={pendingSettings.doNotDisturb ?? settings.doNotDisturb}
               onChange={(changes) => handleChange(changes)}
             />
           )}

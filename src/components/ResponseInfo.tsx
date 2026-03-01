@@ -1,15 +1,24 @@
 import { Info, Zap, Clock } from './icons'
 
+interface UsageData {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    tps?: number
+    ttft?: number
+    // Provider-specific field names (OpenAI/Groq format)
+    prompt_tokens?: number
+    completion_tokens?: number
+    total_tokens?: number
+    // Ollama format
+    prompt_eval_count?: number
+    eval_count?: number
+}
+
 interface ResponseInfoProps {
     model: string
     latency?: number
-    usage?: {
-        inputTokens: number
-        outputTokens: number
-        totalTokens: number
-        tps?: number
-        ttft?: number
-    }
+    usage?: UsageData
     finishReason?: string
     requestedMaxTokens?: number
 }
@@ -20,9 +29,9 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
     const fmtTps = (n?: number) => n ? n.toFixed(1) : '-'
     const displayModel = model.split('/').pop() || model
 
-    const inputTokens = usage?.inputTokens ?? (usage as any)?.prompt_tokens ?? (usage as any)?.prompt_eval_count ?? 0
-    const outputTokens = usage?.outputTokens ?? (usage as any)?.completion_tokens ?? (usage as any)?.eval_count ?? 0
-    const totalTokens = usage?.totalTokens ?? (usage as any)?.total_tokens ?? 0
+    const inputTokens = usage?.inputTokens ?? usage?.prompt_tokens ?? usage?.prompt_eval_count ?? 0
+    const outputTokens = usage?.outputTokens ?? usage?.completion_tokens ?? usage?.eval_count ?? 0
+    const totalTokens = usage?.totalTokens ?? usage?.total_tokens ?? 0
 
     return (
         <div style={{

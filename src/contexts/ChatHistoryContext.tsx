@@ -24,7 +24,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
-import { createSelectableContext, shallowEqual, type Selector } from './createSelectableContext'
+import { createSelectableContext } from './createSelectableContext'
 
 // Re-export SessionMetadata for consumers
 export type { SessionMetadata } from './ChatSessionManager'
@@ -920,132 +920,46 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 export function useChatHistory() {
     const context = useContext(ChatHistoryContext)
     if (context === undefined) {
+        // During HMR, the context may temporarily be undefined.
+        // Return safe defaults to prevent the throw from cascading to ErrorBoundary
+        // and tearing down the entire component tree (which resets all contexts).
+        if (import.meta.hot) {
+            console.warn('[ChatHistoryContext] Context undefined during HMR, using defaults')
+            const noop = () => {}
+            return {
+                sessions: [],
+                folders: [],
+                currentSessionId: null,
+                isLoading: true,
+                createSession: () => '',
+                switchSession: noop,
+                addMessageToSession: () => '',
+                updateStreamingMessage: noop,
+                deleteMessageFromSession: noop,
+                deleteSession: noop,
+                clearAllSessions: noop,
+                updateSessionTitle: noop,
+                refreshSessions: () => Promise.resolve(),
+                clearCurrentSession: noop,
+                loadFullSession: () => Promise.resolve(null),
+                getSessionMetadata: () => [],
+                isSessionLoaded: () => false,
+                pinSession: noop,
+                unpinSession: noop,
+                duplicateSession: noop,
+                assignFolder: noop,
+                removeFromFolder: noop,
+                addTag: noop,
+                removeTag: noop,
+                createFolder: () => '',
+                deleteFolder: noop,
+                renameFolder: noop,
+                reorderFolder: noop,
+            } as ChatHistoryContextType
+        }
         throw new Error('useChatHistory must be used within a ChatHistoryProvider')
     }
     return context
-}
-
-// ============================================================================
-// Selector-based hooks for optimized re-rendering
-// **Validates: Requirements 8.2 - Property 29: Chat History Selector Pattern**
-// ============================================================================
-
-/**
- * Generic selector hook for ChatHistoryContext state
- * Use this to subscribe to specific parts of the state
- * 
- * @example
- * ```tsx
- * // Only re-renders when sessions array changes
- * const sessions = useChatHistorySelector(state => state.sessions)
- * 
- * // Only re-renders when currentSessionId changes
- * const currentId = useChatHistorySelector(state => state.currentSessionId)
- * ```
- * 
- * **Validates: Requirements 8.2**
- */
-export function useChatHistorySelector<R>(
-    selector: Selector<ChatHistoryState, R>,
-    equalityFn?: (a: R, b: R) => boolean
-): R {
-    return useChatHistoryStateSelector(selector, equalityFn)
-}
-
-/**
- * Get the sessions list only
- * Only re-renders when the sessions array changes
- * 
- * **Validates: Requirements 8.2**
- */
-export function useSessionsList(): ChatSession[] {
-    return useChatHistoryStateSelector(state => state.sessions)
-}
-
-/**
- * Get the current session ID only
- * Only re-renders when the current session ID changes
- * 
- * **Validates: Requirements 8.2**
- */
-export function useCurrentSessionId(): string | null {
-    return useChatHistoryStateSelector(state => state.currentSessionId)
-}
-
-/**
- * Get the current session object
- * Only re-renders when the current session changes
- * Uses shallow equality to prevent re-renders when session content is the same
- * 
- * **Validates: Requirements 8.2**
- */
-export function useCurrentSession(): ChatSession | null {
-    return useChatHistoryStateSelector(
-        state => {
-            if (!state.currentSessionId) return null
-            return state.sessions.find(s => s.id === state.currentSessionId) ?? null
-        },
-        // Use reference equality - the session object reference changes when updated
-        (a, b) => a === b
-    )
-}
-
-/**
- * Get the loading state only
- * Only re-renders when the loading state changes
- * 
- * **Validates: Requirements 8.2**
- */
-export function useIsLoading(): boolean {
-    return useChatHistoryStateSelector(state => state.isLoading)
-}
-
-/**
- * Get a specific session by ID
- * Only re-renders when that specific session changes
- * 
- * @param id - The session ID to get
- * @returns The session or null if not found
- * 
- * **Validates: Requirements 8.2**
- */
-export function useSessionById(id: string | null): ChatSession | null {
-    return useChatHistoryStateSelector(
-        state => {
-            if (!id) return null
-            return state.sessions.find(s => s.id === id) ?? null
-        },
-        // Use reference equality
-        (a, b) => a === b
-    )
-}
-
-/**
- * Get the total number of sessions
- * Only re-renders when the count changes
- * 
- * **Validates: Requirements 8.2**
- */
-export function useSessionsCount(): number {
-    return useChatHistoryStateSelector(state => state.sessions.length)
-}
-
-/**
- * Get the messages for the current session
- * Only re-renders when the current session's messages change
- * 
- * **Validates: Requirements 8.2**
- */
-export function useCurrentSessionMessages(): Message[] {
-    return useChatHistoryStateSelector(
-        state => {
-            if (!state.currentSessionId) return []
-            const session = state.sessions.find(s => s.id === state.currentSessionId)
-            return session?.messages ?? []
-        },
-        // Use shallow equality to compare message arrays
-        shallowEqual
-    )
 }
 
 /**
@@ -1065,6 +979,36 @@ export function useCurrentSessionMessages(): Message[] {
 export function useChatHistoryActions() {
     const context = useContext(ChatHistoryContext)
     if (context === undefined) {
+        if (import.meta.hot) {
+            console.warn('[ChatHistoryContext] Actions context undefined during HMR, using defaults')
+            const noop = () => {}
+            return {
+                createSession: () => '' as string,
+                switchSession: noop,
+                addMessageToSession: () => '' as string,
+                updateStreamingMessage: noop,
+                deleteMessageFromSession: noop,
+                deleteSession: noop,
+                clearAllSessions: noop,
+                updateSessionTitle: noop,
+                refreshSessions: () => Promise.resolve(),
+                clearCurrentSession: noop,
+                loadFullSession: () => Promise.resolve(null),
+                getSessionMetadata: () => [] as SessionMetadata[],
+                isSessionLoaded: () => false,
+                pinSession: noop,
+                unpinSession: noop,
+                duplicateSession: noop,
+                assignFolder: noop,
+                removeFromFolder: noop,
+                addTag: noop,
+                removeTag: noop,
+                createFolder: () => '' as string,
+                deleteFolder: noop,
+                renameFolder: noop,
+                reorderFolder: noop,
+            }
+        }
         throw new Error('useChatHistoryActions must be used within a ChatHistoryProvider')
     }
     

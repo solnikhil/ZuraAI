@@ -151,7 +151,6 @@ describe('Codebase Reorganization Properties', () => {
   describe('Property 3: No Duplicate Utilities', () => {
     const centralizedFiles = [
       'src/utils/modelUtils.ts',
-      'src/utils/textUtils.ts',
       'src/components/shared/ProviderLogo.tsx'
     ]
 
@@ -165,7 +164,6 @@ describe('Codebase Reorganization Properties', () => {
 
     const duplicateFunctions = [
       { name: 'getModelAttributes', centralizedFile: 'src/utils/modelUtils.ts' },
-      { name: 'removeEmojis', centralizedFile: 'src/utils/textUtils.ts' },
       { name: 'ProviderLogo', centralizedFile: 'src/components/shared/ProviderLogo.tsx' }
     ]
 
@@ -219,8 +217,6 @@ describe('Codebase Reorganization Properties', () => {
         // ModelSection uses ../../../utils paths, ModelSelector uses ../../../utils paths (now in subfolder)
         const hasModelUtilsImport = content.includes("from '../../../utils/modelUtils'") || 
                                     content.includes("from '../../utils/modelUtils'")
-        const hasTextUtilsImport = content.includes("from '../../../utils/textUtils'") || 
-                                   content.includes("from '../../utils/textUtils'")
         // ModelSelector doesn't directly import ProviderLogo, it uses ModelIcon which handles provider logos
         const hasSharedImport = content.includes("from '../../shared'") || 
                                 content.includes("from '../shared'") ||
@@ -229,11 +225,6 @@ describe('Codebase Reorganization Properties', () => {
         expect(
           hasModelUtilsImport, 
           `File ${file} should import from modelUtils`
-        ).toBe(true)
-        
-        expect(
-          hasTextUtilsImport || file.includes('ModelSelector'), 
-          `File ${file} should import from textUtils (or be ModelSelector which uses useModelSelector)`
         ).toBe(true)
         
         expect(
@@ -272,13 +263,6 @@ describe('Codebase Reorganization Properties', () => {
     const colocatedComponents = [
       { component: 'src/components/ThinkingBlock.tsx', css: 'src/components/ThinkingBlock.css' },
       { component: 'src/components/TitleBar.tsx', css: 'src/components/TitleBar.css' },
-      { component: 'src/components/shared/Toast.tsx', css: 'src/components/shared/Toast.css' },
-      { component: 'src/components/Chat.tsx', css: 'src/components/Chat.css' },
-      { component: 'src/components/Feedback.tsx', css: 'src/components/Feedback.css' },
-      { component: 'src/components/Onboarding.tsx', css: 'src/components/Onboarding.css' },
-      { component: 'src/components/ThemesPage.tsx', css: 'src/components/ThemesPage.css' },
-      { component: 'src/components/ThemePreview.tsx', css: 'src/components/ThemePreview.css' },
-      { component: 'src/components/KeyboardShortcuts.tsx', css: 'src/components/KeyboardShortcuts.css' }
     ]
 
     it('should have CSS files co-located with their components in subfolders', () => {

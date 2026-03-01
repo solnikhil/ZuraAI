@@ -503,33 +503,3 @@ export class PerformanceMonitor {
 
 // Singleton instance for the application
 export const performanceMonitor = new PerformanceMonitor();
-
-/**
- * Initialize performance monitoring
- * Call this early in the application startup
- */
-export function initializePerformanceMonitoring(): void {
-  console.log('[PerformanceMonitor] Initializing performance monitoring');
-  performanceMonitor.recordStartupPhase('performance-init');
-  performanceMonitor.recordStartupPhase('performance-init');
-}
-
-/**
- * Get a summary of current performance for quick debugging
- */
-export function getPerformanceSummary(): {
-  startupMs: number;
-  memoryMB: number;
-  ipcCalls: number;
-  warnings: string[];
-} {
-  const metrics = performanceMonitor.getMetrics();
-  const { warnings } = performanceMonitor.checkThresholds();
-  
-  return {
-    startupMs: metrics.startup.windowVisible,
-    memoryMB: Math.round(bytesToMB(metrics.memory.rss) * 10) / 10,
-    ipcCalls: metrics.ipc.callCount,
-    warnings,
-  };
-}

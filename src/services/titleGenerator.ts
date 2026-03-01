@@ -2,6 +2,7 @@ import { generateGroqCompletion } from './groq'
 import { generateAlibabaCompletion } from './alibaba'
 import { generateOllamaCompletion } from './ollama'
 import { generatePerplexityCompletion } from './perplexity'
+import { generateOpenRouterCompletion } from './openrouter'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 
 /**
@@ -98,27 +99,15 @@ User message: "${userMessage.slice(0, 200)}"`
             title = res.choices?.[0]?.message?.content || ''
         } else if (getOpenRouterApiKey(settings.openRouterApiKey)) {
             // Fallback to OpenRouter for everything else
-            const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
-            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${openRouterKey}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://zura.ai",
-                    "X-Title": "Zura AI"
-                },
-                body: JSON.stringify({
-                    model: titleModel.includes('openrouter') ? titleModel.replace('openrouter/', '') : titleModel,
-                    messages: [{ role: 'user', content: prompt }],
-                    max_tokens: 20
-                })
-            })
-            if (!res.ok) {
-                const errorBody = await res.text().catch(() => '')
-                throw new Error(`OpenRouter ${res.status}: ${errorBody.slice(0, 200)}`)
-            }
-            const data = await res.json()
-            title = data.choices?.[0]?.message?.content || ''
+            const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)!
+            const modelId = titleModel.includes('openrouter') ? titleModel.replace('openrouter/', '') : titleModel
+            const res = await generateOpenRouterCompletion(
+                openRouterKey,
+                modelId,
+                [{ role: 'user', content: prompt }],
+                { max_tokens: 20 }
+            )
+            title = res.choices?.[0]?.message?.content || ''
         }
 
         // Clean up the title and enforce 3 words
@@ -144,25 +133,13 @@ User message: "${userMessage.slice(0, 200)}"`
         const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
         if (openRouterKey && !isRateLimitOrAuth && !settings.titleModel?.includes('openrouter')) {
             try {
-                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${openRouterKey}`,
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": "https://zura.ai",
-                        "X-Title": "Zura"
-                    },
-                    body: JSON.stringify({
-                        model: "google/gemini-2.0-flash-exp:free",
-                        messages: [{ role: 'user', content: prompt }],
-                        max_tokens: 20
-                    })
-                })
-                if (!res.ok) {
-                    throw new Error(`Fallback OpenRouter ${res.status}`)
-                }
-                const data = await res.json()
-                const fallbackTitle = data.choices?.[0]?.message?.content || ''
+                const res = await generateOpenRouterCompletion(
+                    openRouterKey,
+                    "google/gemini-2.0-flash-exp:free",
+                    [{ role: 'user', content: prompt }],
+                    { max_tokens: 20 }
+                )
+                const fallbackTitle = res.choices?.[0]?.message?.content || ''
                 if (fallbackTitle) {
                     let cleaned = fallbackTitle.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
                     return enforceThreeWords(cleaned)

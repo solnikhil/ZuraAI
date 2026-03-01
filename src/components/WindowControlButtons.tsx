@@ -7,36 +7,36 @@ export interface WindowControlButtonsProps {
   onClose: () => void
 }
 
-function MinimizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
+function MinimizeWindowIcon({ size = 12 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M1 5.5H9" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
+      <path d="M1 5.5H9" stroke="currentColor" strokeWidth="1.1" strokeLinecap="butt" />
     </svg>
   )
 }
 
-function MaximizeWindowIcon({ size = 10 }: { size?: number }): ReactElement {
+function MaximizeWindowIcon({ size = 12 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="1.5" y="1.5" width="7" height="7" stroke="currentColor" strokeWidth="1" />
+      <rect x="1.5" y="1.5" width="7" height="7" stroke="currentColor" strokeWidth="1.1" />
     </svg>
   )
 }
 
-function RestoreWindowIcon({ size = 10 }: { size?: number }): ReactElement {
+function RestoreWindowIcon({ size = 12 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M3.5 1.5H8.5V6.5" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
-      <rect x="1.5" y="3.5" width="5" height="5" stroke="currentColor" strokeWidth="1" />
+      <path d="M3.5 1.5H8.5V6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="butt" />
+      <rect x="1.5" y="3.5" width="5" height="5" stroke="currentColor" strokeWidth="1.1" />
     </svg>
   )
 }
 
-function CloseWindowIcon({ size = 10 }: { size?: number }): ReactElement {
+function CloseWindowIcon({ size = 12 }: { size?: number }): ReactElement {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <path d="M2 2L8 8" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
-      <path d="M8 2L2 8" stroke="currentColor" strokeWidth="1" strokeLinecap="butt" />
+      <path d="M1.4 1.4L8.6 8.6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="butt" />
+      <path d="M8.6 1.4L1.4 8.6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="butt" />
     </svg>
   )
 }
@@ -79,7 +79,7 @@ export default function WindowControlButtons({
 
       <button
         type="button"
-        className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--close app-titlebar__icon-btn--close no-drag"
+        className="app-titlebar__icon-btn app-titlebar__window-btn app-titlebar__window-btn--close no-drag"
         onClick={onClose}
         aria-label="Close window"
         title="Close"

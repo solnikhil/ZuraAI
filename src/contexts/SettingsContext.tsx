@@ -121,7 +121,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
             'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast',
-            'notificationsEnabled', 'nativeNotificationsEnabled', 'toastDuration', 'doNotDisturb',
             'chatBubbleStyle', 'chatSelectedOverlayStyle',
             'modelSelector'
         ]
@@ -325,15 +324,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
         // Initialize softenedContrast if missing
         if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
-        // Initialize notification preferences if missing
-        if (parsed.notificationsEnabled === undefined) parsed.notificationsEnabled = defaultSettings.notificationsEnabled
-        if (parsed.nativeNotificationsEnabled === undefined) parsed.nativeNotificationsEnabled = defaultSettings.nativeNotificationsEnabled
-        if (typeof parsed.toastDuration !== 'number' || !Number.isFinite(parsed.toastDuration)) {
-            parsed.toastDuration = defaultSettings.toastDuration
-        } else {
-            parsed.toastDuration = Math.min(10000, Math.max(2000, Math.round(parsed.toastDuration)))
-        }
-        if (parsed.doNotDisturb === undefined) parsed.doNotDisturb = defaultSettings.doNotDisturb
+        // Remove deprecated notification settings from persisted payloads
+        delete (parsed as Record<string, unknown>).notificationsEnabled
+        delete (parsed as Record<string, unknown>).nativeNotificationsEnabled
+        delete (parsed as Record<string, unknown>).toastDuration
+        delete (parsed as Record<string, unknown>).doNotDisturb
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
         // Initialize/migrate chatSelectedOverlayStyle if missing
@@ -374,10 +369,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         frostedPrompt: combinedSettings.frostedPrompt,
         sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
         softenedContrast: combinedSettings.softenedContrast,
-        notificationsEnabled: combinedSettings.notificationsEnabled,
-        nativeNotificationsEnabled: combinedSettings.nativeNotificationsEnabled,
-        toastDuration: combinedSettings.toastDuration,
-        doNotDisturb: combinedSettings.doNotDisturb,
         chatBubbleStyle: combinedSettings.chatBubbleStyle,
         chatSelectedOverlayStyle: combinedSettings.chatSelectedOverlayStyle,
         modelSelector: combinedSettings.modelSelector,

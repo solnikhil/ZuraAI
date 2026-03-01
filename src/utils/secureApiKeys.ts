@@ -35,6 +35,19 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     }
 
     try {
+        // Single IPC roundtrip instead of 5 individual calls
+        if (window.secureStorage.getAll) {
+            const all = await window.secureStorage.getAll()
+            return {
+                openRouterApiKey: all.openRouterApiKey || '',
+                perplexityApiKey: all.perplexityApiKey || '',
+                groqApiKey: all.groqApiKey || '',
+                tavilyApiKey: all.tavilyApiKey || '',
+                alibabaApiKey: all.alibabaApiKey || '',
+            }
+        }
+
+        // Fallback for older preload (shouldn't happen, but safe)
         const [
             openRouterApiKey,
             perplexityApiKey,

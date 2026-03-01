@@ -46,6 +46,7 @@ const INVOKE_CHANNELS = new Set<string>([
   // Secure storage
   'secure-storage:get',
   'secure-storage:set',
+  'secure-storage:get-all',
 
   // Process metrics
   'get-process-metrics',
@@ -70,16 +71,11 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:check-for-updates',
   'updater:quit-and-install',
   'updater:get-version',
-
-  // Notifications
-  'notification:native',
 ])
 
 const ON_CHANNELS = new Set<string>([
   'update-available',
   'update-downloaded',
-  'notification:push',
-  'notification:native-click',
 ])
 
 function assertAllowed(kind: 'send' | 'invoke' | 'on' | 'off', channel: string, allowed: Set<string>) {
@@ -123,6 +119,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', Object.freeze({
 contextBridge.exposeInMainWorld('secureStorage', Object.freeze({
   get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
   set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
+  getAll: () => ipcRenderer.invoke('secure-storage:get-all'),
 }))
 
 // Auto-updater API
@@ -139,31 +136,6 @@ contextBridge.exposeInMainWorld('updater', Object.freeze({
     const listener = () => callback()
     ipcRenderer.on('update-downloaded', listener)
     return () => ipcRenderer.off('update-downloaded', listener)
-  },
-}))
-
-contextBridge.exposeInMainWorld('notifications', Object.freeze({
-  onPush: (callback: (payload: {
-    type: 'success' | 'error' | 'warning' | 'info'
-    priority?: 'low' | 'normal' | 'high' | 'critical'
-    title: string
-    body: string
-    action?: { label: string }
-  }) => void) => {
-    const listener = (_event: IpcRendererEvent, payload: {
-      type: 'success' | 'error' | 'warning' | 'info'
-      priority?: 'low' | 'normal' | 'high' | 'critical'
-      title: string
-      body: string
-      action?: { label: string }
-    }) => callback(payload)
-    ipcRenderer.on('notification:push', listener)
-    return () => ipcRenderer.removeListener('notification:push', listener)
-  },
-  onNativeClick: (callback: (payload: { notificationId?: string }) => void) => {
-    const listener = (_event: IpcRendererEvent, payload: { notificationId?: string }) => callback(payload)
-    ipcRenderer.on('notification:native-click', listener)
-    return () => ipcRenderer.removeListener('notification:native-click', listener)
   },
 }))
 

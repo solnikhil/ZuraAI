@@ -7,7 +7,7 @@
  * Tests:
  * - Click handlers: minimize, maximize/restore, close buttons call correct callbacks
  * - Accessibility: aria-label attributes on all buttons
- * - Styling: close button has the `.app-titlebar__icon-btn--close` class
+ * - Styling: close button has the `.app-titlebar__window-btn--close` class
  *
  * Requirements: 1.3, 1.4, 1.5, 1.6
  */
@@ -98,11 +98,11 @@ describe('WindowControlButtons', () => {
   })
 
   describe('Styling', () => {
-    it('close button has the app-titlebar__icon-btn--close class', () => {
+    it('close button has the app-titlebar__window-btn--close class', () => {
       render(<WindowControlButtons {...createProps()} />)
 
       const closeBtn = screen.getByLabelText('Close window')
-      expect(closeBtn).toHaveClass('app-titlebar__icon-btn--close')
+      expect(closeBtn).toHaveClass('app-titlebar__window-btn--close')
     })
 
     it('all buttons have the app-titlebar__icon-btn class', () => {
@@ -117,14 +117,14 @@ describe('WindowControlButtons', () => {
       expect(closeBtn).toHaveClass('app-titlebar__icon-btn')
     })
 
-    it('only the close button has the close modifier class', () => {
+    it('only the close button has the close window modifier class', () => {
       render(<WindowControlButtons {...createProps()} />)
 
       const minimizeBtn = screen.getByLabelText('Minimize window')
       const maximizeBtn = screen.getByLabelText('Maximize window')
 
-      expect(minimizeBtn).not.toHaveClass('app-titlebar__icon-btn--close')
-      expect(maximizeBtn).not.toHaveClass('app-titlebar__icon-btn--close')
+      expect(minimizeBtn).not.toHaveClass('app-titlebar__window-btn--close')
+      expect(maximizeBtn).not.toHaveClass('app-titlebar__window-btn--close')
     })
   })
 })

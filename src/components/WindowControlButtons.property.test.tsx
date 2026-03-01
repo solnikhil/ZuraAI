@@ -122,12 +122,6 @@ vi.mock('./shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
 
-// Mock NotificationBell so TitleBar can render without NotificationProvider
-vi.mock('./NotificationCenter/NotificationBell', () => ({
-  NotificationBell: () => null,
-  default: () => null,
-}))
-
 // ============================================================================
 // Imports under test (after mocks)
 // ============================================================================
@@ -214,7 +208,7 @@ const conditionalRenderingArbitrary = fc.record({
 
 beforeEach(() => {
   // Set up window.windowControls mock
-  window.windowControls = {
+  ;(window as any).windowControls = {
     minimize: vi.fn().mockResolvedValue(undefined),
     toggleMaximize: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),

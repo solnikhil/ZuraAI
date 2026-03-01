@@ -1,6 +1,5 @@
 import { app, ipcMain, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
-import { pushNotification } from './notifications'
 
 // Production mode check
 const isProduction = app.isPackaged
@@ -16,7 +15,7 @@ const INITIAL_UPDATE_DELAY_MS = 5000
  * This function should be called after the main window is visible.
  * The actual update check is deferred by 5 seconds (Requirement 1.5)
  * 
- * @param getMainWindow Function to get the main window for sending update notifications
+ * @param getMainWindow Function to get the main window for update lifecycle events
  */
 export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
     if (!isProduction) {
@@ -45,12 +44,6 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
         const mainWindow = getMainWindow()
         if (mainWindow) {
             mainWindow.webContents.send('update-available')
-            pushNotification(mainWindow, {
-                type: 'info',
-                priority: 'high',
-                title: 'Update available',
-                body: 'A new version of Zura AI is downloading in the background.',
-            })
         }
     })
 
@@ -58,13 +51,6 @@ export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null)
         const mainWindow = getMainWindow()
         if (mainWindow) {
             mainWindow.webContents.send('update-downloaded')
-            pushNotification(mainWindow, {
-                type: 'success',
-                priority: 'critical',
-                title: 'Update ready to install',
-                body: 'Restart the app from Settings to apply the latest update.',
-                action: { label: 'Open Settings' },
-            })
         }
     })
 

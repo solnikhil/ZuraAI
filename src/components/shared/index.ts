@@ -6,8 +6,6 @@
 
 export { 
   ProviderLogo, 
-  getProviderLogoColor, 
-  isKnownProvider,
   type ProviderLogoProps,
   type ProviderType,
   type ProviderLogoSize
@@ -17,15 +15,10 @@ export { default as ErrorBoundary } from './ErrorBoundary'
 
 export {
   ToastProvider,
-  ToastContext,
   useToast,
   type ToastType
 } from './Toast'
 
 export {
-  LazyImage,
   injectLazyImageStyles,
-  lazyImageStyles,
-  type LazyImageProps,
-  type PlaceholderType
 } from './LazyImage'

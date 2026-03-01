@@ -1,4 +1,5 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { parseSSEStream } from './streamUtils'
 
 /**
  * Alibaba Cloud DashScope API Service
@@ -106,7 +107,7 @@ export async function* streamAlibabaCompletion(
     if (options?.max_tokens !== undefined) {
         requestBody.max_tokens = options.max_tokens
     }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
+    if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
@@ -133,40 +134,10 @@ export async function* streamAlibabaCompletion(
         throw new Error("Failed to get response reader")
     }
 
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-
-            for (const line of lines) {
-                if (line.trim() === '') continue
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6)
-                    if (data === '[DONE]') {
-                        return
-                    }
-                    try {
-                        const chunk: AlibabaStreamChunk = JSON.parse(data)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                    } catch (e) {
-                        console.warn('Failed to parse Alibaba chunk:', data)
-                    }
-                }
-            }
-        }
-    } finally {
-        reader.releaseLock()
-    }
+    yield* parseSSEStream<AlibabaStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+        providerName: 'Alibaba'
+    })
 }
 
 export const generateAlibabaCompletion = async (
@@ -195,7 +166,7 @@ export const generateAlibabaCompletion = async (
     if (options?.max_tokens !== undefined) {
         requestBody.max_tokens = options.max_tokens
     }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
+    if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
     }

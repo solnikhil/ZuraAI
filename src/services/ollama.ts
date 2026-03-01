@@ -1,3 +1,4 @@
+import { parseNDJSONStream } from './streamUtils'
 
 export interface OllamaModel {
     name: string
@@ -151,8 +152,8 @@ export async function* streamOllamaCompletion(
                 messages,
                 stream: true,
                 think: options?.think ?? true,
-                tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
-                tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
+                tools: options?.tools && options.tools.length > 0 ? options.tools : undefined,
+                tool_choice: options?.tools && options.tools.length > 0 ? 'auto' : undefined,
                 options: {
                     temperature: options?.temperature,
                     num_ctx: options?.num_ctx
@@ -171,40 +172,10 @@ export async function* streamOllamaCompletion(
             throw new Error("Failed to get response reader")
         }
 
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.trim() === '') continue
-                    try {
-                        const chunk: OllamaStreamChunk = JSON.parse(line)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                        if (chunk.done) {
-                            return
-                        }
-                    } catch (e) {
-                        // Skip invalid JSON
-                        console.warn('Failed to parse Ollama chunk:', line)
-                    }
-                }
-            }
-        } finally {
-            reader.releaseLock()
-        }
+        yield* parseNDJSONStream<OllamaStreamChunk>(reader, {
+            onChunk: options?.onChunk,
+        })
     } catch (error: any) {
-        console.error('Ollama stream error:', error)
         throw error
     }
 }

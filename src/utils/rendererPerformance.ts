@@ -464,13 +464,6 @@ export function initializeRendererPerformance(): void {
 }
 
 /**
- * Get current renderer performance metrics
- */
-export function getRendererPerformanceMetrics(): RendererPerformanceMetrics {
-  return rendererPerformanceTracker.getMetrics();
-}
-
-/**
  * Send renderer metrics to main process via IPC
  * This function should be called periodically or on demand
  */

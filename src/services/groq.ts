@@ -1,4 +1,5 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { parseSSEStream } from './streamUtils'
 
 /**
  * Groq API Service
@@ -101,7 +102,7 @@ export async function* streamGroqCompletion(
     if (options?.max_tokens !== undefined) {
         requestBody.max_completion_tokens = options.max_tokens
     }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
+    if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
@@ -128,41 +129,10 @@ export async function* streamGroqCompletion(
         throw new Error("Failed to get response reader")
     }
 
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-            for (const line of lines) {
-                if (line.trim() === '') continue
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6)
-                    if (data === '[DONE]') {
-                        return
-                    }
-                    try {
-                        const chunk: GroqStreamChunk = JSON.parse(data)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                    } catch (e) {
-                        // Skip invalid JSON
-                        console.warn('Failed to parse Groq chunk:', data)
-                    }
-                }
-            }
-        }
-    } finally {
-        reader.releaseLock()
-    }
+    yield* parseSSEStream<GroqStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+        providerName: 'Groq'
+    })
 }
 
 export const generateGroqCompletion = async (
@@ -193,13 +163,12 @@ export const generateGroqCompletion = async (
     if (options?.max_tokens !== undefined) {
         requestBody.max_completion_tokens = options.max_tokens
     }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
+    if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
-    try {
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
@@ -303,7 +272,4 @@ export const generateGroqCompletion = async (
         }
         
         return result
-    } catch (error) {
-        throw error
-    }
 }

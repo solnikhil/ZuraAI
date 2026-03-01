@@ -11,8 +11,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   PerformanceMonitor,
   performanceMonitor,
-  initializePerformanceMonitoring,
-  getPerformanceSummary,
   type PerformanceMetrics,
 } from './monitor';
 import { deferredInitializer } from '../startup/deferredInit';
@@ -263,29 +261,6 @@ describe('PerformanceMonitor', () => {
 describe('Singleton instance', () => {
   it('should export a singleton performanceMonitor', () => {
     expect(performanceMonitor).toBeInstanceOf(PerformanceMonitor);
-  });
-});
-
-describe('Helper functions', () => {
-  describe('initializePerformanceMonitoring', () => {
-    it('should initialize without throwing', () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
-      expect(() => initializePerformanceMonitoring()).not.toThrow();
-      
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe('getPerformanceSummary', () => {
-    it('should return a summary object', () => {
-      const summary = getPerformanceSummary();
-      
-      expect(typeof summary.startupMs).toBe('number');
-      expect(typeof summary.memoryMB).toBe('number');
-      expect(typeof summary.ipcCalls).toBe('number');
-      expect(Array.isArray(summary.warnings)).toBe(true);
-    });
   });
 });
 
