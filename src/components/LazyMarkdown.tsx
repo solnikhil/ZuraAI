@@ -3,7 +3,7 @@
 import * as React from 'react'
 const { Suspense, useState, useEffect } = React
 import { lazy } from 'react'
-import { Check, Copy, Code } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
@@ -42,7 +42,99 @@ async function getRehypeKatex() {
 // Syntax highlighter wrapper
 async function getPrismStyles() {
     const mod = await prismStylesPromise
-    return mod.vscDarkPlus
+    return {
+        ...mod.vscDarkPlus,
+        'code[class*="language-"]': {
+            ...(mod.vscDarkPlus['code[class*="language-"]'] || {}),
+            color: '#B4BDCD',
+            textShadow: 'none',
+            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+            fontSize: '0.95rem',
+            lineHeight: '1.72',
+        },
+        'pre[class*="language-"]': {
+            ...(mod.vscDarkPlus['pre[class*="language-"]'] || {}),
+            margin: 0,
+            background: 'transparent',
+            textShadow: 'none',
+        },
+        comment: {
+            ...(mod.vscDarkPlus.comment || {}),
+            color: '#626A79',
+            fontStyle: 'italic',
+        },
+        keyword: {
+            ...(mod.vscDarkPlus.keyword || {}),
+            color: '#AF84AC',
+        },
+        operator: {
+            ...(mod.vscDarkPlus.operator || {}),
+            color: '#AAB3C3',
+        },
+        string: {
+            ...(mod.vscDarkPlus.string || {}),
+            color: '#BEA07A',
+        },
+        number: {
+            ...(mod.vscDarkPlus.number || {}),
+            color: '#9686B3',
+        },
+        function: {
+            ...(mod.vscDarkPlus.function || {}),
+            color: '#7EACC0',
+        },
+        'class-name': {
+            ...(mod.vscDarkPlus['class-name'] || {}),
+            color: '#7FAE8E',
+        },
+        builtin: {
+            ...(mod.vscDarkPlus.builtin || {}),
+            color: '#81A8BF',
+        },
+        property: {
+            ...(mod.vscDarkPlus.property || {}),
+            color: '#9CA9BC',
+        },
+        punctuation: {
+            ...(mod.vscDarkPlus.punctuation || {}),
+            color: '#8793A8',
+        },
+    }
+}
+
+function formatLanguageLabel(language?: string): string {
+    if (!language) return 'Code'
+    const normalized = language.toLowerCase()
+    const labels: Record<string, string> = {
+        ts: 'TypeScript',
+        typescript: 'TypeScript',
+        js: 'JavaScript',
+        javascript: 'JavaScript',
+        jsx: 'JSX',
+        tsx: 'TSX',
+        py: 'Python',
+        python: 'Python',
+        sh: 'Shell',
+        shell: 'Shell',
+        bash: 'Bash',
+        zsh: 'Zsh',
+        json: 'JSON',
+        yaml: 'YAML',
+        yml: 'YAML',
+        html: 'HTML',
+        css: 'CSS',
+        sql: 'SQL',
+        md: 'Markdown',
+        markdown: 'Markdown',
+        plaintext: 'Plain Text',
+        text: 'Plain Text',
+    }
+    if (labels[normalized]) return labels[normalized]
+    return normalized
+        .split(/[-_]/g)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
 }
 
 function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
@@ -281,6 +373,95 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         )
                     }
                     
+                    const normalizedCode = codeString.replace(/\n$/, '')
+                    const codeFrameStyle: React.CSSProperties = {
+                        position: 'relative',
+                        margin: '14px 0',
+                        borderRadius: '24px',
+                        overflow: 'hidden',
+                        border: '1px solid #202020',
+                        background: '#171717',
+                        boxShadow: 'none'
+                    }
+                    const codeHeaderStyle: React.CSSProperties = {
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 14px 10px',
+                    }
+                    const codeHeaderLeftStyle: React.CSSProperties = {
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        minWidth: 0
+                    }
+                    const codeGlyphStyle: React.CSSProperties = {
+                        color: '#98A3B6',
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        lineHeight: 1,
+                        letterSpacing: '0.01em'
+                    }
+                    const codeHeaderLabelStyle: React.CSSProperties = {
+                        color: '#B8C2D3',
+                        fontWeight: 700,
+                        fontSize: '1rem',
+                        lineHeight: 1.1,
+                        letterSpacing: '-0.01em',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                    }
+                    const codeBodyStyle: React.CSSProperties = {
+                        margin: 0,
+                        padding: '14px 16px 18px',
+                        background: 'transparent',
+                        overflowX: 'auto'
+                    }
+                    const getCopyButtonStyle = (isCopied: boolean): React.CSSProperties => ({
+                        background: 'transparent',
+                        border: '1px solid var(--theme-border-subtle)',
+                        color: isCopied ? 'var(--theme-success)' : '#98A3B6',
+                        cursor: 'pointer',
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '8px',
+                        transition: 'all 0.16s ease',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1,
+                        flexShrink: 0
+                    })
+                    const renderCodeHeader = (label: string, isCopied: boolean, onCopy: () => void) => (
+                        <div style={codeHeaderStyle}>
+                            <span style={codeHeaderLeftStyle}>
+                                <span style={codeGlyphStyle}>{'</>'}</span>
+                                <span style={codeHeaderLabelStyle}>{label}</span>
+                            </span>
+                            <button
+                                onClick={onCopy}
+                                style={getCopyButtonStyle(isCopied)}
+                                title={isCopied ? 'Copied!' : 'Copy code'}
+                                aria-label={isCopied ? 'Copied code' : 'Copy code'}
+                                onMouseEnter={(event) => {
+                                    event.currentTarget.style.background = 'var(--theme-surface-hover)'
+                                    event.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+                                }}
+                                onMouseLeave={(event) => {
+                                    event.currentTarget.style.background = 'transparent'
+                                    event.currentTarget.style.borderColor = 'var(--theme-border-subtle)'
+                                }}
+                            >
+                                {isCopied
+                                    ? <Check size={14} style={{ display: 'block' }} />
+                                    : <Copy size={14} style={{ display: 'block' }} />}
+                            </button>
+                        </div>
+                    )
+
                     if (isCodeBlock && match && SyntaxHighlighter && prismStyle) {
                         // Code block with language - syntax highlighted
                         const isCopied = copiedCode === codeString
@@ -289,119 +470,51 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                             setCopiedCode(codeString)
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
+                        const languageLabel = formatLanguageLabel(match[1])
+
                         return (
-                            <div style={{ position: 'relative', margin: '12px 0' }} className="markdown-code-block">
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    padding: '8px 12px',
-                                    backgroundColor: 'var(--theme-surface)',
-                                    borderTopLeftRadius: '8px',
-                                    borderTopRightRadius: '8px',
-                                    fontSize: '0.75rem',
-                                    color: 'var(--theme-text-tertiary)'
-                                }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Code size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
-                                        <span style={{ textTransform: 'capitalize' }}>{match[1]}</span>
-                                    </span>
-                                    <button
-                                        onClick={handleCopy}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-                                            cursor: 'pointer',
-                                            padding: '4px',
-                                            borderRadius: '4px',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            lineHeight: 1
-                                        }}
-                                        title={isCopied ? 'Copied!' : 'Copy'}
-                                    >
-                                        {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
-                                    </button>
-                                </div>
+                            <div style={codeFrameStyle} className="markdown-code-block">
+                                {renderCodeHeader(languageLabel, isCopied, handleCopy)}
                                 <SyntaxHighlighter
                                     {...props}
-                                    children={codeString.replace(/\n$/, '')}
+                                    children={normalizedCode}
                                     style={prismStyle}
                                     language={match[1]}
                                     PreTag="div"
-                                    customStyle={{ margin: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', background: 'var(--theme-surface)' }}
+                                    customStyle={codeBodyStyle}
+                                    codeTagProps={{
+                                        style: {
+                                            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                            fontSize: '0.95rem',
+                                            lineHeight: '1.72',
+                                        }
+                                    }}
                                 />
                             </div>
                         )
                     } else if (isCodeBlock) {
                         // Code block without language - plain block
-                        const codeContent = String(children)
-                        const isCopied = copiedCode === codeContent
+                        const isCopied = copiedCode === codeString
                         const handleCopy = () => {
-                            navigator.clipboard.writeText(codeContent)
-                            setCopiedCode(codeContent)
+                            navigator.clipboard.writeText(codeString)
+                            setCopiedCode(codeString)
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
+
                         return (
-                            <div style={{
-                                margin: '12px 0',
-                                borderRadius: '8px',
-                                background: 'var(--theme-surface)',
-                                border: '1px solid var(--theme-border)',
-                                overflow: 'hidden',
-                                position: 'relative'
-                            }} className="markdown-code-block">
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    padding: '8px 12px',
-                                    backgroundColor: 'var(--theme-surface)',
-                                    borderBottom: '1px solid var(--theme-border)',
-                                    fontSize: '0.75rem',
-                                    color: 'var(--theme-text-tertiary)'
-                                }}>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Code size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
-                                        <span>Code</span>
-                                    </span>
-                                    <button
-                                        onClick={handleCopy}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: isCopied ? 'var(--theme-success)' : 'var(--theme-text-tertiary)',
-                                            cursor: 'pointer',
-                                            padding: '4px',
-                                            borderRadius: '4px',
-                                            transition: 'all 0.2s ease',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            lineHeight: 1
-                                        }}
-                                        title={isCopied ? 'Copied!' : 'Copy'}
-                                    >
-                                        {isCopied ? <Check size={14} style={{ display: 'block' }} /> : <Copy size={14} style={{ display: 'block' }} />}
-                                    </button>
-                                </div>
-                                <div style={{
-                                    padding: '12px 16px',
-                                    overflowX: 'auto',
-                                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                    fontSize: '0.9em',
-                                    lineHeight: '1.6',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    color: 'var(--theme-text-secondary)'
-                                }}>
-                                    {children}
-                                </div>
+                            <div style={codeFrameStyle} className="markdown-code-block">
+                                {renderCodeHeader('Code', isCopied, handleCopy)}
+                                <pre style={codeBodyStyle}>
+                                    <code style={{
+                                        color: '#B4BDCD',
+                                        whiteSpace: 'pre',
+                                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                                        fontSize: '0.95rem',
+                                        lineHeight: '1.72',
+                                    }}>
+                                        {normalizedCode}
+                                    </code>
+                                </pre>
                             </div>
                         )
                     } else {

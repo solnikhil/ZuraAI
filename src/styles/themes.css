@@ -5,7 +5,7 @@
    ======================================== */
 :root {
     /* Core surfaces */
-    --theme-background: #14120B;
+    --theme-background: #181818;
     --theme-surface: #1B1913;
     --theme-surface-hover: rgba(255, 255, 255, 0.05);
     --theme-surface-active: rgba(255, 255, 255, 0.08);
