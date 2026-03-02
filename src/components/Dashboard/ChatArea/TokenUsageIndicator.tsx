@@ -247,19 +247,14 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
       ? `~${breakdown.totalUsed.toLocaleString()} tokens (no model selected)`
       : 'No model selected'
 
-  const ringMode: 'idle' | 'hover' | 'pinned' = isPinned ? 'pinned' : open ? 'hover' : 'idle'
-  const modeChipLabel = ringMode === 'pinned' ? 'Pinned' : ringMode === 'hover' ? 'Preview' : 'Token'
-
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <motion.button
           type="button"
           aria-label={ariaLabel}
-          aria-pressed={isPinned}
-          data-mode={ringMode}
           className={cn(
-            'token-context-ring flex items-center justify-center rounded-full cursor-pointer',
+            'flex items-center justify-center rounded-full cursor-pointer',
             className
           )}
           whileHover={{ scale: 1.1 }}
@@ -272,7 +267,7 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
           <svg
             width={CIRCLE_SIZE}
             height={CIRCLE_SIZE}
-            className="token-context-ring__svg"
+            className="rotate-[-90deg]"
             aria-hidden
           >
             <circle
@@ -282,7 +277,7 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
               fill="none"
               stroke="currentColor"
               strokeWidth={STROKE_WIDTH}
-              className="token-context-ring__track"
+              className="text-white/15"
             />
             <circle
               cx={CIRCLE_SIZE / 2}
@@ -294,7 +289,7 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
               strokeDasharray={CIRCUMFERENCE}
               strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
-              className="token-context-ring__progress"
+              className="text-white/60"
             />
           </svg>
         </motion.button>
@@ -306,9 +301,8 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
         onCloseAutoFocus={(e) => e.preventDefault()}
-        data-ring-mode={ringMode}
         className={cn(
-          'token-context-popover w-64 rounded-xl border p-4 shadow-xl backdrop-blur-sm',
+          'w-64 rounded-xl border border-white/10 bg-neutral-900/95 p-4 shadow-xl backdrop-blur-sm',
           'data-[state=open]:animate-token-context-in data-[state=closed]:animate-token-context-out'
         )}
       >
@@ -316,11 +310,8 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
           {/* Header */}
           <div className="flex items-center justify-between animate-token-context-item animate-token-context-item-delay-1">
             <h4 className="text-sm font-semibold text-white">Context Details</h4>
-            <span className={cn(
-              'rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider',
-              ringMode === 'pinned' ? 'bg-emerald-500/20 text-emerald-100' : 'bg-white/10 text-white/80'
-            )}>
-              {modeChipLabel}
+            <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/80">
+              Token
             </span>
           </div>
 
