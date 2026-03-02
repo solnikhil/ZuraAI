@@ -87,7 +87,6 @@ export default function TitleBar() {
 
     const density = settings.titleBarDensity || 'comfortable'
     const showTitle = settings.titleBarShowChatTitle !== false
-    const showModel = settings.titleBarShowModel !== false
     const isSettingsView = dashboardView === 'settings'
     const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden
@@ -236,11 +235,6 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__right">
-                {showModel && dashboardView !== 'settings' && (
-                    <span className="app-titlebar__model no-drag" title={settings.aiModel}>
-                        {modelDisplayName}
-                    </span>
-                )}
                 {/* Windows: always render custom window controls since native overlay is disabled */}
                 {!isMacOS && (
                     <WindowControlButtons

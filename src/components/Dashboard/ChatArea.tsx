@@ -279,6 +279,7 @@ export default function ChatArea() {
               attachedFiles={attachedFiles}
               onFilesChange={setAttachedFiles}
               onError={(msg) => showToast(msg, 'error')}
+              showContextRing={false}
             />
           </div>
         </div>
@@ -430,6 +431,7 @@ export default function ChatArea() {
             attachedFiles={attachedFiles}
             onFilesChange={setAttachedFiles}
             onError={(msg) => showToast(msg, 'error')}
+            showContextRing={true}
           />
         </div>
       </div>
@@ -470,7 +472,7 @@ export default function ChatArea() {
         }
         .chat-input-overlay__inner {
           width: 100%;
-          max-width: min(900px, 100%);
+          max-width: min(860px, 100%);
           margin: 0 auto;
           pointer-events: auto;
         }

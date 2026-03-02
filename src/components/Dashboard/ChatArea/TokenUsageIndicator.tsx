@@ -12,8 +12,8 @@ import { useModelSelector } from '../ModelSelector/useModelSelector'
 import { estimateTokens, estimateMessageTokens } from '../../../utils/tokenUtils'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
@@ -166,9 +166,26 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
 
   const [open, setOpen] = useState(false)
   const [isPinned, setIsPinned] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const HOVER_DELAY_MS = 200
+  const HOVER_OPEN_DELAY_MS = 200
+  const HOVER_CLOSE_DELAY_MS = 150
+
+  const clearHoverTimeout = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+  }
+
+  const scheduleHoverAction = (action: () => void, delayMs: number) => {
+    clearHoverTimeout()
+    hoverTimeoutRef.current = setTimeout(() => {
+      hoverTimeoutRef.current = null
+      action()
+    }, delayMs)
+  }
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -178,50 +195,38 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
   }
 
   const handleTriggerMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
+    if (isPinned) {
+      clearHoverTimeout()
+      return
     }
-    hoverTimeoutRef.current = setTimeout(() => {
-      hoverTimeoutRef.current = null
+
+    scheduleHoverAction(() => {
       setOpen(true)
-    }, HOVER_DELAY_MS)
+    }, HOVER_OPEN_DELAY_MS)
   }
 
   const handleTriggerMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
     if (!isPinned) {
-      hoverTimeoutRef.current = setTimeout(() => {
-        hoverTimeoutRef.current = null
+      scheduleHoverAction(() => {
         setOpen(false)
-      }, 150)
+      }, HOVER_CLOSE_DELAY_MS)
     }
   }
 
   const handleContentMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
+    clearHoverTimeout()
   }
 
   const handleContentMouseLeave = () => {
     if (!isPinned) {
-      hoverTimeoutRef.current = setTimeout(() => {
-        hoverTimeoutRef.current = null
+      scheduleHoverAction(() => {
         setOpen(false)
-      }, 150)
+      }, HOVER_CLOSE_DELAY_MS)
     }
   }
 
   const handleTriggerClick = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
+    clearHoverTimeout()
 
     if (isPinned) {
       setIsPinned(false)
@@ -233,11 +238,20 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
     setOpen(true)
   }
 
+  const handleContentInteractOutside = (event: Event) => {
+    const target = event.target
+    if (!(target instanceof Node)) {
+      return
+    }
+
+    if (triggerRef.current?.contains(target)) {
+      event.preventDefault()
+    }
+  }
+
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current)
-      }
+      clearHoverTimeout()
     }
   }, [])
 
@@ -249,10 +263,12 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <motion.button
+          ref={triggerRef}
           type="button"
           aria-label={ariaLabel}
+          aria-pressed={isPinned}
           className={cn(
             'flex items-center justify-center rounded-full cursor-pointer',
             className
@@ -293,13 +309,14 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
             />
           </svg>
         </motion.button>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         side="top"
         sideOffset={8}
         align="end"
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
+        onInteractOutside={handleContentInteractOutside}
         onCloseAutoFocus={(e) => e.preventDefault()}
         className={cn(
           'w-64 rounded-xl border border-white/10 bg-neutral-900/95 p-4 shadow-xl backdrop-blur-sm',

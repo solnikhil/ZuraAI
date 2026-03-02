@@ -75,11 +75,15 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
               size={16}
             />
           ) : <Cpu size={14} />}
-          {!minimal && (
-            <span className="truncate text-xs font-medium" style={{ maxWidth: '140px', minWidth: '80px' }}>
-              {currentName}
-            </span>
-          )}
+          <span
+            className="truncate text-xs font-medium"
+            style={{
+              maxWidth: minimal ? '96px' : '140px',
+              minWidth: minimal ? 0 : '80px',
+            }}
+          >
+            {currentName}
+          </span>
           <motion.div
             animate={{ rotate: state.isOpen ? 180 : 0 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}

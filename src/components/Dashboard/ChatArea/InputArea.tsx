@@ -34,6 +34,7 @@ export interface InputAreaProps {
   attachedFiles: AttachedFile[]
   onFilesChange: (files: AttachedFile[]) => void
   onError?: (message: string) => void
+  showContextRing?: boolean
 }
 
 /**
@@ -47,7 +48,8 @@ export function InputArea({
   isLoading,
   attachedFiles,
   onFilesChange,
-  onError
+  onError,
+  showContextRing = true
 }: InputAreaProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [showImageModal, setShowImageModal] = React.useState(false)
@@ -163,8 +165,7 @@ export function InputArea({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Wider container - max-w-2xl = 672px */}
-        <div className="relative max-w-2xl w-full mx-auto">
+        <div className="relative w-full mx-auto">
           {/* Attached Files Badges */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
@@ -371,9 +372,7 @@ export function InputArea({
 
               {/* Right side controls - Token indicator + Attach + Send */}
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
-                {/* Separator + Token usage circle */}
-                <div className="mx-1 h-4 w-px bg-white/10" />
-                <TokenUsageIndicator input={input} />
+                {showContextRing && <TokenUsageIndicator input={input} />}
                 {/* Attach file button - no background when no files */}
                 <input
                   type="file"
