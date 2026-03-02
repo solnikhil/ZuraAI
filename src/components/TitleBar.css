@@ -7,7 +7,7 @@
     justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
-    background: var(--theme-background);
+    background: var(--theme-surface);
     border-bottom: 1px solid var(--theme-border);
     user-select: none;
     -webkit-app-region: drag;
@@ -29,14 +29,15 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--theme-surface);
+    background: var(--theme-sidebar-solid);
     z-index: 0;
     pointer-events: none;
     box-sizing: border-box;
+    transition: width 0.2s ease;
 }
 
 
-/* Solid background for the right (content) side of the titlebar in frosted mode */
+/* Solid background for the right (content) side of the titlebar */
 
 .app-titlebar__content-bg {
     position: absolute;
@@ -46,6 +47,7 @@
     background: var(--theme-background);
     z-index: 0;
     pointer-events: none;
+    transition: left 0.2s ease;
 }
 
 
@@ -62,6 +64,7 @@
     z-index: 0;
     pointer-events: none;
     box-sizing: border-box;
+    transition: width 0.2s ease;
 }
 
 

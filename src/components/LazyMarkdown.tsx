@@ -3,7 +3,7 @@
 import * as React from 'react'
 const { Suspense, useState, useEffect } = React
 import { lazy } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Code2, Copy, LoaderCircle } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
@@ -21,6 +21,7 @@ interface LazyMarkdownProps {
     content: string
     className?: string
     webSources?: Map<string, WebSource>
+    isStreaming?: boolean
 }
 
 // Remark plugin wrapper
@@ -46,7 +47,7 @@ async function getPrismStyles() {
         ...mod.vscDarkPlus,
         'code[class*="language-"]': {
             ...(mod.vscDarkPlus['code[class*="language-"]'] || {}),
-            color: '#B4BDCD',
+            color: '#E6ECF8',
             textShadow: 'none',
             fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
             fontSize: '0.95rem',
@@ -60,84 +61,111 @@ async function getPrismStyles() {
         },
         comment: {
             ...(mod.vscDarkPlus.comment || {}),
-            color: '#626A79',
+            color: '#7E879B',
             fontStyle: 'italic',
         },
         keyword: {
             ...(mod.vscDarkPlus.keyword || {}),
-            color: '#AF84AC',
+            color: '#FF7CCB',
         },
         operator: {
             ...(mod.vscDarkPlus.operator || {}),
-            color: '#AAB3C3',
+            color: '#D7DEF0',
         },
         string: {
             ...(mod.vscDarkPlus.string || {}),
-            color: '#BEA07A',
+            color: '#FFC27A',
         },
         number: {
             ...(mod.vscDarkPlus.number || {}),
-            color: '#9686B3',
+            color: '#C8A0FF',
         },
         function: {
             ...(mod.vscDarkPlus.function || {}),
-            color: '#7EACC0',
+            color: '#8EDDF7',
         },
         'class-name': {
             ...(mod.vscDarkPlus['class-name'] || {}),
-            color: '#7FAE8E',
+            color: '#7CE9A7',
         },
         builtin: {
             ...(mod.vscDarkPlus.builtin || {}),
-            color: '#81A8BF',
+            color: '#9CD7F7',
         },
         property: {
             ...(mod.vscDarkPlus.property || {}),
-            color: '#9CA9BC',
+            color: '#C7D2E8',
         },
         punctuation: {
             ...(mod.vscDarkPlus.punctuation || {}),
-            color: '#8793A8',
+            color: '#AEB8CF',
         },
     }
 }
 
-function formatLanguageLabel(language?: string): string {
-    if (!language) return 'Code'
+type LanguageMeta = {
+    label: string
+}
+
+function getLanguageMeta(language?: string): LanguageMeta {
+    if (!language) return { label: 'Code' }
+
     const normalized = language.toLowerCase()
-    const labels: Record<string, string> = {
-        ts: 'TypeScript',
-        typescript: 'TypeScript',
-        js: 'JavaScript',
-        javascript: 'JavaScript',
-        jsx: 'JSX',
-        tsx: 'TSX',
-        py: 'Python',
-        python: 'Python',
-        sh: 'Shell',
-        shell: 'Shell',
-        bash: 'Bash',
-        zsh: 'Zsh',
-        json: 'JSON',
-        yaml: 'YAML',
-        yml: 'YAML',
-        html: 'HTML',
-        css: 'CSS',
-        sql: 'SQL',
-        md: 'Markdown',
-        markdown: 'Markdown',
-        plaintext: 'Plain Text',
-        text: 'Plain Text',
+    const aliases: Record<string, string> = {
+        ts: 'typescript',
+        js: 'javascript',
+        py: 'python',
+        sh: 'shell',
+        bash: 'shell',
+        zsh: 'shell',
+        yml: 'yaml',
+        md: 'markdown',
+        plaintext: 'text',
+        csharp: 'c#',
+        cs: 'c#',
+        cpp: 'c++',
+        cxx: 'c++',
     }
-    if (labels[normalized]) return labels[normalized]
-    return normalized
+    const key = aliases[normalized] ?? normalized
+
+    const meta: Record<string, LanguageMeta> = {
+        typescript: { label: 'TypeScript' },
+        tsx: { label: 'TSX' },
+        javascript: { label: 'JavaScript' },
+        jsx: { label: 'JSX' },
+        python: { label: 'Python' },
+        html: { label: 'HTML' },
+        css: { label: 'CSS' },
+        json: { label: 'JSON' },
+        yaml: { label: 'YAML' },
+        shell: { label: 'Shell' },
+        sql: { label: 'SQL' },
+        markdown: { label: 'Markdown' },
+        text: { label: 'Plain Text' },
+        go: { label: 'Go' },
+        rust: { label: 'Rust' },
+        java: { label: 'Java' },
+        kotlin: { label: 'Kotlin' },
+        swift: { label: 'Swift' },
+        php: { label: 'PHP' },
+        ruby: { label: 'Ruby' },
+        c: { label: 'C' },
+        'c++': { label: 'C++' },
+        'c#': { label: 'C#' },
+    }
+
+    if (meta[key]) return meta[key]
+
+    const fallbackLabel = key
         .split(/[-_]/g)
         .filter(Boolean)
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ')
+
+    return { label: fallbackLabel }
 }
 
-function MarkdownContent({ content, webSources }: { content: string; webSources?: Map<string, WebSource> }) {
+function MarkdownContent({ content, webSources, isStreaming = false }: { content: string; webSources?: Map<string, WebSource>; isStreaming?: boolean }) {
     const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(null)
     const [remarkMath, setRemarkMath] = useState<(() => void) | null>(null)
     const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(null)
@@ -377,39 +405,49 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                     const codeFrameStyle: React.CSSProperties = {
                         position: 'relative',
                         margin: '14px 0',
-                        borderRadius: '24px',
+                        borderRadius: '30px',
                         overflow: 'hidden',
-                        border: '1px solid #202020',
-                        background: '#171717',
+                        border: '1px solid #3A3C40',
+                        background: '#202226',
                         boxShadow: 'none'
                     }
                     const codeHeaderStyle: React.CSSProperties = {
+                        position: 'relative',
                         display: 'flex',
-                        justifyContent: 'space-between',
                         alignItems: 'center',
                         gap: '10px',
-                        padding: '12px 14px 10px',
+                        padding: '13px 56px 9px 16px',
                     }
                     const codeHeaderLeftStyle: React.CSSProperties = {
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '10px',
-                        minWidth: 0
+                        gap: '8px',
+                        minWidth: 0,
+                        lineHeight: 1
+                    }
+                    const codeGlyphWrapStyle: React.CSSProperties = {
+                        width: '15px',
+                        height: '15px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
                     }
                     const codeGlyphStyle: React.CSSProperties = {
-                        color: '#98A3B6',
-                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                        fontWeight: 700,
-                        fontSize: '0.78rem',
-                        lineHeight: 1,
-                        letterSpacing: '0.01em'
+                        color: '#B5C2DC',
+                        display: 'block'
                     }
                     const codeHeaderLabelStyle: React.CSSProperties = {
-                        color: '#B8C2D3',
-                        fontWeight: 700,
-                        fontSize: '1rem',
-                        lineHeight: 1.1,
-                        letterSpacing: '-0.01em',
+                        color: '#D9E2F3',
+                        fontFamily: "'Google Sans Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif",
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        lineHeight: 1,
+                        letterSpacing: '0.01em',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        minHeight: '16px',
+                        transform: 'translateY(0.5px)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
@@ -420,44 +458,83 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                         background: 'transparent',
                         overflowX: 'auto'
                     }
-                    const getCopyButtonStyle = (isCopied: boolean): React.CSSProperties => ({
-                        background: 'transparent',
-                        border: '1px solid var(--theme-border-subtle)',
-                        color: isCopied ? 'var(--theme-success)' : '#98A3B6',
-                        cursor: 'pointer',
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '8px',
-                        transition: 'all 0.16s ease',
+                    const getCopyButtonStyle = (isGenerating: boolean): React.CSSProperties => ({
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#B5C2DC',
+                        cursor: isGenerating ? 'default' : 'pointer',
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '11px',
+                        position: 'absolute',
+                        top: '14px',
+                        right: '14px',
+                        transition: 'background-color 160ms ease, border-color 160ms ease',
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         lineHeight: 1,
-                        flexShrink: 0
+                        flexShrink: 0,
+                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+                        pointerEvents: isGenerating ? 'none' : 'auto'
                     })
-                    const renderCodeHeader = (label: string, isCopied: boolean, onCopy: () => void) => (
+                    const iconSlotStyle: React.CSSProperties = {
+                        position: 'relative',
+                        width: '16px',
+                        height: '16px',
+                    }
+                    const getIconStateStyle = (visible: boolean): React.CSSProperties => ({
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: visible ? 1 : 0,
+                        transform: visible ? 'scale(1) rotate(0deg)' : 'scale(0.75) rotate(-8deg)',
+                        transition: 'opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
+                        pointerEvents: 'none'
+                    })
+                    const loadingSpinnerStyle: React.CSSProperties = {
+                        display: 'block',
+                        color: '#B5C2DC',
+                        animation: 'markdown-code-spin 900ms linear infinite',
+                    }
+                    const renderCodeHeader = (meta: LanguageMeta, isCopied: boolean, isGenerating: boolean, onCopy: () => void) => (
                         <div style={codeHeaderStyle}>
                             <span style={codeHeaderLeftStyle}>
-                                <span style={codeGlyphStyle}>{'</>'}</span>
-                                <span style={codeHeaderLabelStyle}>{label}</span>
+                                <span style={codeGlyphWrapStyle} aria-hidden="true">
+                                    <Code2 size={13} strokeWidth={2.2} style={codeGlyphStyle} />
+                                </span>
+                                <span style={codeHeaderLabelStyle}>{meta.label}</span>
                             </span>
                             <button
                                 onClick={onCopy}
-                                style={getCopyButtonStyle(isCopied)}
-                                title={isCopied ? 'Copied!' : 'Copy code'}
-                                aria-label={isCopied ? 'Copied code' : 'Copy code'}
+                                style={getCopyButtonStyle(isGenerating)}
+                                title={isGenerating ? 'Generating code...' : (isCopied ? 'Copied!' : 'Copy code')}
+                                aria-label={isGenerating ? 'Generating code' : (isCopied ? 'Copied code' : 'Copy code')}
                                 onMouseEnter={(event) => {
-                                    event.currentTarget.style.background = 'var(--theme-surface-hover)'
-                                    event.currentTarget.style.borderColor = 'var(--theme-border-hover)'
+                                    if (isGenerating) return
+                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)'
                                 }}
                                 onMouseLeave={(event) => {
-                                    event.currentTarget.style.background = 'transparent'
-                                    event.currentTarget.style.borderColor = 'var(--theme-border-subtle)'
+                                    if (isGenerating) return
+                                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)'
+                                    event.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'
                                 }}
                             >
-                                {isCopied
-                                    ? <Check size={14} style={{ display: 'block' }} />
-                                    : <Copy size={14} style={{ display: 'block' }} />}
+                                {isGenerating ? (
+                                    <LoaderCircle size={16} style={loadingSpinnerStyle} />
+                                ) : (
+                                    <span style={iconSlotStyle}>
+                                        <span style={getIconStateStyle(!isCopied)}>
+                                            <Copy size={16} style={{ display: 'block', color: '#B5C2DC' }} />
+                                        </span>
+                                        <span style={getIconStateStyle(isCopied)}>
+                                            <Check size={16} style={{ display: 'block', color: 'var(--theme-success)' }} />
+                                        </span>
+                                    </span>
+                                )}
                             </button>
                         </div>
                     )
@@ -470,11 +547,12 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                             setCopiedCode(codeString)
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
-                        const languageLabel = formatLanguageLabel(match[1])
+                        const languageMeta = getLanguageMeta(match[1])
+                        const isGeneratingBlock = isStreaming && normalizedContent.trimEnd().endsWith(normalizedCode.trimEnd())
 
                         return (
                             <div style={codeFrameStyle} className="markdown-code-block">
-                                {renderCodeHeader(languageLabel, isCopied, handleCopy)}
+                                {renderCodeHeader(languageMeta, isCopied, isGeneratingBlock, handleCopy)}
                                 <SyntaxHighlighter
                                     {...props}
                                     children={normalizedCode}
@@ -500,13 +578,14 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
                             setCopiedCode(codeString)
                             setTimeout(() => setCopiedCode(null), 2000)
                         }
+                        const isGeneratingBlock = isStreaming && normalizedContent.trimEnd().endsWith(normalizedCode.trimEnd())
 
                         return (
                             <div style={codeFrameStyle} className="markdown-code-block">
-                                {renderCodeHeader('Code', isCopied, handleCopy)}
+                                {renderCodeHeader(getLanguageMeta(), isCopied, isGeneratingBlock, handleCopy)}
                                 <pre style={codeBodyStyle}>
                                     <code style={{
-                                        color: '#B4BDCD',
+                                        color: '#E6ECF8',
                                         whiteSpace: 'pre',
                                         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
                                         fontSize: '0.95rem',
@@ -563,10 +642,10 @@ function MarkdownContent({ content, webSources }: { content: string; webSources?
     )
 }
 
-export default function LazyMarkdown({ content, className, webSources }: LazyMarkdownProps) {
+export default function LazyMarkdown({ content, className, webSources, isStreaming = false }: LazyMarkdownProps) {
     return (
         <Suspense fallback={<div className={className} style={{ whiteSpace: 'pre-wrap' }}>{content}</div>}>
-            <MarkdownContent content={content} webSources={webSources} />
+            <MarkdownContent content={content} webSources={webSources} isStreaming={isStreaming} />
         </Suspense>
     )
 }

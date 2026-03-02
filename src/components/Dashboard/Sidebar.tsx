@@ -200,12 +200,8 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
         width: sidebarHidden
             ? '0px'
             : (sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${SIDEBAR_EXPANDED_WIDTH_PX}px`),
-        background: shouldApplyGlass ? 'transparent' : 'var(--theme-surface)',
-        borderRight: sidebarHidden
-            ? 'none'
-            : shouldApplyGlass
-                ? 'none'
-                : '1px solid var(--theme-border)',
+        background: shouldApplyGlass ? 'transparent' : 'var(--theme-sidebar-solid)',
+        borderRight: '0px solid transparent',
         boxShadow: shouldApplyGlass ? '4px 0 20px rgba(0, 0, 0, 0.35)' : 'none',
         pointerEvents: sidebarHidden ? 'none' : 'auto',
     }

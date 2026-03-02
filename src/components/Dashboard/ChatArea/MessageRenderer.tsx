@@ -975,7 +975,7 @@ function MessageRendererComponent({
       {/* Message content - only show when not streaming or when content has arrived */}
       {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
         <div className="markdown-content">
-          <LazyMarkdown content={processedContent} webSources={webSourceMap} />
+          <LazyMarkdown content={processedContent} webSources={webSourceMap} isStreaming={isStreaming} />
         </div>
       )}
 

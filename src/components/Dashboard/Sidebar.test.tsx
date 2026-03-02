@@ -119,7 +119,7 @@ describe('Sidebar Glassmorphism Styles', () => {
         /**
          * Test: Solid background when frostedSidebar is false
          * Requirements: 2.5 - WHEN frosted sidebar is disabled, THE Sidebar SHALL use 
-         * the existing solid `var(--theme-surface)` background
+         * the existing solid `var(--theme-sidebar-solid)` background
          */
         it('applies solid background when frostedSidebar is false', () => {
             mockSettingsUI.settingsUI.frostedSidebar = false
@@ -128,17 +128,16 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toBeInTheDocument()
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
 
-        it('does not apply glassmorphism border when frostedSidebar is false', () => {
+        it('does not apply right border when frostedSidebar is false', () => {
             mockSettingsUI.settingsUI.frostedSidebar = false
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container') as HTMLElement
             
-            // Check the inline style contains the theme border variable
-            expect(sidebar.style.borderRight).toBe('1px solid var(--theme-border)')
+            expect(sidebar.style.borderRight).toBe('0px solid transparent')
         })
     })
 
@@ -198,7 +197,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             // When hidden, should use solid background (shouldApplyGlass is false)
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
 
         it('does not apply glassmorphism border when sidebar is hidden', () => {
@@ -258,7 +257,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
     })
 
@@ -308,7 +307,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             // Hidden takes precedence - width should be 0px
             expect(sidebar).toHaveStyle({ width: '0px' })
             // No glassmorphism when hidden
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
 
         it('applies correct styles when transitioning from hidden to visible', () => {

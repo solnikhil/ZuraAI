@@ -7,6 +7,7 @@
     --frosted-glass-gradient: linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%);
     --frosted-glass-border: 1px solid rgba(255, 255, 255, 0.08);
     --frosted-glass-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    --theme-sidebar-solid: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text-primary) 8%);
 }
 
 
