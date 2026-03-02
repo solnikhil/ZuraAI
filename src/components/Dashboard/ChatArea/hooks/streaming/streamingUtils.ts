@@ -15,9 +15,13 @@ import type { UpdateStreamingCallback } from './types'
 // ---------------------------------------------------------------------------
 
 export const UPDATE_INTERVAL = 120 // ms – normal update cadence
-export const SMOOTH_UPDATE_INTERVAL = 40 // ms – smooth-scroll cadence
 export const SAFETY_CAP = 50 // absolute max research rounds
 export const MAX_RESEARCH_ROUNDS = 6 // practical cap before forcing final answer
+
+/** Compute per-chunk UI update cadence. */
+export function getStreamingUpdateInterval(): number {
+  return UPDATE_INTERVAL
+}
 
 // ---------------------------------------------------------------------------
 // Types

@@ -367,8 +367,8 @@ function UserMessageBubble({
       color: 'var(--theme-user-message-text)'
     },
     glass: {
-      background: 'rgba(255, 255, 255, 0.08)',
-      border: '1px solid var(--theme-border)',
+      background: 'rgba(148, 163, 184, 0.18)',
+      border: '1px solid rgba(255, 255, 255, 0.22)',
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',

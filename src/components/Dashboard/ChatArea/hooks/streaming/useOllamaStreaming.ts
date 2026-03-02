@@ -18,9 +18,7 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
-
-const UPDATE_INTERVAL = 120 // ms
-const SMOOTH_UPDATE_INTERVAL = 40 // ms
+import { getStreamingUpdateInterval } from './streamingUtils'
 
 export interface UseOllamaStreamingOptions {
   settings: StreamingSettings
@@ -44,7 +42,7 @@ export function useOllamaStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseOllamaStreamingOptions): UseOllamaStreamingReturn {
-  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+  const updateInterval = getStreamingUpdateInterval()
 
   const streamOllama = useCallback(async (
     options: ToolCallingOptions

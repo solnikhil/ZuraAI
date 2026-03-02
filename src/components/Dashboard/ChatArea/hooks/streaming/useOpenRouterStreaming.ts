@@ -21,10 +21,9 @@ import type {
   StreamingSettings,
 } from './types'
 import {
-  UPDATE_INTERVAL,
-  SMOOTH_UPDATE_INTERVAL,
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
+  getStreamingUpdateInterval,
   accumulateDeltaToolCalls,
   reconstructToolCallMessage,
   buildResponseWithFallback,
@@ -135,7 +134,7 @@ export function useOpenRouterStreaming({
   throttledUpdateStreamingMessage,
 }: UseOpenRouterStreamingOptions): UseOpenRouterStreamingReturn {
   const { updateStreaming } = useStreamingActions()
-  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+  const updateInterval = getStreamingUpdateInterval()
 
   const streamOpenRouter = useCallback(async (
     options: OpenRouterStreamingOptions

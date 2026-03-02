@@ -173,7 +173,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Load settings from localStorage
     const [storedSettings] = useState<Settings>(() => {
         const saved = localStorage.getItem('zura-settings')
-        const parsed = { ...defaultSettings, ...parseStoredSettings(saved) }
+        const parsedFromStorage = parseStoredSettings(saved)
+        const parsed = { ...defaultSettings, ...parsedFromStorage }
 
         // Remove deprecated overlay-era settings from older persisted state
         delete (parsed as Record<string, unknown>).autoHideOverlay
@@ -349,6 +350,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 parsed.chatSelectedOverlayStyle = defaultSettings.chatSelectedOverlayStyle
             }
         }
+
+        // Remove deprecated response transition mode from persisted payloads
+        delete (parsed as Record<string, unknown>).responseTransitionMode
 
         return parsed
     })

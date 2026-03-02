@@ -37,8 +37,8 @@ const chatBubblePresets = [
     label: 'Soft Glass',
     description: 'Translucent bubble with blur and border',
     previewStyle: {
-      background: 'rgba(255, 255, 255, 0.08)',
-      border: '1px solid var(--theme-border)',
+      background: 'rgba(148, 163, 184, 0.18)',
+      border: '1px solid rgba(255, 255, 255, 0.22)',
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',

@@ -20,10 +20,9 @@ import type {
 } from './types'
 import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
 import {
-  UPDATE_INTERVAL,
-  SMOOTH_UPDATE_INTERVAL,
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
+  getStreamingUpdateInterval,
   fillMissingUsage,
   accumulateDeltaToolCalls,
   reconstructToolCallMessage,
@@ -62,7 +61,7 @@ export function useGroqStreaming({
   throttledUpdateStreamingMessage,
 }: UseGroqStreamingOptions): UseGroqStreamingReturn {
   const { updateStreaming } = useStreamingActions()
-  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+  const updateInterval = getStreamingUpdateInterval()
 
   const streamGroq = useCallback(async (
     options: ToolCallingOptions

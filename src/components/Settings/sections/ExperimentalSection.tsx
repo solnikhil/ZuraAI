@@ -7,10 +7,21 @@ export interface ExperimentalSectionProps {
   frostedPrompt: boolean
   sidebarAutoHideOnResize: boolean
   softenedContrast: boolean
-  onChange: (changes: { frostedSidebar?: boolean; frostedPrompt?: boolean; sidebarAutoHideOnResize?: boolean; softenedContrast?: boolean }) => void
+  onChange: (changes: {
+    frostedSidebar?: boolean
+    frostedPrompt?: boolean
+    sidebarAutoHideOnResize?: boolean
+    softenedContrast?: boolean
+  }) => void
 }
 
-export function ExperimentalSection({ frostedSidebar, frostedPrompt, sidebarAutoHideOnResize, softenedContrast, onChange }: ExperimentalSectionProps): React.ReactElement {
+export function ExperimentalSection({
+  frostedSidebar,
+  frostedPrompt,
+  sidebarAutoHideOnResize,
+  softenedContrast,
+  onChange,
+}: ExperimentalSectionProps): React.ReactElement {
   return (
     <div style={{ padding: '32px', paddingBottom: 100 }}>
       <div className="page-header">

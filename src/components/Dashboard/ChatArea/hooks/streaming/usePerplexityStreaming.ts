@@ -16,9 +16,7 @@ import type {
   FlushCallback,
   StreamingSettings,
 } from './types'
-
-const UPDATE_INTERVAL = 120 // ms
-const SMOOTH_UPDATE_INTERVAL = 40 // ms
+import { getStreamingUpdateInterval } from './streamingUtils'
 
 export interface UsePerplexityStreamingOptions {
   settings: StreamingSettings
@@ -40,7 +38,7 @@ export function usePerplexityStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UsePerplexityStreamingOptions): UsePerplexityStreamingReturn {
-  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+  const updateInterval = getStreamingUpdateInterval()
 
   const streamPerplexity = useCallback(async (
     options: ProviderStreamingOptions

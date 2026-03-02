@@ -165,6 +165,7 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
             
             expect(onChange).toHaveBeenCalledTimes(1)
         })
+
     })
 
     describe('Softened Contrast Toggle', () => {
