@@ -8,7 +8,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
-import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -17,10 +16,8 @@ import { estimateMessageTokens } from '../../../utils/tokenUtils'
 export interface SystemPromptSectionProps {
   /** Current system prompt value */
   systemPrompt: string
-  /** Current web search prompt value */
-  webSearchPrompt: string
   /** Callback when system prompt changes */
-  onChange: (changes: { systemPrompt?: string; webSearchPrompt?: string }) => void
+  onChange: (changes: { systemPrompt?: string }) => void
 }
 
 /**
@@ -28,13 +25,10 @@ export interface SystemPromptSectionProps {
  */
 export function SystemPromptSection({
   systemPrompt,
-  webSearchPrompt,
   onChange
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
-  const [localWebSearchValue, setLocalWebSearchValue] = useState(webSearchPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
-  const [charCountWebSearch, setCharCountWebSearch] = useState(webSearchPrompt.length)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -44,23 +38,10 @@ export function SystemPromptSection({
     }
   }, [systemPrompt, localValue])
 
-  useEffect(() => {
-    if (webSearchPrompt !== localWebSearchValue) {
-      setLocalWebSearchValue(webSearchPrompt)
-      setCharCountWebSearch(webSearchPrompt.length)
-    }
-  }, [webSearchPrompt, localWebSearchValue])
-
   const handleChange = (value: string) => {
     setLocalValue(value)
     setCharCount(value.length)
     onChange({ systemPrompt: value })
-  }
-
-  const handleWebSearchChange = (value: string) => {
-    setLocalWebSearchValue(value)
-    setCharCountWebSearch(value.length)
-    onChange({ webSearchPrompt: value })
   }
 
   const handleReset = () => {
@@ -69,20 +50,9 @@ export function SystemPromptSection({
     onChange({ systemPrompt: defaultSystemPrompt })
   }
 
-  const handleWebSearchReset = () => {
-    setLocalWebSearchValue(defaultWebSearchPrompt)
-    setCharCountWebSearch(defaultWebSearchPrompt.length)
-    onChange({ webSearchPrompt: defaultWebSearchPrompt })
-  }
-
   const estTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localValue }),
     [localValue]
-  )
-
-  const estTokensWebSearch = useMemo(
-    () => estimateMessageTokens({ role: 'system', content: localWebSearchValue }),
-    [localWebSearchValue]
   )
 
   return (
@@ -128,7 +98,7 @@ export function SystemPromptSection({
                 lineHeight: 1.5
               }}
             >
-              When Web Search is enabled, web search instructions are appended at the end of this basic prompt.
+              Keep this concise and policy-focused. Skill behavior is managed from the Skills section.
             </div>
           </div>
           <div
@@ -236,148 +206,6 @@ export function SystemPromptSection({
           </div>
         </div>
 
-      </Card>
-
-      {/* Web Search Prompt Editor */}
-      <Card
-        className="settings-section-card"
-        style={{
-          marginTop: 24,
-          background: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
-          borderRadius: 12,
-          padding: 0,
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--theme-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div>
-            <h3 className="section-head" style={{ marginBottom: 4 }}>
-              Web Search Prompt
-            </h3>
-            <div className="section-desc">
-              Instructions appended when Web Search is enabled
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: '0.8rem',
-                color: 'var(--theme-text-muted)',
-                lineHeight: 1.5
-              }}
-            >
-              This prompt is appended at the end of the basic system prompt when Web Search is enabled.
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              fontSize: '0.75rem',
-              color: 'var(--theme-text-muted)'
-            }}
-          >
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
-              {charCountWebSearch.toLocaleString()} chars
-            </span>
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
-              ~{estTokensWebSearch.toLocaleString()} tokens input
-            </span>
-          </div>
-        </div>
-
-        <div style={{ padding: '20px 24px' }}>
-          <textarea
-            value={localWebSearchValue}
-            onChange={e => handleWebSearchChange(e.target.value)}
-            className="setting-input-scira"
-            style={{
-              width: '100%',
-              minHeight: '280px',
-              padding: '16px',
-              fontSize: '0.9rem',
-              lineHeight: 1.6,
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              background: 'var(--theme-surface)',
-              border: '1px solid var(--theme-border)',
-              borderRadius: 8,
-              color: 'var(--theme-text-primary)',
-              resize: 'vertical',
-              transition: 'border-color 0.2s ease'
-            }}
-            onFocus={e => {
-              e.target.style.borderColor = 'var(--theme-accent)'
-            }}
-            onBlur={e => {
-              e.target.style.borderColor = 'var(--theme-border)'
-            }}
-            placeholder="Enter web search instructions here..."
-          />
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: 12
-            }}
-          >
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-              {charCountWebSearch > 5000 && (
-                <span style={{ color: '#f59e0b' }}>
-                  Note: Very long prompts may impact response quality
-                </span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleWebSearchReset}
-                style={{
-                  padding: '8px 14px',
-                  background: 'transparent',
-                  border: '1px solid var(--theme-border)',
-                  color: 'var(--theme-text-secondary)',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-accent)'
-                  e.currentTarget.style.color = 'var(--theme-accent)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-border)'
-                  e.currentTarget.style.color = 'var(--theme-text-secondary)'
-                }}
-              >
-                Load Default Prompt
-              </button>
-            </div>
-          </div>
-        </div>
       </Card>
     </div>
   )

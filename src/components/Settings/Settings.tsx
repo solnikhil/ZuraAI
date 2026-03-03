@@ -7,6 +7,7 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
+import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
@@ -174,7 +175,7 @@ export default function Settings({
             />
           )}
 
-          {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences' || activeSection === 'tools') && (
+          {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences') && (
             <ProviderHubSection
               initialProvider={settingsSectionParams?.provider}
               initialManageMode={settingsSectionParams?.manageMode}
@@ -185,9 +186,6 @@ export default function Settings({
               alibabaApiKey={pendingSettings.alibabaApiKey}
               tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
               ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
-              toolsEnabled={pendingSettings.toolsEnabled ?? settings.toolsEnabled}
-              webSearchEnabled={pendingSettings.webSearchEnabled ?? settings.webSearchEnabled}
-              structuredResearchEnabled={pendingSettings.structuredResearchEnabled ?? settings.structuredResearchEnabled}
               aiModel={pendingSettings.aiModel ?? settings.aiModel}
               modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
               configuredModels={pendingSettings.configuredModels || []}
@@ -201,6 +199,13 @@ export default function Settings({
             />
           )}
 
+          {(activeSection === 'skills' || activeSection === 'tools') && (
+            <SkillsSection
+              skills={pendingSettings.skills ?? settings.skills}
+              onChange={(changes) => handleChange(changes)}
+            />
+          )}
+
           {activeSection === 'themes' && (
             <AppearanceSection
               initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
@@ -211,7 +216,6 @@ export default function Settings({
           {activeSection === 'systemprompt' && (
             <SystemPromptSection
               systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
-              webSearchPrompt={pendingSettings.webSearchPrompt ?? settings.webSearchPrompt}
               onChange={(changes) => handleChange(changes)}
             />
           )}

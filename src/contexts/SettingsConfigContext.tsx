@@ -20,6 +20,7 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
+import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -77,9 +78,11 @@ export interface SettingsConfig {
     // Tool settings
     toolsEnabled: boolean
     enabledTools: string[]
-    webSearchEnabled: boolean
-    /** Step-by-step research: plan → execute web searches → synthesize */
-    structuredResearchEnabled: boolean
+    skills: SkillsSettings
+    /** @deprecated Legacy migration input only; do not use in runtime logic. */
+    webSearchEnabled?: boolean
+    /** @deprecated Legacy migration input only; do not use in runtime logic. */
+    structuredResearchEnabled?: boolean
     
     // Title generation
     titleModel: string
@@ -210,8 +213,7 @@ export const defaultSettingsConfig: SettingsConfig = {
     // Tool settings
     toolsEnabled: true,
     enabledTools: ['web_search'],
-    webSearchEnabled: true,
-    structuredResearchEnabled: false,
+    skills: defaultSkillsSettings,
     
     // Title generation
     titleModel: 'google/gemini-2.0-flash-exp:free',

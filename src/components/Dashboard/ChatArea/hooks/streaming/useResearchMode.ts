@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback } from 'react'
+import { getWebResearchMode, isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
 
 /**
  * Base system prompt for web search - planning and multi-turn guidance
@@ -76,10 +77,8 @@ export interface ResearchModeConfig {
  * Settings required for research mode
  */
 export interface ResearchModeSettings {
-  /** Whether web search is enabled */
-  webSearchEnabled: boolean
-  /** Whether structured research mode is enabled */
-  structuredResearchEnabled?: boolean
+  /** Skill state map */
+  skills: SkillsSettings
   /** Model provider */
   modelProvider: string
   /** Enabled tools list */
@@ -92,7 +91,7 @@ export interface ResearchModeSettings {
 export interface UseResearchModeOptions {
   /** Whether tools can be used with current provider/model */
   canUseTools: boolean
-  /** Custom web search prompt (appended when Web Search is enabled) */
+  /** Custom web search prompt (appended when Web Research skill is enabled) */
   webSearchPrompt?: string
 }
 
@@ -221,11 +220,13 @@ export function useResearchMode({
     settings: ResearchModeSettings,
     userMessage: string
   ): ResearchModeConfig => {
+    const webResearchEnabled = isWebResearchEnabled(settings.skills)
+    const webResearchMode = getWebResearchMode(settings.skills)
     const enabledTools = settings.enabledTools?.length ? settings.enabledTools : ['web_search']
     const hasWebSearch = enabledTools.includes('web_search')
     const hasStructuredEntryPoint = enabledTools.includes('research_plan') || hasWebSearch
-    const webSearchEnabledBySettings = settings.webSearchEnabled && (
-      settings.structuredResearchEnabled ? hasStructuredEntryPoint : hasWebSearch
+    const webSearchEnabledBySettings = webResearchEnabled && (
+      webResearchMode === 'structured' ? hasStructuredEntryPoint : hasWebSearch
     )
 
     const forceWebSearch =

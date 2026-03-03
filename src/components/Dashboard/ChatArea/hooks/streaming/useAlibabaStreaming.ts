@@ -98,10 +98,14 @@ export function useAlibabaStreaming({
     let firstTokenTime: number | null = null
     let localThinkingBlocks: ThinkingBlock[] = []
 
+    const hasResearchPlanTool = Array.isArray(alibabaTools)
+      && alibabaTools.some((tool) => (tool as { function?: { name?: string } })?.function?.name === 'research_plan')
     const initialForceToolUse = researchMandatory && researchMaxRounds > 0
-    const initialToolChoice = initialForceToolUse
-      ? { type: 'function' as const, function: { name: 'web_search' } }
-      : undefined
+    const initialToolChoice = hasResearchPlanTool
+      ? { type: 'function' as const, function: { name: 'research_plan' } }
+      : (initialForceToolUse
+          ? { type: 'function' as const, function: { name: 'web_search' } }
+          : undefined)
 
     // --- Initial stream ---
     for await (const chunk of streamAlibabaCompletion(

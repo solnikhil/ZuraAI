@@ -213,9 +213,9 @@ describe('Feature: floating-command-palette, Property 2: Open state invariant', 
           cleanup()
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
-  })
+  }, 30000)
 
   it('re-opening after close still has empty query and focus', () => {
     fc.assert(

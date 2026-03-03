@@ -1,4 +1,4 @@
-// Default web search prompt - appended when Web Search is enabled
+// Default web search prompt - appended when the Web Research skill is enabled
 
 export const defaultWebSearchPrompt = `You have access to the web_search tool for real-time information. Use it when the user needs:
 - Current events, news, or recent data

@@ -20,7 +20,6 @@ import {
   Plus,
   Search,
   Trash2,
-  Wrench,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -96,8 +95,7 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 }
 
-type SearchApiKey = 'tavily' | 'runtime'
-// Future: 'serpapi' | 'brave'
+type SearchApiKey = 'tavily'
 
 interface SearchApiDefinition {
   key: SearchApiKey
@@ -108,7 +106,6 @@ interface SearchApiDefinition {
   color?: string
   learnMoreUrl?: string
   apiKeyField?: 'tavilyApiKey'
-  isRuntime?: boolean
 }
 
 const SEARCH_APIS: SearchApiDefinition[] = [
@@ -121,14 +118,6 @@ const SEARCH_APIS: SearchApiDefinition[] = [
     color: '#4dabf7',
     learnMoreUrl: 'https://tavily.com',
     apiKeyField: 'tavilyApiKey',
-  },
-  {
-    key: 'runtime',
-    name: 'Search Runtime',
-    description: 'Control web search and deep research availability.',
-    shortDescription: 'Enable tools, web search, and deep research.',
-    icon: <Wrench size={18} />,
-    isRuntime: true,
   },
 ]
 
@@ -164,9 +153,6 @@ export interface ProviderHubSectionProps {
   alibabaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
-  structuredResearchEnabled?: boolean
   aiModel: string
   modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
   configuredModels: ConfiguredModel[]
@@ -186,9 +172,6 @@ export interface ProviderHubSectionProps {
     alibabaApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
-    toolsEnabled: boolean
-    webSearchEnabled: boolean
-    structuredResearchEnabled?: boolean
     configuredModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
@@ -208,9 +191,6 @@ export function ProviderHubSection({
   alibabaApiKey,
   tavilyApiKey,
   ollamaUrl,
-  toolsEnabled,
-  webSearchEnabled,
-  structuredResearchEnabled = false,
   aiModel,
   modelProvider,
   configuredModels,
@@ -1142,11 +1122,7 @@ export function ProviderHubSection({
                     key={api.key}
                     api={api}
                     active={selectedSearchApi === api.key}
-                    enabled={
-                      api.isRuntime
-                        ? toolsEnabled
-                        : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
-                    }
+                    enabled={Boolean(api.apiKeyField && (tavilyApiKey || '').trim())}
                     onClick={() => {
                       setSelectedSearchApi(api.key)
                       setSearchApiView('detail')
@@ -1162,13 +1138,11 @@ export function ProviderHubSection({
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
-              toolsEnabled={toolsEnabled}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
                 setSearchApiView('detail')
               }}
               onTavilyDisable={() => onChange({ tavilyApiKey: '' })}
-              onRuntimeDisable={() => onChange({ toolsEnabled: false })}
             />
           </Card>
         </div>
@@ -1178,9 +1152,6 @@ export function ProviderHubSection({
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
-          toolsEnabled={toolsEnabled}
-          webSearchEnabled={webSearchEnabled}
-          structuredResearchEnabled={structuredResearchEnabled}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
@@ -1632,18 +1603,14 @@ function SearchApiSection({
   apis,
   selectedApi,
   tavilyApiKey,
-  toolsEnabled,
   onCardClick,
   onTavilyDisable,
-  onRuntimeDisable,
 }: {
   apis: SearchApiDefinition[]
   selectedApi: SearchApiKey
   tavilyApiKey: string
-  toolsEnabled: boolean
   onCardClick: (api: SearchApiDefinition) => void
   onTavilyDisable: () => void
-  onRuntimeDisable: () => void
 }): React.ReactElement {
   return (
     <div className="mt-3 first:mt-0">
@@ -1653,9 +1620,7 @@ function SearchApiSection({
       </div>
       <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {apis.map((api) => {
-          const enabled = api.isRuntime
-            ? toolsEnabled
-            : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+          const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
           return (
             <div
               key={api.key}
@@ -1685,8 +1650,7 @@ function SearchApiSection({
                   checked={enabled}
                   onCheckedChange={(checked) => {
                     if (!checked) {
-                      if (api.isRuntime) onRuntimeDisable()
-                      else if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
+                      if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
                     } else {
                       onCardClick(api)
                     }
@@ -1710,24 +1674,16 @@ function SearchApiSection({
 function SearchApiDetail({
   api,
   tavilyApiKey,
-  toolsEnabled,
-  webSearchEnabled,
-  structuredResearchEnabled = false,
   onBack,
   onChange,
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
-  structuredResearchEnabled?: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
-  const isEnabled = api.isRuntime
-    ? toolsEnabled
-    : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+  const isEnabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
 
   return (
     <Card className="settings-section-card mt-4">
@@ -1756,9 +1712,7 @@ function SearchApiDetail({
             checked={isEnabled}
             onCheckedChange={(checked) => {
               if (!checked) {
-                if (api.isRuntime) {
-                  onChange({ toolsEnabled: false })
-                } else if (api.apiKeyField === 'tavilyApiKey') {
+                if (api.apiKeyField === 'tavilyApiKey') {
                   onChange({ tavilyApiKey: '' })
                 }
               }
@@ -1768,25 +1722,7 @@ function SearchApiDetail({
         </div>
 
         <div className="border-t border-border pt-6">
-          {api.isRuntime ? (
-            <div className="space-y-3">
-              <ToggleRow
-                label="Enable Tools"
-                checked={toolsEnabled}
-                onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
-              />
-              <ToggleRow
-                label="Enable Web Search"
-                checked={webSearchEnabled}
-                onCheckedChange={(checked) => onChange({ webSearchEnabled: checked })}
-              />
-              <ToggleRow
-                label="Step-by-step research"
-                checked={structuredResearchEnabled}
-                onCheckedChange={(checked) => onChange({ structuredResearchEnabled: checked })}
-              />
-            </div>
-          ) : api.apiKeyField === 'tavilyApiKey' ? (
+          {api.apiKeyField === 'tavilyApiKey' ? (
             <div className="space-y-6">
               <DetailField
                 label="API Key"
@@ -1831,23 +1767,6 @@ function SearchApiDetail({
         </div>
       </div>
     </Card>
-  )
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}): React.ReactElement {
-  return (
-    <div className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-3 py-2">
-      <span className="text-sm text-foreground">{label}</span>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
-    </div>
   )
 }
 

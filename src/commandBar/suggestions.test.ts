@@ -108,6 +108,16 @@ describe('commandBar suggestions', () => {
       expect(searchApisSuggestion).toBeDefined()
       expect(searchApisSuggestion?.title).toBe('Search APIs Settings')
     })
+
+    it('offers Skills settings when typing skills', () => {
+      const suggestions = getCommandBarSuggestions('skills', {
+        hasCurrentSession: false,
+      })
+
+      const skillsSuggestion = suggestions.find((s) => s.id === 'go-settings-skills')
+      expect(skillsSuggestion).toBeDefined()
+      expect(skillsSuggestion?.title).toBe('Skills Settings')
+    })
   })
 })
 
@@ -139,9 +149,10 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
     'instructions', 'persona', 'behavior', 'usage', 'statistics',
     'tokens', 'activity', 'openrouter', 'groq', 'perplexity',
     'ollama', 'local', 'alibaba', 'qwen',
-    'dashscope', 'tavily', 'search', 'tools', 'toggle',
-    'collapse', 'expand', 'command', 'palette', 'shortcut',
-  ]
+     'dashscope', 'tavily', 'search', 'tools', 'toggle',
+     'skills',
+     'collapse', 'expand', 'command', 'palette', 'shortcut',
+   ]
 
   const arbKnownKeyword = fc.constantFrom(...KNOWN_KEYWORDS)
 

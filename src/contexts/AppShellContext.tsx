@@ -39,6 +39,7 @@ const STORAGE_KEYS = {
 const VALID_SETTINGS_SECTIONS = new Set<string>([
     'usage',
     'providers',
+    'skills',
     'themes',
     'systemprompt',
     'experimental',
@@ -46,7 +47,8 @@ const VALID_SETTINGS_SECTIONS = new Set<string>([
 
 function normalizeSettingsSection(section: string | null): string | null {
     if (!section) return null
-    if (section === 'tools' || section === 'models' || section === 'preferences') return 'providers'
+    if (section === 'tools') return 'skills'
+    if (section === 'models' || section === 'preferences') return 'providers'
     if (section === 'commandbar') return 'themes'
     if (section === 'notifications') return 'usage'
     const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null

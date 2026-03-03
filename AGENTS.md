@@ -57,6 +57,7 @@ Core capabilities:
   - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
   - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
   - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
+  - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
   - `src/tools/` — tool schema + adapters + tool execution coordinator
 
 - `dist/` — renderer build output (generated)
@@ -161,9 +162,15 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
   - Main tool registry: `electron/tools/index.ts` (restricted)
 
-#### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
-- **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
-- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/Alibaba. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
+#### Skills-Based Research (`settings.skills`)
+- Research capability is now controlled by built-in skills, not direct tool toggles.
+- Built-in skill: `web_research` (`settings.skills.web_research`).
+- **Normal mode** (`settings.skills.web_research.config.mode = "normal"`): model can call `web_search` directly; model decides depth. No hard cap (safety cap remains in loop guard).
+- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, renders the plan (`ResearchPlanBlock`), and returns aggregated results for final synthesis.
+- Tool schema exposure is skill-gated in renderer:
+  - Skill OFF: expose neither `web_search` nor `research_plan`
+  - Skill ON (normal): expose `web_search`
+  - Skill ON (structured): expose `web_search` + `research_plan`
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -200,6 +207,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
+  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
@@ -222,7 +231,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` when structured research enabled) 
+  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` definitions)
+  - Skill gating: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which schemas are exposed to the model per request
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
 

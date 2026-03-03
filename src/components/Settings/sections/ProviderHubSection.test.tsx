@@ -11,8 +11,6 @@ describe('ProviderHubSection', () => {
     alibabaApiKey: '',
     tavilyApiKey: '',
     ollamaUrl: 'http://localhost:11434',
-    toolsEnabled: true,
-    webSearchEnabled: true,
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter' as const,
     configuredModels: [

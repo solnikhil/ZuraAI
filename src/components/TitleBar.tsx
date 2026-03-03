@@ -11,6 +11,7 @@ import './TitleBar.css'
 const SETTINGS_SECTION_LABELS: Record<string, string> = {
     usage: 'Usage',
     providers: 'Providers',
+    skills: 'Skills',
     themes: 'Appearance',
     systemprompt: 'System Prompt',
     experimental: 'Experimental',

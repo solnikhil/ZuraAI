@@ -22,6 +22,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { SettingsUIProvider, useSettingsUI, defaultSettingsUI, type SettingsUI } from './SettingsUIContext'
 import { SettingsConfigProvider, useSettingsConfig, defaultSettingsConfig, type SettingsConfig, type TodoItem } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
+import { migrateSkillsFromLegacySettings } from '../skills'
 
 // Re-export types for backward compatibility
 export type { TodoItem }
@@ -272,6 +273,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.todos) parsed.todos = []
         // Initialize tool settings if missing
         if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
+        // Migration: tool-level UI toggles were replaced by skills, keep master gate on by default.
+        if (parsed.toolsEnabled === false) parsed.toolsEnabled = true
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
         if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
@@ -282,14 +285,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 parsed.enabledTools = defaultSettings.enabledTools
             }
         }
-        if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
-        // Migration: deep research removed - ensure webSearchEnabled if it was on
-        if ((parsed as Record<string, unknown>).deepResearchEnabled === true) {
-            parsed.webSearchEnabled = true
-        }
-        delete (parsed as Record<string, unknown>).deepResearchEnabled
-        // structuredResearchEnabled restored - initialize if missing
-        if (parsed.structuredResearchEnabled === undefined) parsed.structuredResearchEnabled = defaultSettings.structuredResearchEnabled
+        const legacySettingsRecord = parsed as Record<string, unknown>
+        parsed.skills = migrateSkillsFromLegacySettings({
+            skills: legacySettingsRecord.skills,
+            webSearchEnabled: legacySettingsRecord.webSearchEnabled,
+            structuredResearchEnabled: legacySettingsRecord.structuredResearchEnabled,
+            deepResearchEnabled: legacySettingsRecord.deepResearchEnabled,
+        })
+        delete legacySettingsRecord.deepResearchEnabled
+        delete legacySettingsRecord.webSearchEnabled
+        delete legacySettingsRecord.structuredResearchEnabled
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
@@ -399,8 +404,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         streamResponses: combinedSettings.streamResponses,
         toolsEnabled: combinedSettings.toolsEnabled,
         enabledTools: combinedSettings.enabledTools,
-        webSearchEnabled: combinedSettings.webSearchEnabled,
-        structuredResearchEnabled: combinedSettings.structuredResearchEnabled,
+        skills: combinedSettings.skills,
         titleModel: combinedSettings.titleModel,
         favoriteModels: combinedSettings.favoriteModels,
         quickPrompts: combinedSettings.quickPrompts,

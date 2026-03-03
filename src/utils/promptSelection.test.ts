@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { getEffectiveSystemPrompt, shouldEnableTools } from './promptSelection'
+import { defaultSkillsSettings } from '../skills'
 
 // Arbitrary for generating random system prompts
 const systemPromptArb = fc.string({ minLength: 1, maxLength: 500 })
@@ -11,9 +12,7 @@ describe('System Prompt Selection', () => {
             fc.property(
                 systemPromptArb,
                 (basePrompt) => {
-                    const settings = {
-                        systemPrompt: basePrompt,
-                    }
+                    const settings = { systemPrompt: basePrompt }
                     
                     const effectivePrompt = getEffectiveSystemPrompt(settings)
                     
@@ -31,11 +30,9 @@ describe('Tool Enablement', () => {
         fc.assert(
             fc.property(
                 fc.boolean(),
-                fc.boolean(),
-                (toolsEnabled, webSearchEnabled) => {
+                (toolsEnabled) => {
                     const settings = {
                         toolsEnabled: toolsEnabled,
-                        webSearchEnabled: webSearchEnabled,
                     }
 
                     const toolsAvailable = shouldEnableTools(settings)
@@ -46,5 +43,15 @@ describe('Tool Enablement', () => {
             ),
             { numRuns: 100 }
         )
+    })
+
+    it('adds enabled skills prompt context when web research skill is on', () => {
+        const prompt = getEffectiveSystemPrompt({
+            systemPrompt: 'Base prompt',
+            skills: defaultSkillsSettings,
+        })
+
+        expect(prompt).toContain('Enabled Skills:')
+        expect(prompt).toContain('Web Research (`web_research`)')
     })
 })

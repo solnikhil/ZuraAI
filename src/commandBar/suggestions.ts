@@ -169,6 +169,13 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'providers' }
     },
     {
+      id: 'go-settings-skills',
+      title: 'Skills Settings',
+      subtitle: 'Built-in skills and modes',
+      keywords: ['skills', 'web research', 'research mode', 'capabilities'],
+      action: { type: 'open_settings_section', section: 'skills' }
+    },
+    {
       id: 'go-settings-openrouter',
       title: 'OpenRouter Settings',
       subtitle: 'API keys & models',

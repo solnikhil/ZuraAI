@@ -13,6 +13,7 @@ import { ToolCall } from '../tools/executor'
 import type { OpenRouterResponse } from '../tools/types'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { shouldEnableTools } from '../utils/promptSelection'
+import { getWebResearchToolExposure } from '../skills'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -52,12 +53,22 @@ export function useToolCalling() {
             ? settings.enabledTools.filter((tool) => knownTools.has(tool))
             : allToolNames
 
-        if (!settings.webSearchEnabled) {
+        const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
+
+        if (!webResearchToolExposure.exposeWebSearch) {
             enabledTools = enabledTools.filter((tool) => tool !== 'web_search' && tool !== 'research_plan')
-        } else if (settings.structuredResearchEnabled) {
-            enabledTools = ['research_plan']
         } else {
-            enabledTools = enabledTools.filter((tool) => tool !== 'research_plan')
+            if (!enabledTools.includes('web_search')) {
+                enabledTools.push('web_search')
+            }
+
+            if (webResearchToolExposure.exposeResearchPlan) {
+                if (!enabledTools.includes('research_plan')) {
+                    enabledTools.push('research_plan')
+                }
+            } else {
+                enabledTools = enabledTools.filter((tool) => tool !== 'research_plan')
+            }
         }
 
         return [...new Set(enabledTools)]

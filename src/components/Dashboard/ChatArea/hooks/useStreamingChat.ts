@@ -22,6 +22,7 @@ import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
+import { getWebResearchMode, isWebResearchEnabled } from '../../../../skills'
 import type { AttachedFile } from '../FileUploadHandler'
 
 // Import provider-specific streaming hooks
@@ -302,10 +303,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         return msg
       })
 
-      // Research mode setup - single web search toggle, model-driven depth, no caps
+      // Research mode setup - skills-driven web research, model-driven depth, no caps
       const researchConfig = calculateResearchConfig({
-        webSearchEnabled: settings.webSearchEnabled,
-        structuredResearchEnabled: settings.structuredResearchEnabled,
+        skills: settings.skills,
         modelProvider: settings.modelProvider,
         enabledTools: settings.enabledTools,
       }, content)
@@ -320,7 +320,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }
 
       const planFirstInstruction =
-        settings.structuredResearchEnabled && settings.webSearchEnabled && canUseTools
+        isWebResearchEnabled(settings.skills) &&
+        getWebResearchMode(settings.skills) === 'structured' &&
+        canUseTools
           ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
           : ''
       const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)

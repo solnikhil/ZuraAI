@@ -32,7 +32,7 @@ describe('AppShellContext providers section normalization', () => {
     vi.clearAllMocks()
   })
 
-  it.each(['models', 'preferences', 'tools'])('normalizes stored "%s" to providers', (storedSection) => {
+  it.each(['models', 'preferences'])('normalizes stored "%s" to providers', (storedSection) => {
     localStorage.setItem('zura-ui:settingsSection', storedSection)
 
     render(
@@ -42,6 +42,18 @@ describe('AppShellContext providers section normalization', () => {
     )
 
     expect(screen.getByTestId('section').textContent).toBe('providers')
+  })
+
+  it('normalizes stored "tools" to skills', () => {
+    localStorage.setItem('zura-ui:settingsSection', 'tools')
+
+    render(
+      <AppShellProvider>
+        <Probe />
+      </AppShellProvider>
+    )
+
+    expect(screen.getByTestId('section').textContent).toBe('skills')
   })
 
   it('normalizes runtime section updates to providers', () => {

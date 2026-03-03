@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Paperclip, Globe, Image, X, SendHorizonal, Square } from 'lucide-react'
+import { Paperclip, Image, X, SendHorizonal, Square } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -59,13 +59,10 @@ export function InputArea({
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const { settings, updateSettings } = useSettings()
+  const { settings } = useSettings()
   const { frostedPrompt } = settings
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
-
-  // Web search is enabled when webSearchEnabled is true
-  const showSearch = settings.webSearchEnabled
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -142,10 +139,6 @@ export function InputArea({
 
   const removeFile = (fileId: string) => {
     onFilesChange(attachedFiles.filter(f => f.id !== fileId))
-  }
-
-  const toggleSearch = () => {
-    updateSettings({ webSearchEnabled: !settings.webSearchEnabled })
   }
 
   const handleContainerClick = () => {
@@ -280,57 +273,6 @@ export function InputArea({
               <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
                 {/* Model Selector */}
                 <ModelSelector minimal={true} />
-
-                      <div className="mx-1 h-4 w-px bg-white/10" />
-
-                {/* Web Search Toggle - KokonutUI style */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleSearch()
-                  }}
-                  className={cn(
-                    "rounded-full transition-all flex items-center gap-2 px-2 py-1 h-8 cursor-pointer",
-                    showSearch
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/70 hover:bg-white/5"
-                  )}
-                >
-                  <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                    <motion.div
-                      animate={{
-                        rotate: showSearch ? 180 : 0,
-                        scale: showSearch ? 1.1 : 1,
-                      }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 260,
-                        damping: 25,
-                      }}
-                    >
-                      <Globe
-                        className={cn(
-                          "w-4 h-4",
-                          showSearch ? "text-white" : "text-inherit"
-                        )}
-                      />
-                    </motion.div>
-                  </div>
-                  <AnimatePresence>
-                    {showSearch && (
-                      <motion.span
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: "auto", opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-sm overflow-hidden whitespace-nowrap text-white shrink-0 pr-1"
-                      >
-                        Search
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </button>
 
                 {/* Images button */}
                 <AnimatePresence>

@@ -106,11 +106,9 @@ function computeInitialToolChoice(
 ): 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined {
   if (!openRouterTools) return undefined
 
-  const hasResearchPlanOnly =
-    openRouterTools.some(t => t?.function?.name === 'research_plan') &&
-    !openRouterTools.some(t => t?.function?.name === 'web_search')
+  const hasResearchPlan = openRouterTools.some(t => t?.function?.name === 'research_plan')
 
-  if (hasResearchPlanOnly) {
+  if (hasResearchPlan) {
     return { type: 'function', function: { name: 'research_plan' } }
   }
   if ((researchMandatory && researchMaxRounds > 0) || forceWebSearch) {
