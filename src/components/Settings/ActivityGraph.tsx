@@ -282,7 +282,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
         <div style={{ position: 'relative', minHeight: 240 }}>
           <ChartContainer
             config={chartConfig}
-            style={{ width: '100%', height: 240, minHeight: 240 }}
+            style={{ width: '100%', minWidth: 0, height: 240, minHeight: 240 }}
           >
             <BarChart
               accessibilityLayer

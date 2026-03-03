@@ -11,7 +11,7 @@ import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
-import { computeUsageStats } from './sections/usageMetrics'
+import { computeUsageStats, type UsageRuntimeMetrics } from './sections/usageMetrics'
 
 import './Settings.css'
 
@@ -21,19 +21,155 @@ interface SettingsProps {
   showWarning?: boolean
 }
 
+function parseFiniteNumber(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return value
+}
+
 export default function Settings({
   activeSection = 'usage', onUnsavedChange, showWarning = false
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
-  const { settingsSectionParams, setSettingsSectionParams } = useAppShell()
+  const {
+    settingsSectionParams,
+    setSettingsSectionParams,
+  } = useAppShell()
+
   const [pendingSettings, setPendingSettings] = useState(settings)
   const lastSyncedSettingsRef = useRef(settings)
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [usageRuntimeMetrics, setUsageRuntimeMetrics] = useState<UsageRuntimeMetrics | null>(null)
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
-  const usageStats = useMemo(() => computeUsageStats(sessions), [sessions])
+  const usageModelCatalog = useMemo(() => ({
+    openrouterModels: (pendingSettings.configuredModels || []).map((model) => model.code),
+    perplexityModels: (pendingSettings.perplexityModels || []).map((model) => model.code),
+    groqModels: (pendingSettings.groqModels || []).map((model) => model.code),
+    alibabaModels: (pendingSettings.alibabaModels || []).map((model) => model.code),
+    ollamaModels: (pendingSettings.ollamaModels || []).map((model) => model.code),
+  }), [
+    pendingSettings.configuredModels,
+    pendingSettings.perplexityModels,
+    pendingSettings.groqModels,
+    pendingSettings.alibabaModels,
+    pendingSettings.ollamaModels,
+  ])
+
+  const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
+
+  const normalizedActiveSection = useMemo(() => {
+    if (activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences') return 'providers'
+    if (activeSection === 'skills' || activeSection === 'tools') return 'skills'
+    if (activeSection === 'themes') return 'themes'
+    if (activeSection === 'systemprompt') return 'systemprompt'
+    if (activeSection === 'experimental') return 'experimental'
+    return 'usage'
+  }, [activeSection])
+
+  const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
+
+  useEffect(() => {
+    if (normalizedActiveSection !== 'usage' || !isElectron) return
+
+    let isCancelled = false
+
+    const loadRuntimeUsageMetrics = async () => {
+      try {
+        const [performanceRaw, processRaw, thresholdsRaw] = await Promise.all([
+          window.ipcRenderer.invoke('performance:get-metrics'),
+          window.ipcRenderer.invoke('get-process-metrics'),
+          window.ipcRenderer.invoke('performance:check-thresholds'),
+        ])
+
+        if (isCancelled) return
+
+        const performance = (performanceRaw && typeof performanceRaw === 'object')
+          ? performanceRaw as Record<string, unknown>
+          : {}
+
+        const startup = (performance.startup && typeof performance.startup === 'object')
+          ? performance.startup as Record<string, unknown>
+          : {}
+
+        const renderer = (performance.renderer && typeof performance.renderer === 'object')
+          ? performance.renderer as Record<string, unknown>
+          : {}
+
+        const processMetrics = Array.isArray(processRaw)
+          ? processRaw as Array<Record<string, unknown>>
+          : []
+
+        const totalCpu = processMetrics.reduce((sum, metric) => {
+          const cpu = parseFiniteNumber(metric.cpu)
+          return sum + (cpu || 0)
+        }, 0)
+
+        const totalMemoryMb = processMetrics.reduce((sum, metric) => {
+          const memory = parseFiniteNumber(metric.memory)
+          return sum + (memory || 0)
+        }, 0)
+
+        const thresholdWarnings = (
+          thresholdsRaw &&
+          typeof thresholdsRaw === 'object' &&
+          Array.isArray((thresholdsRaw as Record<string, unknown>).warnings)
+        )
+          ? (thresholdsRaw as { warnings: unknown[] }).warnings.filter((entry): entry is string => typeof entry === 'string')
+          : []
+
+        setUsageRuntimeMetrics({
+          startupWindowVisibleMs: parseFiniteNumber(startup.windowVisible),
+          startupFullyLoadedMs: parseFiniteNumber(startup.fullyLoaded),
+          fcpMs: parseFiniteNumber(renderer.fcp),
+          ttiMs: parseFiniteNumber(renderer.tti),
+          lcpMs: parseFiniteNumber(renderer.lcp),
+          processCpuPercent: Number(totalCpu.toFixed(1)),
+          processMemoryMb: Math.round(totalMemoryMb),
+          warnings: thresholdWarnings,
+        })
+      } catch (error) {
+        if (!isCancelled) {
+          console.warn('[Settings] Failed to load runtime usage metrics:', error)
+          setUsageRuntimeMetrics(null)
+        }
+      }
+    }
+
+    void loadRuntimeUsageMetrics()
+    const intervalId = window.setInterval(() => {
+      void loadRuntimeUsageMetrics()
+    }, 15000)
+
+    return () => {
+      isCancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [normalizedActiveSection, isElectron])
+
+  const handleExportUsageSnapshot = useCallback(() => {
+    const snapshot = {
+      exportedAt: new Date().toISOString(),
+      privacy: {
+        localOnlyComputation: true,
+        includesPromptsOrResponses: false,
+        includesApiKeys: false,
+      },
+      usage: usageStats,
+      runtime: usageRuntimeMetrics,
+    }
+
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `zura-usage-snapshot-${new Date().toISOString().slice(0, 10)}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }, [usageRuntimeMetrics, usageStats])
 
   const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
 
@@ -141,10 +277,6 @@ export default function Settings({
     }
   }
 
-  useEffect(() => {
-    void checkOllama()
-  }, [])
-
   useEffect(
     () => { if (pendingSettings.modelProvider === 'ollama') void checkOllama() },
     [pendingSettings.modelProvider, pendingSettings.ollamaUrl]
@@ -154,177 +286,104 @@ export default function Settings({
     <div className="settings-container">
       <ScrollArea
         className="settings-main-col"
-        style={{
-          padding: '0',
-          height: '100%',
-          maxWidth: '100%',
-          overflow: 'hidden'
-        }}
-        viewportStyle={{ paddingBottom: hasChanges ? 80 : 0 }}
+        viewportClassName="settings-main-col__viewport"
+        viewportStyle={{ paddingBottom: hasChanges ? 110 : 24 }}
       >
-        <div style={{
-          width: '100%',
-          maxWidth: '100%',
-          margin: '0 auto',
-          padding: '0 24px',
-          transition: 'max-width 0.3s ease'
-        }}>
-          {activeSection === 'usage' && (
-            <UsageSection
-              stats={usageStats}
-            />
-          )}
+        <div className="settings-shell">
+          <div className="settings-shell__content">
+            {normalizedActiveSection === 'usage' && (
+              <UsageSection
+                stats={usageStats}
+                runtimeMetrics={usageRuntimeMetrics}
+                isElectron={isElectron}
+                onExportSnapshot={handleExportUsageSnapshot}
+              />
+            )}
 
-          {(activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences') && (
-            <ProviderHubSection
-              initialProvider={settingsSectionParams?.provider}
-              initialManageMode={settingsSectionParams?.manageMode}
-              onParamsConsumed={clearParams}
-              openRouterApiKey={pendingSettings.openRouterApiKey}
-              perplexityApiKey={pendingSettings.perplexityApiKey}
-              groqApiKey={pendingSettings.groqApiKey}
-              alibabaApiKey={pendingSettings.alibabaApiKey}
-              tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
-              ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
-              aiModel={pendingSettings.aiModel ?? settings.aiModel}
-              modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
-              configuredModels={pendingSettings.configuredModels || []}
-              perplexityModels={pendingSettings.perplexityModels || []}
-              groqModels={pendingSettings.groqModels || []}
-              alibabaModels={pendingSettings.alibabaModels || []}
-              ollamaModels={pendingSettings.ollamaModels || []}
-              maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
-              titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}
-              onChange={handleChange}
-            />
-          )}
+            {normalizedActiveSection === 'providers' && (
+              <ProviderHubSection
+                initialProvider={settingsSectionParams?.provider}
+                initialManageMode={settingsSectionParams?.manageMode}
+                onParamsConsumed={clearParams}
+                openRouterApiKey={pendingSettings.openRouterApiKey}
+                perplexityApiKey={pendingSettings.perplexityApiKey}
+                groqApiKey={pendingSettings.groqApiKey}
+                alibabaApiKey={pendingSettings.alibabaApiKey}
+                tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
+                ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
+                aiModel={pendingSettings.aiModel ?? settings.aiModel}
+                modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
+                configuredModels={pendingSettings.configuredModels || []}
+                perplexityModels={pendingSettings.perplexityModels || []}
+                groqModels={pendingSettings.groqModels || []}
+                alibabaModels={pendingSettings.alibabaModels || []}
+                ollamaModels={pendingSettings.ollamaModels || []}
+                maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
+                titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}
+                onChange={handleChange}
+              />
+            )}
 
-          {(activeSection === 'skills' || activeSection === 'tools') && (
-            <SkillsSection
-              skills={pendingSettings.skills ?? settings.skills}
-              onChange={(changes) => handleChange(changes)}
-            />
-          )}
+            {normalizedActiveSection === 'skills' && (
+              <SkillsSection
+                skills={pendingSettings.skills ?? settings.skills}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
 
-          {activeSection === 'themes' && (
-            <AppearanceSection
-              initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
-              onParamsConsumed={clearParams}
-            />
-          )}
+            {normalizedActiveSection === 'themes' && (
+              <AppearanceSection
+                initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
+                onParamsConsumed={clearParams}
+              />
+            )}
 
-          {activeSection === 'systemprompt' && (
-            <SystemPromptSection
-              systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
-              onChange={(changes) => handleChange(changes)}
-            />
-          )}
+            {normalizedActiveSection === 'systemprompt' && (
+              <SystemPromptSection
+                systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
 
-          {activeSection === 'experimental' && (
-            <ExperimentalSection
-              frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
-              frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
-              sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
-              softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
-              onChange={(changes) => handleChange(changes)}
-            />
-          )}
-
+            {normalizedActiveSection === 'experimental' && (
+              <ExperimentalSection
+                frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
+                frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
+                sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
+                softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
+                onChange={(changes) => handleChange(changes)}
+              />
+            )}
+          </div>
         </div>
       </ScrollArea>
 
       {hasChanges && (
-        <div style={{
-          left: 20,
-          right: 20,
-          position: 'absolute',
-          bottom: 16,
-          padding: '12px 16px',
-          background: showWarning ? 'rgba(239, 68, 68, 0.95)' : 'rgba(30, 34, 42, 0.98)',
-          backdropFilter: 'blur(12px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          borderRadius: 12,
-          border: showWarning ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(255,255,255,0.1)',
-          boxShadow: showWarning ? '0 8px 32px rgba(239, 68, 68, 0.3)' : '0 8px 32px rgba(0,0,0,0.4)',
-          zIndex: 100,
-          transition: 'background 0.3s, border-color 0.3s, box-shadow 0.3s'
-        }} role="region" aria-label="Unsaved settings changes">
-          <span style={{
-            color: showWarning ? '#fff' : '#a0a0a0',
-            fontSize: '0.9rem',
-            fontWeight: showWarning ? 600 : 400,
-            flex: 1
-          }}>
-            {showWarning ? 'Save or discard changes before leaving this section.' : 'You have unsaved settings changes.'}
-          </span>
+        <div className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`} role="region" aria-label="Unsaved settings changes">
+          <div className="settings-savebar__text">
+            {showWarning ? 'Save or discard changes before leaving this section.' : 'You have unsaved changes.'}
+          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="settings-savebar__actions">
             <button
               onClick={cancelChanges}
               disabled={isSaving}
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.16)',
-                color: showWarning ? 'rgba(255,255,255,0.8)' : '#6b7280',
-                fontSize: '0.9rem',
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                padding: '6px 12px',
-                borderRadius: 8,
-                opacity: isSaving ? 0.6 : 1,
-                transition: 'color 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = showWarning ? 'rgba(255,255,255,0.8)' : '#6b7280'}
+              className="settings-savebar__button settings-savebar__button--ghost"
             >
-              Discard changes
+              Discard
             </button>
             <button
               onClick={saveChanges}
               disabled={isSaving}
-              style={{
-                background: showWarning ? '#fff' : '#22c55e',
-                border: 'none',
-                color: showWarning ? '#dc2626' : '#fff',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                padding: '8px 16px',
-                borderRadius: 6,
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                opacity: isSaving ? 0.8 : 1,
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={e => {
-                if (isSaving) return
-                e.currentTarget.style.background = showWarning ? '#f0f0f0' : '#16a34a'
-              }}
-              onMouseLeave={e => {
-                if (isSaving) return
-                e.currentTarget.style.background = showWarning ? '#fff' : '#22c55e'
-              }}
+              className="settings-savebar__button settings-savebar__button--primary"
             >
-              {isSaving ? 'Saving...' : 'Save settings'}
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
       )}
 
-      <div
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          padding: 0,
-          margin: -1,
-          overflow: 'hidden',
-          clip: 'rect(0, 0, 0, 0)',
-          border: 0
-        }}
-      >
+      <div className="settings-announcer" role="status" aria-live="polite">
         {statusMessage}
       </div>
     </div>

@@ -2,6 +2,11 @@ import type { ChatSession, ToolCallResult } from '@/contexts/ChatHistoryContext'
 import type { ActivityData } from '../ActivityGraph'
 
 const DAY_MS = 24 * 60 * 60 * 1000
+const WEEK_MS = 7 * DAY_MS
+const MONTH_30_MS = 30 * DAY_MS
+const ONE_MILLION = 1_000_000
+
+export type UsageProvider = 'openrouter' | 'perplexity' | 'groq' | 'alibaba' | 'ollama' | 'unknown'
 
 interface ModelUsageEntry {
   name: string
@@ -14,11 +19,52 @@ interface SearchQueryEntry {
   count: number
 }
 
+export interface ProviderUsageEntry {
+  provider: UsageProvider
+  messages: number
+  tokens: number
+  inputTokens: number
+  outputTokens: number
+  avgLatencyMs: number
+  errors: number
+  estimatedCostUsd: number
+}
+
+export interface UsageErrorBreakdown {
+  network: number
+  auth: number
+  rateLimit: number
+  provider: number
+  tool: number
+  other: number
+}
+
+export interface UsageModelCatalog {
+  openrouterModels?: string[]
+  perplexityModels?: string[]
+  groqModels?: string[]
+  alibabaModels?: string[]
+  ollamaModels?: string[]
+}
+
+export interface UsageRuntimeMetrics {
+  startupWindowVisibleMs: number | null
+  startupFullyLoadedMs: number | null
+  fcpMs: number | null
+  ttiMs: number | null
+  lcpMs: number | null
+  processCpuPercent: number | null
+  processMemoryMb: number | null
+  warnings: string[]
+}
+
 export interface UsageStats {
   todayMessages: number
   totalSessions: number
   totalMessages: number
   totalTokens: number
+  tokensLast7Days: number
+  tokensLast30Days: number
   avgTokensPerAssistant: number
   activeDays: number
   currentActiveStreak: number
@@ -30,9 +76,17 @@ export interface UsageStats {
   mostUsedModel: string
   modelEntries: ModelUsageEntry[]
   topModelsByTokens: ModelUsageEntry[]
+  providerEntries: ProviderUsageEntry[]
+  estimatedSpendUsd: number
+  spendCoveragePercent: number
   avgAssistantLatencyMs: number
   avgAssistantTtftMs: number
   avgAssistantTps: number
+  totalToolCalls: number
+  totalRegenerations: number
+  assistantMessagesWithErrors: number
+  assistantErrorRate: number
+  errorBreakdown: UsageErrorBreakdown
   totalWebSearches: number
   successfulWebSearches: number
   failedWebSearches: number
@@ -41,6 +95,14 @@ export interface UsageStats {
   researchPlansExecuted: number
   topSearchQueries: SearchQueryEntry[]
   activityData: ActivityData[]
+}
+
+const PROVIDER_TOKEN_RATES_PER_MILLION: Record<Exclude<UsageProvider, 'unknown'>, { inputUsd: number; outputUsd: number }> = {
+  openrouter: { inputUsd: 1.2, outputUsd: 4.8 },
+  perplexity: { inputUsd: 1.0, outputUsd: 1.0 },
+  groq: { inputUsd: 0.8, outputUsd: 0.8 },
+  alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
+  ollama: { inputUsd: 0, outputUsd: 0 },
 }
 
 function getLocalDayKeyFromTimestamp(timestamp: number): string {
@@ -63,9 +125,17 @@ function parseDayKeyToTimestamp(dayKey: string): number {
   return new Date(year, month - 1, day).getTime()
 }
 
+function normalizeModelCode(model?: string): string {
+  if (!model) return ''
+  const trimmed = model.trim().toLowerCase()
+  if (!trimmed) return ''
+  return trimmed.startsWith('openrouter/') ? trimmed.replace(/^openrouter\//, '') : trimmed
+}
+
 function getModelName(model?: string): string {
   if (!model) return 'Unknown'
-  return model.split('/').pop() || model
+  const normalized = model.startsWith('openrouter/') ? model.replace(/^openrouter\//, '') : model
+  return normalized.split('/').pop() || normalized
 }
 
 function getTokenCount(message: ChatSession['messages'][number]): number {
@@ -78,6 +148,39 @@ function getTokenCount(message: ChatSession['messages'][number]): number {
   }
 
   return message.tokenCount || 0
+}
+
+function getTokenBreakdown(message: ChatSession['messages'][number]): { inputTokens: number; outputTokens: number; totalTokens: number } {
+  const fromUsageInput = message.usage?.inputTokens || 0
+  const fromUsageOutput = message.usage?.outputTokens || 0
+  const fromUsageTotal = message.usage?.totalTokens || 0
+
+  const usageTotal = fromUsageTotal > 0
+    ? fromUsageTotal
+    : fromUsageInput + fromUsageOutput
+
+  if (usageTotal > 0) {
+    const inputTokens = fromUsageInput > 0 ? fromUsageInput : Math.round(usageTotal * 0.45)
+    const outputTokens = fromUsageOutput > 0 ? fromUsageOutput : Math.max(0, usageTotal - inputTokens)
+    return {
+      inputTokens,
+      outputTokens,
+      totalTokens: usageTotal,
+    }
+  }
+
+  const totalTokens = message.tokenCount || 0
+  if (totalTokens <= 0) return { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+
+  if (message.role === 'assistant') {
+    return { inputTokens: Math.round(totalTokens * 0.45), outputTokens: Math.round(totalTokens * 0.55), totalTokens }
+  }
+
+  if (message.role === 'user') {
+    return { inputTokens: totalTokens, outputTokens: 0, totalTokens }
+  }
+
+  return { inputTokens: 0, outputTokens: totalTokens, totalTokens }
 }
 
 function extractQuery(argumentsValue: unknown): string | null {
@@ -202,9 +305,77 @@ function applyToolResultMetrics(
   }
 }
 
-export function computeUsageStats(sessions: ChatSession[]): UsageStats {
+function classifyAssistantError(message: ChatSession['messages'][number]): keyof UsageErrorBreakdown | null {
+  if (message.role !== 'assistant') return null
+  const content = (message.content || '').trim().toLowerCase()
+  if (!content) return null
+
+  const likelyErrorText =
+    content.startsWith('error:') ||
+    content.startsWith('provider error') ||
+    content.startsWith('invalid api key') ||
+    content.startsWith('network error') ||
+    content.startsWith('rate limit exceeded') ||
+    content.includes('failed to regenerate') ||
+    content.includes('upstream model provider returned an error') ||
+    content.includes('api key is required')
+
+  if (!likelyErrorText) return null
+  if (content.includes('network') || content.includes('internet connection')) return 'network'
+  if (content.includes('api key') || content.includes('unauthorized') || content.includes('forbidden')) return 'auth'
+  if (content.includes('rate limit') || content.includes('429') || content.includes('overloaded')) return 'rateLimit'
+  if (content.includes('provider error') || content.includes('upstream model provider')) return 'provider'
+  return 'other'
+}
+
+function buildModelProviderMap(catalog?: UsageModelCatalog): Map<string, UsageProvider> {
+  const map = new Map<string, UsageProvider>()
+  const register = (provider: UsageProvider, codes?: string[]) => {
+    ;(codes || []).forEach((code) => {
+      const normalized = normalizeModelCode(code)
+      if (normalized) map.set(normalized, provider)
+    })
+  }
+
+  register('openrouter', catalog?.openrouterModels)
+  register('perplexity', catalog?.perplexityModels)
+  register('groq', catalog?.groqModels)
+  register('alibaba', catalog?.alibabaModels)
+  register('ollama', catalog?.ollamaModels)
+
+  return map
+}
+
+function inferProvider(model: string | undefined, modelProviderMap: Map<string, UsageProvider>): UsageProvider {
+  if (!model) return 'unknown'
+
+  const raw = model.trim().toLowerCase()
+  const normalized = normalizeModelCode(model)
+  if (!normalized) return 'unknown'
+
+  const catalogProvider = modelProviderMap.get(normalized)
+  if (catalogProvider) return catalogProvider
+
+  if (raw.startsWith('openrouter/')) return 'openrouter'
+  if (normalized.startsWith('sonar')) return 'perplexity'
+  if (normalized.startsWith('groq/')) return 'groq'
+
+  return 'unknown'
+}
+
+function calculateProviderCostUsd(provider: UsageProvider, inputTokens: number, outputTokens: number): number {
+  if (provider === 'unknown') return 0
+  const rates = PROVIDER_TOKEN_RATES_PER_MILLION[provider]
+  if (!rates) return 0
+  const inputCost = (inputTokens / ONE_MILLION) * rates.inputUsd
+  const outputCost = (outputTokens / ONE_MILLION) * rates.outputUsd
+  return Number((inputCost + outputCost).toFixed(4))
+}
+
+export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageModelCatalog): UsageStats {
   const now = Date.now()
   const todayStart = new Date().setHours(0, 0, 0, 0)
+  const modelProviderMap = buildModelProviderMap(modelCatalog)
 
   let totalMessages = 0
   let totalTokens = 0
@@ -212,6 +383,8 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
   let assistantMessages = 0
   let userMessages = 0
   let imagesProcessed = 0
+  let tokensLast7Days = 0
+  let tokensLast30Days = 0
 
   let assistantMessagesWithTokens = 0
   let assistantTokensSum = 0
@@ -225,8 +398,30 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
   let assistantTpsSum = 0
   let assistantTpsCount = 0
 
+  let totalToolCalls = 0
+  let totalRegenerations = 0
+  let assistantMessagesWithErrors = 0
+
+  const errorBreakdown: UsageErrorBreakdown = {
+    network: 0,
+    auth: 0,
+    rateLimit: 0,
+    provider: 0,
+    tool: 0,
+    other: 0,
+  }
+
   const activeDayKeys = new Set<string>()
   const modelUsage = new Map<string, { count: number; tokens: number }>()
+  const providerUsage = new Map<UsageProvider, {
+    messages: number
+    tokens: number
+    inputTokens: number
+    outputTokens: number
+    latencySumMs: number
+    latencyCount: number
+    errors: number
+  }>()
   const queryCounts = new Map<string, number>()
   const activityData = getInitialActivityData(now)
 
@@ -250,7 +445,11 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
       const messageTokens = getTokenCount(message)
       totalTokens += messageTokens
 
-      const diffDays = Math.floor((now - message.timestamp) / DAY_MS)
+      const ageMs = now - message.timestamp
+      if (ageMs >= 0 && ageMs < WEEK_MS) tokensLast7Days += messageTokens
+      if (ageMs >= 0 && ageMs < MONTH_30_MS) tokensLast30Days += messageTokens
+
+      const diffDays = Math.floor(ageMs / DAY_MS)
       if (diffDays >= 0 && diffDays < 30) {
         const dayData = activityData[29 - diffDays]
         dayData.tokens += messageTokens
@@ -273,6 +472,9 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
       if (message.role !== 'assistant') return
 
       assistantMessages += 1
+      totalRegenerations += message.responseVersions?.length || 0
+
+      const tokenBreakdown = getTokenBreakdown(message)
 
       if (messageTokens > 0) {
         assistantMessagesWithTokens += 1
@@ -301,9 +503,49 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
         tokens: existingModelUsage.tokens + messageTokens
       })
 
+      const provider = inferProvider(message.model, modelProviderMap)
+      const existingProviderUsage = providerUsage.get(provider) || {
+        messages: 0,
+        tokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        latencySumMs: 0,
+        latencyCount: 0,
+        errors: 0,
+      }
+
+      existingProviderUsage.messages += 1
+      existingProviderUsage.tokens += messageTokens
+      existingProviderUsage.inputTokens += tokenBreakdown.inputTokens
+      existingProviderUsage.outputTokens += tokenBreakdown.outputTokens
+
+      if (typeof message.latency === 'number' && message.latency > 0) {
+        existingProviderUsage.latencySumMs += message.latency
+        existingProviderUsage.latencyCount += 1
+      }
+
+      let hasAnyError = false
+      const errorCategory = classifyAssistantError(message)
+      if (errorCategory) {
+        errorBreakdown[errorCategory] += 1
+        hasAnyError = true
+      }
+
       ;(message.toolResults || []).forEach((toolResult) => {
+        totalToolCalls += 1
         applyToolResultMetrics(toolResult, queryCounts, toolAccumulators)
+        if (!toolResult.result.success) {
+          errorBreakdown.tool += 1
+          hasAnyError = true
+        }
       })
+
+      if (hasAnyError) {
+        assistantMessagesWithErrors += 1
+        existingProviderUsage.errors += 1
+      }
+
+      providerUsage.set(provider, existingProviderUsage)
     })
   })
 
@@ -313,6 +555,26 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
       if (b.tokens !== a.tokens) return b.tokens - a.tokens
       if (b.count !== a.count) return b.count - a.count
       return a.name.localeCompare(b.name)
+    })
+
+  const providerEntries = Array.from(providerUsage.entries())
+    .map(([provider, data]) => {
+      const estimatedCostUsd = calculateProviderCostUsd(provider, data.inputTokens, data.outputTokens)
+      return {
+        provider,
+        messages: data.messages,
+        tokens: data.tokens,
+        inputTokens: data.inputTokens,
+        outputTokens: data.outputTokens,
+        avgLatencyMs: data.latencyCount > 0 ? Math.round(data.latencySumMs / data.latencyCount) : 0,
+        errors: data.errors,
+        estimatedCostUsd,
+      }
+    })
+    .sort((a, b) => {
+      if (b.tokens !== a.tokens) return b.tokens - a.tokens
+      if (b.messages !== a.messages) return b.messages - a.messages
+      return a.provider.localeCompare(b.provider)
     })
 
   const topSearchQueries = Array.from(queryCounts.entries())
@@ -343,11 +605,22 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
     ? Math.round((toolAccumulators.successfulWebSearches / toolAccumulators.totalWebSearches) * 100)
     : 0
 
+  const estimatedSpendUsd = Number(providerEntries.reduce((sum, provider) => sum + provider.estimatedCostUsd, 0).toFixed(4))
+  const coverageKnownTokens = providerEntries
+    .filter((provider) => provider.provider !== 'unknown')
+    .reduce((sum, provider) => sum + provider.tokens, 0)
+  const assistantTokenTotal = providerEntries.reduce((sum, provider) => sum + provider.tokens, 0)
+  const spendCoveragePercent = assistantTokenTotal > 0
+    ? Math.round((coverageKnownTokens / assistantTokenTotal) * 100)
+    : 100
+
   return {
     todayMessages,
     totalSessions: sessions.length,
     totalMessages,
     totalTokens,
+    tokensLast7Days,
+    tokensLast30Days,
     avgTokensPerAssistant: assistantMessagesWithTokens > 0
       ? Math.round(assistantTokensSum / assistantMessagesWithTokens)
       : 0,
@@ -363,9 +636,19 @@ export function computeUsageStats(sessions: ChatSession[]): UsageStats {
     mostUsedModel: modelEntries[0]?.name || 'N/A',
     modelEntries,
     topModelsByTokens: modelEntries.slice(0, 3),
+    providerEntries,
+    estimatedSpendUsd,
+    spendCoveragePercent,
     avgAssistantLatencyMs,
     avgAssistantTtftMs,
     avgAssistantTps,
+    totalToolCalls,
+    totalRegenerations,
+    assistantMessagesWithErrors,
+    assistantErrorRate: assistantMessages > 0
+      ? Math.round((assistantMessagesWithErrors / assistantMessages) * 100)
+      : 0,
+    errorBreakdown,
     totalWebSearches: toolAccumulators.totalWebSearches,
     successfulWebSearches: toolAccumulators.successfulWebSearches,
     failedWebSearches: toolAccumulators.failedWebSearches,

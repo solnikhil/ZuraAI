@@ -31,26 +31,26 @@ function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle) {
         case 'slack':
             return {
                 background: 'color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface-active))',
-                border: '1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent)',
+                border: '1px solid transparent',
                 boxShadow: 'none',
             }
         case 'discord':
             return {
                 background: 'color-mix(in srgb, var(--theme-surface-active) 92%, var(--theme-surface) 8%)',
-                border: '1px solid color-mix(in srgb, var(--theme-border) 62%, transparent)',
+                border: '1px solid transparent',
                 boxShadow: 'none',
             }
         case 'github':
             return {
                 background: 'color-mix(in srgb, var(--theme-surface-active) 86%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
+                border: '1px solid transparent',
                 boxShadow: 'none',
             }
         case 'linear':
         default:
             return {
                 background: 'color-mix(in srgb, var(--theme-surface-active) 88%, black 12%)',
-                border: '1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent)',
+                border: '1px solid transparent',
                 boxShadow: 'none',
             }
     }

@@ -4,18 +4,10 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
+import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
-
-const SETTINGS_SECTION_LABELS: Record<string, string> = {
-    usage: 'Usage',
-    providers: 'Providers',
-    skills: 'Skills',
-    themes: 'Appearance',
-    systemprompt: 'System Prompt',
-    experimental: 'Experimental',
-}
 
 const SIDEBAR_COLLAPSED_WIDTH_PX = 60
 const SIDEBAR_EXPANDED_WIDTH_PX = 300
@@ -69,7 +61,7 @@ export default function TitleBar() {
 
         if (isDashboardRoute) {
             if (dashboardView === 'settings') {
-                const label = SETTINGS_SECTION_LABELS[activeSettingsSection] || 'Settings'
+                const label = SETTINGS_SECTION_MAP[activeSettingsSection as SettingsSectionId]?.navLabel || 'Settings'
                 return `Settings — ${label}`
             }
             return currentSession?.title || 'New Conversation'

@@ -7,6 +7,7 @@ import {
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
+import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
 
 import SidebarHeader from './Sidebar/SidebarHeader'
 import SidebarChatList from './Sidebar/SidebarChatList'
@@ -56,14 +57,20 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
     const shouldApplyGlass = frostedSidebar && !sidebarHidden
 
     // Settings navigation items
-    const navItems = [
-        { id: 'usage', label: 'Usage', icon: <ChartNoAxesCombined size={18} /> },
-        { id: 'providers', label: 'Providers', icon: <Cloud size={18} /> },
-        { id: 'skills', label: 'Skills', icon: <Wrench size={18} /> },
-        { id: 'themes', label: 'Appearance', icon: <Paintbrush size={18} /> },
-        { id: 'systemprompt', label: 'System Prompt', icon: <FileText size={18} /> },
-        { id: 'experimental', label: 'Experimental', icon: <FlaskConical size={18} /> }
-    ]
+    const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
+        usage: <ChartNoAxesCombined size={18} />,
+        providers: <Cloud size={18} />,
+        skills: <Wrench size={18} />,
+        themes: <Paintbrush size={18} />,
+        systemprompt: <FileText size={18} />,
+        experimental: <FlaskConical size={18} />,
+    }
+
+    const navItems = SETTINGS_SECTIONS.map((section) => ({
+        id: section.id,
+        label: section.navLabel,
+        icon: settingsIcons[section.id],
+    }))
 
     // Group sessions for sidebar list
     const groupedSessions = useMemo(() =>
@@ -242,28 +249,26 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
         <div className={`sidebar-view sidebar-view--settings ${view === 'settings' ? 'active' : 'inactive'}`}>
             {/* Content Area */}
             <div className="sidebar-settings-content">
-                <div className="sidebar-settings-nav">
-                    {navItems.map((item, index) => (
-                        <button
-                            key={item.id}
-                            onClick={() => onNavigateSettings(item.id)}
-                            className={`sidebar-nav-item sidebar-nav-item--settings sidebar-animate-item ${activeSettingsSection === item.id ? 'active' : ''}`}
-                            style={{
-                                fontSize: '0.9rem',
-                                justifyContent: 'flex-start',
-                                animationDelay: `${index * 0.05}s`,
-                                minWidth: 0,
-                                overflow: 'hidden',
-                                width: '100%'
-                            }}
-                        >
-                            <div className="sidebar-nav-item__icon">
-                                {item.icon}
-                            </div>
-                            <span className="sidebar-nav-item__label">{item.label}</span>
-                        </button>
-                    ))}
-                </div>
+                {navItems.map((item, index) => (
+                    <button
+                        key={item.id}
+                        onClick={() => onNavigateSettings(item.id)}
+                        className={`sidebar-nav-item sidebar-nav-item--settings sidebar-animate-item ${activeSettingsSection === item.id ? 'active' : ''}`}
+                        style={{
+                            fontSize: '0.9rem',
+                            justifyContent: 'flex-start',
+                            animationDelay: `${index * 0.05}s`,
+                            minWidth: 0,
+                            overflow: 'hidden',
+                            width: '100%'
+                        }}
+                    >
+                        <div className="sidebar-nav-item__icon">
+                            {item.icon}
+                        </div>
+                        <span className="sidebar-nav-item__label">{item.label}</span>
+                    </button>
+                ))}
             </div>
         </div>
     )

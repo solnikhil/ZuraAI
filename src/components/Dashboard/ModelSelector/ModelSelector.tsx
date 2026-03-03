@@ -58,27 +58,32 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           aria-haspopup="dialog"
           aria-expanded={state.isOpen}
           title={`${currentName} — ${settings.modelProvider || 'auto'}`}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
+          whileHover={minimal ? undefined : { scale: 1.01 }}
+          whileTap={minimal ? { scale: 0.995 } : { scale: 0.99 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
           className={cn(
             "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-colors cursor-pointer",
-            "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20",
-            "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
-            minimal && "px-2 gap-1"
+            minimal
+              ? "border border-transparent bg-transparent hover:bg-white/5 text-black/75 dark:text-white/75 hover:text-black dark:hover:text-white"
+              : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
+            minimal && "rounded-md px-2.5 py-1 gap-1.5"
           )}
         >
-          {currentModel ? (
+          {!minimal && (currentModel ? (
             <ModelIcon
               model={currentModel}
               icon={getModelAttributes(currentModel).icon}
               color={getModelAttributes(currentModel).color}
               size={16}
             />
-          ) : <Cpu size={14} />}
+          ) : <Cpu size={14} />)}
           <span
-            className="truncate text-xs font-medium"
+            className={cn(
+              'truncate font-medium',
+              minimal ? 'text-[0.95rem]' : 'text-xs',
+            )}
             style={{
-              maxWidth: minimal ? '96px' : '140px',
+              maxWidth: minimal ? '220px' : '140px',
               minWidth: minimal ? 0 : '80px',
             }}
           >
@@ -86,7 +91,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           </span>
           <motion.div
             animate={{ rotate: state.isOpen ? 180 : 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            transition={{ duration: 0.14, ease: 'easeOut' }}
           >
             <ChevronDown 
               size={12} 

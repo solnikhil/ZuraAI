@@ -70,7 +70,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
   }
 
   return (
-    <div style={{ padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
         <div className="page-subtitle">Enable built-in capabilities that control tool access and agent behavior.</div>

@@ -56,7 +56,7 @@ export function SystemPromptSection({
   )
 
   return (
-    <div style={{ padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">System Prompt</h2>
         <div className="page-subtitle">Customize how the AI assistant behaves and responds</div>

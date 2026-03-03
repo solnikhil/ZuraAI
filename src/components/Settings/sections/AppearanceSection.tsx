@@ -215,7 +215,7 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
 
 
   return (
-    <div style={{ width: '100%', padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout settings-section-layout--wide" style={{ width: '100%' }}>
       <div className="page-header">
         <h2 className="page-title">Appearance</h2>
         <div className="page-subtitle">Personalize themes and window presentation.</div>

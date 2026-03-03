@@ -34,13 +34,14 @@ describe('ProviderHubSection', () => {
     expect(screen.getByText('Model Providers')).toBeInTheDocument()
     expect(screen.getByText('Search APIs')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search Providers...')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /add custom model/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
   })
 
   it('creates a custom model from add dialog', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
     fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
     expect(screen.getByText('Create Custom AI Model')).toBeInTheDocument()
 

@@ -23,7 +23,7 @@ export function ExperimentalSection({
   onChange,
 }: ExperimentalSectionProps): React.ReactElement {
   return (
-    <div style={{ padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">Experimental</h2>
         <div className="page-subtitle">Early features and tuning controls</div>

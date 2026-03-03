@@ -646,7 +646,7 @@ export function ProviderHubSection({
   }
 
   return (
-    <div className="min-w-0 px-4 pb-20 sm:px-6 md:px-8 lg:px-8">
+    <div className="settings-section-layout settings-section-layout--wide min-w-0">
       <div className="page-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="page-title">Providers</h2>
@@ -682,7 +682,7 @@ export function ProviderHubSection({
         <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
           <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
             <div className="flex h-full flex-col gap-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center">
                 <div className="relative flex-1">
                   <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -692,14 +692,6 @@ export function ProviderHubSection({
                     className="border-border bg-secondary pl-9"
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setAddDialogOpen(true)}
-                  aria-label="Add custom model"
-                >
-                  <Plus size={16} />
-                </Button>
               </div>
 
               <button
