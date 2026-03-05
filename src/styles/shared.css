@@ -4,9 +4,11 @@
 /* Frosted sidebar/titlebar glass - single source for consistency */
 
 :root {
-    --frosted-glass-gradient: linear-gradient(180deg, rgba(10, 10, 14, 0.72) 0%, rgba(6, 6, 10, 0.68) 100%);
-    --frosted-glass-border: 1px solid rgba(255, 255, 255, 0.08);
-    --frosted-glass-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+    --frosted-glass-gradient: linear-gradient(180deg, rgba(10, 10, 14, 0.38) 0%, rgba(6, 6, 10, 0.26) 100%);
+    --frosted-glass-border: 1px solid rgba(255, 255, 255, 0.09);
+    --frosted-glass-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08), inset -2px 0 0 rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --frosted-glass-filter: blur(15px) saturate(138%) brightness(1.08);
+    --frosted-sidebar-shadow: 0 9px 26px rgba(0, 0, 0, 0.14), 1px 0 0 rgba(255, 255, 255, 0.08), 2px 0 0 rgba(0, 0, 0, 0.16);
     --theme-sidebar-solid: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text-primary) 8%);
 }
 

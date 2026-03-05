@@ -106,6 +106,8 @@ function AppShellContent() {
                     background: 'var(--frosted-glass-gradient)',
                     borderRight: 'var(--frosted-glass-border)',
                     boxShadow: 'var(--frosted-glass-shadow)',
+                    backdropFilter: 'var(--frosted-glass-filter)',
+                    WebkitBackdropFilter: 'var(--frosted-glass-filter)',
                     transition: 'width 0.2s ease',
                     zIndex: 0,
                     pointerEvents: 'none',

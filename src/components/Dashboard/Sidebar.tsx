@@ -210,7 +210,7 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
             : (sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${SIDEBAR_EXPANDED_WIDTH_PX}px`),
         background: shouldApplyGlass ? 'transparent' : 'var(--theme-sidebar-solid)',
         borderRight: '0px solid transparent',
-        boxShadow: shouldApplyGlass ? '4px 0 20px rgba(0, 0, 0, 0.35)' : 'none',
+        boxShadow: shouldApplyGlass ? 'var(--frosted-sidebar-shadow)' : 'none',
         pointerEvents: sidebarHidden ? 'none' : 'auto',
     }
 
@@ -226,6 +226,7 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                 groupedSessions={groupedSessions}
                 folders={folders}
                 chatSelectedOverlayStyle={chatSelectedOverlayStyle}
+                isFrosted={shouldApplyGlass}
                 currentSessionId={currentSessionId}
                 streamingSessionId={null}
                 focusIndex={focusIndex}

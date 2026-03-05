@@ -8,6 +8,7 @@ export type ChatRowAction = 'rename' | 'pin' | 'unpin' | 'delete' | 'duplicate'
 interface ChatRowProps {
     session: ChatSession
     selectedOverlayStyle: ChatSelectedOverlayStyle
+    isFrosted: boolean
     isActive: boolean
     isMenuOpen: boolean
     isFocused: boolean
@@ -20,7 +21,46 @@ interface ChatRowProps {
     onMoreClick: (e: React.MouseEvent, sessionId: string) => void
 }
 
-function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle) {
+function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle, isFrosted: boolean) {
+    if (isFrosted) {
+        const frostedBorder = '1px solid color-mix(in srgb, var(--theme-accent) 8%, rgba(255, 255, 255, 0.1))'
+        const frostedChipDepth = 'inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.12)'
+
+        switch (style) {
+            case 'notion':
+                return {
+                    background: 'color-mix(in srgb, var(--theme-accent) 5%, color-mix(in srgb, var(--theme-surface-hover) 90%, rgba(255, 255, 255, 0.1)))',
+                    border: frostedBorder,
+                    boxShadow: frostedChipDepth,
+                }
+            case 'slack':
+                return {
+                    background: 'color-mix(in srgb, var(--theme-accent) 10%, color-mix(in srgb, var(--theme-surface-active) 90%, rgba(255, 255, 255, 0.09)))',
+                    border: frostedBorder,
+                    boxShadow: frostedChipDepth,
+                }
+            case 'discord':
+                return {
+                    background: 'color-mix(in srgb, var(--theme-accent) 6%, color-mix(in srgb, var(--theme-surface-active) 91%, rgba(255, 255, 255, 0.1)))',
+                    border: frostedBorder,
+                    boxShadow: frostedChipDepth,
+                }
+            case 'github':
+                return {
+                    background: 'color-mix(in srgb, var(--theme-accent) 7%, color-mix(in srgb, var(--theme-surface-active) 90%, rgba(255, 255, 255, 0.1)))',
+                    border: frostedBorder,
+                    boxShadow: frostedChipDepth,
+                }
+            case 'linear':
+            default:
+                return {
+                    background: 'color-mix(in srgb, var(--theme-accent) 8%, color-mix(in srgb, var(--theme-surface-active) 90%, rgba(255, 255, 255, 0.09)))',
+                    border: frostedBorder,
+                    boxShadow: frostedChipDepth,
+                }
+        }
+    }
+
     switch (style) {
         case 'notion':
             return {
@@ -59,6 +99,7 @@ function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle) {
 export default function ChatRow({
     session,
     selectedOverlayStyle,
+    isFrosted,
     isActive,
     isMenuOpen,
     isFocused,
@@ -102,7 +143,7 @@ export default function ChatRow({
     ].filter(Boolean).join(' ')
 
     // Active row gets overlay styles applied inline (since they vary by selectedOverlayStyle setting)
-    const selectedOverlay = isActive ? getSelectedOverlayStyles(selectedOverlayStyle) : undefined
+    const selectedOverlay = isActive ? getSelectedOverlayStyles(selectedOverlayStyle, isFrosted) : undefined
 
     // More button visibility class
     const getMoreBtnClass = () => {

@@ -19,6 +19,7 @@ interface SidebarChatListProps {
     groupedSessions: GroupedSessions
     folders: Folder[]
     chatSelectedOverlayStyle: ChatSelectedOverlayStyle
+    isFrosted: boolean
     currentSessionId: string | null
     streamingSessionId: string | null
     focusIndex: number
@@ -45,6 +46,7 @@ export default function SidebarChatList({
     groupedSessions,
     folders,
     chatSelectedOverlayStyle,
+    isFrosted,
     currentSessionId,
     streamingSessionId,
     focusIndex,
@@ -144,6 +146,7 @@ export default function SidebarChatList({
                     <ChatRow
                         session={session}
                         selectedOverlayStyle={chatSelectedOverlayStyle}
+                        isFrosted={isFrosted}
                         isActive={currentSessionId === session.id}
                         isMenuOpen={dropdownOpenId === session.id}
                         isFocused={flatIndex === focusIndex}
