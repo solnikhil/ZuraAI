@@ -101,6 +101,7 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
+  - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and dev-only Inspect Element)
   - External links are opened via `shell.openExternal`.
 
 - **Dev vs prod loading**

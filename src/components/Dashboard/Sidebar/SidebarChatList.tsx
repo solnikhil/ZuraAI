@@ -159,6 +159,11 @@ export default function SidebarChatList({
                         onMoreClick={(_e, id) => {
                             setDropdownOpenId(id)
                         }}
+                        onContextMenu={(e, id) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setDropdownOpenId(id)
+                        }}
                     />
                 </div>
             </ChatRowContextMenu>

@@ -19,6 +19,7 @@ interface ChatRowProps {
     onRenameConfirm: (id: string, newTitle: string) => void
     onRenameCancel: () => void
     onMoreClick: (e: React.MouseEvent, sessionId: string) => void
+    onContextMenu: (e: React.MouseEvent, sessionId: string) => void
 }
 
 function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle, isFrosted: boolean) {
@@ -109,6 +110,7 @@ export default function ChatRow({
     onRenameConfirm,
     onRenameCancel,
     onMoreClick,
+    onContextMenu,
 }: ChatRowProps) {
     const [renameValue, setRenameValue] = useState(session.title)
     const renameInputRef = useRef<HTMLInputElement>(null)
@@ -155,6 +157,10 @@ export default function ChatRow({
     return (
         <div
             onClick={() => !isRenaming && onSelect(session.id)}
+            onContextMenu={(e) => {
+                if (isRenaming) return
+                onContextMenu(e, session.id)
+            }}
             className={rowClasses}
             style={selectedOverlay ? {
                 background: selectedOverlay.background,
