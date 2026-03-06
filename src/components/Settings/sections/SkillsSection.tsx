@@ -148,7 +148,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
           <DialogHeader>
             <DialogTitle>{editingSkill?.name || 'Modify Skill'}</DialogTitle>
             <DialogDescription>
-              Configure how this built-in skill behaves. Changes apply immediately.
+              Configure how this built-in skill behaves. Changes are staged until you save Settings.
             </DialogDescription>
           </DialogHeader>
 

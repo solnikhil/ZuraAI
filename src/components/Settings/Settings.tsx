@@ -27,7 +27,7 @@ function parseFiniteNumber(value: unknown): number | null {
 }
 
 export default function Settings({
-  activeSection = 'usage', onUnsavedChange, showWarning = false
+  activeSection = 'providers', onUnsavedChange, showWarning = false
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
   const { sessions } = useChatHistory()
@@ -60,12 +60,13 @@ export default function Settings({
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
 
   const normalizedActiveSection = useMemo(() => {
+    if (activeSection === 'usage') return 'usage'
     if (activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences') return 'providers'
     if (activeSection === 'skills' || activeSection === 'tools') return 'skills'
     if (activeSection === 'themes') return 'themes'
     if (activeSection === 'systemprompt') return 'systemprompt'
     if (activeSection === 'experimental') return 'experimental'
-    return 'usage'
+    return 'providers'
   }, [activeSection])
 
   const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
@@ -334,6 +335,8 @@ export default function Settings({
 
             {normalizedActiveSection === 'themes' && (
               <AppearanceSection
+                settings={pendingSettings}
+                onChange={(changes) => handleChange(changes)}
                 initialCommandPaletteTab={settingsSectionParams?.commandPaletteTab}
                 onParamsConsumed={clearParams}
               />

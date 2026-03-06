@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
+import { ChevronDown } from 'lucide-react'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
@@ -29,6 +30,7 @@ export function SystemPromptSection({
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
+  const [isEditorExpanded, setIsEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -85,23 +87,43 @@ export function SystemPromptSection({
           </div>
         </div>
 
-        <div className="settings-prompt-editor-wrap">
-          <textarea
-            value={localValue}
-            onChange={e => handleChange(e.target.value)}
-            className="settings-prompt-editor"
-            placeholder="Enter your system prompt here..."
-          />
-        </div>
-
-        <div className="settings-prompt-footer">
-          <div className="settings-prompt-warning" role="status" aria-live="polite">
-            {showLengthWarning ? 'Note: Very long system prompts may impact response quality.' : ''}
-          </div>
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsEditorExpanded(prev => !prev)}
+            aria-expanded={isEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isEditorExpanded ? 'Hide System Prompt' : 'Show System Prompt'}
+          </button>
           <button type="button" onClick={handleReset} className="settings-row-button">
             Load Default Prompt
           </button>
         </div>
+
+        {isEditorExpanded && (
+          <>
+            <div className="settings-prompt-editor-wrap">
+              <textarea
+                value={localValue}
+                onChange={e => handleChange(e.target.value)}
+                className="settings-prompt-editor"
+                placeholder="Enter your system prompt here..."
+              />
+            </div>
+
+            <div className="settings-prompt-footer">
+              <div className="settings-prompt-warning" role="status" aria-live="polite">
+                {showLengthWarning ? 'Note: Very long system prompts may impact response quality.' : ''}
+              </div>
+            </div>
+          </>
+        )}
       </Card>
     </div>
   )

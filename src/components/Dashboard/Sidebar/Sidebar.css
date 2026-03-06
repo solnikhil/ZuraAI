@@ -22,7 +22,7 @@
   z-index: 1;
   background: var(--theme-sidebar-solid);
   border-right: none;
-  transition: width 0.2s ease, opacity 0.15s ease, background 0.2s ease;
+  transition: opacity 0.15s ease, background 0.2s ease;
 }
 
 .sidebar-container--resizing {

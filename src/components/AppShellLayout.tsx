@@ -107,7 +107,6 @@ function AppShellContent() {
                     boxShadow: 'none',
                     backdropFilter: 'var(--frosted-glass-filter)',
                     WebkitBackdropFilter: 'var(--frosted-glass-filter)',
-                    transition: 'width 0.2s ease',
                     zIndex: 0,
                     pointerEvents: 'none',
                     boxSizing: 'border-box'

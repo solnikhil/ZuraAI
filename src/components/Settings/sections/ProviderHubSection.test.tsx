@@ -30,7 +30,7 @@ describe('ProviderHubSection', () => {
   it('renders providers controls', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    expect(screen.getByText('Providers')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Providers' })).toBeInTheDocument()
     expect(screen.getByText('Model Providers')).toBeInTheDocument()
     expect(screen.getByText('Search APIs')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
@@ -197,6 +197,31 @@ describe('ProviderHubSection', () => {
       providerEnabled: expect.objectContaining({ openrouter: false }),
     }))
     expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ openRouterApiKey: '' }))
+  })
+
+  it('does not open provider detail when toggling provider switch', () => {
+    const onChange = vi.fn()
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        providerEnabled={{
+          openrouter: false,
+          perplexity: true,
+          groq: true,
+          ollama: true,
+          alibaba: true,
+        }}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Toggle OpenRouter'))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      providerEnabled: expect.objectContaining({ openrouter: true }),
+    }))
+    expect(screen.queryByLabelText('Back to providers')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/OpenRouter API Key/i)).not.toBeInTheDocument()
   })
 
   it('runs Alibaba connectivity check against chat completions endpoint', async () => {

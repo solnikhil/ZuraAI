@@ -5,11 +5,11 @@
  * @module AppearanceSection
  */
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import { useSettings } from '../../../contexts/SettingsContext'
+import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
@@ -152,34 +152,31 @@ const chatSelectedOverlayPresets: Array<{
 ]
 
 export interface AppearanceSectionProps {
+  settings: Settings
+  onChange: (changes: Partial<Settings>) => void
   initialCommandPaletteTab?: boolean
   onParamsConsumed?: () => void
 }
 
-export function AppearanceSection(_props: AppearanceSectionProps): React.ReactElement {
-  const { settings, updateSettings: _updateSettings } = useSettings()
-  const [showSavedIndicator, setShowSavedIndicator] = useState(false)
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Wrap updateSettings to flash a "saved" indicator on every change
-  const updateSettings = (changes: Partial<typeof settings>) => {
-    _updateSettings(changes)
-    setShowSavedIndicator(true)
-    if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
-    savedTimerRef.current = setTimeout(() => setShowSavedIndicator(false), 1800)
-  }
+export function AppearanceSection({
+  settings,
+  onChange,
+  initialCommandPaletteTab,
+  onParamsConsumed,
+}: AppearanceSectionProps): React.ReactElement {
+  const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
-  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'commandpalette' | 'chatbubbles' | 'modelselector'>(_props.initialCommandPaletteTab ? 'commandpalette' : 'themes')
+  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'commandpalette' | 'chatbubbles' | 'modelselector'>(initialCommandPaletteTab ? 'commandpalette' : 'themes')
 
   // Auto-select Command Palette tab when navigated via "commandbar" route
   useEffect(() => {
-    if (_props.initialCommandPaletteTab) {
+    if (initialCommandPaletteTab) {
       setAppearancePage('commandpalette')
-      _props.onParamsConsumed?.()
+      onParamsConsumed?.()
     }
-  }, [_props.initialCommandPaletteTab, _props.onParamsConsumed])
+  }, [initialCommandPaletteTab, onParamsConsumed])
   
   // Helper to get modelSelector with defaults
   const getModelSelector = () => ({
@@ -1306,31 +1303,6 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
           </Card>
         </>
       )}
-
-      {/* Auto-save indicator */}
-      <div
-        role="status"
-        aria-live="polite"
-        style={{
-          position: 'fixed',
-          bottom: 24,
-          left: '50%',
-          transform: `translateX(-50%) translateY(${showSavedIndicator ? '0' : '20px'})`,
-          opacity: showSavedIndicator ? 1 : 0,
-          padding: '8px 18px',
-          borderRadius: 8,
-          background: 'rgba(34, 197, 94, 0.95)',
-          color: '#fff',
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-          pointerEvents: 'none',
-          transition: 'opacity 0.3s ease, transform 0.3s ease',
-          zIndex: 200,
-        }}
-      >
-        Changes saved
-      </div>
     </div>
   )
 }

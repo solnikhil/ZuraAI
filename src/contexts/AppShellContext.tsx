@@ -100,9 +100,9 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
 
     const [activeSettingsSection, setActiveSettingsSectionState] = useState<string>(() => {
         if (settings.rememberLastSettingsSection) {
-            return readStoredSettingsSection() ?? 'usage'
+            return readStoredSettingsSection() ?? 'providers'
         }
-        return 'usage'
+        return 'providers'
     })
 
     const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false)
@@ -151,7 +151,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const setActiveSettingsSection = useCallback((section: string) => {
-        const normalized = normalizeSettingsSection(section) ?? 'usage'
+        const normalized = normalizeSettingsSection(section) ?? 'providers'
         setActiveSettingsSectionState(normalized)
     }, [])
 
@@ -250,7 +250,7 @@ export function useAppShell() {
             return {
                 dashboardView: 'chat' as DashboardView,
                 setDashboardView: () => {},
-                activeSettingsSection: 'usage',
+                activeSettingsSection: 'providers',
                 setActiveSettingsSection: () => {},
                 settingsSectionParams: null,
                 setSettingsSectionParams: () => {},
