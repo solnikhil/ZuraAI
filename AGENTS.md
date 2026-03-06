@@ -184,7 +184,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
 - Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`) now support optional `enabled?: boolean`.
-- Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
+- Provider-level toggles are persisted in `settings.providerEnabled` (`openrouter`, `ollama`, `perplexity`, `groq`, `alibaba`) and are independent from whether API keys/endpoints are filled.
+- Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
 
 #### Command Palette Quick-Send
 - The command palette (`Ctrl+Space`) supports sending a chat message directly via **Shift+Enter**.
@@ -213,6 +214,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
+  - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.

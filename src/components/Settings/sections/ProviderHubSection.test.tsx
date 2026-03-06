@@ -174,6 +174,31 @@ describe('ProviderHubSection', () => {
     )
   })
 
+  it('disables provider without clearing API key', () => {
+    const onChange = vi.fn()
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        openRouterApiKey="or-key-123"
+        providerEnabled={{
+          openrouter: true,
+          perplexity: true,
+          groq: true,
+          ollama: true,
+          alibaba: true,
+        }}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Toggle OpenRouter'))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      providerEnabled: expect.objectContaining({ openrouter: false }),
+    }))
+    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ openRouterApiKey: '' }))
+  })
+
   it('runs Alibaba connectivity check against chat completions endpoint', async () => {
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

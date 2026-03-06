@@ -40,6 +40,7 @@ type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
 type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
+type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
 interface ProviderDefinition {
   key: ProviderKey
@@ -92,6 +93,13 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
 
 const CATALOG_BASE_BACKGROUND = '#212121'
 const CATALOG_CARD_BACKGROUND = '#2c2c2c'
+const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
+  openrouter: true,
+  perplexity: true,
+  groq: true,
+  ollama: true,
+  alibaba: true,
+}
 
 type SearchApiKey = 'tavily'
 
@@ -134,6 +142,7 @@ export interface ProviderHubSectionProps {
   ollamaUrl: string
   aiModel: string
   modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   perplexityModels: ModelBasic[]
   groqModels: ModelBasic[]
@@ -160,6 +169,7 @@ export interface ProviderHubSectionProps {
     titleModel: string
     aiModel: string
     modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+    providerEnabled: ProviderEnabledMap
   }>) => void
 }
 
@@ -172,6 +182,7 @@ export function ProviderHubSection({
   ollamaUrl,
   aiModel,
   modelProvider,
+  providerEnabled,
   configuredModels,
   perplexityModels,
   groqModels,
@@ -291,10 +302,23 @@ export function ProviderHubSection({
     return ''
   }
 
-  const isProviderEnabled = (provider: ProviderDefinition): boolean => {
-    if (provider.key === 'ollama') return Boolean(ollamaUrl.trim())
-    return Boolean(getProviderApiKey(provider).trim())
-  }
+  const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
+    return {
+      openrouter: providerEnabled?.openrouter !== false,
+      perplexity: providerEnabled?.perplexity !== false,
+      groq: providerEnabled?.groq !== false,
+      ollama: providerEnabled?.ollama !== false,
+      alibaba: providerEnabled?.alibaba !== false,
+    }
+  }, [
+    providerEnabled?.openrouter,
+    providerEnabled?.perplexity,
+    providerEnabled?.groq,
+    providerEnabled?.ollama,
+    providerEnabled?.alibaba,
+  ])
+
+  const isProviderEnabled = (provider: ProviderDefinition): boolean => normalizedProviderEnabled[provider.key]
 
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
@@ -304,16 +328,35 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
   }
 
-  const clearProvider = (provider: ProviderDefinition) => {
-    if (provider.key === 'ollama') {
-      onChange({ ollamaUrl: '' })
-      return
+  const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
+    const nextProviderEnabled: ProviderEnabledMap = {
+      ...DEFAULT_PROVIDER_ENABLED,
+      ...providerEnabled,
+      [providerKey]: enabled,
     }
-    if (!provider.apiKeyField) return
-    if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: '' })
-    if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: '' })
-    if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: '' })
-    if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: '' })
+
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {
+      providerEnabled: nextProviderEnabled,
+    }
+
+    if (!enabled && modelProvider === providerKey) {
+      const fallbackProvider = PROVIDERS.find((provider) => {
+        if (!nextProviderEnabled[provider.key]) return false
+        const models = providerModelMap[provider.key] || []
+        return models.some((model) => model.enabled !== false)
+      })
+
+      const fallbackModel = fallbackProvider
+        ? (providerModelMap[fallbackProvider.key] || []).find((model) => model.enabled !== false)
+        : null
+
+      if (fallbackProvider && fallbackModel) {
+        updates.modelProvider = fallbackProvider.key
+        updates.aiModel = fallbackModel.code
+      }
+    }
+
+    onChange(updates)
   }
 
   const addCustomModel = (model: ConfiguredModel) => {
@@ -415,11 +458,11 @@ export function ProviderHubSection({
 
   const enabledProviders = useMemo(() => {
     return PROVIDERS.filter((provider) => isProviderEnabled(provider))
-  }, [openRouterApiKey, perplexityApiKey, groqApiKey, alibabaApiKey, ollamaUrl])
+  }, [normalizedProviderEnabled])
 
   const disabledProviders = useMemo(() => {
     return PROVIDERS.filter((provider) => !isProviderEnabled(provider))
-  }, [openRouterApiKey, perplexityApiKey, groqApiKey, alibabaApiKey, ollamaUrl])
+  }, [normalizedProviderEnabled])
 
   const runConnectivityCheck = async () => {
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
@@ -573,7 +616,7 @@ export function ProviderHubSection({
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
-              clearProvider={clearProvider}
+              setProviderEnabled={setProviderEnabled}
             />
 
             <ProviderSection
@@ -584,7 +627,7 @@ export function ProviderHubSection({
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
-              clearProvider={clearProvider}
+              setProviderEnabled={setProviderEnabled}
             />
           </Card>
         </div>
@@ -612,9 +655,8 @@ export function ProviderHubSection({
               <Switch
                 checked={isProviderEnabled(selectedProviderDef)}
                 onCheckedChange={(checked) => {
-                  if (!checked) {
-                    clearProvider(selectedProviderDef)
-                  } else {
+                  setProviderEnabled(selectedProviderDef.key, checked)
+                  if (checked) {
                     apiKeyOrEndpointInputRef.current?.focus()
                   }
                 }}
@@ -989,13 +1031,13 @@ function ProviderSection({
   providers,
   onCardClick,
   isProviderEnabled,
-  clearProvider,
+  setProviderEnabled,
 }: {
   title: string
   providers: ProviderDefinition[]
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
-  clearProvider: (provider: ProviderDefinition) => void
+  setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
 }): React.ReactElement {
   if (providers.length === 0) {
     return (
@@ -1015,7 +1057,13 @@ function ProviderSection({
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{providers.length}</span>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <div
+        className="grid gap-3"
+        style={{
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 320px))',
+          justifyContent: 'center',
+        }}
+      >
         {providers.map((provider) => {
           const enabled = isProviderEnabled(provider)
           return (
@@ -1043,9 +1091,8 @@ function ProviderSection({
                 <Switch
                   checked={enabled}
                   onCheckedChange={(checked) => {
-                    if (!checked) {
-                      clearProvider(provider)
-                    } else {
+                    setProviderEnabled(provider.key, checked)
+                    if (checked) {
                       onCardClick(provider)
                     }
                   }}
@@ -1237,7 +1284,13 @@ function SearchApiSection({
         <span>Search APIs</span>
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{apis.length}</span>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <div
+        className="grid gap-3"
+        style={{
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 320px))',
+          justifyContent: 'center',
+        }}
+      >
         {apis.map((api) => {
           const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
           return (

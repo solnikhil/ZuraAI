@@ -46,6 +46,9 @@ export interface ConfiguredModel {
     supportsVideoRecognition?: boolean
 }
 
+type ProviderKey = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
+
 /**
  * Configuration-related settings that change infrequently
  */
@@ -60,6 +63,7 @@ export interface SettingsConfig {
     // Model settings
     aiModel: string
     modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+    providerEnabled?: ProviderEnabledMap
     configuredModels: ConfiguredModel[]
     ollamaUrl: string
     ollamaModels: ConfiguredModel[]
@@ -116,6 +120,13 @@ export const defaultSettingsConfig: SettingsConfig = {
     // Model settings
     aiModel: '',
     modelProvider: 'openrouter',
+    providerEnabled: {
+        openrouter: true,
+        ollama: true,
+        perplexity: true,
+        groq: true,
+        alibaba: true,
+    },
     configuredModels: [],
     ollamaUrl: 'http://localhost:11434',
     ollamaModels: [],

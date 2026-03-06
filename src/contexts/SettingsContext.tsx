@@ -209,6 +209,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.modelProvider)) {
             parsed.modelProvider = 'openrouter'
         }
+        parsed.providerEnabled = {
+            ...defaultSettings.providerEnabled,
+            ...(typeof parsed.providerEnabled === 'object' && parsed.providerEnabled !== null ? parsed.providerEnabled : {}),
+        }
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
         if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
@@ -391,6 +395,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         alibabaApiKey: combinedSettings.alibabaApiKey,
         aiModel: combinedSettings.aiModel,
         modelProvider: combinedSettings.modelProvider,
+        providerEnabled: combinedSettings.providerEnabled,
         configuredModels: combinedSettings.configuredModels,
         ollamaUrl: combinedSettings.ollamaUrl,
         ollamaModels: combinedSettings.ollamaModels,

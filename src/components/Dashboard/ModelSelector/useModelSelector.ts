@@ -88,8 +88,12 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
   const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'alibaba'] as const
+  const providerEnabled = settings.providerEnabled || {}
 
   const isProviderEnabled = useCallback((provider: string): boolean => {
+    const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
+    if (!manuallyEnabled) return false
+
     switch (provider) {
       case 'ollama':
         return Boolean(settings.ollamaUrl?.trim())
@@ -104,7 +108,7 @@ export function useModelSelector(): UseModelSelectorReturn {
       default:
         return false
     }
-  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.alibabaApiKey])
+  }, [providerEnabled, settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.alibabaApiKey])
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
@@ -184,7 +188,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     void refresh()
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
   
-  // Get ALL models from ENABLED providers only (provider has API key or ollamaUrl)
+  // Get ALL models from providers that are manually enabled and configured
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 

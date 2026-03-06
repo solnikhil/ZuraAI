@@ -313,6 +313,7 @@ export default function Settings({
                 ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
                 aiModel={pendingSettings.aiModel ?? settings.aiModel}
                 modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
+                providerEnabled={pendingSettings.providerEnabled ?? settings.providerEnabled}
                 configuredModels={pendingSettings.configuredModels || []}
                 perplexityModels={pendingSettings.perplexityModels || []}
                 groqModels={pendingSettings.groqModels || []}
