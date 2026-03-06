@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
-
-/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
-const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
-const SIDEBAR_COLLAPSED_WIDTH_PX = 60
-const SIDEBAR_EXPANDED_WIDTH_PX = 300
+import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
 import { CommandPalette } from './CommandPalette'
+
+/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
+const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
 
 function AppShellContent() {
     const navigate = useNavigate()
@@ -18,7 +17,7 @@ function AppShellContent() {
     const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
-    const { sidebarCollapsed, sidebarHidden, setSidebarHidden } = useAppShell()
+    const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden } = useAppShell()
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const hasSidebar = isDashboardRoute || location.pathname === '/chat'
@@ -38,7 +37,7 @@ function AppShellContent() {
     }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
     const sidebarWidthPx = sidebarHidden
         ? 0
-        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : SIDEBAR_EXPANDED_WIDTH_PX)
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
     const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 
     // Detect Windows platform (same pattern as TitleBar)

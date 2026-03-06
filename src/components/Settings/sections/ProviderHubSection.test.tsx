@@ -33,7 +33,6 @@ describe('ProviderHubSection', () => {
     expect(screen.getByText('Providers')).toBeInTheDocument()
     expect(screen.getByText('Model Providers')).toBeInTheDocument()
     expect(screen.getByText('Search APIs')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search Providers...')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
   })
 
@@ -54,14 +53,6 @@ describe('ProviderHubSection', () => {
         expect.objectContaining({ code: 'custom/provider-model-1', displayName: 'Custom Provider Model 1' }),
       ]),
     }))
-  })
-
-  it('opens custom order dialog from group header action', () => {
-    render(<ProviderHubSection {...baseProps} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /custom order for enabled providers/i }))
-    expect(screen.getByText('Custom Order')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /update/i })).toBeInTheDocument()
   })
 
   it('removes current-model selection controls from settings list', () => {

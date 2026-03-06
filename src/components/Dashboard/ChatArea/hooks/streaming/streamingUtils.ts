@@ -151,7 +151,7 @@ export function buildThinkingBlocksFromResults(
         query: String(q || ''),
         timestamp: Date.now(),
         toolInput: typeof args === 'object' ? args : { query: args },
-        toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime },
+        toolOutput: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
       })
     } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
       for (const step of tr.toolCall.arguments.steps) {
@@ -160,7 +160,7 @@ export function buildThinkingBlocksFromResults(
           query: String(step?.query || ''),
           timestamp: Date.now(),
           toolInput: { query: step?.query },
-          toolOutput: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime },
+          toolOutput: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
         })
       }
     }
@@ -176,7 +176,7 @@ export function buildThinkingBlocksFromResults(
 export function mapToolResultsForStorage(toolResults: ToolCallResult[]): ToolCallResult[] {
   return toolResults.map(tr => ({
     toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
-    result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime },
+    result: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
   }))
 }
 

@@ -221,103 +221,37 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      <div
-        style={{
-          display: 'inline-flex',
-          gap: 4,
-          flexWrap: 'wrap',
-          marginTop: 16,
-          padding: 4,
-          borderRadius: 12,
-          border: '1px solid var(--theme-border)',
-          background: 'var(--theme-surface)'
-        }}
-      >
+      <div className="appearance-tabs">
         <button
           onClick={() => setAppearancePage('themes')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'themes' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'themes' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
+          className={`appearance-tab ${appearancePage === 'themes' ? 'is-active' : ''}`}
         >
           Themes
         </button>
         <button
           onClick={() => setAppearancePage('titlebar')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'titlebar' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'titlebar' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
+          className={`appearance-tab ${appearancePage === 'titlebar' ? 'is-active' : ''}`}
         >
           Titlebar
         </button>
         <button
           onClick={() => setAppearancePage('commandpalette')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'commandpalette' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'commandpalette' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
+          className={`appearance-tab ${appearancePage === 'commandpalette' ? 'is-active' : ''}`}
         >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span className="appearance-tab__label">
             <Command size={14} />
             Command Palette
           </span>
         </button>
         <button
           onClick={() => setAppearancePage('chatbubbles')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'chatbubbles' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'chatbubbles' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
+          className={`appearance-tab ${appearancePage === 'chatbubbles' ? 'is-active' : ''}`}
         >
           Chat Bubbles
         </button>
         <button
           onClick={() => setAppearancePage('modelselector')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'modelselector' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'modelselector' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
+          className={`appearance-tab ${appearancePage === 'modelselector' ? 'is-active' : ''}`}
         >
           Model Selector
         </button>

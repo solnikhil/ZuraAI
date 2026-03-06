@@ -5,12 +5,10 @@ import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
+import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
-
-const SIDEBAR_COLLAPSED_WIDTH_PX = 60
-const SIDEBAR_EXPANDED_WIDTH_PX = 300
 
 function getModelDisplayName(settings: Settings): string {
     const allModels: Array<{ code: string; displayName: string }> = [
@@ -35,6 +33,7 @@ export default function TitleBar() {
         activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
+        sidebarWidth,
         sidebarHidden,
         toggleSidebarHidden,
     } = useAppShell()
@@ -84,7 +83,7 @@ export default function TitleBar() {
     const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden
         ? 0
-        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : SIDEBAR_EXPANDED_WIDTH_PX)
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {

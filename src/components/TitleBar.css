@@ -59,8 +59,8 @@
     top: 0;
     bottom: 0;
     background: var(--frosted-glass-gradient);
-    border-right: var(--frosted-glass-border);
-    box-shadow: var(--frosted-glass-shadow);
+    border-right: none;
+    box-shadow: none;
     backdrop-filter: var(--frosted-glass-filter);
     -webkit-backdrop-filter: var(--frosted-glass-filter);
     z-index: 0;
@@ -76,9 +76,9 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 2px;
+    width: 1px;
     pointer-events: none;
-    background: linear-gradient(to right, rgba(255, 255, 255, 0.08) 0 1px, rgba(0, 0, 0, 0.16) 1px 2px);
+    background: color-mix(in srgb, var(--theme-border) 96%, rgba(255, 255, 255, 0.06));
 }
 
 

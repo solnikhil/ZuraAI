@@ -1,7 +1,8 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { AppShellProvider, useAppShell } from './AppShellContext'
+import { SIDEBAR_MAX_WIDTH_PX } from '../constants/sidebar'
 
 const mockSettings = {
   settings: {
@@ -15,13 +16,15 @@ vi.mock('./SettingsContext', () => ({
 }))
 
 function Probe(): React.ReactElement {
-  const { activeSettingsSection, setActiveSettingsSection } = useAppShell()
+  const { activeSettingsSection, setActiveSettingsSection, sidebarWidth, setSidebarWidth } = useAppShell()
   return (
     <div>
       <div data-testid="section">{activeSettingsSection}</div>
+      <div data-testid="sidebar-width">{sidebarWidth}</div>
       <button onClick={() => setActiveSettingsSection('models')}>set-models</button>
       <button onClick={() => setActiveSettingsSection('preferences')}>set-preferences</button>
       <button onClick={() => setActiveSettingsSection('providers')}>set-providers</button>
+      <button onClick={() => setSidebarWidth(999)}>set-sidebar-width</button>
     </div>
   )
 }
@@ -71,5 +74,31 @@ describe('AppShellContext providers section normalization', () => {
 
     fireEvent.click(screen.getByText('set-providers'))
     expect(screen.getByTestId('section').textContent).toBe('providers')
+  })
+
+  it('clamps stored sidebar width to max bound', () => {
+    localStorage.setItem('zura-ui:sidebarWidth', '999')
+
+    render(
+      <AppShellProvider>
+        <Probe />
+      </AppShellProvider>
+    )
+
+    expect(screen.getByTestId('sidebar-width').textContent).toBe(String(SIDEBAR_MAX_WIDTH_PX))
+  })
+
+  it('persists clamped sidebar width updates', async () => {
+    render(
+      <AppShellProvider>
+        <Probe />
+      </AppShellProvider>
+    )
+
+    fireEvent.click(screen.getByText('set-sidebar-width'))
+
+    await waitFor(() => {
+      expect(localStorage.getItem('zura-ui:sidebarWidth')).toBe(String(SIDEBAR_MAX_WIDTH_PX))
+    })
   })
 })

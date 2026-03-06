@@ -33,6 +33,7 @@ import {
     rendererPerformanceTracker 
 } from './utils/rendererPerformance'
 import { injectLazyImageStyles } from './components/shared/LazyImage'
+import { preloadMarkdown } from './utils/markdownPreloader'
 import './index.css'
 
 // Initialize renderer performance tracking early
@@ -46,6 +47,10 @@ initializeRendererPerformance()
 // THE Renderer_Process SHALL defer loading of non-critical assets until after TTI
 // WHEN images are displayed, THE Renderer_Process SHALL use lazy loading with intersection observer
 injectLazyImageStyles()
+
+// Eagerly preload markdown rendering pipeline so chat messages render with
+// formatting immediately, avoiding a flash of unstyled/raw markdown text.
+preloadMarkdown()
 
 // Set up automatic reporting of metrics to main process
 // Report metrics when key performance events occur

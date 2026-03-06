@@ -430,12 +430,20 @@ export function formatToolResultsForOpenRouter(
     results: ToolResult[]
 ): OpenRouterToolResultMessage[] {
     return toolCalls.map((tc, i) => {
-        const data = tc.name === 'web_search' && results[i].success
-            ? stripUiFieldsFromToolData(results[i].data)
-            : results[i].data
-        const content = results[i].success
+        const r = results[i]
+        if (!r) {
+            return {
+                role: 'tool' as const,
+                tool_call_id: tc.id,
+                content: 'Error: No result available for this tool call'
+            }
+        }
+        const data = tc.name === 'web_search' && r.success
+            ? stripUiFieldsFromToolData(r.data)
+            : r.data
+        const content = r.success
             ? JSON.stringify(data)
-            : `Error: ${results[i].error}`
+            : `Error: ${r.error}`
         const truncated = content.length > MAX_TOOL_RESULT_CHARS
             ? content.slice(0, MAX_TOOL_RESULT_CHARS) + '...[truncated]'
             : content

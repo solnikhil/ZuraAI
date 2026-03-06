@@ -10,6 +10,7 @@ import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { useModelSelector } from './useModelSelector'
+import { useResponsiveModelSelector } from './useResponsiveModelSelector'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
@@ -44,12 +45,13 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
   const modelSelector = settings.modelSelector || {
     dropdownWidth: 'default',
   }
-  
-  const dropdownWidthClass = {
-    compact: 'w-[420px]',
-    wide: 'w-[640px]',
-    default: 'w-[520px]',
-  }[modelSelector.dropdownWidth || 'default']
+
+  const {
+    compactMode,
+    effectiveDropdownWidth,
+    effectiveDropdownHeight,
+    triggerLabelMaxWidth,
+  } = useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal)
 
   return (
     <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
@@ -60,15 +62,16 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           title={`${currentName} — ${settings.modelProvider || 'auto'}`}
           whileHover={minimal ? undefined : { scale: 1.01 }}
           whileTap={minimal ? { scale: 0.995 } : { scale: 0.99 }}
-          transition={{ duration: 0.12, ease: 'easeOut' }}
-          className={cn(
-            "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-colors cursor-pointer",
-            minimal
-              ? "border border-transparent bg-transparent hover:bg-white/5 text-black/75 dark:text-white/75 hover:text-black dark:hover:text-white"
-              : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
-            minimal && "rounded-md px-2.5 py-1 gap-1.5"
-          )}
-        >
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-colors cursor-pointer",
+              minimal
+                ? "border border-transparent bg-transparent hover:bg-white/5 text-black/75 dark:text-white/75 hover:text-black dark:hover:text-white"
+                : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
+              minimal && "rounded-md px-2.5 py-1 gap-1.5",
+              minimal && compactMode !== 'none' && 'px-2 py-1'
+            )}
+          >
           {!minimal && (currentModel ? (
             <ModelIcon
               model={currentModel}
@@ -83,26 +86,34 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
               minimal ? 'text-[0.95rem]' : 'text-xs',
             )}
             style={{
-              maxWidth: minimal ? '220px' : '140px',
+              maxWidth: triggerLabelMaxWidth,
               minWidth: minimal ? 0 : '80px',
             }}
           >
             {currentName}
           </span>
-          <motion.div
-            animate={{ rotate: state.isOpen ? 180 : 0 }}
-            transition={{ duration: 0.14, ease: 'easeOut' }}
-          >
-            <ChevronDown 
-              size={12} 
-              className="opacity-50"
-            />
-          </motion.div>
+          {!(minimal && compactMode === 'tight') && (
+            <motion.div
+              animate={{ rotate: state.isOpen ? 180 : 0 }}
+              transition={{ duration: 0.14, ease: 'easeOut' }}
+            >
+              <ChevronDown
+                size={12}
+                className="opacity-50"
+              />
+            </motion.div>
+          )}
         </motion.button>
       </PopoverTrigger>
-      <PopoverContent 
-        className={cn(dropdownWidthClass, "p-0")}
+      <PopoverContent
+        className="p-0 overflow-hidden"
         align="start"
+        style={{
+          width: `${effectiveDropdownWidth}px`,
+          maxWidth: 'calc(100vw - 24px)',
+          height: `${effectiveDropdownHeight}px`,
+          maxHeight: 'calc(100vh - 24px)',
+        }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
           // Allow interaction with elements inside the popover, including sidebar
@@ -127,6 +138,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
           favoriteModels={settings.favoriteModels || []}
           onModelSelect={handleSelect}
           onToggleFavorite={toggleFavorite}
+          compactMode={compactMode}
         />
       </PopoverContent>
     </Popover>

@@ -203,6 +203,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Search overlays and list rendering include all sessions (subject to active filters), with no archive-only section or archive toggle.
 - Chat session metadata includes `pinned`, `folderId`, and `tags`; legacy `archived` values in persisted data are ignored during migration.
 
+#### Sidebar Width Resizing
+- Sidebar width is user-resizable from the dashboard via a right-edge drag handle in `src/components/Dashboard/Sidebar.tsx`.
+- The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
+- Current shell width calculations (sidebar panel, frosted glass continuation, titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
+
 ### Data Persistence
 
 **Renderer (localStorage)**
@@ -218,6 +223,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `zura-ui:dashboardView`
   - `zura-ui:settingsSection`
   - `zura-ui:sidebarCollapsed`
+  - `zura-ui:sidebarWidth`
   - `zura-ui:sidebarHidden`
 - Command bar:
   - History: `zura-commandbar-history-v1`

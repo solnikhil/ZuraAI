@@ -2,18 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   AlertCircle,
-  ArrowUpDown,
   CircleHelp,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
-  ChevronRight,
   Edit2,
   Eye,
   EyeOff,
   Globe,
-  GripVertical,
-  Layers,
   Loader2,
   Lock,
   MoreVertical,
@@ -95,6 +90,9 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 }
 
+const CATALOG_BASE_BACKGROUND = '#212121'
+const CATALOG_CARD_BACKGROUND = '#2c2c2c'
+
 type SearchApiKey = 'tavily'
 
 interface SearchApiDefinition {
@@ -125,25 +123,6 @@ interface ModelBasic {
   code: string
   displayName: string
   enabled?: boolean
-}
-
-function mergeOrderKeys(current: ProviderKey[], available: ProviderKey[]): ProviderKey[] {
-  const currentFiltered = current.filter((key) => available.includes(key))
-  const missing = available.filter((key) => !currentFiltered.includes(key))
-  return [...currentFiltered, ...missing]
-}
-
-function sortByOrder(items: ProviderDefinition[], orderedKeys: ProviderKey[]): ProviderDefinition[] {
-  const indexMap = new Map<ProviderKey, number>()
-  orderedKeys.forEach((key, index) => indexMap.set(key, index))
-  return [...items].sort((a, b) => {
-    const aIndex = indexMap.get(a.key)
-    const bIndex = indexMap.get(b.key)
-    if (aIndex === undefined && bIndex === undefined) return 0
-    if (aIndex === undefined) return 1
-    if (bIndex === undefined) return -1
-    return aIndex - bIndex
-  })
 }
 
 export interface ProviderHubSectionProps {
@@ -206,21 +185,6 @@ export function ProviderHubSection({
 }: ProviderHubSectionProps): React.ReactElement {
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(initialProvider ? 'detail' : 'catalog')
-  const [query, setQuery] = useState('')
-  const [catalogFilter, setCatalogFilter] = useState<'all' | ProviderKey>('all')
-  const [sidebarExpandedGroups, setSidebarExpandedGroups] = useState<{ enabled: boolean; disabled: boolean }>({
-    enabled: true,
-    disabled: true,
-  })
-  const [sidebarActiveGroup, setSidebarActiveGroup] = useState<'enabled' | 'disabled'>('enabled')
-  const [customOrderDialogOpen, setCustomOrderDialogOpen] = useState(false)
-  const [customOrderDialogGroup, setCustomOrderDialogGroup] = useState<'enabled' | 'disabled'>('enabled')
-  const [customOrderDraft, setCustomOrderDraft] = useState<ProviderDefinition[]>([])
-  const [draggedProviderIndex, setDraggedProviderIndex] = useState<number | null>(null)
-  const [providerOrder, setProviderOrder] = useState<{ enabled: ProviderKey[]; disabled: ProviderKey[] }>({
-    enabled: [],
-    disabled: [],
-  })
   const [providerModelQuery, setProviderModelQuery] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(initialProvider ?? 'openrouter')
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
@@ -449,96 +413,13 @@ export function ProviderHubSection({
     setDeleteConfirmOpen(false)
   }
 
-  const filteredProviders = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return PROVIDERS
-    return PROVIDERS.filter((provider) => {
-      return (
-        provider.name.toLowerCase().includes(normalized) ||
-        provider.description.toLowerCase().includes(normalized)
-      )
-    })
-  }, [query])
-
-  const enabledProvidersBase = useMemo(() => {
-    return filteredProviders.filter((provider) => isProviderEnabled(provider))
-  }, [filteredProviders])
-
-  const disabledProvidersBase = useMemo(() => {
-    return filteredProviders.filter((provider) => !isProviderEnabled(provider))
-  }, [filteredProviders])
-
-  useEffect(() => {
-    const enabledKeys = enabledProvidersBase.map((provider) => provider.key)
-    const disabledKeys = disabledProvidersBase.map((provider) => provider.key)
-
-    setProviderOrder((previous) => {
-      const nextEnabled = mergeOrderKeys(previous.enabled, enabledKeys)
-      const nextDisabled = mergeOrderKeys(previous.disabled, disabledKeys)
-
-      const enabledSame = nextEnabled.length === previous.enabled.length && nextEnabled.every((key, index) => key === previous.enabled[index])
-      const disabledSame = nextDisabled.length === previous.disabled.length && nextDisabled.every((key, index) => key === previous.disabled[index])
-      if (enabledSame && disabledSame) {
-        return previous
-      }
-
-      return {
-        enabled: nextEnabled,
-        disabled: nextDisabled,
-      }
-    })
-  }, [enabledProvidersBase, disabledProvidersBase])
-
-  const enabledProvidersForSidebar = useMemo(() => {
-    return sortByOrder(enabledProvidersBase, providerOrder.enabled)
-  }, [enabledProvidersBase, providerOrder.enabled])
-
-  const disabledProvidersForSidebar = useMemo(() => {
-    return sortByOrder(disabledProvidersBase, providerOrder.disabled)
-  }, [disabledProvidersBase, providerOrder.disabled])
-
-  const catalogProviders = useMemo(() => {
-    if (catalogFilter === 'all') return filteredProviders
-    return filteredProviders.filter((provider) => provider.key === catalogFilter)
-  }, [filteredProviders, catalogFilter])
-
   const enabledProviders = useMemo(() => {
-    const filtered = enabledProvidersForSidebar.filter((provider) => catalogProviders.includes(provider))
-    return filtered
-  }, [enabledProvidersForSidebar, catalogProviders])
+    return PROVIDERS.filter((provider) => isProviderEnabled(provider))
+  }, [openRouterApiKey, perplexityApiKey, groqApiKey, alibabaApiKey, ollamaUrl])
 
   const disabledProviders = useMemo(() => {
-    const filtered = disabledProvidersForSidebar.filter((provider) => catalogProviders.includes(provider))
-    return filtered
-  }, [disabledProvidersForSidebar, catalogProviders])
-
-  const openCustomOrderDialog = (group: 'enabled' | 'disabled') => {
-    setSidebarActiveGroup(group)
-    setCustomOrderDialogGroup(group)
-    setCustomOrderDraft(group === 'enabled' ? enabledProvidersForSidebar : disabledProvidersForSidebar)
-    setDraggedProviderIndex(null)
-    setCustomOrderDialogOpen(true)
-  }
-
-  const updateCustomOrder = () => {
-    const orderedKeys = customOrderDraft.map((provider) => provider.key)
-    setProviderOrder((previous) => ({
-      ...previous,
-      [customOrderDialogGroup]: orderedKeys,
-    }))
-    setCustomOrderDialogOpen(false)
-  }
-
-  const moveCustomOrderItem = (toIndex: number) => {
-    if (draggedProviderIndex === null || draggedProviderIndex === toIndex) return
-    setCustomOrderDraft((previous) => {
-      const next = [...previous]
-      const [moved] = next.splice(draggedProviderIndex, 1)
-      next.splice(toIndex, 0, moved)
-      return next
-    })
-    setDraggedProviderIndex(toIndex)
-  }
+    return PROVIDERS.filter((provider) => !isProviderEnabled(provider))
+  }, [openRouterApiKey, perplexityApiKey, groqApiKey, alibabaApiKey, ollamaUrl])
 
   const runConnectivityCheck = async () => {
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
@@ -679,106 +560,16 @@ export function ProviderHubSection({
       </div>
 
       {manageMode === 'providers' && providerView === 'catalog' && (
-        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
-            <div className="flex h-full flex-col gap-3">
-              <div className="flex items-center">
-                <div className="relative flex-1">
-                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search Providers..."
-                    className="border-border bg-secondary pl-9"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setCatalogFilter('all')}
-                className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition"
-                style={{
-                  background: catalogFilter === 'all' ? 'var(--theme-surface-active)' : 'transparent',
-                  color: 'var(--theme-text-primary)',
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Layers size={15} />
-                  All
-                </span>
-              </button>
-
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <SidebarGroupHeader
-                  label="Enabled"
-                  count={enabledProvidersForSidebar.length}
-                  active={sidebarActiveGroup === 'enabled'}
-                  expanded={sidebarExpandedGroups.enabled}
-                  onToggle={() => {
-                    setSidebarActiveGroup('enabled')
-                    setSidebarExpandedGroups((previous) => ({ ...previous, enabled: !previous.enabled }))
-                  }}
-                  onOpenCustomOrder={() => openCustomOrderDialog('enabled')}
-                />
-                {sidebarExpandedGroups.enabled && (
-                  <div className="mt-1 space-y-1">
-                    {enabledProvidersForSidebar.map((provider) => (
-                      <ProviderSidebarItem
-                        key={`enabled-${provider.key}`}
-                        provider={provider}
-                        active={catalogFilter === provider.key}
-                        enabled={true}
-                        onClick={() => {
-                          setSidebarActiveGroup('enabled')
-                          setCatalogFilter(provider.key)
-                          setSelectedProvider(provider.key)
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-3" />
-                <SidebarGroupHeader
-                  label="Disabled"
-                  count={disabledProvidersForSidebar.length}
-                  active={sidebarActiveGroup === 'disabled'}
-                  expanded={sidebarExpandedGroups.disabled}
-                  onToggle={() => {
-                    setSidebarActiveGroup('disabled')
-                    setSidebarExpandedGroups((previous) => ({ ...previous, disabled: !previous.disabled }))
-                  }}
-                  onOpenCustomOrder={() => openCustomOrderDialog('disabled')}
-                />
-                {sidebarExpandedGroups.disabled && (
-                  <div className="mt-1 space-y-1">
-                    {disabledProvidersForSidebar.map((provider) => (
-                      <ProviderSidebarItem
-                        key={`disabled-${provider.key}`}
-                        provider={provider}
-                        active={catalogFilter === provider.key}
-                        enabled={false}
-                        onClick={() => {
-                          setSidebarActiveGroup('disabled')
-                          setCatalogFilter(provider.key)
-                          setSelectedProvider(provider.key)
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
+        <div className="mt-4 min-w-0">
+          <Card
+            className="settings-section-card provider-hub-base-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]"
+            style={{ background: CATALOG_BASE_BACKGROUND }}
+          >
             <ProviderSection
               title="Enabled"
               providers={enabledProviders}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
-                setCatalogFilter(provider.key)
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
@@ -790,7 +581,6 @@ export function ProviderHubSection({
               providers={disabledProviders}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
-                setCatalogFilter(provider.key)
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
@@ -801,7 +591,7 @@ export function ProviderHubSection({
       )}
 
       {manageMode === 'providers' && providerView === 'detail' && (
-        <Card className="settings-section-card mt-4">
+        <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -1102,30 +892,11 @@ export function ProviderHubSection({
       )}
 
       {manageMode === 'search-apis' && searchApiView === 'catalog' && (
-        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(400px,calc(60vh-120px))]">
-            <div className="flex h-full flex-col gap-2">
-              <div className="px-2 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Search APIs
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-1">
-                {SEARCH_APIS.map((api) => (
-                  <SearchApiSidebarItem
-                    key={api.key}
-                    api={api}
-                    active={selectedSearchApi === api.key}
-                    enabled={Boolean(api.apiKeyField && (tavilyApiKey || '').trim())}
-                    onClick={() => {
-                      setSelectedSearchApi(api.key)
-                      setSearchApiView('detail')
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]">
+        <div className="mt-4 min-w-0">
+          <Card
+            className="settings-section-card provider-hub-base-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]"
+            style={{ background: CATALOG_BASE_BACKGROUND }}
+          >
             <SearchApiSection
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
@@ -1148,43 +919,6 @@ export function ProviderHubSection({
           onChange={onChange}
         />
       )}
-
-      <Dialog open={customOrderDialogOpen} onOpenChange={setCustomOrderDialogOpen}>
-        <DialogContent className="border-border bg-card sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Custom Order</DialogTitle>
-            <DialogDescription>
-              Drag providers to set display order for the {customOrderDialogGroup} list.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
-            {customOrderDraft.map((provider, index) => (
-              <div
-                key={`order-${provider.key}`}
-                draggable
-                onDragStart={() => setDraggedProviderIndex(index)}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  moveCustomOrderItem(index)
-                }}
-                className="flex items-center justify-between rounded-md border border-transparent px-2 py-2 hover:border-border"
-              >
-                <span className="inline-flex min-w-0 items-center gap-2">
-                  <ProviderLogo provider={provider.key} size={18} />
-                  <span className="truncate text-sm text-foreground">{provider.name}</span>
-                </span>
-                <GripVertical size={16} className="text-muted-foreground" />
-              </div>
-            ))}
-          </div>
-
-          <Button onClick={updateCustomOrder}>Update</Button>
-        </DialogContent>
-      </Dialog>
 
       <CreateCustomModelDialog
         open={addDialogOpen}
@@ -1296,7 +1030,10 @@ function ProviderSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
+              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
+              style={{
+                background: CATALOG_CARD_BACKGROUND,
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -1327,83 +1064,6 @@ function ProviderSection({
   )
 }
 
-function ProviderSidebarItem({
-  provider,
-  active,
-  enabled,
-  onClick,
-}: {
-  provider: ProviderDefinition
-  active: boolean
-  enabled: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition"
-      style={{
-        background: active ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-        color: 'var(--theme-text-primary)',
-      }}
-    >
-      <span className="inline-flex min-w-0 items-center gap-2">
-        <ProviderLogo provider={provider.key} size={16} />
-        <span className="truncate">{provider.name}</span>
-      </span>
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ background: enabled ? '#b8f221' : '#4b5563' }}
-      />
-    </button>
-  )
-}
-
-function SidebarGroupHeader({
-  label,
-  count,
-  active,
-  expanded,
-  onToggle,
-  onOpenCustomOrder,
-}: {
-  label: string
-  count: number
-  active: boolean
-  expanded: boolean
-  onToggle: () => void
-  onOpenCustomOrder: () => void
-}): React.ReactElement {
-  return (
-    <div
-      className="flex items-center justify-between rounded-md px-2 py-2"
-      style={{
-        background: active ? 'var(--theme-surface-active)' : 'var(--theme-surface-hover)',
-      }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="inline-flex items-center gap-1 text-sm font-medium text-foreground"
-      >
-        <span>{label}</span>
-        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{count}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenCustomOrder}
-        className="rounded p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-        aria-label={`Custom order for ${label.toLowerCase()} providers`}
-      >
-        <ArrowUpDown size={14} />
-      </button>
-    </div>
-  )
-}
-
 function DetailField({
   label,
   description,
@@ -1414,12 +1074,12 @@ function DetailField({
   control: React.ReactNode
 }): React.ReactElement {
   return (
-    <div className="grid gap-3 md:grid-cols-[220px_1fr] md:items-start">
-      <div>
-        <div className="text-sm font-semibold text-foreground">{label}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+    <div className="settings-list-row settings-list-row--field">
+      <div className="settings-list-row__meta">
+        <div className="settings-list-row__label">{label}</div>
+        <div className="settings-list-row__description">{description}</div>
       </div>
-      <div>{control}</div>
+      <div className="settings-list-row__control settings-list-row__control--stretch">{control}</div>
     </div>
   )
 }
@@ -1558,39 +1218,6 @@ function ModelGroup({
   )
 }
 
-function SearchApiSidebarItem({
-  api,
-  active,
-  enabled,
-  onClick,
-}: {
-  api: SearchApiDefinition
-  active: boolean
-  enabled: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition"
-      style={{
-        background: active ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-        color: 'var(--theme-text-primary)',
-      }}
-    >
-      <span className="inline-flex min-w-0 items-center gap-2">
-        <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-        <span className="truncate">{api.name}</span>
-      </span>
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{ background: enabled ? '#b8f221' : '#4b5563' }}
-      />
-    </button>
-  )
-}
-
 function SearchApiSection({
   apis,
   selectedApi,
@@ -1625,8 +1252,11 @@ function SearchApiSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
-              style={{ boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none' }}
+              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
+              style={{
+                background: CATALOG_CARD_BACKGROUND,
+                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none',
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -1678,7 +1308,7 @@ function SearchApiDetail({
   const isEnabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
 
   return (
-    <Card className="settings-section-card mt-4">
+    <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-2">

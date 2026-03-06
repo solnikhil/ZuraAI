@@ -270,10 +270,10 @@ export function useStreamingToolCalls({
         arguments: tr.toolCall.arguments
       },
       result: {
-        success: tr.result.success,
-        data: tr.result.data,
-        error: tr.result.error,
-        executionTime: tr.result.executionTime
+        success: tr.result?.success ?? false,
+        data: tr.result?.data,
+        error: tr.result?.error,
+        executionTime: tr.result?.executionTime
       }
     }))
   }, [])

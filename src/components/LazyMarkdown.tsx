@@ -8,14 +8,11 @@ import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
 import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
 import type { ExtraProps } from 'react-markdown'
+import { getPreloadedMarkdown, waitForMarkdownPreload } from '../utils/markdownPreloader'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
-// Lazy load markdown dependencies
+// Lazy load react-markdown component (plugins are handled by markdownPreloader)
 const ReactMarkdown = lazy(() => import('react-markdown'))
-const remarkGfmPromise = import('remark-gfm')
-const remarkMathPromise = import('remark-math')
-const rehypeKatexPromise = import('rehype-katex')
-const prismStylesPromise = import('react-syntax-highlighter/dist/esm/styles/prism')
 
 interface LazyMarkdownProps {
     content: string
@@ -24,83 +21,27 @@ interface LazyMarkdownProps {
     isStreaming?: boolean
 }
 
-// Remark plugin wrapper
-async function getRemarkGfm() {
-    const mod = await remarkGfmPromise
-    return mod.default
-}
-
-async function getRemarkMath() {
-    const mod = await remarkMathPromise
-    return mod.default
-}
-
-async function getRehypeKatex() {
-    const mod = await rehypeKatexPromise
-    return mod.default
-}
-
-// Syntax highlighter wrapper
-async function getPrismStyles() {
-    const mod = await prismStylesPromise
-    return {
-        ...mod.vscDarkPlus,
-        'code[class*="language-"]': {
-            ...(mod.vscDarkPlus['code[class*="language-"]'] || {}),
-            color: '#E6ECF8',
-            textShadow: 'none',
-            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-            fontSize: '0.95rem',
-            lineHeight: '1.72',
-        },
-        'pre[class*="language-"]': {
-            ...(mod.vscDarkPlus['pre[class*="language-"]'] || {}),
-            margin: 0,
-            background: 'transparent',
-            textShadow: 'none',
-        },
-        comment: {
-            ...(mod.vscDarkPlus.comment || {}),
-            color: '#7E879B',
-            fontStyle: 'italic',
-        },
-        keyword: {
-            ...(mod.vscDarkPlus.keyword || {}),
-            color: '#FF7CCB',
-        },
-        operator: {
-            ...(mod.vscDarkPlus.operator || {}),
-            color: '#D7DEF0',
-        },
-        string: {
-            ...(mod.vscDarkPlus.string || {}),
-            color: '#FFC27A',
-        },
-        number: {
-            ...(mod.vscDarkPlus.number || {}),
-            color: '#C8A0FF',
-        },
-        function: {
-            ...(mod.vscDarkPlus.function || {}),
-            color: '#8EDDF7',
-        },
-        'class-name': {
-            ...(mod.vscDarkPlus['class-name'] || {}),
-            color: '#7CE9A7',
-        },
-        builtin: {
-            ...(mod.vscDarkPlus.builtin || {}),
-            color: '#9CD7F7',
-        },
-        property: {
-            ...(mod.vscDarkPlus.property || {}),
-            color: '#C7D2E8',
-        },
-        punctuation: {
-            ...(mod.vscDarkPlus.punctuation || {}),
-            color: '#AEB8CF',
-        },
-    }
+/** Skeleton placeholder shown while markdown plugins are loading */
+function MarkdownSkeleton({ className }: { className?: string }) {
+    const lineWidths = ['85%', '70%', '60%', '90%']
+    return (
+        <div className={className} style={{ padding: '2px 0' }}>
+            {lineWidths.map((width, i) => (
+                <div
+                    key={i}
+                    style={{
+                        height: '14px',
+                        width,
+                        marginBottom: i < lineWidths.length - 1 ? '10px' : 0,
+                        borderRadius: '4px',
+                        background: 'var(--theme-surface-hover, rgba(255,255,255,0.06))',
+                        animation: 'markdown-skeleton-pulse 1.5s ease-in-out infinite',
+                        animationDelay: `${i * 0.08}s`,
+                    }}
+                />
+            ))}
+        </div>
+    )
 }
 
 type LanguageMeta = {
@@ -166,14 +107,18 @@ function getLanguageMeta(language?: string): LanguageMeta {
 }
 
 function MarkdownContent({ content, webSources, isStreaming = false }: { content: string; webSources?: Map<string, WebSource>; isStreaming?: boolean }) {
-    const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(null)
-    const [remarkMath, setRemarkMath] = useState<(() => void) | null>(null)
-    const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(null)
+    // Initialize from preloaded cache if available (avoids flash of unstyled content)
+    const preloaded = getPreloadedMarkdown()
+    // Wrap function/component values in arrow functions so React doesn't
+    // call them as lazy initialisers (useState treats bare functions as initialisers).
+    const [remarkPlugin, setRemarkPlugin] = useState<(() => void) | null>(() => preloaded.remarkGfm)
+    const [remarkMath, setRemarkMath] = useState<(() => void) | null>(() => preloaded.remarkMath)
+    const [rehypeKatex, setRehypeKatex] = useState<(() => void) | null>(() => preloaded.rehypeKatex)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [syntaxHighlighter, setSyntaxHighlighter] = useState<React.ComponentType<any> | null>(null)
-    const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(null)
+    const [syntaxHighlighter, setSyntaxHighlighter] = useState<React.ComponentType<any> | null>(() => preloaded.syntaxHighlighter)
+    const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(preloaded.prismStyle)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
-    const [loadAttempted, setLoadAttempted] = useState(false)
+    const [loadAttempted, setLoadAttempted] = useState(preloaded.ready)
 
     const injectTreeCodeFences = (markdown: string) => {
         const lines = markdown.split('\n')
@@ -299,32 +244,24 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
     }
 
     useEffect(() => {
+        // If preloader already resolved, nothing to do
+        if (loadAttempted) return
+
         let mounted = true
-        ;(async () => {
-            const results = await Promise.allSettled([
-                getRemarkGfm(),
-                getRemarkMath(),
-                getRehypeKatex(),
-                import('react-syntax-highlighter').then(m => m.Prism),
-                getPrismStyles()
-            ])
-
+        waitForMarkdownPreload().then(() => {
             if (!mounted) return
-
-            const [gfm, math, katex, highlighter, style] = results
-
-            if (gfm.status === 'fulfilled') setRemarkPlugin(() => gfm.value)
-            if (math.status === 'fulfilled') setRemarkMath(() => math.value)
-            if (katex.status === 'fulfilled') setRehypeKatex(() => katex.value)
-            if (highlighter.status === 'fulfilled') setSyntaxHighlighter(() => highlighter.value)
-            if (style.status === 'fulfilled') setPrismStyle(style.value)
-
+            const cached = getPreloadedMarkdown()
+            if (cached.remarkGfm) setRemarkPlugin(() => cached.remarkGfm)
+            if (cached.remarkMath) setRemarkMath(() => cached.remarkMath)
+            if (cached.rehypeKatex) setRehypeKatex(() => cached.rehypeKatex)
+            if (cached.syntaxHighlighter) setSyntaxHighlighter(() => cached.syntaxHighlighter)
+            if (cached.prismStyle) setPrismStyle(cached.prismStyle)
             setLoadAttempted(true)
-        })()
+        })
         return () => { mounted = false }
-    }, [])
+    }, [loadAttempted])
 
-    if (!loadAttempted) return <div style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
+    if (!loadAttempted) return <MarkdownSkeleton />
 
     const SyntaxHighlighter = syntaxHighlighter
     const normalizedContent = normalizeMathDelimiters(content)
@@ -644,7 +581,7 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
 
 export default function LazyMarkdown({ content, className, webSources, isStreaming = false }: LazyMarkdownProps) {
     return (
-        <Suspense fallback={<div className={className} style={{ whiteSpace: 'pre-wrap' }}>{content}</div>}>
+        <Suspense fallback={<MarkdownSkeleton className={className} />}>
             <MarkdownContent content={content} webSources={webSources} isStreaming={isStreaming} />
         </Suspense>
     )

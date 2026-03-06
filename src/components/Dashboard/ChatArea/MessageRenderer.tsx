@@ -756,7 +756,7 @@ function MessageRendererComponent({
     }
 
     for (const tr of message.toolResults) {
-      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+      if (tr.toolCall.name === 'web_search' && tr.result?.success && tr.result?.data) {
         const dataObj = tr.result.data as Record<string, unknown>
         const results = (dataObj.results as unknown[]) || tr.result.data
         if (Array.isArray(results)) {
@@ -793,7 +793,7 @@ function MessageRendererComponent({
     const images: Array<{ url: string; description?: string }> = []
     if (!message.toolResults) return images
     for (const tr of message.toolResults) {
-      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
+      if (tr.toolCall.name === 'web_search' && tr.result?.success && tr.result?.data) {
         const dataObj = tr.result.data as Record<string, unknown>
         const resultImages = (dataObj.images as unknown[]) || []
         if (Array.isArray(resultImages)) {

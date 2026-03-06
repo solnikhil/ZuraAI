@@ -281,7 +281,7 @@ export function useOllamaStreaming({
 
       savedToolResults = toolResult?.toolResults?.map((tr: ToolCallResult) => ({
         toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
-        result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
+        result: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime }
       })) || undefined
     }
 

@@ -25,6 +25,10 @@
   transition: width 0.2s ease, opacity 0.15s ease, background 0.2s ease;
 }
 
+.sidebar-container--resizing {
+  transition: none;
+}
+
 .sidebar-container--hidden {
   width: 0 !important;
   border-right: none;
@@ -42,7 +46,7 @@
 .sidebar-container.frosted {
   background: transparent;
   border-right: none;
-  box-shadow: var(--frosted-sidebar-shadow);
+  box-shadow: none;
 }
 
 .sidebar-container.frosted::after {
@@ -51,10 +55,10 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 2px;
+  width: 1px;
   pointer-events: none;
   z-index: 2;
-  background: linear-gradient(to right, rgba(255, 255, 255, 0.08) 0 1px, rgba(0, 0, 0, 0.16) 1px 2px);
+  background: color-mix(in srgb, var(--theme-border) 96%, rgba(255, 255, 255, 0.06));
 }
 
 .sidebar__inner {
@@ -63,6 +67,34 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 4;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.sidebar-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.sidebar-container:hover .sidebar-resize-handle::before,
+.sidebar-container--resizing .sidebar-resize-handle::before {
+  background: color-mix(in srgb, var(--theme-border-hover) 62%, transparent);
 }
 
 /* ── Scrollbar (scoped to sidebar) ─────────────────────────── */

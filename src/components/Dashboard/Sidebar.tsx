@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
     ChartNoAxesCombined, Cloud,
     Paintbrush, FlaskConical, FileText, Wrench
@@ -14,10 +14,8 @@ import SidebarChatList from './Sidebar/SidebarChatList'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
+import { SIDEBAR_COLLAPSED_WIDTH_PX, clampSidebarWidth } from '../../constants/sidebar'
 import './Sidebar/Sidebar.css'
-
-const SIDEBAR_COLLAPSED_WIDTH_PX = 60
-const SIDEBAR_EXPANDED_WIDTH_PX = 300
 
 interface SidebarProps {
     view: 'chat' | 'settings'
@@ -32,7 +30,7 @@ interface SidebarProps {
 export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onCloseSettings: _onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
-    const { sidebarHidden, sidebarCollapsed } = useAppShell()
+    const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth } = useAppShell()
     const {
         sessions,
         folders,
@@ -53,6 +51,8 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
     // Sidebar state
     const [focusIndex, setFocusIndex] = useState(-1)
     const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+    const [isResizing, setIsResizing] = useState(false)
+    const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
     // Glassmorphism styles
     const shouldApplyGlass = frostedSidebar && !sidebarHidden
 
@@ -197,9 +197,66 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
         assignFolder(sessionId, folderId)
     }, [assignFolder])
 
+    const stopResizing = useCallback(() => {
+        if (!resizeStateRef.current) return
+        resizeStateRef.current = null
+        setIsResizing(false)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+    }, [])
+
+    const handleResizePointerMove = useCallback((event: PointerEvent) => {
+        const resizeState = resizeStateRef.current
+        if (!resizeState) return
+        const deltaX = event.clientX - resizeState.startX
+        const nextWidth = clampSidebarWidth(resizeState.startWidth + deltaX)
+        setSidebarWidth(nextWidth)
+    }, [setSidebarWidth])
+
+    const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0 || sidebarHidden || sidebarCollapsed) return
+        event.preventDefault()
+        event.stopPropagation()
+        resizeStateRef.current = {
+            startX: event.clientX,
+            startWidth: sidebarWidth,
+        }
+        setIsResizing(true)
+        document.body.style.cursor = 'col-resize'
+        document.body.style.userSelect = 'none'
+    }, [sidebarCollapsed, sidebarHidden, sidebarWidth])
+
+    useEffect(() => {
+        if (!isResizing) return
+        window.addEventListener('pointermove', handleResizePointerMove)
+        window.addEventListener('pointerup', stopResizing)
+        window.addEventListener('pointercancel', stopResizing)
+        return () => {
+            window.removeEventListener('pointermove', handleResizePointerMove)
+            window.removeEventListener('pointerup', stopResizing)
+            window.removeEventListener('pointercancel', stopResizing)
+        }
+    }, [handleResizePointerMove, isResizing, stopResizing])
+
+    useEffect(() => {
+        if ((sidebarHidden || sidebarCollapsed) && isResizing) {
+            stopResizing()
+        }
+    }, [isResizing, sidebarCollapsed, sidebarHidden, stopResizing])
+
+    useEffect(() => {
+        return () => {
+            document.body.style.cursor = ''
+            document.body.style.userSelect = ''
+        }
+    }, [])
+
     // Build container class list
     const containerClasses = [
         'sidebar-container',
+        sidebarHidden ? 'sidebar-container--hidden' : '',
+        sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
+        isResizing ? 'sidebar-container--resizing' : '',
         shouldApplyGlass ? 'frosted' : '',
     ].filter(Boolean).join(' ')
 
@@ -207,11 +264,12 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
     const containerStyle: React.CSSProperties = {
         width: sidebarHidden
             ? '0px'
-            : (sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${SIDEBAR_EXPANDED_WIDTH_PX}px`),
+            : (sidebarCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px` : `${sidebarWidth}px`),
         background: shouldApplyGlass ? 'transparent' : 'var(--theme-sidebar-solid)',
         borderRight: '0px solid transparent',
-        boxShadow: shouldApplyGlass ? 'var(--frosted-sidebar-shadow)' : 'none',
+        boxShadow: 'none',
         pointerEvents: sidebarHidden ? 'none' : 'auto',
+        transition: isResizing ? 'none' : undefined,
     }
 
     // Chat content view
@@ -290,6 +348,15 @@ export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onClose
                 onSelectSession={handleSelectSessionFromSearch}
                 onClose={closeSearchOverlay}
             />
+
+            {!sidebarHidden && !sidebarCollapsed && (
+                <div
+                    className="sidebar-resize-handle"
+                    aria-hidden="true"
+                    title="Drag to resize sidebar"
+                    onPointerDown={handleResizePointerDown}
+                />
+            )}
         </div>
     )
 }

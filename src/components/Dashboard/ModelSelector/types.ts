@@ -30,6 +30,11 @@ export interface ModelWithProvider {
 export type ViewMode = 'favorites' | 'all'
 
 /**
+ * Responsive compact mode for model selector UI
+ */
+export type ModelSelectorCompactMode = 'none' | 'compact' | 'tight'
+
+/**
  * Provider key type union
  */
 export type ProviderKey = 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'

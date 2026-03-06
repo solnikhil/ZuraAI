@@ -186,8 +186,8 @@ export default function ChatArea() {
                 <ToolResultDisplay
                   key={`stored-${i}`}
                   toolName={result.toolCall.name}
-                  result={result.result.success ? result.result.data : undefined}
-                  error={result.result.success ? undefined : result.result.error}
+                   result={result.result?.success ? result.result.data : undefined}
+                   error={result.result?.success ? undefined : result.result?.error}
                 />
               ))}
           </div>
@@ -221,8 +221,8 @@ export default function ChatArea() {
                 <ToolResultDisplay
                   key={i}
                   toolName={result.toolCall.name}
-                  result={result.result.success ? result.result.data : undefined}
-                  error={result.result.success ? undefined : result.result.error}
+                   result={result.result?.success ? result.result.data : undefined}
+                   error={result.result?.success ? undefined : result.result?.error}
                 />
               ))}
           </div>

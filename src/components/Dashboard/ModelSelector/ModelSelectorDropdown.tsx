@@ -8,7 +8,7 @@
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Star, Check } from 'lucide-react'
-import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
+import type { ModelWithProvider, ViewMode, GroupedModels, ModelSelectorCompactMode } from './types'
 import {
   Command,
   CommandEmpty,
@@ -24,6 +24,7 @@ import { ProviderLogo } from '@/components/shared'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
+import { cn } from '@/lib/utils'
 
 /**
  * Provider configuration
@@ -68,6 +69,8 @@ export interface ModelSelectorDropdownProps {
   onModelSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   /** Handler for toggling favorites */
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
+  /** Auto-compact mode based on available window width */
+  compactMode?: ModelSelectorCompactMode
 }
 
 /**
@@ -92,6 +95,15 @@ function getDensityClasses(density: 'compact' | 'comfortable' | 'spacious'): str
   }
 }
 
+function getResponsiveDensity(
+  density: 'compact' | 'comfortable' | 'spacious',
+  compactMode: ModelSelectorCompactMode
+): 'compact' | 'comfortable' | 'spacious' {
+  if (compactMode === 'tight') return 'compact'
+  if (compactMode === 'compact' && density === 'spacious') return 'comfortable'
+  return density
+}
+
 /**
  * ModelSelectorDropdown component
  * Renders the dropdown overlay with vertical provider sidebar and model list
@@ -110,7 +122,8 @@ export function ModelSelectorDropdown({
   selectedModelProvider,
   favoriteModels,
   onModelSelect,
-  onToggleFavorite
+  onToggleFavorite,
+  compactMode = 'none',
 }: ModelSelectorDropdownProps): React.ReactElement {
   const { settings } = useSettings()
   const modelSelector = settings.modelSelector || {
@@ -154,17 +167,26 @@ export function ModelSelectorDropdown({
   const activeTabKey = viewMode === 'favorites' ? 'favorites' : selectedProvider
 
   const staggerDelay = getStaggerDelay(modelSelector.staggerSpeed)
-  const densityClasses = getDensityClasses(modelSelector.itemDensity)
+  const responsiveDensity = getResponsiveDensity(modelSelector.itemDensity, compactMode)
+  const densityClasses = getDensityClasses(responsiveDensity)
+  const isCompact = compactMode !== 'none'
+  const isTight = compactMode === 'tight'
+
+  const sidebarShowLabels = isCompact ? false : modelSelector.sidebarShowLabels
+  const sidebarShowModelCount = isTight ? false : modelSelector.sidebarShowModelCount
+  const showDescriptions = modelSelector.showDescriptions && !isTight
+  const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
+  const showContextLength = modelSelector.showContextLength !== false && !isTight
 
   return (
-    <div className={`flex h-[484px] overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
+    <div className={`flex h-full overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
       {/* Vertical Provider Sidebar */}
       <ProviderSidebar
         activeTabKey={activeTabKey}
         groupedModels={groupedModels}
         favoriteModels={favoriteModels}
-        sidebarShowLabels={modelSelector.sidebarShowLabels}
-        sidebarShowModelCount={modelSelector.sidebarShowModelCount}
+        sidebarShowLabels={sidebarShowLabels}
+        sidebarShowModelCount={sidebarShowModelCount}
         enableAnimations={modelSelector.enableAnimations}
         sidebarPosition={modelSelector.sidebarPosition}
         onTabSelect={(key) => {
@@ -180,13 +202,13 @@ export function ModelSelectorDropdown({
       {/* Main Area: Search + Model List */}
       <div className={`flex-1 flex flex-col overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l'} border-border/50 relative`}>
         {modelSelector.showSearch && (
-          <div className="px-3 py-2 border-b border-border/50">
+          <div className={cn('border-b border-border/50', isTight ? 'px-2 py-1.5' : 'px-3 py-2')}>
             <Command className="rounded-none border-0" shouldFilter={false}>
               <CommandInput
                 placeholder="Search models..."
                 value={searchQuery}
                 onValueChange={onSearchChange}
-                className="h-10"
+                className={isCompact ? 'h-9 text-sm' : 'h-10'}
               />
             </Command>
           </div>
@@ -219,6 +241,10 @@ export function ModelSelectorDropdown({
                         isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
                         isFavorite={favoriteModels.includes(model.code)}
                         modelSelector={modelSelector}
+                        compactMode={compactMode}
+                        showDescriptions={showDescriptions}
+                        showCapabilityBadges={showCapabilityBadges}
+                        showContextLength={showContextLength}
                         onSelect={onModelSelect}
                         onToggleFavorite={onToggleFavorite}
                       />
@@ -236,6 +262,10 @@ export function ModelSelectorDropdown({
                         isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
                         isFavorite={favoriteModels.includes(model.code)}
                         modelSelector={modelSelector}
+                        compactMode={compactMode}
+                        showDescriptions={showDescriptions}
+                        showCapabilityBadges={showCapabilityBadges}
+                        showContextLength={showContextLength}
                         onSelect={onModelSelect}
                         onToggleFavorite={onToggleFavorite}
                       />
@@ -445,6 +475,10 @@ function ModelItem({
   isActive,
   isFavorite,
   modelSelector,
+  compactMode,
+  showDescriptions,
+  showCapabilityBadges,
+  showContextLength,
   onSelect,
   onToggleFavorite
 }: {
@@ -455,11 +489,17 @@ function ModelItem({
   isActive: boolean
   isFavorite: boolean
   modelSelector: ModelSelectorSettings
+  compactMode: ModelSelectorCompactMode
+  showDescriptions: boolean
+  showCapabilityBadges: boolean
+  showContextLength: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }): React.ReactElement {
   const { color } = getModelAttributes(model)
   const capabilities = getCapabilitiesForModelPicker(model)
+  const isCompact = compactMode !== 'none'
+  const isTight = compactMode === 'tight'
 
   const ItemWrapper = modelSelector.enableAnimations ? motion.div : 'div'
   const wrapperProps = modelSelector.enableAnimations ? {
@@ -489,43 +529,43 @@ function ModelItem({
       <CommandItem
         value={`${model.code} ${model.displayName}`}
         onSelect={() => onSelect(model)}
-        className={`
-          flex items-center gap-3 px-3 rounded-lg relative
-          ${densityClasses}
-          ${isActive && modelSelector.activeIndicatorStyle === 'highlight' ? 'bg-primary/10' : ''}
-          ${!isActive ? 'hover:bg-muted/50' : ''}
-          transition-colors
-        `}
+        className={cn(
+          'flex items-center rounded-lg relative transition-colors',
+          isTight ? 'gap-2 px-2' : isCompact ? 'gap-2.5 px-2.5' : 'gap-3 px-3',
+          densityClasses,
+          isActive && modelSelector.activeIndicatorStyle === 'highlight' ? 'bg-primary/10' : '',
+          !isActive ? 'hover:bg-muted/50' : ''
+        )}
       >
         {modelSelector.showProviderLogos ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+          <div className={cn('flex shrink-0 items-center justify-center rounded-lg bg-muted/50', isCompact ? 'h-7 w-7' : 'h-8 w-8')}>
             <ModelIcon
               model={model}
               icon={getModelAttributes(model).icon}
               color={color}
-              size={22}
+              size={isCompact ? 18 : 22}
             />
           </div>
         ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+          <div className={cn('flex shrink-0 items-center justify-center rounded-lg bg-muted/50', isCompact ? 'h-7 w-7' : 'h-8 w-8')}>
             {getModelAttributes(model).icon}
           </div>
         )}
         <div className="flex flex-1 flex-col gap-0.5 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-sm">
+            <span className={cn('truncate font-medium', isTight ? 'text-[13px]' : 'text-sm')}>
               {removeEmojis(model.displayName)}
             </span>
           </div>
-          {modelSelector.showDescriptions && (
+          {showDescriptions && (
             <span className="text-xs text-muted-foreground truncate">
               {getModelDescription(model)}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-          {modelSelector.showCapabilityBadges && capabilities.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap justify-end max-w-[160px]">
+          {showCapabilityBadges && capabilities.length > 0 && (
+            <div className={cn('flex items-center gap-1.5 flex-wrap justify-end', isCompact ? 'max-w-[132px]' : 'max-w-[160px]')}>
               {capabilities.map((capKey) => (
                 <CapabilityBadge
                   key={capKey}
@@ -535,7 +575,7 @@ function ModelItem({
               ))}
             </div>
           )}
-          {modelSelector.showContextLength !== false && (() => {
+          {showContextLength && (() => {
             const ctx = getModelContextLength(model)
             const formatted = ctx != null ? formatContextLength(ctx) : ''
             return formatted ? (

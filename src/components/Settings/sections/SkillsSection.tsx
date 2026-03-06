@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Check, Globe, MoreHorizontal, Sparkles } from 'lucide-react'
+import { Check, Globe, MoreHorizontal, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -76,39 +76,27 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="page-subtitle">Enable built-in capabilities that control tool access and agent behavior.</div>
       </div>
 
-      <Card className="settings-section-card p-0">
-        <div className="divide-y divide-border">
+      <Card className="settings-list-card settings-skills-card p-0">
+        <div className="skills-list">
           {BUILT_IN_SKILLS.map((skill) => {
             const enabled = isSkillEnabled(skill.id)
+            const skillIcon = skill.id === 'web_research' ? <Search size={17} /> : <Globe size={17} />
 
             return (
-              <div key={skill.id} className="flex items-center justify-between gap-3 px-4 py-4">
-                <div className="min-w-0 flex items-center gap-3">
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                    style={{
-                      background: enabled ? 'rgba(77, 171, 247, 0.2)' : 'rgba(255, 255, 255, 0.06)',
-                      color: enabled ? '#4dabf7' : 'var(--theme-text-muted)',
-                    }}
-                  >
-                    <Globe size={18} />
+              <div key={skill.id} className="skills-row">
+                <div className="skills-row__main">
+                  <div className={`skills-row__logo ${enabled ? 'skills-row__logo--enabled' : ''}`}>
+                    {skillIcon}
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate text-base font-medium text-foreground">{skill.name}</h3>
-                      <span className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
-                        <Sparkles size={11} />
-                        Built-in
-                      </span>
-                    </div>
-                    <div className="truncate text-sm text-muted-foreground">{skill.description}</div>
+                  <div className="skills-row__content">
+                    <h3 className="skills-row__title">{skill.name}</h3>
+                    <div className="skills-row__description">{skill.description}</div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="skills-row__actions">
                   <span
-                    className="text-sm font-medium"
-                    style={{ color: enabled ? '#86efac' : 'var(--theme-text-muted)' }}
+                    className={`skills-row__status ${enabled ? 'skills-row__status--enabled' : 'skills-row__status--disabled'}`}
                   >
                     {enabled ? 'Installed' : 'Disabled'}
                   </span>
@@ -118,7 +106,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                        className="skills-row__menu"
                         aria-label={`More actions for ${skill.name}`}
                       >
                         <MoreHorizontal size={16} />
@@ -222,8 +210,8 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         </DialogContent>
       </Dialog>
 
-      <Card className="settings-section-card mt-6">
-        <div className="text-sm text-muted-foreground">
+      <Card className="settings-section-card skills-marketplace-note">
+        <div className="skills-marketplace-note__text">
           Built-in skills only. There is no marketplace in this app version.
         </div>
       </Card>

@@ -59,6 +59,8 @@ const mockAppShell = {
   setHasUnsavedSettings: vi.fn(),
   sidebarCollapsed: false,
   toggleSidebarCollapsed: vi.fn(),
+  sidebarWidth: 300,
+  setSidebarWidth: vi.fn(),
   sidebarHidden: false,
   toggleSidebarHidden: vi.fn(),
 }
