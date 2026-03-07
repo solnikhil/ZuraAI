@@ -17,24 +17,37 @@ function AppShellContent() {
     const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
-    const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden } = useAppShell()
+    const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden, isResizingSidebar } = useAppShell()
     const isDev = import.meta.env.DEV
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const hasSidebar = isDashboardRoute || location.pathname === '/chat'
 
-    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle
+    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle.
+    // Debounced to prevent rapid show/hide flicker when resizing near the threshold boundary.
+    // Only auto-hides (never auto-shows) to avoid fighting user intent.
     useEffect(() => {
         if (!hasSidebar || !sidebarAutoHideOnResize) return
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null
         const handler = () => {
-            const width = window.innerWidth
-            if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
-                setSidebarHidden(true)
-            }
+            if (debounceTimer) clearTimeout(debounceTimer)
+            debounceTimer = setTimeout(() => {
+                const width = window.innerWidth
+                if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+                    setSidebarHidden(true)
+                }
+                debounceTimer = null
+            }, 200)
         }
-        handler() // Initial check on mount
+        // Initial check on mount (immediate, no debounce needed)
+        if (window.innerWidth <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+            setSidebarHidden(true)
+        }
         window.addEventListener('resize', handler)
-        return () => window.removeEventListener('resize', handler)
+        return () => {
+            window.removeEventListener('resize', handler)
+            if (debounceTimer) clearTimeout(debounceTimer)
+        }
     }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
     const sidebarWidthPx = sidebarHidden
         ? 0
@@ -132,7 +145,9 @@ function AppShellContent() {
         }}>
             {/* Glass panel covering full sidebar column (titlebar + content) for frosted mode.
                 A single backdrop-filter layer avoids the Chromium compositing seam that appeared
-                when the titlebar glass strip and this panel each had their own backdrop-filter. */}
+                when the titlebar glass strip and this panel each had their own backdrop-filter.
+                During active sidebar resize, we hint the compositor with will-change and
+                simplify the backdrop-filter to avoid expensive per-frame GPU recomposition. */}
             {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
                 <div style={{
                     position: 'absolute',
@@ -143,11 +158,13 @@ function AppShellContent() {
                     background: `linear-gradient(180deg, rgba(10, 10, 14, 0.46) 0px, rgba(6, 6, 10, 0.33) ${titlebarHeightPx}px, rgba(6, 6, 10, 0.3) 100%)`,
                     borderRight: 'none',
                     boxShadow: 'none',
-                    backdropFilter: 'var(--frosted-glass-filter)',
-                    WebkitBackdropFilter: 'var(--frosted-glass-filter)',
+                    backdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
+                    WebkitBackdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
                     zIndex: 0,
                     pointerEvents: 'none',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    willChange: isResizingSidebar ? 'width' : 'auto',
+                    transition: isResizingSidebar ? 'none' : undefined,
                 }} />
             )}
             <TitleBar />

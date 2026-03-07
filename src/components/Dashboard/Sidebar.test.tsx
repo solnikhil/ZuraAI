@@ -46,6 +46,8 @@ const mockAppShell = {
     setSidebarWidth: vi.fn(),
     sidebarHidden: false,
     toggleSidebarHidden: vi.fn(),
+    isResizingSidebar: false,
+    setIsResizingSidebar: vi.fn(),
 }
 
 const mockChatHistory = {

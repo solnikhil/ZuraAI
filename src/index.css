@@ -167,6 +167,8 @@ html.frosted-mode body {
     min-height: 0;
     overflow: hidden;
     border-top: none;
+    /* Isolate layout reflow so sidebar resize doesn't reflow the entire chat message tree */
+    contain: layout style;
 }
 
 .zura-frosted-prompt {

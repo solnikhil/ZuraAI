@@ -36,6 +36,7 @@ export default function TitleBar() {
         sidebarWidth,
         sidebarHidden,
         toggleSidebarHidden,
+        isResizingSidebar,
     } = useAppShell()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
@@ -154,6 +155,8 @@ export default function TitleBar() {
                     className="app-titlebar__sidebar-glass"
                     style={{
                         width: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'width' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
                     }}
                 />
             )}
@@ -163,6 +166,8 @@ export default function TitleBar() {
                     className="app-titlebar__content-bg"
                     style={{
                         left: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'left' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
                     }}
                 />
             )}
@@ -173,6 +178,8 @@ export default function TitleBar() {
                     className="app-titlebar__sidebar-solid"
                     style={{
                         width: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'width' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
                     }}
                 />
             )}

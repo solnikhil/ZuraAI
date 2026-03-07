@@ -47,6 +47,8 @@ vi.mock('../../../contexts/AppShellContext', () => ({
     sidebarHidden: false,
     toggleSidebarCollapsed: mockToggleSidebarCollapsed,
     toggleSidebarHidden: mockToggleSidebarHidden,
+    isResizingSidebar: false,
+    setIsResizingSidebar: vi.fn(),
   }),
 }))
 

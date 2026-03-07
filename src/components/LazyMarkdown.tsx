@@ -334,14 +334,17 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                     }
                     
                     const isTreeLanguage = !!language && ['tree', 'dir', 'filetree', 'file-tree', 'zura-tree', 'zura_tree'].includes(language)
-                    // Match tree-style markers: ├──, └──, ├─, └─, |--, +--, etc.
-                    const treeMarkerRegex = /[├└│┌┐┤┴┼].*[─-]|^\s*[|+][-─—]|^\s+\S+\s*#/gm
-                    const markerCount = Array.from(codeString.matchAll(treeMarkerRegex)).length
+                    // Render file-tree view only when we have clear tree evidence.
+                    // This avoids false positives for normal code/config blocks (e.g. .gitignore).
+                    const hasVisualTreeMarkers = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s+/m.test(codeString)
                     const hasFolderComments = /^\s*\S+\/\s*#\s+/m.test(codeString)
-                    const hasTreeMarkers = /^\s*[├└│]\s*[─-]/m.test(codeString)
-                    const looksLikeTree = (markerCount > 0 || hasFolderComments || hasTreeMarkers) && codeString.includes('\n')
+                    const hasIndentedHierarchy = /^(?:\s{2,}|\t+)\S/m.test(codeString)
+                    const looksLikeTree = codeString.includes('\n') && (hasVisualTreeMarkers || (hasFolderComments && hasIndentedHierarchy))
+                    const hasExplicitNonTreeLanguage = !!language && !isTreeLanguage
+                    const isStructuredTreeLanguage = !!language && ['zura-tree', 'zura_tree', 'filetree', 'file-tree'].includes(language)
+                    const shouldRenderTree = isStructuredTreeLanguage || (isTreeLanguage && looksLikeTree) || (!hasExplicitNonTreeLanguage && looksLikeTree)
 
-                    if (!isInline && isCodeBlock && (isTreeLanguage || looksLikeTree)) {
+                    if (!isInline && isCodeBlock && shouldRenderTree) {
                         return (
                             <MarkdownFileTree
                                 language={language}

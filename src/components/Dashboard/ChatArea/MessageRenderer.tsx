@@ -897,10 +897,8 @@ function MessageRendererComponent({
       const spaceBelow = viewportHeight - rect.bottom
       const showAbove = spaceAbove >= popoverHeight + padding || spaceBelow < popoverHeight + padding
 
-      let left = rect.left
-      if (left + popoverWidth > viewportWidth - padding) {
-        left = viewportWidth - popoverWidth - padding
-      }
+      // Right-align the popover so it doesn't overlap message content
+      let left = viewportWidth - popoverWidth - padding
       if (left < padding) {
         left = padding
       }

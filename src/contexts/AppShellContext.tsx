@@ -29,6 +29,9 @@ interface AppShellContextType {
     sidebarHidden: boolean
     toggleSidebarHidden: () => void
     setSidebarHidden: (hidden: boolean) => void
+    /** True while the user is actively dragging the sidebar resize handle */
+    isResizingSidebar: boolean
+    setIsResizingSidebar: (resizing: boolean) => void
 }
 
 const AppShellContext = createContext<AppShellContextType | undefined>(undefined)
@@ -111,6 +114,11 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     })
 
     const [settingsSectionParams, setSettingsSectionParamsState] = useState<SettingsSectionParams | null>(null)
+
+    const [isResizingSidebar, setIsResizingSidebarState] = useState(false)
+    const setIsResizingSidebar = useCallback((resizing: boolean) => {
+        setIsResizingSidebarState(resizing)
+    }, [])
 
     const toggleSidebarCollapsed = useCallback(() => {
         setSidebarCollapsed(prev => !prev)
@@ -198,12 +206,16 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         sidebarHidden,
         toggleSidebarHidden,
         setSidebarHidden,
+        isResizingSidebar,
+        setIsResizingSidebar,
     }), [
         activeSettingsSection,
         dashboardView,
         hasUnsavedSettings,
+        isResizingSidebar,
         setActiveSettingsSection,
         setDashboardView,
+        setIsResizingSidebar,
         setSettingsSectionParamsCallback,
         setSidebarHidden,
         settingsSectionParams,
@@ -245,6 +257,8 @@ export function useAppShell() {
                 sidebarHidden: false,
                 toggleSidebarHidden: () => {},
                 setSidebarHidden: () => {},
+                isResizingSidebar: false,
+                setIsResizingSidebar: () => {},
             }
         }
         throw new Error('useAppShell must be used within a AppShellProvider')

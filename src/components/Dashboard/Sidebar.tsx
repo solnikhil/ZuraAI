@@ -26,7 +26,7 @@ interface SidebarProps {
 export default function Sidebar({ view, activeSettingsSection, onNavigateSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
-    const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth } = useAppShell()
+    const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth, setIsResizingSidebar } = useAppShell()
     const {
         sessions,
         folders,
@@ -49,6 +49,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
     const [isResizing, setIsResizing] = useState(false)
     const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
+    const resizeRafRef = useRef<number | null>(null)
     // Glassmorphism styles
     const shouldApplyGlass = frostedSidebar && !sidebarHidden
 
@@ -195,18 +196,30 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
     const stopResizing = useCallback(() => {
         if (!resizeStateRef.current) return
+        // Cancel any pending animation frame
+        if (resizeRafRef.current !== null) {
+            cancelAnimationFrame(resizeRafRef.current)
+            resizeRafRef.current = null
+        }
         resizeStateRef.current = null
         setIsResizing(false)
+        setIsResizingSidebar(false)
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
-    }, [])
+    }, [setIsResizingSidebar])
 
     const handleResizePointerMove = useCallback((event: PointerEvent) => {
         const resizeState = resizeStateRef.current
         if (!resizeState) return
-        const deltaX = event.clientX - resizeState.startX
-        const nextWidth = clampSidebarWidth(resizeState.startWidth + deltaX)
-        setSidebarWidth(nextWidth)
+        // Throttle to one update per animation frame to avoid per-pixel re-renders
+        if (resizeRafRef.current !== null) return
+        const clientX = event.clientX
+        resizeRafRef.current = requestAnimationFrame(() => {
+            resizeRafRef.current = null
+            const deltaX = clientX - resizeState.startX
+            const nextWidth = clampSidebarWidth(resizeState.startWidth + deltaX)
+            setSidebarWidth(nextWidth)
+        })
     }, [setSidebarWidth])
 
     const handleResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -218,9 +231,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
             startWidth: sidebarWidth,
         }
         setIsResizing(true)
+        setIsResizingSidebar(true)
         document.body.style.cursor = 'col-resize'
         document.body.style.userSelect = 'none'
-    }, [sidebarCollapsed, sidebarHidden, sidebarWidth])
+    }, [sidebarCollapsed, sidebarHidden, sidebarWidth, setIsResizingSidebar])
 
     useEffect(() => {
         if (!isResizing) return
@@ -244,6 +258,9 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         return () => {
             document.body.style.cursor = ''
             document.body.style.userSelect = ''
+            if (resizeRafRef.current !== null) {
+                cancelAnimationFrame(resizeRafRef.current)
+            }
         }
     }, [])
 

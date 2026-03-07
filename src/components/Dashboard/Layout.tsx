@@ -72,7 +72,8 @@ export default function DashboardLayout() {
                 position: 'relative', 
                 overflow: 'hidden',
                 backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
-                zIndex: 1
+                zIndex: 1,
+                contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
             }}>
                 {view === 'settings' ? (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
