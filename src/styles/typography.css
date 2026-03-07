@@ -13,6 +13,7 @@
 .markdown-typography p {
     line-height: 1.75rem; /* leading-7 */
     margin-top: 0;
+    margin-bottom: 0;
 }
 
 .markdown-body p:not(:first-child),

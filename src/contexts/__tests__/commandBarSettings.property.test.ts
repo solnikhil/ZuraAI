@@ -29,11 +29,6 @@ import { defaultSettingsUI } from '../../contexts/SettingsUIContext'
 const commandBarArbitrary = fc.record({
   enabled: fc.boolean(),
   size: fc.constantFrom('small' as const, 'medium' as const, 'large' as const),
-  fieldSurface: fc.integer({ min: 20, max: 90 }),
-  fieldSurfaceFocused: fc.integer({ min: 20, max: 90 }),
-  dropdownSurface: fc.integer({ min: 20, max: 90 }),
-  enableBlur: fc.boolean(),
-  blurPx: fc.integer({ min: 0, max: 30 }),
   maxSuggestions: fc.integer({ min: 3, max: 12 }),
   showRecents: fc.boolean(),
   maxRecents: fc.integer({ min: 0, max: 3 }),
@@ -70,11 +65,6 @@ describe('Feature: command-palette-settings, Property 1: Settings round-trip pre
           // Every field must be preserved exactly
           expect(deserialized.enabled).toBe(commandBar.enabled)
           expect(deserialized.size).toBe(commandBar.size)
-          expect(deserialized.fieldSurface).toBe(commandBar.fieldSurface)
-          expect(deserialized.fieldSurfaceFocused).toBe(commandBar.fieldSurfaceFocused)
-          expect(deserialized.dropdownSurface).toBe(commandBar.dropdownSurface)
-          expect(deserialized.enableBlur).toBe(commandBar.enableBlur)
-          expect(deserialized.blurPx).toBe(commandBar.blurPx)
           expect(deserialized.maxSuggestions).toBe(commandBar.maxSuggestions)
           expect(deserialized.showRecents).toBe(commandBar.showRecents)
           expect(deserialized.maxRecents).toBe(commandBar.maxRecents)
@@ -232,8 +222,7 @@ describe('Feature: command-palette-settings, Property 5: New settings fields hav
  * Feature: command-palette-settings, Property 6: Slider clamping preserves valid range
  *
  * *For any* numeric input value for overlayOpacity, the clamped value should be
- * within [0, 80]. For blurPx, within [0, 30]. For fieldSurface, fieldSurfaceFocused,
- * and dropdownSurface, within [20, 90]. Values outside the range should be clamped
+ * within [0, 80]. Values outside the range should be clamped
  * to the nearest boundary.
  *
  * The clampNumber function is defined in AppearanceSection.tsx as:
@@ -257,10 +246,6 @@ describe('Feature: command-palette-settings, Property 6: Slider clamping preserv
   // Slider definitions: [name, min, max]
   const sliderRanges: Array<[string, number, number]> = [
     ['overlayOpacity', 0, 80],
-    ['blurPx', 0, 30],
-    ['fieldSurface', 20, 90],
-    ['fieldSurfaceFocused', 20, 90],
-    ['dropdownSurface', 20, 90],
   ]
 
   for (const [name, min, max] of sliderRanges) {

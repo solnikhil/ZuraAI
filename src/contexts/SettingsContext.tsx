@@ -261,9 +261,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
         }
         // Ensure titleModel exists; migrate gemini-* to OpenRouter model
+        if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
+        if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.titleModelProvider)) {
+            parsed.titleModelProvider = defaultSettings.titleModelProvider
+        }
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         if (parsed.titleModel?.startsWith('gemini-')) {
             parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+        }
+        if (typeof parsed.titleGenerationPrompt !== 'string') {
+            parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
+        }
+        if (!parsed.titleGenerationDisplayMode || !['instant', 'typewriter'].includes(parsed.titleGenerationDisplayMode)) {
+            parsed.titleGenerationDisplayMode = defaultSettings.titleGenerationDisplayMode
         }
 
         // Max tokens sanity + migration
@@ -411,6 +421,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         enabledTools: combinedSettings.enabledTools,
         skills: combinedSettings.skills,
         titleModel: combinedSettings.titleModel,
+        titleModelProvider: combinedSettings.titleModelProvider,
+        titleGenerationPrompt: combinedSettings.titleGenerationPrompt,
+        titleGenerationDisplayMode: combinedSettings.titleGenerationDisplayMode,
         favoriteModels: combinedSettings.favoriteModels,
         quickPrompts: combinedSettings.quickPrompts,
         todos: combinedSettings.todos,

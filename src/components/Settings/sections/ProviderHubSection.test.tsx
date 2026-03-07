@@ -23,7 +23,6 @@ describe('ProviderHubSection', () => {
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
-    titleModel: 'google/gemini-2.0-flash-exp:free',
     onChange: vi.fn(),
   }
 

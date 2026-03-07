@@ -149,7 +149,6 @@ export interface ProviderHubSectionProps {
   alibabaModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   maxTokens: number
-  titleModel: string
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
@@ -166,7 +165,6 @@ export interface ProviderHubSectionProps {
     alibabaModels: ConfiguredModel[]
     ollamaModels: ConfiguredModel[]
     maxTokens: number
-    titleModel: string
     aiModel: string
     modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
     providerEnabled: ProviderEnabledMap
@@ -188,7 +186,6 @@ export function ProviderHubSection({
   groqModels,
   alibabaModels,
   ollamaModels,
-  titleModel,
   initialProvider,
   initialManageMode,
   onParamsConsumed,
@@ -456,14 +453,6 @@ export function ProviderHubSection({
     setDeleteConfirmOpen(false)
   }
 
-  const enabledProviders = useMemo(() => {
-    return PROVIDERS.filter((provider) => isProviderEnabled(provider))
-  }, [normalizedProviderEnabled])
-
-  const disabledProviders = useMemo(() => {
-    return PROVIDERS.filter((provider) => !isProviderEnabled(provider))
-  }, [normalizedProviderEnabled])
-
   const runConnectivityCheck = async () => {
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
     const endpoint = providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
@@ -605,29 +594,19 @@ export function ProviderHubSection({
       {manageMode === 'providers' && providerView === 'catalog' && (
         <div className="mt-4 min-w-0">
           <Card
-            className="settings-section-card provider-hub-base-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]"
+            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto"
             style={{ background: CATALOG_BASE_BACKGROUND }}
           >
             <ProviderSection
-              title="Enabled"
-              providers={enabledProviders}
+              providers={PROVIDERS}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
               setProviderEnabled={setProviderEnabled}
-            />
-
-            <ProviderSection
-              title="Disabled"
-              providers={disabledProviders}
-              onCardClick={(provider) => {
-                setSelectedProvider(provider.key)
-                setProviderView('detail')
-              }}
-              isProviderEnabled={isProviderEnabled}
-              setProviderEnabled={setProviderEnabled}
+              getApiKey={getProviderApiKey}
+              modelMap={providerModelMap}
             />
           </Card>
         </div>
@@ -653,6 +632,7 @@ export function ProviderHubSection({
                 </span>
               </div>
               <Switch
+                className="provider-hub-toggle"
                 checked={isProviderEnabled(selectedProviderDef)}
                 onCheckedChange={(checked) => {
                   setProviderEnabled(selectedProviderDef.key, checked)
@@ -671,7 +651,7 @@ export function ProviderHubSection({
                     label="API Key"
                     description={`Please enter your ${selectedProviderDef.name} API key`}
                     control={(
-                      <div className="relative">
+                      <div className="relative w-full">
                         <Input
                           ref={apiKeyOrEndpointInputRef}
                           type={showApiKey ? 'text' : 'password'}
@@ -908,27 +888,6 @@ export function ProviderHubSection({
                 />
               </div>
             </div>
-
-            <div className="grid gap-4 border-t border-border pt-5 md:grid-cols-1">
-              <DetailField
-                label="Title Generation Model"
-                description="Model used to auto-generate chat titles."
-                control={(
-                  <select
-                    value={titleModel}
-                    onChange={(e) => onChange({ titleModel: e.target.value })}
-                    className="h-10 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
-                  >
-                    {providerModels.map((model) => (
-                      <option key={model.code} value={model.code}>{model.displayName}</option>
-                    ))}
-                    {!providerModels.some((model) => model.code === titleModel) && (
-                      <option value={titleModel}>{titleModel}</option>
-                    )}
-                  </select>
-                )}
-              />
-            </div>
           </div>
         </Card>
       )}
@@ -1027,45 +986,32 @@ export function ProviderHubSection({
 }
 
 function ProviderSection({
-  title,
   providers,
   onCardClick,
   isProviderEnabled,
   setProviderEnabled,
+  getApiKey,
+  modelMap,
 }: {
-  title: string
   providers: ProviderDefinition[]
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
   setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
-}): React.ReactElement {
+  getApiKey: (provider: ProviderDefinition) => string
+  modelMap: Record<ProviderKey, ModelBasic[]>
+}): React.ReactElement | null {
   if (providers.length === 0) {
-    return (
-      <div className="mt-3">
-        <div className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-          <span>{title}</span>
-          <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">0</span>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="mt-3 first:mt-0">
-      <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-        <span>{title}</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{providers.length}</span>
-      </div>
-
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 320px))',
-          justifyContent: 'center',
-        }}
-      >
+    <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
         {providers.map((provider) => {
           const enabled = isProviderEnabled(provider)
+          const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
+          const models = modelMap[provider.key] || []
+          const modelCount = models.length
+          const enabledModelCount = models.filter((m) => m.enabled !== false).length
           return (
             <div
               key={provider.key}
@@ -1078,36 +1024,61 @@ function ProviderSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
-              style={{
-                background: CATALOG_CARD_BACKGROUND,
-              }}
+              className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+              style={{ background: CATALOG_CARD_BACKGROUND }}
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <ProviderLogo provider={provider.key} size={18} />
-                  <span className="truncate text-[15px] font-semibold text-foreground">{provider.name}</span>
-                </div>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(checked) => {
-                    setProviderEnabled(provider.key, checked)
-                    if (checked) {
-                      onCardClick(provider)
-                    }
-                  }}
-                  aria-label={`Toggle ${provider.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
+              {/* Logo */}
+              <div className="flex shrink-0 items-center justify-center">
+                <ProviderLogo provider={provider.key} size={20} />
               </div>
 
-              <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">{provider.description}</p>
-              <div className="mt-4 border-t border-border pt-2" />
+              {/* Name + Description */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-foreground">{provider.name}</span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider.description}</p>
+              </div>
+
+              {/* Status badges */}
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
+                    color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                  }}
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                  />
+                  {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
+                </span>
+                {modelCount > 0 && (
+                  <span className="hidden rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
+                    {enabledModelCount}/{modelCount} models
+                  </span>
+                )}
+              </div>
+
+              {/* Toggle */}
+              <Switch
+                className="provider-hub-toggle"
+                checked={enabled}
+                onCheckedChange={(checked) => {
+                  setProviderEnabled(provider.key, checked)
+                  if (checked) {
+                    onCardClick(provider)
+                  }
+                }}
+                aria-label={`Toggle ${provider.name}`}
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           )
         })}
       </div>
-    </div>
   )
 }
 
@@ -1121,12 +1092,12 @@ function DetailField({
   control: React.ReactNode
 }): React.ReactElement {
   return (
-    <div className="settings-list-row settings-list-row--field">
+    <div className="settings-list-row settings-list-row--field provider-hub-detail-field">
       <div className="settings-list-row__meta">
         <div className="settings-list-row__label">{label}</div>
         <div className="settings-list-row__description">{description}</div>
       </div>
-      <div className="settings-list-row__control settings-list-row__control--stretch">{control}</div>
+      <div className="settings-list-row__control settings-list-row__control--stretch provider-hub-detail-field__control">{control}</div>
     </div>
   )
 }
@@ -1252,6 +1223,7 @@ function ModelGroup({
               </DropdownMenu>
               <div onClick={(e) => e.stopPropagation()} role="presentation">
                 <Switch
+                  className="provider-hub-toggle"
                   checked={enabled}
                   onCheckedChange={(checked) => onToggleModel(model.code, checked)}
                   aria-label={`Toggle ${model.displayName}`}
@@ -1287,8 +1259,7 @@ function SearchApiSection({
       <div
         className="grid gap-3"
         style={{
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 320px))',
-          justifyContent: 'center',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
         }}
       >
         {apis.map((api) => {
@@ -1322,6 +1293,7 @@ function SearchApiSection({
                   )}
                 </div>
                 <Switch
+                  className="provider-hub-toggle"
                   checked={enabled}
                   onCheckedChange={(checked) => {
                     if (!checked) {
@@ -1384,6 +1356,7 @@ function SearchApiDetail({
             )}
           </div>
           <Switch
+            className="provider-hub-toggle"
             checked={isEnabled}
             onCheckedChange={(checked) => {
               if (!checked) {
@@ -1403,7 +1376,7 @@ function SearchApiDetail({
                 label="API Key"
                 description="Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here."
                 control={
-                  <div className="relative">
+                  <div className="relative w-full">
                     <Input
                       type={showApiKey ? 'text' : 'password'}
                       value={tavilyApiKey}

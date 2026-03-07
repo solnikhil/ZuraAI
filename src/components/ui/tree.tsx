@@ -203,7 +203,7 @@ export function TreeNodeTrigger({
         selectId(nodeId, e)
       }}
       className={cn(
-        "group flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none transition-all duration-150",
+        "group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-all duration-150",
         "hover:bg-muted/50",
         "focus-visible:ring-ring/50 focus-visible:ring-[3px]",
         selected && "bg-accent/50",
@@ -259,7 +259,7 @@ export function TreeExpander({
   const open = expandedIds.includes(nodeId)
 
   if (!hasChildren) {
-    return <span className={cn("inline-flex h-4 w-4 shrink-0", className)} />
+    return <span className={cn("inline-flex h-5 w-5 shrink-0", className)} />
   }
 
   return (
@@ -271,13 +271,13 @@ export function TreeExpander({
         toggleExpanded(nodeId)
       }}
       className={cn(
-        "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors",
         "hover:text-foreground",
         className
       )}
       {...props}
     >
-      <ChevronRight className={cn("h-4 w-4 transition-transform duration-200", open && "rotate-90")} />
+      <ChevronRight className={cn("h-5 w-5 transition-transform duration-200", open && "rotate-90")} />
     </button>
   )
 }
@@ -301,10 +301,10 @@ export function TreeIcon({
   const showFolderIcon = isFolder ?? hasChildren
 
   const fallback = showFolderIcon
-    ? (open ? <FolderOpen className="h-4 w-4 text-amber-500" /> : <Folder className="h-4 w-4 text-amber-500/80" />)
-    : <FileIcon className="h-4 w-4 text-muted-foreground" />
+    ? (open ? <FolderOpen className="h-5 w-5 text-amber-500" /> : <Folder className="h-5 w-5 text-amber-500/80" />)
+    : <FileIcon className="h-5 w-5 text-muted-foreground" />
 
-  return <span className={cn("inline-flex h-4 w-4 shrink-0 items-center justify-center", className)}>{icon ?? fallback}</span>
+  return <span className={cn("inline-flex h-5 w-5 shrink-0 items-center justify-center", className)}>{icon ?? fallback}</span>
 }
 
 export function TreeLabel({

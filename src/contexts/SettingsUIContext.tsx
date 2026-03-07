@@ -73,11 +73,6 @@ export interface SettingsUI {
     commandBar: {
         enabled: boolean
         size: 'small' | 'medium' | 'large'
-        fieldSurface: number
-        fieldSurfaceFocused: number
-        dropdownSurface: number
-        enableBlur: boolean
-        blurPx: number
         maxSuggestions: number
         showRecents: boolean
         maxRecents: number
@@ -122,11 +117,6 @@ export const defaultSettingsUI: SettingsUI = {
     commandBar: {
         enabled: true,
         size: 'medium',
-        fieldSurface: 35,
-        fieldSurfaceFocused: 50,
-        dropdownSurface: 35,
-        enableBlur: true,
-        blurPx: 14,
         maxSuggestions: 5,
         showRecents: true,
         maxRecents: 3,

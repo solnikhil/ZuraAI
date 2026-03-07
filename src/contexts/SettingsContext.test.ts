@@ -90,5 +90,15 @@ describe('SettingsContext Provider Integration', () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.titleModel).toBe('google/gemini-2.0-flash-exp:free')
     })
+
+    it('default title generation provider is openrouter', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.titleModelProvider).toBe('openrouter')
+    })
+
+    it('default title generation display mode is instant', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
+    })
   })
 })

@@ -10,22 +10,22 @@ describe('SkillsSection', () => {
 
     expect(screen.getByText('Skills')).toBeInTheDocument()
     expect(screen.getByText('Web Research')).toBeInTheDocument()
-    expect(screen.getByText('Installed')).toBeInTheDocument()
+    expect(screen.getByText('Active')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /more actions for web research/i })).toBeInTheDocument()
   })
 
-  it('updates mode to structured from 3-dot actions menu', () => {
+  it('toggles disable from 3-dot actions menu', () => {
     const onChange = vi.fn()
     render(<SkillsSection skills={defaultSkillsSettings} onChange={onChange} />)
 
     const moreActions = screen.getByRole('button', { name: /more actions for web research/i })
     fireEvent.pointerDown(moreActions, { button: 0, ctrlKey: false })
-    fireEvent.click(screen.getByRole('menuitem', { name: /structured mode/i }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /disable/i }))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
       skills: expect.objectContaining({
         web_research: expect.objectContaining({
-          config: expect.objectContaining({ mode: 'structured' }),
+          enabled: false,
         }),
       }),
     }))

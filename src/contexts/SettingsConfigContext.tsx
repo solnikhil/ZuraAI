@@ -20,6 +20,7 @@ import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } fr
 import { loadApiKeysFromSecureStorage, migrateApiKeysFromLocalStorage } from '../utils/secureApiKeys'
 import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
+import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 
 // Todo item structure (shared with main Settings)
@@ -89,7 +90,10 @@ export interface SettingsConfig {
     structuredResearchEnabled?: boolean
     
     // Title generation
+    titleModelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
     titleModel: string
+    titleGenerationPrompt: string
+    titleGenerationDisplayMode: 'instant' | 'typewriter'
     
     // Favorites
     favoriteModels: string[]
@@ -227,7 +231,10 @@ export const defaultSettingsConfig: SettingsConfig = {
     skills: defaultSkillsSettings,
     
     // Title generation
+    titleModelProvider: 'openrouter',
     titleModel: 'google/gemini-2.0-flash-exp:free',
+    titleGenerationPrompt: defaultTitleGenerationPrompt,
+    titleGenerationDisplayMode: 'instant',
     
     // Favorites
     favoriteModels: [],

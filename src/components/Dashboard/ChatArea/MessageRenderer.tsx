@@ -14,7 +14,7 @@ import {
   Copy, Check, Info, X, File, RotateCcw,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
-import { Separator } from '@/components/ui/separator'
+// Separator import removed (no longer used after streaming)
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
@@ -51,6 +51,8 @@ export interface MessageRendererProps {
   onCopy?: (content: string) => void
   onRegenerate?: (instruction: string) => void
 }
+
+const MESSAGE_ACTION_ICON_SIZE = 14
 
 /**
  * Strip trailing "References" or "Sources" sections that the model may generate.
@@ -710,12 +712,28 @@ function MessageRendererComponent({
 
   // Track if content has arrived during streaming
   const [hasContentDuringStreaming, setHasContentDuringStreaming] = useState(false)
+  // Track whether to trigger the staggered button animation.
+  // null = no animation (historical messages), true = animate in
+  const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
+  const prevIsStreamingRef = useRef(isStreaming)
 
   // Reset content tracking when streaming starts
   useEffect(() => {
     if (isStreaming) {
       setHasContentDuringStreaming(false)
     }
+  }, [isStreaming])
+
+  // Trigger staggered button animation ONLY when streaming transitions from true → false
+  useEffect(() => {
+    if (prevIsStreamingRef.current && !isStreaming) {
+      // Streaming just ended on this message - trigger animation
+      setShowActionButtons(false)
+      requestAnimationFrame(() => {
+        setShowActionButtons(true)
+      })
+    }
+    prevIsStreamingRef.current = isStreaming
   }, [isStreaming])
 
   // Track when content arrives during streaming
@@ -979,11 +997,8 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Separator - added when model is done streaming to separate response from post-streaming tasks */}
-      {!isStreaming && message.content && <Separator orientation="horizontal" style={{ width: '25%', margin: '16px 0' }} />}
-
       {/* Action Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px', overflow: 'visible' }}>
         {/* Version Indicator */}
         {message.responseVersions && message.responseVersions.length > 0 && (
           <>
@@ -1000,7 +1015,7 @@ function MessageRendererComponent({
                 alignItems: 'center'
               }}
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
 
             <span style={{
@@ -1024,17 +1039,16 @@ function MessageRendererComponent({
                 alignItems: 'center'
               }}
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </>
         )}
 
-
-
-        {/* Copy Button - hide while streaming */}
+        {/* Copy Button - hide while streaming, animate in after */}
         {!isStreaming && (
           <button
             onClick={handleCopy}
+            className={showActionButtons === true ? 'action-btn-animate' : undefined}
             style={{
               background: 'transparent',
               border: 'none',
@@ -1043,14 +1057,15 @@ function MessageRendererComponent({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s',
-              fontSize: '0.8rem',
-              fontFamily: 'inherit'
+              padding: '6px',
+              borderRadius: '6px',
+              transition: 'color 0.2s, background 0.2s',
+              fontSize: '0.85rem',
+              fontFamily: 'inherit',
+              animationDelay: '0ms'
             }}
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? <Check size={MESSAGE_ACTION_ICON_SIZE} /> : <Copy size={MESSAGE_ACTION_ICON_SIZE} />}
           </button>
         )}
 
@@ -1058,6 +1073,7 @@ function MessageRendererComponent({
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
           <button
             onClick={openRegenerateModal}
+            className={showActionButtons === true ? 'action-btn-animate' : undefined}
             style={{
               background: 'transparent',
               border: 'none',
@@ -1066,13 +1082,14 @@ function MessageRendererComponent({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s'
+              padding: '6px',
+              borderRadius: '6px',
+              transition: 'color 0.2s, background 0.2s',
+              animationDelay: '60ms'
             }}
             title="Regenerate with custom instructions"
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={MESSAGE_ACTION_ICON_SIZE} />
           </button>
         )}
 
@@ -1080,33 +1097,34 @@ function MessageRendererComponent({
         {shouldShowInfoTooltip && (
           <div
             ref={infoTriggerRef}
+            className={showActionButtons === true ? 'action-btn-animate' : undefined}
             style={{
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '4px',
+              padding: '6px',
               flexShrink: 0,
               overflow: 'visible',
               minWidth: '22px',
-              minHeight: '22px'
+              minHeight: '22px',
+              animationDelay: '120ms'
             }}
             onMouseEnter={handleInfoMouseEnter}
             onMouseLeave={handleInfoMouseLeave}
           >
             <div style={{ position: 'relative', display: 'flex' }}>
               <Info
-                size={14}
+                size={MESSAGE_ACTION_ICON_SIZE}
                 style={{
                   cursor: 'pointer',
                   color: 'var(--theme-text-muted)',
                   flexShrink: 0,
                   display: 'block',
-                  width: '14px',
-                  height: '14px'
+                  width: `${MESSAGE_ACTION_ICON_SIZE}px`,
+                  height: `${MESSAGE_ACTION_ICON_SIZE}px`
                 }}
               />
-
             </div>
           </div>
         )}
@@ -1117,7 +1135,7 @@ function MessageRendererComponent({
             style={{
               position: 'fixed',
               top: popoverPosition.showAbove
-                ? popoverPosition.top - 10 // Adjustment for shadow/margin
+                ? popoverPosition.top - 10
                 : popoverPosition.top + 30,
               left: popoverPosition.left,
               zIndex: 1000,

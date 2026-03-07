@@ -12,7 +12,7 @@
  * - Only commits final content to the session when streaming completes
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
 import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
@@ -109,9 +109,51 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   // Track current streaming message for isolated updates
   const streamingMessageRef = useRef<{ sessionId: string; messageId: string } | null>(null)
+  const titleRevealIntervalRef = useRef<Map<string, number>>(new Map())
 
   const { settings, updateSettings } = useSettings()
   const { showToast } = useToast()
+
+  const clearTitleRevealInterval = useCallback((sessionId: string) => {
+    const timerId = titleRevealIntervalRef.current.get(sessionId)
+    if (timerId !== undefined) {
+      window.clearInterval(timerId)
+      titleRevealIntervalRef.current.delete(sessionId)
+    }
+  }, [])
+
+  const applyGeneratedSessionTitle = useCallback((sessionId: string, generatedTitle: string) => {
+    const normalizedTitle = generatedTitle.trim()
+    if (!normalizedTitle) return
+
+    clearTitleRevealInterval(sessionId)
+
+    if (settings.titleGenerationDisplayMode !== 'typewriter') {
+      updateSessionTitle(sessionId, normalizedTitle)
+      return
+    }
+
+    let visibleLength = 1
+    updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+    const intervalId = window.setInterval(() => {
+      visibleLength += 1
+      updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+      if (visibleLength >= normalizedTitle.length) {
+        clearTitleRevealInterval(sessionId)
+      }
+    }, 24)
+
+    titleRevealIntervalRef.current.set(sessionId, intervalId)
+  }, [clearTitleRevealInterval, settings.titleGenerationDisplayMode, updateSessionTitle])
+
+  useEffect(() => {
+    return () => {
+      for (const timerId of titleRevealIntervalRef.current.values()) {
+        window.clearInterval(timerId)
+      }
+      titleRevealIntervalRef.current.clear()
+    }
+  }, [])
 
   const currentSession = sessions.find(s => s.id === currentSessionId)
   const messages = currentSession?.messages || []
@@ -453,7 +495,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (isNewSession && targetSessionId) {
         setTimeout(() => {
           generateChatTitle(content, settings).then(title => {
-            if (title) updateSessionTitle(targetSessionId!, title)
+            if (title) applyGeneratedSessionTitle(targetSessionId!, title)
           }).catch(console.error)
         }, 1500)
       }
@@ -507,7 +549,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [
     isLoading, currentSessionId, messages, settings, canUseTools,
-    createSession, addMessageToSession, updateStreamingMessage, updateSessionTitle,
+    createSession, addMessageToSession, updateStreamingMessage, applyGeneratedSessionTitle,
     deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
     streamOllama, streamPerplexity, streamGroq, streamAlibaba, streamOpenRouter,

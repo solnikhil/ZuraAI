@@ -172,6 +172,38 @@ export default function Settings({
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }, [usageRuntimeMetrics, usageStats])
 
+  const handleExportWebSearchCsv = useCallback(() => {
+    const rows: string[] = []
+    rows.push('total_searches,successful_searches,failed_searches,success_rate_percent,avg_execution_ms')
+    rows.push([
+      usageStats.totalWebSearches,
+      usageStats.successfulWebSearches,
+      usageStats.failedWebSearches,
+      usageStats.webSearchSuccessRate,
+      usageStats.avgWebSearchExecutionMs,
+    ].join(','))
+
+    if (usageStats.topSearchQueries.length > 0) {
+      rows.push('')
+      rows.push('query,count')
+      for (const entry of usageStats.topSearchQueries) {
+        const escapedQuery = `"${entry.query.replace(/"/g, '""')}"`
+        rows.push(`${escapedQuery},${entry.count}`)
+      }
+    }
+
+    const csv = rows.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `zura-web-searches-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }, [usageStats])
+
   const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
 
   const saveChanges = async () => {
@@ -298,6 +330,7 @@ export default function Settings({
                 runtimeMetrics={usageRuntimeMetrics}
                 isElectron={isElectron}
                 onExportSnapshot={handleExportUsageSnapshot}
+                onExportWebSearchCsv={handleExportWebSearchCsv}
               />
             )}
 
@@ -321,7 +354,6 @@ export default function Settings({
                 alibabaModels={pendingSettings.alibabaModels || []}
                 ollamaModels={pendingSettings.ollamaModels || []}
                 maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
-                titleModel={pendingSettings.titleModel || settings.titleModel || 'google/gemini-2.0-flash-exp:free'}
                 onChange={handleChange}
               />
             )}
@@ -345,6 +377,8 @@ export default function Settings({
             {normalizedActiveSection === 'systemprompt' && (
               <SystemPromptSection
                 systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
+                webSearchPrompt={pendingSettings.webSearchPrompt ?? settings.webSearchPrompt}
+                titleGenerationPrompt={pendingSettings.titleGenerationPrompt ?? settings.titleGenerationPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

@@ -341,7 +341,7 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                     const normalizedCode = codeString.replace(/\n$/, '')
                     const codeFrameStyle: React.CSSProperties = {
                         position: 'relative',
-                        margin: '14px 0',
+                        margin: '4px 0',
                         borderRadius: '30px',
                         overflow: 'hidden',
                         border: '1px solid #3A3C40',

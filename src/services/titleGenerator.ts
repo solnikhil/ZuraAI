@@ -4,153 +4,198 @@ import { generateOllamaCompletion } from './ollama'
 import { generatePerplexityCompletion } from './perplexity'
 import { generateOpenRouterCompletion } from './openrouter'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 
-/**
- * Generates a short, descriptive title for a chat session based on the user's first message.
- * Uses the currently configured AI provider.
- */
+type TitleProvider = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
 
-// Helper function to enforce exactly 3 words
-const enforceThreeWords = (title: string): string => {
-    const words = title.trim().split(/\s+/).filter(w => w.length > 0)
-    if (words.length === 0) return 'New Chat Session'
-    if (words.length === 3) return words.join(' ')
-    if (words.length > 3) return words.slice(0, 3).join(' ')
-    // If less than 3 words, just return what we have (still valid)
-    return words.join(' ')
+interface ModelLike {
+  code: string
+  enabled?: boolean
 }
 
+const TITLE_PROVIDERS: TitleProvider[] = ['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba']
+
+const TITLE_FALLBACK_MODEL = 'google/gemini-2.0-flash-exp:free'
+
+const enforceThreeWords = (title: string): string => {
+  const words = title.trim().split(/\s+/).filter((word) => word.length > 0)
+  if (words.length === 0) return 'New Chat Session'
+  if (words.length === 3) return words.join(' ')
+  if (words.length > 3) return words.slice(0, 3).join(' ')
+  return words.join(' ')
+}
+
+const sanitizeTitle = (title: string): string => {
+  return title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
+}
+
+const resolveTitleProvider = (settings: any): TitleProvider => {
+  if (TITLE_PROVIDERS.includes(settings?.titleModelProvider)) {
+    return settings.titleModelProvider
+  }
+  if (TITLE_PROVIDERS.includes(settings?.modelProvider)) {
+    return settings.modelProvider
+  }
+  return 'openrouter'
+}
+
+const getProviderModels = (settings: any, provider: TitleProvider): ModelLike[] => {
+  const rawModels =
+    provider === 'openrouter' ? settings?.configuredModels
+      : provider === 'perplexity' ? settings?.perplexityModels
+        : provider === 'groq' ? settings?.groqModels
+          : provider === 'alibaba' ? settings?.alibabaModels
+            : settings?.ollamaModels
+
+  if (!Array.isArray(rawModels)) return []
+
+  return rawModels.filter((model): model is ModelLike => {
+    return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
+  })
+}
+
+const resolveTitleModel = (settings: any, provider: TitleProvider): string => {
+  const requestedTitleModel = typeof settings?.titleModel === 'string' ? settings.titleModel : ''
+  const aiModel = typeof settings?.aiModel === 'string' ? settings.aiModel : ''
+  const providerModels = getProviderModels(settings, provider)
+  const enabledProviderModels = providerModels.filter((model) => model.enabled !== false)
+  const candidateModels = enabledProviderModels.length > 0 ? enabledProviderModels : providerModels
+
+  if (requestedTitleModel && candidateModels.some((model) => model.code === requestedTitleModel)) {
+    return requestedTitleModel
+  }
+
+  if (aiModel && candidateModels.some((model) => model.code === aiModel)) {
+    return aiModel
+  }
+
+  if (candidateModels.length > 0) {
+    return candidateModels[0].code
+  }
+
+  if (requestedTitleModel) {
+    return requestedTitleModel
+  }
+
+  if (aiModel) {
+    return aiModel
+  }
+
+  return TITLE_FALLBACK_MODEL
+}
+
+const buildTitlePrompt = (userMessage: string, settings: any): string => {
+  const promptTemplate = typeof settings?.titleGenerationPrompt === 'string' && settings.titleGenerationPrompt.trim().length > 0
+    ? settings.titleGenerationPrompt
+    : defaultTitleGenerationPrompt
+
+  const clippedUserMessage = userMessage.slice(0, 200).replace(/\s+/g, ' ').trim()
+  if (/\{\{\s*userMessage\s*\}\}/i.test(promptTemplate)) {
+    return promptTemplate.replace(/\{\{\s*userMessage\s*\}\}/gi, clippedUserMessage)
+  }
+
+  return `${promptTemplate}\n\nUser message: "${clippedUserMessage}"`
+}
+
+/**
+ * Generates a short title for a chat session from the first user message.
+ */
 export const generateChatTitle = async (
-    userMessage: string,
-    settings: any // Using any to accept the full settings object structure
+  userMessage: string,
+  settings: any,
 ): Promise<string> => {
-    const prompt = `Generate a concise 2-3-word title for this chat. Format should be descriptive like these examples:
-- "UI/UX improvement tips"
-- "Real-time systems explained"  
-- "Repo maintenance guide"
+  const prompt = buildTitlePrompt(userMessage, settings)
+  const titleProvider = resolveTitleProvider(settings)
+  const titleModel = resolveTitleModel(settings, titleProvider)
 
-IMPORTANT rules:
-1. Return ONLY the 2-3-word title.
-2. Do NOT say "Here is the title" or any other conversational text.
-3. Do NOT use quotes.
-4. Do NOT use markdown.
+  try {
+    let title = ''
 
-User message: "${userMessage.slice(0, 200)}"`
-
-    try {
-        let title = ''
-        const titleModel = settings.titleModel || 'google/gemini-2.0-flash-exp:free'
-
-        // Check if it's a known Groq model or if we are forced to use Groq
-        const knownGroqModels = [
-            'llama-3.3-70b-versatile',
-            'llama-3.1-8b-instant',
-            'llama-guard-3-8b',
-            'mixtral-8x7b-32768',
-            'gemma2-9b-it'
-        ]
-        // Also check against configured groqModels if passed
-        const configuredGroqModels = settings.groqModels?.map((m: any) => m.code) || []
-        const isGroq = (knownGroqModels.includes(titleModel) || configuredGroqModels.includes(titleModel)) && settings.groqApiKey
-
-        // Check for Ollama (usually no API key needed, but needs URL)
-        // We assume if the model is NOT gemini/groq/openrouter/perplexity, it might be Ollama if configured
-        const isOllama = settings.modelProvider === 'ollama' && !settings.titleModel // If no specific title model set, and main is ollama
-            || (settings.ollamaModels?.some((m: any) => m.code === titleModel)) // Or if title model is in ollama list
-
-        const isPerplexity = titleModel.startsWith('sonar') && settings.perplexityApiKey
-
-        const configuredAlibabaModels = settings.alibabaModels?.map((m: any) => m.code) || []
-        const knownAlibabaModels = ['qwen-plus', 'qwen-max', 'qwen-flash', 'qwen-turbo', 'qwen3-max', 'qwen3.5-plus']
-        const isAlibaba = (settings.modelProvider === 'alibaba' && settings.alibabaApiKey) ||
-            ((configuredAlibabaModels.includes(titleModel) || knownAlibabaModels.includes(titleModel)) && settings.alibabaApiKey)
-
-        if (isGroq) {
-            const res = await generateGroqCompletion(
-                settings.groqApiKey,
-                titleModel,
-                [{ role: 'user', content: prompt }],
-                { temperature: 0.3 }
-            )
-            title = res.choices?.[0]?.message?.content || ''
-        } else if (isPerplexity) {
-            const res = await generatePerplexityCompletion(
-                settings.perplexityApiKey,
-                titleModel,
-                [{ role: 'user', content: prompt }],
-                // Perplexity usually expects messages
-            )
-            title = res.choices?.[0]?.message?.content || ''
-        } else if (isOllama && settings.ollamaUrl) {
-            const res = await generateOllamaCompletion(
-                settings.ollamaUrl,
-                titleModel || settings.aiModel, // Use title model or fall back to main model
-                [{ role: 'user', content: prompt }],
-                { temperature: 0.3 }
-            )
-            title = res.message?.content || ''
-        } else if (isAlibaba) {
-            const res = await generateAlibabaCompletion(
-                settings.alibabaApiKey,
-                titleModel || settings.aiModel,
-                [{ role: 'user', content: prompt }],
-                { temperature: 0.3, max_tokens: 20 }
-            )
-            title = res.choices?.[0]?.message?.content || ''
-        } else if (getOpenRouterApiKey(settings.openRouterApiKey)) {
-            // Fallback to OpenRouter for everything else
-            const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)!
-            const modelId = titleModel.includes('openrouter') ? titleModel.replace('openrouter/', '') : titleModel
-            const res = await generateOpenRouterCompletion(
-                openRouterKey,
-                modelId,
-                [{ role: 'user', content: prompt }],
-                { max_tokens: 20 }
-            )
-            title = res.choices?.[0]?.message?.content || ''
-        }
-
-        // Clean up the title and enforce 3 words
-        title = title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
-
-        // Final sanity check before enforcing
-        if (!title && getOpenRouterApiKey(settings.openRouterApiKey)) {
-            // Try OpenRouter fallback if primary failed silently empty
-            throw new Error('Empty title from primary provider')
-        }
-
-        title = enforceThreeWords(title)
-        if (title.length < 2) throw new Error('Generated title too short')
-        return title
-    } catch (error) {
-        console.error('Primary title generation failed:', error)
-
-        // Don't retry on rate limit or auth errors — retrying makes it worse
-        const errMsg = error instanceof Error ? error.message : ''
-        const isRateLimitOrAuth = errMsg.includes('429') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('rate')
-
-        // Fallback to free OpenRouter model (only if primary wasn't already OpenRouter or wasn't a rate limit)
-        const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
-        if (openRouterKey && !isRateLimitOrAuth && !settings.titleModel?.includes('openrouter')) {
-            try {
-                const res = await generateOpenRouterCompletion(
-                    openRouterKey,
-                    "google/gemini-2.0-flash-exp:free",
-                    [{ role: 'user', content: prompt }],
-                    { max_tokens: 20 }
-                )
-                const fallbackTitle = res.choices?.[0]?.message?.content || ''
-                if (fallbackTitle) {
-                    let cleaned = fallbackTitle.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
-                    return enforceThreeWords(cleaned)
-                }
-            } catch (fallbackError) {
-                console.error('Fallback title generation failed:', fallbackError)
-            }
-        }
-
-        // Final fallback to truncated message
-        const words = userMessage.trim().split(/\s+/).slice(0, 3)
-        return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
+    if (titleProvider === 'groq') {
+      if (!settings?.groqApiKey) throw new Error('Groq API key missing for title generation.')
+      const result = await generateGroqCompletion(
+        settings.groqApiKey,
+        titleModel,
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.3 },
+      )
+      title = result.choices?.[0]?.message?.content || ''
+    } else if (titleProvider === 'perplexity') {
+      if (!settings?.perplexityApiKey) throw new Error('Perplexity API key missing for title generation.')
+      const result = await generatePerplexityCompletion(
+        settings.perplexityApiKey,
+        titleModel,
+        [{ role: 'user', content: prompt }],
+      )
+      title = result.choices?.[0]?.message?.content || ''
+    } else if (titleProvider === 'ollama') {
+      if (!settings?.ollamaUrl) throw new Error('Ollama URL missing for title generation.')
+      const result = await generateOllamaCompletion(
+        settings.ollamaUrl,
+        titleModel,
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.3 },
+      )
+      title = result.message?.content || ''
+    } else if (titleProvider === 'alibaba') {
+      if (!settings?.alibabaApiKey) throw new Error('Alibaba API key missing for title generation.')
+      const result = await generateAlibabaCompletion(
+        settings.alibabaApiKey,
+        titleModel,
+        [{ role: 'user', content: prompt }],
+        { temperature: 0.3, max_tokens: 20 },
+      )
+      title = result.choices?.[0]?.message?.content || ''
+    } else {
+      const openRouterKey = getOpenRouterApiKey(settings?.openRouterApiKey)
+      if (!openRouterKey) throw new Error('OpenRouter API key missing for title generation.')
+      const modelId = titleModel.startsWith('openrouter/') ? titleModel.replace('openrouter/', '') : titleModel
+      const result = await generateOpenRouterCompletion(
+        openRouterKey,
+        modelId,
+        [{ role: 'user', content: prompt }],
+        { max_tokens: 20 },
+      )
+      title = result.choices?.[0]?.message?.content || ''
     }
+
+    const cleaned = sanitizeTitle(title)
+    if (!cleaned) throw new Error('Empty title from primary provider')
+
+    const constrained = enforceThreeWords(cleaned)
+    if (constrained.length < 2) throw new Error('Generated title too short')
+
+    return constrained
+  } catch (error) {
+    console.error('Primary title generation failed:', error)
+
+    const errorMessage = error instanceof Error ? error.message : ''
+    const isRateLimitOrAuthError =
+      errorMessage.includes('429') ||
+      errorMessage.includes('401') ||
+      errorMessage.includes('403') ||
+      errorMessage.toLowerCase().includes('rate')
+
+    const openRouterKey = getOpenRouterApiKey(settings?.openRouterApiKey)
+    if (openRouterKey && !isRateLimitOrAuthError) {
+      try {
+        const fallbackResult = await generateOpenRouterCompletion(
+          openRouterKey,
+          TITLE_FALLBACK_MODEL,
+          [{ role: 'user', content: prompt }],
+          { max_tokens: 20 },
+        )
+
+        const fallbackTitle = fallbackResult.choices?.[0]?.message?.content || ''
+        if (fallbackTitle) {
+          return enforceThreeWords(sanitizeTitle(fallbackTitle))
+        }
+      } catch (fallbackError) {
+        console.error('Fallback title generation failed:', fallbackError)
+      }
+    }
+
+    const words = userMessage.trim().split(/\s+/).slice(0, 3)
+    return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
+  }
 }

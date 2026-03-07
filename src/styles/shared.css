@@ -227,3 +227,21 @@
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
 }
+
+
+/* Action button staggered fade-in from bottom */
+
+@keyframes actionBtnFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.action-btn-animate {
+    animation: actionBtnFadeUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

@@ -150,6 +150,15 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
 export function ActivityGraph({ data, embedded = false, className }: ActivityGraphProps): React.ReactElement {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
+  const activeBarStyle = useMemo(
+    () => ({
+      fillOpacity: 1,
+      stroke: 'rgba(255, 255, 255, 0.24)',
+      strokeWidth: 1,
+    }),
+    []
+  )
+
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return
@@ -310,16 +319,20 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
                 tick={{ fontSize: 10, fill: 'var(--theme-text-muted)' }}
               />
               <ChartTooltip
-                cursor={{ fill: 'rgba(255, 255, 255, 0.08)', radius: 4 }}
+                cursor={false}
+                isAnimationActive={false}
                 content={<CustomTooltip />}
               />
               {uniqueModels.map((model, index) => (
                 <Bar
                   key={model}
+                  className="usage-activity-bar"
                   dataKey={model}
                   stackId="models"
                   fill={modelColors[model]}
+                  fillOpacity={0.9}
                   radius={[3, 3, 0, 0]}
+                  activeBar={activeBarStyle}
                   isAnimationActive={!prefersReducedMotion}
                   animationBegin={Math.min(index * 50, 260)}
                   animationDuration={420}

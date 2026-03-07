@@ -1,5 +1,5 @@
 import React from 'react'
-import { MessageSquare, Clock, Zap, TrendingUp, Cpu, BarChart, Calendar, DollarSign, Shield, Download } from 'lucide-react'
+import { MessageSquare, Clock, Zap, TrendingUp, Cpu, BarChart, Calendar, Shield, Download, FileDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ActivityGraph } from '../ActivityGraph'
@@ -13,6 +13,7 @@ export interface UsageSectionProps {
   runtimeMetrics: UsageRuntimeMetrics | null
   isElectron: boolean
   onExportSnapshot: () => void
+  onExportWebSearchCsv: () => void
 }
 
 export function UsageSection({
@@ -20,6 +21,7 @@ export function UsageSection({
   runtimeMetrics,
   isElectron,
   onExportSnapshot,
+  onExportWebSearchCsv,
 }: UsageSectionProps): React.ReactElement {
   const delayStyle = (index: number): React.CSSProperties => ({
     ['--usage-delay' as string]: `${index * 40}ms`
@@ -33,7 +35,6 @@ export function UsageSection({
 
   const formatMs = (value: number): string => value > 0 ? `${value} ms` : 'N/A'
   const formatTps = (value: number): string => value > 0 ? `${value.toLocaleString()} tok/s` : 'N/A'
-  const formatUsd = (value: number): string => value > 0 ? `$${value.toFixed(2)}` : '$0.00'
 
   const providerName: Record<UsageProvider, string> = {
     openrouter: 'OpenRouter',
@@ -89,26 +90,6 @@ export function UsageSection({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="stat-value-sm">{stats.avgTokensPerAssistant}</div>
             <div className="stat-label-sm">Avg tokens/assistant</div>
-          </div>
-        </div>
-
-        <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(4)}>
-          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-            <BarChart size={16} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="stat-value-sm">{stats.totalWebSearches}</div>
-            <div className="stat-label-sm">Web searches</div>
-          </div>
-        </div>
-
-        <div className="stat-card compact usage-motion-card usage-motion-card--compact" style={delayStyle(5)}>
-          <div className="stat-icon-wrapper" style={{ color: 'var(--theme-accent)' }}>
-            <DollarSign size={16} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="stat-value-sm">{formatUsd(stats.estimatedSpendUsd)}</div>
-            <div className="stat-label-sm">Est. spend</div>
           </div>
         </div>
       </div>
@@ -250,15 +231,6 @@ export function UsageSection({
             ) : (
               <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>No provider activity yet</div>
             )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
-                Est. spend: {formatUsd(stats.estimatedSpendUsd)}
-              </div>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem', textAlign: 'right' }}>
-                Coverage: {stats.spendCoveragePercent}%
-              </div>
-            </div>
           </div>
         </div>
 
@@ -288,29 +260,15 @@ export function UsageSection({
             </div>
 
             <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 2, paddingTop: 8 }}>
-              <div className="stat-subtext" style={{ fontSize: '0.75rem', marginBottom: 6 }}>Web search quality</div>
-              {stats.totalWebSearches > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Search success rate</div>
-                  <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                    {stats.webSearchSuccessRate}%
-                  </div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Successful searches</div>
-                  <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                    {stats.successfulWebSearches.toLocaleString()}
-                  </div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Failed searches</div>
-                  <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                    {stats.failedWebSearches.toLocaleString()}
-                  </div>
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Avg execution time</div>
-                  <div style={{ fontSize: '0.85rem', textAlign: 'right', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                    {formatMs(stats.avgWebSearchExecutionMs)}
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
+                  Web searches: {stats.totalWebSearches.toLocaleString()} total
                 </div>
-              ) : (
-                <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>No web search activity yet</div>
-              )}
+                <Button type="button" variant="outline" size="sm" onClick={onExportWebSearchCsv} disabled={stats.totalWebSearches === 0}>
+                  <FileDown size={14} style={{ marginRight: 6 }} />
+                  Export CSV
+                </Button>
+              </div>
             </div>
 
             {(stats.errorBreakdown.network + stats.errorBreakdown.auth + stats.errorBreakdown.rateLimit + stats.errorBreakdown.provider + stats.errorBreakdown.tool + stats.errorBreakdown.other) > 0 && (
@@ -323,24 +281,6 @@ export function UsageSection({
                   <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Provider: {stats.errorBreakdown.provider}</div>
                   <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Tool: {stats.errorBreakdown.tool}</div>
                   <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>Other: {stats.errorBreakdown.other}</div>
-                </div>
-              </div>
-            )}
-
-            {stats.topSearchQueries.length > 0 && (
-              <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 2, paddingTop: 8 }}>
-                <div className="stat-subtext" style={{ fontSize: '0.75rem', marginBottom: 6 }}>Top search queries</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {stats.topSearchQueries.map((entry, index) => (
-                    <div key={entry.query} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--theme-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        #{index + 1} {entry.query}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--theme-text-primary)', fontWeight: 600 }}>
-                        {entry.count}
-                      </span>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}

@@ -209,12 +209,25 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
 - Current shell width calculations (sidebar panel, frosted glass continuation, titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
+#### Chat Title Generation Controls
+- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
+- Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
+- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`.
+- New-session title reveal behavior is applied in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`:
+  - `instant`: apply generated title immediately
+  - `typewriter`: progressively reveal generated title in sidebar
+
 ### Data Persistence
 
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
   - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+  - Title generation settings:
+    - `titleModelProvider` (provider used for title generation)
+    - `titleModel` (model used for title generation)
+    - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
+    - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
@@ -259,7 +272,7 @@ Tool execution is intentionally restricted.
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
-- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)
+- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)
 
 ### Environment & Secrets
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)
