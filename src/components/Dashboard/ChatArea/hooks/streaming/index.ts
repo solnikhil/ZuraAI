@@ -40,12 +40,7 @@ export { useStreamingToolCalls } from './useStreamingToolCalls'
 export type {
   UseStreamingToolCallsOptions,
   UseStreamingToolCallsReturn,
-  ToolCallAccumulatorItem,
-  ToolCallAccumulatorState,
   ToolCallProcessingResult,
-  ResearchStatus,
-  ProcessToolCallsOptions,
-  ProcessToolCallsResult,
 } from './useStreamingToolCalls'
 
 // Research mode hook for streaming

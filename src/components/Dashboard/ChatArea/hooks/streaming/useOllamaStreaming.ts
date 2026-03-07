@@ -53,7 +53,6 @@ export function useOllamaStreaming({
       messages: optimizedHistory,
       startTime,
       researchMaxRounds,
-      researchMandatory,
       signal,
     } = options
 
@@ -223,7 +222,7 @@ export function useOllamaStreaming({
         let followUpUsage: { inputTokens: number; outputTokens: number; totalTokens: number } = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
         const webSearchCount = toolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
-        const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
+        const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds)
 
         const followUpMessages: Array<Record<string, unknown>> = [
           ...optimizedHistory,

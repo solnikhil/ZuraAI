@@ -154,10 +154,3 @@ export function setNativeBlur(enabled: boolean): void {
     }
 }
 
-/**
- * Set the titlebar overlay colors (Windows only).
- * No-op: native titlebar overlay is not used (window is frameless on Windows).
- */
-export function setTitleBarOverlay(_color: string, _symbolColor: string, _height?: number): void {
-    // Frameless window — no native overlay to configure
-}

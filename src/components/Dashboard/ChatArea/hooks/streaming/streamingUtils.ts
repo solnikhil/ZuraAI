@@ -277,7 +277,6 @@ export function extractResearchPlanData(savedToolResults: ToolCallResult[] | und
 export function processInitialToolResults(
   toolResults: ToolCallResult[],
   localThinkingBlocks: ThinkingBlock[],
-  _researchMaxRounds?: number,
 ): {
   updatedThinkingBlocks: ThinkingBlock[]
   savedToolResults: ToolCallResult[]

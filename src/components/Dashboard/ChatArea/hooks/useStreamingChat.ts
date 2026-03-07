@@ -17,6 +17,7 @@ import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryCo
 import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
+import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
@@ -54,6 +55,7 @@ export interface UseStreamingChatOptions {
 
 export interface UseStreamingChatReturn {
   isLoading: boolean
+  toolState: ToolCallState
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
   regenerateMessage: (message: any, instruction: string) => Promise<void>
   stopStreaming: () => void
@@ -221,6 +223,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     canUseTools,
     getToolsForRequest,
     handleToolCalls,
+    toolState,
     clearToolState,
     startResearchMode,
     getResearchContext,
@@ -353,12 +356,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       }, content)
 
       let researchMaxRounds = researchConfig.maxRounds
-      let researchMandatory = researchConfig.mandatory
       const forceWebSearch = researchConfig.forceWebSearch
 
       // Start research mode when web search is enabled (maxRounds >= 0)
       if (researchMaxRounds >= 0 && canUseTools) {
-        startResearchMode(researchMaxRounds, researchMandatory, forceWebSearch)
+        startResearchMode(researchMaxRounds, forceWebSearch)
       }
 
       const planFirstInstruction =
@@ -369,7 +371,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           : ''
       const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
         + planFirstInstruction
-        + getResearchContext(0, researchMaxRounds, researchMandatory)
+        + getResearchContext(0, researchMaxRounds)
       const imageFiles = files.filter(f => f.type === 'image')
       const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
       const optimizedHistory = buildOptimizedContext(conversationHistory, content, effectiveSystemPrompt, settings.aiModel)
@@ -414,7 +416,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'perplexity') {
@@ -432,7 +433,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'alibaba') {
@@ -442,7 +442,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else {
@@ -466,7 +465,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: openRouterMessages,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           forceWebSearch,
           signal: abortControllerRef.current?.signal,
         })
@@ -741,6 +739,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   return {
     isLoading,
+    toolState,
     sendMessage,
     regenerateMessage,
     stopStreaming

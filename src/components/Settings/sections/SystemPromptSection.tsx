@@ -131,7 +131,7 @@ export function SystemPromptSection({
       <Card className="settings-list-card settings-prompt-card">
         <div className="settings-prompt-header">
           <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">AI Behavior & Instructions</h3>
+            <h3 className="settings-list-row__label">System prompt</h3>
             <div className="settings-list-row__description">
               Define the system prompt that shapes the assistant personality, capabilities, and response policy.
             </div>

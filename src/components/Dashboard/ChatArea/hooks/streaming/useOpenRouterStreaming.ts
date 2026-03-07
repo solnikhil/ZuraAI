@@ -100,8 +100,6 @@ function mergeUsage(
  */
 function computeInitialToolChoice(
   openRouterTools: DeltaToolCall[] | undefined,
-  researchMandatory: boolean,
-  researchMaxRounds: number,
   forceWebSearch: boolean
 ): 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined {
   if (!openRouterTools) return undefined
@@ -111,7 +109,7 @@ function computeInitialToolChoice(
   if (hasResearchPlan) {
     return { type: 'function', function: { name: 'research_plan' } }
   }
-  if ((researchMandatory && researchMaxRounds > 0) || forceWebSearch) {
+  if (forceWebSearch) {
     return { type: 'function', function: { name: 'web_search' } }
   }
   return undefined
@@ -143,7 +141,6 @@ export function useOpenRouterStreaming({
       messages: openRouterMessages,
       startTime,
       researchMaxRounds,
-      researchMandatory,
       forceWebSearch,
       signal,
     } = options
@@ -171,8 +168,6 @@ export function useOpenRouterStreaming({
 
     const initialToolChoice = computeInitialToolChoice(
       openRouterTools as DeltaToolCall[] | undefined,
-      researchMandatory,
-      researchMaxRounds,
       forceWebSearch
     )
 
@@ -283,7 +278,7 @@ export function useOpenRouterStreaming({
       }
 
       // Process initial tool results
-      const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks, researchMaxRounds)
+      const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
       localThinkingBlocks = processed.updatedThinkingBlocks
       savedToolResults = processed.savedToolResults
 
@@ -305,7 +300,7 @@ export function useOpenRouterStreaming({
         let researchRound = 1
 
         while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
-          const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
+          const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds)
           // Do NOT use tool_choice: "none" - many OpenRouter providers return 404
           const toolChoice: 'auto' | 'none' | undefined = undefined
 

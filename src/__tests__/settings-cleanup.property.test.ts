@@ -197,8 +197,7 @@ describe('Property 3: Tool Auto-Execution', () => {
         isActive: false,
         currentRound: 0,
         maxRounds: 5,
-        searchCount: 0,
-        mandatory: false
+        searchCount: 0
       }
     }
     

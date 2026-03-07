@@ -1,7 +1,6 @@
 import React from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { MessageCircle } from '../../icons'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
@@ -52,7 +51,6 @@ export default function SidebarChatList({
     focusIndex,
     flatVisibleSessions,
     renamingSessionId,
-    searchQuery,
     bottomPadding = 8,
     onSelectSession,
     onContextAction,
@@ -170,8 +168,6 @@ export default function SidebarChatList({
         )
     }
 
-    const hasAnyVisibleSessions = flatVisibleSessions.length > 0
-
     return (
         <ScrollArea
             className="sidebar-chatlist"
@@ -190,20 +186,6 @@ export default function SidebarChatList({
                 className="sidebar-chatlist__listbox"
                 style={{ paddingBottom: bottomPadding }}
             >
-                {!hasAnyVisibleSessions && searchQuery && (
-                    <div className="sidebar-empty">
-                        <MessageCircle size={24} className="sidebar-empty__icon" />
-                        <span className="sidebar-empty__text">No chats found</span>
-                    </div>
-                )}
-
-                {!hasAnyVisibleSessions && !searchQuery && (
-                    <div className="sidebar-empty">
-                        <MessageCircle size={24} className="sidebar-empty__icon" />
-                        <span className="sidebar-empty__text">No chats yet</span>
-                    </div>
-                )}
-
                 {/* Pinned Section */}
                 {groupedSessions.pinned.length > 0 && (
                     <PinnedSection sessions={groupedSessions.pinned}>

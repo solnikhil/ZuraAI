@@ -24,8 +24,6 @@ import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
 import { useQuickSend } from '../../contexts/QuickSendContext'
-import { useToast } from '../shared/Toast'
-import { useToolCalling } from '../../hooks/useToolCalling'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 
 // Extracted components
@@ -44,8 +42,6 @@ const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
   const { sessions, currentSessionId } = useChatHistory()
-  const { showToast } = useToast()
-  const { toolState } = useToolCalling()
   
   // Get streaming state for virtualized list
   // **Validates: Property 22: Isolated Streaming Updates**
@@ -74,7 +70,7 @@ export default function ChatArea() {
   const userScrolledAwayRef = useRef(false)
 
   // Use the streaming chat hook
-  const { isLoading, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
+  const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onMessageSent: () => {
       setInput('')
       setAttachedFiles([])
@@ -164,9 +160,8 @@ export default function ChatArea() {
   // Copy message content - memoized to prevent unnecessary re-renders
   // **Validates: Property 22: Isolated Streaming Updates**
   const handleCopy = useCallback((content: string) => {
-    navigator.clipboard.writeText(content)
-    showToast('Copied to clipboard', 'success')
-  }, [showToast])
+    void navigator.clipboard.writeText(content)
+  }, [])
 
   // Render message callback for VirtualMessageList
   // **Validates: Property 17: Virtual Scrolling Activation**

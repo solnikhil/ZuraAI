@@ -221,9 +221,6 @@ export default function MarkdownFileTree({
     )
   }
 
-  // Get root folder name for the title
-  const rootName = nodes[0]?.name || 'Project'
-
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     margin: '2px 0',
@@ -236,7 +233,6 @@ export default function MarkdownFileTree({
 
   return (
     <div style={containerStyle} className={cn('mb-1', className)}>
-      {/* Tree content */}
       <div style={{ padding: '14px 16px 18px' }}>
         <TreeProvider
           defaultExpandedIds={defaultExpandedIds}

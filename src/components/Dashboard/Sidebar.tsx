@@ -19,15 +19,11 @@ import './Sidebar/Sidebar.css'
 
 interface SidebarProps {
     view: 'chat' | 'settings'
-    onOpenSettings: () => void
-    onCloseSettings: () => void
-    onNavigateToChat?: () => void
     activeSettingsSection: string
     onNavigateSettings: (section: string) => void
-    hasUnsavedSettings?: boolean
 }
 
-export default function Sidebar({ view, onOpenSettings: _onOpenSettings, onCloseSettings: _onCloseSettings, onNavigateToChat: _onNavigateToChat, activeSettingsSection, onNavigateSettings, hasUnsavedSettings: _hasUnsavedSettings }: SidebarProps) {
+export default function Sidebar({ view, activeSettingsSection, onNavigateSettings }: SidebarProps) {
     const [searchQuery, setSearchQuery] = useState('')
     const [searchOverlayOpen, setSearchOverlayOpen] = useState(false)
     const { sidebarHidden, sidebarCollapsed, sidebarWidth, setSidebarWidth } = useAppShell()

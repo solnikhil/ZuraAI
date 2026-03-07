@@ -12,6 +12,7 @@ import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
 import { computeUsageStats, type UsageRuntimeMetrics } from './sections/usageMetrics'
+import { normalizeSettingsSection } from '../../constants/settingsSections'
 
 import './Settings.css'
 
@@ -60,13 +61,7 @@ export default function Settings({
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
 
   const normalizedActiveSection = useMemo(() => {
-    if (activeSection === 'usage') return 'usage'
-    if (activeSection === 'providers' || activeSection === 'models' || activeSection === 'preferences') return 'providers'
-    if (activeSection === 'skills' || activeSection === 'tools') return 'skills'
-    if (activeSection === 'themes') return 'themes'
-    if (activeSection === 'systemprompt') return 'systemprompt'
-    if (activeSection === 'experimental') return 'experimental'
-    return 'providers'
+    return normalizeSettingsSection(activeSection) ?? 'providers'
   }, [activeSection])
 
   const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
@@ -343,24 +338,24 @@ export default function Settings({
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 alibabaApiKey={pendingSettings.alibabaApiKey}
-                tavilyApiKey={pendingSettings.tavilyApiKey ?? settings.tavilyApiKey}
-                ollamaUrl={pendingSettings.ollamaUrl ?? settings.ollamaUrl}
-                aiModel={pendingSettings.aiModel ?? settings.aiModel}
-                modelProvider={pendingSettings.modelProvider ?? settings.modelProvider}
-                providerEnabled={pendingSettings.providerEnabled ?? settings.providerEnabled}
-                configuredModels={pendingSettings.configuredModels || []}
-                perplexityModels={pendingSettings.perplexityModels || []}
-                groqModels={pendingSettings.groqModels || []}
-                alibabaModels={pendingSettings.alibabaModels || []}
-                ollamaModels={pendingSettings.ollamaModels || []}
-                maxTokens={pendingSettings.maxTokens ?? settings.maxTokens}
+                tavilyApiKey={pendingSettings.tavilyApiKey}
+                ollamaUrl={pendingSettings.ollamaUrl}
+                aiModel={pendingSettings.aiModel}
+                modelProvider={pendingSettings.modelProvider}
+                providerEnabled={pendingSettings.providerEnabled}
+                configuredModels={pendingSettings.configuredModels}
+                perplexityModels={pendingSettings.perplexityModels}
+                groqModels={pendingSettings.groqModels}
+                alibabaModels={pendingSettings.alibabaModels}
+                ollamaModels={pendingSettings.ollamaModels}
+                maxTokens={pendingSettings.maxTokens}
                 onChange={handleChange}
               />
             )}
 
             {normalizedActiveSection === 'skills' && (
               <SkillsSection
-                skills={pendingSettings.skills ?? settings.skills}
+                skills={pendingSettings.skills}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
@@ -376,19 +371,19 @@ export default function Settings({
 
             {normalizedActiveSection === 'systemprompt' && (
               <SystemPromptSection
-                systemPrompt={pendingSettings.systemPrompt ?? settings.systemPrompt}
-                webSearchPrompt={pendingSettings.webSearchPrompt ?? settings.webSearchPrompt}
-                titleGenerationPrompt={pendingSettings.titleGenerationPrompt ?? settings.titleGenerationPrompt}
+                systemPrompt={pendingSettings.systemPrompt}
+                webSearchPrompt={pendingSettings.webSearchPrompt}
+                titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 onChange={(changes) => handleChange(changes)}
               />
             )}
 
             {normalizedActiveSection === 'experimental' && (
               <ExperimentalSection
-                frostedSidebar={pendingSettings.frostedSidebar ?? settings.frostedSidebar}
-                frostedPrompt={pendingSettings.frostedPrompt ?? settings.frostedPrompt}
-                sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize ?? settings.sidebarAutoHideOnResize}
-                softenedContrast={pendingSettings.softenedContrast ?? settings.softenedContrast}
+                frostedSidebar={pendingSettings.frostedSidebar}
+                frostedPrompt={pendingSettings.frostedPrompt}
+                sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize}
+                softenedContrast={pendingSettings.softenedContrast}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

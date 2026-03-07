@@ -582,7 +582,7 @@ export function AppearanceSection({
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
                     }}>
-                      Prompt Optimization Guide
+                      Opensource
                     </span>
                     <span style={{
                       marginLeft: 8,

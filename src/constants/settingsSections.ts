@@ -45,7 +45,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
   },
   {
     id: 'systemprompt',
-    navLabel: 'System Prompt',
+    navLabel: 'Prompt',
     title: 'System Prompt',
     description: 'Define default assistant behavior and response guidelines.',
     keywords: ['instruction', 'persona', 'behavior', 'prompt'],
@@ -64,3 +64,19 @@ export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta
     acc[section.id] = section
     return acc
   }, {} as Record<SettingsSectionId, SettingsSectionMeta>)
+
+const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
+  tools: 'skills',
+  models: 'providers',
+  preferences: 'providers',
+  commandbar: 'themes',
+  notifications: 'usage',
+}
+
+export function normalizeSettingsSection(section: string | null | undefined): SettingsSectionId | null {
+  if (!section) return null
+  if (section in SETTINGS_SECTION_ALIASES) {
+    return SETTINGS_SECTION_ALIASES[section]
+  }
+  return section in SETTINGS_SECTION_MAP ? (section as SettingsSectionId) : null
+}

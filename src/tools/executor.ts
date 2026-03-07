@@ -71,23 +71,10 @@ export async function executeTool(toolName: string, args: Record<string, unknown
  * Execute a tool call object
  */
 async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
-    try {
-        const result = await executeTool(toolCall.name, toolCall.arguments)
-        
-        return {
-            toolCall,
-            result
-        }
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : `Failed to execute ${toolCall.name}`
-        console.error(`Error executing tool ${toolCall.name}:`, error)
-        return {
-            toolCall,
-            result: {
-                success: false,
-                error: errorMessage
-            }
-        }
+    const result = await executeTool(toolCall.name, toolCall.arguments)
+    return {
+        toolCall,
+        result
     }
 }
 
@@ -97,4 +84,3 @@ async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
 export async function executeToolCalls(toolCalls: ToolCall[]): Promise<ToolCallResult[]> {
     return Promise.all(toolCalls.map(executeToolCall))
 }
-

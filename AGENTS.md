@@ -121,13 +121,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
-  - `open-settings`
-  - `set-titlebar-overlay`
   - `set-native-blur`
   - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-  - `secure-storage:get`, `secure-storage:set`
+  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
   - `get-process-metrics`
   - `memory:get-metrics`, `memory:force-cleanup`
   - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
@@ -167,7 +165,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
 - **Normal mode** (`settings.skills.web_research.config.mode = "normal"`): model can call `web_search` directly; model decides depth. No hard cap (safety cap remains in loop guard).
-- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, renders the plan (`ResearchPlanBlock`), and returns aggregated results for final synthesis.
+- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, updates streaming research metadata (`researchPlan`, `researchProgress`), and returns aggregated results for final synthesis.
 - Tool schema exposure is skill-gated in renderer:
   - Skill OFF: expose neither `web_search` nor `research_plan`
   - Skill ON (normal): expose `web_search`
@@ -176,7 +174,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
-- `set-titlebar-overlay` remains exposed for compatibility, but `electron/windows/mainWindow.ts#setTitleBarOverlay` is currently a guarded no-op when native overlay is disabled.
+- Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
 
 #### Response Streaming Cadence
 - Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts` (`120ms`).

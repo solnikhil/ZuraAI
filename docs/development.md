@@ -127,11 +127,11 @@ When you need to add a new IPC channel, update these files in the same PR:
 ### Current allowlisted channels
 
 **Send (fire-and-forget):**
-`open-settings`, `set-titlebar-overlay`, `set-native-blur`, `spawn-terminal-command`
+`set-native-blur`, `spawn-terminal-command`
 
 **Invoke (request/response):**
 - Chat store: `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-- Secure storage: `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`, `secure-storage:clear`, `secure-storage:status`
+- Secure storage: `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
 - Performance: `get-process-metrics`, `memory:get-metrics`, `memory:force-cleanup`, `performance:*`
 - Tools: `execute-tool` (restricted to `web_search` only)
 - Window: `window-resize`

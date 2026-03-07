@@ -63,8 +63,6 @@ export interface ProviderStreamingOptions {
 export interface ToolCallingOptions extends ProviderStreamingOptions {
   /** Maximum research rounds */
   researchMaxRounds: number
-  /** Whether research is mandatory */
-  researchMandatory: boolean
 }
 
 /**
@@ -110,7 +108,7 @@ export interface ToolCallingHook {
     formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
     needsFollowUp: boolean
   }>
-  getResearchContext: (searchCount: number, maxRounds: number, mandatory: boolean) => string
+  getResearchContext: (searchCount: number, maxRounds: number) => string
 }
 
 /**

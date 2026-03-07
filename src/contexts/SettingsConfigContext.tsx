@@ -308,7 +308,6 @@ export function SettingsConfigProvider({
             const custom = current.filter((m) => !defaultCodes.has(m.code))
             const expanded = [...merged, ...custom]
             setSettingsConfig(prev => ({ ...prev, alibabaModels: expanded }))
-            onSettingsChange?.({ ...settingsConfig, alibabaModels: expanded } as SettingsConfig)
         }
     }, []) // Run once on mount
 

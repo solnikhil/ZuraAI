@@ -29,8 +29,6 @@ contextBridge.exposeInMainWorld('windowControls', {
 // This prevents arbitrary IPC access if the renderer is compromised.
 
 const SEND_CHANNELS = new Set<string>([
-  'open-settings',
-  'set-titlebar-overlay',
   'set-native-blur',
   'spawn-terminal-command',
 ])

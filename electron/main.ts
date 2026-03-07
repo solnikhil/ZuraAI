@@ -1,4 +1,4 @@
-import { app, globalShortcut, protocol } from 'electron'
+import { app, globalShortcut } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
@@ -30,9 +30,6 @@ import { initializeMemoryMonitoring, cleanupMemoryMonitoring, memoryMonitor } fr
 // Import performance monitoring for regression detection
 import { performanceMonitor } from './performance/monitor'
 import { metricsLogger } from './performance/metricsLog'
-
-// Import child_process for terminal spawning
-import { exec } from 'child_process'
 
 // Fix for process.env.DIST type issue
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
@@ -66,10 +63,6 @@ app.on('window-all-closed', () => {
     }
 })
 
-app.on('before-quit', () => {
-    globalShortcut.unregisterAll()
-})
-
 app.on('will-quit', () => {
     globalShortcut.unregisterAll()
     cleanupAutoUpdater()
@@ -97,39 +90,6 @@ app.whenReady().then(async () => {
             },
         });
     }
-
-    // Defer protocol registration (500ms after window visible)
-    // This ensures window creation is not blocked (Requirement 1.3)
-    deferredInitializer.registerTask({
-        name: 'protocol-registration',
-        priority: 'high',
-        delayMs: 500,
-        execute: async () => {
-            // Register a custom protocol to handle terminal spawning
-            // This bypasses contextBridge issues by using a URL scheme
-            protocol.registerStringProtocol('zura-terminal', (request, callback) => {
-                const url = request.url.replace('zura-terminal://', '')
-                const [command, ...args] = decodeURIComponent(url).split(' ')
-
-                console.log('[ZURA-TERMINAL] Protocol handler called:', { command, args })
-
-                if (process.platform === 'win32') {
-                    const cmd = `start cmd.exe /K "${command} ${args.join(' ')} & pause"`
-                    exec(cmd, (error) => {
-                        if (error) {
-                            console.error('[ZURA-TERMINAL] exec error:', error.message)
-                        } else {
-                            console.log('[ZURA-TERMINAL] Terminal spawned successfully')
-                        }
-                    })
-                    callback('success')
-                } else {
-                    callback('unsupported platform')
-                }
-            });
-            console.log('[MAIN] Protocol registered')
-        },
-    });
 
     // Register all IPC handlers (including execute-tool for web_search)
     registerAllHandlers()

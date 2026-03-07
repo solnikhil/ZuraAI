@@ -194,6 +194,8 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
             // Convert inline code that looks like math formulas to proper math syntax
             // Match backtick-wrapped content that contains math-like characters
             const withMathInline = normalized.replace(/`([^`]+)`/g, (match, content) => {
+                const trimmedContent = content.trim()
+
                 // Skip code-like content - do not convert to math (e.g. `const x = 1`)
                 const isCodeLike = /\b(const|let|var|function|return|=>|;\s*$|[{}])\b/.test(content) ||
                     /^\s*\w+\s*[=\(]\s*/.test(content) // e.g. "const " or "fn("
@@ -205,6 +207,16 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                 // Skip content that looks like shell commands or file paths
                 if (/^(git|npm|yarn|pnpm|npx|pip|curl|wget|docker|cd|ls|cat|mkdir|rm|cp|mv|chmod|chown|ssh|scp)\s/.test(content)) return match
                 if (/^[.~]?\//.test(content) || /\w\/\w.*\/\w/.test(content)) return match
+
+                // Skip common hyphenated identifiers/package names (e.g. electron-builder)
+                // so they stay as inline code instead of being interpreted as math subtraction.
+                const hyphenSegments = trimmedContent.split('-').filter(Boolean)
+                const looksLikeHyphenatedIdentifier =
+                    !/\s/.test(trimmedContent) &&
+                    hyphenSegments.length >= 2 &&
+                    hyphenSegments.every((segment) => /^[A-Za-z0-9@._/]+$/.test(segment)) &&
+                    hyphenSegments.filter((segment) => segment.length > 1).length >= 2
+                if (looksLikeHyphenatedIdentifier) return match
 
                 // Check if content looks like a math formula
                 const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)

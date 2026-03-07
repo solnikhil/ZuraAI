@@ -287,8 +287,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.todos) parsed.todos = []
         // Initialize tool settings if missing
         if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
-        // Migration: tool-level UI toggles were replaced by skills, keep master gate on by default.
-        if (parsed.toolsEnabled === false) parsed.toolsEnabled = true
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
         const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
         if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {

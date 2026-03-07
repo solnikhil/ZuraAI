@@ -141,43 +141,39 @@ export async function* streamOllamaCompletion(
         signal?: AbortSignal
     }
 ): AsyncGenerator<OllamaStreamChunk, void, unknown> {
-    try {
-        const response = await fetch(`${baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model,
-                messages,
-                stream: true,
-                think: options?.think ?? true,
-                tools: options?.tools && options.tools.length > 0 ? options.tools : undefined,
-                tool_choice: options?.tools && options.tools.length > 0 ? 'auto' : undefined,
-                options: {
-                    temperature: options?.temperature,
-                    num_ctx: options?.num_ctx
-                }
-            }),
-            signal: options?.signal
-        })
+    const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            think: options?.think ?? true,
+            tools: options?.tools && options.tools.length > 0 ? options.tools : undefined,
+            tool_choice: options?.tools && options.tools.length > 0 ? 'auto' : undefined,
+            options: {
+                temperature: options?.temperature,
+                num_ctx: options?.num_ctx
+            }
+        }),
+        signal: options?.signal
+    })
 
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => '')
-            throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
-        }
-
-        const reader = response.body?.getReader()
-        if (!reader) {
-            throw new Error("Failed to get response reader")
-        }
-
-        yield* parseNDJSONStream<OllamaStreamChunk>(reader, {
-            onChunk: options?.onChunk,
-        })
-    } catch (error: any) {
-        throw error
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
     }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+        throw new Error("Failed to get response reader")
+    }
+
+    yield* parseNDJSONStream<OllamaStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+    })
 }
 
 export const generateOllamaCompletion = async (

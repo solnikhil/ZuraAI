@@ -389,9 +389,9 @@
   min-width: 0;
 }
 
-/* Active row title gets slightly bolder */
+/* Keep title metrics stable between active/inactive rows to avoid visual size jumps. */
 .sidebar-chat-row--active .sidebar-chat-row__title {
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .sidebar-chat-row__rename-input {
@@ -495,28 +495,6 @@
   padding: 8px 12px;
   text-align: center;
   opacity: 0.6;
-}
-
-/* ── Empty state ───────────────────────────────────────────── */
-
-.sidebar-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 24px 8px;
-  text-align: center;
-}
-
-.sidebar-empty__icon {
-  color: var(--theme-text-muted);
-  opacity: 0.35;
-}
-
-.sidebar-empty__text {
-  font-size: var(--sidebar-font-size-sm);
-  color: var(--theme-text-muted);
-  opacity: 0.7;
 }
 
 /* ── Footer ────────────────────────────────────────────────── */

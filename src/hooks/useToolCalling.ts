@@ -24,7 +24,6 @@ export interface ToolCallState {
         currentRound: number
         maxRounds: number
         searchCount: number
-        mandatory: boolean
     }
 }
 
@@ -37,7 +36,6 @@ const INITIAL_TOOL_STATE: ToolCallState = {
         currentRound: 0,
         maxRounds: 0,
         searchCount: 0,
-        mandatory: false,
     },
 }
 
@@ -192,7 +190,7 @@ export function useToolCalling() {
         setToolState(INITIAL_TOOL_STATE)
     }
 
-    const startResearchMode = (maxRounds: number = 0, mandatory: boolean = false) => {
+    const startResearchMode = (maxRounds: number = 0) => {
         const safeMaxRounds = Number.isFinite(maxRounds) ? Math.max(0, Math.round(maxRounds)) : 0
         setToolState((prev) => ({
             ...prev,
@@ -201,15 +199,13 @@ export function useToolCalling() {
                 currentRound: 0,
                 maxRounds: safeMaxRounds,
                 searchCount: 0,
-                mandatory,
             },
         }))
     }
 
     const getResearchContext = (
         actualSearchCount?: number,
-        maxRoundsOverride?: number,
-        _mandatoryOverride?: boolean
+        maxRoundsOverride?: number
     ): string => {
         const maxRounds = maxRoundsOverride ?? toolState.researchMode.maxRounds
         const isActive = maxRoundsOverride !== undefined ? maxRounds >= 0 : toolState.researchMode.isActive

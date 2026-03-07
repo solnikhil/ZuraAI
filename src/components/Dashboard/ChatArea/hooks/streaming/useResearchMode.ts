@@ -55,8 +55,6 @@ export interface ResearchModeState {
   maxRounds: number
   /** Number of searches completed */
   searchCount: number
-  /** If true, must complete exactly maxRounds searches (unused - always false) */
-  mandatory: boolean
   /** User explicitly requested web search - nudge model to search */
   forceWebSearch: boolean
 }
@@ -67,8 +65,6 @@ export interface ResearchModeState {
 export interface ResearchModeConfig {
   /** Maximum research rounds (0 = uncapped, model decides) */
   maxRounds: number
-  /** Whether research is mandatory (always false) */
-  mandatory: boolean
   /** Whether to force web search (user explicitly requested) */
   forceWebSearch: boolean
 }
@@ -102,7 +98,7 @@ export interface UseResearchModeReturn {
   /** Current research mode state */
   researchState: ResearchModeState
   /** Start research mode with specified parameters */
-  startResearchMode: (maxRounds: number, mandatory?: boolean, forceWebSearch?: boolean) => void
+  startResearchMode: (maxRounds: number, forceWebSearch?: boolean) => void
   /** Stop/reset research mode */
   stopResearchMode: () => void
   /** Increment search count */
@@ -112,8 +108,7 @@ export interface UseResearchModeReturn {
   /** Get research context for system prompt */
   getResearchContext: (
     actualSearchCount?: number,
-    maxRoundsOverride?: number,
-    mandatoryOverride?: boolean
+    maxRoundsOverride?: number
   ) => string
   /** Calculate research mode configuration from settings */
   calculateResearchConfig: (
@@ -136,7 +131,6 @@ const INITIAL_STATE: ResearchModeState = {
   currentRound: 0,
   maxRounds: 0,
   searchCount: 0,
-  mandatory: false,
   forceWebSearch: false,
 }
 
@@ -164,13 +158,12 @@ export function useResearchMode({
 }: UseResearchModeOptions): UseResearchModeReturn {
   const [researchState, setResearchState] = useState<ResearchModeState>(INITIAL_STATE)
 
-  const startResearchMode = useCallback((maxRounds: number, mandatory: boolean = false, forceWebSearch: boolean = false) => {
+  const startResearchMode = useCallback((maxRounds: number, forceWebSearch: boolean = false) => {
     setResearchState({
       isActive: true,
       currentRound: 0,
       maxRounds,
       searchCount: 0,
-      mandatory,
       forceWebSearch,
     })
   }, [])
@@ -240,15 +233,13 @@ export function useResearchMode({
 
     return {
       maxRounds,
-      mandatory: false,
       forceWebSearch,
     }
   }, [canUseTools])
 
   const getResearchContext = useCallback((
     actualSearchCount?: number,
-    maxRoundsOverride?: number,
-    _mandatoryOverride?: boolean
+    maxRoundsOverride?: number
   ): string => {
     const maxRounds = maxRoundsOverride ?? researchState.maxRounds
     const isActive = maxRoundsOverride !== undefined ? maxRounds >= 0 : researchState.isActive

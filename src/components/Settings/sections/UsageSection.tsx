@@ -97,20 +97,7 @@ export function UsageSection({
       <div className="usage-bento-grid">
         <ActivityGraph data={stats.activityData} embedded className="usage-bento-graph usage-motion-card usage-motion-card--surface" />
 
-        <div className="stat-card usage-bento-card usage-bento-total usage-motion-card usage-motion-card--surface" style={delayStyle(6)}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Total Tokens</span>
-            <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
-          </div>
-          <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
-            {stats.totalTokens.toLocaleString()}
-          </div>
-          <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
-            7d: {stats.tokensLast7Days.toLocaleString()} • 30d: {stats.tokensLast30Days.toLocaleString()}
-          </div>
-        </div>
-
-        <div className="stat-card usage-bento-card usage-bento-most usage-motion-card usage-motion-card--surface" style={delayStyle(7)}>
+        <div className="stat-card usage-bento-card usage-bento-most usage-motion-card usage-motion-card--surface" style={delayStyle(6)}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Response Performance</span>
             <span style={{ color: 'var(--theme-accent)' }}><BarChart size={16} /></span>
@@ -162,7 +149,7 @@ export function UsageSection({
           </div>
         </div>
 
-        <div className="stat-card usage-bento-card usage-bento-active usage-motion-card usage-motion-card--surface" style={delayStyle(8)}>
+        <div className="stat-card usage-bento-card usage-bento-active usage-motion-card usage-motion-card--surface" style={delayStyle(7)}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Activity Streak</span>
             <span style={{ color: 'var(--theme-accent)' }}><Calendar size={16} /></span>
@@ -175,7 +162,7 @@ export function UsageSection({
           </div>
         </div>
 
-        <div className="stat-card usage-bento-card usage-bento-models usage-motion-card usage-motion-card--surface" style={delayStyle(9)}>
+        <div className="stat-card usage-bento-card usage-bento-models usage-motion-card usage-motion-card--surface" style={delayStyle(8)}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Model Mix</span>
             <span style={{ color: 'var(--theme-accent)' }}><Cpu size={16} /></span>
@@ -234,7 +221,7 @@ export function UsageSection({
           </div>
         </div>
 
-        <div className="stat-card usage-bento-card usage-bento-top usage-motion-card usage-motion-card--surface" style={delayStyle(10)}>
+        <div className="stat-card usage-bento-card usage-bento-top usage-motion-card usage-motion-card--surface" style={delayStyle(9)}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <span className="stat-label" style={{ fontSize: '0.85rem', fontWeight: 500 }}>Quality, Tools, and Privacy</span>
             <Shield size={16} color="var(--theme-accent)" />

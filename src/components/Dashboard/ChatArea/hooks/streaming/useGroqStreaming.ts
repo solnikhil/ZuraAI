@@ -72,7 +72,6 @@ export function useGroqStreaming({
       messages: optimizedHistory,
       startTime,
       researchMaxRounds,
-      researchMandatory,
       signal,
     } = options
 
@@ -92,12 +91,9 @@ export function useGroqStreaming({
 
     const hasResearchPlanTool = Array.isArray(groqTools)
       && groqTools.some((tool) => (tool as { function?: { name?: string } })?.function?.name === 'research_plan')
-    const initialForceToolUse = researchMandatory && researchMaxRounds > 0
     const initialToolChoice = hasResearchPlanTool
       ? { type: 'function' as const, function: { name: 'research_plan' } }
-      : (initialForceToolUse
-          ? { type: 'function' as const, function: { name: 'web_search' } }
-          : undefined)
+      : undefined
 
     // --- Initial stream ---
     for await (const chunk of streamGroqCompletion(
@@ -153,7 +149,7 @@ export function useGroqStreaming({
       }
 
       // Process initial tool results
-      const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks, researchMaxRounds)
+      const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
       localThinkingBlocks = processed.updatedThinkingBlocks
       savedToolResults = processed.savedToolResults
 
@@ -172,7 +168,7 @@ export function useGroqStreaming({
         let researchRound = 1
 
         while (hasMoreToolCalls && researchRound < SAFETY_CAP) {
-          const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds, researchMandatory)
+          const researchContextMsg = getResearchContext(totalSearchCount, researchMaxRounds)
           const followUpMessages = buildFollowUpMessages(researchContextMsg, researchRound, totalSearchCount, optimizedHistory, lastAssistantMessage, toolResult.formattedResults)
 
           let followUpContent = ''

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useSettings } from './SettingsContext'
 import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
+import { normalizeSettingsSection } from '../constants/settingsSections'
 
 export type DashboardView = 'chat' | 'settings'
 
@@ -39,25 +40,6 @@ const STORAGE_KEYS = {
     sidebarWidth: 'zura-ui:sidebarWidth',
     sidebarHidden: 'zura-ui:sidebarHidden',
 } as const
-
-const VALID_SETTINGS_SECTIONS = new Set<string>([
-    'usage',
-    'providers',
-    'skills',
-    'themes',
-    'systemprompt',
-    'experimental',
-])
-
-function normalizeSettingsSection(section: string | null): string | null {
-    if (!section) return null
-    if (section === 'tools') return 'skills'
-    if (section === 'models' || section === 'preferences') return 'providers'
-    if (section === 'commandbar') return 'themes'
-    if (section === 'notifications') return 'usage'
-    const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
-    return normalized
-}
 
 function readStoredDashboardView(): DashboardView | null {
 

@@ -1068,9 +1068,6 @@ function ProviderSection({
                 checked={enabled}
                 onCheckedChange={(checked) => {
                   setProviderEnabled(provider.key, checked)
-                  if (checked) {
-                    onCardClick(provider)
-                  }
                 }}
                 aria-label={`Toggle ${provider.name}`}
                 onClick={(e) => e.stopPropagation()}

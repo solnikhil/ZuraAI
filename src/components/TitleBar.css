@@ -56,11 +56,11 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--frosted-glass-gradient);
+    /* Tinting + blur are now provided by the single full-height continuation panel
+       in AppShellLayout so we avoid a double-backdrop-filter compositing seam. */
+    background: transparent;
     border-right: none;
     box-shadow: none;
-    backdrop-filter: var(--frosted-glass-filter);
-    -webkit-backdrop-filter: var(--frosted-glass-filter);
     z-index: 0;
     pointer-events: none;
     overflow: hidden;

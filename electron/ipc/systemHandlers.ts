@@ -1,9 +1,7 @@
 import { ipcMain, BrowserWindow, app } from 'electron'
 import { spawn, exec } from 'child_process'
 import {
-  setTitleBarOverlay,
   setNativeBlur,
-  createMainWindow,
 } from '../windows'
 import { memoryMonitor, type MemoryMetrics } from '../performance/memoryMonitor'
 
@@ -37,30 +35,9 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
  * Register all system IPC handlers
  */
 export function registerSystemHandlers(): void {
-  // Titlebar overlay handler (Windows only)
-  ipcMain.on('set-titlebar-overlay', (_event, overlay) => {
-    if (process.platform !== 'win32') return
-
-    const color = overlay?.color
-    const symbolColor = overlay?.symbolColor
-    const height = overlay?.height
-
-    if (typeof color !== 'string' || typeof symbolColor !== 'string') return
-
-    const parsedHeight = typeof height === 'number' && Number.isFinite(height) ? Math.round(height) : undefined
-    const safeHeight = parsedHeight !== undefined && parsedHeight >= 28 && parsedHeight <= 64 ? parsedHeight : undefined
-
-    setTitleBarOverlay(color, symbolColor, safeHeight)
-  })
-
   // Native blur toggle (acrylic on Windows, vibrancy on macOS)
   ipcMain.on('set-native-blur', (_event, enabled: boolean) => {
     setNativeBlur(!!enabled)
-  })
-
-  // Open settings handler
-  ipcMain.on('open-settings', () => {
-    createMainWindow()
   })
 
   // Get app process metrics (CPU, memory usage per subprocess)
@@ -203,9 +180,7 @@ export function registerSystemHandlers(): void {
  * Unregister all system IPC handlers
  */
 export function unregisterSystemHandlers(): void {
-  ipcMain.removeAllListeners('set-titlebar-overlay')
   ipcMain.removeAllListeners('set-native-blur')
-  ipcMain.removeAllListeners('open-settings')
   ipcMain.removeHandler('get-process-metrics')
   ipcMain.removeHandler('memory:get-metrics')
   ipcMain.removeHandler('memory:force-cleanup')

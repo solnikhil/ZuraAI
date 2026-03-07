@@ -15,7 +15,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
-import { applyThemeToDocument, softenThemeColors } from '../themes/themeUtils'
+import { applyThemeToDocument } from '../themes/themeUtils'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
@@ -226,20 +226,7 @@ export function SettingsUIProvider({
     useLayoutEffect(() => {
         const theme = getThemeById(settingsUI.activeTheme) || getDefaultTheme()
         applyThemeToDocument(theme, { softenedContrast: settingsUI.softenedContrast })
-
-        // Keep native Windows title bar overlay in sync
-        if (window.ipcRenderer) {
-            const height = settingsUI.titleBarDensity === 'compact' ? 36 : 44
-            const effectiveTheme = settingsUI.softenedContrast ? softenThemeColors(theme) : theme
-            const overlayColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.background
-            const overlaySymbolColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.textPrimary
-            window.ipcRenderer.send('set-titlebar-overlay', {
-                color: overlayColor,
-                symbolColor: overlaySymbolColor,
-                height,
-            })
-        }
-    }, [settingsUI.activeTheme, settingsUI.titleBarDensity, settingsUI.frostedSidebar, settingsUI.softenedContrast])
+    }, [settingsUI.activeTheme, settingsUI.softenedContrast])
 
     // Notify parent of changes
     useEffect(() => {

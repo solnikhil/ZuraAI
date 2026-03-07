@@ -24,7 +24,6 @@ function SettingsLoadingFallback() {
 export default function DashboardLayout() {
     const {
         dashboardView: view,
-        setDashboardView: setView,
         activeSettingsSection,
         setActiveSettingsSection,
         hasUnsavedSettings,
@@ -63,12 +62,8 @@ export default function DashboardLayout() {
         }}>
             <Sidebar
                 view={view}
-                onOpenSettings={() => setView('settings')}
-                onCloseSettings={() => handleNavigate(() => setView('chat'))}
-                onNavigateToChat={() => setView('chat')}
                 activeSettingsSection={activeSettingsSection}
                 onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
-                hasUnsavedSettings={hasUnsavedSettings}
             />
 
             {/* Main Content Area - ChatArea or Settings - always has solid background */}
