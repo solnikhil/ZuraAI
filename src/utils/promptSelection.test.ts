@@ -52,6 +52,6 @@ describe('Tool Enablement', () => {
         })
 
         expect(prompt).toContain('Enabled Skills:')
-        expect(prompt).toContain('Web Research (`web_research`)')
+        expect(prompt).toContain('Tavily Web Search Skill (`web_research`)')
     })
 })

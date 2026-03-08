@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search } from './icons'
+import { ChevronRight, Loader2, Search, Globe } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
+import { getWebToolLabel, inferWebToolModeFromArgs, inferWebToolModeFromResultData } from '../tools/ui/webToolDisplay'
 
-const toolDisplayNames: Record<string, string> = {
-    web_search: 'Web Search',
-}
-
-function formatToolDisplayName(name: string): string {
-    return toolDisplayNames[name] || name.replace(/_/g, ' ')
+function formatToolDisplayName(
+    name: string,
+    args?: Record<string, unknown>,
+    toolOutputData?: unknown
+): string {
+    if (name === 'web_search') {
+        const mode = inferWebToolModeFromResultData(toolOutputData) || inferWebToolModeFromArgs(args)
+        return getWebToolLabel(mode)
+    }
+    return name.replace(/_/g, ' ')
 }
 
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
-    const displayName = formatToolDisplayName(tool.name)
+    const displayName = formatToolDisplayName(tool.name, tool.arguments)
     if (tool.name === 'web_search' && tool.arguments?.query) {
         return `Using ${displayName}: "${String(tool.arguments.query)}"`
     }
@@ -76,6 +81,8 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
     const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
         (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
     const query = block.query || ''
+    const mode = inferWebToolModeFromResultData(block.toolOutput?.data) || inferWebToolModeFromArgs(block.toolInput)
+    const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
 
     return (
         <div className="thinking-block thinking-inline-tool-call">
@@ -85,10 +92,10 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             >
                 <div className="thinking-label">
                     <span className="thinking-tool-calling-icon">
-                        <Search size={14} />
+                        {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
                     </span>
                     <span className="thinking-text">
-                        Web Search{query ? `: "${query}"` : ''}
+                        {displayName}{query ? `: "${query}"` : ''}
                     </span>
                     {hasDetails && (
                         <motion.div
@@ -173,6 +180,8 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
     if (block.type === 'searching') {
         const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
             (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
+        const mode = inferWebToolModeFromResultData(block.toolOutput?.data) || inferWebToolModeFromArgs(block.toolInput)
+        const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
         return (
             <div className="thinking-block completed thinking-tool-call">
                 <div
@@ -181,10 +190,10 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                 >
                     <div className="thinking-label">
                         <span className="thinking-tool-calling-icon">
-                            <Search size={14} />
+                            {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
                         </span>
                         <span className="thinking-text">
-                            Web Search{block.query ? `: "${block.query}"` : ''}
+                            {displayName}{block.query ? `: "${block.query}"` : ''}
                         </span>
                         {hasDetails && (
                             <ChevronRight size={14} className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`} />
@@ -402,6 +411,8 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     const searchBlocks = completedBlocks.filter(b => b.type === 'searching')
     const hasThinkingWithToolCalls = hasThinkingContent && /\n\s*---\s*\n?/.test(thinking) && searchBlocks.length > 0
     const blocksToRender = hasThinkingWithToolCalls ? completedBlocks.filter(b => b.type !== 'searching') : completedBlocks
+    const searchingMode = inferWebToolModeFromArgs(searchQuery ? { query: searchQuery } : undefined)
+    const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
 
     return (
         <div className="thinking-blocks-container">
@@ -431,7 +442,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                             ) : isSearching ? (
                                 <span className="thinking-text">
                                     <AITextLoading 
-                                        text={`Searching web${searchQuery ? `: "${searchQuery}"` : ''}`}
+                                        text={`${searchingLabel}${searchQuery ? `: "${searchQuery}"` : ''}`}
                                         animationKey="searching"
                                     />
                                 </span>

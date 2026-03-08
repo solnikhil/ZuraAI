@@ -64,6 +64,10 @@
     padding: 4px 0 8px;
 }
 
+.tool-result-search.tool-result-extract .tool-result-header {
+    color: #34d399;
+}
+
 .tool-result-search .tool-result-clickable:hover {
     background: transparent;
 }
@@ -162,6 +166,11 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.tool-result-search.tool-result-extract .tool-result-badge {
+    background: rgba(52, 211, 153, 0.2);
+    color: #34d399;
 }
 
 /* Image Gallery */

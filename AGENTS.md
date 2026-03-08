@@ -259,8 +259,12 @@ Tool execution is intentionally restricted.
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (**currently only `web_search` enabled**)
   - Web search: `electron/tools/webSearch.ts`
-    - Primary: Tavily API when key exists in secure storage (`tavilyApiKey`)
-    - Fallback: duck-duck-scrape (real DuckDuckGo web search) when no key or Tavily fails
+    - Input classification happens at the top of `executeWebSearch`:
+      - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
+      - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
+      - **Natural-language query (no URL)** → Tavily **Search** (`/search`)
+      - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
+    - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
 
 **Note:** Only `web_search` is implemented in `electron/tools/`. Previously existing but unused tool files (`datetime`, `clipboard`, `calculator`, `urlFetcher`) have been removed.
 

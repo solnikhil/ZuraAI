@@ -21,6 +21,7 @@ import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import type { Message, ThinkingBlock, ToolCallResult, FileAttachment } from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
+import { getWebImageSourceLabel, inferWebToolModeFromResultData } from '../../../tools/ui/webToolDisplay'
 
 export interface MessageRendererProps {
   message: Message & {
@@ -185,11 +186,18 @@ function convertNumericCitationsToMarkdownLinks(content: string, orderedSourceUr
  * Renders inline with the message flow—no card container, minimal chrome.
  * Uses smooth scroll animation when navigating between pages.
  */
-function WebSearchImageCarousel({ images }: { images: Array<{ url: string; description?: string }> }) {
+function WebSearchImageCarousel({
+  images,
+  mode
+}: {
+  images: Array<{ url: string; description?: string }>
+  mode: 'search' | 'extract' | 'mixed'
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const imagesPerPage = 4
   const totalPages = Math.ceil(images.length / imagesPerPage)
+  const sourceLabel = getWebImageSourceLabel(mode)
 
   const scrollToPage = (page: number) => {
     const el = scrollRef.current
@@ -225,7 +233,7 @@ function WebSearchImageCarousel({ images }: { images: Array<{ url: string; descr
           fontSize: '0.8rem',
           fontWeight: 500
         }}>
-          {images.length} {images.length === 1 ? 'image' : 'images'} from search
+          {images.length} {images.length === 1 ? 'image' : 'images'} from {sourceLabel}
         </span>
         {images.length > imagesPerPage && (
           <div style={{
@@ -807,23 +815,31 @@ function MessageRendererComponent({
   }, [displayMessage?.content, orderedWebSourceUrls])
 
   // Extract all images from web_search tool results
-  const webSearchImages = useMemo(() => {
-    const images: Array<{ url: string; description?: string }> = []
-    if (!message.toolResults) return images
+  const { webSearchImages, webImageMode } = useMemo(() => {
+    const images: Array<{ url: string; description?: string; mode: 'search' | 'extract' }> = []
+    if (!message.toolResults) {
+      return { webSearchImages: images, webImageMode: 'search' as const }
+    }
+
+    const modeSet = new Set<'search' | 'extract'>()
+
     for (const tr of message.toolResults) {
       if (tr.toolCall.name === 'web_search' && tr.result?.success && tr.result?.data) {
         const dataObj = tr.result.data as Record<string, unknown>
+        const mode = inferWebToolModeFromResultData(dataObj) || 'search'
+        modeSet.add(mode)
         const resultImages = (dataObj.images as unknown[]) || []
         if (Array.isArray(resultImages)) {
           for (const img of resultImages) {
             if (typeof img === 'string') {
-              images.push({ url: img })
+              images.push({ url: img, mode })
             } else if (img && typeof img === 'object') {
               const imgObj = img as Record<string, unknown>
               if (imgObj.url) {
                 images.push({
                   url: String(imgObj.url),
-                  description: String(imgObj.description || imgObj.alt || '') || undefined
+                  description: String(imgObj.description || imgObj.alt || '') || undefined,
+                  mode,
                 })
               }
             }
@@ -831,7 +847,11 @@ function MessageRendererComponent({
         }
       }
     }
-    return images
+
+    const webImageMode: 'search' | 'extract' | 'mixed' =
+      modeSet.size > 1 ? 'mixed' : (modeSet.values().next().value || 'search')
+
+    return { webSearchImages: images, webImageMode }
   }, [message.toolResults])
 
   const isUser = message.role === 'user'
@@ -983,9 +1003,9 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Web Search Image Carousel - shown after thinking ends, before message content */}
+      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
       {!isStreaming && webSearchImages.length > 0 && (
-        <WebSearchImageCarousel images={webSearchImages} />
+        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
       {/* Message content - only show when not streaming or when content has arrived */}

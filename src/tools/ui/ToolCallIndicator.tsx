@@ -1,5 +1,6 @@
 import React from 'react'
-import { Search, Loader2 } from '../../components/icons'
+import { Search, Loader2, Globe } from '../../components/icons'
+import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 
 import './ToolCallIndicator.css'
 
@@ -24,17 +25,22 @@ interface ToolCallIndicatorProps {
 }
 
 export default function ToolCallIndicator({ toolName, status, arguments: args }: ToolCallIndicatorProps) {
-    const icon = toolIcons[toolName] || <Search size={16} />
-    const displayName = toolDisplayNames[toolName] || formatToolDisplayName(toolName)
+    const webToolMode = toolName === 'web_search' ? inferWebToolModeFromArgs(args) : null
+    const icon = toolName === 'web_search'
+        ? (webToolMode === 'extract' ? <Globe size={16} /> : <Search size={16} />)
+        : (toolIcons[toolName] || <Search size={16} />)
+    const displayName = toolName === 'web_search'
+        ? getWebToolLabel(webToolMode || 'search')
+        : (toolDisplayNames[toolName] || formatToolDisplayName(toolName))
     
     const getStatusMessage = () => {
         switch (status) {
             case 'executing':
                 if (toolName === 'web_search' && args?.query) {
-                    return `Tool: Web Search "${args.query}"`
+                    return `Tool: ${displayName} "${args.query}"`
                 }
                 if (toolName === 'web_search') {
-                    return 'Tool: Web Search'
+                    return `Tool: ${displayName}`
                 }
                 return `Using ${displayName}...`
             case 'complete':
@@ -47,7 +53,7 @@ export default function ToolCallIndicator({ toolName, status, arguments: args }:
     }
     
     return (
-        <div className={`tool-indicator tool-indicator-${status}`}>
+        <div className={`tool-indicator tool-indicator-${status}${toolName === 'web_search' && webToolMode === 'extract' ? ' tool-indicator-web-extract' : ''}`}>
             <div className="tool-indicator-icon">
                 {status === 'executing' ? (
                     <Loader2 size={16} className="tool-spinner" />

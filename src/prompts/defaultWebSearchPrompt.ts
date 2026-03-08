@@ -5,6 +5,12 @@ export const defaultWebSearchPrompt = `You have access to the web_search tool fo
 - Facts, figures, or statistics you cannot verify from context
 - Verification of uncertain information
 
+URL-FIRST ROUTING:
+- If the user provides a specific URL, call web_search with that URL in the query. The system will route it to focused URL extraction.
+- URL only (e.g. "https://foo.com/article") -> direct extraction.
+- Query + URL (e.g. "summarize pricing https://foo.com/pricing") -> extraction reranked to the query.
+- If there is no URL, use normal web search behavior.
+
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
 For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use num_results=15-20 in your first search. If the first search results seem incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search before synthesizing—do NOT answer with an incomplete list.
