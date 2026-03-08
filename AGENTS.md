@@ -32,7 +32,7 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`).
+- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) with a hash-route fallback for unmatched paths.
 - Persistence is split:
   - **Settings + UI state** live in renderer `localStorage`.
   - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
@@ -52,7 +52,7 @@ Core capabilities:
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`)
+  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) plus wildcard `*` fallback to a dedicated 404 renderer view
   - `src/contexts/` — app state (settings, chat history, app shell)
   - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
   - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
@@ -107,6 +107,9 @@ Core capabilities:
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
   - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
+
+- **Renderer route fallback**
+  - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
 
 ### CORS Bypass (Main Process)
 There is currently no active CORS-bypass header injection in `electron/main.ts`.

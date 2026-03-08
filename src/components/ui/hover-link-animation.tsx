@@ -46,9 +46,33 @@ const HoverLinkAnimation = ({
     hover: { height: '100%', transition: effect },
   }
 
-  const textAnim = {
-    rest: { color: 'currentColor' },
-    hover: { color: highlightColor, transition: effect },
+  const textDuration =
+    typeof effect === 'object' && 'duration' in effect && typeof effect.duration === 'number'
+      ? effect.duration
+      : 0.35
+
+  const textBaseAnim = {
+    rest: { opacity: 1 },
+    hover: {
+      opacity: [1, 1, 0],
+      transition: {
+        duration: textDuration,
+        ease: 'easeOut',
+        times: [0, 0.5, 1],
+      },
+    },
+  }
+
+  const textHighlightAnim = {
+    rest: { opacity: 0 },
+    hover: {
+      opacity: [0, 0, 1],
+      transition: {
+        duration: textDuration,
+        ease: 'easeOut',
+        times: [0, 0.5, 1],
+      },
+    },
   }
 
   return (
@@ -69,7 +93,15 @@ const HoverLinkAnimation = ({
           bottom: 'calc(-1 * var(--hh-gap))',
         }}
       />
-      <motion.span variants={textAnim} className="relative text-current">
+      <motion.span variants={textBaseAnim} className="relative text-current">
+        {children}
+      </motion.span>
+      <motion.span
+        aria-hidden="true"
+        variants={textHighlightAnim}
+        className="pointer-events-none absolute inset-0"
+        style={{ color: highlightColor }}
+      >
         {children}
       </motion.span>
     </MotionTag>

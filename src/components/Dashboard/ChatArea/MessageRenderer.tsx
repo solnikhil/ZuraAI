@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Copy, Check, Info, X, File, RotateCcw,
   ChevronLeft, ChevronRight, CornerDownLeft
@@ -54,6 +55,12 @@ export interface MessageRendererProps {
 }
 
 const MESSAGE_ACTION_ICON_SIZE = 14
+const RESPONSE_INFO_WIDTH = 260
+const RESPONSE_INFO_PADDING = 12
+const RESPONSE_INFO_HIDE_DELAY_MS = 120
+const RESPONSE_INFO_CURSOR_OFFSET_X = 14
+const RESPONSE_INFO_CURSOR_OFFSET_Y = 10
+const RESPONSE_INFO_ESTIMATED_HEIGHT = 400
 
 /**
  * Strip trailing "References" or "Sources" sections that the model may generate.
@@ -709,12 +716,14 @@ function MessageRendererComponent({
   const { settings } = useSettings()
   const [copied, setCopied] = useState(false)
 
-  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
+  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const [isHoveringInfo, setIsHoveringInfo] = useState(false)
   const [showRegenerateModal, setShowRegenerateModal] = useState(false)
   const [regenerateInstruction, setRegenerateInstruction] = useState('')
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const infoTriggerRef = useRef<HTMLDivElement>(null)
+  const hidePopoverTimeoutRef = useRef<number | null>(null)
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const messageRef = useRef<HTMLDivElement>(null)
   const regenerateInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -904,37 +913,79 @@ function MessageRendererComponent({
   }
 
   // Update popover position
-  const updatePopoverPosition = () => {
-    if (infoTriggerRef.current) {
-      const rect = infoTriggerRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const popoverHeight = 400
-      const popoverWidth = message.toolResults && message.toolResults.length > 0 ? 400 : 280
-      const padding = 20
+  const updatePopoverPosition = (cursorPosition?: { x: number; y: number }) => {
+    if (cursorPosition) {
+      lastPointerRef.current = cursorPosition
+    }
 
-      const spaceAbove = rect.top
-      const spaceBelow = viewportHeight - rect.bottom
-      const showAbove = spaceAbove >= popoverHeight + padding || spaceBelow < popoverHeight + padding
+    const rect = infoTriggerRef.current?.getBoundingClientRect()
+    const pointer = cursorPosition || lastPointerRef.current
 
-      // Right-align the popover so it doesn't overlap message content
-      let left = viewportWidth - popoverWidth - padding
-      if (left < padding) {
-        left = padding
-      }
+    if (!rect && !pointer) {
+      return
+    }
 
-      setPopoverPosition({ top: rect.top, left, showAbove })
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    const padding = RESPONSE_INFO_PADDING
+
+    const anchorX = pointer?.x ?? ((rect?.left || 0) + ((rect?.width || 0) / 2))
+    const anchorY = pointer?.y ?? (rect?.top || 0)
+
+    // Prefer the elbow side of the cursor (left side), fallback to right if needed.
+    let left = anchorX - RESPONSE_INFO_WIDTH - RESPONSE_INFO_CURSOR_OFFSET_X
+    if (left < padding) {
+      left = anchorX + RESPONSE_INFO_CURSOR_OFFSET_X
+    }
+
+    const maxLeft = viewportWidth - RESPONSE_INFO_WIDTH - padding
+    left = Math.min(Math.max(left, padding), Math.max(padding, maxLeft))
+
+    let top = anchorY - RESPONSE_INFO_CURSOR_OFFSET_Y
+    const maxTop = viewportHeight - RESPONSE_INFO_ESTIMATED_HEIGHT - padding
+    top = Math.min(Math.max(top, padding), Math.max(padding, maxTop))
+
+    setPopoverPosition({ top, left })
+  }
+
+  const clearHidePopoverTimeout = () => {
+    if (hidePopoverTimeoutRef.current !== null) {
+      window.clearTimeout(hidePopoverTimeoutRef.current)
+      hidePopoverTimeoutRef.current = null
     }
   }
 
-  const handleInfoMouseEnter = () => {
+  const scheduleHidePopover = () => {
+    clearHidePopoverTimeout()
+    hidePopoverTimeoutRef.current = window.setTimeout(() => {
+      setIsHoveringInfo(false)
+      setPopoverPosition(null)
+      hidePopoverTimeoutRef.current = null
+    }, RESPONSE_INFO_HIDE_DELAY_MS)
+  }
+
+  const handleInfoMouseEnter = (event: React.MouseEvent<HTMLDivElement>) => {
+    clearHidePopoverTimeout()
+    setIsHoveringInfo(true)
+    updatePopoverPosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const handleInfoMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    updatePopoverPosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const handleInfoMouseLeave = () => {
+    scheduleHidePopover()
+  }
+
+  const handlePopoverMouseEnter = () => {
+    clearHidePopoverTimeout()
     setIsHoveringInfo(true)
     updatePopoverPosition()
   }
 
-  const handleInfoMouseLeave = () => {
-    setIsHoveringInfo(false)
-    setPopoverPosition(null)
+  const handlePopoverMouseLeave = () => {
+    scheduleHidePopover()
   }
 
   // Update position on scroll/resize when hovering
@@ -949,6 +1000,12 @@ function MessageRendererComponent({
       }
     }
   }, [isHoveringInfo])
+
+  useEffect(() => {
+    return () => {
+      clearHidePopoverTimeout()
+    }
+  }, [])
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -1129,6 +1186,7 @@ function MessageRendererComponent({
               animationDelay: '120ms'
             }}
             onMouseEnter={handleInfoMouseEnter}
+            onMouseMove={handleInfoMouseMove}
             onMouseLeave={handleInfoMouseLeave}
           >
             <div style={{ position: 'relative', display: 'flex' }}>
@@ -1148,16 +1206,15 @@ function MessageRendererComponent({
         )}
 
         {/* Info Popover */}
-        {popoverPosition && (
+        {popoverPosition && typeof document !== 'undefined' && createPortal(
           <div
+            onMouseEnter={handlePopoverMouseEnter}
+            onMouseLeave={handlePopoverMouseLeave}
             style={{
               position: 'fixed',
-              top: popoverPosition.showAbove
-                ? popoverPosition.top - 10
-                : popoverPosition.top + 30,
+              top: popoverPosition.top,
               left: popoverPosition.left,
-              zIndex: 1000,
-              transform: popoverPosition.showAbove ? 'translateY(-100%)' : 'none'
+              zIndex: 1000
             }}
           >
             <ResponseInfo
@@ -1167,7 +1224,8 @@ function MessageRendererComponent({
               finishReason={message.finishReason}
               requestedMaxTokens={message.requestedMaxTokens}
             />
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 

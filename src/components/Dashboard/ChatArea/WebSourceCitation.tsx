@@ -26,8 +26,8 @@ export default function WebSourceCitation({ href, children, source }: WebSourceC
       className="no-underline"
     >
       <HoverLinkAnimation
-        highlightColor='#93c5fd'
-        className="rounded bg-[rgba(59,130,246,0.1)] px-1.5 py-0.5 text-[#60a5fa] transition-colors hover:bg-[rgba(59,130,246,0.15)]"
+        highlightColor='#0b1220'
+        className="-mr-1 pr-1 text-[#60a5fa]"
       >
         {children}
       </HoverLinkAnimation>

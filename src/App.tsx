@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
+import NotFound404 from './components/ui/demo'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
@@ -52,6 +53,7 @@ function App() {
                                         {/* Legacy chat view now uses DashboardLayout to include sidebar */}
                                         <Route path="/chat" element={<DashboardLayout />} />
                                     </Route>
+                                    <Route path="*" element={<NotFound404 />} />
                                 </Routes>
                             </Router>
                             </QuickSendProvider>
