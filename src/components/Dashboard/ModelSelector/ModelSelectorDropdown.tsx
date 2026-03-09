@@ -245,6 +245,7 @@ export function ModelSelectorDropdown({
                         showDescriptions={showDescriptions}
                         showCapabilityBadges={showCapabilityBadges}
                         showContextLength={showContextLength}
+                        animationsEnabled={modelSelector.enableAnimations}
                         onSelect={onModelSelect}
                         onToggleFavorite={onToggleFavorite}
                       />
@@ -266,6 +267,7 @@ export function ModelSelectorDropdown({
                         showDescriptions={showDescriptions}
                         showCapabilityBadges={showCapabilityBadges}
                         showContextLength={showContextLength}
+                        animationsEnabled={modelSelector.enableAnimations}
                         onSelect={onModelSelect}
                         onToggleFavorite={onToggleFavorite}
                       />
@@ -479,6 +481,7 @@ function ModelItem({
   showDescriptions,
   showCapabilityBadges,
   showContextLength,
+  animationsEnabled,
   onSelect,
   onToggleFavorite
 }: {
@@ -493,6 +496,7 @@ function ModelItem({
   showDescriptions: boolean
   showCapabilityBadges: boolean
   showContextLength: boolean
+  animationsEnabled: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }): React.ReactElement {
@@ -501,8 +505,8 @@ function ModelItem({
   const isCompact = compactMode !== 'none'
   const isTight = compactMode === 'tight'
 
-  const ItemWrapper = modelSelector.enableAnimations ? motion.div : 'div'
-  const wrapperProps = modelSelector.enableAnimations ? {
+  const ItemWrapper = animationsEnabled ? motion.div : 'div'
+  const wrapperProps = animationsEnabled ? {
     initial: { opacity: 0, x: -8 },
     animate: { opacity: 1, x: 0 },
     transition: {
@@ -596,7 +600,7 @@ function ModelItem({
                 opacity: isFavorite ? 1 : 0.4
               }}
             >
-              {modelSelector.enableAnimations ? (
+              {animationsEnabled ? (
                 <motion.div
                   animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
                   transition={{ type: "spring", stiffness: 500, damping: 15 }}

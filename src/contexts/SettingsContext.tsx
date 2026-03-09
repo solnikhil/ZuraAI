@@ -123,7 +123,7 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
             'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast',
             'chatBubbleStyle', 'chatSelectedOverlayStyle',
-            'modelSelector'
+            'modelSelector', 'promptAutoHide'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -340,6 +340,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
         // Initialize sidebarAutoHideOnResize if missing
         if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
+        // Initialize promptAutoHide if missing; deep-merge with defaults
+        if (!parsed.promptAutoHide) {
+            parsed.promptAutoHide = defaultSettings.promptAutoHide
+        } else {
+            parsed.promptAutoHide = { ...defaultSettings.promptAutoHide, ...parsed.promptAutoHide }
+        }
         // Initialize softenedContrast if missing
         if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
         // Remove deprecated notification settings from persisted payloads
@@ -389,6 +395,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         frostedSidebar: combinedSettings.frostedSidebar,
         frostedPrompt: combinedSettings.frostedPrompt,
         sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
+        promptAutoHide: combinedSettings.promptAutoHide,
         softenedContrast: combinedSettings.softenedContrast,
         chatBubbleStyle: combinedSettings.chatBubbleStyle,
         chatSelectedOverlayStyle: combinedSettings.chatSelectedOverlayStyle,

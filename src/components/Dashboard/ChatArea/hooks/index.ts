@@ -7,6 +7,9 @@ export type { UseStreamingChatOptions, UseStreamingChatReturn } from './useStrea
 
 export { useIsolatedStreaming } from './useIsolatedStreaming'
 
+export { usePromptAutoHide } from './usePromptAutoHide'
+export type { UsePromptAutoHideOptions, UsePromptAutoHideReturn } from './usePromptAutoHide'
+
 // Provider-specific streaming hooks (Requirements: 5.4)
 export {
   useOllamaStreaming,

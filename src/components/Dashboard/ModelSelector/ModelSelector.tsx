@@ -20,12 +20,16 @@ import './ModelSelector.css'
 
 export interface ModelSelectorProps {
   minimal?: boolean
+  popoverAlign?: 'start' | 'center' | 'end'
 }
 
 /**
  * ModelSelector component - orchestrates model selection UI
  */
-export default function ModelSelector({ minimal }: ModelSelectorProps): React.ReactElement {
+export default function ModelSelector({
+  minimal,
+  popoverAlign = 'start',
+}: ModelSelectorProps): React.ReactElement {
   const { settings } = useSettings()
   const {
     state,
@@ -107,7 +111,7 @@ export default function ModelSelector({ minimal }: ModelSelectorProps): React.Re
       </PopoverTrigger>
       <PopoverContent
         className="p-0 overflow-hidden"
-        align="start"
+        align={popoverAlign}
         style={{
           width: `${effectiveDropdownWidth}px`,
           maxWidth: 'calc(100vw - 24px)',

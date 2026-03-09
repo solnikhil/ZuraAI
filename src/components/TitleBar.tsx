@@ -79,7 +79,6 @@ export default function TitleBar() {
     }, [centerTitle, modelDisplayName, settings.titleBarShowModel])
 
     const density = settings.titleBarDensity || 'comfortable'
-    const showTitle = settings.titleBarShowChatTitle !== false
     const isSettingsView = dashboardView === 'settings'
     const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
     const sidebarWidthPx = sidebarHidden
@@ -228,9 +227,6 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__center">
-                {showTitle && (
-                    <span className="app-titlebar__center-title">{centerTitle}</span>
-                )}
             </div>
 
             <div className="app-titlebar__right">

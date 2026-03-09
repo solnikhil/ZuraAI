@@ -1,7 +1,7 @@
 // Lazy-loaded Markdown component for memory optimization
 // Only loads when markdown content is actually displayed
 import * as React from 'react'
-const { Suspense, useState, useEffect } = React
+const { Suspense, useState, useEffect, useMemo } = React
 import { lazy } from 'react'
 import { Check, Code2, Copy, LoaderCircle } from 'lucide-react'
 import WebSourceCitation from './Dashboard/ChatArea/WebSourceCitation'
@@ -106,7 +106,126 @@ function getLanguageMeta(language?: string): LanguageMeta {
     return { label: fallbackLabel }
 }
 
-function MarkdownContent({ content, webSources, isStreaming = false }: { content: string; webSources?: Map<string, WebSource>; isStreaming?: boolean }) {
+// Pure helper: wraps bare tree-like blocks in code fences (no component state needed)
+function injectTreeCodeFences(markdown: string): string {
+    const lines = markdown.split('\n')
+    const out: string[] = []
+
+    const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
+    const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
+
+    const isTreeCandidateLine = (line: string) => {
+        if (!line.trim()) return false
+        if (!allowedCharsRe.test(line)) return false
+        if (markerRe.test(line)) return true
+        if (line.trim().endsWith('/')) return true
+        return false
+    }
+
+    let i = 0
+    while (i < lines.length) {
+        const line = lines[i] ?? ''
+
+        if (!isTreeCandidateLine(line)) {
+            out.push(line)
+            i += 1
+            continue
+        }
+
+        let j = i
+        let markerCount = 0
+        const block: string[] = []
+
+        while (j < lines.length) {
+            const l = lines[j] ?? ''
+            if (!l.trim()) break
+            if (!allowedCharsRe.test(l)) break
+            if (!isTreeCandidateLine(l) && !markerRe.test(l)) break
+            if (markerRe.test(l)) markerCount += 1
+            block.push(l)
+            j += 1
+        }
+
+        if (block.length >= 3 && markerCount >= 2) {
+            out.push('```tree')
+            out.push(...block)
+            out.push('```')
+            i = j
+            continue
+        }
+
+        out.push(line)
+        i += 1
+    }
+
+    return out.join('\n')
+}
+
+// Pure helper: normalizes math delimiters for remark-math (no component state needed)
+function normalizeMathDelimiters(markdown: string): string {
+    const parts = markdown.split(/```/)
+    return parts.map((part, index) => {
+        if (index % 2 !== 0) return part
+        const unescaped = part.replace(/\\\\/g, '\\')
+
+        const normalized = unescaped
+            .replace(/\\\[/g, '$$')
+            .replace(/\\\]/g, '$$')
+            .replace(/\\\(/g, '$')
+            .replace(/\\\)/g, '$')
+
+        const withMathInline = normalized.replace(/`([^`]+)`/g, (match: string, content: string) => {
+            const trimmedContent = content.trim()
+
+            const isCodeLike = /\b(const|let|var|function|return|=>|;\s*$|[{}])\b/.test(content) ||
+                /^\s*\w+\s*[=\(]\s*/.test(content)
+            if (isCodeLike) return match
+
+            if (/https?:\/\//.test(content)) return match
+
+            if (/^(git|npm|yarn|pnpm|npx|pip|curl|wget|docker|cd|ls|cat|mkdir|rm|cp|mv|chmod|chown|ssh|scp)\s/.test(content)) return match
+            if (/^[.~]?\//.test(content) || /\w\/\w.*\/\w/.test(content)) return match
+
+            const hyphenSegments = trimmedContent.split('-').filter(Boolean)
+            const looksLikeHyphenatedIdentifier =
+                !/\s/.test(trimmedContent) &&
+                hyphenSegments.length >= 2 &&
+                hyphenSegments.every((segment: string) => /^[A-Za-z0-9@._/]+$/.test(segment)) &&
+                hyphenSegments.filter((segment: string) => segment.length > 1).length >= 2
+            if (looksLikeHyphenatedIdentifier) return match
+
+            const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
+            const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)
+            const hasGreekOrSubscript = /[α-ωΑ-ΩΔΣΠπ∞]|_[a-zA-Z0-9]/.test(content)
+            const hasVariablePattern = /[a-zA-Z][(_][a-zA-Z0-9]/.test(content) || /Δ[a-zA-Z]/.test(content)
+            
+            if ((hasMathChars && hasMathPattern) || hasGreekOrSubscript || hasVariablePattern) {
+                if (content.startsWith('$') || content.endsWith('$')) {
+                    return `$${content}$`
+                }
+                if (/^[a-zA-Zα-ωΑ-ΩΔΣΠπ∞_]+$/.test(content.trim())) {
+                    return `$${content}$`
+                }
+                return `$${content}$`
+            }
+            return match
+        })
+
+        const withMathLines = withMathInline.split('\n').map((line: string) => {
+            const match = line.match(/^(\s*(?:[-*+]\s+)?)\[(.+)\]\s*$/)
+            if (!match) return line
+            const prefix = match[1] || ''
+            const inner = (match[2] ?? '').trim()
+            const formulaLike = /[\\^_={}]/.test(inner) || /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(inner)
+            if (!formulaLike) return line
+            return `${prefix}$$${inner}$$`
+        }).join('\n')
+
+        return injectTreeCodeFences(withMathLines)
+    }).join('```')
+}
+
+const MarkdownContent = React.memo(function MarkdownContent({ content, webSources, isStreaming = false }: { content: string; webSources?: Map<string, WebSource>; isStreaming?: boolean }) {
     // Initialize from preloaded cache if available (avoids flash of unstyled content)
     const preloaded = getPreloadedMarkdown()
     // Wrap function/component values in arrow functions so React doesn't
@@ -119,141 +238,6 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
     const [prismStyle, setPrismStyle] = useState<Record<string, React.CSSProperties> | null>(preloaded.prismStyle)
     const [copiedCode, setCopiedCode] = useState<string | null>(null)
     const [loadAttempted, setLoadAttempted] = useState(preloaded.ready)
-
-    const injectTreeCodeFences = (markdown: string) => {
-        const lines = markdown.split('\n')
-        const out: string[] = []
-
-        const markerRe = /^(?:\s*(?:\|   )*|\s*(?:│   )*)?(?:├──|└──|\|--|\+--|\|[-─—]{2,}|\+[-─—]{2,}|├[-─—]{2,}|└[-─—]{2,})\s*/
-        const allowedCharsRe = /^[\s\w.\-_/\\'"@(){}\[\]:,#+=<>|│├└─—]+$/
-
-        const isTreeCandidateLine = (line: string) => {
-            if (!line.trim()) return false
-            if (!allowedCharsRe.test(line)) return false
-            if (markerRe.test(line)) return true
-            // Root lines often look like "foo/" or "foo" (top label)
-            if (line.trim().endsWith('/')) return true
-            return false
-        }
-
-        let i = 0
-        while (i < lines.length) {
-            const line = lines[i] ?? ''
-
-            // Try to detect a contiguous tree block.
-            if (!isTreeCandidateLine(line)) {
-                out.push(line)
-                i += 1
-                continue
-            }
-
-            let j = i
-            let markerCount = 0
-            const block: string[] = []
-
-            while (j < lines.length) {
-                const l = lines[j] ?? ''
-                if (!l.trim()) break
-                if (!allowedCharsRe.test(l)) break
-                if (!isTreeCandidateLine(l) && !markerRe.test(l)) break
-                if (markerRe.test(l)) markerCount += 1
-                block.push(l)
-                j += 1
-            }
-
-            if (block.length >= 3 && markerCount >= 2) {
-                out.push('```tree')
-                out.push(...block)
-                out.push('```')
-                i = j
-                continue
-            }
-
-            // Not confident; emit the original line and continue.
-            out.push(line)
-            i += 1
-        }
-
-        return out.join('\n')
-    }
-
-    const normalizeMathDelimiters = (markdown: string) => {
-        const parts = markdown.split(/```/)
-        return parts.map((part, index) => {
-            if (index % 2 !== 0) return part
-            // LLM responses often double-escape backslashes (e.g. "\\[" or "\\frac").
-            // Outside of code fences, reduce double backslashes to single so remark-math/MathJax can parse.
-            const unescaped = part.replace(/\\\\/g, '\\')
-
-            const normalized = unescaped
-                .replace(/\\\[/g, '$$')
-                .replace(/\\\]/g, '$$')
-                .replace(/\\\(/g, '$')
-                .replace(/\\\)/g, '$')
-
-            // Convert inline code that looks like math formulas to proper math syntax
-            // Match backtick-wrapped content that contains math-like characters
-            const withMathInline = normalized.replace(/`([^`]+)`/g, (match, content) => {
-                const trimmedContent = content.trim()
-
-                // Skip code-like content - do not convert to math (e.g. `const x = 1`)
-                const isCodeLike = /\b(const|let|var|function|return|=>|;\s*$|[{}])\b/.test(content) ||
-                    /^\s*\w+\s*[=\(]\s*/.test(content) // e.g. "const " or "fn("
-                if (isCodeLike) return match
-
-                // Skip content containing URLs - URLs have slashes that false-positive as math
-                if (/https?:\/\//.test(content)) return match
-
-                // Skip content that looks like shell commands or file paths
-                if (/^(git|npm|yarn|pnpm|npx|pip|curl|wget|docker|cd|ls|cat|mkdir|rm|cp|mv|chmod|chown|ssh|scp)\s/.test(content)) return match
-                if (/^[.~]?\//.test(content) || /\w\/\w.*\/\w/.test(content)) return match
-
-                // Skip common hyphenated identifiers/package names (e.g. electron-builder)
-                // so they stay as inline code instead of being interpreted as math subtraction.
-                const hyphenSegments = trimmedContent.split('-').filter(Boolean)
-                const looksLikeHyphenatedIdentifier =
-                    !/\s/.test(trimmedContent) &&
-                    hyphenSegments.length >= 2 &&
-                    hyphenSegments.every((segment) => /^[A-Za-z0-9@._/]+$/.test(segment)) &&
-                    hyphenSegments.filter((segment) => segment.length > 1).length >= 2
-                if (looksLikeHyphenatedIdentifier) return match
-
-                // Check if content looks like a math formula
-                const hasMathChars = /[\\^_={}\[\]()*/+\-]/.test(content)
-                const hasMathPattern = /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(content)
-                // Extended Greek letters including Δ (Delta), Σ (Sigma), π (pi), ∞ (infinity)
-                const hasGreekOrSubscript = /[α-ωΑ-ΩΔΣΠπ∞]|_[a-zA-Z0-9]/.test(content)
-                // Variables with subscripts like x_i, f(x), Δx
-                const hasVariablePattern = /[a-zA-Z][(_][a-zA-Z0-9]/.test(content) || /Δ[a-zA-Z]/.test(content)
-                
-                if ((hasMathChars && hasMathPattern) || hasGreekOrSubscript || hasVariablePattern) {
-                    // Check if it's already wrapped in $ or $$
-                    if (content.startsWith('$') || content.endsWith('$')) {
-                        return `$${content}$`
-                    }
-                    // Single letter variables like `ρ`, `H`, `U`, `Δ` should be inline math
-                    if (/^[a-zA-Zα-ωΑ-ΩΔΣΠπ∞_]+$/.test(content.trim())) {
-                        return `$${content}$`
-                    }
-                    // Multi-character formulas
-                    return `$${content}$`
-                }
-                return match
-            })
-
-            const withMathLines = withMathInline.split('\n').map(line => {
-                const match = line.match(/^(\s*(?:[-*+]\s+)?)\[(.+)\]\s*$/)
-                if (!match) return line
-                const prefix = match[1] || ''
-                const inner = match[2].trim()
-                const formulaLike = /[\\^_={}]/.test(inner) || /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z0-9]/.test(inner)
-                if (!formulaLike) return line
-                return `${prefix}$$${inner}$$`
-            }).join('\n')
-
-            return injectTreeCodeFences(withMathLines)
-        }).join('```')
-    }
 
     useEffect(() => {
         // If preloader already resolved, nothing to do
@@ -276,15 +260,17 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
     if (!loadAttempted) return <MarkdownSkeleton />
 
     const SyntaxHighlighter = syntaxHighlighter
-    const normalizedContent = normalizeMathDelimiters(content)
+    // Memoize the normalized content to avoid re-running expensive math/tree
+    // transformations on every render when content hasn't changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const normalizedContent = useMemo(() => normalizeMathDelimiters(content), [content])
     const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean) as (() => void)[]
     const rehypePlugins = [rehypeKatex].filter(Boolean) as (() => void)[]
 
-    return (
-        <ReactMarkdown
-            remarkPlugins={remarkPlugins}
-            rehypePlugins={rehypePlugins}
-            components={{
+    // Memoize the components object to give ReactMarkdown a stable reference,
+    // preventing it from doing a full internal reconciliation on every render.
+    // Dependencies: anything the component renderers close over that can change.
+    const components = useMemo(() => ({
                 code(codeProps: React.ClassAttributes<HTMLElement> & React.HTMLAttributes<HTMLElement> & ExtraProps & { inline?: boolean }) {
                     const { className, children, node: _node, inline, ...props } = codeProps
                     const match = /language-([\w-]+)/.exec(className || '')
@@ -297,6 +283,38 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                     // Mermaid diagrams
                     const isMermaid = language === 'mermaid'
                     if (!isInline && isCodeBlock && isMermaid) {
+                        const mermaidCode = codeString.replace(/\n$/, '')
+                        // During streaming, if this mermaid block is still being generated
+                        // (it's the trailing code block), show a static placeholder instead
+                        // of repeatedly attempting expensive mermaid.render() with partial code.
+                        const isMermaidStillStreaming = isStreaming && normalizedContent.trimEnd().endsWith(mermaidCode.trimEnd())
+
+                        if (isMermaidStillStreaming) {
+                            return (
+                                <div style={{
+                                    margin: '12px 0',
+                                    padding: '48px 24px',
+                                    borderRadius: '8px',
+                                    background: 'var(--theme-surface)',
+                                    border: '1px solid var(--theme-border)',
+                                    textAlign: 'center',
+                                    color: 'var(--theme-text-tertiary)'
+                                }} className="markdown-mermaid-skeleton">
+                                    <div style={{
+                                        width: '32px',
+                                        height: '32px',
+                                        margin: '0 auto 12px',
+                                        border: '3px solid var(--theme-border)',
+                                        borderTopColor: 'var(--theme-accent)',
+                                        borderRadius: '50%',
+                                        animation: 'spin 1s linear infinite'
+                                    }} />
+                                    <span style={{ display: 'block', fontSize: '0.8rem' }}>Generating diagram...</span>
+                                    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                                </div>
+                            )
+                        }
+
                         return (
                             <Suspense fallback={
                                 <div style={{
@@ -328,7 +346,7 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                                     <span style={{ display: 'block', marginTop: '12px', fontSize: '0.8rem' }}>Loading diagram...</span>
                                 </div>
                             }>
-                                <MermaidDiagram code={codeString.replace(/\n$/, '')} />
+                                <MermaidDiagram code={mermaidCode} />
                             </Suspense>
                         )
                     }
@@ -557,14 +575,14 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                         )
                     }
                 },
-                blockquote: ({ node, ...props }) => <blockquote {...props} />,
-                table: ({ node, ...props }) => (
+                blockquote: ({ node: _node, ...props }: ExtraProps & React.BlockquoteHTMLAttributes<HTMLQuoteElement>) => <blockquote {...props} />,
+                table: ({ node: _node, ...props }: ExtraProps & React.TableHTMLAttributes<HTMLTableElement>) => (
                     <div className="markdown-table">
                         <table {...props} />
                     </div>
                 ),
-                th: ({ node, ...props }) => <th {...props} />,
-                td: ({ node, ...props }) => <td {...props} />,
+                th: ({ node: _node, ...props }: ExtraProps & React.ThHTMLAttributes<HTMLTableCellElement>) => <th {...props} />,
+                td: ({ node: _node, ...props }: ExtraProps & React.TdHTMLAttributes<HTMLTableCellElement>) => <td {...props} />,
                 a: ({ href, children, ...props }: React.ClassAttributes<HTMLAnchorElement> & React.AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) => {
                     if (!href) return <span {...props}>{children}</span>
                     let source = webSources?.get(href) || webSources?.get(href.replace(/\/+$/, ''))
@@ -578,21 +596,28 @@ function MarkdownContent({ content, webSources, isStreaming = false }: { content
                     }
                     return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
                 },
-                ul: ({ node, ...props }) => <ul {...props} />,
-                ol: ({ node, ...props }) => <ol {...props} />,
-                h1: ({ node, ...props }) => <h1 {...props} />,
-                h2: ({ node, ...props }) => <h2 {...props} />,
-                h3: ({ node, ...props }) => <h3 {...props} />,
-                h4: ({ node, ...props }) => <h4 {...props} />,
-                h5: ({ node, ...props }) => <h5 {...props} />,
-                h6: ({ node, ...props }) => <h6 {...props} />,
-                p: ({ node, ...props }) => <p {...props} />
-            }}
+                ul: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLUListElement>) => <ul {...props} />,
+                ol: ({ node: _node, ...props }: ExtraProps & React.OlHTMLAttributes<HTMLOListElement>) => <ol {...props} />,
+                h1: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h1 {...props} />,
+                h2: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props} />,
+                h3: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h3 {...props} />,
+                h4: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h4 {...props} />,
+                h5: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h5 {...props} />,
+                h6: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLHeadingElement>) => <h6 {...props} />,
+                p: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props} />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }), [copiedCode, isStreaming, normalizedContent, SyntaxHighlighter, prismStyle, webSources])
+
+    return (
+        <ReactMarkdown
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+            components={components}
         >
             {normalizedContent}
         </ReactMarkdown>
     )
-}
+})
 
 export default function LazyMarkdown({ content, className, webSources, isStreaming = false }: LazyMarkdownProps) {
     return (

@@ -91,6 +91,13 @@ export interface SettingsUI {
     // Sidebar auto-hide when window is narrow
     sidebarAutoHideOnResize: boolean
 
+    // Prompt auto-hide (slide away after inactivity)
+    promptAutoHide: {
+        enabled: boolean
+        /** Inactivity timeout in seconds before prompt hides (30–600) */
+        timeout: number
+    }
+
     // Softened contrast (reduce harshness of text and surfaces)
     softenedContrast: boolean
 
@@ -128,6 +135,10 @@ export const defaultSettingsUI: SettingsUI = {
     frostedSidebar: false,
     frostedPrompt: false,
     sidebarAutoHideOnResize: true,
+    promptAutoHide: {
+        enabled: false,
+        timeout: 120,
+    },
     softenedContrast: false,
     chatBubbleStyle: 'solid',
     chatSelectedOverlayStyle: 'linear',
@@ -193,6 +204,12 @@ export function SettingsUIProvider({
                 ...initialSettings.modelSelector,
             }
         }
+        if (initialSettings?.promptAutoHide) {
+            merged.promptAutoHide = {
+                ...defaultSettingsUI.promptAutoHide,
+                ...initialSettings.promptAutoHide,
+            }
+        }
         return merged
     })
 
@@ -215,6 +232,14 @@ export function SettingsUIProvider({
                         ...defaultSettingsUI.modelSelector!,
                         ...prev.modelSelector,
                         ...initialSettings.modelSelector,
+                    }
+                }
+                // Deep merge promptAutoHide
+                if (initialSettings.promptAutoHide) {
+                    merged.promptAutoHide = {
+                        ...defaultSettingsUI.promptAutoHide,
+                        ...prev.promptAutoHide,
+                        ...initialSettings.promptAutoHide,
                     }
                 }
                 return merged
@@ -242,6 +267,14 @@ export function SettingsUIProvider({
                     ...defaultSettingsUI.modelSelector!,
                     ...prev.modelSelector,
                     ...newSettings.modelSelector,
+                }
+            }
+            // Deep merge promptAutoHide if present
+            if (newSettings.promptAutoHide) {
+                merged.promptAutoHide = {
+                    ...defaultSettingsUI.promptAutoHide,
+                    ...prev.promptAutoHide,
+                    ...newSettings.promptAutoHide,
                 }
             }
             return merged

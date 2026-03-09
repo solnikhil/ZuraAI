@@ -195,6 +195,8 @@ export function AppearanceSection({
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
   const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
+  const promptAutoHide = settings.promptAutoHide
+  const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
   const titleProvider = (settings.titleModelProvider || 'openrouter') as TitleProviderKey
 
   const titleProviderModelMap = useMemo(() => ({
@@ -233,6 +235,15 @@ export function AppearanceSection({
     updateSettings({
       commandBar: {
         ...settings.commandBar,
+        ...changes
+      }
+    })
+  }
+
+  const updatePromptAutoHide = (changes: Partial<typeof settings.promptAutoHide>) => {
+    updateSettings({
+      promptAutoHide: {
+        ...settings.promptAutoHide,
         ...changes
       }
     })
@@ -665,6 +676,52 @@ export function AppearanceSection({
               <option value="instant">Instant</option>
               <option value="typewriter">Typewriter</option>
             </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Prompt Auto-Hide ── */}
+      <h3 className="appearance-group-heading">Prompt Auto-Hide</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Enable prompt auto-hide</h3>
+            <div className="settings-list-row__description">Automatically hide the chat input area after a period of inactivity. Hover the bottom of the chat or press any key to bring it back.</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={promptAutoHide.enabled}
+              onCheckedChange={(checked) => updatePromptAutoHide({ enabled: checked })}
+              aria-label="Enable prompt auto-hide"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Inactivity timeout</h3>
+            <div className="settings-list-row__description">
+              Seconds of inactivity before the prompt hides ({promptTimeout}s)
+            </div>
+          </div>
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="range"
+              min={30}
+              max={600}
+              step={10}
+              value={promptTimeout}
+              onChange={(e) => updatePromptAutoHide({ timeout: Number(e.target.value) })}
+              disabled={!promptAutoHide.enabled}
+              aria-label="Prompt auto-hide timeout"
+              style={{ minWidth: 120 }}
+            />
+            <span style={{
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)',
+              minWidth: 40,
+              textAlign: 'right',
+            }}>{promptTimeout}s</span>
           </div>
         </div>
       </Card>

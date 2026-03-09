@@ -19,6 +19,8 @@ function AppShellContent() {
     const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
     const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden, isResizingSidebar } = useAppShell()
     const isDev = import.meta.env.DEV
+    const hasRunInitialSidebarAutoHideCheckRef = useRef(false)
+    const lastSidebarAutoHideWidthRef = useRef<number | null>(null)
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const hasSidebar = isDashboardRoute || location.pathname === '/chat'
@@ -26,23 +28,44 @@ function AppShellContent() {
     // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle.
     // Debounced to prevent rapid show/hide flicker when resizing near the threshold boundary.
     // Only auto-hides (never auto-shows) to avoid fighting user intent.
+    // Uses threshold-crossing detection so incidental resizes while already narrow
+    // don't repeatedly re-hide a user-unhidden sidebar.
     useEffect(() => {
-        if (!hasSidebar || !sidebarAutoHideOnResize) return
+        if (!hasSidebar || !sidebarAutoHideOnResize) {
+            lastSidebarAutoHideWidthRef.current = window.innerWidth
+            return
+        }
+
+        const applyHideIfStillNarrow = () => {
+            if (window.innerWidth <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+                setSidebarHidden(true)
+            }
+        }
+
+        const currentWidth = window.innerWidth
+        if (!hasRunInitialSidebarAutoHideCheckRef.current) {
+            hasRunInitialSidebarAutoHideCheckRef.current = true
+            applyHideIfStillNarrow()
+        }
+        lastSidebarAutoHideWidthRef.current = currentWidth
+
         let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
         const handler = () => {
             if (debounceTimer) clearTimeout(debounceTimer)
             debounceTimer = setTimeout(() => {
                 const width = window.innerWidth
-                if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+                const previousWidth = lastSidebarAutoHideWidthRef.current ?? width
+                const crossedIntoNarrowRange = previousWidth > SIDEBAR_AUTO_HIDE_THRESHOLD_PX && width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX
+                lastSidebarAutoHideWidthRef.current = width
+
+                if (crossedIntoNarrowRange) {
                     setSidebarHidden(true)
                 }
                 debounceTimer = null
             }, 200)
         }
-        // Initial check on mount (immediate, no debounce needed)
-        if (window.innerWidth <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
-            setSidebarHidden(true)
-        }
+
         window.addEventListener('resize', handler)
         return () => {
             window.removeEventListener('resize', handler)

@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Paperclip, Image, X, SendHorizonal, Square } from 'lucide-react'
+import { Paperclip, Image, X, SendHorizonal, Square, Plus, Camera, Sparkles, Check } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -24,6 +24,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { withWebResearchEnabled } from '../../../skills'
 
 export interface InputAreaProps {
   input: string
@@ -35,6 +43,12 @@ export interface InputAreaProps {
   onFilesChange: (files: AttachedFile[]) => void
   onError?: (message: string) => void
   showContextRing?: boolean
+  /** Called on any user activity inside the prompt area (typing, click, focus, mouse move) */
+  onActivity?: () => void
+  /** Called when textarea focus state changes */
+  onFocusChange?: (focused: boolean) => void
+  /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
+  textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
 }
 
 /**
@@ -49,18 +63,29 @@ export function InputArea({
   attachedFiles,
   onFilesChange,
   onError,
-  showContextRing = true
+  showContextRing = true,
+  onActivity,
+  onFocusChange,
+  textareaRefCallback,
 }: InputAreaProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [showImageModal, setShowImageModal] = React.useState(false)
   const [isFocused, setIsFocused] = React.useState(false)
+  const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 52,
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const { settings } = useSettings()
+  const imageOnlyInputRef = React.useRef<HTMLInputElement>(null)
+  const { settings, updateSettings } = useSettings()
   const { frostedPrompt } = settings
+  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+
+  // Expose textarea ref to parent for keyboard reactivation
+  React.useEffect(() => {
+    textareaRefCallback?.(textareaRef)
+  }, [textareaRef, textareaRefCallback])
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
 
@@ -88,6 +113,82 @@ export function InputArea({
       fileInputRef.current.value = ''
     }
   }
+
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    const newFiles = await processFiles(files, { onError })
+    if (newFiles.length > 0) {
+      onFilesChange([...attachedFiles, ...newFiles])
+    }
+
+    if (imageOnlyInputRef.current) {
+      imageOnlyInputRef.current.value = ''
+    }
+  }
+
+  const handlePasteScreenshotFromClipboard = React.useCallback(async () => {
+    if (!navigator.clipboard?.read) {
+      imageOnlyInputRef.current?.click()
+      return
+    }
+
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      const imageItem = clipboardItems.find(item => item.types.some(type => type.startsWith('image/')))
+
+      if (!imageItem) {
+        onError?.('No screenshot found in clipboard. Copy one first, then try again.')
+        return
+      }
+
+      const mimeType = imageItem.types.find(type => type.startsWith('image/')) || 'image/png'
+      const blob = await imageItem.getType(mimeType)
+      const extension = mimeType.split('/')[1] || 'png'
+      const screenshotFile = new File([blob], `screenshot-${Date.now()}.${extension}`, { type: mimeType })
+
+      const newFiles = await processFiles([screenshotFile], { onError })
+      if (newFiles.length > 0) {
+        onFilesChange([...attachedFiles, ...newFiles])
+      }
+    } catch {
+      imageOnlyInputRef.current?.click()
+    }
+  }, [attachedFiles, onError, onFilesChange])
+
+  const toggleWebResearchSkill = React.useCallback(() => {
+    const nextEnabled = !webResearchEnabled
+    updateSettings({
+      skills: withWebResearchEnabled(settings.skills, nextEnabled),
+    })
+  }, [settings.skills, updateSettings, webResearchEnabled])
+
+  React.useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      const isMeta = event.ctrlKey || event.metaKey
+      if (!isMeta) return
+
+      const activeElement = document.activeElement
+      const isComposerActive = activeElement === textareaRef.current
+      if (!isComposerActive) return
+
+      const key = event.key.toLowerCase()
+      if (!event.shiftKey && key === 'u') {
+        event.preventDefault()
+        fileInputRef.current?.click()
+        return
+      }
+
+      if (event.shiftKey && key === 'k') {
+        event.preventDefault()
+        toggleWebResearchSkill()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [textareaRef, toggleWebResearchSkill])
 
   const handlePaste = async (event: React.ClipboardEvent) => {
     const items = event.clipboardData.items
@@ -142,6 +243,7 @@ export function InputArea({
   }
 
   const handleContainerClick = () => {
+    onActivity?.()
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
@@ -150,6 +252,16 @@ export function InputArea({
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentBanner = attachedFiles.length > 0
 
+  // Throttled mouse-move activity signal (fire at most once per 2s)
+  const lastMouseActivityRef = React.useRef(0)
+  const handleMouseMoveActivity = React.useCallback(() => {
+    const now = Date.now()
+    if (now - lastMouseActivityRef.current > 2000) {
+      lastMouseActivityRef.current = now
+      onActivity?.()
+    }
+  }, [onActivity])
+
   return (
     <TooltipProvider>
       <div
@@ -157,6 +269,7 @@ export function InputArea({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onMouseMove={handleMouseMoveActivity}
       >
         <div className="relative w-full mx-auto">
           {/* Attached Files Badges */}
@@ -247,7 +360,7 @@ export function InputArea({
               <Textarea
                 ref={textareaRef}
                 value={input}
-                placeholder={isDragging ? "Drop files here..." : "What can I do for you?"}
+                placeholder={isDragging ? "Drop files here..." : "Type / for commands"}
                 className={cn(
                   "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
                   "bg-transparent",
@@ -255,13 +368,14 @@ export function InputArea({
                   "placeholder:text-[var(--theme-text-muted)]",
                   "transition-colors duration-200"
                 )}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
+                onFocus={() => { setIsFocused(true); onFocusChange?.(true); onActivity?.() }}
+                onBlur={() => { setIsFocused(false); onFocusChange?.(false) }}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 onChange={(e) => {
                   setInput(e.target.value)
                   adjustHeight()
+                  onActivity?.()
                 }}
                 disabled={isLoading}
               />
@@ -271,8 +385,70 @@ export function InputArea({
             <div className="h-12 rounded-b-xl relative bg-transparent">
               {/* Left side controls */}
               <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
-                {/* Model Selector */}
-                <ModelSelector minimal={true} />
+                <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-[#2b2b2b] transition-colors"
+                      aria-label="Open quick actions"
+                    >
+                      <Plus size={20} />
+                    </motion.button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="top"
+                    sideOffset={10}
+                    className="w-[248px] rounded-2xl border border-white/10 bg-[#1d1d1de8] p-1.5 text-white shadow-[0_14px_38px_rgba(0,0,0,0.52)] backdrop-blur-xl"
+                  >
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        fileInputRef.current?.click()
+                        setQuickActionsOpen(false)
+                      }}
+                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
+                    >
+                      <Paperclip className="h-4 w-4 text-white/75" />
+                      <span>Add files or photos</span>
+                      <span className="ml-auto text-[11px] text-white/40">Ctrl+U</span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        void handlePasteScreenshotFromClipboard()
+                        setQuickActionsOpen(false)
+                      }}
+                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
+                    >
+                      <Camera className="h-4 w-4 text-white/75" />
+                      <span>Take screenshot</span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="my-1 bg-white/10" />
+
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        toggleWebResearchSkill()
+                      }}
+                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
+                    >
+                      <Sparkles className="h-4 w-4 text-white/75" />
+                      <span>{webResearchEnabled ? 'Disable web research' : 'Enable web research'}</span>
+                      <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-white/45">
+                        {webResearchEnabled && <Check className="h-3.5 w-3.5 text-emerald-300" />}
+                        Ctrl+Shift+K
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {showContextRing && <TokenUsageIndicator input={input} />}
 
                 {/* Images button */}
                 <AnimatePresence>
@@ -312,10 +488,9 @@ export function InputArea({
                 </AnimatePresence>
               </div>
 
-              {/* Right side controls - Token indicator + Attach + Send */}
+              {/* Right side controls - Model + Send */}
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
-                {showContextRing && <TokenUsageIndicator input={input} />}
-                {/* Attach file button - no background when no files */}
+                <ModelSelector minimal={true} popoverAlign="end" />
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -324,30 +499,14 @@ export function InputArea({
                   accept="image/*,.txt,.doc,.docx,.csv,.json,.xml"
                   className="hidden"
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                      <motion.label
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={cn(
-                          "cursor-pointer rounded-lg p-2 transition-colors duration-150 hover:bg-white/10",
-                          attachedFiles.length > 0
-                            ? "text-white"
-                            : "text-white/50 hover:text-white/70"
-                        )}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          fileInputRef.current?.click()
-                        }}
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </motion.label>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="rounded-full">
-                    {attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files'}
-                  </TooltipContent>
-                </Tooltip>
+                <input
+                  type="file"
+                  ref={imageOnlyInputRef}
+                  onChange={handleImageSelect}
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                />
 
                 {/* Send / Stop button */}
                 {isLoading ? (

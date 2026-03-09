@@ -27,39 +27,64 @@ export async function* parseSSEStream<T>(
     let buffer = ''
     const providerName = options?.providerName || 'SSE'
 
+    const parseLine = (line: string): { chunk?: T; done?: true } | null => {
+        if (line.trim() === '') return null
+        if (!line.startsWith('data: ')) return null
+
+        const data = line.slice(6)
+        if (data.trim() === '[DONE]') {
+            return { done: true }
+        }
+
+        try {
+            const parsed = JSON.parse(data)
+            const chunk = options?.onParsed ? options.onParsed(parsed) : parsed as T
+            if (chunk === null) return null
+            return { chunk }
+        } catch (e) {
+            if (e instanceof Error && options?.onParsed && !(e instanceof SyntaxError)) {
+                throw e
+            }
+            console.warn(`Failed to parse ${providerName} chunk:`, data)
+            return null
+        }
+    }
+
     try {
         while (true) {
             const { done, value } = await reader.read()
-            if (done) break
+            if (done) {
+                buffer += decoder.decode()
+                break
+            }
 
             buffer += decoder.decode(value, { stream: true })
             const lines = buffer.split('\n')
             buffer = lines.pop() || '' // Keep incomplete line in buffer
 
             for (const line of lines) {
-                if (line.trim() === '') continue
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6)
-                    if (data === '[DONE]') {
-                        return
-                    }
-                    try {
-                        const parsed = JSON.parse(data)
-                        const chunk = options?.onParsed ? options.onParsed(parsed) : parsed as T
-                        if (chunk === null) continue
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                    } catch (e) {
-                        // If onParsed intentionally threw, propagate it
-                        if (e instanceof Error && options?.onParsed && !(e instanceof SyntaxError)) {
-                            throw e
-                        }
-                        // Skip invalid JSON
-                        console.warn(`Failed to parse ${providerName} chunk:`, data)
-                    }
+                const result = parseLine(line)
+                if (!result) continue
+                if (result.done) {
+                    return
                 }
+                if (result.chunk !== undefined) {
+                    if (options?.onChunk) {
+                        options.onChunk(result.chunk)
+                    }
+                    yield result.chunk
+                }
+            }
+        }
+
+        const finalLine = buffer.trim()
+        if (finalLine) {
+            const result = parseLine(finalLine)
+            if (result?.chunk !== undefined) {
+                if (options?.onChunk) {
+                    options.onChunk(result.chunk)
+                }
+                yield result.chunk
             }
         }
     } finally {
@@ -86,30 +111,51 @@ export async function* parseNDJSONStream<T>(
     let buffer = ''
     const isDone = options?.isDone ?? ((chunk: any) => chunk.done)
 
+    const parseLine = (line: string): T | null => {
+        if (line.trim() === '') return null
+
+        try {
+            return JSON.parse(line) as T
+        } catch (e) {
+            console.warn('Failed to parse NDJSON chunk:', line)
+            return null
+        }
+    }
+
     try {
         while (true) {
             const { done, value } = await reader.read()
-            if (done) break
+            if (done) {
+                buffer += decoder.decode()
+                break
+            }
 
             buffer += decoder.decode(value, { stream: true })
             const lines = buffer.split('\n')
             buffer = lines.pop() || '' // Keep incomplete line in buffer
 
             for (const line of lines) {
-                if (line.trim() === '') continue
-                try {
-                    const chunk: T = JSON.parse(line)
-                    if (options?.onChunk) {
-                        options.onChunk(chunk)
-                    }
-                    yield chunk
-                    if (isDone(chunk)) {
-                        return
-                    }
-                } catch (e) {
-                    // Skip invalid JSON
-                    console.warn('Failed to parse NDJSON chunk:', line)
+                const chunk = parseLine(line)
+                if (chunk === null) continue
+
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
                 }
+                yield chunk
+                if (isDone(chunk)) {
+                    return
+                }
+            }
+        }
+
+        const finalLine = buffer.trim()
+        if (finalLine) {
+            const chunk = parseLine(finalLine)
+            if (chunk !== null) {
+                if (options?.onChunk) {
+                    options.onChunk(chunk)
+                }
+                yield chunk
             }
         }
     } finally {
