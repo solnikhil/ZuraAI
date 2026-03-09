@@ -324,7 +324,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
         )}
       >
         <div className="space-y-3">
-          {/* Header */}
           <div className="flex items-center justify-between animate-token-context-item animate-token-context-item-delay-1">
             <h4 className="text-sm font-semibold text-white">Context Details</h4>
             <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/80">
@@ -332,7 +331,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
             </span>
           </div>
 
-          {/* Breakdown */}
           <div className="space-y-2 animate-token-context-item animate-token-context-item-delay-2">
             <BreakdownRow
               label="System Prompt"
@@ -370,7 +368,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
                 />
               </div>
 
-              {/* Summary */}
               <div className="space-y-1.5 border-t border-white/10 pt-3 animate-token-context-item animate-token-context-item-delay-4">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-1.5">

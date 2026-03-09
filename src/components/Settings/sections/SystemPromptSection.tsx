@@ -193,10 +193,10 @@ export function SystemPromptSection({
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Web Search Prompt</h3>
             <div className="settings-list-row__description">
-              Instructions appended when Tavily Web Search Skill is enabled. Use this to guide search depth and synthesis behavior.
+              Instructions appended when Tavily is enabled. Use this to guide search depth and synthesis behavior.
             </div>
             <div className="settings-prompt-note">
-              This only applies to sessions where the Tavily Web Search Skill is active.
+              This only applies to sessions where Tavily is active.
             </div>
           </div>
           <div className="settings-prompt-metrics" aria-live="polite">

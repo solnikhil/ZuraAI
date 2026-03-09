@@ -40,7 +40,7 @@ URL-aware behavior:
 - If the query contains specific URL(s), this tool automatically routes to focused URL extraction (Tavily Extract).
 - URL only (e.g. "https://example.com/page"): extract that page directly.
 - Query + URL (e.g. "summarize pricing https://example.com/pricing"): extract and rerank content for the query.
-- Natural-language query without URL: run Tavily web search.
+- Natural-language query without URL: search with Tavily.
 
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.

@@ -68,11 +68,12 @@ export default function ModelSelector({
           whileTap={minimal ? { scale: 0.995 } : { scale: 0.99 }}
             transition={{ duration: 0.12, ease: 'easeOut' }}
             className={cn(
-              "flex items-center gap-2 rounded-xl px-3 py-1.5 transition-colors cursor-pointer",
+              "flex items-center gap-2 rounded-xl px-3 py-1.5 cursor-pointer",
               minimal
-                ? "border border-transparent bg-transparent hover:bg-white/5 text-black/75 dark:text-white/75 hover:text-black dark:hover:text-white"
+                ? "rounded-[10px] border border-transparent bg-transparent text-white/70 transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:border-white/[0.06] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                 : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
-              minimal && "rounded-md px-2.5 py-1 gap-1.5",
+              minimal && state.isOpen && "bg-[#1d1d1d] border-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+              minimal && "rounded-[10px] px-2.5 py-1 gap-1.5",
               minimal && compactMode !== 'none' && 'px-2 py-1'
             )}
           >

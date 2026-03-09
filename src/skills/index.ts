@@ -28,7 +28,7 @@ export interface BuiltInSkill {
 export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'web_research',
-    name: 'Tavily Web Search Skill',
+    name: 'Tavily',
     description: 'Allows the agent to browse the web and cite sources.',
     note: 'Enables web browsing + citations.',
     usageGuidance: [
@@ -200,10 +200,10 @@ export function buildEnabledSkillsPrompt(skills: SkillsSettings | undefined): st
 
   if (webResearch.enabled) {
     if (webResearch.config.mode === 'structured') {
-      lines.push('- Tavily Web Search Skill (`web_research`): call `research_plan` first, then synthesize results with citations.')
+      lines.push('- Tavily (`web_research`): call `research_plan` first, then synthesize results with citations.')
       lines.push('- Keep plan steps focused (2-6), and use each step for a distinct angle.')
     } else {
-      lines.push('- Tavily Web Search Skill (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
+      lines.push('- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
       lines.push('- Use concise, targeted queries and cite relevant sources in the final response.')
     }
   }

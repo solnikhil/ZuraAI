@@ -71,6 +71,6 @@ describe('skills tool exposure', () => {
   it('builds concise enabled skills prompt', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).toContain('Enabled Skills:')
-    expect(prompt).toContain('Tavily Web Search Skill (`web_research`)')
+    expect(prompt).toContain('Tavily (`web_research`)')
   })
 })

@@ -58,8 +58,7 @@ const MESSAGE_ACTION_ICON_SIZE = 14
 const RESPONSE_INFO_WIDTH = 260
 const RESPONSE_INFO_PADDING = 12
 const RESPONSE_INFO_HIDE_DELAY_MS = 120
-const RESPONSE_INFO_CURSOR_OFFSET_X = 14
-const RESPONSE_INFO_CURSOR_OFFSET_Y = 10
+const RESPONSE_INFO_OFFSET_X = 14
 const RESPONSE_INFO_ESTIMATED_HEIGHT = 400
 
 /**
@@ -722,8 +721,8 @@ function MessageRendererComponent({
   const [regenerateInstruction, setRegenerateInstruction] = useState('')
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const infoTriggerRef = useRef<HTMLDivElement>(null)
+  const infoPopoverRef = useRef<HTMLDivElement>(null)
   const hidePopoverTimeoutRef = useRef<number | null>(null)
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
   const messageRef = useRef<HTMLDivElement>(null)
   const regenerateInputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -764,6 +763,9 @@ function MessageRendererComponent({
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
   const currentVersionIndex = message.currentVersionIndex || 0
+  const messageActionButtonClassName = showActionButtons === true
+    ? 'message-action-surface action-btn-animate'
+    : 'message-action-surface'
 
   // Reset display version when message changes
   useEffect(() => {
@@ -912,37 +914,40 @@ function MessageRendererComponent({
     })
   }
 
-  // Update popover position
-  const updatePopoverPosition = (cursorPosition?: { x: number; y: number }) => {
-    if (cursorPosition) {
-      lastPointerRef.current = cursorPosition
-    }
-
+  // Update popover position relative to the info trigger.
+  const updatePopoverPosition = () => {
     const rect = infoTriggerRef.current?.getBoundingClientRect()
-    const pointer = cursorPosition || lastPointerRef.current
-
-    if (!rect && !pointer) {
+    if (!rect) {
       return
     }
 
+    const popoverRect = infoPopoverRef.current?.getBoundingClientRect()
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
     const padding = RESPONSE_INFO_PADDING
+    const popoverWidth = popoverRect?.width || RESPONSE_INFO_WIDTH
+    const popoverHeight = popoverRect?.height || RESPONSE_INFO_ESTIMATED_HEIGHT
 
-    const anchorX = pointer?.x ?? ((rect?.left || 0) + ((rect?.width || 0) / 2))
-    const anchorY = pointer?.y ?? (rect?.top || 0)
+    const spaceOnRight = viewportWidth - rect.right - padding
+    const spaceOnLeft = rect.left - padding
+    const prefersRight = spaceOnRight >= popoverWidth || spaceOnRight >= spaceOnLeft
 
-    // Prefer the elbow side of the cursor (left side), fallback to right if needed.
-    let left = anchorX - RESPONSE_INFO_WIDTH - RESPONSE_INFO_CURSOR_OFFSET_X
+    let left = prefersRight
+      ? rect.right + RESPONSE_INFO_OFFSET_X
+      : rect.left - popoverWidth - RESPONSE_INFO_OFFSET_X
+
+    const maxLeft = viewportWidth - popoverWidth - padding
+    if (left > maxLeft) {
+      left = rect.left - popoverWidth - RESPONSE_INFO_OFFSET_X
+    }
     if (left < padding) {
-      left = anchorX + RESPONSE_INFO_CURSOR_OFFSET_X
+      left = rect.right + RESPONSE_INFO_OFFSET_X
     }
 
-    const maxLeft = viewportWidth - RESPONSE_INFO_WIDTH - padding
     left = Math.min(Math.max(left, padding), Math.max(padding, maxLeft))
 
-    let top = anchorY - RESPONSE_INFO_CURSOR_OFFSET_Y
-    const maxTop = viewportHeight - RESPONSE_INFO_ESTIMATED_HEIGHT - padding
+    let top = rect.top + (rect.height / 2) - (popoverHeight / 2)
+    const maxTop = viewportHeight - popoverHeight - padding
     top = Math.min(Math.max(top, padding), Math.max(padding, maxTop))
 
     setPopoverPosition({ top, left })
@@ -964,14 +969,10 @@ function MessageRendererComponent({
     }, RESPONSE_INFO_HIDE_DELAY_MS)
   }
 
-  const handleInfoMouseEnter = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleInfoMouseEnter = () => {
     clearHidePopoverTimeout()
     setIsHoveringInfo(true)
-    updatePopoverPosition({ x: event.clientX, y: event.clientY })
-  }
-
-  const handleInfoMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    updatePopoverPosition({ x: event.clientX, y: event.clientY })
+    updatePopoverPosition()
   }
 
   const handleInfoMouseLeave = () => {
@@ -991,10 +992,14 @@ function MessageRendererComponent({
   // Update position on scroll/resize when hovering
   useEffect(() => {
     if (isHoveringInfo) {
+      const animationFrame = window.requestAnimationFrame(() => {
+        updatePopoverPosition()
+      })
       const handleUpdate = () => updatePopoverPosition()
       window.addEventListener('scroll', handleUpdate, true)
       window.addEventListener('resize', handleUpdate)
       return () => {
+        window.cancelAnimationFrame(animationFrame)
         window.removeEventListener('scroll', handleUpdate, true)
         window.removeEventListener('resize', handleUpdate)
       }
@@ -1123,18 +1128,14 @@ function MessageRendererComponent({
         {!isStreaming && (
           <button
             onClick={handleCopy}
-            className={showActionButtons === true ? 'action-btn-animate' : undefined}
+            className={messageActionButtonClassName}
             style={{
-              background: 'transparent',
-              border: 'none',
               color: copied ? 'var(--theme-success)' : 'var(--theme-text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px',
-              borderRadius: '6px',
-              transition: 'color 0.2s, background 0.2s',
               fontSize: '0.85rem',
               fontFamily: 'inherit',
               animationDelay: '0ms'
@@ -1148,18 +1149,14 @@ function MessageRendererComponent({
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
           <button
             onClick={openRegenerateModal}
-            className={showActionButtons === true ? 'action-btn-animate' : undefined}
+            className={messageActionButtonClassName}
             style={{
-              background: 'transparent',
-              border: 'none',
               color: 'var(--theme-text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '6px',
-              borderRadius: '6px',
-              transition: 'color 0.2s, background 0.2s',
               animationDelay: '60ms'
             }}
             title="Regenerate with custom instructions"
@@ -1172,13 +1169,14 @@ function MessageRendererComponent({
         {shouldShowInfoTooltip && (
           <div
             ref={infoTriggerRef}
-            className={showActionButtons === true ? 'action-btn-animate' : undefined}
+            className={messageActionButtonClassName}
             style={{
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '6px',
+              cursor: 'pointer',
               flexShrink: 0,
               overflow: 'visible',
               minWidth: '22px',
@@ -1186,7 +1184,6 @@ function MessageRendererComponent({
               animationDelay: '120ms'
             }}
             onMouseEnter={handleInfoMouseEnter}
-            onMouseMove={handleInfoMouseMove}
             onMouseLeave={handleInfoMouseLeave}
           >
             <div style={{ position: 'relative', display: 'flex' }}>
@@ -1208,6 +1205,7 @@ function MessageRendererComponent({
         {/* Info Popover */}
         {popoverPosition && typeof document !== 'undefined' && createPortal(
           <div
+            ref={infoPopoverRef}
             onMouseEnter={handlePopoverMouseEnter}
             onMouseLeave={handlePopoverMouseLeave}
             style={{

@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Paperclip, Image, X, SendHorizonal, Square, Plus, Camera, Sparkles, Check } from 'lucide-react'
+import { Paperclip, Image, X, SendHorizonal, Square, Plus, Check, Wrench, Radar } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -30,6 +30,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { withWebResearchEnabled } from '../../../skills'
 
@@ -127,35 +130,6 @@ export function InputArea({
       imageOnlyInputRef.current.value = ''
     }
   }
-
-  const handlePasteScreenshotFromClipboard = React.useCallback(async () => {
-    if (!navigator.clipboard?.read) {
-      imageOnlyInputRef.current?.click()
-      return
-    }
-
-    try {
-      const clipboardItems = await navigator.clipboard.read()
-      const imageItem = clipboardItems.find(item => item.types.some(type => type.startsWith('image/')))
-
-      if (!imageItem) {
-        onError?.('No screenshot found in clipboard. Copy one first, then try again.')
-        return
-      }
-
-      const mimeType = imageItem.types.find(type => type.startsWith('image/')) || 'image/png'
-      const blob = await imageItem.getType(mimeType)
-      const extension = mimeType.split('/')[1] || 'png'
-      const screenshotFile = new File([blob], `screenshot-${Date.now()}.${extension}`, { type: mimeType })
-
-      const newFiles = await processFiles([screenshotFile], { onError })
-      if (newFiles.length > 0) {
-        onFilesChange([...attachedFiles, ...newFiles])
-      }
-    } catch {
-      imageOnlyInputRef.current?.click()
-    }
-  }, [attachedFiles, onError, onFilesChange])
 
   const toggleWebResearchSkill = React.useCallback(() => {
     const nextEnabled = !webResearchEnabled
@@ -315,7 +289,9 @@ export function InputArea({
             aria-label="Chat input container"
             initial={false}
             animate={{
-              boxShadow: frostedPrompt
+              boxShadow: quickActionsOpen
+                ? "none"
+                : frostedPrompt
                 ? (isFocused
                   ? "0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)"
                   : "0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)")
@@ -326,7 +302,7 @@ export function InputArea({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5",
-              frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
+              quickActionsOpen ? "bg-[#292929]" : frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
               showAttachmentBanner ? "pt-3" : "pt-2",
               isDragging && "ring-2 ring-[var(--theme-accent)]"
             )}
@@ -389,10 +365,12 @@ export function InputArea({
                   <DropdownMenuTrigger asChild>
                     <motion.button
                       type="button"
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
                       onClick={(e) => e.stopPropagation()}
-                      className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-[#2b2b2b] transition-colors"
+                      className={cn(
+                        "h-8 w-8 inline-flex items-center justify-center rounded-[10px] border border-transparent text-white/70 transition-[color,background-color,border-color,box-shadow] duration-150",
+                        "hover:text-white hover:bg-[#1d1d1d] hover:border-white/[0.06] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+                        quickActionsOpen && "bg-[#1d1d1d] border-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      )}
                       aria-label="Open quick actions"
                     >
                       <Plus size={20} />
@@ -400,9 +378,17 @@ export function InputArea({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="start"
+                    alignOffset={0}
                     side="top"
-                    sideOffset={10}
-                    className="w-[248px] rounded-2xl border border-white/10 bg-[#1d1d1de8] p-1.5 text-white shadow-[0_14px_38px_rgba(0,0,0,0.52)] backdrop-blur-xl"
+                    sideOffset={2}
+                    style={{
+                      boxShadow: 'none',
+                      backdropFilter: 'none',
+                      WebkitBackdropFilter: 'none',
+                    }}
+                    className={cn(
+                      "w-[248px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none data-[state=open]:animate-none data-[state=closed]:animate-none"
+                    )}
                   >
                     <DropdownMenuItem
                       onSelect={(event) => {
@@ -410,41 +396,43 @@ export function InputArea({
                         fileInputRef.current?.click()
                         setQuickActionsOpen(false)
                       }}
-                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
+                      className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                     >
                       <Paperclip className="h-4 w-4 text-white/75" />
                       <span>Add files or photos</span>
-                      <span className="ml-auto text-[11px] text-white/40">Ctrl+U</span>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onSelect={(event) => {
-                        event.preventDefault()
-                        void handlePasteScreenshotFromClipboard()
-                        setQuickActionsOpen(false)
-                      }}
-                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
-                    >
-                      <Camera className="h-4 w-4 text-white/75" />
-                      <span>Take screenshot</span>
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator className="my-1 bg-white/10" />
-
-                    <DropdownMenuItem
-                      onSelect={(event) => {
-                        event.preventDefault()
-                        toggleWebResearchSkill()
-                      }}
-                      className="h-9 rounded-xl px-2.5 text-[13px] text-white/90 focus:bg-white/10 focus:text-white"
-                    >
-                      <Sparkles className="h-4 w-4 text-white/75" />
-                      <span>{webResearchEnabled ? 'Disable web research' : 'Enable web research'}</span>
-                      <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-white/45">
-                        {webResearchEnabled && <Check className="h-3.5 w-3.5 text-emerald-300" />}
-                        Ctrl+Shift+K
+                      <span className="ml-auto text-[11px] text-white/40 opacity-0 transition-opacity duration-150 group-hover/menu-item:opacity-100">
+                        Ctrl+U
                       </span>
                     </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="mx-3 my-1 h-px bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.04)_15%,rgba(255,255,255,0.08)_50%,rgba(255,255,255,0.04)_85%,transparent_100%)]" />
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] data-[state=open]:border-transparent data-[state=open]:bg-[#1d1d1d] data-[state=open]:text-white data-[state=open]:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                        <Wrench className="h-4 w-4 text-white/75" />
+                        <span>Skills</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={-10}
+                        className="w-[220px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none"
+                      >
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            toggleWebResearchSkill()
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        >
+                          <Radar className="h-4 w-4 text-white/75" />
+                          <span>Tavily</span>
+                          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-white/45 opacity-0 transition-opacity duration-150 group-hover/menu-item:opacity-100">
+                            {webResearchEnabled && <Check className="h-3.5 w-3.5 text-emerald-300" />}
+                            Ctrl+Shift+K
+                          </span>
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
