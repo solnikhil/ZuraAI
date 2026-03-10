@@ -1,8 +1,6 @@
 /**
  * ModelSelector barrel export
- * 
- * @module ModelSelector
- * Requirements: 6.1
+ *
  */
 
 // Main component

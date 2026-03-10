@@ -1,8 +1,7 @@
 /**
  * FileUploadHandler - Component for handling file attachments in chat
  * Handles file selection, validation, preview, and removal
- * 
- * Requirements: 1.2
+ *
  */
 
 import React, { useRef } from 'react'
@@ -46,7 +45,9 @@ export async function processFiles(
 
     // Check file size
     if (file.size > maxSize) {
-      options?.onError?.(`File "${file.name}" is too large. Maximum size is ${Math.round(maxSize / 1024 / 1024)}MB.`)
+      options?.onError?.(
+        `File "${file.name}" is too large. Maximum size is ${Math.round(maxSize / 1024 / 1024)}MB.`
+      )
       continue
     }
 
@@ -67,7 +68,7 @@ export async function processFiles(
         type: file.type.startsWith('image/') ? 'image' : 'file',
         size: file.size,
         data: base64Data,
-        mimeType: file.type
+        mimeType: file.type,
       })
     } catch (error) {
       console.error('Error reading file:', error)
@@ -81,11 +82,11 @@ export async function processFiles(
 /**
  * Image Preview Modal
  */
-function ImagePreviewModal({ 
-  imageFiles, 
-  onClose, 
-  onRemove 
-}: { 
+function ImagePreviewModal({
+  imageFiles,
+  onClose,
+  onRemove,
+}: {
   imageFiles: AttachedFile[]
   onClose: () => void
   onRemove: (fileId: string) => void
@@ -103,7 +104,7 @@ function ImagePreviewModal({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10000,
-        padding: '20px'
+        padding: '20px',
       }}
       onClick={onClose}
     >
@@ -116,10 +117,10 @@ function ImagePreviewModal({
           maxHeight: '90%',
           boxShadow: 'var(--theme-shadow-lg)',
           position: 'relative',
-          color: 'var(--theme-text-secondary)'
+          color: 'var(--theme-text-secondary)',
         }}
         viewportStyle={{ padding: '24px' }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
@@ -136,7 +137,7 @@ function ImagePreviewModal({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
           }}
         >
           <X size={20} />
@@ -146,12 +147,14 @@ function ImagePreviewModal({
           Attached Images ({imageFiles.length})
         </h3>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '16px',
-          marginTop: '16px'
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: '16px',
+            marginTop: '16px',
+          }}
+        >
           {imageFiles.map((file) => (
             <div
               key={file.id}
@@ -160,7 +163,7 @@ function ImagePreviewModal({
                 borderRadius: '8px',
                 overflow: 'hidden',
                 background: 'var(--theme-surface)',
-                border: '1px solid var(--theme-border)'
+                border: '1px solid var(--theme-border)',
               }}
             >
               <img
@@ -171,27 +174,33 @@ function ImagePreviewModal({
                   height: '200px',
                   objectFit: 'contain',
                   background: 'var(--theme-background)',
-                  display: 'block'
+                  display: 'block',
                 }}
               />
-              <div style={{
-                padding: '8px',
-                borderTop: '1px solid var(--theme-border)'
-              }}>
-                <div style={{
-                  fontSize: '0.85rem',
-                  color: 'var(--theme-text-secondary)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  marginBottom: '4px'
-                }}>
+              <div
+                style={{
+                  padding: '8px',
+                  borderTop: '1px solid var(--theme-border)',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--theme-text-secondary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    marginBottom: '4px',
+                  }}
+                >
                   {file.name}
                 </div>
-                <div style={{
-                  fontSize: '0.75rem',
-                  color: '#b0b0b0'
-                }}>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    color: '#b0b0b0',
+                  }}
+                >
                   {(file.size / 1024).toFixed(1)} KB
                 </div>
               </div>
@@ -215,7 +224,7 @@ function ImagePreviewModal({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
                 }}
               >
                 <X size={14} />
@@ -237,19 +246,19 @@ export function FileUploadHandler({
   maxFiles = 10,
   maxSizeBytes = 20 * 1024 * 1024,
   acceptedTypes = ['image/*', '.txt', '.doc', '.docx', '.csv', '.json', '.xml'],
-  onError
+  onError,
 }: FileUploadHandlerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showImageModal, setShowImageModal] = React.useState(false)
 
-  const imageFiles = attachedFiles.filter(f => f.type === 'image')
+  const imageFiles = attachedFiles.filter((f) => f.type === 'image')
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) return
 
     const newFiles = await processFiles(files, { maxSizeBytes, onError })
-    
+
     if (newFiles.length > 0) {
       const totalFiles = attachedFiles.length + newFiles.length
       if (totalFiles > maxFiles) {
@@ -304,7 +313,7 @@ export function FileUploadHandler({
   }
 
   const removeFile = (fileId: string) => {
-    onFilesChange(attachedFiles.filter(f => f.id !== fileId))
+    onFilesChange(attachedFiles.filter((f) => f.id !== fileId))
   }
 
   const triggerFileSelect = () => {
@@ -319,7 +328,7 @@ export function FileUploadHandler({
     handleDrop,
     removeFile,
     triggerFileSelect,
-    
+
     // Render file input element
     FileInput: () => (
       <input
@@ -333,51 +342,59 @@ export function FileUploadHandler({
     ),
 
     // Render image preview button (if images attached)
-    ImagePreviewButton: imageFiles.length > 0 ? () => (
-      <button
-        onClick={() => setShowImageModal(true)}
-        title={`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} attached`}
-        style={{
-          background: 'var(--theme-info-bg)',
-          border: 'none',
-          borderRadius: '8px',
-          padding: '6px 8px',
-          color: 'var(--theme-info)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '4px',
-          transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
-          height: '100%',
-          position: 'relative'
-        }}
-      >
-        <Image size={16} />
-        {imageFiles.length > 1 && (
-          <span style={{
-            fontSize: '0.7rem',
-            fontWeight: 600,
-            background: 'rgba(59, 130, 246, 0.3)',
-            borderRadius: '10px',
-            padding: '1px 4px',
-            minWidth: '16px',
-            textAlign: 'center'
-          }}>
-            {imageFiles.length}
-          </span>
-        )}
-      </button>
-    ) : null,
+    ImagePreviewButton:
+      imageFiles.length > 0
+        ? () => (
+            <button
+              onClick={() => setShowImageModal(true)}
+              title={`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} attached`}
+              style={{
+                background: 'var(--theme-info-bg)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '6px 8px',
+                color: 'var(--theme-info)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                transition: 'all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                height: '100%',
+                position: 'relative',
+              }}
+            >
+              <Image size={16} />
+              {imageFiles.length > 1 && (
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    background: 'rgba(59, 130, 246, 0.3)',
+                    borderRadius: '10px',
+                    padding: '1px 4px',
+                    minWidth: '16px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {imageFiles.length}
+                </span>
+              )}
+            </button>
+          )
+        : null,
 
     // Render image modal
-    ImageModal: showImageModal && imageFiles.length > 0 ? () => (
-      <ImagePreviewModal
-        imageFiles={imageFiles}
-        onClose={() => setShowImageModal(false)}
-        onRemove={removeFile}
-      />
-    ) : null
+    ImageModal:
+      showImageModal && imageFiles.length > 0
+        ? () => (
+            <ImagePreviewModal
+              imageFiles={imageFiles}
+              onClose={() => setShowImageModal(false)}
+              onRemove={removeFile}
+            />
+          )
+        : null,
   }
 }
 

@@ -2,7 +2,6 @@
  * OpenRouter Models API Service
  * Fetches models from OpenRouter API and maps them to ConfiguredModel format
  *
- * @module services/openrouterModels
  */
 
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
@@ -51,9 +50,7 @@ export interface OpenRouterModelsResponse {
  * @param apiKey - Optional API key (required for some models, optional for public catalog)
  * @returns Promise resolving to array of OpenRouter models
  */
-export async function fetchOpenRouterModels(
-  apiKey?: string
-): Promise<OpenRouterModel[]> {
+export async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouterModel[]> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   }
@@ -68,9 +65,7 @@ export async function fetchOpenRouterModels(
   })
 
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch OpenRouter models: ${response.status} ${response.statusText}`
-    )
+    throw new Error(`Failed to fetch OpenRouter models: ${response.status} ${response.statusText}`)
   }
 
   const data: OpenRouterModelsResponse = await response.json()
@@ -83,9 +78,7 @@ export async function fetchOpenRouterModels(
  * @param apiModel - OpenRouter API model response
  * @returns ConfiguredModel with mapped capabilities
  */
-export function mapOpenRouterModelToConfiguredModel(
-  apiModel: OpenRouterModel
-): ConfiguredModel {
+export function mapOpenRouterModelToConfiguredModel(apiModel: OpenRouterModel): ConfiguredModel {
   const supportedParams = apiModel.supported_parameters || []
   const inputModalities = apiModel.architecture?.input_modalities || []
   const outputModalities = apiModel.architecture?.output_modalities || []
@@ -94,10 +87,8 @@ export function mapOpenRouterModelToConfiguredModel(
   const supportsToolCall = supportedParams.includes('tools')
   const supportsVision = inputModalities.includes('image')
   const supportsDeepThinking =
-    supportedParams.includes('reasoning') ||
-    supportedParams.includes('include_reasoning')
-  const supportsWebSearch =
-    pricing.web_search != null && pricing.web_search !== '0'
+    supportedParams.includes('reasoning') || supportedParams.includes('include_reasoning')
+  const supportsWebSearch = pricing.web_search != null && pricing.web_search !== '0'
   const supportsImageGeneration = outputModalities.includes('image')
   const supportsVideoRecognition = inputModalities.includes('video')
 
@@ -114,8 +105,7 @@ export function mapOpenRouterModelToConfiguredModel(
     code: apiModel.id,
     displayName: apiModel.name,
     description: apiModel.description,
-    maxContext:
-      apiModel.context_length || apiModel.top_provider?.context_length,
+    maxContext: apiModel.context_length || apiModel.top_provider?.context_length,
     modelType,
     supportsToolCall,
     supportsVision,
@@ -128,13 +118,9 @@ export function mapOpenRouterModelToConfiguredModel(
         param !== 'tools' &&
         param !== 'reasoning' &&
         param !== 'include_reasoning' &&
-        [
-          'temperature',
-          'top_p',
-          'max_tokens',
-          'frequency_penalty',
-          'presence_penalty',
-        ].includes(param)
+        ['temperature', 'top_p', 'max_tokens', 'frequency_penalty', 'presence_penalty'].includes(
+          param
+        )
     ),
   }
 }

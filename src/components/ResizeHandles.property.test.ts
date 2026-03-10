@@ -1,32 +1,24 @@
 /**
  * Property-Based Tests for Resize Direction Mapping
  *
- * Feature: frosted-sidebar-window-controls-fix
- * Task: 4.6 Write property test for resize direction mapping (Property 3)
  *
- * Property 3: Resize direction maps to correct bounds change
  *
  * *For any* resize direction (top, bottom, left, right, top-left, top-right,
  * bottom-left, bottom-right) and any mouse drag delta, the resulting window
  * bounds change should only affect the axes corresponding to that direction.
  *
- * **Validates: Requirements 2.2, 2.3**
  */
 
 import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { computeNewBounds, type ResizeDirection } from './ResizeHandles'
 
-// ============================================================================
 // Constants (must match ResizeHandles.tsx)
-// ============================================================================
 
 const MIN_WIDTH = 900
 const MIN_HEIGHT = 600
 
-// ============================================================================
 // Arbitraries
-// ============================================================================
 
 /** Arbitrary for resize directions */
 const directionArb: fc.Arbitrary<ResizeDirection> = fc.constantFrom(
@@ -54,16 +46,10 @@ const startBoundsArb = fc.record({
 /** Arbitrary for mouse deltas (reasonable pixel range) */
 const deltaArb = fc.integer({ min: -500, max: 500 })
 
-// ============================================================================
 // Helpers — which axes a direction affects
-// ============================================================================
 
 /** Directions that include a horizontal (left/right) component */
-const AFFECTS_X: Set<ResizeDirection> = new Set([
-  'left',
-  'top-left',
-  'bottom-left',
-])
+const AFFECTS_X: Set<ResizeDirection> = new Set(['left', 'top-left', 'bottom-left'])
 
 const AFFECTS_WIDTH: Set<ResizeDirection> = new Set([
   'left',
@@ -74,11 +60,7 @@ const AFFECTS_WIDTH: Set<ResizeDirection> = new Set([
   'bottom-right',
 ])
 
-const AFFECTS_Y: Set<ResizeDirection> = new Set([
-  'top',
-  'top-left',
-  'top-right',
-])
+const AFFECTS_Y: Set<ResizeDirection> = new Set(['top', 'top-left', 'top-right'])
 
 const AFFECTS_HEIGHT: Set<ResizeDirection> = new Set([
   'top',
@@ -89,14 +71,8 @@ const AFFECTS_HEIGHT: Set<ResizeDirection> = new Set([
   'bottom-right',
 ])
 
-// ============================================================================
-// Property 3 Tests
-// ============================================================================
-
 describe('Property 3: Resize direction maps to correct bounds change', () => {
-  // --------------------------------------------------------------------------
   // Per-direction axis isolation tests
-  // --------------------------------------------------------------------------
 
   it("'top' direction: y and height change, x and width unchanged", () => {
     fc.assert(
@@ -189,9 +165,7 @@ describe('Property 3: Resize direction maps to correct bounds change', () => {
     )
   })
 
-  // --------------------------------------------------------------------------
   // General axis-isolation property (all directions)
-  // --------------------------------------------------------------------------
 
   it('for any direction, axes NOT associated with that direction remain unchanged', () => {
     fc.assert(
@@ -221,9 +195,7 @@ describe('Property 3: Resize direction maps to correct bounds change', () => {
     )
   })
 
-  // --------------------------------------------------------------------------
   // Minimum dimension enforcement
-  // --------------------------------------------------------------------------
 
   it('width never goes below MIN_WIDTH (900) for any direction and delta', () => {
     fc.assert(
@@ -257,9 +229,7 @@ describe('Property 3: Resize direction maps to correct bounds change', () => {
     )
   })
 
-  // --------------------------------------------------------------------------
   // Zero-delta identity property
-  // --------------------------------------------------------------------------
 
   it('zero delta produces unchanged bounds for any direction', () => {
     fc.assert(

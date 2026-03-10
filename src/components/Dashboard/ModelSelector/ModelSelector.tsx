@@ -1,10 +1,3 @@
-/**
- * ModelSelector component - wrapper/orchestrator for model selection
- * 
- * @module ModelSelector/ModelSelector
- * Requirements: 3.5
- */
-
 import React from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
@@ -15,6 +8,13 @@ import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  maybeAnimate,
+  motionDuration,
+  motionDurations,
+  motionEasing,
+  useMotionPreferences,
+} from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import './ModelSelector.css'
 
@@ -23,9 +23,6 @@ export interface ModelSelectorProps {
   popoverAlign?: 'start' | 'center' | 'end'
 }
 
-/**
- * ModelSelector component - orchestrates model selection UI
- */
 export default function ModelSelector({
   minimal,
   popoverAlign = 'start',
@@ -50,12 +47,9 @@ export default function ModelSelector({
     dropdownWidth: 'default',
   }
 
-  const {
-    compactMode,
-    effectiveDropdownWidth,
-    effectiveDropdownHeight,
-    triggerLabelMaxWidth,
-  } = useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal)
+  const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } =
+    useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal)
+  const { animationsEnabled } = useMotionPreferences()
 
   return (
     <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
@@ -64,32 +58,34 @@ export default function ModelSelector({
           aria-haspopup="dialog"
           aria-expanded={state.isOpen}
           title={`${currentName} — ${settings.modelProvider || 'auto'}`}
-          whileHover={minimal ? undefined : { scale: 1.01 }}
-          whileTap={minimal ? { scale: 0.995 } : { scale: 0.99 }}
-            transition={{ duration: 0.12, ease: 'easeOut' }}
-            className={cn(
-              "flex items-center gap-2 rounded-xl px-3 py-1.5 cursor-pointer",
-              minimal
-                ? "rounded-[10px] border border-transparent bg-transparent text-white/70 transition-[color,background-color,border-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:border-white/[0.06] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                : "bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
-              minimal && state.isOpen && "bg-[#1d1d1d] border-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
-              minimal && "rounded-[10px] px-2.5 py-1 gap-1.5",
-              minimal && compactMode !== 'none' && 'px-2 py-1'
-            )}
-          >
-          {!minimal && (currentModel ? (
-            <ModelIcon
-              model={currentModel}
-              icon={getModelAttributes(currentModel).icon}
-              color={getModelAttributes(currentModel).color}
-              size={16}
-            />
-          ) : <Cpu size={14} />)}
+          whileHover={!minimal ? maybeAnimate(animationsEnabled, { scale: 1.01 }) : undefined}
+          whileTap={maybeAnimate(animationsEnabled, minimal ? { scale: 0.995 } : { scale: 0.99 })}
+          transition={{
+            duration: motionDuration(animationsEnabled, motionDurations.micro),
+            ease: motionEasing.standard,
+          }}
+          className={cn(
+            'flex cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5',
+            minimal
+              ? 'theme-control-btn rounded-[10px] px-2.5 py-1 text-[var(--theme-text-secondary)]'
+              : 'border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] text-[var(--theme-text-secondary)] transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-[var(--theme-surface-hover)] hover:border-[var(--theme-border-hover)] hover:text-[var(--theme-text-primary)] hover:shadow-[var(--theme-shadow-sm)]',
+            minimal && state.isOpen && 'is-active',
+            minimal && compactMode !== 'none' && 'px-2 py-1'
+          )}
+        >
+          {!minimal &&
+            (currentModel ? (
+              <ModelIcon
+                model={currentModel}
+                icon={getModelAttributes(currentModel).icon}
+                color={getModelAttributes(currentModel).color}
+                size={16}
+              />
+            ) : (
+              <Cpu size={14} />
+            ))}
           <span
-            className={cn(
-              'truncate font-medium',
-              minimal ? 'text-[0.95rem]' : 'text-xs',
-            )}
+            className={cn('truncate font-medium', minimal ? 'text-[0.95rem]' : 'text-xs')}
             style={{
               maxWidth: triggerLabelMaxWidth,
               minWidth: minimal ? 0 : '80px',
@@ -100,18 +96,18 @@ export default function ModelSelector({
           {!(minimal && compactMode === 'tight') && (
             <motion.div
               animate={{ rotate: state.isOpen ? 180 : 0 }}
-              transition={{ duration: 0.14, ease: 'easeOut' }}
+              transition={{
+                duration: motionDuration(animationsEnabled, motionDurations.fast),
+                ease: motionEasing.standard,
+              }}
             >
-              <ChevronDown
-                size={12}
-                className="opacity-50"
-              />
+              <ChevronDown size={12} className="opacity-50" />
             </motion.div>
           )}
         </motion.button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 overflow-hidden"
+        className="theme-menu-surface overflow-hidden p-0"
         align={popoverAlign}
         style={{
           width: `${effectiveDropdownWidth}px`,

@@ -1,8 +1,6 @@
 /**
  * Unit Tests for ResizeHandles Component
  *
- * Feature: frosted-sidebar-window-controls-fix
- * Task: 4.7 Write unit tests for resize handle rendering
  *
  * Tests:
  * - 8 handles rendered when not disabled (frosted + windows + not maximized)
@@ -12,7 +10,6 @@
  * - Corner handles have correct classes
  * - Minimum dimensions: 4px edges, 8px corners (via CSS classes)
  *
- * Requirements: 2.1, 2.4, 2.5, 2.6
  */
 
 import { describe, it, expect } from 'vitest'
@@ -133,28 +130,44 @@ describe('ResizeHandles', () => {
       const { container } = render(<ResizeHandles disabled={false} />)
 
       const handle = container.querySelector('[data-direction="top-left"]')
-      expect(handle).toHaveClass('resize-handle', 'resize-handle--corner', 'resize-handle--top-left')
+      expect(handle).toHaveClass(
+        'resize-handle',
+        'resize-handle--corner',
+        'resize-handle--top-left'
+      )
     })
 
     it('top-right handle has resize-handle--corner and resize-handle--top-right classes', () => {
       const { container } = render(<ResizeHandles disabled={false} />)
 
       const handle = container.querySelector('[data-direction="top-right"]')
-      expect(handle).toHaveClass('resize-handle', 'resize-handle--corner', 'resize-handle--top-right')
+      expect(handle).toHaveClass(
+        'resize-handle',
+        'resize-handle--corner',
+        'resize-handle--top-right'
+      )
     })
 
     it('bottom-left handle has resize-handle--corner and resize-handle--bottom-left classes', () => {
       const { container } = render(<ResizeHandles disabled={false} />)
 
       const handle = container.querySelector('[data-direction="bottom-left"]')
-      expect(handle).toHaveClass('resize-handle', 'resize-handle--corner', 'resize-handle--bottom-left')
+      expect(handle).toHaveClass(
+        'resize-handle',
+        'resize-handle--corner',
+        'resize-handle--bottom-left'
+      )
     })
 
     it('bottom-right handle has resize-handle--corner and resize-handle--bottom-right classes', () => {
       const { container } = render(<ResizeHandles disabled={false} />)
 
       const handle = container.querySelector('[data-direction="bottom-right"]')
-      expect(handle).toHaveClass('resize-handle', 'resize-handle--corner', 'resize-handle--bottom-right')
+      expect(handle).toHaveClass(
+        'resize-handle',
+        'resize-handle--corner',
+        'resize-handle--bottom-right'
+      )
     })
 
     it('all corner handles have the resize-handle--corner class', () => {

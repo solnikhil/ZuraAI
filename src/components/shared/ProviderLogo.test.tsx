@@ -1,8 +1,7 @@
 /**
  * Unit tests for ProviderLogo component
  * Tests MiniMax provider logo rendering and fallback behavior
- * 
- * Requirements: 11.2
+ *
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -32,10 +31,10 @@ describe('ProviderLogo', () => {
     it('should render fallback icon when minimax image fails to load', () => {
       render(<ProviderLogo provider="minimax" />)
       const img = screen.getByAltText('minimax logo')
-      
+
       // Simulate image load error
       fireEvent.error(img)
-      
+
       // After error, the fallback icon should be rendered (Brain icon from lucide)
       // The img should no longer be in the document
       expect(screen.queryByAltText('minimax logo')).not.toBeInTheDocument()
@@ -78,10 +77,10 @@ describe('ProviderLogo', () => {
     it('should not render fallback when showFallback is false', () => {
       const { container } = render(<ProviderLogo provider="minimax" showFallback={false} />)
       const img = screen.getByAltText('minimax logo')
-      
+
       // Simulate image load error
       fireEvent.error(img)
-      
+
       // With showFallback=false, nothing should be rendered after error
       expect(container.firstChild).toBeNull()
     })

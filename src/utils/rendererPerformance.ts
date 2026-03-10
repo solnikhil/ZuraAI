@@ -1,12 +1,5 @@
 /**
- * Renderer Performance Tracking Module
- * 
- * This module tracks Time To Interactive (TTI) and First Contentful Paint (FCP) metrics
- * in the renderer process for local renderer-side decisions such as lazy loading.
- * 
- * **Validates: Requirement 6.3**
- * THE Renderer_Process SHALL track and report Time To Interactive (TTI) and 
- * First Contentful Paint (FCP) metrics
+ * Tracks renderer-side performance metrics used for diagnostics and lazy loading.
  */
 
 /**
@@ -14,33 +7,33 @@
  */
 export interface RendererPerformanceMetrics {
   /** First Contentful Paint - time until first content is painted (ms) */
-  fcp: number | null;
+  fcp: number | null
   /** Time To Interactive - time until the page is fully interactive (ms) */
-  tti: number | null;
+  tti: number | null
   /** Largest Contentful Paint - time until largest content element is painted (ms) */
-  lcp: number | null;
+  lcp: number | null
   /** First Input Delay - time from first user interaction to browser response (ms) */
-  fid: number | null;
+  fid: number | null
   /** Cumulative Layout Shift - measure of visual stability */
-  cls: number | null;
+  cls: number | null
   /** Navigation start timestamp */
-  navigationStart: number;
+  navigationStart: number
   /** DOM Content Loaded timestamp */
-  domContentLoaded: number | null;
+  domContentLoaded: number | null
   /** Load event timestamp */
-  loadComplete: number | null;
+  loadComplete: number | null
   /** When metrics were collected */
-  timestamp: number;
+  timestamp: number
 }
 
 /**
  * Performance observer callback type
  */
-type PerformanceCallback = (metrics: Partial<RendererPerformanceMetrics>) => void;
+type PerformanceCallback = (metrics: Partial<RendererPerformanceMetrics>) => void
 
 /**
  * RendererPerformanceTracker class for tracking web vitals and performance metrics
- * 
+ *
  * This class uses the Performance API and PerformanceObserver to track:
  * - First Contentful Paint (FCP)
  * - Time To Interactive (TTI) - approximated using Long Task API
@@ -49,15 +42,15 @@ type PerformanceCallback = (metrics: Partial<RendererPerformanceMetrics>) => voi
  * - Cumulative Layout Shift (CLS)
  */
 class RendererPerformanceTracker {
-  private metrics: RendererPerformanceMetrics;
-  private observers: PerformanceObserver[] = [];
-  private callbacks: PerformanceCallback[] = [];
-  private initialized = false;
-  private clsValue = 0;
-  private clsEntries: PerformanceEntry[] = [];
-  private lastLongTaskEnd = 0;
-  private ttiResolved = false;
-  private ttiTimeout: ReturnType<typeof setTimeout> | null = null;
+  private metrics: RendererPerformanceMetrics
+  private observers: PerformanceObserver[] = []
+  private callbacks: PerformanceCallback[] = []
+  private initialized = false
+  private clsValue = 0
+  private clsEntries: PerformanceEntry[] = []
+  private lastLongTaskEnd = 0
+  private ttiResolved = false
+  private ttiTimeout: ReturnType<typeof setTimeout> | null = null
 
   constructor() {
     this.metrics = {
@@ -70,7 +63,7 @@ class RendererPerformanceTracker {
       domContentLoaded: null,
       loadComplete: null,
       timestamp: Date.now(),
-    };
+    }
   }
 
   /**
@@ -79,30 +72,30 @@ class RendererPerformanceTracker {
    */
   initialize(): void {
     if (this.initialized) {
-      if (import.meta.env.DEV) console.log('[RendererPerformance] Already initialized');
-      return;
+      if (import.meta.env.DEV) console.log('[RendererPerformance] Already initialized')
+      return
     }
 
     if (typeof window === 'undefined' || typeof performance === 'undefined') {
-      console.warn('[RendererPerformance] Performance API not available');
-      return;
+      console.warn('[RendererPerformance] Performance API not available')
+      return
     }
 
-    this.initialized = true;
-    if (import.meta.env.DEV) console.log('[RendererPerformance] Initializing performance tracking');
+    this.initialized = true
+    if (import.meta.env.DEV) console.log('[RendererPerformance] Initializing performance tracking')
 
     // Get navigation timing
-    this.collectNavigationTiming();
+    this.collectNavigationTiming()
 
     // Set up performance observers
-    this.observeFCP();
-    this.observeLCP();
-    this.observeFID();
-    this.observeCLS();
-    this.observeLongTasks();
+    this.observeFCP()
+    this.observeLCP()
+    this.observeFID()
+    this.observeCLS()
+    this.observeLongTasks()
 
     // Listen for DOM events
-    this.listenForDOMEvents();
+    this.listenForDOMEvents()
   }
 
   /**
@@ -110,21 +103,21 @@ class RendererPerformanceTracker {
    */
   private collectNavigationTiming(): void {
     try {
-      const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+      const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
       if (navEntries.length > 0) {
-        const navTiming = navEntries[0];
-        this.metrics.navigationStart = navTiming.startTime;
-        
+        const navTiming = navEntries[0]
+        this.metrics.navigationStart = navTiming.startTime
+
         if (navTiming.domContentLoadedEventEnd > 0) {
-          this.metrics.domContentLoaded = navTiming.domContentLoadedEventEnd;
+          this.metrics.domContentLoaded = navTiming.domContentLoadedEventEnd
         }
-        
+
         if (navTiming.loadEventEnd > 0) {
-          this.metrics.loadComplete = navTiming.loadEventEnd;
+          this.metrics.loadComplete = navTiming.loadEventEnd
         }
       }
     } catch (error) {
-      console.warn('[RendererPerformance] Failed to collect navigation timing:', error);
+      console.warn('[RendererPerformance] Failed to collect navigation timing:', error)
     }
   }
 
@@ -134,31 +127,33 @@ class RendererPerformanceTracker {
   private observeFCP(): void {
     try {
       // Check for existing FCP entries first
-      const existingEntries = performance.getEntriesByName('first-contentful-paint', 'paint');
+      const existingEntries = performance.getEntriesByName('first-contentful-paint', 'paint')
       if (existingEntries.length > 0) {
-        this.metrics.fcp = existingEntries[0].startTime;
-        if (import.meta.env.DEV) console.log(`[RendererPerformance] FCP (existing): ${this.metrics.fcp.toFixed(2)}ms`);
-        this.notifyCallbacks({ fcp: this.metrics.fcp });
-        return;
+        this.metrics.fcp = existingEntries[0].startTime
+        if (import.meta.env.DEV)
+          console.log(`[RendererPerformance] FCP (existing): ${this.metrics.fcp.toFixed(2)}ms`)
+        this.notifyCallbacks({ fcp: this.metrics.fcp })
+        return
       }
 
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
+        const entries = list.getEntries()
         for (const entry of entries) {
           if (entry.name === 'first-contentful-paint') {
-            this.metrics.fcp = entry.startTime;
-            if (import.meta.env.DEV) console.log(`[RendererPerformance] FCP: ${this.metrics.fcp.toFixed(2)}ms`);
-            this.notifyCallbacks({ fcp: this.metrics.fcp });
-            observer.disconnect();
-            break;
+            this.metrics.fcp = entry.startTime
+            if (import.meta.env.DEV)
+              console.log(`[RendererPerformance] FCP: ${this.metrics.fcp.toFixed(2)}ms`)
+            this.notifyCallbacks({ fcp: this.metrics.fcp })
+            observer.disconnect()
+            break
           }
         }
-      });
+      })
 
-      observer.observe({ type: 'paint', buffered: true });
-      this.observers.push(observer);
+      observer.observe({ type: 'paint', buffered: true })
+      this.observers.push(observer)
     } catch (error) {
-      console.warn('[RendererPerformance] FCP observation not supported:', error);
+      console.warn('[RendererPerformance] FCP observation not supported:', error)
     }
   }
 
@@ -168,20 +163,21 @@ class RendererPerformanceTracker {
   private observeLCP(): void {
     try {
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
+        const entries = list.getEntries()
         // LCP can fire multiple times, we want the last one
-        const lastEntry = entries[entries.length - 1];
+        const lastEntry = entries[entries.length - 1]
         if (lastEntry) {
-          this.metrics.lcp = lastEntry.startTime;
-          if (import.meta.env.DEV) console.log(`[RendererPerformance] LCP: ${this.metrics.lcp.toFixed(2)}ms`);
-          this.notifyCallbacks({ lcp: this.metrics.lcp });
+          this.metrics.lcp = lastEntry.startTime
+          if (import.meta.env.DEV)
+            console.log(`[RendererPerformance] LCP: ${this.metrics.lcp.toFixed(2)}ms`)
+          this.notifyCallbacks({ lcp: this.metrics.lcp })
         }
-      });
+      })
 
-      observer.observe({ type: 'largest-contentful-paint', buffered: true });
-      this.observers.push(observer);
+      observer.observe({ type: 'largest-contentful-paint', buffered: true })
+      this.observers.push(observer)
     } catch (error) {
-      console.warn('[RendererPerformance] LCP observation not supported:', error);
+      console.warn('[RendererPerformance] LCP observation not supported:', error)
     }
   }
 
@@ -191,23 +187,24 @@ class RendererPerformanceTracker {
   private observeFID(): void {
     try {
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries() as PerformanceEventTiming[];
+        const entries = list.getEntries() as PerformanceEventTiming[]
         for (const entry of entries) {
           // FID is the processing start time minus the event timestamp
           if (entry.processingStart && entry.startTime) {
-            this.metrics.fid = entry.processingStart - entry.startTime;
-            if (import.meta.env.DEV) console.log(`[RendererPerformance] FID: ${this.metrics.fid.toFixed(2)}ms`);
-            this.notifyCallbacks({ fid: this.metrics.fid });
-            observer.disconnect();
-            break;
+            this.metrics.fid = entry.processingStart - entry.startTime
+            if (import.meta.env.DEV)
+              console.log(`[RendererPerformance] FID: ${this.metrics.fid.toFixed(2)}ms`)
+            this.notifyCallbacks({ fid: this.metrics.fid })
+            observer.disconnect()
+            break
           }
         }
-      });
+      })
 
-      observer.observe({ type: 'first-input', buffered: true });
-      this.observers.push(observer);
+      observer.observe({ type: 'first-input', buffered: true })
+      this.observers.push(observer)
     } catch (error) {
-      console.warn('[RendererPerformance] FID observation not supported:', error);
+      console.warn('[RendererPerformance] FID observation not supported:', error)
     }
   }
 
@@ -217,22 +214,25 @@ class RendererPerformanceTracker {
   private observeCLS(): void {
     try {
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries() as (PerformanceEntry & { hadRecentInput?: boolean; value?: number })[];
+        const entries = list.getEntries() as (PerformanceEntry & {
+          hadRecentInput?: boolean
+          value?: number
+        })[]
         for (const entry of entries) {
           // Only count layout shifts without recent user input
           if (!entry.hadRecentInput && entry.value !== undefined) {
-            this.clsValue += entry.value;
-            this.clsEntries.push(entry);
+            this.clsValue += entry.value
+            this.clsEntries.push(entry)
           }
         }
-        this.metrics.cls = this.clsValue;
-        this.notifyCallbacks({ cls: this.metrics.cls });
-      });
+        this.metrics.cls = this.clsValue
+        this.notifyCallbacks({ cls: this.metrics.cls })
+      })
 
-      observer.observe({ type: 'layout-shift', buffered: true });
-      this.observers.push(observer);
+      observer.observe({ type: 'layout-shift', buffered: true })
+      this.observers.push(observer)
     } catch (error) {
-      console.warn('[RendererPerformance] CLS observation not supported:', error);
+      console.warn('[RendererPerformance] CLS observation not supported:', error)
     }
   }
 
@@ -243,26 +243,26 @@ class RendererPerformanceTracker {
   private observeLongTasks(): void {
     try {
       const observer = new PerformanceObserver((list) => {
-        const entries = list.getEntries();
+        const entries = list.getEntries()
         for (const entry of entries) {
-          const taskEnd = entry.startTime + entry.duration;
+          const taskEnd = entry.startTime + entry.duration
           if (taskEnd > this.lastLongTaskEnd) {
-            this.lastLongTaskEnd = taskEnd;
+            this.lastLongTaskEnd = taskEnd
           }
         }
         // Reset TTI calculation when new long tasks occur
-        this.scheduleTTICheck();
-      });
+        this.scheduleTTICheck()
+      })
 
-      observer.observe({ type: 'longtask', buffered: true });
-      this.observers.push(observer);
+      observer.observe({ type: 'longtask', buffered: true })
+      this.observers.push(observer)
 
       // Start initial TTI check
-      this.scheduleTTICheck();
+      this.scheduleTTICheck()
     } catch (error) {
-      console.warn('[RendererPerformance] Long task observation not supported:', error);
+      console.warn('[RendererPerformance] Long task observation not supported:', error)
       // Fallback: use load event as TTI approximation
-      this.useFallbackTTI();
+      this.useFallbackTTI()
     }
   }
 
@@ -271,22 +271,23 @@ class RendererPerformanceTracker {
    * TTI is considered reached when there are no long tasks for 5 seconds after FCP
    */
   private scheduleTTICheck(): void {
-    if (this.ttiResolved) return;
+    if (this.ttiResolved) return
 
     if (this.ttiTimeout) {
-      clearTimeout(this.ttiTimeout);
+      clearTimeout(this.ttiTimeout)
     }
 
     // Wait for 5 seconds of quiet time (no long tasks)
     this.ttiTimeout = setTimeout(() => {
-        if (!this.ttiResolved && this.metrics.fcp !== null) {
+      if (!this.ttiResolved && this.metrics.fcp !== null) {
         // TTI is the later of FCP or the end of the last long task
-        this.metrics.tti = Math.max(this.metrics.fcp, this.lastLongTaskEnd);
-        this.ttiResolved = true;
-        if (import.meta.env.DEV) console.log(`[RendererPerformance] TTI: ${this.metrics.tti.toFixed(2)}ms`);
-        this.notifyCallbacks({ tti: this.metrics.tti });
+        this.metrics.tti = Math.max(this.metrics.fcp, this.lastLongTaskEnd)
+        this.ttiResolved = true
+        if (import.meta.env.DEV)
+          console.log(`[RendererPerformance] TTI: ${this.metrics.tti.toFixed(2)}ms`)
+        this.notifyCallbacks({ tti: this.metrics.tti })
       }
-    }, 5000);
+    }, 5000)
   }
 
   /**
@@ -294,9 +295,9 @@ class RendererPerformanceTracker {
    */
   private useFallbackTTI(): void {
     if (document.readyState === 'complete') {
-      this.setFallbackTTI();
+      this.setFallbackTTI()
     } else {
-      window.addEventListener('load', () => this.setFallbackTTI());
+      window.addEventListener('load', () => this.setFallbackTTI())
     }
   }
 
@@ -304,14 +305,15 @@ class RendererPerformanceTracker {
    * Set TTI using load event timing as fallback
    */
   private setFallbackTTI(): void {
-    if (this.ttiResolved) return;
+    if (this.ttiResolved) return
 
-    const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+    const navEntries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
     if (navEntries.length > 0 && navEntries[0].loadEventEnd > 0) {
-      this.metrics.tti = navEntries[0].loadEventEnd;
-      this.ttiResolved = true;
-      if (import.meta.env.DEV) console.log(`[RendererPerformance] TTI (fallback): ${this.metrics.tti.toFixed(2)}ms`);
-      this.notifyCallbacks({ tti: this.metrics.tti });
+      this.metrics.tti = navEntries[0].loadEventEnd
+      this.ttiResolved = true
+      if (import.meta.env.DEV)
+        console.log(`[RendererPerformance] TTI (fallback): ${this.metrics.tti.toFixed(2)}ms`)
+      this.notifyCallbacks({ tti: this.metrics.tti })
     }
   }
 
@@ -322,15 +324,15 @@ class RendererPerformanceTracker {
     // Update DOM content loaded timing
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
-        this.collectNavigationTiming();
-      });
+        this.collectNavigationTiming()
+      })
     }
 
     // Update load complete timing
     if (document.readyState !== 'complete') {
       window.addEventListener('load', () => {
-        this.collectNavigationTiming();
-      });
+        this.collectNavigationTiming()
+      })
     }
   }
 
@@ -338,13 +340,13 @@ class RendererPerformanceTracker {
    * Register a callback to be notified when metrics are updated
    */
   onMetricsUpdate(callback: PerformanceCallback): () => void {
-    this.callbacks.push(callback);
+    this.callbacks.push(callback)
     return () => {
-      const index = this.callbacks.indexOf(callback);
+      const index = this.callbacks.indexOf(callback)
       if (index > -1) {
-        this.callbacks.splice(index, 1);
+        this.callbacks.splice(index, 1)
       }
-    };
+    }
   }
 
   /**
@@ -353,9 +355,9 @@ class RendererPerformanceTracker {
   private notifyCallbacks(updates: Partial<RendererPerformanceMetrics>): void {
     for (const callback of this.callbacks) {
       try {
-        callback(updates);
+        callback(updates)
       } catch (error) {
-        console.error('[RendererPerformance] Callback error:', error);
+        console.error('[RendererPerformance] Callback error:', error)
       }
     }
   }
@@ -367,28 +369,28 @@ class RendererPerformanceTracker {
     return {
       ...this.metrics,
       timestamp: Date.now(),
-    };
+    }
   }
 
   /**
    * Get a summary of key metrics for display
    */
   getSummary(): {
-    fcp: string;
-    tti: string;
-    lcp: string;
-    fid: string;
-    cls: string;
+    fcp: string
+    tti: string
+    lcp: string
+    fid: string
+    cls: string
   } {
     const formatMs = (value: number | null): string => {
-      if (value === null) return 'N/A';
-      return `${value.toFixed(0)}ms`;
-    };
+      if (value === null) return 'N/A'
+      return `${value.toFixed(0)}ms`
+    }
 
     const formatCLS = (value: number | null): string => {
-      if (value === null) return 'N/A';
-      return value.toFixed(3);
-    };
+      if (value === null) return 'N/A'
+      return value.toFixed(3)
+    }
 
     return {
       fcp: formatMs(this.metrics.fcp),
@@ -396,36 +398,36 @@ class RendererPerformanceTracker {
       lcp: formatMs(this.metrics.lcp),
       fid: formatMs(this.metrics.fid),
       cls: formatCLS(this.metrics.cls),
-    };
+    }
   }
 
   /**
    * Check if metrics meet performance thresholds
    */
   checkThresholds(): { warnings: string[] } {
-    const warnings: string[] = [];
+    const warnings: string[] = []
 
     // FCP threshold: 500ms (from Requirement 7.6)
     if (this.metrics.fcp !== null && this.metrics.fcp > 500) {
-      warnings.push(`FCP (${this.metrics.fcp.toFixed(0)}ms) exceeds 500ms threshold`);
+      warnings.push(`FCP (${this.metrics.fcp.toFixed(0)}ms) exceeds 500ms threshold`)
     }
 
     // LCP threshold: 2500ms (good), 4000ms (needs improvement)
     if (this.metrics.lcp !== null && this.metrics.lcp > 2500) {
-      warnings.push(`LCP (${this.metrics.lcp.toFixed(0)}ms) exceeds 2500ms threshold`);
+      warnings.push(`LCP (${this.metrics.lcp.toFixed(0)}ms) exceeds 2500ms threshold`)
     }
 
     // FID threshold: 100ms (good), 300ms (needs improvement)
     if (this.metrics.fid !== null && this.metrics.fid > 100) {
-      warnings.push(`FID (${this.metrics.fid.toFixed(0)}ms) exceeds 100ms threshold`);
+      warnings.push(`FID (${this.metrics.fid.toFixed(0)}ms) exceeds 100ms threshold`)
     }
 
     // CLS threshold: 0.1 (good), 0.25 (needs improvement)
     if (this.metrics.cls !== null && this.metrics.cls > 0.1) {
-      warnings.push(`CLS (${this.metrics.cls.toFixed(3)}) exceeds 0.1 threshold`);
+      warnings.push(`CLS (${this.metrics.cls.toFixed(3)}) exceeds 0.1 threshold`)
     }
 
-    return { warnings };
+    return { warnings }
   }
 
   /**
@@ -434,31 +436,31 @@ class RendererPerformanceTracker {
   cleanup(): void {
     for (const observer of this.observers) {
       try {
-        observer.disconnect();
+        observer.disconnect()
       } catch (error) {
         // Ignore disconnect errors
       }
     }
-    this.observers = [];
-    this.callbacks = [];
-    
+    this.observers = []
+    this.callbacks = []
+
     if (this.ttiTimeout) {
-      clearTimeout(this.ttiTimeout);
-      this.ttiTimeout = null;
+      clearTimeout(this.ttiTimeout)
+      this.ttiTimeout = null
     }
-    
-    this.initialized = false;
-    if (import.meta.env.DEV) console.log('[RendererPerformance] Cleaned up');
+
+    this.initialized = false
+    if (import.meta.env.DEV) console.log('[RendererPerformance] Cleaned up')
   }
 }
 
 // Singleton instance
-export const rendererPerformanceTracker = new RendererPerformanceTracker();
+export const rendererPerformanceTracker = new RendererPerformanceTracker()
 
 /**
  * Initialize renderer performance tracking
  * Call this early in the application lifecycle (e.g., in main.tsx)
  */
 export function initializeRendererPerformance(): void {
-  rendererPerformanceTracker.initialize();
+  rendererPerformanceTracker.initialize()
 }

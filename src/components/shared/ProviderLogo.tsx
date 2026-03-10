@@ -1,9 +1,7 @@
 /**
  * Shared ProviderLogo component for Zura AI
  * Consolidates duplicate ProviderLogo implementations from Settings.tsx and ModelSelector.tsx
- * 
- * @module ProviderLogo
- * Requirements: 4.4
+ *
  */
 
 import React, { useState } from 'react'
@@ -12,7 +10,14 @@ import { Cloud, Database, Globe, Sparkles, Zap, Brain } from 'lucide-react'
 /**
  * Provider types supported by the application
  */
-export type ProviderType = 'ollama' | 'perplexity' | 'openrouter' | 'gemini' | 'groq' | 'minimax' | 'alibaba'
+export type ProviderType =
+  | 'ollama'
+  | 'perplexity'
+  | 'openrouter'
+  | 'gemini'
+  | 'groq'
+  | 'minimax'
+  | 'alibaba'
 
 /**
  * Size variants for the provider logo
@@ -41,7 +46,7 @@ export interface ProviderLogoProps {
 const SIZE_MAP: Record<ProviderLogoSize, number> = {
   sm: 14,
   md: 20,
-  lg: 28
+  lg: 28,
 }
 
 /**
@@ -54,7 +59,7 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   groq: Zap,
   ollama: Database,
   minimax: Brain,
-  alibaba: Cloud
+  alibaba: Cloud,
 }
 
 /**
@@ -67,7 +72,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   groq: '#f97316',
   ollama: '#339af0',
   minimax: '#6366f1',
-  alibaba: '#ff6a00'
+  alibaba: '#ff6a00',
 }
 
 /**
@@ -83,19 +88,19 @@ function getPixelSize(size: ProviderLogoSize | number): number {
 /**
  * ProviderLogo component
  * Renders provider logo with fallback icon support
- * 
+ *
  * @example
  * // Basic usage
  * <ProviderLogo provider="gemini" />
- * 
+ *
  * @example
  * // With size variant
  * <ProviderLogo provider="openrouter" size="lg" />
- * 
+ *
  * @example
  * // With custom pixel size
  * <ProviderLogo provider="ollama" size={24} />
- * 
+ *
  * @example
  * // With fallback disabled
  * <ProviderLogo provider="groq" showFallback={false} />
@@ -105,13 +110,13 @@ export function ProviderLogo({
   size = 'sm',
   showFallback = true,
   className,
-  style
+  style,
 }: ProviderLogoProps): React.ReactElement | null {
   const [imgError, setImgError] = useState(false)
-  
+
   const pixelSize = getPixelSize(size)
   const normalizedProvider = provider.toLowerCase()
-  
+
   // Try to render the image first
   if (!imgError) {
     return (
@@ -124,34 +129,34 @@ export function ProviderLogo({
           width: `${pixelSize}px`,
           height: `${pixelSize}px`,
           objectFit: 'contain',
-          ...style
+          ...style,
         }}
       />
     )
   }
-  
+
   // Render fallback icon if enabled and available
   if (showFallback) {
     const FallbackIcon = PROVIDER_FALLBACK_ICONS[normalizedProvider]
     const color = PROVIDER_COLORS[normalizedProvider] || '#b0b0b0'
-    
+
     if (FallbackIcon) {
       return (
-        <FallbackIcon 
-          size={pixelSize} 
+        <FallbackIcon
+          size={pixelSize}
           // @ts-ignore - color prop is valid for lucide icons
           color={color}
         />
       )
     }
   }
-  
+
   return null
 }
 
 /**
  * Get provider color by provider name
- * 
+ *
  * @param provider - Provider identifier
  * @returns Hex color string
  */
@@ -161,12 +166,14 @@ export function getProviderLogoColor(provider: string): string {
 
 /**
  * Check if a provider has a logo available
- * 
+ *
  * @param provider - Provider identifier
  * @returns True if provider is known
  */
 export function isKnownProvider(provider: string): provider is ProviderType {
-  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'alibaba'].includes(provider.toLowerCase())
+  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'alibaba'].includes(
+    provider.toLowerCase()
+  )
 }
 
 export default ProviderLogo

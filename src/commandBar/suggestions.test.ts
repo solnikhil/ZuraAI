@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   getCommandBarSuggestions,
   looksLikeMathExpression,
-  normalizeUrlCandidate
+  normalizeUrlCandidate,
 } from './suggestions'
 
 describe('commandBar suggestions', () => {
@@ -38,7 +38,7 @@ describe('commandBar suggestions', () => {
   describe('getCommandBarSuggestions', () => {
     it('prefers Settings command for settings query', () => {
       const suggestions = getCommandBarSuggestions('settings', {
-        hasCurrentSession: false
+        hasCurrentSession: false,
       })
 
       expect(suggestions[0]?.id).toBe('go-settings')
@@ -46,7 +46,7 @@ describe('commandBar suggestions', () => {
 
     it('treats "goto settings" as settings navigation', () => {
       const suggestions = getCommandBarSuggestions('goto settings', {
-        hasCurrentSession: false
+        hasCurrentSession: false,
       })
 
       expect(suggestions[0]?.id).toBe('go-settings')
@@ -54,10 +54,10 @@ describe('commandBar suggestions', () => {
 
     it('hides quick actions in commands-only mode', () => {
       const suggestions = getCommandBarSuggestions('>settings', {
-        hasCurrentSession: false
+        hasCurrentSession: false,
       })
 
-      const ids = suggestions.map(s => s.id)
+      const ids = suggestions.map((s) => s.id)
       expect(ids).toContain('go-settings')
     })
 
@@ -121,17 +121,13 @@ describe('commandBar suggestions', () => {
   })
 })
 
-
-// ============================================================================
 // Property-based tests
-// ============================================================================
 
 import * as fc from 'fast-check'
 import { normalizeCommandQuery } from './suggestions'
 
 describe('Feature: floating-command-palette, Property 5: Search filtering correctness', () => {
   /**
-   * Validates: Requirements 4.3
    *
    * For any non-empty query string derived from known command keywords,
    * every result item returned by the suggestion engine should have a match
@@ -141,18 +137,57 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
   // Known keywords that exist in the command definitions (≥4 chars to pass
   // the meaningful-token filter in scoreMatch)
   const KNOWN_KEYWORDS = [
-    'settings', 'chat', 'conversation', 'dashboard', 'home',
-    'providers', 'config', 'models', 'theme', 'themes',
-    'appearance', 'sidebar', 'layout', 'panel', 'export',
-    'download', 'markdown', 'text', 'experimental', 'labs',
-    'beta', 'feature', 'streaming', 'system', 'prompt',
-    'instructions', 'persona', 'behavior', 'usage', 'statistics',
-    'tokens', 'activity', 'openrouter', 'groq', 'perplexity',
-    'ollama', 'local', 'alibaba', 'qwen',
-     'dashscope', 'tavily', 'search', 'tools', 'toggle',
-     'skills',
-     'collapse', 'expand', 'command', 'palette', 'shortcut',
-   ]
+    'settings',
+    'chat',
+    'conversation',
+    'dashboard',
+    'home',
+    'providers',
+    'config',
+    'models',
+    'theme',
+    'themes',
+    'appearance',
+    'sidebar',
+    'layout',
+    'panel',
+    'export',
+    'download',
+    'markdown',
+    'text',
+    'experimental',
+    'labs',
+    'beta',
+    'feature',
+    'streaming',
+    'system',
+    'prompt',
+    'instructions',
+    'persona',
+    'behavior',
+    'usage',
+    'statistics',
+    'tokens',
+    'activity',
+    'openrouter',
+    'groq',
+    'perplexity',
+    'ollama',
+    'local',
+    'alibaba',
+    'qwen',
+    'dashscope',
+    'tavily',
+    'search',
+    'tools',
+    'toggle',
+    'skills',
+    'collapse',
+    'expand',
+    'command',
+    'palette',
+    'shortcut',
+  ]
 
   const arbKnownKeyword = fc.constantFrom(...KNOWN_KEYWORDS)
 
@@ -165,57 +200,53 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
    * the normalized query (or any of its meaningful tokens) in the
    * suggestion's title, subtitle, keywords, or id.
    */
-  function hasRelevance(query: string, suggestion: { id: string; title: string; subtitle?: string; keywords?: string[] }): boolean {
+  function hasRelevance(
+    query: string,
+    suggestion: { id: string; title: string; subtitle?: string; keywords?: string[] }
+  ): boolean {
     const normalized = normalizeCommandQuery(query)
     if (!normalized) return true // empty after normalization → everything matches
 
-    const tokens = normalized.split(/\s+/).filter(t => t.length >= 4)
+    const tokens = normalized.split(/\s+/).filter((t) => t.length >= 4)
     if (tokens.length === 0) return true // no meaningful tokens → engine returns score 0 for all
 
     const searchables = [
       suggestion.id.toLowerCase(),
       suggestion.title.toLowerCase(),
       suggestion.subtitle?.toLowerCase() ?? '',
-      ...(suggestion.keywords?.map(k => k.toLowerCase()) ?? []),
+      ...(suggestion.keywords?.map((k) => k.toLowerCase()) ?? []),
     ].join(' ')
 
     // Check if the full normalized query appears as a substring
     if (searchables.includes(normalized)) return true
 
     // Check if any meaningful token appears
-    return tokens.some(token => searchables.includes(token))
+    return tokens.some((token) => searchables.includes(token))
   }
 
   it('every result for a known keyword query has relevance to the query', () => {
     fc.assert(
-      fc.property(
-        arbKnownKeyword,
-        (query) => {
-          const results = getCommandBarSuggestions(query, defaultContext, 20)
+      fc.property(arbKnownKeyword, (query) => {
+        const results = getCommandBarSuggestions(query, defaultContext, 20)
 
-          for (const result of results) {
-            expect(hasRelevance(query, result)).toBe(true)
-          }
+        for (const result of results) {
+          expect(hasRelevance(query, result)).toBe(true)
         }
-      ),
+      }),
       { numRuns: 200 }
     )
   })
 
   it('every result for a combined keyword query has relevance', () => {
     fc.assert(
-      fc.property(
-        arbKnownKeyword,
-        arbKnownKeyword,
-        (kw1, kw2) => {
-          const query = `${kw1} ${kw2}`
-          const results = getCommandBarSuggestions(query, defaultContext, 20)
+      fc.property(arbKnownKeyword, arbKnownKeyword, (kw1, kw2) => {
+        const query = `${kw1} ${kw2}`
+        const results = getCommandBarSuggestions(query, defaultContext, 20)
 
-          for (const result of results) {
-            expect(hasRelevance(query, result)).toBe(true)
-          }
+        for (const result of results) {
+          expect(hasRelevance(query, result)).toBe(true)
         }
-      ),
+      }),
       { numRuns: 100 }
     )
   })
@@ -226,17 +257,13 @@ describe('Feature: floating-command-palette, Property 5: Search filtering correc
     })
 
     fc.assert(
-      fc.property(
-        arbKnownKeyword,
-        arbContext,
-        (query, ctx) => {
-          const results = getCommandBarSuggestions(query, ctx, 20)
+      fc.property(arbKnownKeyword, arbContext, (query, ctx) => {
+        const results = getCommandBarSuggestions(query, ctx, 20)
 
-          for (const result of results) {
-            expect(hasRelevance(query, result)).toBe(true)
-          }
+        for (const result of results) {
+          expect(hasRelevance(query, result)).toBe(true)
         }
-      ),
+      }),
       { numRuns: 100 }
     )
   })

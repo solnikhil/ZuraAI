@@ -1,7 +1,8 @@
 import React from 'react'
-import { Globe, Info, MoreHorizontal, Radar } from 'lucide-react'
+import { Info, MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { SkillLogo } from '@/components/shared'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,13 +46,12 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="skills-list">
           {BUILT_IN_SKILLS.map((skill) => {
             const enabled = isSkillEnabled(skill.id)
-            const skillIcon = skill.id === 'web_research' ? <Radar size={18} /> : <Globe size={18} />
 
             return (
               <div key={skill.id} className="skills-row">
                 <div className="skills-row__main">
                   <div className={`skills-row__logo ${enabled ? 'skills-row__logo--enabled' : ''}`}>
-                    {skillIcon}
+                    <SkillLogo skill={skill.id} size={18} />
                   </div>
                   <div className="skills-row__content">
                     <h3 className="skills-row__title">{skill.name}</h3>

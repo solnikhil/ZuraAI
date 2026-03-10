@@ -11,12 +11,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--theme-scrollbar);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--theme-scrollbar-hover);
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -99,7 +99,7 @@
   background: var(--theme-surface-hover);
   color: var(--theme-text-muted);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .model-info-btn:hover {

@@ -1,7 +1,6 @@
 /**
  * Type definitions for ModelSelector components
- * 
- * @module ModelSelector/types
+ *
  */
 
 import React from 'react'

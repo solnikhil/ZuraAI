@@ -1,9 +1,8 @@
 /**
  * MessageRenderer - Component for rendering chat messages
  * Handles markdown rendering, code blocks, file attachments, and message actions
- * 
- * Requirements: 1.3, 5.2
- * 
+ *
+ *
  * Performance: This component is wrapped with React.memo() to prevent unnecessary
  * re-renders when parent components re-render with unchanged message props.
  * A custom comparison function ensures deep equality checking for message objects.
@@ -12,17 +11,41 @@
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Copy, Check, Info, X, File, RotateCcw,
-  ChevronLeft, ChevronRight, CornerDownLeft
+  Copy,
+  Check,
+  Info,
+  File,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  CornerDownLeft,
 } from '../../icons'
 // Separator import removed (no longer used after streaming)
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
-import type { Message, ThinkingBlock, ToolCallResult, FileAttachment } from '../../../contexts/ChatHistoryContext'
+import type {
+  Message,
+  ThinkingBlock,
+  ToolCallResult,
+  FileAttachment,
+} from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
-import { getWebImageSourceLabel, inferWebToolModeFromResultData } from '../../../tools/ui/webToolDisplay'
+import {
+  getWebImageSourceLabel,
+  inferWebToolModeFromResultData,
+} from '../../../tools/ui/webToolDisplay'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 export interface MessageRendererProps {
   message: Message & {
@@ -44,7 +67,10 @@ export interface MessageRendererProps {
     }>
     currentVersionIndex?: number
     toolResults?: ToolCallResult[]
-    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchPlan?: {
+      topic: string
+      steps: Array<{ stepNumber: number; query: string; rationale?: string }>
+    }
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
   isStreaming?: boolean
@@ -71,10 +97,12 @@ function stripReferencesSection(content: string): string {
   if (!content) return content
   // Match a References/Sources heading (markdown ## or bold ** or plain) followed by
   // numbered list entries through end of string
-  return content.replace(
-    /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
-    ''
-  ).trimEnd()
+  return content
+    .replace(
+      /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
+      ''
+    )
+    .trimEnd()
 }
 
 /**
@@ -87,20 +115,24 @@ function convertUrlsToMarkdownLinks(content: string): string {
   // Split by fenced code blocks first — preserve them untouched
   const fencedParts = content.split(/(```[\s\S]*?```)/g)
 
-  const processed = fencedParts.map((part, fIdx) => {
-    // Odd indices are fenced code blocks — skip
-    if (fIdx % 2 === 1) return part
+  const processed = fencedParts
+    .map((part, fIdx) => {
+      // Odd indices are fenced code blocks — skip
+      if (fIdx % 2 === 1) return part
 
-    // Split by inline code spans — preserve them untouched
-    const inlineParts = part.split(/(`[^`]+`)/g)
+      // Split by inline code spans — preserve them untouched
+      const inlineParts = part.split(/(`[^`]+`)/g)
 
-    return inlineParts.map((seg, iIdx) => {
-      // Odd indices are inline code spans — skip
-      if (iIdx % 2 === 1) return seg
+      return inlineParts
+        .map((seg, iIdx) => {
+          // Odd indices are inline code spans — skip
+          if (iIdx % 2 === 1) return seg
 
-      return convertUrlsInText(seg)
-    }).join('')
-  }).join('')
+          return convertUrlsInText(seg)
+        })
+        .join('')
+    })
+    .join('')
 
   return processed
 }
@@ -108,14 +140,17 @@ function convertUrlsToMarkdownLinks(content: string): string {
 /** Apply URL→link conversion to a plain-text (non-code) segment */
 function convertUrlsInText(text: string): string {
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = text.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm, (_match, prefix, num, url) => {
-    const cleanUrl = url.replace(/[.,;:!?]+$/, '')
-    return `${prefix}[[${num}]](${cleanUrl})`
-  })
+  let result = text.replace(
+    /(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm,
+    (_match, prefix, num, url) => {
+      const cleanUrl = url.replace(/[.,;:!?]+$/, '')
+      return `${prefix}[[${num}]](${cleanUrl})`
+    }
+  )
 
   // Pattern 2: References section format
   const lines = result.split('\n')
-  const processedLines = lines.map(line => {
+  const processedLines = lines.map((line) => {
     if (line.includes('](') && line.includes(')')) return line
 
     const refMatch = line.match(/^(\s*)\[(\d+)\]\s+(https?:\/\/.+)$/)
@@ -155,37 +190,39 @@ function convertUrlsInText(text: string): string {
  * Convert numeric citations like [1] or [2,3] to markdown links
  * using the ordered URLs from web search results.
  */
-function convertNumericCitationsToMarkdownLinks(content: string, orderedSourceUrls: string[]): string {
+function convertNumericCitationsToMarkdownLinks(
+  content: string,
+  orderedSourceUrls: string[]
+): string {
   if (!content || orderedSourceUrls.length === 0) return content
 
   const parts = content.split(/(```[\s\S]*?```)/g)
 
-  return parts.map((part, index) => {
-    // Keep fenced code blocks unchanged
-    if (index % 2 === 1) return part
+  return parts
+    .map((part, index) => {
+      // Keep fenced code blocks unchanged
+      if (index % 2 === 1) return part
 
-    return part.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (match, refs, offset, sourceText) => {
-      const prevChar = offset > 0 ? sourceText[offset - 1] : ''
-      const nextChar = sourceText[offset + match.length] || ''
+      return part.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (match, refs, offset, sourceText) => {
+        const prevChar = offset > 0 ? sourceText[offset - 1] : ''
+        const nextChar = sourceText[offset + match.length] || ''
 
-      // Skip markdown links like [text](url) and already-converted forms like [[1]](url)
-      if (nextChar === '(' || prevChar === '[') return match
+        // Skip markdown links like [text](url) and already-converted forms like [[1]](url)
+        if (nextChar === '(' || prevChar === '[') return match
 
-      const refNumbers = String(refs)
-        .split(',')
-        .map((s) => Number.parseInt(s.trim(), 10))
+        const refNumbers = String(refs)
+          .split(',')
+          .map((s) => Number.parseInt(s.trim(), 10))
 
-      if (refNumbers.some((n) => !Number.isInteger(n) || n < 1 || n > orderedSourceUrls.length)) {
-        return match
-      }
+        if (refNumbers.some((n) => !Number.isInteger(n) || n < 1 || n > orderedSourceUrls.length)) {
+          return match
+        }
 
-      return refNumbers
-        .map((n) => `[[${n}]](${orderedSourceUrls[n - 1]})`)
-        .join(', ')
+        return refNumbers.map((n) => `[[${n}]](${orderedSourceUrls[n - 1]})`).join(', ')
+      })
     })
-  }).join('')
+    .join('')
 }
-
 
 /**
  * Web Search Image Carousel Component
@@ -194,7 +231,7 @@ function convertNumericCitationsToMarkdownLinks(content: string, orderedSourceUr
  */
 function WebSearchImageCarousel({
   images,
-  mode
+  mode,
 }: {
   images: Array<{ url: string; description?: string }>
   mode: 'search' | 'extract' | 'mixed'
@@ -227,26 +264,32 @@ function WebSearchImageCarousel({
 
   return (
     <div style={{ marginBottom: '12px' }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '6px',
-        gap: '8px'
-      }}>
-        <span style={{
-          color: 'var(--theme-text-muted)',
-          fontSize: '0.8rem',
-          fontWeight: 500
-        }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '6px',
+          gap: '8px',
+        }}
+      >
+        <span
+          style={{
+            color: 'var(--theme-text-muted)',
+            fontSize: '0.8rem',
+            fontWeight: 500,
+          }}
+        >
           {images.length} {images.length === 1 ? 'image' : 'images'} from {sourceLabel}
         </span>
         {images.length > imagesPerPage && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
             <button
               onClick={handlePrev}
               type="button"
@@ -260,7 +303,7 @@ function WebSearchImageCarousel({
                 color: 'var(--theme-text-muted)',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'color 0.15s'
+                transition: 'color 0.15s',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'var(--theme-text-secondary)'
@@ -271,12 +314,14 @@ function WebSearchImageCarousel({
             >
               <ChevronLeft size={14} />
             </button>
-            <span style={{
-              color: 'var(--theme-text-muted)',
-              fontSize: '0.7rem',
-              minWidth: '32px',
-              textAlign: 'center'
-            }}>
+            <span
+              style={{
+                color: 'var(--theme-text-muted)',
+                fontSize: '0.7rem',
+                minWidth: '32px',
+                textAlign: 'center',
+              }}
+            >
               {currentPage + 1}/{totalPages}
             </span>
             <button
@@ -292,7 +337,7 @@ function WebSearchImageCarousel({
                 color: 'var(--theme-text-muted)',
                 display: 'flex',
                 alignItems: 'center',
-                transition: 'color 0.15s'
+                transition: 'color 0.15s',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'var(--theme-text-secondary)'
@@ -316,7 +361,7 @@ function WebSearchImageCarousel({
           msOverflowStyle: 'none',
           display: 'flex',
           gap: '6px',
-          scrollSnapType: 'x mandatory'
+          scrollSnapType: 'x mandatory',
         }}
         className="scrollbar-hide"
       >
@@ -335,7 +380,7 @@ function WebSearchImageCarousel({
               display: 'block',
               transition: 'opacity 0.15s',
               cursor: 'pointer',
-              scrollSnapAlign: 'start'
+              scrollSnapAlign: 'start',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.opacity = '0.9'
@@ -352,10 +397,10 @@ function WebSearchImageCarousel({
                 height: '100%',
                 objectFit: 'cover',
                 display: 'block',
-                borderRadius: 'inherit'
+                borderRadius: 'inherit',
               }}
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none'
+                ;(e.target as HTMLImageElement).style.display = 'none'
               }}
             />
           </a>
@@ -370,17 +415,20 @@ function WebSearchImageCarousel({
  */
 function UserMessageBubble({
   message,
-  bubbleStyle = 'solid'
+  bubbleStyle = 'solid',
 }: {
   message: MessageRendererProps['message']
   bubbleStyle?: 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 }) {
-  const bubbleStyleByPreset: Record<'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal', React.CSSProperties> = {
+  const bubbleStyleByPreset: Record<
+    'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal',
+    React.CSSProperties
+  > = {
     solid: {
       background: 'var(--theme-user-message-bg)',
       border: '1px solid var(--theme-border-subtle)',
       boxShadow: 'var(--theme-shadow-sm)',
-      color: 'var(--theme-user-message-text)'
+      color: 'var(--theme-user-message-text)',
     },
     glass: {
       background: 'rgba(148, 163, 184, 0.18)',
@@ -388,25 +436,26 @@ function UserMessageBubble({
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)'
+      WebkitBackdropFilter: 'blur(16px)',
     },
     outline: {
       background: 'transparent',
       border: '1px solid var(--theme-accent-muted)',
       boxShadow: 'none',
-      color: 'var(--theme-text-primary)'
+      color: 'var(--theme-text-primary)',
     },
     gradient: {
-      background: 'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
+      background:
+        'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
       border: '1px solid color-mix(in srgb, var(--theme-accent) 45%, transparent)',
       boxShadow: 'var(--theme-shadow-sm)',
-      color: 'var(--theme-text-inverse)'
+      color: 'var(--theme-text-inverse)',
     },
     elevated: {
       background: 'var(--theme-surface)',
       border: '1px solid var(--theme-border)',
       boxShadow: 'var(--theme-shadow-md)',
-      color: 'var(--theme-text-primary)'
+      color: 'var(--theme-text-primary)',
     },
     terminal: {
       background: 'color-mix(in srgb, var(--theme-background) 76%, black 24%)',
@@ -414,28 +463,31 @@ function UserMessageBubble({
       boxShadow: 'none',
       color: 'var(--theme-text-primary)',
       fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-      letterSpacing: '0.01em'
-    }
+      letterSpacing: '0.01em',
+    },
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-end',
-      marginBottom: '24px',
-      gap: '8px'
-    }}>
-      {/* File attachments */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        marginBottom: '24px',
+        gap: '8px',
+      }}
+    >
       {message.files && message.files.length > 0 && (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          maxWidth: '70%',
-          width: '100%'
-        }}>
-          {message.files.map((file: FileAttachment) => (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxWidth: '70%',
+            width: '100%',
+          }}
+        >
+          {message.files.map((file: FileAttachment) =>
             file.type === 'image' ? (
               <div
                 key={file.id}
@@ -445,7 +497,7 @@ function UserMessageBubble({
                   borderRadius: '12px',
                   padding: '8px',
                   maxWidth: '100%',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
                 }}
               >
                 <img
@@ -458,17 +510,19 @@ function UserMessageBubble({
                     objectFit: 'contain',
                     display: 'block',
                     width: 'auto',
-                    height: 'auto'
+                    height: 'auto',
                   }}
                 />
-                <div style={{
-                  padding: '6px 8px 0',
-                  fontSize: '0.75rem',
-                  color: '#b0b0b0',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
+                <div
+                  style={{
+                    padding: '6px 8px 0',
+                    fontSize: '0.75rem',
+                    color: '#b0b0b0',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {file.name}
                 </div>
               </div>
@@ -483,18 +537,20 @@ function UserMessageBubble({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  maxWidth: '100%'
+                  maxWidth: '100%',
                 }}
               >
                 <File size={16} color="#888" />
-                <span style={{
-                  color: '#e0e0e0',
-                  fontSize: '0.85rem',
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
+                <span
+                  style={{
+                    color: '#e0e0e0',
+                    fontSize: '0.85rem',
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {file.name}
                 </span>
                 <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
@@ -502,20 +558,21 @@ function UserMessageBubble({
                 </span>
               </div>
             )
-          ))}
+          )}
         </div>
       )}
 
-      {/* Message content */}
       {message.content && (
-        <div style={{
-          padding: '12px 18px',
-          borderRadius: '20px 20px 6px 20px',
-          fontSize: '0.95rem',
-          maxWidth: '70%',
-          whiteSpace: 'pre-wrap',
-          ...bubbleStyleByPreset[bubbleStyle]
-        }}>
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: '20px 20px 6px 20px',
+            fontSize: '0.95rem',
+            maxWidth: '70%',
+            whiteSpace: 'pre-wrap',
+            ...bubbleStyleByPreset[bubbleStyle],
+          }}
+        >
           {message.content}
         </div>
       )}
@@ -525,15 +582,9 @@ function UserMessageBubble({
 
 /**
  * Custom comparison function for MessageRenderer memoization
- * 
- * **Validates: Requirements 5.2**
- * **Property 21: Message Component Memoization**
- * 
- * Returns true if props are equal (should NOT re-render)
- * Returns false if props are different (should re-render)
- * 
- * This function performs deep equality checking on message props to prevent
- * unnecessary re-renders during parent component updates (e.g., streaming).
+ *
+ * Performs a focused deep comparison so historical messages stay stable while
+ * nearby streaming state changes.
  */
 function areMessagePropsEqual(
   prevProps: MessageRendererProps,
@@ -605,8 +656,10 @@ function areMessagePropsEqual(
     return false
   }
   for (let i = 0; i < prevThinkingBlocks.length; i++) {
-    if (prevThinkingBlocks[i].content !== nextThinkingBlocks[i].content ||
-        prevThinkingBlocks[i].type !== nextThinkingBlocks[i].type) {
+    if (
+      prevThinkingBlocks[i].content !== nextThinkingBlocks[i].content ||
+      prevThinkingBlocks[i].type !== nextThinkingBlocks[i].type
+    ) {
       return false
     }
   }
@@ -614,10 +667,12 @@ function areMessagePropsEqual(
   // Compare research status
   const prevResearch = prevMsg.researchStatus
   const nextResearch = nextMsg.researchStatus
-  if (prevResearch?.isSearching !== nextResearch?.isSearching ||
-      prevResearch?.currentRound !== nextResearch?.currentRound ||
-      prevResearch?.maxRounds !== nextResearch?.maxRounds ||
-      prevResearch?.currentSearch !== nextResearch?.currentSearch) {
+  if (
+    prevResearch?.isSearching !== nextResearch?.isSearching ||
+    prevResearch?.currentRound !== nextResearch?.currentRound ||
+    prevResearch?.maxRounds !== nextResearch?.maxRounds ||
+    prevResearch?.currentSearch !== nextResearch?.currentSearch
+  ) {
     return false
   }
 
@@ -639,8 +694,10 @@ function areMessagePropsEqual(
   }
   const prevProgress = prevMsg.researchProgress
   const nextProgress = nextMsg.researchProgress
-  if (prevProgress?.currentStep !== nextProgress?.currentStep ||
-      prevProgress?.totalSteps !== nextProgress?.totalSteps) {
+  if (
+    prevProgress?.currentStep !== nextProgress?.currentStep ||
+    prevProgress?.totalSteps !== nextProgress?.totalSteps
+  ) {
     return false
   }
 
@@ -652,8 +709,10 @@ function areMessagePropsEqual(
   }
   // Check if any tool result changed (by reference or key properties)
   for (let i = 0; i < prevToolResults.length; i++) {
-    if (prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
-        prevToolResults[i].result.success !== nextToolResults[i].result.success) {
+    if (
+      prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
+      prevToolResults[i].result.success !== nextToolResults[i].result.success
+    ) {
       return false
     }
   }
@@ -671,9 +730,11 @@ function areMessagePropsEqual(
   }
 
   // Compare usage stats
-  if (prevMsg.usage?.inputTokens !== nextMsg.usage?.inputTokens ||
-      prevMsg.usage?.outputTokens !== nextMsg.usage?.outputTokens ||
-      prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens) {
+  if (
+    prevMsg.usage?.inputTokens !== nextMsg.usage?.inputTokens ||
+    prevMsg.usage?.outputTokens !== nextMsg.usage?.outputTokens ||
+    prevMsg.usage?.totalTokens !== nextMsg.usage?.totalTokens
+  ) {
     return false
   }
 
@@ -698,19 +759,16 @@ function areMessagePropsEqual(
 
 /**
  * Main MessageRenderer component
- * 
+ *
  * Wrapped with React.memo() using a custom comparison function to prevent
  * unnecessary re-renders when parent components re-render with unchanged props.
- * 
- * **Validates: Requirements 5.2**
- * **Property 21: Message Component Memoization**
  */
 function MessageRendererComponent({
   message,
   isStreaming = false,
   activeToolCalls,
   onCopy,
-  onRegenerate
+  onRegenerate,
 }: MessageRendererProps) {
   const { settings } = useSettings()
   const [copied, setCopied] = useState(false)
@@ -763,9 +821,10 @@ function MessageRendererComponent({
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
   const currentVersionIndex = message.currentVersionIndex || 0
-  const messageActionButtonClassName = showActionButtons === true
-    ? 'message-action-surface action-btn-animate'
-    : 'message-action-surface'
+  const messageActionButtonClassName =
+    showActionButtons === true
+      ? 'message-action-surface action-btn-animate'
+      : 'message-action-surface'
 
   // Reset display version when message changes
   useEffect(() => {
@@ -808,7 +867,7 @@ function MessageRendererComponent({
                 title: String(entry.title || ''),
                 url,
                 snippet: String(entry.snippet || entry.description || ''),
-                favicon: String(entry.favicon || '')
+                favicon: String(entry.favicon || ''),
               })
             }
           }
@@ -860,7 +919,7 @@ function MessageRendererComponent({
     }
 
     const webImageMode: 'search' | 'extract' | 'mixed' =
-      modeSet.size > 1 ? 'mixed' : (modeSet.values().next().value || 'search')
+      modeSet.size > 1 ? 'mixed' : modeSet.values().next().value || 'search'
 
     return { webSearchImages: images, webImageMode }
   }, [message.toolResults])
@@ -904,7 +963,7 @@ function MessageRendererComponent({
 
   // Handle version navigation
   const navigateVersion = (direction: 'prev' | 'next') => {
-    setDisplayVersionIndex(prev => {
+    setDisplayVersionIndex((prev) => {
       if (direction === 'next' && prev < totalVersions - 1) {
         return prev + 1
       } else if (direction === 'prev' && prev > 0) {
@@ -946,7 +1005,7 @@ function MessageRendererComponent({
 
     left = Math.min(Math.max(left, padding), Math.max(padding, maxLeft))
 
-    let top = rect.top + (rect.height / 2) - (popoverHeight / 2)
+    let top = rect.top + rect.height / 2 - popoverHeight / 2
     const maxTop = viewportHeight - popoverHeight - padding
     top = Math.min(Math.max(top, padding), Math.max(padding, maxTop))
 
@@ -1032,30 +1091,33 @@ function MessageRendererComponent({
   }
 
   // Render assistant message
-  const shouldShowInfoTooltip = !isStreaming && (
-    Boolean(message.content) ||
-    Boolean(message.thinking) ||
-    Boolean(message.model) ||
-    Boolean(message.usage) ||
-    Boolean(message.finishReason) ||
-    typeof message.requestedMaxTokens === 'number' ||
-    typeof message.latency === 'number' ||
-    Boolean(message.toolResults)
-  )
+  const shouldShowInfoTooltip =
+    !isStreaming &&
+    (Boolean(message.content) ||
+      Boolean(message.thinking) ||
+      Boolean(message.model) ||
+      Boolean(message.usage) ||
+      Boolean(message.finishReason) ||
+      typeof message.requestedMaxTokens === 'number' ||
+      typeof message.latency === 'number' ||
+      Boolean(message.toolResults))
 
   return (
-    <div
-      style={{ marginBottom: '24px' }}
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      ref={messageRef}
-    >
-      {/* Thinking Block */}
-      {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
+    <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
+      {(hasThinking ||
+        showThinkingSpinner ||
+        (message.thinkingBlocks && message.thinkingBlocks.length > 0) ||
+        message.researchStatus?.isSearching ||
+        (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
             thinking={message.thinking || ''}
-            isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching && (!activeToolCalls || activeToolCalls.length === 0)}
+            isThinking={
+              isStreaming &&
+              !message.content &&
+              !message.researchStatus?.isSearching &&
+              (!activeToolCalls || activeToolCalls.length === 0)
+            }
             thinkingDuration={message.thinkingDuration}
             isSearching={message.researchStatus?.isSearching || false}
             searchQuery={message.researchStatus?.currentSearch}
@@ -1071,15 +1133,28 @@ function MessageRendererComponent({
       )}
 
       {/* Message content - only show when not streaming or when content has arrived */}
-      {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
+      {(!isStreaming ||
+        hasContentDuringStreaming ||
+        message.thinkingBlocks?.length ||
+        message.researchStatus) && (
         <div className="markdown-content">
-          <LazyMarkdown content={processedContent} webSources={webSourceMap} isStreaming={isStreaming} />
+          <LazyMarkdown
+            content={processedContent}
+            webSources={webSourceMap}
+            isStreaming={isStreaming}
+          />
         </div>
       )}
 
-      {/* Action Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px', overflow: 'visible' }}>
-        {/* Version Indicator */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginTop: '12px',
+          overflow: 'visible',
+        }}
+      >
         {message.responseVersions && message.responseVersions.length > 0 && (
           <>
             <button
@@ -1092,17 +1167,19 @@ function MessageRendererComponent({
                 cursor: displayVersionIndex > 0 ? 'pointer' : 'not-allowed',
                 padding: '2px',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
               }}
             >
               <ChevronLeft size={16} />
             </button>
 
-            <span style={{
-              fontSize: '0.8rem',
-              color: 'var(--theme-text-secondary)',
-              fontFamily: 'monospace'
-            }}>
+            <span
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--theme-text-secondary)',
+                fontFamily: 'monospace',
+              }}
+            >
               v{displayVersionIndex + 1}/{totalVersions}
             </span>
 
@@ -1112,11 +1189,14 @@ function MessageRendererComponent({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: displayVersionIndex < totalVersions - 1 ? 'var(--theme-text-muted)' : 'var(--theme-border)',
+                color:
+                  displayVersionIndex < totalVersions - 1
+                    ? 'var(--theme-text-muted)'
+                    : 'var(--theme-border)',
                 cursor: displayVersionIndex < totalVersions - 1 ? 'pointer' : 'not-allowed',
                 padding: '2px',
                 display: 'flex',
-                alignItems: 'center'
+                alignItems: 'center',
               }}
             >
               <ChevronRight size={16} />
@@ -1138,14 +1218,17 @@ function MessageRendererComponent({
               padding: '6px',
               fontSize: '0.85rem',
               fontFamily: 'inherit',
-              animationDelay: '0ms'
+              animationDelay: '0ms',
             }}
           >
-            {copied ? <Check size={MESSAGE_ACTION_ICON_SIZE} /> : <Copy size={MESSAGE_ACTION_ICON_SIZE} />}
+            {copied ? (
+              <Check size={MESSAGE_ACTION_ICON_SIZE} />
+            ) : (
+              <Copy size={MESSAGE_ACTION_ICON_SIZE} />
+            )}
           </button>
         )}
 
-        {/* Regenerate Button */}
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
           <button
             onClick={openRegenerateModal}
@@ -1157,7 +1240,7 @@ function MessageRendererComponent({
               alignItems: 'center',
               gap: '6px',
               padding: '6px',
-              animationDelay: '60ms'
+              animationDelay: '60ms',
             }}
             title="Regenerate with custom instructions"
           >
@@ -1165,7 +1248,6 @@ function MessageRendererComponent({
           </button>
         )}
 
-        {/* Info Tooltip */}
         {shouldShowInfoTooltip && (
           <div
             ref={infoTriggerRef}
@@ -1181,7 +1263,7 @@ function MessageRendererComponent({
               overflow: 'visible',
               minWidth: '22px',
               minHeight: '22px',
-              animationDelay: '120ms'
+              animationDelay: '120ms',
             }}
             onMouseEnter={handleInfoMouseEnter}
             onMouseLeave={handleInfoMouseLeave}
@@ -1195,141 +1277,64 @@ function MessageRendererComponent({
                   flexShrink: 0,
                   display: 'block',
                   width: `${MESSAGE_ACTION_ICON_SIZE}px`,
-                  height: `${MESSAGE_ACTION_ICON_SIZE}px`
+                  height: `${MESSAGE_ACTION_ICON_SIZE}px`,
                 }}
               />
             </div>
           </div>
         )}
 
-        {/* Info Popover */}
-        {popoverPosition && typeof document !== 'undefined' && createPortal(
-          <div
-            ref={infoPopoverRef}
-            onMouseEnter={handlePopoverMouseEnter}
-            onMouseLeave={handlePopoverMouseLeave}
-            style={{
-              position: 'fixed',
-              top: popoverPosition.top,
-              left: popoverPosition.left,
-              zIndex: 1000
-            }}
-          >
-            <ResponseInfo
-              model={message.model || settings.aiModel}
-              latency={message.latency}
-              usage={message.usage}
-              finishReason={message.finishReason}
-              requestedMaxTokens={message.requestedMaxTokens}
-            />
-          </div>,
-          document.body
-        )}
+        {popoverPosition &&
+          typeof document !== 'undefined' &&
+          createPortal(
+            <div
+              ref={infoPopoverRef}
+              onMouseEnter={handlePopoverMouseEnter}
+              onMouseLeave={handlePopoverMouseLeave}
+              style={{
+                position: 'fixed',
+                top: popoverPosition.top,
+                left: popoverPosition.left,
+                zIndex: 1000,
+              }}
+            >
+              <ResponseInfo
+                model={message.model || settings.aiModel}
+                latency={message.latency}
+                usage={message.usage}
+                finishReason={message.finishReason}
+                requestedMaxTokens={message.requestedMaxTokens}
+              />
+            </div>,
+            document.body
+          )}
       </div>
 
-
-
-      {/* Regenerate Modal */}
-      {showRegenerateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10000,
-            padding: '20px',
-            animation: 'fadeIn 0.15s ease-out'
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowRegenerateModal(false)
-            }
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--theme-surface)',
-              borderRadius: '16px',
-              padding: '20px',
-              width: '100%',
-              maxWidth: '500px',
-              border: '1px solid var(--theme-border)',
-              boxShadow: 'var(--theme-shadow-lg)',
-              animation: 'slideUp 0.2s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  background: 'var(--theme-accent)',
-                  borderRadius: '8px',
-                  padding: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <RotateCcw size={16} color="var(--theme-text-inverse)" />
-                </div>
-                <div>
-                  <div style={{ color: 'var(--theme-text-primary)', fontSize: '0.95rem', fontWeight: 600 }}>
-                    Regenerate Response
-                  </div>
-                  <div style={{ color: 'var(--theme-text-tertiary)', fontSize: '0.75rem' }}>
-                    Leave empty to regenerate normally
-                  </div>
-                </div>
+      <Dialog open={showRegenerateModal} onOpenChange={setShowRegenerateModal}>
+        <DialogContent showCloseButton className="max-w-[500px] gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-[var(--theme-border)] px-5 py-4 pr-12">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--theme-accent-muted)] text-[var(--theme-accent)]">
+                <RotateCcw size={16} />
               </div>
-              <button
-                onClick={() => setShowRegenerateModal(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--theme-text-muted)',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  borderRadius: '4px',
-                  transition: 'all 0.15s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                <X size={18} />
-              </button>
+              <div className="space-y-1">
+                <DialogTitle className="text-[0.95rem] text-[var(--theme-text-primary)]">
+                  Regenerate Response
+                </DialogTitle>
+                <DialogDescription className="text-[0.78rem] text-[var(--theme-text-muted)]">
+                  Leave empty to regenerate normally.
+                </DialogDescription>
+              </div>
             </div>
+          </DialogHeader>
 
-            {/* Text Input */}
-            <textarea
+          <div className="space-y-4 px-5 py-4">
+            <Textarea
               ref={regenerateInputRef}
               value={regenerateInstruction}
               onChange={(e) => setRegenerateInstruction(e.target.value)}
-              placeholder="Describe what you want to change... (e.g., &quot;make it more concise&quot;, &quot;add code examples&quot;, &quot;explain in simpler terms&quot;)"
-              style={{
-                width: '100%',
-                minHeight: '80px',
-                maxHeight: '200px',
-                padding: '12px',
-                backgroundColor: 'var(--theme-surface-subtle)',
-                border: '1px solid var(--theme-border)',
-                borderRadius: '10px',
-                color: 'var(--theme-text-primary)',
-                fontSize: '0.9rem',
-                fontFamily: 'inherit',
-                resize: 'vertical',
-                outline: 'none',
-                transition: 'border-color 0.15s'
-              }}
-              onFocus={(e) => e.currentTarget.style.borderColor = 'var(--theme-accent)'}
-              onBlur={(e) => e.currentTarget.style.borderColor = 'var(--theme-border)'}
+              placeholder='Describe what you want to change... (e.g., "make it more concise", "add code examples", "explain in simpler terms")'
+              className="min-h-[80px] max-h-[200px] resize-y rounded-xl border-[var(--theme-border)] bg-[var(--theme-surface-subtle)] px-3 py-3 text-[0.9rem] shadow-none focus-visible:border-[var(--theme-accent)] focus-visible:ring-[var(--theme-accent-muted)]"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault()
@@ -1340,86 +1345,35 @@ function MessageRendererComponent({
               }}
             />
 
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
-              <div style={{ color: 'var(--theme-text-muted)', fontSize: '0.75rem' }}>
-                <CornerDownLeft size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
-                Cmd+Enter to regenerate
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-[var(--theme-text-muted)]">
+                <CornerDownLeft size={12} />
+                <span>Cmd+Enter to regenerate</span>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => setShowRegenerateModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    background: 'transparent',
-                    border: '1px solid var(--theme-border)',
-                    borderRadius: '8px',
-                    color: 'var(--theme-text-secondary)',
-                    fontSize: '0.85rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-surface-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
+
+              <DialogFooter className="gap-2 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => setShowRegenerateModal(false)}>
                   Cancel
-                </button>
-                <button
-                  onClick={handleRegenerate}
-                  style={{
-                    padding: '8px 16px',
-                    background: 'var(--theme-accent)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: 'var(--theme-text-inverse)',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--theme-accent-hover)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'var(--theme-accent)'}
-                >
+                </Button>
+                <Button onClick={handleRegenerate} className="gap-2">
                   <RotateCcw size={14} />
                   Regenerate
-                </button>
-              </div>
+                </Button>
+              </DialogFooter>
             </div>
           </div>
-
-          {/* Animations */}
-          <style>{`
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
-            @keyframes slideUp {
-              from { opacity: 0; transform: translateY(20px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-          `}</style>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 /**
  * Memoized MessageRenderer component
- * 
+ *
  * Uses React.memo() with a custom comparison function (areMessagePropsEqual)
  * to prevent unnecessary re-renders when parent components re-render with
  * unchanged message props.
- * 
- * **Validates: Requirements 5.2**
- * **Property 21: Message Component Memoization**
- * 
- * For any parent component re-render with unchanged message props,
- * the Message component SHALL not re-render.
  */
 export const MessageRenderer = memo(MessageRendererComponent, areMessagePropsEqual)
 

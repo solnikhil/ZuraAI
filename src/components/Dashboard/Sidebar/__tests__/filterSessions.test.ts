@@ -1,8 +1,6 @@
 /**
  * Unit Tests: filterSessions utility
  *
- * Feature: sidebar-redesign
- * Validates: Requirements 3.2, 3.3, 3.4, 3.5
  *
  * Tests cover:
  * - Empty/whitespace queries return all sessions
@@ -16,11 +14,12 @@ import { describe, it, expect } from 'vitest'
 import { filterSessions, getMatchSnippet } from '../utils/filterSessions'
 import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
-function makeMessage(content: string, overrides?: Partial<{ id: string; role: 'user' | 'assistant' | 'system'; timestamp: number }>) {
+function makeMessage(
+  content: string,
+  overrides?: Partial<{ id: string; role: 'user' | 'assistant' | 'system'; timestamp: number }>
+) {
   return {
     id: overrides?.id ?? crypto.randomUUID(),
     role: overrides?.role ?? ('user' as const),
@@ -29,7 +28,11 @@ function makeMessage(content: string, overrides?: Partial<{ id: string; role: 'u
   }
 }
 
-function makeSession(title: string, messages: ReturnType<typeof makeMessage>[] = [], overrides?: Partial<ChatSession>): ChatSession {
+function makeSession(
+  title: string,
+  messages: ReturnType<typeof makeMessage>[] = [],
+  overrides?: Partial<ChatSession>
+): ChatSession {
   return {
     id: overrides?.id ?? crypto.randomUUID(),
     title,
@@ -40,9 +43,7 @@ function makeSession(title: string, messages: ReturnType<typeof makeMessage>[] =
   }
 }
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('filterSessions', () => {
   const sessions: ChatSession[] = [
@@ -60,7 +61,6 @@ describe('filterSessions', () => {
     ]),
   ]
 
-  // Requirement 3.5: Empty/whitespace query returns all sessions
   describe('empty/whitespace queries', () => {
     it('should return all sessions for empty string', () => {
       expect(filterSessions(sessions, '')).toEqual(sessions)
@@ -75,7 +75,6 @@ describe('filterSessions', () => {
     })
   })
 
-  // Requirement 3.2: Case-insensitive title matching
   describe('title matching', () => {
     it('should match session by exact title substring', () => {
       const result = filterSessions(sessions, 'React')
@@ -98,16 +97,12 @@ describe('filterSessions', () => {
     it('should return multiple sessions when query matches multiple titles', () => {
       // Both "TypeScript Generics" and "React Hooks Tutorial" don't share a common word,
       // but let's use a partial match
-      const sessionsWithCommon = [
-        ...sessions,
-        makeSession('Advanced TypeScript Patterns', []),
-      ]
+      const sessionsWithCommon = [...sessions, makeSession('Advanced TypeScript Patterns', [])]
       const result = filterSessions(sessionsWithCommon, 'TypeScript')
       expect(result).toHaveLength(2)
     })
   })
 
-  // Requirement 3.3: Message content matching
   describe('message content matching', () => {
     it('should match session by message content when title does not match', () => {
       const result = filterSessions(sessions, 'useState')
@@ -145,7 +140,6 @@ describe('filterSessions', () => {
     })
   })
 
-  // Requirement 3.4: No results empty state
   describe('no results', () => {
     it('should return empty array when no sessions match', () => {
       const result = filterSessions(sessions, 'nonexistent-query-xyz')
@@ -172,26 +166,20 @@ describe('filterSessions', () => {
     })
 
     it('should match if title matches even when messages do not', () => {
-      const session = makeSession('JavaScript Basics', [
-        makeMessage('This is about Python'),
-      ])
+      const session = makeSession('JavaScript Basics', [makeMessage('This is about Python')])
       const result = filterSessions([session], 'JavaScript')
       expect(result).toHaveLength(1)
     })
 
     it('should match if messages match even when title does not', () => {
-      const session = makeSession('My Chat', [
-        makeMessage('Let me explain JavaScript closures'),
-      ])
+      const session = makeSession('My Chat', [makeMessage('Let me explain JavaScript closures')])
       const result = filterSessions([session], 'closures')
       expect(result).toHaveLength(1)
     })
   })
 })
 
-// ============================================================================
 // getMatchSnippet Tests
-// ============================================================================
 
 describe('getMatchSnippet', () => {
   it('should return null for empty query', () => {
@@ -247,9 +235,7 @@ describe('getMatchSnippet', () => {
   })
 
   it('should match case-insensitively', () => {
-    const session = makeSession('Chat', [
-      makeMessage('TypeScript is great', { role: 'assistant' }),
-    ])
+    const session = makeSession('Chat', [makeMessage('TypeScript is great', { role: 'assistant' })])
     const result = getMatchSnippet(session, 'typescript')
     expect(result).not.toBeNull()
     expect(result!.snippet).toContain('TypeScript')
@@ -257,9 +243,7 @@ describe('getMatchSnippet', () => {
 
   it('should truncate long content with ellipsis', () => {
     const longContent = 'A'.repeat(40) + ' keyword ' + 'B'.repeat(40)
-    const session = makeSession('Chat', [
-      makeMessage(longContent, { role: 'assistant' }),
-    ])
+    const session = makeSession('Chat', [makeMessage(longContent, { role: 'assistant' })])
     const result = getMatchSnippet(session, 'keyword', 40)
     expect(result).not.toBeNull()
     expect(result!.snippet).toContain('...')

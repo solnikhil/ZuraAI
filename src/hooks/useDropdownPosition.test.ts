@@ -1,13 +1,17 @@
 /**
  * Unit tests for useDropdownPosition hook
  * Tests centralized dropdown position calculation
- * 
- * Requirements: 4.3
+ *
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useDropdownPosition, calculateMaxHeight, getDropdownTransform, getDropdownAnimation } from './useDropdownPosition'
+import {
+  useDropdownPosition,
+  calculateMaxHeight,
+  getDropdownTransform,
+  getDropdownAnimation,
+} from './useDropdownPosition'
 
 describe('useDropdownPosition', () => {
   // Mock window dimensions
@@ -33,11 +37,11 @@ describe('useDropdownPosition', () => {
   describe('initial state', () => {
     it('returns default position when not open', () => {
       const triggerRef = { current: null }
-      
-      const { result } = renderHook(() => 
+
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
-          isOpen: false
+          isOpen: false,
         })
       )
 
@@ -45,18 +49,18 @@ describe('useDropdownPosition', () => {
         top: 0,
         left: 0,
         width: 400,
-        showAbove: false
+        showAbove: false,
       })
     })
 
     it('uses custom preferred width', () => {
       const triggerRef = { current: null }
-      
-      const { result } = renderHook(() => 
+
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: false,
-          preferredWidth: 500
+          preferredWidth: 500,
         })
       )
 
@@ -73,18 +77,18 @@ describe('useDropdownPosition', () => {
           left: 50,
           right: 200,
           width: 150,
-          height: 40
-        })
+          height: 40,
+        }),
       } as HTMLElement
 
       const triggerRef = { current: mockElement }
 
-      const { result } = renderHook(() => 
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
           preferredWidth: 300,
-          preferredHeight: 200
+          preferredHeight: 200,
         })
       )
 
@@ -96,7 +100,7 @@ describe('useDropdownPosition', () => {
 
     it('shows dropdown above when more space above', () => {
       mockWindowDimensions(1024, 300) // Small viewport height
-      
+
       const mockElement = {
         getBoundingClientRect: () => ({
           top: 250, // Near bottom
@@ -104,18 +108,18 @@ describe('useDropdownPosition', () => {
           left: 50,
           right: 200,
           width: 150,
-          height: 40
-        })
+          height: 40,
+        }),
       } as HTMLElement
 
       const triggerRef = { current: mockElement }
 
-      const { result } = renderHook(() => 
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
           preferredWidth: 300,
-          preferredHeight: 200
+          preferredHeight: 200,
         })
       )
 
@@ -131,18 +135,18 @@ describe('useDropdownPosition', () => {
           left: 800, // Near right edge
           right: 950,
           width: 150,
-          height: 40
-        })
+          height: 40,
+        }),
       } as HTMLElement
 
       const triggerRef = { current: mockElement }
 
-      const { result } = renderHook(() => 
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
           preferredWidth: 400,
-          viewportPadding: 16
+          viewportPadding: 16,
         })
       )
 
@@ -154,11 +158,11 @@ describe('useDropdownPosition', () => {
   describe('recalculate function', () => {
     it('provides recalculate function', () => {
       const triggerRef = { current: null }
-      
-      const { result } = renderHook(() => 
+
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
-          isOpen: false
+          isOpen: false,
         })
       )
 
@@ -173,16 +177,16 @@ describe('useDropdownPosition', () => {
           left: 50,
           right: 200,
           width: 150,
-          height: 40
-        })
+          height: 40,
+        }),
       } as HTMLElement
 
       const triggerRef = { current: mockElement }
 
-      const { result } = renderHook(() => 
+      const { result } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
-          isOpen: true
+          isOpen: true,
         })
       )
 
@@ -202,11 +206,11 @@ describe('useDropdownPosition', () => {
       const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
       const triggerRef = { current: null }
 
-      renderHook(() => 
+      renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
-          recalculateOnResize: true
+          recalculateOnResize: true,
         })
       )
 
@@ -217,11 +221,11 @@ describe('useDropdownPosition', () => {
       const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
       const triggerRef = { current: null }
 
-      renderHook(() => 
+      renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
-          recalculateOnScroll: true
+          recalculateOnScroll: true,
         })
       )
 
@@ -232,10 +236,10 @@ describe('useDropdownPosition', () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
       const triggerRef = { current: null }
 
-      const { unmount } = renderHook(() => 
+      const { unmount } = renderHook(() =>
         useDropdownPosition({
           triggerRef,
-          isOpen: true
+          isOpen: true,
         })
       )
 
@@ -248,12 +252,12 @@ describe('useDropdownPosition', () => {
       const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
       const triggerRef = { current: null }
 
-      renderHook(() => 
+      renderHook(() =>
         useDropdownPosition({
           triggerRef,
           isOpen: true,
           recalculateOnResize: false,
-          recalculateOnScroll: false
+          recalculateOnScroll: false,
         })
       )
 
@@ -271,7 +275,7 @@ describe('calculateMaxHeight', () => {
   it('calculates max height for dropdown below', () => {
     const position = { top: 200, left: 0, width: 400, showAbove: false }
     const maxHeight = calculateMaxHeight(position, 16, 400)
-    
+
     // Should be limited by space below: 768 - 200 - 16 = 552, capped at 400
     expect(maxHeight).toBe(400)
   })
@@ -279,7 +283,7 @@ describe('calculateMaxHeight', () => {
   it('calculates max height for dropdown above', () => {
     const position = { top: 300, left: 0, width: 400, showAbove: true }
     const maxHeight = calculateMaxHeight(position, 16, 400)
-    
+
     // Should be limited by space above: 300 - 16 = 284
     expect(maxHeight).toBe(284)
   })
@@ -287,7 +291,7 @@ describe('calculateMaxHeight', () => {
   it('respects minimum height of 200', () => {
     const position = { top: 100, left: 0, width: 400, showAbove: true }
     const maxHeight = calculateMaxHeight(position, 16, 400)
-    
+
     // Space above is 100 - 16 = 84, but minimum is 200
     expect(maxHeight).toBe(200)
   })

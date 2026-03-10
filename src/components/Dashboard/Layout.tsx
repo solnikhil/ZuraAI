@@ -5,99 +5,107 @@ import { useAppShell } from '../../contexts/AppShellContext'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
-const Settings = lazy(() => import('../Settings').then(m => ({ default: m.default })))
+const Settings = lazy(() => import('../Settings').then((m) => ({ default: m.default })))
 
 function SettingsLoadingFallback() {
-    return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            color: '#999'
-        }}>
-            Loading Settings...
-        </div>
-    )
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: 'var(--theme-text-muted)',
+      }}
+    >
+      Loading Settings...
+    </div>
+  )
 }
 
 export default function DashboardLayout() {
-    const {
-        dashboardView: view,
-        activeSettingsSection,
-        setActiveSettingsSection,
-        hasUnsavedSettings,
-        setHasUnsavedSettings
-    } = useAppShell()
-    const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const {
+    dashboardView: view,
+    activeSettingsSection,
+    setActiveSettingsSection,
+    hasUnsavedSettings,
+    setHasUnsavedSettings,
+  } = useAppShell()
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
 
-    // This callback is passed to Settings to track unsaved changes
-    const handleUnsavedChange = useCallback((hasChanges: boolean) => {
-        setHasUnsavedSettings(hasChanges)
-    }, [])
+  // This callback is passed to Settings to track unsaved changes
+  const handleUnsavedChange = useCallback((hasChanges: boolean) => {
+    setHasUnsavedSettings(hasChanges)
+  }, [])
 
-    // This is called when trying to navigate away with unsaved changes
-    const triggerWarning = useCallback(() => {
-        setShowUnsavedWarning(true)
-        setTimeout(() => setShowUnsavedWarning(false), 600)
-    }, [])
+  // This is called when trying to navigate away with unsaved changes
+  const triggerWarning = useCallback(() => {
+    setShowUnsavedWarning(true)
+    setTimeout(() => setShowUnsavedWarning(false), 600)
+  }, [])
 
-    // Wrapper for navigation that checks for unsaved changes
-    const handleNavigate = useCallback((action: () => void) => {
-        if (hasUnsavedSettings) {
-            triggerWarning()
-            return false // blocked
-        }
-        action()
-        return true // allowed
-    }, [hasUnsavedSettings, triggerWarning])
+  // Wrapper for navigation that checks for unsaved changes
+  const handleNavigate = useCallback(
+    (action: () => void) => {
+      if (hasUnsavedSettings) {
+        triggerWarning()
+        return false // blocked
+      }
+      action()
+      return true // allowed
+    },
+    [hasUnsavedSettings, triggerWarning]
+  )
 
-    return (
-        <div style={{
-            display: 'flex',
-            width: '100%',
-            height: '100%',
-            overflow: 'hidden',
-            position: 'relative'
-        }}>
-            <Sidebar
-                view={view}
-                activeSettingsSection={activeSettingsSection}
-                onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
-            />
+  return (
+    <div
+      style={{
+        display: 'flex',
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      <Sidebar
+        view={view}
+        activeSettingsSection={activeSettingsSection}
+        onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
+      />
 
-            {/* Main Content Area - ChatArea or Settings - always has solid background */}
-            <div style={{ 
-                flex: 1, 
-                position: 'relative', 
-                overflow: 'hidden',
-                backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
-                zIndex: 1,
-                contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
-            }}>
-                {view === 'settings' ? (
-                    <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
-                        <Suspense fallback={<SettingsLoadingFallback />}>
-                            <Settings
-                                activeSection={activeSettingsSection}
-                                onUnsavedChange={handleUnsavedChange}
-                                showWarning={showUnsavedWarning}
-                            />
-                        </Suspense>
-                    </div>
-                ) : (
-                    <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>
-                        <ChatArea />
-                    </div>
-                )}
-            </div>
-
-            <style>{`
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-            `}</style>
-        </div>
-    )
+      {/* Main Content Area - ChatArea or Settings - always has solid background */}
+      <div
+        style={{
+          flex: 1,
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
+          zIndex: 1,
+          contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
+        }}
+      >
+        {view === 'settings' ? (
+          <div
+            className="theme-section-enter"
+            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+          >
+            <Suspense fallback={<SettingsLoadingFallback />}>
+              <Settings
+                activeSection={activeSettingsSection}
+                onUnsavedChange={handleUnsavedChange}
+                showWarning={showUnsavedWarning}
+              />
+            </Suspense>
+          </div>
+        ) : (
+          <div
+            className="theme-section-enter"
+            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+          >
+            <ChatArea />
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }

@@ -9,11 +9,8 @@ import { StreamingProvider } from './contexts/StreamingContext'
 import { QuickSendProvider } from './contexts/QuickSendContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
 
-// Lazy load Settings component for bundle optimization
-// Only loads when user navigates to settings route
 const Settings = lazy(() => import('./components/Settings/Settings'))
 
-// Loading fallback for Settings route
 function SettingsLoadingFallback() {
   return (
     <div
@@ -53,7 +50,6 @@ function App() {
                           </Suspense>
                         }
                       />
-                      {/* Legacy chat view now uses DashboardLayout to include sidebar */}
                       <Route path="/chat" element={<DashboardLayout />} />
                     </Route>
                     <Route path="*" element={<NotFound404 />} />

@@ -1,13 +1,15 @@
 /**
  * useModelSelector hook - handles model selection state and logic
- * 
- * @module ModelSelector/useModelSelector
- * Requirements: 3.3
+ *
  */
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
-import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../../services/ollama'
+import {
+  checkOllamaStatus,
+  listOllamaModels,
+  enrichOllamaModelsWithContext,
+} from '../../../services/ollama'
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
@@ -36,10 +38,9 @@ export interface ModelSelectorState {
 export interface UseModelSelectorReturn {
   // State
   state: ModelSelectorState
-  
-  // Refs
+
   searchInputRef: React.RefObject<HTMLInputElement | null>
-  
+
   // Computed values
   allModels: ModelWithProvider[]
   filteredModels: ModelWithProvider[]
@@ -48,7 +49,7 @@ export interface UseModelSelectorReturn {
   favoriteModels: ModelWithProvider[]
   currentModel: ModelWithProvider | undefined
   currentName: string
-  
+
   // Actions
   setIsOpen: (open: boolean) => void
   setSearchQuery: (query: string) => void
@@ -68,13 +69,13 @@ export interface UseModelSelectorReturn {
  */
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
-  
+
   const modelSelector = settings.modelSelector || {
     defaultView: 'lastUsed',
     rememberProvider: true,
     autoCloseOnSelect: true,
   }
-  
+
   // Determine initial view mode based on settings
   const getInitialViewMode = (): ViewMode => {
     if (modelSelector.defaultView === 'favorites') {
@@ -82,7 +83,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
     return 'all'
   }
-  
+
   // State
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -90,25 +91,35 @@ export function useModelSelector(): UseModelSelectorReturn {
   const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'alibaba'] as const
   const providerEnabled = settings.providerEnabled || {}
 
-  const isProviderEnabled = useCallback((provider: string): boolean => {
-    const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
-    if (!manuallyEnabled) return false
+  const isProviderEnabled = useCallback(
+    (provider: string): boolean => {
+      const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
+      if (!manuallyEnabled) return false
 
-    switch (provider) {
-      case 'ollama':
-        return Boolean(settings.ollamaUrl?.trim())
-      case 'openrouter':
-        return Boolean(settings.openRouterApiKey?.trim())
-      case 'perplexity':
-        return Boolean(settings.perplexityApiKey?.trim())
-      case 'groq':
-        return Boolean(settings.groqApiKey?.trim())
-      case 'alibaba':
-        return Boolean(settings.alibabaApiKey?.trim())
-      default:
-        return false
-    }
-  }, [providerEnabled, settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.alibabaApiKey])
+      switch (provider) {
+        case 'ollama':
+          return Boolean(settings.ollamaUrl?.trim())
+        case 'openrouter':
+          return Boolean(settings.openRouterApiKey?.trim())
+        case 'perplexity':
+          return Boolean(settings.perplexityApiKey?.trim())
+        case 'groq':
+          return Boolean(settings.groqApiKey?.trim())
+        case 'alibaba':
+          return Boolean(settings.alibabaApiKey?.trim())
+        default:
+          return false
+      }
+    },
+    [
+      providerEnabled,
+      settings.ollamaUrl,
+      settings.openRouterApiKey,
+      settings.perplexityApiKey,
+      settings.groqApiKey,
+      settings.alibabaApiKey,
+    ]
+  )
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
@@ -117,7 +128,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
     return 'openrouter'
   })
-  
+
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
@@ -125,15 +136,14 @@ export function useModelSelector(): UseModelSelectorReturn {
     perplexity: false,
     openrouter: false,
     groq: false,
-    alibaba: false
+    alibaba: false,
   })
-  
-  // Refs
+
   const searchInputRef = useRef<HTMLInputElement>(null)
-  
+
   // Keyboard navigation state
   const [focusedIndex, setFocusedIndex] = useState(-1)
-  
+
   // Sync selectedProvider with settings.modelProvider when dropdown opens
   useEffect(() => {
     if (isOpen) {
@@ -143,9 +153,15 @@ export function useModelSelector(): UseModelSelectorReturn {
       } else {
         setViewMode('all')
         // Restore provider if rememberProvider is enabled and provider is valid and enabled
-        let provider = modelSelector.rememberProvider && settings.modelProvider ? settings.modelProvider : 'openrouter'
-        if (!validProviders.includes(provider as typeof validProviders[number]) || !isProviderEnabled(provider)) {
-          provider = validProviders.find(p => isProviderEnabled(p)) ?? 'openrouter'
+        let provider =
+          modelSelector.rememberProvider && settings.modelProvider
+            ? settings.modelProvider
+            : 'openrouter'
+        if (
+          !validProviders.includes(provider as (typeof validProviders)[number]) ||
+          !isProviderEnabled(provider)
+        ) {
+          provider = validProviders.find((p) => isProviderEnabled(p)) ?? 'openrouter'
         }
         setSelectedProvider(provider)
       }
@@ -153,7 +169,13 @@ export function useModelSelector(): UseModelSelectorReturn {
     } else {
       setFocusedIndex(-1) // Reset focus when closing
     }
-  }, [isOpen, settings.modelProvider, modelSelector.defaultView, modelSelector.rememberProvider, isProviderEnabled])
+  }, [
+    isOpen,
+    settings.modelProvider,
+    modelSelector.defaultView,
+    modelSelector.rememberProvider,
+    isProviderEnabled,
+  ])
 
   // Refresh Ollama models when dropdown opens so models added via terminal appear immediately
   const prevOpenRef = useRef(false)
@@ -165,84 +187,86 @@ export function useModelSelector(): UseModelSelectorReturn {
     if (prevOpenRef.current) return // Already fetched for this open session
     prevOpenRef.current = true
     const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
-    const existing = (settings.ollamaModels || []).map(m => [m.code, m.enabled] as const)
+    const existing = (settings.ollamaModels || []).map((m) => [m.code, m.enabled] as const)
     const refresh = async () => {
       try {
         const connected = await checkOllamaStatus(url)
         if (!connected) return
         const models = await listOllamaModels(url)
         if (models.length === 0) return
-        const formatted = models.map(m => ({
+        const formatted = models.map((m) => ({
           code: m.name,
-          displayName: `${m.name} (${m.details.parameter_size})`
+          displayName: `${m.name} (${m.details.parameter_size})`,
         }))
         const enriched = await enrichOllamaModelsWithContext(url, formatted)
         const enabledMap = new Map(existing)
-        const merged = enriched.map(m => ({
+        const merged = enriched.map((m) => ({
           ...m,
-          enabled: enabledMap.get(m.code) ?? true
+          enabled: enabledMap.get(m.code) ?? true,
         }))
         updateSettings({ ollamaModels: merged })
-      } catch { /* Ollama not available */ }
+      } catch {
+        /* Ollama not available */
+      }
     }
     void refresh()
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
-  
+
   // Get ALL models from providers that are manually enabled and configured
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 
     if (isProviderEnabled('ollama') && settings.ollamaModels) {
       settings.ollamaModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'ollama' }))
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
     }
     if (isProviderEnabled('perplexity') && settings.perplexityModels) {
       settings.perplexityModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'perplexity' }))
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
     }
     if (isProviderEnabled('openrouter') && settings.configuredModels) {
       settings.configuredModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'openrouter' }))
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
     }
     if (isProviderEnabled('groq') && settings.groqModels) {
       settings.groqModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'groq' }))
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'groq' }))
     }
     if (isProviderEnabled('alibaba') && settings.alibabaModels) {
       settings.alibabaModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'alibaba' }))
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
     }
     return models
   }, [settings, isProviderEnabled])
-  
+
   // Filter models based on search query
   const filteredModels = useMemo(() => {
     return filterModels(allModels, searchQuery)
   }, [allModels, searchQuery])
-  
+
   // Group models by provider
   const groupedModels = useMemo((): GroupedModels => {
     return {
-      ollama: filteredModels.filter(m => m.provider === 'ollama'),
-      perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
-      openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
-      groq: filteredModels.filter(m => m.provider === 'groq'),
-      alibaba: filteredModels.filter(m => m.provider === 'alibaba')
+      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
+      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
+      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
+      groq: filteredModels.filter((m) => m.provider === 'groq'),
+      alibaba: filteredModels.filter((m) => m.provider === 'alibaba'),
     }
   }, [filteredModels])
-  
+
   // Get favorite models
   const favoriteModels = useMemo(() => {
     const favs = settings.favoriteModels || []
     if (favs.length === 0) return []
-    return allModels.filter(m => favs.includes(m.code))
+    return allModels.filter((m) => favs.includes(m.code))
   }, [allModels, settings.favoriteModels])
-  
+
   // Get models for the current view
   const currentModels = useMemo((): ModelWithProvider[] => {
     if (searchQuery.trim()) {
@@ -251,22 +275,25 @@ export function useModelSelector(): UseModelSelectorReturn {
     if (viewMode === 'favorites') {
       return favoriteModels
     }
-    return allModels.filter(m => m.provider === selectedProvider)
+    return allModels.filter((m) => m.provider === selectedProvider)
   }, [searchQuery, filteredModels, viewMode, favoriteModels, allModels, selectedProvider])
-  
+
   // Find current model
   const currentModel = useMemo(() => {
-    return allModels.find(m => m.code === settings.aiModel && m.provider === settings.modelProvider)
+    return allModels.find(
+      (m) => m.code === settings.aiModel && m.provider === settings.modelProvider
+    )
   }, [allModels, settings.aiModel, settings.modelProvider])
-  
+
   // Get current model name for display
   const currentName = useMemo(() => {
-    const nameRaw = currentModel?.displayName || 
-      (settings.aiModel ? settings.aiModel.split('/').pop() : null) || 
+    const nameRaw =
+      currentModel?.displayName ||
+      (settings.aiModel ? settings.aiModel.split('/').pop() : null) ||
       'Select Models...'
     return removeEmojis(nameRaw)
   }, [currentModel, settings.aiModel])
-  
+
   // Reset focused index when models change
   useEffect(() => {
     if (focusedIndex >= currentModels.length) {
@@ -277,81 +304,86 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Auto-switch when current model is from a disabled provider (no longer in allModels)
   useEffect(() => {
     const currentInList = allModels.some(
-      m => m.code === settings.aiModel && m.provider === settings.modelProvider
+      (m) => m.code === settings.aiModel && m.provider === settings.modelProvider
     )
     if (!currentInList && allModels.length > 0) {
       const fallback = allModels[0]
       updateSettings({ aiModel: fallback.code, modelProvider: fallback.provider })
     }
   }, [allModels, settings.aiModel, settings.modelProvider, updateSettings])
-  
+
   // Toggle dropdown open/close
   const toggleOpen = useCallback(() => {
-    setIsOpen(prev => !prev)
+    setIsOpen((prev) => !prev)
   }, [])
-  
+
   // Toggle provider group collapse
   const toggleGroup = useCallback((provider: string) => {
-    setCollapsedGroups(prev => ({
+    setCollapsedGroups((prev) => ({
       ...prev,
-      [provider]: !prev[provider]
+      [provider]: !prev[provider],
     }))
   }, [])
-  
+
   // Toggle favorite status
-  const toggleFavorite = useCallback((modelCode: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const currentFavorites = settings.favoriteModels || []
-    const newFavorites = currentFavorites.includes(modelCode)
-      ? currentFavorites.filter(f => f !== modelCode)
-      : [...currentFavorites, modelCode]
-    updateSettings({ favoriteModels: newFavorites })
-  }, [settings.favoriteModels, updateSettings])
-  
-  // Handle model selection
-  const handleSelect = useCallback((model: ModelWithProvider, e?: React.MouseEvent) => {
-    if (e) {
+  const toggleFavorite = useCallback(
+    (modelCode: string, e: React.MouseEvent) => {
       e.stopPropagation()
-      e.preventDefault()
-    }
-    if (modelSelector.autoCloseOnSelect) {
-      setIsOpen(false)
-    }
-    setFocusedIndex(-1)
-    updateSettings({ aiModel: model.code, modelProvider: model.provider })
-  }, [updateSettings, modelSelector.autoCloseOnSelect])
-  
-  // Keyboard navigation handlers
-  const handleKeyboardNav = useCallback((e: KeyboardEvent) => {
-    if (!isOpen) return
-    
-    switch (e.key) {
-      case 'ArrowDown':
+      const currentFavorites = settings.favoriteModels || []
+      const newFavorites = currentFavorites.includes(modelCode)
+        ? currentFavorites.filter((f) => f !== modelCode)
+        : [...currentFavorites, modelCode]
+      updateSettings({ favoriteModels: newFavorites })
+    },
+    [settings.favoriteModels, updateSettings]
+  )
+
+  // Handle model selection
+  const handleSelect = useCallback(
+    (model: ModelWithProvider, e?: React.MouseEvent) => {
+      if (e) {
+        e.stopPropagation()
         e.preventDefault()
-        setFocusedIndex(prev => 
-          prev < currentModels.length - 1 ? prev + 1 : 0
-        )
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setFocusedIndex(prev => 
-          prev > 0 ? prev - 1 : currentModels.length - 1
-        )
-        break
-      case 'Enter':
-        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
-          e.preventDefault()
-          handleSelect(currentModels[focusedIndex])
-        }
-        break
-      case 'Escape':
-        e.preventDefault()
+      }
+      if (modelSelector.autoCloseOnSelect) {
         setIsOpen(false)
-        setFocusedIndex(-1)
-        break
-    }
-  }, [isOpen, currentModels, focusedIndex, handleSelect])
-  
+      }
+      setFocusedIndex(-1)
+      updateSettings({ aiModel: model.code, modelProvider: model.provider })
+    },
+    [updateSettings, modelSelector.autoCloseOnSelect]
+  )
+
+  // Keyboard navigation handlers
+  const handleKeyboardNav = useCallback(
+    (e: KeyboardEvent) => {
+      if (!isOpen) return
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          setFocusedIndex((prev) => (prev < currentModels.length - 1 ? prev + 1 : 0))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          setFocusedIndex((prev) => (prev > 0 ? prev - 1 : currentModels.length - 1))
+          break
+        case 'Enter':
+          if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
+            e.preventDefault()
+            handleSelect(currentModels[focusedIndex])
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          setIsOpen(false)
+          setFocusedIndex(-1)
+          break
+      }
+    },
+    [isOpen, currentModels, focusedIndex, handleSelect]
+  )
+
   // Attach keyboard event listener when dropdown is open
   useEffect(() => {
     if (isOpen) {
@@ -361,8 +393,7 @@ export function useModelSelector(): UseModelSelectorReturn {
       }
     }
   }, [isOpen, handleKeyboardNav])
-  
-  
+
   return {
     state: {
       isOpen,
@@ -370,7 +401,7 @@ export function useModelSelector(): UseModelSelectorReturn {
       viewMode,
       selectedProvider,
       collapsedGroups,
-      focusedIndex
+      focusedIndex,
     },
     searchInputRef,
     allModels,
@@ -389,7 +420,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     toggleGroup,
     toggleFavorite,
     handleSelect,
-    handleKeyboardNav
+    handleKeyboardNav,
   }
 }
 

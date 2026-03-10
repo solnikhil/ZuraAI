@@ -1,8 +1,6 @@
 /**
  * ModelSelectorDropdown component - renders the dropdown overlay
- * 
- * @module ModelSelector/ModelSelectorDropdown
- * Requirements: 3.1
+ *
  */
 
 import React, { useEffect } from 'react'
@@ -18,7 +16,14 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { ModelIcon } from './ModelIcon'
-import { getModelAttributes, getModelDescription, getCapabilitiesForModelPicker, CAPABILITY_BADGE_STYLES, formatContextLength, getModelContextLength } from '../../../utils/modelUtils'
+import {
+  getModelAttributes,
+  getModelDescription,
+  getCapabilitiesForModelPicker,
+  CAPABILITY_BADGE_STYLES,
+  formatContextLength,
+  getModelContextLength,
+} from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import { ProviderLogo } from '@/components/shared'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -78,9 +83,12 @@ export interface ModelSelectorDropdownProps {
  */
 function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
   switch (speed) {
-    case 'fast': return 0.02
-    case 'slow': return 0.05
-    default: return 0.03
+    case 'fast':
+      return 0.02
+    case 'slow':
+      return 0.05
+    default:
+      return 0.03
   }
 }
 
@@ -89,9 +97,12 @@ function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
  */
 function getDensityClasses(density: 'compact' | 'comfortable' | 'spacious'): string {
   switch (density) {
-    case 'compact': return 'py-1.5'
-    case 'spacious': return 'py-3.5'
-    default: return 'py-2.5'
+    case 'compact':
+      return 'py-1.5'
+    case 'spacious':
+      return 'py-3.5'
+    default:
+      return 'py-2.5'
   }
 }
 
@@ -156,7 +167,7 @@ export function ModelSelectorDropdown({
       if (input) {
         input.focus()
         if (searchInputRef && 'current' in searchInputRef) {
-          (searchInputRef as React.MutableRefObject<HTMLInputElement | null>).current = input
+          ;(searchInputRef as React.MutableRefObject<HTMLInputElement | null>).current = input
         }
       }
     }, 0)
@@ -179,8 +190,9 @@ export function ModelSelectorDropdown({
   const showContextLength = modelSelector.showContextLength !== false && !isTight
 
   return (
-    <div className={`flex h-full overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}>
-      {/* Vertical Provider Sidebar */}
+    <div
+      className={`flex h-full overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}
+    >
       <ProviderSidebar
         activeTabKey={activeTabKey}
         groupedModels={groupedModels}
@@ -199,8 +211,9 @@ export function ModelSelectorDropdown({
         }}
       />
 
-      {/* Main Area: Search + Model List */}
-      <div className={`flex-1 flex flex-col overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l'} border-border/50 relative`}>
+      <div
+        className={`flex-1 flex flex-col overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l'} border-border/50 relative`}
+      >
         {modelSelector.showSearch && (
           <div className={cn('border-b border-border/50', isTight ? 'px-2 py-1.5' : 'px-3 py-2')}>
             <Command className="rounded-none border-0" shouldFilter={false}>
@@ -216,11 +229,15 @@ export function ModelSelectorDropdown({
         <Command className="flex-1 rounded-none border-0" shouldFilter={false}>
           <CommandList className="max-h-full">
             <CommandEmpty>
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                No models found
-              </div>
+              <div className="py-6 text-center text-sm text-muted-foreground">No models found</div>
             </CommandEmpty>
-            <CommandGroup heading={viewMode === 'favorites' ? 'Favorites' : PROVIDERS.find(p => p.key === selectedProvider)?.title || 'Models'}>
+            <CommandGroup
+              heading={
+                viewMode === 'favorites'
+                  ? 'Favorites'
+                  : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
+              }
+            >
               <AnimatePresence mode="wait">
                 {modelSelector.enableAnimations ? (
                   <motion.div
@@ -238,7 +255,10 @@ export function ModelSelectorDropdown({
                         index={index}
                         staggerDelay={staggerDelay}
                         densityClasses={densityClasses}
-                        isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
+                        isActive={
+                          selectedModelCode === model.code &&
+                          selectedModelProvider === model.provider
+                        }
                         isFavorite={favoriteModels.includes(model.code)}
                         modelSelector={modelSelector}
                         compactMode={compactMode}
@@ -260,7 +280,10 @@ export function ModelSelectorDropdown({
                         index={0}
                         staggerDelay={0}
                         densityClasses={densityClasses}
-                        isActive={selectedModelCode === model.code && selectedModelProvider === model.provider}
+                        isActive={
+                          selectedModelCode === model.code &&
+                          selectedModelProvider === model.provider
+                        }
                         isFavorite={favoriteModels.includes(model.code)}
                         modelSelector={modelSelector}
                         compactMode={compactMode}
@@ -294,7 +317,7 @@ function ProviderSidebar({
   sidebarShowModelCount,
   enableAnimations,
   sidebarPosition,
-  onTabSelect
+  onTabSelect,
 }: {
   activeTabKey: string
   groupedModels: GroupedModels
@@ -314,10 +337,12 @@ function ProviderSidebar({
 
   const sidebarWidth = sidebarShowLabels ? 'w-[120px]' : 'w-[48px]'
   const borderSide = sidebarPosition === 'right' ? 'border-l' : 'border-r'
-  
+
   return (
-    <div data-sidebar className={`${sidebarWidth} flex flex-col ${borderSide} border-border/50 bg-muted/20 shrink-0 relative z-10`}>
-      {/* Favorites Tab */}
+    <div
+      data-sidebar
+      className={`${sidebarWidth} flex flex-col ${borderSide} border-border/50 bg-muted/20 shrink-0 relative z-10`}
+    >
       <SidebarItem
         key="favorites"
         isActive={activeTabKey === 'favorites'}
@@ -327,12 +352,11 @@ function ProviderSidebar({
         count={sidebarShowModelCount ? favoritesCount : undefined}
         enableAnimations={enableAnimations}
       />
-      
-      {/* Separator */}
+
       <div className="h-px bg-border/50 mx-2 my-1" />
 
       {/* Provider Tabs - only show providers that have models (disabled providers have empty lists) */}
-      {PROVIDERS.filter(provider => getModelCount(provider.key) > 0).map(provider => {
+      {PROVIDERS.filter((provider) => getModelCount(provider.key) > 0).map((provider) => {
         const count = getModelCount(provider.key)
         return (
           <SidebarItem
@@ -359,7 +383,7 @@ function SidebarItem({
   icon,
   label,
   count,
-  enableAnimations
+  enableAnimations,
 }: {
   isActive: boolean
   onClick: () => void
@@ -369,10 +393,12 @@ function SidebarItem({
   enableAnimations: boolean
 }): React.ReactElement {
   const Button = enableAnimations ? motion.button : 'button'
-  const buttonProps = enableAnimations ? {
-    whileHover: { scale: 1.02 },
-    whileTap: { scale: 0.98 },
-  } : {}
+  const buttonProps = enableAnimations
+    ? {
+        whileHover: { scale: 1.02 },
+        whileTap: { scale: 0.98 },
+      }
+    : {}
 
   return (
     <Button
@@ -395,25 +421,24 @@ function SidebarItem({
         relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
         w-full
         ${label ? 'justify-start' : 'justify-center'}
-        ${isActive 
-          ? 'bg-primary/10 text-foreground' 
-          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+        ${
+          isActive
+            ? 'bg-primary/10 text-foreground'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
         }
       `}
     >
       {icon}
       {label && <span className="truncate">{label}</span>}
       {count !== undefined && count > 0 && (
-        <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">
-          {count}
-        </span>
+        <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">{count}</span>
       )}
       {isActive && enableAnimations && (
         <motion.div
           layoutId="provider-active"
           className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r"
           initial={false}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
       )}
       {isActive && !enableAnimations && (
@@ -483,7 +508,7 @@ function ModelItem({
   showContextLength,
   animationsEnabled,
   onSelect,
-  onToggleFavorite
+  onToggleFavorite,
 }: {
   model: ModelWithProvider
   index: number
@@ -506,16 +531,18 @@ function ModelItem({
   const isTight = compactMode === 'tight'
 
   const ItemWrapper = animationsEnabled ? motion.div : 'div'
-  const wrapperProps = animationsEnabled ? {
-    initial: { opacity: 0, x: -8 },
-    animate: { opacity: 1, x: 0 },
-    transition: {
-      delay: index * staggerDelay,
-      type: "spring" as const,
-      stiffness: 400,
-      damping: 30
-    }
-  } : {}
+  const wrapperProps = animationsEnabled
+    ? {
+        initial: { opacity: 0, x: -8 },
+        animate: { opacity: 1, x: 0 },
+        transition: {
+          delay: index * staggerDelay,
+          type: 'spring' as const,
+          stiffness: 400,
+          damping: 30,
+        },
+      }
+    : {}
 
   const activeIndicator = () => {
     switch (modelSelector.activeIndicatorStyle) {
@@ -542,7 +569,12 @@ function ModelItem({
         )}
       >
         {modelSelector.showProviderLogos ? (
-          <div className={cn('flex shrink-0 items-center justify-center rounded-lg bg-muted/50', isCompact ? 'h-7 w-7' : 'h-8 w-8')}>
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
+              isCompact ? 'h-7 w-7' : 'h-8 w-8'
+            )}
+          >
             <ModelIcon
               model={model}
               icon={getModelAttributes(model).icon}
@@ -551,7 +583,12 @@ function ModelItem({
             />
           </div>
         ) : (
-          <div className={cn('flex shrink-0 items-center justify-center rounded-lg bg-muted/50', isCompact ? 'h-7 w-7' : 'h-8 w-8')}>
+          <div
+            className={cn(
+              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
+              isCompact ? 'h-7 w-7' : 'h-8 w-8'
+            )}
+          >
             {getModelAttributes(model).icon}
           </div>
         )}
@@ -569,7 +606,12 @@ function ModelItem({
         </div>
         <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
           {showCapabilityBadges && capabilities.length > 0 && (
-            <div className={cn('flex items-center gap-1.5 flex-wrap justify-end', isCompact ? 'max-w-[132px]' : 'max-w-[160px]')}>
+            <div
+              className={cn(
+                'flex items-center gap-1.5 flex-wrap justify-end',
+                isCompact ? 'max-w-[132px]' : 'max-w-[160px]'
+              )}
+            >
               {capabilities.map((capKey) => (
                 <CapabilityBadge
                   key={capKey}
@@ -579,13 +621,16 @@ function ModelItem({
               ))}
             </div>
           )}
-          {showContextLength && (() => {
-            const ctx = getModelContextLength(model)
-            const formatted = ctx != null ? formatContextLength(ctx) : ''
-            return formatted ? (
-              <span className="text-xs text-muted-foreground font-medium shrink-0">{formatted}</span>
-            ) : null
-          })()}
+          {showContextLength &&
+            (() => {
+              const ctx = getModelContextLength(model)
+              const formatted = ctx != null ? formatContextLength(ctx) : ''
+              return formatted ? (
+                <span className="text-xs text-muted-foreground font-medium shrink-0">
+                  {formatted}
+                </span>
+              ) : null
+            })()}
           {modelSelector.showFavoriteStars && (
             <button
               onClick={(e) => {
@@ -596,19 +641,19 @@ function ModelItem({
               onPointerDown={(e) => e.stopPropagation()}
               className="p-1 hover:bg-muted rounded transition-colors"
               style={{
-                color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
-                opacity: isFavorite ? 1 : 0.4
+                color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
+                opacity: isFavorite ? 1 : 0.4,
               }}
             >
               {animationsEnabled ? (
                 <motion.div
                   animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
-                  transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
                 >
-                  <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+                  <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
                 </motion.div>
               ) : (
-                <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+                <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
               )}
             </button>
           )}

@@ -1,8 +1,6 @@
 /**
  * Property-Based Tests for Command History
  *
- * Feature: floating-command-palette
- * Validates: Requirements 12.1, 12.2, 12.3, 8.5
  *
  * Tests the command history persistence, max entries invariant,
  * and deduplication behavior using fast-check property-based testing.
@@ -20,26 +18,30 @@ import {
 } from '../history'
 import type { CommandBarAction, CommandBarSuggestion } from '../suggestions'
 
-// ============================================================================
 // localStorage mock
-// ============================================================================
 
 let store: Record<string, string> = {}
 
 const localStorageMock: Storage = {
   getItem: (key: string) => store[key] ?? null,
-  setItem: (key: string, value: string) => { store[key] = value },
-  removeItem: (key: string) => { delete store[key] },
-  clear: () => { store = {} },
-  get length() { return Object.keys(store).length },
+  setItem: (key: string, value: string) => {
+    store[key] = value
+  },
+  removeItem: (key: string) => {
+    delete store[key]
+  },
+  clear: () => {
+    store = {}
+  },
+  get length() {
+    return Object.keys(store).length
+  },
   key: (index: number) => Object.keys(store)[index] ?? null,
 }
 
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true })
 
-// ============================================================================
 // fast-check Arbitraries
-// ============================================================================
 
 const arbAction: fc.Arbitrary<CommandBarAction> = fc.oneof(
   fc.record({ type: fc.constant('new_chat' as const) }),
@@ -52,7 +54,7 @@ const arbAction: fc.Arbitrary<CommandBarAction> = fc.oneof(
   fc.record({
     type: fc.constant('export_chat' as const),
     format: fc.constantFrom('markdown' as const, 'text' as const),
-  }),
+  })
 )
 
 const arbHistoryEntry: fc.Arbitrary<CommandBarHistoryEntry> = fc.record({
@@ -68,27 +70,22 @@ const arbSuggestion: fc.Arbitrary<CommandBarSuggestion> = fc.record({
   id: fc.string({ minLength: 1, maxLength: 30 }),
   title: fc.string({ minLength: 1, maxLength: 50 }),
   subtitle: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: undefined }),
-  keywords: fc.option(fc.array(fc.string({ minLength: 1, maxLength: 20 }), { maxLength: 5 }), { nil: undefined }),
+  keywords: fc.option(fc.array(fc.string({ minLength: 1, maxLength: 20 }), { maxLength: 5 }), {
+    nil: undefined,
+  }),
   action: arbAction,
   score: fc.double({ min: 0, max: 100, noNaN: true }),
 })
 
-// ============================================================================
 // Property-based tests
-// ============================================================================
 
 describe('Property-based tests', () => {
   beforeEach(() => {
     store = {}
   })
 
-  // --------------------------------------------------------------------------
-  // Property 13: Command history persistence round-trip
-  // --------------------------------------------------------------------------
-
   describe('Feature: floating-command-palette, Property 13: Command history persistence round-trip', () => {
     /**
-     * Validates: Requirements 12.1
      *
      * For any valid CommandBarHistoryEntry array, saving via saveCommandBarHistory
      * and loading via loadCommandBarHistory should return equivalent entries.
@@ -132,13 +129,8 @@ describe('Property-based tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Property 14: History max entries invariant
-  // --------------------------------------------------------------------------
-
   describe('Feature: floating-command-palette, Property 14: History max entries invariant', () => {
     /**
-     * Validates: Requirements 12.2
      *
      * For any sequence of N command executions where N > HISTORY_MAX,
      * the persisted history should contain at most HISTORY_MAX entries.
@@ -181,13 +173,8 @@ describe('Property-based tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Property 15: History deduplication
-  // --------------------------------------------------------------------------
-
   describe('Feature: floating-command-palette, Property 15: History deduplication', () => {
     /**
-     * Validates: Requirements 12.3
      *
      * For any history state containing a command with id X, executing command X
      * again should not increase the history length, and the entry for X should
@@ -284,23 +271,16 @@ describe('Property-based tests', () => {
   })
 })
 
-// ============================================================================
 // Unit tests
-// ============================================================================
 
 describe('Unit tests', () => {
   beforeEach(() => {
     store = {}
   })
 
-  // --------------------------------------------------------------------------
   // loadCommandBarHistory
-  // --------------------------------------------------------------------------
 
   describe('loadCommandBarHistory', () => {
-    /**
-     * Validates: Requirements 12.1
-     */
     it('returns empty array when localStorage has no entry', () => {
       expect(loadCommandBarHistory()).toEqual([])
     })
@@ -329,11 +309,22 @@ describe('Unit tests', () => {
         lastUsedAt: 1000,
       }
       const missingId = { title: 'Bad', input: '', action: { type: 'new_chat' }, lastUsedAt: 1 }
-      const missingTitle = { suggestionId: 'x', input: '', action: { type: 'new_chat' }, lastUsedAt: 1 }
+      const missingTitle = {
+        suggestionId: 'x',
+        input: '',
+        action: { type: 'new_chat' },
+        lastUsedAt: 1,
+      }
       const missingAction = { suggestionId: 'y', title: 'Y', input: '', lastUsedAt: 1 }
       const nullEntry = null
 
-      store[HISTORY_KEY] = JSON.stringify([valid, missingId, missingTitle, missingAction, nullEntry])
+      store[HISTORY_KEY] = JSON.stringify([
+        valid,
+        missingId,
+        missingTitle,
+        missingAction,
+        nullEntry,
+      ])
       const loaded = loadCommandBarHistory()
 
       expect(loaded).toHaveLength(1)
@@ -341,14 +332,9 @@ describe('Unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
   // saveCommandBarHistory
-  // --------------------------------------------------------------------------
 
   describe('saveCommandBarHistory', () => {
-    /**
-     * Validates: Requirements 12.1
-     */
     it('persists entries under the correct localStorage key', () => {
       const entries: CommandBarHistoryEntry[] = [
         {
@@ -402,14 +388,9 @@ describe('Unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
   // recordCommandHistory
-  // --------------------------------------------------------------------------
 
   describe('recordCommandHistory', () => {
-    /**
-     * Validates: Requirements 12.3
-     */
     it('moves existing entry to top when re-executed', () => {
       const suggestionA: CommandBarSuggestion = {
         id: 'cmd-a',

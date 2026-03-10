@@ -1,5 +1,6 @@
-// Chat History Storage using simple JSON file
-// This runs in the main process - uses async I/O to avoid blocking
+/**
+ * Main-process chat history persistence backed by a JSON file in `userData`.
+ */
 
 import { app } from 'electron'
 import * as fs from 'fs/promises'
@@ -22,7 +23,7 @@ export interface ChatSession {
   createdAt: number
   updatedAt: number
   totalTokens?: number
-  // Sidebar organization fields
+  // Optional session organization metadata.
   pinned?: boolean // default: false
   folderId?: string | null // default: null
   tags?: string[] // default: []
@@ -40,8 +41,8 @@ export interface Folder {
 
 export interface ChatHistoryData {
   sessions: ChatSession[]
-  folders: Folder[] // Sidebar redesign: folder persistence
-  version: number // bumped to 2 for sidebar redesign migration
+  folders: Folder[]
+  version: number
 }
 
 // In-memory cache to reduce disk reads
@@ -57,16 +58,13 @@ const CACHE_TTL = 1000 // 1 second cache
 let writeVersion = 0
 let pendingWrite: Promise<void> = Promise.resolve()
 
-// Get the storage file path
 function getStorePath(): string {
   const userDataPath = app.getPath('userData')
   return path.join(userDataPath, 'chat-history.json')
 }
 
 /**
- * Apply default values for sidebar redesign fields to a single session.
- * Used during v1→v2 migration to ensure backward compatibility.
- * Exported for testing.
+ * Normalizes optional session metadata and removes deprecated fields.
  */
 export function migrateSession(session: ChatSession): ChatSession {
   const rest = { ...(session as ChatSession & { archived?: boolean }) }
@@ -79,8 +77,9 @@ export function migrateSession(session: ChatSession): ChatSession {
   }
 }
 
-// Migrate v1 data to v2 format (add folders array and default new session fields)
-// Exported for testing.
+/**
+ * Migrates older persisted payloads to the current on-disk shape.
+ */
 export function migrateData(data: ChatHistoryData): ChatHistoryData {
   if (data.version < 2) {
     return {
@@ -96,7 +95,6 @@ export function migrateData(data: ChatHistoryData): ChatHistoryData {
   return data
 }
 
-// Read data from file (async)
 async function readStoreAsync(): Promise<ChatHistoryData> {
   // Return cached data if fresh
   if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
@@ -119,7 +117,6 @@ async function readStoreAsync(): Promise<ChatHistoryData> {
   return { sessions: [], folders: [], version: 2 }
 }
 
-// Write data to file (async, serialized)
 // Writes are chained via pendingWrite so they reach disk in order.
 // The cache is only updated by the async callback when its version is
 // still the latest, preventing a slow earlier write from reverting a
@@ -150,7 +147,6 @@ async function writeStoreAsync(data: ChatHistoryData): Promise<void> {
   await pendingWrite
 }
 
-// Sync versions for backward compatibility (uses cache when possible)
 function readStore(): ChatHistoryData {
   if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
     return cachedData
@@ -171,7 +167,7 @@ function readStore(): ChatHistoryData {
 }
 
 function writeStore(data: ChatHistoryData): void {
-  // Update cache immediately, write async
+  // Update the cache first so sync readers see the latest state immediately.
   cachedData = data
   cacheTimestamp = Date.now()
   writeStoreAsync(data).catch((err) => console.error('Async write failed:', err))

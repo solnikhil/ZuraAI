@@ -37,12 +37,8 @@ function startOfDay(date: Date): Date {
  *    - Previous 30 Days: updatedAt is within the last 30 days (excluding the above)
  *    - Older: everything else
  *
- * Requirements: 5.1, 5.2, 5.3
  */
-export function groupSessions(
-  sessions: ChatSession[],
-  folders: Folder[]
-): GroupedSessions {
+export function groupSessions(sessions: ChatSession[], folders: Folder[]): GroupedSessions {
   const now = new Date()
   const todayStart = startOfDay(now)
 

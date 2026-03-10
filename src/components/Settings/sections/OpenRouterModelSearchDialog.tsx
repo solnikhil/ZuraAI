@@ -2,7 +2,6 @@
  * OpenRouter Model Search Dialog
  * Search and add models from OpenRouter API catalog with auto-mapped capabilities
  *
- * @module Settings/sections/OpenRouterModelSearchDialog
  */
 
 import React, { useState, useEffect, useMemo } from 'react'
@@ -23,10 +22,7 @@ import {
   type OpenRouterModel,
 } from '../../../services/openrouterModels'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
-import {
-  getCapabilitiesFromModel,
-  CAPABILITY_BADGES,
-} from '../../../utils/modelUtils'
+import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
 
 interface OpenRouterModelSearchDialogProps {
   open: boolean
@@ -76,8 +72,7 @@ export function OpenRouterModelSearchDialog({
     setSearchQuery('')
   }
 
-  const isModelAdded = (modelId: string) =>
-    existingModelCodes.includes(modelId)
+  const isModelAdded = (modelId: string) => existingModelCodes.includes(modelId)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,8 +80,8 @@ export function OpenRouterModelSearchDialog({
         <DialogHeader className="border-b border-border px-6 py-4">
           <DialogTitle>Add Model from OpenRouter Catalog</DialogTitle>
           <DialogDescription>
-            Search and add models from OpenRouter. Capabilities are automatically
-            detected from the API.
+            Search and add models from OpenRouter. Capabilities are automatically detected from the
+            API.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,13 +103,8 @@ export function OpenRouterModelSearchDialog({
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <Loader2
-                size={24}
-                className="animate-spin text-muted-foreground"
-              />
-              <span className="ml-3 text-sm text-muted-foreground">
-                Loading models...
-              </span>
+              <Loader2 size={24} className="animate-spin text-muted-foreground" />
+              <span className="ml-3 text-sm text-muted-foreground">Loading models...</span>
             </div>
           )}
 
@@ -148,17 +138,13 @@ export function OpenRouterModelSearchDialog({
               {filteredModels.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
                   <Search size={32} className="mx-auto mb-3 opacity-30" />
-                  <div className="text-sm">
-                    No models found matching &quot;{searchQuery}&quot;
-                  </div>
+                  <div className="text-sm">No models found matching &quot;{searchQuery}&quot;</div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {filteredModels.map((model) => {
-                    const configuredModel =
-                      mapOpenRouterModelToConfiguredModel(model)
-                    const capabilities =
-                      getCapabilitiesFromModel(configuredModel)
+                    const configuredModel = mapOpenRouterModelToConfiguredModel(model)
+                    const capabilities = getCapabilitiesFromModel(configuredModel)
                     const isAdded = isModelAdded(model.id)
 
                     return (

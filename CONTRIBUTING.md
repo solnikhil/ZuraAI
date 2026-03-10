@@ -32,6 +32,13 @@ For a detailed development guide covering prerequisites, the IPC security model,
 - Do not commit secrets, keys, or `.env`
 - Do not commit generated output (`dist/`, `dist-electron/`)
 
+## Comments and docs
+
+- Comment intent, invariants, security boundaries, and non-obvious tradeoffs
+- Skip comments that only restate the code or label obvious JSX sections
+- Prefer short docblocks on exported APIs and complex modules over line-by-line narration
+- Move requirement traceability, ticket notes, and historical implementation context to PRs or docs instead of source comments
+
 ## Conventional commits
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. This enables automated changelog generation and makes the git history easier to read.
@@ -48,17 +55,17 @@ type(scope): description
 
 ### Commit types
 
-| Type       | Description                                      |
-|------------|--------------------------------------------------|
-| `feat`     | A new feature                                    |
-| `fix`      | A bug fix                                        |
-| `docs`     | Documentation-only changes                       |
-| `chore`    | Maintenance tasks (deps, configs, tooling)       |
+| Type       | Description                                             |
+| ---------- | ------------------------------------------------------- |
+| `feat`     | A new feature                                           |
+| `fix`      | A bug fix                                               |
+| `docs`     | Documentation-only changes                              |
+| `chore`    | Maintenance tasks (deps, configs, tooling)              |
 | `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `test`     | Adding or updating tests                         |
-| `perf`     | Performance improvements                         |
-| `ci`       | CI/CD configuration changes                      |
-| `build`    | Build system or external dependency changes      |
+| `test`     | Adding or updating tests                                |
+| `perf`     | Performance improvements                                |
+| `ci`       | CI/CD configuration changes                             |
+| `build`    | Build system or external dependency changes             |
 
 ### Examples
 

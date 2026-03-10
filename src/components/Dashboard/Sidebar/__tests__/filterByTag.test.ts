@@ -1,8 +1,6 @@
 /**
  * Unit Tests: filterByTag utility
  *
- * Feature: sidebar-redesign
- * Validates: Requirements 8.7
  *
  * Tests cover:
  * - Filtering sessions by a specific tag
@@ -17,11 +15,13 @@ import { describe, it, expect } from 'vitest'
 import { filterByTag } from '../utils/filterByTag'
 import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
-function makeSession(title: string, tags?: string[], overrides?: Partial<ChatSession>): ChatSession {
+function makeSession(
+  title: string,
+  tags?: string[],
+  overrides?: Partial<ChatSession>
+): ChatSession {
   return {
     id: overrides?.id ?? crypto.randomUUID(),
     title,
@@ -33,9 +33,7 @@ function makeSession(title: string, tags?: string[], overrides?: Partial<ChatSes
   }
 }
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('filterByTag', () => {
   const sessions: ChatSession[] = [
@@ -50,7 +48,7 @@ describe('filterByTag', () => {
     it('should return sessions that have the specified tag', () => {
       const result = filterByTag(sessions, 'frontend')
       expect(result).toHaveLength(2)
-      expect(result.map(s => s.title)).toEqual(['React Project', 'TypeScript Utils'])
+      expect(result.map((s) => s.title)).toEqual(['React Project', 'TypeScript Utils'])
     })
 
     it('should return a single session when only one matches', () => {
@@ -80,10 +78,7 @@ describe('filterByTag', () => {
     })
 
     it('should handle all sessions having undefined tags', () => {
-      const noTagSessions = [
-        makeSession('Chat 1'),
-        makeSession('Chat 2'),
-      ]
+      const noTagSessions = [makeSession('Chat 1'), makeSession('Chat 2')]
       const result = filterByTag(noTagSessions, 'any-tag')
       expect(result).toHaveLength(0)
     })

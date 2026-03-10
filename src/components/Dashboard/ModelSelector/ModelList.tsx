@@ -1,8 +1,5 @@
 /**
- * ModelList component - renders the list of models with Framer Motion animations
- * 
- * @module ModelSelector/ModelList
- * Requirements: 3.2 - Matches t3.chat design
+ * Animated list used by the model picker popover.
  */
 
 import React from 'react'
@@ -18,6 +15,7 @@ import {
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider } from './types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { maybeAnimate, motionSpring, useMotionPreferences } from '@/lib/motion'
 import { ModelIcon } from './ModelIcon'
 
 /**
@@ -56,9 +54,9 @@ const containerVariants = {
   show: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.03
-    }
-  }
+      staggerChildren: 0.03,
+    },
+  },
 }
 
 const itemVariants = {
@@ -67,11 +65,11 @@ const itemVariants = {
     opacity: 1,
     x: 0,
     transition: {
-      type: "spring" as const,
+      type: 'spring' as const,
       stiffness: 400,
-      damping: 30
-    }
-  }
+      damping: 30,
+    },
+  },
 }
 
 /**
@@ -84,8 +82,10 @@ export function ModelList({
   selectedModelProvider,
   favoriteModels,
   onModelSelect,
-  onToggleFavorite
+  onToggleFavorite,
 }: ModelListProps): React.ReactElement {
+  const { animationsEnabled } = useMotionPreferences()
+
   if (models.length === 0) {
     return (
       <div className="py-6 px-4 text-center text-muted-foreground">
@@ -98,18 +98,20 @@ export function ModelList({
   return (
     <motion.div
       variants={containerVariants}
-      initial="hidden"
-      animate="show"
+      initial={animationsEnabled ? 'hidden' : false}
+      animate={animationsEnabled ? 'show' : undefined}
       className="flex flex-col gap-1"
     >
-      {models.map(model => {
-        const isActive = selectedModelCode === model.code && selectedModelProvider === model.provider
+      {models.map((model) => {
+        const isActive =
+          selectedModelCode === model.code && selectedModelProvider === model.provider
         return (
           <motion.div key={`${model.provider}-${model.code}`} variants={itemVariants}>
             <ModelItem
               model={model}
               isActive={isActive}
               isFavorite={favoriteModels.includes(model.code)}
+              animationsEnabled={animationsEnabled}
               onSelect={onModelSelect}
               onToggleFavorite={onToggleFavorite}
             />
@@ -127,19 +129,17 @@ interface ModelItemProps {
   model: ModelWithProvider
   isActive: boolean
   isFavorite: boolean
+  animationsEnabled: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }
-
-/**
- * ModelItem component - renders a single model item (t3.chat style)
- */
 function ModelItem({
   model,
   isActive,
   isFavorite,
+  animationsEnabled,
   onSelect,
-  onToggleFavorite
+  onToggleFavorite,
 }: ModelItemProps): React.ReactElement {
   const { color, badge } = getModelAttributes(model)
   const capabilities = getCapabilitiesForModelPicker(model)
@@ -159,67 +159,50 @@ function ModelItem({
     <motion.div
       onClick={(e) => onSelect(model, e)}
       onMouseDown={(e) => e.stopPropagation()}
-      whileHover={{ x: 2 }}
+      whileHover={maybeAnimate(animationsEnabled, { x: 2 })}
       className={`
         flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer
         transition-colors min-w-0
         ${isActive ? 'bg-primary/10' : 'hover:bg-muted/50'}
       `}
     >
-      {/* Provider Logo/Icon */}
-      <div className="w-8 h-8 shrink-0 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden"
+      <div
+        className="w-8 h-8 shrink-0 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden"
         style={{ background: `linear-gradient(145deg, ${color}20, transparent)` }}
       >
-        <ModelIcon
-          model={model}
-          icon={getModelAttributes(model).icon}
-          color={color}
-          size={22}
-        />
+        <ModelIcon model={model} icon={getModelAttributes(model).icon} color={color} size={22} />
       </div>
 
-      {/* Model Info */}
       <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-        {/* Top row: Name + Favorite Star + Badge */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="truncate text-sm font-semibold text-foreground">
             {removeEmojis(model.displayName)}
           </span>
 
-          {/* Inline Favorite Star */}
           <motion.button
             onClick={(e) => {
               e.stopPropagation()
               onToggleFavorite(model.code, e)
             }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
-            transition={{ type: "spring", stiffness: 500, damping: 15 }}
+            whileHover={maybeAnimate(animationsEnabled, { scale: 1.1 })}
+            whileTap={maybeAnimate(animationsEnabled, { scale: 0.92 })}
+            animate={animationsEnabled && isFavorite ? { scale: [1, 1.3, 1] } : {}}
+            transition={motionSpring.snappy}
             className="p-0.5 shrink-0 transition-opacity"
             style={{
-              color: isFavorite ? '#FFD700' : 'var(--muted-foreground)',
-              opacity: isFavorite ? 1 : 0.4
+              color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
+              opacity: isFavorite ? 1 : 0.4,
             }}
           >
-            <Star size={12} fill={isFavorite ? '#FFD700' : 'none'} />
+            <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
           </motion.button>
 
-          {/* Badge (if any) */}
-          {badge && (
-            <div className="shrink-0">
-              {badge}
-            </div>
-          )}
+          {badge && <div className="shrink-0">{badge}</div>}
         </div>
 
-        {/* Description line */}
-        <span className="text-xs text-muted-foreground truncate opacity-70">
-          {description}
-        </span>
+        <span className="text-xs text-muted-foreground truncate opacity-70">{description}</span>
       </div>
 
-      {/* Feature Badges (Right side) */}
       <div className="flex shrink-0 self-start items-start gap-1 pt-0.5">
         {capabilities.map((capKey) => {
           const badgeConfig = CAPABILITY_BADGES[capKey]
@@ -236,7 +219,6 @@ function ModelItem({
           )
         })}
 
-        {/* Info Button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -252,22 +234,21 @@ function ModelItem({
             <div className="model-info-tooltip__title">Model info</div>
             <div className="model-info-tooltip__name">{removeEmojis(model.displayName)}</div>
             <div className="model-info-tooltip__description">{description}</div>
-            <div className="model-info-tooltip__meta">{providerTitle} · {model.code}</div>
+            <div className="model-info-tooltip__meta">
+              {providerTitle} · {model.code}
+            </div>
             {capabilities.length > 0 && (
-              <div className="model-info-tooltip__chips">
-                {capabilityChips}
-              </div>
+              <div className="model-info-tooltip__chips">{capabilityChips}</div>
             )}
           </TooltipContent>
         </Tooltip>
 
-        {/* Active Indicator */}
         {isActive && (
           <motion.div
             layoutId="active-model-indicator-list"
             className="h-2 w-2 rounded-full bg-primary"
             initial={false}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            transition={motionSpring.gentle}
           />
         )}
       </div>

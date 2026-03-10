@@ -26,15 +26,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { ProviderLogo } from '@/components/shared'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
-import {
-  getCapabilitiesFromModel,
-  CAPABILITY_BADGES,
-} from '../../../utils/modelUtils'
+import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
@@ -46,7 +49,8 @@ interface ProviderDefinition {
   key: ProviderKey
   name: string
   description: string
-  apiKeyField?: keyof Pick<ProviderHubSectionProps,
+  apiKeyField?: keyof Pick<
+    ProviderHubSectionProps,
     'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'alibabaApiKey'
   >
 }
@@ -118,9 +122,10 @@ const SEARCH_APIS: SearchApiDefinition[] = [
   {
     key: 'tavily',
     name: 'Tavily',
-    description: 'AI-optimized search API for the web_search tool. Best quality results with optional images.',
+    description:
+      'AI-optimized search API for the web_search tool. Best quality results with optional images.',
     shortDescription: 'AI-optimized search for web_search. Add a key for best results.',
-    icon: <Globe size={18} />,
+    icon: <SkillLogo skill="tavily" size={18} />,
     color: '#4dabf7',
     learnMoreUrl: 'https://tavily.com',
     apiKeyField: 'tavilyApiKey',
@@ -152,23 +157,25 @@ export interface ProviderHubSectionProps {
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
-  onChange: (changes: Partial<{
-    openRouterApiKey: string
-    perplexityApiKey: string
-    groqApiKey: string
-    alibabaApiKey: string
-    tavilyApiKey: string
-    ollamaUrl: string
-    configuredModels: ConfiguredModel[]
-    perplexityModels: ConfiguredModel[]
-    groqModels: ConfiguredModel[]
-    alibabaModels: ConfiguredModel[]
-    ollamaModels: ConfiguredModel[]
-    maxTokens: number
-    aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
-    providerEnabled: ProviderEnabledMap
-  }>) => void
+  onChange: (
+    changes: Partial<{
+      openRouterApiKey: string
+      perplexityApiKey: string
+      groqApiKey: string
+      alibabaApiKey: string
+      tavilyApiKey: string
+      ollamaUrl: string
+      configuredModels: ConfiguredModel[]
+      perplexityModels: ConfiguredModel[]
+      groqModels: ConfiguredModel[]
+      alibabaModels: ConfiguredModel[]
+      ollamaModels: ConfiguredModel[]
+      maxTokens: number
+      aiModel: string
+      modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+      providerEnabled: ProviderEnabledMap
+    }>
+  ) => void
 }
 
 export function ProviderHubSection({
@@ -192,25 +199,41 @@ export function ProviderHubSection({
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
-  const [providerView, setProviderView] = useState<ProviderView>(initialProvider ? 'detail' : 'catalog')
+  const [providerView, setProviderView] = useState<ProviderView>(
+    initialProvider ? 'detail' : 'catalog'
+  )
   const [providerModelQuery, setProviderModelQuery] = useState('')
-  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(initialProvider ?? 'openrouter')
+  const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(
+    initialProvider ?? 'openrouter'
+  )
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [modelToEdit, setModelToEdit] = useState<{ provider: ProviderKey; model: ConfiguredModel } | null>(null)
+  const [modelToEdit, setModelToEdit] = useState<{
+    provider: ProviderKey
+    model: ConfiguredModel
+  } | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [modelToDelete, setModelToDelete] = useState<{ provider: ProviderKey; modelCode: string; displayName: string } | null>(null)
-  const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] =
-    useState(false)
+  const [modelToDelete, setModelToDelete] = useState<{
+    provider: ProviderKey
+    modelCode: string
+    displayName: string
+  } | null>(null)
+  const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] = useState(false)
   const [connectivityModel, setConnectivityModel] = useState('')
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
-  const [providerProxyUrls, setProviderProxyUrls] = useState<Record<ProviderKey, string>>(PROVIDER_ENDPOINTS)
+  const [providerProxyUrls, setProviderProxyUrls] =
+    useState<Record<ProviderKey, string>>(PROVIDER_ENDPOINTS)
   const [connectivityStatus, setConnectivityStatus] = useState<ConnectivityStatus>('idle')
-  const [connectivityMessage, setConnectivityMessage] = useState('Select a model, then test your connection.')
-  const [connectivityMeta, setConnectivityMeta] = useState<{ latencyMs: number; checkedAt: string } | null>(null)
+  const [connectivityMessage, setConnectivityMessage] = useState(
+    'Select a model, then test your connection.'
+  )
+  const [connectivityMeta, setConnectivityMeta] = useState<{
+    latencyMs: number
+    checkedAt: string
+  } | null>(null)
   const [connectivityDetails, setConnectivityDetails] = useState('')
   const [showConnectivityDetails, setShowConnectivityDetails] = useState(false)
   const apiKeyOrEndpointInputRef = useRef<HTMLInputElement>(null)
@@ -245,7 +268,8 @@ export function ProviderHubSection({
     ollama: ollamaModels,
   }
 
-  const selectedProviderDef = PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
+  const selectedProviderDef =
+    PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
   const providerModels = providerModelMap[selectedProviderDef.key] || []
 
   useEffect(() => {
@@ -315,7 +339,8 @@ export function ProviderHubSection({
     providerEnabled?.alibaba,
   ])
 
-  const isProviderEnabled = (provider: ProviderDefinition): boolean => normalizedProviderEnabled[provider.key]
+  const isProviderEnabled = (provider: ProviderDefinition): boolean =>
+    normalizedProviderEnabled[provider.key]
 
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
@@ -360,7 +385,9 @@ export function ProviderHubSection({
     const exists = configuredModels.some((item) => item.code === model.code)
     if (exists) {
       onChange({
-        configuredModels: configuredModels.map((item) => (item.code === model.code ? { ...item, ...model } : item)),
+        configuredModels: configuredModels.map((item) =>
+          item.code === model.code ? { ...item, ...model } : item
+        ),
       })
       return
     }
@@ -455,14 +482,19 @@ export function ProviderHubSection({
 
   const runConnectivityCheck = async () => {
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
-    const endpoint = providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
+    const endpoint =
+      providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
     if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
       setConnectivityStatus('error')
       setConnectivityMeta(null)
-      setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`)
+      setConnectivityDetails(
+        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`
+      )
       setShowConnectivityDetails(false)
-      setConnectivityMessage(`${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`)
+      setConnectivityMessage(
+        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`
+      )
       return
     }
 
@@ -539,20 +571,28 @@ export function ProviderHubSection({
           throw new Error(`Alibaba Cloud check failed (${response.status}).`)
         }
       } else {
-        throw new Error(`Connectivity check is not supported for provider: ${selectedProviderDef.key}`)
+        throw new Error(
+          `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
+        )
       }
 
       const latencyMs = Math.max(1, Date.now() - startedAt)
       setConnectivityStatus('success')
       setConnectivityMeta({ latencyMs, checkedAt: new Date().toLocaleTimeString() })
       setConnectivityMessage('Connection successful. API key and model are reachable.')
-      setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nStatus: 200 OK`)
+      setConnectivityDetails(
+        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nStatus: 200 OK`
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Connectivity check failed.'
       setConnectivityStatus('error')
       setConnectivityMeta(null)
-      setConnectivityMessage(`${selectedProviderDef.name} API key appears invalid or endpoint is unreachable.`)
-      setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nError: ${message}`)
+      setConnectivityMessage(
+        `${selectedProviderDef.name} API key appears invalid or endpoint is unreachable.`
+      )
+      setConnectivityDetails(
+        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nError: ${message}`
+      )
     } finally {
       clearTimeout(timeout)
     }
@@ -563,7 +603,9 @@ export function ProviderHubSection({
       <div className="page-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="page-title">Providers</h2>
-          <div className="page-subtitle">Manage model providers, API keys, and search APIs in one place.</div>
+          <div className="page-subtitle">
+            Manage model providers, API keys, and search APIs in one place.
+          </div>
         </div>
         <div className="flex rounded-md border border-border bg-secondary/60 p-1">
           <button
@@ -571,7 +613,8 @@ export function ProviderHubSection({
             onClick={() => setManageMode('providers')}
             className="rounded px-3 py-1.5 text-xs font-medium transition"
             style={{
-              background: manageMode === 'providers' ? 'var(--theme-surface-active)' : 'transparent',
+              background:
+                manageMode === 'providers' ? 'var(--theme-surface-active)' : 'transparent',
               color: 'var(--theme-text-primary)',
             }}
           >
@@ -582,7 +625,8 @@ export function ProviderHubSection({
             onClick={() => setManageMode('search-apis')}
             className="rounded px-3 py-1.5 text-xs font-medium transition"
             style={{
-              background: manageMode === 'search-apis' ? 'var(--theme-surface-active)' : 'transparent',
+              background:
+                manageMode === 'search-apis' ? 'var(--theme-surface-active)' : 'transparent',
               color: 'var(--theme-text-primary)',
             }}
           >
@@ -613,7 +657,10 @@ export function ProviderHubSection({
       )}
 
       {manageMode === 'providers' && providerView === 'detail' && (
-        <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
+        <Card
+          className="settings-section-card provider-hub-base-card mt-4"
+          style={{ background: CATALOG_BASE_BACKGROUND }}
+        >
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -626,7 +673,9 @@ export function ProviderHubSection({
                   <ChevronLeft size={16} />
                 </button>
                 <ProviderLogo provider={selectedProviderDef.key} size={18} />
-                <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">{selectedProviderDef.name}</span>
+                <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">
+                  {selectedProviderDef.name}
+                </span>
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
                   <CircleHelp size={12} />
                 </span>
@@ -650,7 +699,7 @@ export function ProviderHubSection({
                   <DetailField
                     label="API Key"
                     description={`Please enter your ${selectedProviderDef.name} API key`}
-                    control={(
+                    control={
                       <div className="relative w-full">
                         <Input
                           ref={apiKeyOrEndpointInputRef}
@@ -660,7 +709,9 @@ export function ProviderHubSection({
                             setProviderApiKey(selectedProviderDef, e.target.value)
                             setConnectivityStatus('idle')
                             setConnectivityMeta(null)
-                            setConnectivityMessage('API key changed. Run connectivity check to verify.')
+                            setConnectivityMessage(
+                              'API key changed. Run connectivity check to verify.'
+                            )
                             setConnectivityDetails('')
                             setShowConnectivityDetails(false)
                           }}
@@ -678,13 +729,13 @@ export function ProviderHubSection({
                           {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
-                    )}
+                    }
                   />
 
                   <DetailField
                     label="API Proxy URL"
                     description="Must include http(s)://"
-                    control={(
+                    control={
                       <Input
                         value={providerProxyUrls[selectedProviderDef.key]}
                         onChange={(e) => {
@@ -701,13 +752,13 @@ export function ProviderHubSection({
                         className="border-border bg-secondary"
                         placeholder="https://api.example.com/v1"
                       />
-                    )}
+                    }
                   />
 
                   <DetailField
                     label="Connectivity Check"
                     description="Test if API key and proxy URL are correctly configured"
-                    control={(
+                    control={
                       <div className="space-y-2">
                         <div className="flex gap-2">
                           <select
@@ -716,7 +767,9 @@ export function ProviderHubSection({
                               setConnectivityModel(e.target.value)
                               setConnectivityStatus('idle')
                               setConnectivityMeta(null)
-                              setConnectivityMessage('Model changed. Run check again to verify this model.')
+                              setConnectivityMessage(
+                                'Model changed. Run check again to verify this model.'
+                              )
                               setConnectivityDetails('')
                               setShowConnectivityDetails(false)
                             }}
@@ -739,7 +792,9 @@ export function ProviderHubSection({
                                 <Loader2 size={14} className="animate-spin" />
                                 Checking
                               </span>
-                            ) : 'Check'}
+                            ) : (
+                              'Check'
+                            )}
                           </Button>
                         </div>
 
@@ -762,10 +817,18 @@ export function ProviderHubSection({
                         >
                           <div className="px-4 py-3">
                             <span className="inline-flex items-start gap-2 text-sm leading-6 text-foreground">
-                              {connectivityStatus === 'checking' && <Loader2 size={16} className="mt-0.5 animate-spin" />}
-                              {connectivityStatus === 'success' && <CheckCircle2 size={16} className="mt-0.5 text-green-400" />}
-                              {connectivityStatus === 'error' && <AlertCircle size={16} className="mt-0.5 text-rose-300" />}
-                              {connectivityStatus === 'idle' && <Globe size={16} className="mt-0.5 text-muted-foreground" />}
+                              {connectivityStatus === 'checking' && (
+                                <Loader2 size={16} className="mt-0.5 animate-spin" />
+                              )}
+                              {connectivityStatus === 'success' && (
+                                <CheckCircle2 size={16} className="mt-0.5 text-green-400" />
+                              )}
+                              {connectivityStatus === 'error' && (
+                                <AlertCircle size={16} className="mt-0.5 text-rose-300" />
+                              )}
+                              {connectivityStatus === 'idle' && (
+                                <Globe size={16} className="mt-0.5 text-muted-foreground" />
+                              )}
                               <span>{connectivityMessage}</span>
                             </span>
                             {connectivityMeta && (
@@ -793,14 +856,14 @@ export function ProviderHubSection({
                           )}
                         </div>
                       </div>
-                    )}
+                    }
                   />
                 </div>
               ) : (
                 <DetailField
                   label="Ollama Endpoint"
                   description="Set your local Ollama endpoint URL"
-                  control={(
+                  control={
                     <Input
                       ref={apiKeyOrEndpointInputRef}
                       value={ollamaUrl}
@@ -808,7 +871,7 @@ export function ProviderHubSection({
                       className="border-border bg-secondary"
                       placeholder="http://localhost:11434"
                     />
-                  )}
+                  }
                 />
               )}
 
@@ -816,8 +879,7 @@ export function ProviderHubSection({
                 <Lock size={13} />
                 <span>
                   Your key and proxy URL will be encrypted using
-                  <span className="ml-1 text-cyan-300">AES-GCM</span>
-                  {' '}encryption algorithm
+                  <span className="ml-1 text-cyan-300">AES-GCM</span> encryption algorithm
                 </span>
               </p>
             </div>
@@ -825,7 +887,9 @@ export function ProviderHubSection({
             <div className="space-y-3 border-t border-border pt-5">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-base font-semibold text-foreground">Model List</h3>
-                <span className="text-sm text-muted-foreground">{providerModels.length} models available</span>
+                <span className="text-sm text-muted-foreground">
+                  {providerModels.length} models available
+                </span>
               </div>
 
               <div className="flex items-center gap-4 pb-1">
@@ -833,7 +897,12 @@ export function ProviderHubSection({
                   type="button"
                   onClick={() => setModelListFilter('all')}
                   className="text-sm"
-                  style={{ color: modelListFilter === 'all' ? 'var(--theme-text-primary)' : 'var(--theme-text-secondary)' }}
+                  style={{
+                    color:
+                      modelListFilter === 'all'
+                        ? 'var(--theme-text-primary)'
+                        : 'var(--theme-text-secondary)',
+                  }}
                 >
                   All ({visibleProviderModels.length})
                 </button>
@@ -841,7 +910,12 @@ export function ProviderHubSection({
                   type="button"
                   onClick={() => setModelListFilter('chat')}
                   className="text-sm"
-                  style={{ color: modelListFilter === 'chat' ? 'var(--theme-text-primary)' : 'var(--theme-text-secondary)' }}
+                  style={{
+                    color:
+                      modelListFilter === 'chat'
+                        ? 'var(--theme-text-primary)'
+                        : 'var(--theme-text-secondary)',
+                  }}
                 >
                   Chat ({visibleChatModels.length})
                 </button>
@@ -849,7 +923,10 @@ export function ProviderHubSection({
 
               <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
                 <div className="relative">
-                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  />
                   <Input
                     value={providerModelQuery}
                     onChange={(e) => setProviderModelQuery(e.target.value)}
@@ -882,7 +959,9 @@ export function ProviderHubSection({
                 <ModelGroup
                   models={[...enabledModels, ...disabledModels]}
                   selectedProvider={selectedProviderDef.key}
-                  onToggleModel={(code, checked) => toggleModelEnabled(selectedProviderDef.key, code, checked)}
+                  onToggleModel={(code, checked) =>
+                    toggleModelEnabled(selectedProviderDef.key, code, checked)
+                  }
                   onEditModel={handleEditModel}
                   onDeleteModel={handleDeleteModelClick}
                 />
@@ -1006,76 +1085,76 @@ function ProviderSection({
 
   return (
     <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
-        {providers.map((provider) => {
-          const enabled = isProviderEnabled(provider)
-          const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
-          const models = modelMap[provider.key] || []
-          const modelCount = models.length
-          const enabledModelCount = models.filter((m) => m.enabled !== false).length
-          return (
-            <div
-              key={provider.key}
-              onClick={() => onCardClick(provider)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onCardClick(provider)
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
-              style={{ background: CATALOG_CARD_BACKGROUND }}
-            >
-              {/* Logo */}
-              <div className="flex shrink-0 items-center justify-center">
-                <ProviderLogo provider={provider.key} size={20} />
-              </div>
-
-              {/* Name + Description */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-foreground">{provider.name}</span>
-                </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider.description}</p>
-              </div>
-
-              {/* Status badges */}
-              <div className="flex shrink-0 items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
-                  style={{
-                    background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
-                    color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
-                  }}
-                >
-                  <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
-                  />
-                  {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
-                </span>
-                {modelCount > 0 && (
-                  <span className="hidden rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
-                    {enabledModelCount}/{modelCount} models
-                  </span>
-                )}
-              </div>
-
-              {/* Toggle */}
-              <Switch
-                className="provider-hub-toggle"
-                checked={enabled}
-                onCheckedChange={(checked) => {
-                  setProviderEnabled(provider.key, checked)
-                }}
-                aria-label={`Toggle ${provider.name}`}
-                onClick={(e) => e.stopPropagation()}
-              />
+      {providers.map((provider) => {
+        const enabled = isProviderEnabled(provider)
+        const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
+        const models = modelMap[provider.key] || []
+        const modelCount = models.length
+        const enabledModelCount = models.filter((m) => m.enabled !== false).length
+        return (
+          <div
+            key={provider.key}
+            onClick={() => onCardClick(provider)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onCardClick(provider)
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+            style={{ background: CATALOG_CARD_BACKGROUND }}
+          >
+            <div className="flex shrink-0 items-center justify-center">
+              <ProviderLogo provider={provider.key} size={20} />
             </div>
-          )
-        })}
-      </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-semibold text-foreground">
+                  {provider.name}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {provider.description}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
+                  color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                }}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                />
+                {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
+              </span>
+              {modelCount > 0 && (
+                <span className="hidden rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
+                  {enabledModelCount}/{modelCount} models
+                </span>
+              )}
+            </div>
+
+            <Switch
+              className="provider-hub-toggle"
+              checked={enabled}
+              onCheckedChange={(checked) => {
+                setProviderEnabled(provider.key, checked)
+              }}
+              aria-label={`Toggle ${provider.name}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1094,7 +1173,9 @@ function DetailField({
         <div className="settings-list-row__label">{label}</div>
         <div className="settings-list-row__description">{description}</div>
       </div>
-      <div className="settings-list-row__control settings-list-row__control--stretch provider-hub-detail-field__control">{control}</div>
+      <div className="settings-list-row__control settings-list-row__control--stretch provider-hub-detail-field__control">
+        {control}
+      </div>
     </div>
   )
 }
@@ -1115,15 +1196,15 @@ function ModelGroup({
   onDeleteModel: (model: ModelBasic) => void
 }): React.ReactElement {
   if (models.length === 0) {
-    return (
-      <div className="px-4 py-3 text-sm text-muted-foreground">No models in this section.</div>
-    )
+    return <div className="px-4 py-3 text-sm text-muted-foreground">No models in this section.</div>
   }
 
   return (
     <div>
       {title && (
-        <div className="px-4 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">{title}</div>
+        <div className="px-4 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">
+          {title}
+        </div>
       )}
       {models.map((model) => {
         const enabled = model.enabled !== false
@@ -1251,7 +1332,9 @@ function SearchApiSection({
     <div className="mt-3 first:mt-0">
       <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
         <span>Search APIs</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{apis.length}</span>
+        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
+          {apis.length}
+        </span>
       </div>
       <div
         className="grid gap-3"
@@ -1282,7 +1365,9 @@ function SearchApiSection({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-                  <span className="truncate text-[15px] font-semibold text-foreground">{api.name}</span>
+                  <span className="truncate text-[15px] font-semibold text-foreground">
+                    {api.name}
+                  </span>
                   {api.key === 'tavily' && (
                     <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
                       Recommended
@@ -1330,7 +1415,10 @@ function SearchApiDetail({
   const isEnabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
 
   return (
-    <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
+    <Card
+      className="settings-section-card provider-hub-base-card mt-4"
+      style={{ background: CATALOG_BASE_BACKGROUND }}
+    >
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-2">

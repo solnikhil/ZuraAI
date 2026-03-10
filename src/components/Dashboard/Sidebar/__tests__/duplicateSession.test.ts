@@ -1,8 +1,6 @@
 /**
  * Unit Tests: duplicateSession utility
  *
- * Feature: sidebar-redesign
- * Validates: Requirements 7.8
  *
  * Tests cover:
  * - New session gets a unique ID different from original
@@ -20,11 +18,12 @@ import { describe, it, expect } from 'vitest'
 import { duplicateSession } from '../utils/duplicateSession'
 import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
-function makeMessage(content: string, overrides?: Partial<{ id: string; role: 'user' | 'assistant' | 'system'; timestamp: number }>) {
+function makeMessage(
+  content: string,
+  overrides?: Partial<{ id: string; role: 'user' | 'assistant' | 'system'; timestamp: number }>
+) {
   return {
     id: overrides?.id ?? crypto.randomUUID(),
     role: overrides?.role ?? ('user' as const),
@@ -33,7 +32,11 @@ function makeMessage(content: string, overrides?: Partial<{ id: string; role: 'u
   }
 }
 
-function makeSession(title: string, messages: ReturnType<typeof makeMessage>[] = [], overrides?: Partial<ChatSession>): ChatSession {
+function makeSession(
+  title: string,
+  messages: ReturnType<typeof makeMessage>[] = [],
+  overrides?: Partial<ChatSession>
+): ChatSession {
   return {
     id: overrides?.id ?? crypto.randomUUID(),
     title,
@@ -44,22 +47,20 @@ function makeSession(title: string, messages: ReturnType<typeof makeMessage>[] =
   }
 }
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('duplicateSession', () => {
-  const baseSession = makeSession('My Chat', [
-    makeMessage('Hello, how are you?'),
-    makeMessage('I am fine, thanks!', { role: 'assistant' }),
-  ], {
-    totalTokens: 150,
-    pinned: true,
-    folderId: 'folder-123',
-    tags: ['important', 'work'],
-  })
+  const baseSession = makeSession(
+    'My Chat',
+    [makeMessage('Hello, how are you?'), makeMessage('I am fine, thanks!', { role: 'assistant' })],
+    {
+      totalTokens: 150,
+      pinned: true,
+      folderId: 'folder-123',
+      tags: ['important', 'work'],
+    }
+  )
 
-  // Requirement 7.8: New session has different ID
   describe('unique ID', () => {
     it('should generate a new unique ID different from the original', () => {
       const duplicate = duplicateSession(baseSession)
@@ -68,7 +69,6 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: Title prefixed with "Copy of "
   describe('title', () => {
     it('should prefix the title with "Copy of "', () => {
       const duplicate = duplicateSession(baseSession)
@@ -88,7 +88,6 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: Messages are duplicated with new IDs
   describe('messages', () => {
     it('should have the same number of messages', () => {
       const duplicate = duplicateSession(baseSession)
@@ -131,7 +130,6 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: Timestamps are fresh
   describe('timestamps', () => {
     it('should set createdAt and updatedAt to current time', () => {
       const before = Date.now()
@@ -150,7 +148,6 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: pinned is always false
   describe('pinned', () => {
     it('should set pinned to false even if original is pinned', () => {
       const duplicate = duplicateSession(baseSession)
@@ -158,7 +155,6 @@ describe('duplicateSession', () => {
     })
   })
 
-  // Requirement 7.8: Preserve totalTokens, folderId, tags
   describe('preserved fields', () => {
     it('should preserve totalTokens', () => {
       const duplicate = duplicateSession(baseSession)

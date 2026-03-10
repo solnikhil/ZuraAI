@@ -2,17 +2,11 @@
  * ActivityGraph component for Settings
  * Visualizes token usage over the last 30 days as a bar chart
  *
- * @module ActivityGraph
- * Requirements: 2.2
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { Bar, BarChart, XAxis, YAxis } from 'recharts'
-import {
-  ChartContainer,
-  ChartTooltip,
-  type ChartConfig
-} from '@/components/ui/chart'
+import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import { assignColor } from '@/utils/colorManager'
 import { cn } from '@/lib/utils'
 
@@ -56,14 +50,14 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
   if (!active || !payload || payload.length === 0) return null
 
   // Get the date from the first payload item
-  const date = payload[0]?.payload?.date as string || label
+  const date = (payload[0]?.payload?.date as string) || label
 
   // Calculate total tokens for percentage
   const totalTokens = payload.reduce((sum, item) => sum + (item.value || 0), 0)
 
   // Filter out items with 0 tokens and sort by value descending
   const sortedPayload = payload
-    .filter(item => item.value > 0)
+    .filter((item) => item.value > 0)
     .sort((a, b) => (b.value || 0) - (a.value || 0))
 
   if (sortedPayload.length === 0) return null
@@ -76,7 +70,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
         borderRadius: 8,
         padding: '8px 12px',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        minWidth: 180
+        minWidth: 180,
       }}
     >
       <div
@@ -86,7 +80,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
           color: 'var(--theme-text-primary)',
           marginBottom: 8,
           paddingBottom: 6,
-          borderBottom: '1px solid var(--theme-border)'
+          borderBottom: '1px solid var(--theme-border)',
         }}
       >
         {date}
@@ -101,7 +95,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                fontSize: '0.75rem'
+                fontSize: '0.75rem',
               }}
             >
               <div
@@ -110,13 +104,13 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
                   height: 8,
                   borderRadius: '50%',
                   backgroundColor: item.color,
-                  flexShrink: 0
+                  flexShrink: 0,
                 }}
               />
-              <div style={{ flex: 1, color: 'var(--theme-text-secondary)' }}>
-                {item.dataKey}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+              <div style={{ flex: 1, color: 'var(--theme-text-secondary)' }}>{item.dataKey}</div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}
+              >
                 <div style={{ fontWeight: 600, color: 'var(--theme-text-primary)' }}>
                   {item.value.toLocaleString()}
                 </div>
@@ -135,7 +129,7 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
           borderTop: '1px solid var(--theme-border)',
           fontSize: '0.7rem',
           color: 'var(--theme-text-muted)',
-          textAlign: 'right'
+          textAlign: 'right',
         }}
       >
         Total: {totalTokens.toLocaleString()} tokens
@@ -147,7 +141,11 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, label })
 /**
  * ActivityGraph - Interactive 30-day token usage bar chart
  */
-export function ActivityGraph({ data, embedded = false, className }: ActivityGraphProps): React.ReactElement {
+export function ActivityGraph({
+  data,
+  embedded = false,
+  className,
+}: ActivityGraphProps): React.ReactElement {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   const activeBarStyle = useMemo(
@@ -180,55 +178,56 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
   // Transform data and extract unique models
   const { chartData, uniqueModels, chartConfig, modelColors } = useMemo(() => {
     const modelsSet = new Set<string>()
-    
+
     // Collect all unique models
-    data.forEach(item => {
+    data.forEach((item) => {
       if (item.modelBreakdown) {
-        Object.keys(item.modelBreakdown).forEach(model => modelsSet.add(model))
+        Object.keys(item.modelBreakdown).forEach((model) => modelsSet.add(model))
       }
     })
-    
+
     const models = Array.from(modelsSet)
-    
+
     // Assign colors to all models and create a direct color map
     const config: ChartConfig = {}
     const colorMap: Record<string, string> = {}
-    models.forEach(model => {
+    models.forEach((model) => {
       const color = assignColor(model)
       config[model] = {
         label: model,
-        color: color
+        color: color,
       }
       colorMap[model] = color
     })
-    
+
     // Transform data to Recharts format
-    const transformed = data.map(item => {
+    const transformed = data.map((item) => {
       const point: Record<string, unknown> = {
         label: item.label,
         date: item.date,
-        tokens: item.tokens
+        tokens: item.tokens,
       }
-      
+
       // Add each model's tokens as a separate field
       if (item.modelBreakdown) {
         Object.entries(item.modelBreakdown).forEach(([model, tokens]) => {
           point[model] = tokens
         })
       }
-      
+
       return point
     })
-    
+
     return {
       chartData: transformed,
       uniqueModels: models,
       chartConfig: config,
-      modelColors: colorMap
+      modelColors: colorMap,
     }
   }, [data])
 
-  const showEmptyState = chartData.length === 0 || chartData.every((item) => (item.tokens as number) === 0)
+  const showEmptyState =
+    chartData.length === 0 || chartData.every((item) => (item.tokens as number) === 0)
   const totalTokens = chartData.reduce((sum, item) => sum + ((item.tokens as number) || 0), 0)
 
   return (
@@ -244,7 +243,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
           justifyContent: 'space-between',
           marginBottom: 20,
           flexWrap: 'wrap',
-          gap: 12
+          gap: 12,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -258,7 +257,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
             style={{
               fontSize: '0.85rem',
               color: 'var(--theme-text-muted)',
-              fontWeight: 400
+              fontWeight: 400,
             }}
           >
             Last 30 days
@@ -268,7 +267,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
           style={{
             fontSize: '0.85rem',
             color: 'var(--theme-text-secondary)',
-            fontWeight: 500
+            fontWeight: 500,
           }}
         >
           {totalTokens.toLocaleString()} total tokens
@@ -285,7 +284,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
           border: '1px solid var(--theme-border)',
           borderRadius: 12,
           padding: '16px 16px 8px 8px',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         }}
       >
         <div style={{ position: 'relative', minHeight: 240 }}>
@@ -318,11 +317,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
                 }}
                 tick={{ fontSize: 10, fill: 'var(--theme-text-muted)' }}
               />
-              <ChartTooltip
-                cursor={false}
-                isAnimationActive={false}
-                content={<CustomTooltip />}
-              />
+              <ChartTooltip cursor={false} isAnimationActive={false} content={<CustomTooltip />} />
               {uniqueModels.map((model, index) => (
                 <Bar
                   key={model}
@@ -352,7 +347,7 @@ export function ActivityGraph({ data, embedded = false, className }: ActivityGra
                 justifyContent: 'center',
                 color: 'var(--theme-text-tertiary)',
                 fontSize: '0.85rem',
-                pointerEvents: 'none'
+                pointerEvents: 'none',
               }}
             >
               No token usage yet

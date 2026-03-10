@@ -8,22 +8,18 @@ import type { ChatSession } from '../../../../contexts/ChatHistoryContext'
  * - Title match: case-insensitive substring match against session title.
  * - Content match: case-insensitive substring match against all messages' content.
  *
- * Requirements: 3.2, 3.3, 3.4, 3.5
  */
-export function filterSessions(
-  sessions: ChatSession[],
-  query: string
-): ChatSession[] {
+export function filterSessions(sessions: ChatSession[], query: string): ChatSession[] {
   if (!query.trim()) return sessions
 
   const lower = query.toLowerCase()
 
-  return sessions.filter(s => {
+  return sessions.filter((s) => {
     // Title match (case-insensitive)
     if (s.title.toLowerCase().includes(lower)) return true
 
     // Full-text: search all messages for content match
-    return s.messages.some(m => m.content.toLowerCase().includes(lower))
+    return s.messages.some((m) => m.content.toLowerCase().includes(lower))
   })
 }
 
@@ -43,9 +39,7 @@ export function getMatchSnippet(
 
   const lower = query.toLowerCase()
 
-  const match = session.messages.find(m =>
-    m.content.toLowerCase().includes(lower)
-  )
+  const match = session.messages.find((m) => m.content.toLowerCase().includes(lower))
   if (!match) return null
 
   const role = match.role === 'user' ? 'You' : match.role === 'assistant' ? 'Assistant' : 'System'

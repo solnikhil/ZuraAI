@@ -2,7 +2,13 @@ export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'ali
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis'; commandPaletteTab?: boolean }
+  | {
+      type: 'open_settings_section'
+      section: string
+      provider?: ProviderKey
+      manageMode?: 'providers' | 'search-apis'
+      commandPaletteTab?: boolean
+    }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
@@ -35,9 +41,9 @@ export function normalizeCommandQuery(input: string): string {
 
   const tokens = normalized
     .split(' ')
-    .map(t => t.trim())
+    .map((t) => t.trim())
     .filter(Boolean)
-    .filter(t => !COMMAND_STOPWORDS.has(t))
+    .filter((t) => !COMMAND_STOPWORDS.has(t))
 
   return tokens.join(' ')
 }
@@ -59,7 +65,7 @@ function scoreMatch(query: string, candidate: string): number | null {
 
   const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
   // Filter out very short tokens (less than 4 chars) to avoid false matches like "com" in domains
-  const meaningfulTokens = tokens.filter(t => t.length >= 4)
+  const meaningfulTokens = tokens.filter((t) => t.length >= 4)
 
   if (meaningfulTokens.length === 0) return null
 
@@ -84,7 +90,10 @@ function scoreMatch(query: string, candidate: string): number | null {
   return 40 + scoreSum / matchedTokens
 }
 
-function scoreSuggestion(query: string, suggestion: Omit<CommandBarSuggestion, 'score'>): number | null {
+function scoreSuggestion(
+  query: string,
+  suggestion: Omit<CommandBarSuggestion, 'score'>
+): number | null {
   const candidates: string[] = [suggestion.title]
   if (suggestion.subtitle) candidates.push(suggestion.subtitle)
   if (suggestion.keywords && suggestion.keywords.length > 0) {
@@ -138,134 +147,136 @@ export function looksLikeMathExpression(input: string): boolean {
   return true
 }
 
-function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<CommandBarSuggestion, 'score'>> {
+function buildBaseSuggestions(
+  ctx: CommandBarSuggestionContext
+): Array<Omit<CommandBarSuggestion, 'score'>> {
   const suggestions: Array<Omit<CommandBarSuggestion, 'score'>> = [
     {
       id: 'go-chat',
       title: 'Go to Chat',
       subtitle: 'Dashboard',
       keywords: ['dashboard', 'home', 'conversation'],
-      action: { type: 'open_dashboard_view', view: 'chat' }
+      action: { type: 'open_dashboard_view', view: 'chat' },
     },
     {
       id: 'go-settings',
       title: 'Go to Settings',
       subtitle: 'Providers & configuration',
       keywords: ['providers', 'config', 'api keys', 'models'],
-      action: { type: 'open_dashboard_view', view: 'settings' }
+      action: { type: 'open_dashboard_view', view: 'settings' },
     },
     {
       id: 'go-settings-usage',
       title: 'Usage Settings',
       subtitle: 'Statistics & token tracking',
       keywords: ['usage', 'stats', 'statistics', 'tokens', 'activity'],
-      action: { type: 'open_settings_section', section: 'usage' }
+      action: { type: 'open_settings_section', section: 'usage' },
     },
     {
       id: 'go-settings-providers',
       title: 'Providers Settings',
       subtitle: 'Models, API keys, and search APIs',
       keywords: ['providers', 'models', 'api', 'keys', 'llm'],
-      action: { type: 'open_settings_section', section: 'providers' }
+      action: { type: 'open_settings_section', section: 'providers' },
     },
     {
       id: 'go-settings-skills',
       title: 'Skills Settings',
       subtitle: 'Built-in skills and modes',
       keywords: ['skills', 'web research', 'research mode', 'capabilities'],
-      action: { type: 'open_settings_section', section: 'skills' }
+      action: { type: 'open_settings_section', section: 'skills' },
     },
     {
       id: 'go-settings-openrouter',
       title: 'OpenRouter Settings',
       subtitle: 'API keys & models',
       keywords: ['openrouter', 'api', 'models'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'openrouter' }
+      action: { type: 'open_settings_section', section: 'providers', provider: 'openrouter' },
     },
     {
       id: 'go-settings-groq',
       title: 'Groq Settings',
       subtitle: 'Ultra-low-latency models',
       keywords: ['groq'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'groq' }
+      action: { type: 'open_settings_section', section: 'providers', provider: 'groq' },
     },
     {
       id: 'go-settings-perplexity',
       title: 'Perplexity Settings',
       subtitle: 'Research-focused models',
       keywords: ['perplexity'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'perplexity' }
+      action: { type: 'open_settings_section', section: 'providers', provider: 'perplexity' },
     },
     {
       id: 'go-settings-ollama',
       title: 'Ollama Settings',
       subtitle: 'Local models',
       keywords: ['ollama', 'local'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' }
+      action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' },
     },
     {
       id: 'go-settings-alibaba',
       title: 'Alibaba Cloud Settings',
       subtitle: 'Qwen models via DashScope',
       keywords: ['alibaba', 'qwen', 'dashscope', 'tongyi'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'alibaba' }
+      action: { type: 'open_settings_section', section: 'providers', provider: 'alibaba' },
     },
     {
       id: 'go-settings-search-apis',
       title: 'Search APIs Settings',
       subtitle: 'Tavily & web search',
       keywords: ['tavily', 'search api', 'web search', 'tools'],
-      action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' }
+      action: { type: 'open_settings_section', section: 'providers', manageMode: 'search-apis' },
     },
     {
       id: 'go-settings-themes',
       title: 'Theme Settings',
       subtitle: 'Appearance & themes',
       keywords: ['theme', 'themes', 'appearance', 'colors', 'style'],
-      action: { type: 'open_settings_section', section: 'themes' }
+      action: { type: 'open_settings_section', section: 'themes' },
     },
     {
       id: 'go-settings-systemprompt',
       title: 'System Prompt Settings',
       subtitle: 'Load and edit assistant instructions',
       keywords: ['system', 'prompt', 'instructions', 'persona', 'behavior'],
-      action: { type: 'open_settings_section', section: 'systemprompt' }
+      action: { type: 'open_settings_section', section: 'systemprompt' },
     },
     {
       id: 'go-settings-commandbar',
       title: 'Command Palette Settings',
       subtitle: 'Customize floating command palette',
       keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating', 'overlay'],
-      action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true }
+      action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true },
     },
     {
       id: 'go-settings-experimental',
       title: 'Experimental Settings',
       subtitle: 'Labs & feature flags',
       keywords: ['experimental', 'labs', 'beta', 'feature', 'flags', 'streaming'],
-      action: { type: 'open_settings_section', section: 'experimental' }
+      action: { type: 'open_settings_section', section: 'experimental' },
     },
     {
       id: 'new-chat',
       title: 'New Chat',
       subtitle: 'Start fresh',
       keywords: ['new', 'conversation', 'session'],
-      action: { type: 'new_chat' }
+      action: { type: 'new_chat' },
     },
     {
       id: 'toggle-sidebar-hidden',
       title: 'Toggle Sidebar',
       subtitle: 'Show or hide',
       keywords: ['sidebar', 'layout', 'panel'],
-      action: { type: 'toggle_sidebar_hidden' }
+      action: { type: 'toggle_sidebar_hidden' },
     },
     {
       id: 'toggle-sidebar-collapsed',
       title: 'Toggle Sidebar Collapse',
       subtitle: 'Expand or collapse',
       keywords: ['sidebar', 'layout', 'panel'],
-      action: { type: 'toggle_sidebar_collapsed' }
-    }
+      action: { type: 'toggle_sidebar_collapsed' },
+    },
   ]
 
   if (ctx.hasCurrentSession) {
@@ -275,18 +286,17 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
         title: 'Export Chat (Markdown)',
         subtitle: 'Download as .md',
         keywords: ['export', 'download', 'markdown', 'md'],
-        action: { type: 'export_chat', format: 'markdown' }
+        action: { type: 'export_chat', format: 'markdown' },
       },
       {
         id: 'export-chat-text',
         title: 'Export Chat (Text)',
         subtitle: 'Download as .txt',
         keywords: ['export', 'download', 'text', 'txt'],
-        action: { type: 'export_chat', format: 'text' }
+        action: { type: 'export_chat', format: 'text' },
       }
     )
   }
-
 
   return suggestions
 }
@@ -311,7 +321,7 @@ export function getCommandBarSuggestions(
     if (!commandQuery) {
       results.push({
         ...suggestion,
-        score: 100 - index
+        score: 100 - index,
       })
       continue
     }
@@ -321,7 +331,7 @@ export function getCommandBarSuggestions(
 
     results.push({
       ...suggestion,
-      score
+      score,
     })
   }
 
@@ -354,7 +364,7 @@ export function getCommandBarSuggestions(
         const hasSectionMatch = new RegExp(`\\b${section}\\b`, 'i').test(queryLower)
 
         // Check if query contains any keyword as a distinct word
-        const hasKeywordMatch = sectionKeywords.some(kw => {
+        const hasKeywordMatch = sectionKeywords.some((kw) => {
           const kwPattern = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
           return kwPattern.test(queryLower)
         })

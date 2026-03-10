@@ -1,24 +1,19 @@
 /**
  * Shared components barrel export
- * 
- * @module shared
+ *
  */
 
-export { 
-  ProviderLogo, 
+export {
+  ProviderLogo,
   type ProviderLogoProps,
   type ProviderType,
-  type ProviderLogoSize
+  type ProviderLogoSize,
 } from './ProviderLogo'
+
+export { SkillLogo, type SkillLogoProps, type SkillLogoSize } from './SkillLogo'
 
 export { default as ErrorBoundary } from './ErrorBoundary'
 
-export {
-  ToastProvider,
-  useToast,
-  type ToastType
-} from './Toast'
+export { ToastProvider, useToast, type ToastType } from './Toast'
 
-export {
-  injectLazyImageStyles,
-} from './LazyImage'
+export { injectLazyImageStyles } from './LazyImage'

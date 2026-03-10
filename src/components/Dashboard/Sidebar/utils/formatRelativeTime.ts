@@ -9,7 +9,6 @@
  * - "{n}w" for timestamps 7–29 days ago
  * - "{n}mo" for timestamps 30+ days ago
  *
- * Requirements: 6.3
  */
 export function formatRelativeTime(timestamp: number): string {
   const now = Date.now()

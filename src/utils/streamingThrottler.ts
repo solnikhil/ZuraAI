@@ -1,8 +1,7 @@
 /**
  * Streaming Update Throttler - Limits the rate of streaming message updates
- * 
- * Requirements: 3.2 - Throttle updateStreamingMessage calls to a maximum of 8 per second
- * 
+ *
+ *
  * This throttler ensures that streaming updates don't overwhelm the UI with too many
  * re-renders while still ensuring the final update is always applied.
  */
@@ -25,7 +24,7 @@ interface PendingUpdate {
 
 const DEFAULT_CONFIG: ThrottlerConfig = {
   maxUpdatesPerSecond: 8,
-  bufferSize: 1
+  bufferSize: 1,
 }
 
 /**
@@ -92,7 +91,10 @@ export class StreamingThrottler {
     const timeSinceLastUpdate = now - lastUpdate
 
     // Check if we can update immediately
-    if (currentCount < this.config.maxUpdatesPerSecond && timeSinceLastUpdate >= this.minIntervalMs) {
+    if (
+      currentCount < this.config.maxUpdatesPerSecond &&
+      timeSinceLastUpdate >= this.minIntervalMs
+    ) {
       // Execute update immediately
       this.executeUpdate(key, sessionId, messageId, updates, updateFn)
     } else {
@@ -112,7 +114,7 @@ export class StreamingThrottler {
     updateFn: (sessionId: string, messageId: string, updates: Partial<Message>) => void
   ): void {
     const now = Date.now()
-    
+
     // Update tracking
     this.lastUpdateTime.set(key, now)
     this.updateCount.set(key, (this.updateCount.get(key) || 0) + 1)
@@ -144,7 +146,7 @@ export class StreamingThrottler {
       sessionId,
       messageId,
       updates,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
 
     // Schedule flush if not already scheduled
@@ -203,7 +205,7 @@ export class StreamingThrottler {
     updateFn: (sessionId: string, messageId: string, updates: Partial<Message>) => void
   ): void {
     const key = this.getKey(sessionId, messageId)
-    
+
     // Clear timeout
     const timeout = this.flushTimeouts.get(key)
     if (timeout) {
@@ -225,7 +227,7 @@ export class StreamingThrottler {
    */
   clear(sessionId: string, messageId: string): void {
     const key = this.getKey(sessionId, messageId)
-    
+
     // Clear timeout
     const timeout = this.flushTimeouts.get(key)
     if (timeout) {

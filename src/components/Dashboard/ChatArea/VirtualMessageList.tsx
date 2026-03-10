@@ -1,16 +1,14 @@
 /**
  * VirtualMessageList - Virtualized message list using react-virtuoso
- * 
+ *
  * Implements efficient rendering for long chat histories with streaming-aware auto-scroll.
  * Key behaviors:
  * 1. Only renders visible messages (DOM stays light)
  * 2. Smart auto-scroll that doesn't fight user interaction
  * 3. Streaming-aware: keeps pinned during token generation
  * 4. "Back to bottom" button when scrolled up
- * 
- * Requirements: 4.3, 5.5, 5.6
- * 
- * @module VirtualMessageList
+ *
+ *
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react'
@@ -55,7 +53,7 @@ interface VirtualMessageListProps {
 
 /**
  * VirtualMessageList - Virtualized chat message list with streaming-aware auto-scroll
- * 
+ *
  * Uses react-virtuoso for efficient rendering of long message lists.
  * Implements the "don't fight the user" pattern for smooth scrolling.
  */
@@ -67,21 +65,21 @@ export function VirtualMessageList({
   autoScrollEnabled = true,
   renderMessage,
   header,
-  footer
+  footer,
 }: VirtualMessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const prevLenRef = useRef(messages.length)
   const prevSessionRef = useRef(sessionId)
-  
+
   // Track scroll state
   const [atBottom, setAtBottom] = useState(true)
   const [isScrolling, setIsScrolling] = useState(false)
-  
+
   // Track viewport height so preRenderBuffer recalculates on window resize
   const [viewportHeight, setViewportHeight] = useState(() =>
     typeof window !== 'undefined' ? window.innerHeight : 800
   )
-  
+
   useEffect(() => {
     let rafId: number | null = null
     const handleResize = () => {
@@ -97,7 +95,7 @@ export function VirtualMessageList({
       if (rafId !== null) cancelAnimationFrame(rafId)
     }
   }, [])
-  
+
   /**
    * followOutput callback - only auto-scroll when new messages are added
    * Returns 'auto' when array grows, false otherwise
@@ -108,7 +106,7 @@ export function VirtualMessageList({
     prevLenRef.current = messages.length
     return grew ? 'auto' : false
   }, [messages.length])
-  
+
   /**
    * Scroll to bottom - used for "Back to bottom" button
    */
@@ -116,10 +114,10 @@ export function VirtualMessageList({
     virtuosoRef.current?.scrollToIndex({
       index: 'LAST',
       align: 'end',
-      behavior
+      behavior,
     })
   }, [])
-  
+
   /**
    * Reset scroll position when switching sessions
    */
@@ -133,13 +131,13 @@ export function VirtualMessageList({
       })
     }
   }, [sessionId, scrollToBottom])
-  
+
   /**
    * KEY: While streaming, keep pinned to bottom (only when safe)
-   * 
+   *
    * This solves the classic trap where streaming updates (token-by-token text growth)
    * increase the height of the last bubble and you slowly drift upward.
-   * 
+   *
    * Only re-scroll if:
    * - autoScrollEnabled is true
    * - User is already at bottom
@@ -152,40 +150,42 @@ export function VirtualMessageList({
       virtuosoRef.current?.scrollToIndex({
         index: 'LAST',
         align: 'end',
-        behavior: 'auto'
+        behavior: 'auto',
       })
     }
   }, [atBottom, isGenerating, isScrolling, streamingContent, autoScrollEnabled])
-  
+
   // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages.
   // viewportHeight is tracked via state + resize listener above so it stays current.
   const preRenderBuffer = Math.min(Math.max(Math.round(viewportHeight * 1.25), 480), 1200)
-  
+
   // Don't render virtuoso for empty lists
   if (messages.length === 0) {
     return null
   }
-  
+
   return (
-    <div style={{ 
-      position: 'relative', 
-      height: '100%', 
-      width: '100%',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
+    <div
+      style={{
+        position: 'relative',
+        height: '100%',
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       <Virtuoso
         ref={virtuosoRef}
         data={messages}
         itemContent={(index, message) => (
-          <div 
-            key={message.id} 
+          <div
+            key={message.id}
             data-message-id={message.id}
-            style={{ 
-              width: '100%', 
-              maxWidth: 'min(860px, 100%)', 
+            style={{
+              width: '100%',
+              maxWidth: 'min(860px, 100%)',
               margin: '0 auto',
-              padding: '0 20px'
+              padding: '0 20px',
             }}
           >
             {renderMessage(index, message)}
@@ -204,7 +204,14 @@ export function VirtualMessageList({
         components={{
           Header: header ? () => <>{header}</> : undefined,
           ScrollSeekPlaceholder: () => (
-            <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', padding: '10px 20px' }}>
+            <div
+              style={{
+                width: '100%',
+                maxWidth: 'min(860px, 100%)',
+                margin: '0 auto',
+                padding: '10px 20px',
+              }}
+            >
               <div
                 style={{
                   height: 72,
@@ -215,14 +222,12 @@ export function VirtualMessageList({
               />
             </div>
           ),
-          Footer: footer ? () => (
-            <div style={{ paddingBottom: '180px' }}>
-              {footer}
-            </div>
-          ) : () => <div style={{ paddingBottom: '180px' }} />
+          Footer: footer
+            ? () => <div style={{ paddingBottom: '180px' }}>{footer}</div>
+            : () => <div style={{ paddingBottom: '180px' }} />,
         }}
       />
-      
+
       {/* Back to bottom button - appears when user scrolls up */}
       {!atBottom && (
         <button
@@ -242,7 +247,7 @@ export function VirtualMessageList({
             justifyContent: 'center',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            zIndex: 10
+            zIndex: 10,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'var(--theme-surface-hover)'
@@ -254,10 +259,7 @@ export function VirtualMessageList({
           }}
           aria-label="Scroll to bottom"
         >
-          <ChevronDown 
-            size={20} 
-            style={{ color: 'var(--theme-text-primary)' }} 
-          />
+          <ChevronDown size={20} style={{ color: 'var(--theme-text-primary)' }} />
         </button>
       )}
     </div>

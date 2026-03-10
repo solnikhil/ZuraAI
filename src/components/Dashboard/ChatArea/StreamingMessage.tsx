@@ -1,22 +1,16 @@
 /**
- * StreamingMessage - Isolated component for rendering streaming messages
- * 
- * This component subscribes only to the StreamingContext, not the main ChatHistoryContext.
- * This ensures that streaming updates only cause this component to re-render,
- * not the entire message list.
- * 
- * **Validates: Requirements 5.3**
- * **Property 22: Isolated Streaming Updates**
- * - For any streaming message update, only the specific message being updated
- *   SHALL re-render, not the entire message list.
- * 
- * @module StreamingMessage
+ * Renders the active assistant message from the isolated streaming store.
  */
 
 import { memo, useMemo } from 'react'
 import { useMessageStreamingState } from '../../../contexts/StreamingContext'
 import { MessageRenderer } from './MessageRenderer'
-import type { Message, ToolCallResult, ThinkingBlock, ResponseVersion } from '../../../contexts/ChatHistoryContext'
+import type {
+  Message,
+  ToolCallResult,
+  ThinkingBlock,
+  ResponseVersion,
+} from '../../../contexts/ChatHistoryContext'
 
 interface StreamingMessageProps {
   /** The base message from the session (may have stale content during streaming) */
@@ -30,7 +24,10 @@ interface StreamingMessageProps {
       currentSearch?: string
       isSearching: boolean
     }
-    researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
+    researchPlan?: {
+      topic: string
+      steps: Array<{ stepNumber: number; query: string; rationale?: string }>
+    }
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
     responseVersions?: ResponseVersion[]
     currentVersionIndex?: number
@@ -48,11 +45,11 @@ interface StreamingMessageProps {
 
 /**
  * StreamingMessage - Renders a message that may be actively streaming
- * 
+ *
  * This component checks if the message is currently streaming and merges
  * the streaming state with the base message. It subscribes to StreamingContext
  * for streaming updates, isolating re-renders from the main message list.
- * 
+ *
  * The component is memoized to prevent unnecessary re-renders when parent
  * components re-render with unchanged props.
  */
@@ -66,7 +63,7 @@ function StreamingMessageComponent({
   // Subscribe to streaming state for this specific message
   // This will cause re-renders only when this message's streaming state changes
   const streamingState = useMessageStreamingState(sessionId, message.id)
-  
+
   // Merge streaming state with base message
   // If streaming, use streaming content; otherwise use base message content
   const displayMessage = useMemo(() => {
@@ -74,7 +71,7 @@ function StreamingMessageComponent({
       // Not streaming - return base message as-is
       return message
     }
-    
+
     // Streaming - merge streaming state with base message
     return {
       ...message,
@@ -91,10 +88,10 @@ function StreamingMessageComponent({
       usage: streamingState.usage ?? message.usage,
     }
   }, [message, streamingState])
-  
+
   // Determine if this message is actively streaming
   const isStreaming = streamingState?.isStreaming ?? false
-  
+
   return (
     <MessageRenderer
       message={displayMessage}
@@ -108,12 +105,12 @@ function StreamingMessageComponent({
 
 /**
  * Custom comparison function for memoization
- * 
+ *
  * Only re-render if:
  * - Message ID changes
  * - Session ID changes
  * - Callbacks change (should be stable via useCallback)
- * 
+ *
  * Note: Streaming state changes are handled by the useMessageStreamingState hook,
  * not by prop changes, so we don't need to compare message content here.
  */
@@ -125,12 +122,12 @@ function arePropsEqual(
   if (prevProps.message.id !== nextProps.message.id) {
     return false
   }
-  
+
   // Compare session ID
   if (prevProps.sessionId !== nextProps.sessionId) {
     return false
   }
-  
+
   // Compare callbacks by reference (should be stable)
   if (prevProps.onCopy !== nextProps.onCopy) {
     return false
@@ -138,13 +135,13 @@ function arePropsEqual(
   if (prevProps.onRegenerate !== nextProps.onRegenerate) {
     return false
   }
-  
+
   // For non-streaming messages, compare content
   // This handles the case where the message is updated after streaming completes
   if (prevProps.message.content !== nextProps.message.content) {
     return false
   }
-  
+
   // Compare other message properties that might change
   if (prevProps.message.thinking !== nextProps.message.thinking) {
     return false
@@ -155,7 +152,7 @@ function arePropsEqual(
   if (prevProps.message.latency !== nextProps.message.latency) {
     return false
   }
-  
+
   // Compare tool results length (deep comparison would be expensive)
   const prevToolResults = prevProps.message.toolResults || []
   const nextToolResults = nextProps.message.toolResults || []
@@ -169,14 +166,14 @@ function arePropsEqual(
   if (prevActive.length !== nextActive.length) {
     return false
   }
-  
+
   // Props are equal - don't re-render
   return true
 }
 
 /**
  * Memoized StreamingMessage component
- * 
+ *
  * This component is memoized with a custom comparison function to prevent
  * unnecessary re-renders. Streaming updates are handled internally via
  * the useMessageStreamingState hook.

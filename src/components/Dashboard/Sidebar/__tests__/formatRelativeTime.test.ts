@@ -1,8 +1,6 @@
 /**
  * Unit Tests: formatRelativeTime utility
  *
- * Feature: sidebar-redesign
- * Validates: Requirements 6.3
  *
  * Tests cover:
  * - "Just now" for timestamps less than 1 minute ago
@@ -17,17 +15,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { formatRelativeTime } from '../utils/formatRelativeTime'
 
-// ============================================================================
 // Constants
-// ============================================================================
 
 const MINUTE = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('formatRelativeTime', () => {
   afterEach(() => {

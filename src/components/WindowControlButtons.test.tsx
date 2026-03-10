@@ -1,15 +1,12 @@
 /**
  * Unit Tests for WindowControlButtons Component
  *
- * Feature: frosted-sidebar-window-controls-fix
- * Task: 1.5 Write unit tests for WindowControlButtons click handlers
  *
  * Tests:
  * - Click handlers: minimize, maximize/restore, close buttons call correct callbacks
  * - Accessibility: aria-label attributes on all buttons
  * - Styling: close button has the `.app-titlebar__window-btn--close` class
  *
- * Requirements: 1.3, 1.4, 1.5, 1.6
  */
 
 import { describe, it, expect, vi } from 'vitest'

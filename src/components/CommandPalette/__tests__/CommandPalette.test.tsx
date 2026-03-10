@@ -1,10 +1,7 @@
 /**
  * Unit Tests for CommandPalette component
  *
- * Feature: floating-command-palette
- * Task: 7.8
  *
- * Validates: Requirements 1.1, 2.1, 2.2, 4.2, 4.4, 5.1, 5.4, 7.1, 10.1, 10.3, 8.1, 8.4
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -12,9 +9,7 @@ import React from 'react'
 import { render, cleanup, fireEvent, act, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 
-// ============================================================================
 // Mock functions (top-level for assertion access)
-// ============================================================================
 
 const mockNavigate = vi.fn()
 const mockSetDashboardView = vi.fn()
@@ -26,9 +21,7 @@ const mockCreateSession = vi.fn(() => 'new-session-id')
 const mockAddMessageToSession = vi.fn()
 const mockShowToast = vi.fn()
 
-// ============================================================================
 // Mocks
-// ============================================================================
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
@@ -91,29 +84,23 @@ vi.mock('@radix-ui/react-dialog', async () => {
   }
 })
 
-// ============================================================================
-// Import component under test (after mocks)
-// ============================================================================
-
 import CommandPalette from '../CommandPalette'
 
-// ============================================================================
 // Helpers
-// ============================================================================
 
 function pressCtrlSpace() {
-  window.dispatchEvent(new KeyboardEvent('keydown', {
-    key: ' ',
-    code: 'Space',
-    ctrlKey: true,
-    bubbles: true,
-    cancelable: true,
-  }))
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: ' ',
+      code: 'Space',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+  )
 }
 
-// ============================================================================
 // Setup / Teardown
-// ============================================================================
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -124,15 +111,9 @@ afterEach(() => {
   cleanup()
 })
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('CommandPalette unit tests', () => {
-  // --------------------------------------------------------------------------
-  // Requirement 1.1: Palette opens on Ctrl+Space
-  // Requirement 2.1: Closes on Escape
-  // --------------------------------------------------------------------------
   describe('open/close behavior', () => {
     it('opens on Ctrl+Space and closes on Escape', () => {
       const { container } = render(<CommandPalette />)
@@ -141,7 +122,9 @@ describe('CommandPalette unit tests', () => {
       expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument()
 
       // Open via Ctrl+Space
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
       expect(container.querySelector('[role="dialog"]')).toBeInTheDocument()
 
       // Close via Escape
@@ -153,14 +136,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 2.2: Backdrop click closes palette
-  // --------------------------------------------------------------------------
   describe('backdrop click', () => {
     it('renders a backdrop overlay when palette is open', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       // The Radix overlay element should be present
       const overlay = container.querySelector('[data-state="open"]:not([role="dialog"])')
@@ -170,25 +152,28 @@ describe('CommandPalette unit tests', () => {
     it('closes palette via onOpenChange(false) path', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
       expect(container.querySelector('[role="dialog"]')).toBeInTheDocument()
 
       // The component uses onOpenChange to close: when Radix calls onOpenChange(false)
       // (triggered by backdrop click in a real browser), closePalette() runs.
       // We verify this path works by using Ctrl+Space toggle (which also calls closePalette).
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
       expect(container.querySelector('[role="dialog"]')).not.toBeInTheDocument()
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 4.2, 5.1: Empty query shows grouped results
-  // --------------------------------------------------------------------------
   describe('empty query grouped results', () => {
     it('shows "Commands" header when query is empty', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const listbox = container.querySelector('[role="listbox"]')
       expect(listbox).toBeInTheDocument()
@@ -216,7 +201,9 @@ describe('CommandPalette unit tests', () => {
 
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const listbox = container.querySelector('[role="listbox"]')
       expect(listbox?.textContent).toContain('Recent')
@@ -224,14 +211,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 5.4: Non-empty query shows flat list
-  // --------------------------------------------------------------------------
   describe('non-empty query flat list', () => {
     it('shows flat list without group headers when query is non-empty', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
       act(() => {
@@ -258,14 +244,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 4.4: "No results found" empty state (commands-only mode)
-  // --------------------------------------------------------------------------
   describe('empty state', () => {
     it('shows "No results found" when query matches nothing in commands-only mode', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       // Use > prefix to enter commands-only mode (no quick-send suggestion)
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
@@ -284,7 +269,9 @@ describe('CommandPalette unit tests', () => {
     it('shows "Send as chat message" when query matches no commands', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
       act(() => {
@@ -297,14 +284,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 7.1: Footer displays keyboard hints
-  // --------------------------------------------------------------------------
   describe('footer keyboard hints', () => {
     it('displays Navigate, Select, and Close hints', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const dialog = container.querySelector('[role="dialog"]')
       expect(dialog).toBeInTheDocument()
@@ -316,14 +302,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 10.1: ARIA roles
-  // --------------------------------------------------------------------------
   describe('ARIA roles', () => {
     it('has correct ARIA roles: dialog, combobox, listbox, option', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       // dialog role
       const dialog = container.querySelector('[role="dialog"]')
@@ -344,14 +329,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 10.3: aria-activedescendant updates on keyboard navigation
-  // --------------------------------------------------------------------------
   describe('aria-activedescendant', () => {
     it('updates on ArrowDown keyboard navigation', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -374,7 +358,9 @@ describe('CommandPalette unit tests', () => {
     it('updates on ArrowUp keyboard navigation', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -393,14 +379,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 8.1: Action execution for each action type
-  // --------------------------------------------------------------------------
   describe('action execution', () => {
     it('executes navigation action (open_dashboard_view) via "Go to Settings"', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -422,7 +407,9 @@ describe('CommandPalette unit tests', () => {
     it('executes toggle_sidebar_hidden action via "Toggle Sidebar"', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -442,7 +429,9 @@ describe('CommandPalette unit tests', () => {
     it('executes toggle_sidebar_collapsed action', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -461,7 +450,9 @@ describe('CommandPalette unit tests', () => {
     it('executes new_chat action via "New Chat"', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -479,7 +470,9 @@ describe('CommandPalette unit tests', () => {
     it('executes open_settings_section action via "Theme Settings"', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -495,14 +488,13 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
-  // Requirement 8.4: Toast shown on failed actions
-  // --------------------------------------------------------------------------
   describe('toast on failed actions', () => {
     it('shows toast when exporting chat with no active session', () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
 
@@ -520,9 +512,7 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
   // Focus restoration on close
-  // --------------------------------------------------------------------------
   describe('focus restoration', () => {
     it('returns focus to previously focused element on close', async () => {
       // Create a button to focus before opening the palette
@@ -535,7 +525,9 @@ describe('CommandPalette unit tests', () => {
       const { container } = render(<CommandPalette />)
 
       // Open palette — focus should move to search input
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
       expect(document.activeElement).toBe(input)
 
@@ -555,14 +547,14 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
-  // --------------------------------------------------------------------------
   // Palette closes after action execution
-  // --------------------------------------------------------------------------
   describe('palette closes after action', () => {
     it('closes after executing an action via Enter', async () => {
       const { container } = render(<CommandPalette />)
 
-      act(() => { pressCtrlSpace() })
+      act(() => {
+        pressCtrlSpace()
+      })
       expect(container.querySelector('[role="dialog"]')).toBeInTheDocument()
 
       const input = container.querySelector('input[role="combobox"]') as HTMLInputElement
@@ -580,10 +572,7 @@ describe('CommandPalette unit tests', () => {
   })
 })
 
-// ============================================================================
 // Task 7.9: TitleBar no longer renders command bar
-// Validates: Requirement 9.1
-// ============================================================================
 
 describe('TitleBar no longer renders command bar', () => {
   it('TitleBar renders without any command bar elements', () => {
@@ -603,7 +592,9 @@ describe('TitleBar no longer renders command bar', () => {
     // confirming it has replaced the old titlebar-embedded command bar.
     const { container } = render(<CommandPalette />)
 
-    act(() => { pressCtrlSpace() })
+    act(() => {
+      pressCtrlSpace()
+    })
 
     // The floating palette should open — this is the new command bar
     const dialog = container.querySelector('[role="dialog"]')

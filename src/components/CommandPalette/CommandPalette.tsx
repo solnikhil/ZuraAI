@@ -24,7 +24,11 @@ import CommandPaletteFooter from './CommandPaletteFooter'
 /* ── helpers ── */
 
 function formatFilenamePart(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').replace(/[\\/:*?"<>|]/g, '').slice(0, 60)
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .slice(0, 60)
 }
 
 /* ── inline styles ── */
@@ -54,7 +58,6 @@ const contentStyle: React.CSSProperties = {
   outline: 'none',
   overflow: 'hidden',
 }
-
 
 const searchWrapStyle: React.CSSProperties = {
   display: 'flex',
@@ -107,11 +110,7 @@ export default function CommandPalette() {
     toggleSidebarCollapsed,
     toggleSidebarHidden,
   } = useAppShell()
-  const {
-    sessions,
-    currentSessionId,
-    createSession,
-  } = useChatHistory()
+  const { sessions, currentSessionId, createSession } = useChatHistory()
   const { queueMessage } = useQuickSend()
 
   const [open, setOpen] = useState(false)
@@ -129,31 +128,45 @@ export default function CommandPalette() {
   const isCommandPaletteEnabled = commandBar.enabled !== false
 
   const widthMap = Object.create(null) as Record<string, number>
-  widthMap.narrow = 440; widthMap.default = 560; widthMap.wide = 680
+  widthMap.narrow = 440
+  widthMap.default = 560
+  widthMap.wide = 680
   const positionMap = Object.create(null) as Record<string, string>
-  positionMap.top = '12%'; positionMap.center = '20%'; positionMap.lower = '30%'
+  positionMap.top = '12%'
+  positionMap.center = '20%'
+  positionMap.lower = '30%'
 
-  const dynamicOverlayStyle = useMemo<React.CSSProperties>(() => ({
-    ...overlayStyle,
-    backgroundColor: `rgba(0, 0, 0, ${(commandBar.overlayOpacity ?? 45) / 100})`,
-  }), [commandBar.overlayOpacity])
+  const dynamicOverlayStyle = useMemo<React.CSSProperties>(
+    () => ({
+      ...overlayStyle,
+      backgroundColor: `rgba(0, 0, 0, ${(commandBar.overlayOpacity ?? 45) / 100})`,
+    }),
+    [commandBar.overlayOpacity]
+  )
 
-  const dynamicContentStyle = useMemo<React.CSSProperties>(() => ({
-    ...contentStyle,
-    maxWidth: widthMap[commandBar.paletteWidth ?? 'default'] ?? 560,
-    top: positionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
-  }), [commandBar.paletteWidth, commandBar.palettePosition])
+  const dynamicContentStyle = useMemo<React.CSSProperties>(
+    () => ({
+      ...contentStyle,
+      maxWidth: widthMap[commandBar.paletteWidth ?? 'default'] ?? 560,
+      top: positionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
+    }),
+    [commandBar.paletteWidth, commandBar.palettePosition]
+  )
 
   const currentSession = useMemo(() => {
-    return sessions.find(s => s.id === currentSessionId) || null
+    return sessions.find((s) => s.id === currentSessionId) || null
   }, [sessions, currentSessionId])
 
   /* ── suggestions ── */
 
   const baseSuggestions = useMemo(() => {
-    return getCommandBarSuggestions(query, {
-      hasCurrentSession: Boolean(currentSession),
-    }, commandBar.maxSuggestions)
+    return getCommandBarSuggestions(
+      query,
+      {
+        hasCurrentSession: Boolean(currentSession),
+      },
+      commandBar.maxSuggestions
+    )
   }, [commandBar.maxSuggestions, currentSession, query])
 
   const recentSuggestions = useMemo<CommandBarSuggestion[]>(() => {
@@ -162,9 +175,10 @@ export default function CommandPalette() {
 
     const normalized = query.trim().toLowerCase()
     const filtered = normalized
-      ? history.filter(entry =>
-          entry.title.toLowerCase().includes(normalized) ||
-          entry.input.toLowerCase().includes(normalized)
+      ? history.filter(
+          (entry) =>
+            entry.title.toLowerCase().includes(normalized) ||
+            entry.input.toLowerCase().includes(normalized)
         )
       : history
 
@@ -182,8 +196,8 @@ export default function CommandPalette() {
   const suggestions = useMemo(() => {
     if (query.trim().length > 0) return baseSuggestions
 
-    const recentIds = new Set(recentSuggestions.map(s => s.id))
-    return baseSuggestions.filter(s => !recentIds.has(s.id))
+    const recentIds = new Set(recentSuggestions.map((s) => s.id))
+    return baseSuggestions.filter((s) => !recentIds.has(s.id))
   }, [baseSuggestions, query, recentSuggestions])
 
   const displayedRecents = query.trim().length > 0 ? [] : recentSuggestions
@@ -205,7 +219,7 @@ export default function CommandPalette() {
 
   /* ── clamp highlight when list shrinks ── */
   useEffect(() => {
-    setHighlightIndex(prev => {
+    setHighlightIndex((prev) => {
       if (totalItems === 0) return 0
       return Math.min(prev, totalItems - 1)
     })
@@ -260,174 +274,211 @@ export default function CommandPalette() {
 
   /* ── action execution ── */
 
-  const ensureDashboardView = useCallback((view: 'chat' | 'settings') => {
-    if (dashboardView === view) return
+  const ensureDashboardView = useCallback(
+    (view: 'chat' | 'settings') => {
+      if (dashboardView === view) return
 
-    if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {
-      showToast('You have unsaved settings changes', 'warning')
-      return
-    }
+      if (hasUnsavedSettings && dashboardView === 'settings' && view !== 'settings') {
+        showToast('You have unsaved settings changes', 'warning')
+        return
+      }
 
-    setDashboardView(view)
-  }, [dashboardView, hasUnsavedSettings, setDashboardView, showToast])
+      setDashboardView(view)
+    },
+    [dashboardView, hasUnsavedSettings, setDashboardView, showToast]
+  )
 
   const ensureDashboardRoute = useCallback(() => {
     navigate('/dashboard')
   }, [navigate])
 
-  const runAction = useCallback(async (action: CommandBarAction): Promise<boolean> => {
-    switch (action.type) {
-      case 'open_dashboard_view':
-        ensureDashboardRoute()
-        ensureDashboardView(action.view)
-        return true
-      case 'open_settings_section': {
-        ensureDashboardRoute()
-        ensureDashboardView('settings')
-        setActiveSettingsSection(action.section)
-        if (action.provider != null || action.manageMode != null || action.commandPaletteTab != null) {
-          setSettingsSectionParams({
-            ...(action.provider != null && { provider: action.provider }),
-            ...(action.manageMode != null && { manageMode: action.manageMode }),
-            ...(action.commandPaletteTab != null && { commandPaletteTab: action.commandPaletteTab }),
-          })
-        } else {
-          setSettingsSectionParams(null)
-        }
-        return true
-      }
-      case 'toggle_sidebar_hidden':
-        toggleSidebarHidden()
-        return true
-      case 'toggle_sidebar_collapsed':
-        toggleSidebarCollapsed()
-        return true
-      case 'new_chat': {
-        ensureDashboardRoute()
-
-        if (hasUnsavedSettings && dashboardView === 'settings') {
-          showToast('You have unsaved settings changes', 'warning')
-          return false
-        }
-
-        setDashboardView('chat')
-        createSession()
-        return true
-      }
-      case 'export_chat': {
-        if (!currentSession) {
-          showToast('No active chat to export', 'warning')
-          return false
-        }
-
-        const baseName = formatFilenamePart(currentSession.title || 'chat') || 'chat'
-
-        if (action.format === 'markdown') {
-          const markdown = exportChatToMarkdown(currentSession)
-          downloadFile(markdown, `${baseName}.md`, 'text/markdown')
-          showToast('Exported chat as Markdown', 'success')
+  const runAction = useCallback(
+    async (action: CommandBarAction): Promise<boolean> => {
+      switch (action.type) {
+        case 'open_dashboard_view':
+          ensureDashboardRoute()
+          ensureDashboardView(action.view)
+          return true
+        case 'open_settings_section': {
+          ensureDashboardRoute()
+          ensureDashboardView('settings')
+          setActiveSettingsSection(action.section)
+          if (
+            action.provider != null ||
+            action.manageMode != null ||
+            action.commandPaletteTab != null
+          ) {
+            setSettingsSectionParams({
+              ...(action.provider != null && { provider: action.provider }),
+              ...(action.manageMode != null && { manageMode: action.manageMode }),
+              ...(action.commandPaletteTab != null && {
+                commandPaletteTab: action.commandPaletteTab,
+              }),
+            })
+          } else {
+            setSettingsSectionParams(null)
+          }
           return true
         }
+        case 'toggle_sidebar_hidden':
+          toggleSidebarHidden()
+          return true
+        case 'toggle_sidebar_collapsed':
+          toggleSidebarCollapsed()
+          return true
+        case 'new_chat': {
+          ensureDashboardRoute()
 
-        const text = exportChatToText(currentSession)
-        downloadFile(text, `${baseName}.txt`, 'text/plain')
-        showToast('Exported chat as text', 'success')
-        return true
-      }
-      case 'send_chat_message': {
-        const content = action.content.trim()
-        if (!content) return false
+          if (hasUnsavedSettings && dashboardView === 'settings') {
+            showToast('You have unsaved settings changes', 'warning')
+            return false
+          }
 
-        ensureDashboardRoute()
-
-        if (hasUnsavedSettings && dashboardView === 'settings') {
-          showToast('You have unsaved settings changes', 'warning')
-          return false
+          setDashboardView('chat')
+          createSession()
+          return true
         }
+        case 'export_chat': {
+          if (!currentSession) {
+            showToast('No active chat to export', 'warning')
+            return false
+          }
 
-        setDashboardView('chat')
-        queueMessage(content)
-        return true
+          const baseName = formatFilenamePart(currentSession.title || 'chat') || 'chat'
+
+          if (action.format === 'markdown') {
+            const markdown = exportChatToMarkdown(currentSession)
+            downloadFile(markdown, `${baseName}.md`, 'text/markdown')
+            showToast('Exported chat as Markdown', 'success')
+            return true
+          }
+
+          const text = exportChatToText(currentSession)
+          downloadFile(text, `${baseName}.txt`, 'text/plain')
+          showToast('Exported chat as text', 'success')
+          return true
+        }
+        case 'send_chat_message': {
+          const content = action.content.trim()
+          if (!content) return false
+
+          ensureDashboardRoute()
+
+          if (hasUnsavedSettings && dashboardView === 'settings') {
+            showToast('You have unsaved settings changes', 'warning')
+            return false
+          }
+
+          setDashboardView('chat')
+          queueMessage(content)
+          return true
+        }
+        default:
+          return false
       }
-      default:
-        return false
-    }
-  }, [
-    ensureDashboardRoute, ensureDashboardView, setActiveSettingsSection,
-    setSettingsSectionParams, toggleSidebarHidden, toggleSidebarCollapsed,
-    hasUnsavedSettings, dashboardView, setDashboardView, showToast,
-    createSession, currentSession, queueMessage,
-  ])
+    },
+    [
+      ensureDashboardRoute,
+      ensureDashboardView,
+      setActiveSettingsSection,
+      setSettingsSectionParams,
+      toggleSidebarHidden,
+      toggleSidebarCollapsed,
+      hasUnsavedSettings,
+      dashboardView,
+      setDashboardView,
+      showToast,
+      createSession,
+      currentSession,
+      queueMessage,
+    ]
+  )
 
   const recordHistory = useCallback((suggestion: CommandBarSuggestion, input: string) => {
-    setHistory(prev => recordCommandHistory(prev, suggestion, input))
+    setHistory((prev) => recordCommandHistory(prev, suggestion, input))
   }, [])
 
-  const runSuggestion = useCallback(async (suggestion: CommandBarSuggestion) => {
-    const inputSnapshot = query
-    const didRun = await runAction(suggestion.action)
-    if (didRun) {
-      recordHistory(suggestion, inputSnapshot)
-    }
-    closePalette()
-  }, [query, runAction, recordHistory, closePalette])
+  const runSuggestion = useCallback(
+    async (suggestion: CommandBarSuggestion) => {
+      const inputSnapshot = query
+      const didRun = await runAction(suggestion.action)
+      if (didRun) {
+        recordHistory(suggestion, inputSnapshot)
+      }
+      closePalette()
+    },
+    [query, runAction, recordHistory, closePalette]
+  )
 
   /* ── keyboard navigation inside the palette ── */
 
-  const handleInputKeyDown = useCallback(async (event: React.KeyboardEvent<HTMLInputElement>) => {
-    // Shift+Enter: quick-send the current query as a chat message
-    if (event.key === 'Enter' && event.shiftKey) {
-      event.preventDefault()
-      const content = query.trim()
-      if (content) {
-        const didRun = await runAction({ type: 'send_chat_message', content })
-        if (didRun) {
-          closePalette()
+  const handleInputKeyDown = useCallback(
+    async (event: React.KeyboardEvent<HTMLInputElement>) => {
+      // Shift+Enter: quick-send the current query as a chat message
+      if (event.key === 'Enter' && event.shiftKey) {
+        event.preventDefault()
+        const content = query.trim()
+        if (content) {
+          const didRun = await runAction({ type: 'send_chat_message', content })
+          if (didRun) {
+            closePalette()
+          }
         }
+        return
       }
-      return
-    }
 
-    switch (event.key) {
-      case 'ArrowDown': {
-        event.preventDefault()
-        setHighlightIndex(prev => Math.min(prev + 1, totalItems - 1))
-        return
-      }
-      case 'ArrowUp': {
-        event.preventDefault()
-        setHighlightIndex(prev => Math.max(prev - 1, 0))
-        return
-      }
-      case 'Enter': {
-        event.preventDefault()
-        // Resolve which suggestion is at the current highlight index
-        const allItems = [...displayedRecents, ...suggestions]
-        const selected = allItems[highlightIndex]
-        if (selected) {
-          await runSuggestion(selected)
+      switch (event.key) {
+        case 'ArrowDown': {
+          event.preventDefault()
+          setHighlightIndex((prev) => Math.min(prev + 1, totalItems - 1))
+          return
         }
-        return
-      }
-      case 'Escape': {
-        event.preventDefault()
-        closePalette()
-        return
-      }
-      case 'Tab': {
-        if (!commandBar.enableTabAutocomplete || totalItems === 0) return
-        event.preventDefault()
-        const allItems = [...displayedRecents, ...suggestions]
-        const selected = allItems[highlightIndex]
-        if (selected) {
-          setQuery(selected.title)
+        case 'ArrowUp': {
+          event.preventDefault()
+          setHighlightIndex((prev) => Math.max(prev - 1, 0))
+          return
         }
-        return
+        case 'Enter': {
+          event.preventDefault()
+          // Resolve which suggestion is at the current highlight index
+          const allItems = [...displayedRecents, ...suggestions]
+          const selected = allItems[highlightIndex]
+          if (selected) {
+            await runSuggestion(selected)
+          }
+          return
+        }
+        case 'Escape': {
+          event.preventDefault()
+          closePalette()
+          return
+        }
+        case 'Tab': {
+          if (!commandBar.enableTabAutocomplete || totalItems === 0) return
+          event.preventDefault()
+          const allItems = [...displayedRecents, ...suggestions]
+          const selected = allItems[highlightIndex]
+          if (selected) {
+            setQuery(selected.title)
+          }
+          return
+        }
+        default:
+          return
       }
-      default:
-        return
-    }
-  }, [commandBar.enableTabAutocomplete, totalItems, displayedRecents, suggestions, highlightIndex, runSuggestion, closePalette, query, runAction])
+    },
+    [
+      commandBar.enableTabAutocomplete,
+      totalItems,
+      displayedRecents,
+      suggestions,
+      highlightIndex,
+      runSuggestion,
+      closePalette,
+      query,
+      runAction,
+    ]
+  )
 
   /* ── active descendant id ── */
 
@@ -440,7 +491,12 @@ export default function CommandPalette() {
   }
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) closePalette() }}>
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) closePalette()
+      }}
+    >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           style={dynamicOverlayStyle}
@@ -464,14 +520,11 @@ export default function CommandPalette() {
           onPointerDownOutside={() => closePalette()}
         >
           {/* Hidden title for accessibility */}
-          <DialogPrimitive.Title style={liveRegionStyle}>
-            Command palette
-          </DialogPrimitive.Title>
+          <DialogPrimitive.Title style={liveRegionStyle}>Command palette</DialogPrimitive.Title>
           <DialogPrimitive.Description style={liveRegionStyle}>
             Search and run commands
           </DialogPrimitive.Description>
 
-          {/* Search field */}
           <div style={searchWrapStyle}>
             <Search size={16} style={searchIconStyle} />
             <input
@@ -493,7 +546,6 @@ export default function CommandPalette() {
             />
           </div>
 
-          {/* Result list */}
           <CommandPaletteResultList
             suggestions={suggestions}
             recentSuggestions={displayedRecents}
@@ -503,16 +555,10 @@ export default function CommandPalette() {
             onHighlight={setHighlightIndex}
           />
 
-          {/* Footer */}
           <CommandPaletteFooter />
 
           {/* Live region for screen readers */}
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={liveRegionStyle}
-          >
+          <div role="status" aria-live="polite" aria-atomic="true" style={liveRegionStyle}>
             {liveText}
           </div>
         </DialogPrimitive.Content>

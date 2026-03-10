@@ -1,23 +1,9 @@
 /**
- * useLazyLoad Hook
- * 
- * A reusable hook for lazy loading elements using Intersection Observer.
- * Supports optional TTI (Time To Interactive) gating to defer loading until
- * the application is fully interactive.
- * 
- * **Validates: Requirements 7.4, 7.5**
- * - THE Renderer_Process SHALL defer loading of non-critical assets until after TTI
- * - WHEN images are displayed, THE Renderer_Process SHALL use lazy loading with intersection observer
- * 
- * **Property 27: Asset Deferred Loading**
- * For any non-critical asset (images, secondary fonts), loading SHALL begin only 
- * after Time To Interactive is reached.
- * 
- * @module useLazyLoad
+ * Lazily reveals elements with Intersection Observer and optional TTI gating.
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { rendererPerformanceTracker } from '../utils/rendererPerformance';
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { rendererPerformanceTracker } from '../utils/rendererPerformance'
 
 /**
  * Configuration options for the useLazyLoad hook
@@ -28,14 +14,14 @@ export interface UseLazyLoadOptions {
    * Positive values load elements before they enter the viewport
    * @default '100px'
    */
-  rootMargin?: string;
-  
+  rootMargin?: string
+
   /**
    * Threshold(s) at which to trigger the callback
    * @default 0
    */
-  threshold?: number | number[];
-  
+  threshold?: number | number[]
+
   /**
    * Whether to wait for TTI before allowing loading
    * When true, elements won't load until both:
@@ -43,32 +29,32 @@ export interface UseLazyLoadOptions {
    * 2. TTI has been reached
    * @default false
    */
-  waitForTTI?: boolean;
-  
+  waitForTTI?: boolean
+
   /**
    * Timeout in ms to force loading even if TTI hasn't been reached
    * Prevents indefinite waiting if TTI detection fails
    * @default 10000
    */
-  ttiTimeout?: number;
-  
+  ttiTimeout?: number
+
   /**
    * Whether the lazy loading is enabled
    * When false, isIntersecting will always be true
    * @default true
    */
-  enabled?: boolean;
-  
+  enabled?: boolean
+
   /**
    * Callback when element becomes visible
    */
-  onVisible?: () => void;
-  
+  onVisible?: () => void
+
   /**
    * Whether to disconnect observer after first intersection
    * @default true
    */
-  triggerOnce?: boolean;
+  triggerOnce?: boolean
 }
 
 /**
@@ -78,74 +64,74 @@ export interface UseLazyLoadResult<T extends HTMLElement = HTMLElement> {
   /**
    * Ref to attach to the target element
    */
-  ref: React.RefObject<T | null>;
-  
+  ref: React.RefObject<T | null>
+
   /**
    * Whether the element is currently intersecting (or has intersected if triggerOnce)
    */
-  isIntersecting: boolean;
-  
+  isIntersecting: boolean
+
   /**
    * Whether TTI has been reached (always true if waitForTTI is false)
    */
-  isTTIReached: boolean;
-  
+  isTTIReached: boolean
+
   /**
    * Whether the element should load (isIntersecting && isTTIReached)
    */
-  shouldLoad: boolean;
-  
+  shouldLoad: boolean
+
   /**
    * Manually trigger loading (bypasses intersection and TTI checks)
    */
-  forceLoad: () => void;
+  forceLoad: () => void
 }
 
 /**
  * Global TTI state management
  * Shared across all hook instances to avoid redundant listeners
  */
-let globalTTIReached = false;
-let globalTTIListeners: Set<() => void> = new Set();
-let globalTTIInitialized = false;
+let globalTTIReached = false
+let globalTTIListeners: Set<() => void> = new Set()
+let globalTTIInitialized = false
 
 /**
  * Initialize global TTI tracking
  */
 function initializeGlobalTTI(): void {
-  if (globalTTIInitialized) return;
-  globalTTIInitialized = true;
-  
+  if (globalTTIInitialized) return
+  globalTTIInitialized = true
+
   // Check if TTI is already available
-  const metrics = rendererPerformanceTracker.getMetrics();
+  const metrics = rendererPerformanceTracker.getMetrics()
   if (metrics.tti !== null) {
-    globalTTIReached = true;
-    if (import.meta.env.DEV) console.log('[useLazyLoad] TTI already reached:', metrics.tti);
-    return;
+    globalTTIReached = true
+    if (import.meta.env.DEV) console.log('[useLazyLoad] TTI already reached:', metrics.tti)
+    return
   }
-  
+
   // Subscribe to TTI updates
   const unsubscribe = rendererPerformanceTracker.onMetricsUpdate((updates) => {
     if (updates.tti !== undefined && updates.tti !== null) {
-      globalTTIReached = true;
-      if (import.meta.env.DEV) console.log('[useLazyLoad] TTI reached:', updates.tti);
-      
+      globalTTIReached = true
+      if (import.meta.env.DEV) console.log('[useLazyLoad] TTI reached:', updates.tti)
+
       // Notify all listeners
-      globalTTIListeners.forEach(listener => {
+      globalTTIListeners.forEach((listener) => {
         try {
-          listener();
+          listener()
         } catch (error) {
-          console.error('[useLazyLoad] TTI listener error:', error);
+          console.error('[useLazyLoad] TTI listener error:', error)
         }
-      });
-      
+      })
+
       // Clear listeners after notification
-      globalTTIListeners.clear();
-      
+      globalTTIListeners.clear()
+
       // Unsubscribe from further updates
-      unsubscribe();
+      unsubscribe()
     }
-  });
+  })
 }
 
 /**
@@ -154,22 +140,22 @@ function initializeGlobalTTI(): void {
 function subscribeToTTI(callback: () => void): () => void {
   if (globalTTIReached) {
     // TTI already reached, call immediately
-    callback();
-    return () => {};
+    callback()
+    return () => {}
   }
-  
-  globalTTIListeners.add(callback);
+
+  globalTTIListeners.add(callback)
   return () => {
-    globalTTIListeners.delete(callback);
-  };
+    globalTTIListeners.delete(callback)
+  }
 }
 
 /**
  * useLazyLoad Hook
- * 
+ *
  * Provides lazy loading functionality using Intersection Observer with optional
  * TTI gating for non-critical assets.
- * 
+ *
  * @example
  * // Basic lazy loading
  * const { ref, shouldLoad } = useLazyLoad<HTMLDivElement>();
@@ -178,7 +164,7 @@ function subscribeToTTI(callback: () => void): () => void {
  *     {shouldLoad && <ExpensiveComponent />}
  *   </div>
  * );
- * 
+ *
  * @example
  * // With TTI gating for non-critical images
  * const { ref, shouldLoad } = useLazyLoad<HTMLImageElement>({
@@ -202,116 +188,117 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
     enabled = true,
     onVisible,
     triggerOnce = true,
-  } = options;
-  
-  const ref = useRef<T>(null);
-  const [isIntersecting, setIsIntersecting] = useState(false);
-  const [isTTIReached, setIsTTIReached] = useState(!waitForTTI || globalTTIReached);
-  const [forcedLoad, setForcedLoad] = useState(false);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const hasTriggeredRef = useRef(false);
-  
+  } = options
+
+  const ref = useRef<T>(null)
+  const [isIntersecting, setIsIntersecting] = useState(false)
+  const [isTTIReached, setIsTTIReached] = useState(!waitForTTI || globalTTIReached)
+  const [forcedLoad, setForcedLoad] = useState(false)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const hasTriggeredRef = useRef(false)
+
   // Initialize global TTI tracking if needed
   useEffect(() => {
     if (waitForTTI) {
-      initializeGlobalTTI();
+      initializeGlobalTTI()
     }
-  }, [waitForTTI]);
-  
+  }, [waitForTTI])
+
   // Subscribe to TTI updates
   useEffect(() => {
-    if (!waitForTTI || isTTIReached) return;
-    
+    if (!waitForTTI || isTTIReached) return
+
     const unsubscribe = subscribeToTTI(() => {
-      setIsTTIReached(true);
-    });
-    
+      setIsTTIReached(true)
+    })
+
     // Set up timeout fallback
     const timeoutId = setTimeout(() => {
       if (!globalTTIReached) {
-        if (import.meta.env.DEV) console.warn('[useLazyLoad] TTI timeout reached, forcing load');
-        setIsTTIReached(true);
+        if (import.meta.env.DEV) console.warn('[useLazyLoad] TTI timeout reached, forcing load')
+        setIsTTIReached(true)
       }
-    }, ttiTimeout);
-    
+    }, ttiTimeout)
+
     return () => {
-      unsubscribe();
-      clearTimeout(timeoutId);
-    };
-  }, [waitForTTI, isTTIReached, ttiTimeout]);
-  
+      unsubscribe()
+      clearTimeout(timeoutId)
+    }
+  }, [waitForTTI, isTTIReached, ttiTimeout])
+
   // Force load function
   const forceLoad = useCallback(() => {
-    setForcedLoad(true);
-    setIsIntersecting(true);
-    setIsTTIReached(true);
-  }, []);
-  
+    setForcedLoad(true)
+    setIsIntersecting(true)
+    setIsTTIReached(true)
+  }, [])
+
   // Set up Intersection Observer
   useEffect(() => {
     if (!enabled || forcedLoad) {
-      setIsIntersecting(true);
-      return;
+      setIsIntersecting(true)
+      return
     }
-    
-    const element = ref.current;
-    if (!element) return;
-    
+
+    const element = ref.current
+    if (!element) return
+
     // Check if IntersectionObserver is available
     if (typeof IntersectionObserver === 'undefined') {
-      if (import.meta.env.DEV) console.warn('[useLazyLoad] IntersectionObserver not available, loading immediately');
-      setIsIntersecting(true);
-      return;
+      if (import.meta.env.DEV)
+        console.warn('[useLazyLoad] IntersectionObserver not available, loading immediately')
+      setIsIntersecting(true)
+      return
     }
-    
+
     const handleIntersection: IntersectionObserverCallback = (entries) => {
-      const [entry] = entries;
-      
+      const [entry] = entries
+
       if (entry.isIntersecting) {
-        if (triggerOnce && hasTriggeredRef.current) return;
-        
-        hasTriggeredRef.current = true;
-        setIsIntersecting(true);
-        
+        if (triggerOnce && hasTriggeredRef.current) return
+
+        hasTriggeredRef.current = true
+        setIsIntersecting(true)
+
         if (onVisible) {
-          onVisible();
+          onVisible()
         }
-        
+
         // Disconnect if triggerOnce
         if (triggerOnce && observerRef.current) {
-          observerRef.current.disconnect();
-          observerRef.current = null;
+          observerRef.current.disconnect()
+          observerRef.current = null
         }
       } else if (!triggerOnce) {
-        setIsIntersecting(false);
+        setIsIntersecting(false)
       }
-    };
-    
+    }
+
     observerRef.current = new IntersectionObserver(handleIntersection, {
       rootMargin,
       threshold,
-    });
-    
-    observerRef.current.observe(element);
-    
+    })
+
+    observerRef.current.observe(element)
+
     return () => {
       if (observerRef.current) {
-        observerRef.current.disconnect();
-        observerRef.current = null;
+        observerRef.current.disconnect()
+        observerRef.current = null
       }
-    };
-  }, [enabled, forcedLoad, rootMargin, threshold, triggerOnce, onVisible]);
-  
+    }
+  }, [enabled, forcedLoad, rootMargin, threshold, triggerOnce, onVisible])
+
   // Calculate shouldLoad
-  const shouldLoad = forcedLoad || (isIntersecting && isTTIReached);
-  
+  const shouldLoad = forcedLoad || (isIntersecting && isTTIReached)
+
   return {
     ref,
     isIntersecting,
     isTTIReached,
     shouldLoad,
     forceLoad,
-  };
+  }
 }
 
 /**
@@ -319,7 +306,7 @@ export function useLazyLoad<T extends HTMLElement = HTMLElement>(
  * Useful for components that need to check TTI status without using the hook
  */
 export function isTTIReached(): boolean {
-  return globalTTIReached;
+  return globalTTIReached
 }
 
 /**
@@ -329,22 +316,22 @@ export function isTTIReached(): boolean {
 export function waitForTTI(timeout = 10000): Promise<void> {
   return new Promise((resolve) => {
     if (globalTTIReached) {
-      resolve();
-      return;
+      resolve()
+      return
     }
-    
-    initializeGlobalTTI();
-    
+
+    initializeGlobalTTI()
+
     const timeoutId = setTimeout(() => {
-      if (import.meta.env.DEV) console.warn('[waitForTTI] Timeout reached');
-      resolve();
-    }, timeout);
-    
+      if (import.meta.env.DEV) console.warn('[waitForTTI] Timeout reached')
+      resolve()
+    }, timeout)
+
     subscribeToTTI(() => {
-      clearTimeout(timeoutId);
-      resolve();
-    });
-  });
+      clearTimeout(timeoutId)
+      resolve()
+    })
+  })
 }
 
-export default useLazyLoad;
+export default useLazyLoad

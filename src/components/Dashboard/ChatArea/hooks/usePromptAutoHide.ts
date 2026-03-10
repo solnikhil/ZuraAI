@@ -10,7 +10,6 @@
  * - Input contains text
  * - Files are attached
  *
- * @module usePromptAutoHide
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -49,11 +48,40 @@ export interface UsePromptAutoHideReturn {
  * Non-printable keys that should NOT reactivate the prompt
  */
 const IGNORED_KEYS = new Set([
-  'Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock',
-  'Escape', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-  'Home', 'End', 'PageUp', 'PageDown', 'Insert', 'Delete',
-  'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-  'ContextMenu', 'PrintScreen', 'Pause',
+  'Shift',
+  'Control',
+  'Alt',
+  'Meta',
+  'CapsLock',
+  'NumLock',
+  'ScrollLock',
+  'Escape',
+  'Tab',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+  'Insert',
+  'Delete',
+  'F1',
+  'F2',
+  'F3',
+  'F4',
+  'F5',
+  'F6',
+  'F7',
+  'F8',
+  'F9',
+  'F10',
+  'F11',
+  'F12',
+  'ContextMenu',
+  'PrintScreen',
+  'Pause',
 ])
 
 export function usePromptAutoHide({
@@ -141,7 +169,8 @@ export function usePromptAutoHide({
       if (IGNORED_KEYS.has(e.key)) return
       // Ignore if user is typing in another input/textarea elsewhere
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return
 
       // Show prompt and focus textarea so the keystroke lands there
       setIsPromptHidden(false)

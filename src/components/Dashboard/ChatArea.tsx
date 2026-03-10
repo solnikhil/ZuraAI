@@ -1,26 +1,12 @@
 /**
- * ChatArea - Main chat interface orchestrator component
- * Coordinates message display, input handling, and streaming via extracted components and hooks
- * 
- * Requirements: 1.5, 1.6 - Reduced to orchestration logic only (≤600 lines)
- * Requirements: 5.3 - Isolated streaming updates
- * Requirements: 4.3, 5.5 - Virtual scrolling for long message lists
- * 
- * **Validates: Property 22: Isolated Streaming Updates**
- * - Uses StreamingMessage component for the actively streaming message
- * - Only the streaming message re-renders during streaming, not the entire list
- * 
- * **Validates: Property 17: Virtual Scrolling Activation**
- * - For any chat session with more than 100 messages, the message list SHALL use virtual scrolling
- * 
- * **Validates: Property 23: Message List Virtualization Threshold**
- * - For any message list with more than 50 messages, virtualization SHALL be active
+ * Primary dashboard chat surface.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
+import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
@@ -28,7 +14,6 @@ import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useSettings } from '../../contexts/SettingsContext'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 
-// Extracted components
 import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
@@ -38,43 +23,34 @@ import type { AttachedFile } from './ChatArea/FileUploadHandler'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages
- * **Validates: Property 23: Message List Virtualization Threshold**
  */
 const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
   const { sessions, currentSessionId } = useChatHistory()
   const { settings } = useSettings()
-  
-  // Get streaming state for virtualized list
-  // **Validates: Property 22: Isolated Streaming Updates**
+  const { showToast } = useToast()
+
   const streamingState = useStreamingState()
 
-  // Local state
   const [input, setInput] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [promptFocused, setPromptFocused] = useState(false)
 
-  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Get current session and messages
-  const currentSession = sessions.find(s => s.id === currentSessionId)
+  const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
-  
-  // Determine if virtualization should be active
-  // **Validates: Property 23: Message List Virtualization Threshold**
+
   const useVirtualization = messages.length > VIRTUALIZATION_THRESHOLD
 
-  // Scroll tracking refs
   const prevMessageCountRef = useRef(messages.length)
   const lastMessageIdRef = useRef<string | null>(null)
   const hasScrolledToNewMessageRef = useRef(false)
   const userScrolledAwayRef = useRef(false)
 
-  // Use the streaming chat hook
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onMessageSent: () => {
       setInput('')
@@ -85,10 +61,9 @@ export default function ChatArea() {
       requestAnimationFrame(() => {
         scrollToNewMessage(true)
       })
-    }
+    },
   })
 
-  // Prompt auto-hide
   const promptAutoHideSettings = settings.promptAutoHide
   const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
     enabled: promptAutoHideSettings.enabled,
@@ -100,7 +75,6 @@ export default function ChatArea() {
     textareaRef: inputTextareaRef as React.RefObject<HTMLTextAreaElement | null>,
   })
 
-  // Callbacks for InputArea props
   const handlePromptActivity = useCallback(() => {
     resetTimer()
   }, [resetTimer])
@@ -109,9 +83,12 @@ export default function ChatArea() {
     setPromptFocused(focused)
   }, [])
 
-  const handleTextareaRefCallback = useCallback((ref: React.RefObject<HTMLTextAreaElement | null>) => {
-    inputTextareaRef.current = ref.current
-  }, [])
+  const handleTextareaRefCallback = useCallback(
+    (ref: React.RefObject<HTMLTextAreaElement | null>) => {
+      inputTextareaRef.current = ref.current
+    },
+    []
+  )
 
   // Quick-send: consume a pending message queued from the command palette
   const { pendingMessage, consumeMessage } = useQuickSend()
@@ -123,7 +100,6 @@ export default function ChatArea() {
     }
   }, [pendingMessage, isLoading, consumeMessage, sendMessage])
 
-  // Scroll helpers
   const scrollToNewMessage = (smooth = false) => {
     const container = messagesContainerRef.current
     if (!container) return
@@ -165,7 +141,10 @@ export default function ChatArea() {
     const lastMessage = messages[messages.length - 1]
     const lastMessageId = lastMessage?.id || null
 
-    if (currentMessageCount > prevMessageCountRef.current || lastMessageId !== lastMessageIdRef.current) {
+    if (
+      currentMessageCount > prevMessageCountRef.current ||
+      lastMessageId !== lastMessageIdRef.current
+    ) {
       hasScrolledToNewMessageRef.current = false
       userScrolledAwayRef.current = false
 
@@ -181,82 +160,82 @@ export default function ChatArea() {
     lastMessageIdRef.current = lastMessageId
   }, [messages.length, messages[messages.length - 1]?.id])
 
-  // Handle send message
   const handleSendMessage = async () => {
     if ((!input.trim() && attachedFiles.length === 0) || isLoading) return
     await sendMessage(input.trim(), attachedFiles)
   }
 
-  // Copy message content - memoized to prevent unnecessary re-renders
-  // **Validates: Property 22: Isolated Streaming Updates**
   const handleCopy = useCallback((content: string) => {
     void navigator.clipboard.writeText(content)
   }, [])
 
-  // Render message callback for VirtualMessageList
-  // **Validates: Property 17: Virtual Scrolling Activation**
-  // **Validates: Property 23: Message List Virtualization Threshold**
-  const renderMessage = useCallback((index: number, msg: typeof messages[0]) => {
-    const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
-    const isStreamingMsg = isLoading && isLastAssistant
-    
-    return (
-      <div data-message-id={msg.id}>
-        {/* Show stored tool results before the message (exclude web_search - model response includes it) */}
-        {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-          <div style={{ marginBottom: '12px' }}>
-            {msg.toolResults
-              .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
-              .map((result: ToolCallResult, i: number) => (
-                <ToolResultDisplay
-                  key={`stored-${i}`}
-                  toolName={result.toolCall.name}
-                   result={result.result?.success ? result.result.data : undefined}
-                   error={result.result?.success ? undefined : result.result?.error}
-                />
-              ))}
-          </div>
-        )}
+  const renderMessage = useCallback(
+    (index: number, msg: (typeof messages)[0]) => {
+      const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
+      const isStreamingMsg = isLoading && isLastAssistant
 
-        {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
-        {/* **Validates: Property 22: Isolated Streaming Updates** */}
-        {isStreamingMsg ? (
-          <StreamingMessage
-            message={msg}
-            sessionId={currentSessionId!}
-            activeToolCalls={toolState.activeToolCalls}
-            onCopy={handleCopy}
-            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
-          />
-        ) : (
-          <MessageRenderer
-            message={msg}
-            isStreaming={false}
-            onCopy={handleCopy}
-            onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
-          />
-        )}
+      return (
+        <div data-message-id={msg.id}>
+          {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              {msg.toolResults
+                .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
+                .map((result: ToolCallResult, i: number) => (
+                  <ToolResultDisplay
+                    key={`stored-${i}`}
+                    toolName={result.toolCall.name}
+                    result={result.result?.success ? result.result.data : undefined}
+                    error={result.result?.success ? undefined : result.result?.error}
+                  />
+                ))}
+            </div>
+          )}
 
-        {/* Show active tool results after last assistant message (during streaming, exclude web_search) */}
-        {isLastAssistant && toolState.toolResults.length > 0 && (
-          <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-            {toolState.toolResults
-              .filter((r) => r.toolCall.name !== 'web_search')
-              .map((result, i) => (
-                <ToolResultDisplay
-                  key={i}
-                  toolName={result.toolCall.name}
-                   result={result.result?.success ? result.result.data : undefined}
-                   error={result.result?.success ? undefined : result.result?.error}
-                />
-              ))}
-          </div>
-        )}
-      </div>
-    )
-  }, [messages.length, isLoading, currentSessionId, handleCopy, regenerateMessage, toolState.toolResults, toolState.activeToolCalls])
+          {isStreamingMsg ? (
+            <StreamingMessage
+              message={msg}
+              sessionId={currentSessionId!}
+              activeToolCalls={toolState.activeToolCalls}
+              onCopy={handleCopy}
+              onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+            />
+          ) : (
+            <MessageRenderer
+              message={msg}
+              isStreaming={false}
+              onCopy={handleCopy}
+              onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
+            />
+          )}
 
-  // Empty state (no session selected)
+          {isLastAssistant && toolState.toolResults.length > 0 && (
+            <div style={{ marginTop: '8px', marginBottom: '24px' }}>
+              {toolState.toolResults
+                .filter((r) => r.toolCall.name !== 'web_search')
+                .map((result, i) => (
+                  <ToolResultDisplay
+                    key={i}
+                    toolName={result.toolCall.name}
+                    result={result.result?.success ? result.result.data : undefined}
+                    error={result.result?.success ? undefined : result.result?.error}
+                  />
+                ))}
+            </div>
+          )}
+        </div>
+      )
+    },
+    [
+      messages.length,
+      isLoading,
+      currentSessionId,
+      handleCopy,
+      regenerateMessage,
+      toolState.toolResults,
+      toolState.activeToolCalls,
+    ]
+  )
+
   if (!currentSessionId || messages.length === 0) {
     return (
       <div
@@ -269,19 +248,20 @@ export default function ChatArea() {
           height: '100%',
           minHeight: 0,
           background: 'var(--theme-background)',
-          padding: '20px'
+          padding: '20px',
         }}
       >
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          maxWidth: 'min(720px, 100%)',
-          width: '100%',
-        }}>
-          {/* zura Title */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px',
+            maxWidth: 'min(720px, 100%)',
+            width: '100%',
+          }}
+        >
           <div style={{ textAlign: 'center' }}>
             <GradientText
               animationSpeed={4}
@@ -293,7 +273,6 @@ export default function ChatArea() {
             </GradientText>
           </div>
 
-          {/* Input Area */}
           <div style={{ width: '100%' }}>
             <InputArea
               input={input}
@@ -316,25 +295,22 @@ export default function ChatArea() {
             letter-spacing: -0.03em;
           }
         `}</style>
-
       </div>
     )
   }
 
-  // Main chat view
   return (
-    <div style={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minHeight: 0,
-      background: 'var(--theme-background)',
-      position: 'relative'
-    }}>
-      {/* Messages Container - Use virtualization for large lists */}
-      {/* **Validates: Property 17: Virtual Scrolling Activation** */}
-      {/* **Validates: Property 23: Message List Virtualization Threshold** */}
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        minHeight: 0,
+        background: 'var(--theme-background)',
+        position: 'relative',
+      }}
+    >
       {useVirtualization ? (
         <VirtualMessageList
           messages={messages}
@@ -345,16 +321,16 @@ export default function ChatArea() {
           renderMessage={renderMessage}
           footer={
             <>
-              {/* Active tool calls - shown in ThinkingBlock when streaming; footer only when not streaming */}
-              {!isLoading && toolState.activeToolCalls.map((toolCall, i) => (
-                <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
-                  <ToolCallIndicator
-                    toolName={toolCall.name}
-                    status="executing"
-                    arguments={toolCall.arguments}
-                  />
-                </div>
-              ))}
+              {!isLoading &&
+                toolState.activeToolCalls.map((toolCall, i) => (
+                  <div key={`tool-active-${i}`} style={{ marginBottom: '12px', padding: '0 20px' }}>
+                    <ToolCallIndicator
+                      toolName={toolCall.name}
+                      status="executing"
+                      arguments={toolCall.arguments}
+                    />
+                  </div>
+                ))}
             </>
           }
         />
@@ -365,14 +341,22 @@ export default function ChatArea() {
           viewportRef={messagesContainerRef}
           viewportStyle={{ padding: '16px 20px 180px 20px', minHeight: 0 }}
         >
-          <div style={{ width: '100%', maxWidth: 'min(860px, 100%)', margin: '0 auto', minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 'min(860px, 100%)',
+              margin: '0 auto',
+              minHeight: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
             {messages.map((msg, idx) => {
               const isLastAssistant = msg.role === 'assistant' && idx === messages.length - 1
               const isStreamingMessage = isLoading && isLastAssistant
-              
+
               return (
                 <div key={msg.id} data-message-id={msg.id}>
-                  {/* Show stored tool results before the message (exclude web_search) */}
                   {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
                     <div style={{ marginBottom: '12px' }}>
                       {msg.toolResults
@@ -388,8 +372,6 @@ export default function ChatArea() {
                     </div>
                   )}
 
-                  {/* Message Bubble - Use StreamingMessage for isolated streaming updates */}
-                  {/* **Validates: Property 22: Isolated Streaming Updates** */}
                   {isStreamingMessage ? (
                     <StreamingMessage
                       message={msg}
@@ -407,7 +389,6 @@ export default function ChatArea() {
                     />
                   )}
 
-                  {/* Show active tool results after last assistant message (during streaming, exclude web_search) */}
                   {isLastAssistant && toolState.toolResults.length > 0 && (
                     <div style={{ marginTop: '8px', marginBottom: '24px' }}>
                       {toolState.toolResults
@@ -426,18 +407,17 @@ export default function ChatArea() {
               )
             })}
 
-            {/* Active tool calls - shown in ThinkingBlock when streaming; footer only when not streaming last message */}
-            {!isLoading && toolState.activeToolCalls.map((toolCall, i) => (
-              <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
-                <ToolCallIndicator
-                  toolName={toolCall.name}
-                  status="executing"
-                  arguments={toolCall.arguments}
-                />
-              </div>
-            ))}
+            {!isLoading &&
+              toolState.activeToolCalls.map((toolCall, i) => (
+                <div key={`tool-active-${i}`} style={{ marginBottom: '12px' }}>
+                  <ToolCallIndicator
+                    toolName={toolCall.name}
+                    status="executing"
+                    arguments={toolCall.arguments}
+                  />
+                </div>
+              ))}
 
-            {/* Spacer for loading state */}
             {isLoading && <div style={{ minHeight: 'calc(100% - 350px)' }} />}
 
             <div ref={messagesEndRef} />
@@ -445,7 +425,6 @@ export default function ChatArea() {
         </ScrollArea>
       )}
 
-      {/* Input Area - always mounted, animated via transform for smooth GPU slide */}
       <motion.div
         className="chat-input-overlay"
         animate={isPromptHidden ? { y: '100%', opacity: 0 } : { y: 0, opacity: 1 }}
@@ -474,7 +453,6 @@ export default function ChatArea() {
         </div>
       </motion.div>
 
-      {/* Hover trigger zone - only visible when prompt is hidden */}
       <AnimatePresence>
         {isPromptHidden && (
           <motion.div
@@ -498,18 +476,19 @@ export default function ChatArea() {
               justifyContent: 'center',
             }}
           >
-            <div style={{
-              width: '40px',
-              height: '4px',
-              borderRadius: '2px',
-              background: 'var(--theme-text-muted)',
-              opacity: 0.4,
-            }} />
+            <div
+              style={{
+                width: '40px',
+                height: '4px',
+                borderRadius: '2px',
+                background: 'var(--theme-text-muted)',
+                opacity: 0.4,
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Styles */}
       <style>{`
         .typing-indicator {
           display: flex;
@@ -553,7 +532,6 @@ export default function ChatArea() {
           to { transform: rotate(360deg); }
         }
       `}</style>
-
     </div>
   )
 }

@@ -1,8 +1,7 @@
 /**
  * Unit tests for modelUtils
  * Tests centralized model utility functions
- * 
- * Requirements: 4.1
+ *
  */
 
 import { describe, it, expect } from 'vitest'
@@ -16,7 +15,7 @@ import {
   getProviderTitle,
   getProviderColor,
   getCapabilitiesForModelPicker,
-  type ModelInfo
+  type ModelInfo,
 } from './modelUtils'
 
 describe('modelUtils', () => {
@@ -24,7 +23,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for Gemini models', () => {
       const model = { code: 'gemini-pro', displayName: 'Gemini Pro' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#4dabf7')
       expect(attrs.icon).toBeDefined()
     })
@@ -32,7 +31,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for Claude models', () => {
       const model = { code: 'claude-3-opus', displayName: 'Claude 3 Opus' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#da7756')
       expect(attrs.icon).toBeDefined()
     })
@@ -40,7 +39,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for GPT models', () => {
       const model = { code: 'gpt-4-turbo', displayName: 'GPT-4 Turbo' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#10a37f')
       expect(attrs.icon).toBeDefined()
     })
@@ -48,7 +47,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for Mistral models', () => {
       const model = { code: 'mistral-large', displayName: 'Mistral Large' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#fcc419')
       expect(attrs.icon).toBeDefined()
     })
@@ -56,7 +55,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for Llama models', () => {
       const model = { code: 'llama-3-70b', displayName: 'Llama 3 70B' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#339af0')
       expect(attrs.icon).toBeDefined()
     })
@@ -64,7 +63,7 @@ describe('modelUtils', () => {
     it('returns correct attributes for MiniMax models', () => {
       const model = { code: 'MiniMax-M2.1', displayName: 'MiniMax M2.1' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#6366f1')
       expect(attrs.icon).toBeDefined()
     })
@@ -72,7 +71,7 @@ describe('modelUtils', () => {
     it('returns default attributes for unknown models', () => {
       const model = { code: 'unknown-model', displayName: 'Unknown Model' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.color).toBe('#b0b0b0')
       expect(attrs.icon).toBeDefined()
     })
@@ -80,42 +79,42 @@ describe('modelUtils', () => {
     it('returns badge for flash/turbo models', () => {
       const model = { code: 'gemini-flash', displayName: 'Gemini Flash' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.badge).toBeDefined()
     })
 
     it('returns badge for pro/plus models', () => {
       const model = { code: 'gemini-pro', displayName: 'Gemini Pro' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.badge).toBeDefined()
     })
 
     it('returns badge for reasoning models', () => {
       const model = { code: 'o1-reasoning', displayName: 'O1 Reasoning' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.badge).toBeDefined()
     })
 
     it('returns Deep Research badge for deep-research models', () => {
       const model = { code: 'sonar-deep-research', displayName: 'Sonar Deep Research' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.badge).toBeDefined()
     })
 
     it('returns Online badge for :online models', () => {
       const model = { code: 'llama-3:online', displayName: 'Llama 3 Online' }
       const attrs = getModelAttributes(model)
-      
+
       expect(attrs.badge).toBeDefined()
     })
 
     it('respects custom icon size', () => {
       const model = { code: 'gpt-4', displayName: 'GPT-4' }
       const attrs = getModelAttributes(model, { iconSize: 24 })
-      
+
       expect(attrs.icon).toBeDefined()
     })
   })
@@ -201,7 +200,7 @@ describe('modelUtils', () => {
       { code: 'gpt-4', displayName: 'GPT-4', provider: 'openrouter' },
       { code: 'gemini-pro', displayName: 'Gemini Pro', provider: 'openrouter' },
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
-      { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' }
+      { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' },
     ]
 
     it('returns all models when query is empty', () => {

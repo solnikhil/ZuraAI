@@ -2,20 +2,13 @@ import { app, globalShortcut } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
-// Import window management
 import { createMainWindow, getMainWindow, createTray, destroyTray } from './windows'
-
-// Import IPC handlers
 import { registerAllHandlers } from './ipc'
 import { registerToolHandlers } from './tools'
-
-// Import auto-updater
 import { initializeAutoUpdater, registerUpdaterHandlers, cleanupAutoUpdater } from './updater'
-
-// Import deferred initialization system
 import { deferredInitializer } from './startup/deferredInit'
 
-// Fix for process.env.DIST type issue
+// Resolve packaged asset paths consistently in both development and production.
 const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
 process.env.DIST = DIST_PATH
 process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../public')
@@ -38,8 +31,6 @@ app.setName('Zura AI')
 
 // Set process title for main process (shows in Task Manager)
 process.title = 'Zura AI - Main'
-
-// ==================== APP LIFECYCLE ====================
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -74,7 +65,7 @@ app.whenReady().then(async () => {
     })
   }
 
-  // Register all IPC handlers (including execute-tool for web_search)
+  // Register every preload-exposed IPC surface before the window is created.
   registerAllHandlers()
   registerToolHandlers()
   registerUpdaterHandlers()
@@ -92,9 +83,7 @@ app.whenReady().then(async () => {
     },
   })
 
-  // Create system tray
   createTray()
 
-  // Open main window on start
   createMainWindow()
 })

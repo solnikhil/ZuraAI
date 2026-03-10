@@ -1,29 +1,37 @@
 /**
- * InputArea - KokonutUI-inspired AI Prompt Input
- * Handles text input, file attachment triggers, and submit
- * 
- * Based on: https://kokonutui.com/docs/components/ai-prompt
- *           https://kokonutui.com/docs/components/ai-input-search
+ * Composer input for chat text, attachments, and quick actions.
  */
 
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Paperclip, Image, X, SendHorizonal, Square, Plus, Check, Wrench, Radar } from 'lucide-react'
+import {
+  Paperclip,
+  Image,
+  X,
+  SendHorizonal,
+  Square,
+  Plus,
+  Check,
+  Wrench,
+} from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
 import { TokenUsageIndicator } from './TokenUsageIndicator'
+import { SkillLogo } from '@/components/shared'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  maybeAnimate,
+  motionDuration,
+  motionDurations,
+  motionEasing,
+  useMotionPreferences,
+} from '@/lib/motion'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -53,10 +61,6 @@ export interface InputAreaProps {
   /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
   textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
 }
-
-/**
- * InputArea Component - KokonutUI-inspired AI Prompt Input
- */
 export function InputArea({
   input,
   setInput,
@@ -82,15 +86,24 @@ export function InputArea({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const imageOnlyInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
+  const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
   const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+  const standardTransition = {
+    duration: motionDuration(animationsEnabled, motionDurations.normal),
+    ease: motionEasing.standard,
+  }
+  const fastTransition = {
+    duration: motionDuration(animationsEnabled, motionDurations.fast),
+    ease: motionEasing.standard,
+  }
 
   // Expose textarea ref to parent for keyboard reactivation
   React.useEffect(() => {
     textareaRefCallback?.(textareaRef)
   }, [textareaRef, textareaRefCallback])
 
-  const imageFiles = attachedFiles.filter(f => f.type === 'image')
+  const imageFiles = attachedFiles.filter((f) => f.type === 'image')
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -207,7 +220,7 @@ export function InputArea({
   }
 
   const removeFile = (fileId: string) => {
-    onFilesChange(attachedFiles.filter(f => f.id !== fileId))
+    onFilesChange(attachedFiles.filter((f) => f.id !== fileId))
   }
 
   const handleContainerClick = () => {
@@ -240,32 +253,31 @@ export function InputArea({
         onMouseMove={handleMouseMoveActivity}
       >
         <div className="relative w-full mx-auto">
-          {/* Attached Files Badges */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={standardTransition}
                 className="mb-2 flex flex-wrap gap-1.5"
               >
-                {attachedFiles.map(file => (
+                {attachedFiles.map((file) => (
                   <motion.div
                     key={file.id}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
+                    transition={fastTransition}
                   >
                     <Badge
                       variant="secondary"
-                      className="gap-1 pr-1 bg-white/5 hover:bg-white/10 text-white/80 transition-colors"
+                      className="theme-soft-badge gap-1 pr-1 text-[var(--theme-text-secondary)]"
                     >
                       <span className="max-w-[100px] truncate text-xs">{file.name}</span>
                       <button
                         onClick={() => removeFile(file.id)}
-                        className="ml-1 rounded-full hover:bg-destructive/20 p-0.5 transition-colors"
+                        className="ml-1 rounded-full p-0.5 text-[var(--theme-text-muted)] transition-colors hover:bg-[var(--theme-error-bg)] hover:text-[var(--theme-error)]"
                       >
                         <X size={12} />
                       </button>
@@ -276,7 +288,6 @@ export function InputArea({
             )}
           </AnimatePresence>
 
-          {/* Main Input Container - KokonutUI style */}
           <motion.div
             role="textbox"
             tabIndex={0}
@@ -284,25 +295,25 @@ export function InputArea({
             initial={false}
             animate={{
               boxShadow: quickActionsOpen
-                ? "none"
+                ? 'none'
                 : frostedPrompt
-                ? (isFocused
-                  ? "0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)"
-                  : "0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)")
-                : (isFocused
-                  ? "0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)"
-                  : "0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)")
+                  ? isFocused
+                    ? '0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)'
+                    : '0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)'
+                  : isFocused
+                    ? '0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)'
+                    : '0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)',
             }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={standardTransition}
             className={cn(
-              "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5",
-              quickActionsOpen ? "bg-[#292929]" : frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
-              showAttachmentBanner ? "pt-3" : "pt-2",
-              isDragging && "ring-2 ring-[var(--theme-accent)]"
+              'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
+              frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
+              showAttachmentBanner ? 'pt-3' : 'pt-2',
+              isDragging && 'ring-2 ring-[var(--theme-accent)]'
             )}
             onClick={handleContainerClick}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              if (e.key === 'Enter' || e.key === ' ') {
                 handleContainerClick()
               }
             }}
@@ -313,16 +324,18 @@ export function InputArea({
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  transition={fastTransition}
                   className="mx-2 mb-2.5 flex items-center gap-2 text-xs"
                 >
                   <div className="flex flex-1 items-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px] font-semibold text-white/70">
+                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--theme-surface-active)] text-[9px] font-semibold text-[var(--theme-text-secondary)]">
                       AA
                     </span>
-                    <span className="text-white/70 tracking-tighter">is free this weekend!</span>
+                    <span className="tracking-tighter text-[var(--theme-text-secondary)]">
+                      is free this weekend!
+                    </span>
                   </div>
-                  <span className="text-white/50 tracking-tighter">Ship Now!</span>
+                  <span className="tracking-tighter text-[var(--theme-text-muted)]">Ship Now!</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -330,16 +343,23 @@ export function InputArea({
               <Textarea
                 ref={textareaRef}
                 value={input}
-                placeholder={isDragging ? "Drop files here..." : "Type / for commands"}
+                placeholder={isDragging ? 'Drop files here...' : 'Type / for commands'}
                 className={cn(
-                  "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
-                  "bg-transparent",
-                  "text-[var(--theme-text-primary)]",
-                  "placeholder:text-[var(--theme-text-muted)]",
-                  "transition-colors duration-200"
+                  'w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none',
+                  'bg-transparent',
+                  'text-[var(--theme-text-primary)]',
+                  'placeholder:text-[var(--theme-text-muted)]',
+                  'transition-colors duration-200'
                 )}
-                onFocus={() => { setIsFocused(true); onFocusChange?.(true); onActivity?.() }}
-                onBlur={() => { setIsFocused(false); onFocusChange?.(false) }}
+                onFocus={() => {
+                  setIsFocused(true)
+                  onFocusChange?.(true)
+                  onActivity?.()
+                }}
+                onBlur={() => {
+                  setIsFocused(false)
+                  onFocusChange?.(false)
+                }}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 onChange={(e) => {
@@ -351,9 +371,7 @@ export function InputArea({
               />
             </div>
 
-            {/* Bottom Controls Bar - same background as container */}
             <div className="h-12 rounded-b-xl relative bg-transparent">
-              {/* Left side controls */}
               <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
                 <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
                   <DropdownMenuTrigger asChild>
@@ -361,9 +379,8 @@ export function InputArea({
                       type="button"
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
-                        "h-8 w-8 inline-flex items-center justify-center rounded-[10px] border border-transparent text-white/70 transition-[color,background-color,border-color,box-shadow] duration-150",
-                        "hover:text-white hover:bg-[#1d1d1d] hover:border-white/[0.06] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
-                        quickActionsOpen && "bg-[#1d1d1d] border-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        'theme-control-btn h-8 w-8 inline-flex items-center justify-center rounded-[10px]',
+                        quickActionsOpen && 'is-active'
                       )}
                       aria-label="Open quick actions"
                     >
@@ -375,14 +392,7 @@ export function InputArea({
                     alignOffset={0}
                     side="top"
                     sideOffset={2}
-                    style={{
-                      boxShadow: 'none',
-                      backdropFilter: 'none',
-                      WebkitBackdropFilter: 'none',
-                    }}
-                    className={cn(
-                      "w-[248px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none data-[state=open]:animate-none data-[state=closed]:animate-none"
-                    )}
+                    className="w-[248px] rounded-xl p-1.5"
                   >
                     <DropdownMenuItem
                       onSelect={(event) => {
@@ -390,25 +400,25 @@ export function InputArea({
                         fileInputRef.current?.click()
                         setQuickActionsOpen(false)
                       }}
-                      className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      className="group/menu-item h-9 px-2.5 text-[13px]"
                     >
-                      <Paperclip className="h-4 w-4 text-white/75" />
+                      <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                       <span>Add files or photos</span>
-                      <span className="ml-auto text-[11px] text-white/40 opacity-0 transition-opacity duration-150 group-hover/menu-item:opacity-100">
+                      <span className="theme-menu-shortcut ml-auto text-[11px] opacity-0 group-hover/menu-item:opacity-100">
                         Ctrl+U
                       </span>
                     </DropdownMenuItem>
 
-                    <DropdownMenuSeparator className="mx-3 my-1 h-px bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.04)_15%,rgba(255,255,255,0.08)_50%,rgba(255,255,255,0.04)_85%,transparent_100%)]" />
+                    <DropdownMenuSeparator className="mx-3 my-1 h-px" />
 
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger className="h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] data-[state=open]:border-transparent data-[state=open]:bg-[#1d1d1d] data-[state=open]:text-white data-[state=open]:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                        <Wrench className="h-4 w-4 text-white/75" />
+                      <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
+                        <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                         <span>Skills</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
                         sideOffset={-10}
-                        className="w-[220px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none"
+                        className="w-[220px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem
                           onSelect={(event) => {
@@ -416,12 +426,12 @@ export function InputArea({
                             toggleWebResearchSkill()
                             setQuickActionsOpen(false)
                           }}
-                          className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                          className="group/menu-item h-9 px-2.5 text-[13px]"
                         >
-                          <Radar className="h-4 w-4 text-white/75" />
+                          <SkillLogo skill="tavily" size={16} />
                           <span>Tavily</span>
                           {webResearchEnabled && (
-                            <span className="ml-auto inline-flex items-center text-emerald-300">
+                            <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
                               <Check className="h-3.5 w-3.5" />
                             </span>
                           )}
@@ -433,28 +443,27 @@ export function InputArea({
 
                 {showContextRing && <TokenUsageIndicator input={input} />}
 
-                {/* Images button */}
                 <AnimatePresence>
                   {imageFiles.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, scale: 0.8, width: 0 }}
-                      animate={{ opacity: 1, scale: 1, width: "auto" }}
+                      animate={{ opacity: 1, scale: 1, width: 'auto' }}
                       exit={{ opacity: 0, scale: 0.8, width: 0 }}
-                      transition={{ duration: 0.15 }}
+                      transition={fastTransition}
                       className="flex items-center"
                     >
-                      <div className="mx-1 h-4 w-px bg-white/10" />
+                      <div className="mx-1 h-4 w-px bg-[var(--theme-border)]" />
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <motion.button
                             type="button"
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
+                            whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
                             onClick={(e) => {
                               e.stopPropagation()
                               setShowImageModal(true)
                             }}
-                            className="h-8 px-2 gap-1 flex items-center text-white/70 hover:text-white rounded-lg transition-colors"
+                            className="theme-control-btn h-8 gap-1 rounded-lg px-2"
                           >
                             <Image size={16} />
                             {imageFiles.length > 1 && (
@@ -471,7 +480,6 @@ export function InputArea({
                 </AnimatePresence>
               </div>
 
-              {/* Right side controls - Model + Send */}
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
                 <ModelSelector minimal={true} popoverAlign="end" />
                 <input
@@ -491,7 +499,6 @@ export function InputArea({
                   className="hidden"
                 />
 
-                {/* Send / Stop button */}
                 {isLoading ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -499,13 +506,13 @@ export function InputArea({
                         type="button"
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
+                        whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
                         onClick={(e) => {
                           e.stopPropagation()
                           onStop?.()
                         }}
-                        className="rounded-lg p-2 transition-all duration-150 text-white hover:bg-red-500/20 hover:text-red-400"
+                        className="theme-control-btn rounded-lg p-2 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
                       >
                         <Square className="w-3.5 h-3.5 fill-current" />
                       </motion.button>
@@ -519,8 +526,12 @@ export function InputArea({
                     <TooltipTrigger asChild>
                       <motion.button
                         type="button"
-                        whileHover={canSend ? { scale: 1.05 } : {}}
-                        whileTap={canSend ? { scale: 0.95 } : {}}
+                        whileHover={
+                          canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
+                        }
+                        whileTap={
+                          canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
+                        }
                         onClick={(e) => {
                           e.stopPropagation()
                           if (canSend) {
@@ -529,10 +540,10 @@ export function InputArea({
                         }}
                         disabled={!canSend}
                         className={cn(
-                          "rounded-lg p-2 transition-all duration-150",
+                          'theme-control-btn rounded-lg p-2',
                           canSend
-                            ? "text-white hover:bg-white/10"
-                            : "text-white/30"
+                            ? 'text-[var(--theme-text-primary)]'
+                            : 'cursor-default text-[var(--theme-text-muted)] opacity-60'
                         )}
                       >
                         <SendHorizonal className="w-4 h-4" />
@@ -549,39 +560,38 @@ export function InputArea({
         </div>
       </div>
 
-      {/* Image Preview Modal */}
       <AnimatePresence>
         {showImageModal && imageFiles.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-5"
+            transition={standardTransition}
+            className="theme-modal-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-5"
             onClick={() => setShowImageModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="relative w-[90%] max-w-[800px] max-h-[90%] rounded-2xl bg-neutral-900 shadow-2xl overflow-hidden"
-              onClick={e => e.stopPropagation()}
+              transition={standardTransition}
+              className="theme-modal-surface relative max-h-[90%] w-[90%] max-w-[800px] overflow-hidden rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <h3 className="text-lg font-medium text-white">
+              <div className="flex items-center justify-between border-b border-[var(--theme-border)] p-4">
+                <h3 className="text-lg font-medium text-[var(--theme-text-primary)]">
                   Attached Images ({imageFiles.length})
                 </h3>
                 <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                  whileHover={maybeAnimate(animationsEnabled, { scale: 1.08 })}
+                  whileTap={maybeAnimate(animationsEnabled, { scale: 0.94 })}
                   onClick={() => setShowImageModal(false)}
-                  className="p-2 rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                  className="theme-control-btn rounded-full p-2"
                 >
                   <X size={20} />
                 </motion.button>
               </div>
-              
+
               <ScrollArea className="p-4" style={{ maxHeight: 'calc(90vh - 80px)' }}>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
                   {imageFiles.map((file) => (
@@ -589,32 +599,33 @@ export function InputArea({
                       key={file.id}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.2 }}
-                      className="relative rounded-xl overflow-hidden bg-neutral-800 border border-white/10"
+                      transition={standardTransition}
+                      className="relative overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
                     >
                       <img
                         src={file.data}
                         alt={file.name}
-                        className="w-full h-[200px] object-contain bg-neutral-950"
+                        className="h-[200px] w-full object-contain"
+                        style={{ background: 'color-mix(in srgb, var(--theme-background) 88%, black 12%)' }}
                       />
-                      <div className="p-3 border-t border-white/10">
-                        <div className="text-sm text-white/80 truncate mb-1">
+                      <div className="border-t border-[var(--theme-border)] p-3">
+                        <div className="mb-1 truncate text-sm text-[var(--theme-text-secondary)]">
                           {file.name}
                         </div>
-                        <div className="text-xs text-white/50">
+                        <div className="text-xs text-[var(--theme-text-muted)]">
                           {(file.size / 1024).toFixed(1)} KB
                         </div>
                       </div>
                       <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
+                        whileHover={maybeAnimate(animationsEnabled, { scale: 1.08 })}
+                        whileTap={maybeAnimate(animationsEnabled, { scale: 0.94 })}
                         onClick={() => {
                           removeFile(file.id)
                           if (imageFiles.length === 1) {
                             setShowImageModal(false)
                           }
                         }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-red-400 hover:text-red-300 hover:bg-black/90 transition-colors"
+                        className="theme-control-btn absolute right-2 top-2 rounded-full p-1.5 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
                       >
                         <X size={14} />
                       </motion.button>

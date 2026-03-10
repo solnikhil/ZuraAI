@@ -24,6 +24,7 @@ const HoverLinkAnimation = ({
   ...rest
 }: HoverLinkAnimationProps) => {
   const ref = useRef<HTMLSpanElement>(null)
+  const textEase = [0.22, 1, 0.36, 1] as const
 
   const MotionTag = useMemo(() => motion.create(Tag), [Tag])
 
@@ -57,7 +58,7 @@ const HoverLinkAnimation = ({
       opacity: [1, 1, 0],
       transition: {
         duration: textDuration,
-        ease: 'easeOut',
+        ease: textEase,
         times: [0, 0.5, 1],
       },
     },
@@ -69,7 +70,7 @@ const HoverLinkAnimation = ({
       opacity: [0, 0, 1],
       transition: {
         duration: textDuration,
-        ease: 'easeOut',
+        ease: textEase,
         times: [0, 0.5, 1],
       },
     },

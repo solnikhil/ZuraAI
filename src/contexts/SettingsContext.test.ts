@@ -2,7 +2,6 @@
  * Unit tests for SettingsContext provider integration
  * Tests default values and migration logic for provider settings
  *
- * Requirements: 4.4, 8.1, 8.2, 8.3
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'

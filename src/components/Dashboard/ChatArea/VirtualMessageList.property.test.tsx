@@ -1,15 +1,12 @@
 /**
  * Property-Based Tests for Virtual Scrolling
- * 
- * Feature: electron-performance-optimization
- * Task: 8.4 Write property tests for virtual scrolling
- * 
+ *
+ *
  * These tests verify the correctness properties defined in the design document:
  * - Property 17: Virtual Scrolling Activation
  * - Property 23: Message List Virtualization Threshold
  * - Property: Streaming Auto-Scroll Safety
- * 
- * **Validates: Requirements 4.3, 5.5, 5.6**
+ *
  */
 
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
@@ -17,9 +14,7 @@ import * as fc from 'fast-check'
 import React from 'react'
 import { render, cleanup, act, screen, waitFor } from '@testing-library/react'
 
-// ============================================================================
 // Test Utilities and Arbitraries
-// ============================================================================
 
 /**
  * Message interface matching VirtualMessageList
@@ -45,7 +40,9 @@ interface Message {
  */
 const messageArbitrary: fc.Arbitrary<Message> = fc.record({
   id: fc.uuid(),
-  role: fc.constantFrom('user', 'assistant', 'system') as fc.Arbitrary<'user' | 'assistant' | 'system'>,
+  role: fc.constantFrom('user', 'assistant', 'system') as fc.Arbitrary<
+    'user' | 'assistant' | 'system'
+  >,
   content: fc.string({ minLength: 0, maxLength: 500 }),
   timestamp: fc.integer({ min: 1600000000000, max: 1800000000000 }),
   model: fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: undefined }),
@@ -68,9 +65,7 @@ const VIRTUALIZATION_THRESHOLD = 50
  */
 const VIRTUAL_SCROLLING_THRESHOLD = 100
 
-// ============================================================================
 // Mock Components and Utilities
-// ============================================================================
 
 /**
  * Mock VirtualMessageList state for testing auto-scroll safety
@@ -83,7 +78,7 @@ interface VirtualMessageListState {
 /**
  * Auto-scroll safety check function
  * Replicates the logic from VirtualMessageList.tsx
- * 
+ *
  * Auto-scroll during streaming only occurs when:
  * - autoScrollEnabled is true
  * - User is at bottom (atBottom === true)
@@ -116,18 +111,10 @@ function shouldUseVirtualScrolling(messageCount: number): boolean {
   return messageCount > VIRTUAL_SCROLLING_THRESHOLD
 }
 
-// ============================================================================
-// Property 17: Virtual Scrolling Activation Tests
-// ============================================================================
-
 /**
- * Feature: electron-performance-optimization
- * Property 17: Virtual Scrolling Activation
- * 
- * *For any* chat session with more than 100 messages, the message list SHALL use
+ *
  * virtual scrolling (rendering only visible items plus overscan).
- * 
- * **Validates: Requirements 4.3**
+ *
  */
 describe('Property 17: Virtual Scrolling Activation', () => {
   afterEach(() => {
@@ -136,26 +123,20 @@ describe('Property 17: Virtual Scrolling Activation', () => {
 
   it('should activate virtual scrolling for sessions with more than 100 messages', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 101, max: 500 }),
-        (messageCount) => {
-          // Property: For any message count > 100, virtual scrolling should be active
-          expect(shouldUseVirtualScrolling(messageCount)).toBe(true)
-        }
-      ),
+      fc.property(fc.integer({ min: 101, max: 500 }), (messageCount) => {
+        // Property: For any message count > 100, virtual scrolling should be active
+        expect(shouldUseVirtualScrolling(messageCount)).toBe(true)
+      }),
       { numRuns: 100 }
     )
   })
 
   it('should NOT activate virtual scrolling for sessions with 100 or fewer messages', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: 100 }),
-        (messageCount) => {
-          // Property: For any message count <= 100, virtual scrolling should NOT be active
-          expect(shouldUseVirtualScrolling(messageCount)).toBe(false)
-        }
-      ),
+      fc.property(fc.integer({ min: 0, max: 100 }), (messageCount) => {
+        // Property: For any message count <= 100, virtual scrolling should NOT be active
+        expect(shouldUseVirtualScrolling(messageCount)).toBe(false)
+      }),
       { numRuns: 100 }
     )
   })
@@ -181,7 +162,7 @@ describe('Property 17: Virtual Scrolling Activation', () => {
         ),
         (messageCount) => {
           const shouldVirtualize = shouldUseVirtualScrolling(messageCount)
-          
+
           // Property: Virtual scrolling activation is deterministic
           expect(shouldVirtualize).toBe(messageCount > VIRTUAL_SCROLLING_THRESHOLD)
         }
@@ -191,18 +172,10 @@ describe('Property 17: Virtual Scrolling Activation', () => {
   })
 })
 
-// ============================================================================
-// Property 23: Message List Virtualization Threshold Tests
-// ============================================================================
-
 /**
- * Feature: electron-performance-optimization
- * Property 23: Message List Virtualization Threshold
- * 
- * *For any* message list with more than 50 messages, virtualization SHALL be active
+ *
  * (DOM contains fewer elements than total messages).
- * 
- * **Validates: Requirements 5.5**
+ *
  */
 describe('Property 23: Message List Virtualization Threshold', () => {
   afterEach(() => {
@@ -211,26 +184,20 @@ describe('Property 23: Message List Virtualization Threshold', () => {
 
   it('should activate virtualization for lists with more than 50 messages', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 51, max: 500 }),
-        (messageCount) => {
-          // Property: For any message count > 50, virtualization should be active
-          expect(shouldUseVirtualization(messageCount)).toBe(true)
-        }
-      ),
+      fc.property(fc.integer({ min: 51, max: 500 }), (messageCount) => {
+        // Property: For any message count > 50, virtualization should be active
+        expect(shouldUseVirtualization(messageCount)).toBe(true)
+      }),
       { numRuns: 100 }
     )
   })
 
   it('should NOT activate virtualization for lists with 50 or fewer messages', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: 50 }),
-        (messageCount) => {
-          // Property: For any message count <= 50, virtualization should NOT be active
-          expect(shouldUseVirtualization(messageCount)).toBe(false)
-        }
-      ),
+      fc.property(fc.integer({ min: 0, max: 50 }), (messageCount) => {
+        // Property: For any message count <= 50, virtualization should NOT be active
+        expect(shouldUseVirtualization(messageCount)).toBe(false)
+      }),
       { numRuns: 100 }
     )
   })
@@ -244,20 +211,17 @@ describe('Property 23: Message List Virtualization Threshold', () => {
 
   it('should maintain consistent threshold behavior across all valid inputs', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: 10000 }),
-        (messageCount) => {
-          const shouldVirtualize = shouldUseVirtualization(messageCount)
-          
-          // Property: Virtualization activation is deterministic and consistent
-          expect(shouldVirtualize).toBe(messageCount > VIRTUALIZATION_THRESHOLD)
-          
-          // Property: Virtualization is monotonic (if active at N, active at N+1)
-          if (shouldVirtualize) {
-            expect(shouldUseVirtualization(messageCount + 1)).toBe(true)
-          }
+      fc.property(fc.integer({ min: 0, max: 10000 }), (messageCount) => {
+        const shouldVirtualize = shouldUseVirtualization(messageCount)
+
+        // Property: Virtualization activation is deterministic and consistent
+        expect(shouldVirtualize).toBe(messageCount > VIRTUALIZATION_THRESHOLD)
+
+        // Property: Virtualization is monotonic (if active at N, active at N+1)
+        if (shouldVirtualize) {
+          expect(shouldUseVirtualization(messageCount + 1)).toBe(true)
         }
-      ),
+      }),
       { numRuns: 100 }
     )
   })
@@ -267,12 +231,12 @@ describe('Property 23: Message List Virtualization Threshold', () => {
       fc.property(
         fc.integer({ min: 51, max: 500 }),
         fc.integer({ min: 5, max: 20 }), // visible items
-        fc.integer({ min: 2, max: 10 }),  // overscan items
+        fc.integer({ min: 2, max: 10 }), // overscan items
         (totalMessages, visibleItems, overscanItems) => {
           // When virtualization is active, DOM should contain at most
           // visibleItems + (2 * overscanItems) elements, which is less than totalMessages
-          const maxDOMElements = visibleItems + (2 * overscanItems)
-          
+          const maxDOMElements = visibleItems + 2 * overscanItems
+
           // Property: DOM elements should be less than total messages
           expect(maxDOMElements).toBeLessThan(totalMessages)
         }
@@ -282,21 +246,17 @@ describe('Property 23: Message List Virtualization Threshold', () => {
   })
 })
 
-// ============================================================================
 // Property: Streaming Auto-Scroll Safety Tests
-// ============================================================================
 
 /**
- * Feature: electron-performance-optimization
  * Property: Streaming Auto-Scroll Safety
- * 
+ *
  * Auto-scroll during streaming only occurs when:
  * - autoScrollEnabled is true
  * - User is at bottom (atBottom === true)
  * - AI is generating (isGenerating === true)
  * - User is not actively scrolling (isScrolling === false)
- * 
- * **Validates: Requirements 5.6**
+ *
  */
 describe('Property: Streaming Auto-Scroll Safety', () => {
   afterEach(() => {
@@ -311,8 +271,13 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
         fc.boolean(), // isGenerating
         fc.boolean(), // isScrolling
         (autoScrollEnabled, atBottom, isGenerating, isScrolling) => {
-          const shouldScroll = shouldAutoScroll(autoScrollEnabled, atBottom, isGenerating, isScrolling)
-          
+          const shouldScroll = shouldAutoScroll(
+            autoScrollEnabled,
+            atBottom,
+            isGenerating,
+            isScrolling
+          )
+
           // Property: Auto-scroll should only occur when ALL conditions are met
           const expectedResult = autoScrollEnabled && atBottom && isGenerating && !isScrolling
           expect(shouldScroll).toBe(expectedResult)
@@ -398,7 +363,7 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
           // Scenario: User has scrolled up (atBottom = false)
           // Property: Should NEVER auto-scroll when user has scrolled away
           expect(shouldAutoScroll(autoScrollEnabled, false, isGenerating, false)).toBe(false)
-          
+
           // Scenario: User is actively scrolling (isScrolling = true)
           // Property: Should NEVER auto-scroll during active scroll
           expect(shouldAutoScroll(autoScrollEnabled, true, isGenerating, true)).toBe(false)
@@ -429,8 +394,9 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
               state.isGenerating,
               state.isScrolling
             )
-            
-            const expected = state.autoScrollEnabled && state.atBottom && state.isGenerating && !state.isScrolling
+
+            const expected =
+              state.autoScrollEnabled && state.atBottom && state.isGenerating && !state.isScrolling
             expect(shouldScroll).toBe(expected)
           }
         }
@@ -440,9 +406,7 @@ describe('Property: Streaming Auto-Scroll Safety', () => {
   })
 })
 
-// ============================================================================
 // Integration Tests: Virtualization and Auto-Scroll Combined
-// ============================================================================
 
 describe('Integration: Virtualization and Auto-Scroll Combined', () => {
   afterEach(() => {
@@ -459,12 +423,17 @@ describe('Integration: Virtualization and Auto-Scroll Combined', () => {
         fc.boolean(), // isScrolling
         (messageCount, autoScrollEnabled, atBottom, isGenerating, isScrolling) => {
           const useVirtualization = shouldUseVirtualization(messageCount)
-          const shouldScroll = shouldAutoScroll(autoScrollEnabled, atBottom, isGenerating, isScrolling)
-          
+          const shouldScroll = shouldAutoScroll(
+            autoScrollEnabled,
+            atBottom,
+            isGenerating,
+            isScrolling
+          )
+
           // Property: Virtualization and auto-scroll are independent decisions
           // Virtualization depends only on message count
           expect(useVirtualization).toBe(messageCount > VIRTUALIZATION_THRESHOLD)
-          
+
           // Auto-scroll depends only on scroll state conditions
           const expectedScroll = autoScrollEnabled && atBottom && isGenerating && !isScrolling
           expect(shouldScroll).toBe(expectedScroll)
@@ -478,20 +447,20 @@ describe('Integration: Virtualization and Auto-Scroll Combined', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 51, max: 1000 }), // Large message count requiring virtualization
-        fc.integer({ min: 1, max: 100 }),   // Streaming updates per second
+        fc.integer({ min: 1, max: 100 }), // Streaming updates per second
         (messageCount, updatesPerSecond) => {
           // Property: With virtualization active, only visible items need updating
           // This ensures frame rate remains stable regardless of total message count
-          
+
           const useVirtualization = shouldUseVirtualization(messageCount)
           expect(useVirtualization).toBe(true)
-          
+
           // Property: Virtualization reduces DOM operations
           // Even with high update frequency, only visible items are affected
           const visibleItems = 10 // Typical visible items
-          const overscan = 6     // Typical overscan (3 above + 3 below)
+          const overscan = 6 // Typical overscan (3 above + 3 below)
           const maxDOMUpdates = visibleItems + overscan
-          
+
           // Property: DOM updates are bounded regardless of total messages
           expect(maxDOMUpdates).toBeLessThan(messageCount)
         }
@@ -510,14 +479,14 @@ describe('Integration: Virtualization and Auto-Scroll Combined', () => {
         (sessionId1, sessionId2, messageCount1, messageCount2) => {
           // Ensure different sessions
           fc.pre(sessionId1 !== sessionId2)
-          
+
           // Property: Virtualization decision is per-session based on message count
           const useVirt1 = shouldUseVirtualization(messageCount1)
           const useVirt2 = shouldUseVirtualization(messageCount2)
-          
+
           expect(useVirt1).toBe(messageCount1 > VIRTUALIZATION_THRESHOLD)
           expect(useVirt2).toBe(messageCount2 > VIRTUALIZATION_THRESHOLD)
-          
+
           // Property: Sessions can have different virtualization states
           // This is expected and correct behavior
         }
@@ -527,9 +496,7 @@ describe('Integration: Virtualization and Auto-Scroll Combined', () => {
   })
 })
 
-// ============================================================================
 // Edge Case Tests
-// ============================================================================
 
 describe('Edge Cases: Virtual Scrolling', () => {
   afterEach(() => {
@@ -548,14 +515,11 @@ describe('Edge Cases: Virtual Scrolling', () => {
 
   it('should handle very large message counts', () => {
     fc.assert(
-      fc.property(
-        fc.integer({ min: 10000, max: 100000 }),
-        (messageCount) => {
-          // Property: Virtualization should always be active for very large lists
-          expect(shouldUseVirtualization(messageCount)).toBe(true)
-          expect(shouldUseVirtualScrolling(messageCount)).toBe(true)
-        }
-      ),
+      fc.property(fc.integer({ min: 10000, max: 100000 }), (messageCount) => {
+        // Property: Virtualization should always be active for very large lists
+        expect(shouldUseVirtualization(messageCount)).toBe(true)
+        expect(shouldUseVirtualScrolling(messageCount)).toBe(true)
+      }),
       { numRuns: 100 }
     )
   })
@@ -565,7 +529,7 @@ describe('Edge Cases: Virtual Scrolling', () => {
     expect(shouldUseVirtualization(49)).toBe(false)
     expect(shouldUseVirtualization(50)).toBe(false)
     expect(shouldUseVirtualization(51)).toBe(true)
-    
+
     // Virtual scrolling threshold (100)
     expect(shouldUseVirtualScrolling(99)).toBe(false)
     expect(shouldUseVirtualScrolling(100)).toBe(false)
@@ -575,19 +539,19 @@ describe('Edge Cases: Virtual Scrolling', () => {
   it('should handle all auto-scroll edge cases', () => {
     // All false
     expect(shouldAutoScroll(false, false, false, false)).toBe(false)
-    
+
     // All true except isScrolling (should scroll)
     expect(shouldAutoScroll(true, true, true, false)).toBe(true)
-    
+
     // All true (should NOT scroll because user is scrolling)
     expect(shouldAutoScroll(true, true, true, true)).toBe(false)
-    
+
     // Only autoScrollEnabled true
     expect(shouldAutoScroll(true, false, false, false)).toBe(false)
-    
+
     // Only atBottom true
     expect(shouldAutoScroll(false, true, false, false)).toBe(false)
-    
+
     // Only isGenerating true
     expect(shouldAutoScroll(false, false, true, false)).toBe(false)
   })

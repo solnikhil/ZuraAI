@@ -2,7 +2,6 @@
  * AppearanceSection component for Settings
  * Continuous vertical layout for all appearance settings.
  *
- * @module AppearanceSection
  */
 
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -12,7 +11,12 @@ import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
-import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
+import {
+  getThemeById,
+  getDefaultTheme,
+  getThemesByCategory,
+  themeCategories,
+} from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -29,8 +33,8 @@ const chatBubblePresets = [
       background: 'var(--theme-user-message-bg)',
       border: '1px solid var(--theme-border-subtle)',
       boxShadow: 'var(--theme-shadow-sm)',
-      color: 'var(--theme-user-message-text)'
-    }
+      color: 'var(--theme-user-message-text)',
+    },
   },
   {
     id: 'glass',
@@ -42,8 +46,8 @@ const chatBubblePresets = [
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)'
-    }
+      WebkitBackdropFilter: 'blur(16px)',
+    },
   },
   {
     id: 'outline',
@@ -53,19 +57,20 @@ const chatBubblePresets = [
       background: 'transparent',
       border: '1px solid var(--theme-accent-muted)',
       boxShadow: 'none',
-      color: 'var(--theme-text-primary)'
-    }
+      color: 'var(--theme-text-primary)',
+    },
   },
   {
     id: 'gradient',
     label: 'Gradient Pop',
     description: 'Accent gradient bubble with stronger contrast',
     previewStyle: {
-      background: 'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
+      background:
+        'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 82%, transparent) 0%, color-mix(in srgb, var(--theme-accent-secondary) 78%, transparent) 100%)',
       border: '1px solid color-mix(in srgb, var(--theme-accent) 45%, transparent)',
       boxShadow: 'var(--theme-shadow-sm)',
-      color: 'var(--theme-text-inverse)'
-    }
+      color: 'var(--theme-text-inverse)',
+    },
   },
   {
     id: 'elevated',
@@ -75,8 +80,8 @@ const chatBubblePresets = [
       background: 'var(--theme-surface)',
       border: '1px solid var(--theme-border)',
       boxShadow: 'var(--theme-shadow-md)',
-      color: 'var(--theme-text-primary)'
-    }
+      color: 'var(--theme-text-primary)',
+    },
   },
   {
     id: 'terminal',
@@ -88,9 +93,9 @@ const chatBubblePresets = [
       boxShadow: 'none',
       color: 'var(--theme-text-primary)',
       fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-      letterSpacing: '0.01em'
-    }
-  }
+      letterSpacing: '0.01em',
+    },
+  },
 ] as const
 
 const chatSelectedOverlayPresets: Array<{
@@ -107,7 +112,7 @@ const chatSelectedOverlayPresets: Array<{
       background: 'color-mix(in srgb, var(--theme-surface-active) 88%, black 12%)',
       border: '1px solid color-mix(in srgb, var(--theme-border-hover) 72%, transparent)',
       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
-    }
+    },
   },
   {
     id: 'notion',
@@ -117,7 +122,7 @@ const chatSelectedOverlayPresets: Array<{
       background: 'color-mix(in srgb, var(--theme-surface-hover) 82%, transparent)',
       border: '1px solid transparent',
       boxShadow: 'none',
-    }
+    },
   },
   {
     id: 'slack',
@@ -127,7 +132,7 @@ const chatSelectedOverlayPresets: Array<{
       background: 'color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface-active))',
       border: '1px solid color-mix(in srgb, var(--theme-accent) 28%, transparent)',
       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.02)',
-    }
+    },
   },
   {
     id: 'discord',
@@ -137,7 +142,7 @@ const chatSelectedOverlayPresets: Array<{
       background: 'color-mix(in srgb, var(--theme-surface-active) 92%, var(--theme-surface) 8%)',
       border: '1px solid color-mix(in srgb, var(--theme-border) 62%, transparent)',
       boxShadow: 'none',
-    }
+    },
   },
   {
     id: 'github',
@@ -147,7 +152,7 @@ const chatSelectedOverlayPresets: Array<{
       background: 'color-mix(in srgb, var(--theme-surface-active) 86%, transparent)',
       border: '1px solid color-mix(in srgb, var(--theme-border) 78%, transparent)',
       boxShadow: 'none',
-    }
+    },
   },
 ]
 
@@ -199,23 +204,29 @@ export function AppearanceSection({
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
   const titleProvider = (settings.titleModelProvider || 'openrouter') as TitleProviderKey
 
-  const titleProviderModelMap = useMemo(() => ({
-    openrouter: settings.configuredModels || [],
-    perplexity: settings.perplexityModels || [],
-    groq: settings.groqModels || [],
-    alibaba: settings.alibabaModels || [],
-    ollama: settings.ollamaModels || [],
-  }), [
-    settings.configuredModels,
-    settings.perplexityModels,
-    settings.groqModels,
-    settings.alibabaModels,
-    settings.ollamaModels,
-  ])
+  const titleProviderModelMap = useMemo(
+    () => ({
+      openrouter: settings.configuredModels || [],
+      perplexity: settings.perplexityModels || [],
+      groq: settings.groqModels || [],
+      alibaba: settings.alibabaModels || [],
+      ollama: settings.ollamaModels || [],
+    }),
+    [
+      settings.configuredModels,
+      settings.perplexityModels,
+      settings.groqModels,
+      settings.alibabaModels,
+      settings.ollamaModels,
+    ]
+  )
 
   const titleProviderModelsAll = titleProviderModelMap[titleProvider] || []
-  const titleProviderEnabledModels = titleProviderModelsAll.filter((model) => model.enabled !== false)
-  const titleProviderModels = titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
+  const titleProviderEnabledModels = titleProviderModelsAll.filter(
+    (model) => model.enabled !== false
+  )
+  const titleProviderModels =
+    titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
 
   const handleTitleProviderChange = (provider: TitleProviderKey) => {
     const nextModelsAll = titleProviderModelMap[provider] || []
@@ -223,7 +234,7 @@ export function AppearanceSection({
     const nextCandidates = nextEnabled.length > 0 ? nextEnabled : nextModelsAll
     const nextTitleModel = nextCandidates.some((model) => model.code === settings.titleModel)
       ? settings.titleModel
-      : (nextCandidates[0]?.code || settings.titleModel)
+      : nextCandidates[0]?.code || settings.titleModel
 
     updateSettings({
       titleModelProvider: provider,
@@ -235,8 +246,8 @@ export function AppearanceSection({
     updateSettings({
       commandBar: {
         ...settings.commandBar,
-        ...changes
-      }
+        ...changes,
+      },
     })
   }
 
@@ -244,8 +255,8 @@ export function AppearanceSection({
     updateSettings({
       promptAutoHide: {
         ...settings.promptAutoHide,
-        ...changes
-      }
+        ...changes,
+      },
     })
   }
 
@@ -258,15 +269,16 @@ export function AppearanceSection({
     applyThemeToDocument(theme)
   }, [settings.activeTheme])
 
-
   return (
-    <div className="settings-section-layout settings-section-layout--wide" style={{ width: '100%' }}>
+    <div
+      className="settings-section-layout settings-section-layout--wide"
+      style={{ width: '100%' }}
+    >
       <div className="page-header">
         <h2 className="page-title">Appearance</h2>
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      {/* ── Themes ── */}
       <h3 className="appearance-group-heading">Themes</h3>
       <Card className="settings-section-card">
         <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
@@ -281,15 +293,19 @@ export function AppearanceSection({
                 key={category.id}
                 onClick={() => setSelectedThemeCategory(category.id)}
                 style={{
-                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  border: isActive
+                    ? '1px solid var(--theme-border-hover)'
+                    : '1px solid var(--theme-border)',
+                  background: isActive
+                    ? 'var(--theme-surface-active)'
+                    : 'var(--theme-surface-subtle)',
                   color: 'var(--theme-text-primary)',
                   borderRadius: 999,
                   padding: '6px 12px',
                   fontSize: '0.78rem',
                   cursor: 'pointer',
                   boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                  transition: 'all 0.15s ease'
+                  transition: 'all 0.15s ease',
                 }}
               >
                 {category.name}
@@ -298,35 +314,61 @@ export function AppearanceSection({
           })}
         </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 12
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
           {filteredThemes.map((theme) => {
             const isActive = settings.activeTheme === theme.id
             return (
               <button
                 key={theme.id}
-                onClick={() => updateSettings({ activeTheme: theme.id, theme: theme.isDark ? 'dark' : 'light' })}
+                onClick={() =>
+                  updateSettings({ activeTheme: theme.id, theme: theme.isDark ? 'dark' : 'light' })
+                }
                 style={{
                   textAlign: 'left',
                   padding: 14,
                   borderRadius: 12,
-                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  border: isActive
+                    ? '1px solid var(--theme-border-hover)'
+                    : '1px solid var(--theme-border)',
+                  background: isActive
+                    ? 'var(--theme-surface-active)'
+                    : 'var(--theme-surface-subtle)',
                   boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
-                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.background }} />
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
+                    gap: 6,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{ height: 16, borderRadius: 6, background: theme.colors.background }}
+                  />
                   <div style={{ height: 16, borderRadius: 6, background: theme.colors.surface }} />
                   <div style={{ height: 16, borderRadius: 6, background: theme.colors.accent }} />
-                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.textPrimary }} />
+                  <div
+                    style={{ height: 16, borderRadius: 6, background: theme.colors.textPrimary }}
+                  />
                 </div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
+                <div
+                  style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: 'var(--theme-text-primary)',
+                    marginBottom: 4,
+                  }}
+                >
                   {theme.name}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
@@ -338,13 +380,14 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      {/* ── Command Palette ── */}
       <h3 className="appearance-group-heading">Command Palette</h3>
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Enable command palette</h3>
-            <div className="settings-list-row__description">Show the floating command palette when activated via keyboard shortcut</div>
+            <div className="settings-list-row__description">
+              Show the floating command palette when activated via keyboard shortcut
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
@@ -358,7 +401,9 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Recent commands</h3>
-            <div className="settings-list-row__description">Show recently executed commands at the top of the palette</div>
+            <div className="settings-list-row__description">
+              Show recently executed commands at the top of the palette
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
@@ -393,7 +438,9 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Tab autocomplete</h3>
-            <div className="settings-list-row__description">Press Tab to complete the highlighted command</div>
+            <div className="settings-list-row__description">
+              Press Tab to complete the highlighted command
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
@@ -407,18 +454,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Max results</h3>
-            <div className="settings-list-row__description">Maximum number of suggestions shown in the results list</div>
+            <div className="settings-list-row__description">
+              Maximum number of suggestions shown in the results list
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={maxSuggestions}
               onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
               className="setting-input-scira"
-
               aria-label="Max results in command palette"
             >
               {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                <option key={count} value={count}>{count}</option>
+                <option key={count} value={count}>
+                  {count}
+                </option>
               ))}
             </select>
           </div>
@@ -427,7 +477,9 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Overlay opacity</h3>
-            <div className="settings-list-row__description">Controls how much the background is dimmed</div>
+            <div className="settings-list-row__description">
+              Controls how much the background is dimmed
+            </div>
           </div>
           <div className="settings-list-row__control">
             <input
@@ -444,14 +496,17 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Palette width</h3>
-            <div className="settings-list-row__description">Controls the maximum width of the palette</div>
+            <div className="settings-list-row__description">
+              Controls the maximum width of the palette
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={commandBar.paletteWidth ?? 'default'}
-              onChange={(e) => updateCommandBar({ paletteWidth: e.target.value as 'narrow' | 'default' | 'wide' })}
+              onChange={(e) =>
+                updateCommandBar({ paletteWidth: e.target.value as 'narrow' | 'default' | 'wide' })
+              }
               className="setting-input-scira"
-
               aria-label="Command palette width"
             >
               <option value="narrow">Narrow (440px)</option>
@@ -464,14 +519,17 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Vertical position</h3>
-            <div className="settings-list-row__description">Controls the vertical placement of the palette</div>
+            <div className="settings-list-row__description">
+              Controls the vertical placement of the palette
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={commandBar.palettePosition ?? 'center'}
-              onChange={(e) => updateCommandBar({ palettePosition: e.target.value as 'top' | 'center' | 'lower' })}
+              onChange={(e) =>
+                updateCommandBar({ palettePosition: e.target.value as 'top' | 'center' | 'lower' })
+              }
               className="setting-input-scira"
-
               aria-label="Command palette vertical position"
             >
               <option value="top">Top (12%)</option>
@@ -482,18 +540,19 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      {/* ── Chat Bubbles ── */}
       <h3 className="appearance-group-heading">Chat Bubbles</h3>
       <Card className="settings-section-card">
         <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
           Choose how your user messages are rendered in dashboard chat.
         </p>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '12px'
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '12px',
+          }}
+        >
           {chatBubblePresets.map((preset) => {
             const isActive = currentChatBubbleStyle === preset.id
             return (
@@ -504,24 +563,37 @@ export function AppearanceSection({
                   textAlign: 'left',
                   padding: '14px',
                   borderRadius: '12px',
-                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  border: isActive
+                    ? '1px solid var(--theme-border-hover)'
+                    : '1px solid var(--theme-border)',
+                  background: isActive
+                    ? 'var(--theme-surface-active)'
+                    : 'var(--theme-surface-subtle)',
                   boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
                 }}
               >
-                <div style={{
-                  display: 'inline-block',
-                  padding: '9px 14px',
-                  borderRadius: '18px 18px 6px 18px',
-                  fontSize: '0.85rem',
-                  marginBottom: '10px',
-                  ...preset.previewStyle
-                }}>
+                <div
+                  style={{
+                    display: 'inline-block',
+                    padding: '9px 14px',
+                    borderRadius: '18px 18px 6px 18px',
+                    fontSize: '0.85rem',
+                    marginBottom: '10px',
+                    ...preset.previewStyle,
+                  }}
+                >
                   who are you
                 </div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
+                <div
+                  style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: 'var(--theme-text-primary)',
+                    marginBottom: '4px',
+                  }}
+                >
                   {preset.label}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
@@ -532,32 +604,40 @@ export function AppearanceSection({
           })}
         </div>
 
-        <div style={{
-          marginTop: 22,
-          paddingTop: 18,
-          borderTop: '1px solid var(--theme-border-subtle)'
-        }}>
-          <h4 style={{
-            margin: '0 0 6px',
-            fontSize: '1rem',
-            fontWeight: 600,
-            color: 'var(--theme-text-primary)'
-          }}>
+        <div
+          style={{
+            marginTop: 22,
+            paddingTop: 18,
+            borderTop: '1px solid var(--theme-border-subtle)',
+          }}
+        >
+          <h4
+            style={{
+              margin: '0 0 6px',
+              fontSize: '1rem',
+              fontWeight: 600,
+              color: 'var(--theme-text-primary)',
+            }}
+          >
             Chat Selected Overlay
           </h4>
-          <p style={{
-            margin: '0 0 14px',
-            fontSize: '0.82rem',
-            color: 'var(--theme-text-muted)'
-          }}>
+          <p
+            style={{
+              margin: '0 0 14px',
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)',
+            }}
+          >
             Choose the selected chat highlight style in the sidebar.
           </p>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '12px'
-          }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+            }}
+          >
             {chatSelectedOverlayPresets.map((preset) => {
               const isActive = currentChatSelectedOverlayStyle === preset.id
               return (
@@ -568,43 +648,60 @@ export function AppearanceSection({
                     textAlign: 'left',
                     padding: '14px',
                     borderRadius: '12px',
-                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                    background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                    border: isActive
+                      ? '1px solid var(--theme-border-hover)'
+                      : '1px solid var(--theme-border)',
+                    background: isActive
+                      ? 'var(--theme-surface-active)'
+                      : 'var(--theme-surface-subtle)',
                     boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
                   }}
                 >
-                  <div style={{
-                    height: 34,
-                    borderRadius: 10,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 10px',
-                    marginBottom: 10,
-                    ...preset.previewStyle
-                  }}>
-                    <span style={{
-                      fontSize: '0.82rem',
-                      color: 'var(--theme-text-primary)',
-                      fontWeight: 600,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}>
+                  <div
+                    style={{
+                      height: 34,
+                      borderRadius: 10,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0 10px',
+                      marginBottom: 10,
+                      ...preset.previewStyle,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '0.82rem',
+                        color: 'var(--theme-text-primary)',
+                        fontWeight: 600,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       Opensource
                     </span>
-                    <span style={{
-                      marginLeft: 8,
-                      color: 'var(--theme-text-muted)',
-                      fontSize: '0.85rem',
-                      lineHeight: 1
-                    }}>
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        color: 'var(--theme-text-muted)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1,
+                      }}
+                    >
                       ...
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
+                  <div
+                    style={{
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: 'var(--theme-text-primary)',
+                      marginBottom: '4px',
+                    }}
+                  >
                     {preset.label}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
@@ -617,13 +714,14 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      {/* ── Chat Title Generation ── */}
       <h3 className="appearance-group-heading">Chat Title Generation</h3>
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Title provider</h3>
-            <div className="settings-list-row__description">Choose which provider generates automatic chat titles</div>
+            <div className="settings-list-row__description">
+              Choose which provider generates automatic chat titles
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
@@ -633,7 +731,9 @@ export function AppearanceSection({
               aria-label="Title generation provider"
             >
               {TITLE_PROVIDER_OPTIONS.map((provider) => (
-                <option key={provider.key} value={provider.key}>{provider.label}</option>
+                <option key={provider.key} value={provider.key}>
+                  {provider.label}
+                </option>
               ))}
             </select>
           </div>
@@ -642,7 +742,9 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Title model</h3>
-            <div className="settings-list-row__description">Model used for auto-title generation under the selected provider</div>
+            <div className="settings-list-row__description">
+              Model used for auto-title generation under the selected provider
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
@@ -652,11 +754,14 @@ export function AppearanceSection({
               aria-label="Title generation model"
             >
               {titleProviderModels.map((model) => (
-                <option key={model.code} value={model.code}>{model.displayName}</option>
+                <option key={model.code} value={model.code}>
+                  {model.displayName}
+                </option>
               ))}
-              {!titleProviderModels.some((model) => model.code === settings.titleModel) && settings.titleModel && (
-                <option value={settings.titleModel}>{settings.titleModel}</option>
-              )}
+              {!titleProviderModels.some((model) => model.code === settings.titleModel) &&
+                settings.titleModel && (
+                  <option value={settings.titleModel}>{settings.titleModel}</option>
+                )}
             </select>
           </div>
         </div>
@@ -664,12 +769,18 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Sidebar title reveal</h3>
-            <div className="settings-list-row__description">Show generated titles instantly or reveal them with a typewriter effect</div>
+            <div className="settings-list-row__description">
+              Show generated titles instantly or reveal them with a typewriter effect
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={settings.titleGenerationDisplayMode || 'instant'}
-              onChange={(e) => updateSettings({ titleGenerationDisplayMode: e.target.value as 'instant' | 'typewriter' })}
+              onChange={(e) =>
+                updateSettings({
+                  titleGenerationDisplayMode: e.target.value as 'instant' | 'typewriter',
+                })
+              }
               className="setting-input-scira"
               aria-label="Sidebar title reveal mode"
             >
@@ -680,13 +791,15 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      {/* ── Prompt Auto-Hide ── */}
       <h3 className="appearance-group-heading">Prompt Auto-Hide</h3>
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Enable prompt auto-hide</h3>
-            <div className="settings-list-row__description">Automatically hide the chat input area after a period of inactivity. Hover the bottom of the chat or press any key to bring it back.</div>
+            <div className="settings-list-row__description">
+              Automatically hide the chat input area after a period of inactivity. Hover the bottom
+              of the chat or press any key to bring it back.
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
@@ -704,7 +817,10 @@ export function AppearanceSection({
               Seconds of inactivity before the prompt hides ({promptTimeout}s)
             </div>
           </div>
-          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            className="settings-list-row__control"
+            style={{ display: 'flex', alignItems: 'center', gap: 10 }}
+          >
             <input
               type="range"
               min={30}
@@ -716,37 +832,42 @@ export function AppearanceSection({
               aria-label="Prompt auto-hide timeout"
               style={{ minWidth: 120 }}
             />
-            <span style={{
-              fontSize: '0.82rem',
-              color: 'var(--theme-text-muted)',
-              minWidth: 40,
-              textAlign: 'right',
-            }}>{promptTimeout}s</span>
+            <span
+              style={{
+                fontSize: '0.82rem',
+                color: 'var(--theme-text-muted)',
+                minWidth: 40,
+                textAlign: 'right',
+              }}
+            >
+              {promptTimeout}s
+            </span>
           </div>
         </div>
       </Card>
 
-      {/* ── Model Selector ── */}
       <h3 className="appearance-group-heading">Model Selector</h3>
 
-      {/* Layout */}
       <Card className="settings-list-card">
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Sidebar position</h3>
-            <div className="settings-list-row__description">Place provider sidebar on left or right</div>
+            <div className="settings-list-row__description">
+              Place provider sidebar on left or right
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={getModelSelector().sidebarPosition}
-              onChange={(e) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  sidebarPosition: e.target.value as 'left' | 'right'
-                }
-              })}
+              onChange={(e) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    sidebarPosition: e.target.value as 'left' | 'right',
+                  },
+                })
+              }
               className="setting-input-scira"
-
             >
               <option value="left">Left</option>
               <option value="right">Right</option>
@@ -757,17 +878,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show sidebar labels</h3>
-            <div className="settings-list-row__description">Display provider names alongside icons</div>
+            <div className="settings-list-row__description">
+              Display provider names alongside icons
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().sidebarShowLabels}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  sidebarShowLabels: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    sidebarShowLabels: checked,
+                  },
+                })
+              }
               aria-label="Show sidebar labels"
             />
           </div>
@@ -776,17 +901,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show model count badges</h3>
-            <div className="settings-list-row__description">Display number of models per provider</div>
+            <div className="settings-list-row__description">
+              Display number of models per provider
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().sidebarShowModelCount}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  sidebarShowModelCount: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    sidebarShowModelCount: checked,
+                  },
+                })
+              }
               aria-label="Show model count badges"
             />
           </div>
@@ -800,14 +929,15 @@ export function AppearanceSection({
           <div className="settings-list-row__control">
             <select
               value={getModelSelector().dropdownWidth}
-              onChange={(e) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  dropdownWidth: e.target.value as 'compact' | 'default' | 'wide'
-                }
-              })}
+              onChange={(e) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    dropdownWidth: e.target.value as 'compact' | 'default' | 'wide',
+                  },
+                })
+              }
               className="setting-input-scira"
-
             >
               <option value="compact">Compact (420px)</option>
               <option value="default">Default (520px)</option>
@@ -819,17 +949,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show model descriptions</h3>
-            <div className="settings-list-row__description">Display model capability descriptions</div>
+            <div className="settings-list-row__description">
+              Display model capability descriptions
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showDescriptions}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showDescriptions: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showDescriptions: checked,
+                  },
+                })
+              }
               aria-label="Show model descriptions"
             />
           </div>
@@ -838,17 +972,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show capability badges</h3>
-            <div className="settings-list-row__description">Display tools, vision, search & other capability labels</div>
+            <div className="settings-list-row__description">
+              Display tools, vision, search & other capability labels
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showCapabilityBadges}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showCapabilityBadges: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showCapabilityBadges: checked,
+                  },
+                })
+              }
               aria-label="Show capability badges"
             />
           </div>
@@ -858,19 +996,22 @@ export function AppearanceSection({
           <div className="settings-list-row">
             <div className="settings-list-row__meta">
               <h3 className="settings-list-row__label">Badge display</h3>
-              <div className="settings-list-row__description">Show icon only, text only, or both</div>
+              <div className="settings-list-row__description">
+                Show icon only, text only, or both
+              </div>
             </div>
             <div className="settings-list-row__control">
               <select
                 value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
-                onChange={(e) => updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both'
-                  }
-                })}
+                onChange={(e) =>
+                  updateSettings({
+                    modelSelector: {
+                      ...getModelSelector(),
+                      capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both',
+                    },
+                  })
+                }
                 className="setting-input-scira"
-  
               >
                 <option value="icon">Icon only</option>
                 <option value="text">Text only</option>
@@ -883,17 +1024,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show provider logos</h3>
-            <div className="settings-list-row__description">Use provider logos instead of fallback icons</div>
+            <div className="settings-list-row__description">
+              Use provider logos instead of fallback icons
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showProviderLogos}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showProviderLogos: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showProviderLogos: checked,
+                  },
+                })
+              }
               aria-label="Show provider logos"
             />
           </div>
@@ -907,12 +1052,14 @@ export function AppearanceSection({
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showFavoriteStars}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showFavoriteStars: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showFavoriteStars: checked,
+                  },
+                })
+              }
               aria-label="Show favorite stars"
             />
           </div>
@@ -921,17 +1068,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show context length</h3>
-            <div className="settings-list-row__description">Display context length (e.g. 200K, 1M) next to each model</div>
+            <div className="settings-list-row__description">
+              Display context length (e.g. 200K, 1M) next to each model
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showContextLength !== false}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showContextLength: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showContextLength: checked,
+                  },
+                })
+              }
               aria-label="Show context length"
             />
           </div>
@@ -940,17 +1091,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show info tooltips</h3>
-            <div className="settings-list-row__description">Enable hover tooltips with model details</div>
+            <div className="settings-list-row__description">
+              Enable hover tooltips with model details
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showInfoTooltips}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showInfoTooltips: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showInfoTooltips: checked,
+                  },
+                })
+              }
               aria-label="Show info tooltips"
             />
           </div>
@@ -959,19 +1114,22 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Active indicator style</h3>
-            <div className="settings-list-row__description">How the selected model is highlighted</div>
+            <div className="settings-list-row__description">
+              How the selected model is highlighted
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={getModelSelector().activeIndicatorStyle}
-              onChange={(e) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight'
-                }
-              })}
+              onChange={(e) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight',
+                  },
+                })
+              }
               className="setting-input-scira"
-
             >
               <option value="dot">Dot</option>
               <option value="checkmark">Checkmark</option>
@@ -988,14 +1146,15 @@ export function AppearanceSection({
           <div className="settings-list-row__control">
             <select
               value={getModelSelector().defaultView}
-              onChange={(e) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  defaultView: e.target.value as 'favorites' | 'lastUsed'
-                }
-              })}
+              onChange={(e) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    defaultView: e.target.value as 'favorites' | 'lastUsed',
+                  },
+                })
+              }
               className="setting-input-scira"
-
             >
               <option value="lastUsed">Last Used Provider</option>
               <option value="favorites">Favorites</option>
@@ -1006,17 +1165,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Auto-close on select</h3>
-            <div className="settings-list-row__description">Close dropdown when a model is selected</div>
+            <div className="settings-list-row__description">
+              Close dropdown when a model is selected
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().autoCloseOnSelect}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  autoCloseOnSelect: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    autoCloseOnSelect: checked,
+                  },
+                })
+              }
               aria-label="Auto-close on select"
             />
           </div>
@@ -1025,17 +1188,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Remember last provider</h3>
-            <div className="settings-list-row__description">Restore last selected provider on open</div>
+            <div className="settings-list-row__description">
+              Restore last selected provider on open
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().rememberProvider}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  rememberProvider: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    rememberProvider: checked,
+                  },
+                })
+              }
               aria-label="Remember last provider"
             />
           </div>
@@ -1044,17 +1211,21 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Show search bar</h3>
-            <div className="settings-list-row__description">Display search input for filtering models</div>
+            <div className="settings-list-row__description">
+              Display search input for filtering models
+            </div>
           </div>
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().showSearch}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  showSearch: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    showSearch: checked,
+                  },
+                })
+              }
               aria-label="Show search bar"
             />
           </div>
@@ -1068,12 +1239,14 @@ export function AppearanceSection({
           <div className="settings-list-row__control">
             <Switch
               checked={getModelSelector().enableAnimations}
-              onCheckedChange={(checked) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  enableAnimations: checked
-                }
-              })}
+              onCheckedChange={(checked) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    enableAnimations: checked,
+                  },
+                })
+              }
               aria-label="Enable animations"
             />
           </div>
@@ -1082,19 +1255,22 @@ export function AppearanceSection({
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Stagger animation speed</h3>
-            <div className="settings-list-row__description">How quickly items appear in sequence</div>
+            <div className="settings-list-row__description">
+              How quickly items appear in sequence
+            </div>
           </div>
           <div className="settings-list-row__control">
             <select
               value={getModelSelector().staggerSpeed}
-              onChange={(e) => updateSettings({
-                modelSelector: {
-                  ...getModelSelector(),
-                  staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow'
-                }
-              })}
+              onChange={(e) =>
+                updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow',
+                  },
+                })
+              }
               className="setting-input-scira"
-
               disabled={!getModelSelector().enableAnimations}
             >
               <option value="fast">Fast</option>
@@ -1105,48 +1281,65 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      {/* ── Model Selector Density ── */}
       <Card className="settings-section-card" style={{ marginTop: 16 }}>
-        <h4 style={{
-          margin: '0 0 6px',
-          fontSize: '0.95rem',
-          fontWeight: 600,
-          color: 'var(--theme-text-primary)'
-        }}>
+        <h4
+          style={{
+            margin: '0 0 6px',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            color: 'var(--theme-text-primary)',
+          }}
+        >
           Item Density
         </h4>
         <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
           Control spacing between model items.
         </p>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 12
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 12,
+          }}
+        >
           {(['compact', 'comfortable', 'spacious'] as const).map((density) => {
             const isActive = getModelSelector().itemDensity === density
             return (
               <button
                 key={density}
-                onClick={() => updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    itemDensity: density
-                  }
-                })}
+                onClick={() =>
+                  updateSettings({
+                    modelSelector: {
+                      ...getModelSelector(),
+                      itemDensity: density,
+                    },
+                  })
+                }
                 style={{
                   textAlign: 'left',
                   padding: 14,
                   borderRadius: 12,
-                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  border: isActive
+                    ? '1px solid var(--theme-border-hover)'
+                    : '1px solid var(--theme-border)',
+                  background: isActive
+                    ? 'var(--theme-surface-active)'
+                    : 'var(--theme-surface-subtle)',
                   boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
                 }}
               >
-                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px', textTransform: 'capitalize' }}>
+                <div
+                  style={{
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: 'var(--theme-text-primary)',
+                    marginBottom: '4px',
+                    textTransform: 'capitalize',
+                  }}
+                >
                   {density}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>

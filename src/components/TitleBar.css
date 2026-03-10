@@ -1,5 +1,5 @@
 .app-titlebar {
-    --titlebar-nav-icon-color: rgb(198 197 199);
+    --titlebar-nav-icon-color: var(--theme-text-secondary);
     position: relative;
     z-index: 50;
     display: flex;
@@ -214,13 +214,13 @@
 .app-titlebar__tab {
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--theme-text-muted);
     font-size: 0.78rem;
     font-weight: 500;
     padding: 5px 12px;
     border-radius: 8px;
     cursor: pointer;
-    transition: color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
     -webkit-app-region: no-drag;
     min-width: 50px;
     min-height: 23px;
@@ -232,12 +232,12 @@
 }
 
 .app-titlebar__tab:hover {
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--theme-text-secondary);
 }
 
 .app-titlebar__tab--active {
     color: var(--theme-text-primary);
-    background: #282828;
+    background: var(--theme-surface-hover);
 }
 
 .app-titlebar__tab:focus-visible {
@@ -257,7 +257,7 @@
     align-items: center;
     justify-content: center;
     -webkit-app-region: no-drag;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    transition: background var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-micro) var(--motion-ease-standard);
 }
 
 .app-titlebar__controls .app-titlebar__icon-btn {
@@ -333,7 +333,7 @@
     border-radius: 0;
     background: transparent;
     color: color-mix(in srgb, var(--theme-text-primary) 84%, transparent);
-    transition: background-color 0.12s ease, color 0.12s ease;
+    transition: background-color var(--motion-duration-micro) var(--motion-ease-standard), color var(--motion-duration-micro) var(--motion-ease-standard);
 }
 
 .app-titlebar__window-controls .app-titlebar__window-btn svg {

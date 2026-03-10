@@ -6,13 +6,15 @@
  * hook only contains provider-specific stream invocation and options.
  */
 
-import type { ThinkingBlock, ToolCallResult, Message } from '../../../../../contexts/ChatHistoryContext'
+import type {
+  ThinkingBlock,
+  ToolCallResult,
+  Message,
+} from '../../../../../contexts/ChatHistoryContext'
 import type { OpenRouterResponse } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 export const UPDATE_INTERVAL = 120 // ms – normal update cadence
 export const SAFETY_CAP = 50 // absolute max research rounds
@@ -23,9 +25,7 @@ export function getStreamingUpdateInterval(): number {
   return UPDATE_INTERVAL
 }
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 export interface DeltaToolCall {
   index?: number
@@ -34,9 +34,7 @@ export interface DeltaToolCall {
   function?: { name?: string; arguments?: string }
 }
 
-// ---------------------------------------------------------------------------
 // Token estimation (Groq / Alibaba)
-// ---------------------------------------------------------------------------
 
 /** ~4 chars per token heuristic when API doesn't return usage */
 export function estimateOutputTokens(content: string): number {
@@ -76,9 +74,7 @@ export function fillMissingUsage(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Tool call accumulation
-// ---------------------------------------------------------------------------
 
 /** Accumulate delta tool calls from a streaming chunk into an accumulator array (mutates in place) */
 export function accumulateDeltaToolCalls(
@@ -88,30 +84,31 @@ export function accumulateDeltaToolCalls(
   for (const tc of deltaToolCalls) {
     const index = tc.index ?? 0
     if (!accumulator[index]) {
-      accumulator[index] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } }
+      accumulator[index] = {
+        id: tc.id || '',
+        type: tc.type || 'function',
+        function: { name: '', arguments: '' },
+      }
     }
     if (tc.function?.name) accumulator[index].function!.name += tc.function.name
     if (tc.function?.arguments) accumulator[index].function!.arguments += tc.function.arguments
   }
 }
 
-// ---------------------------------------------------------------------------
 // Reconstructing assistant messages / responses
-// ---------------------------------------------------------------------------
 
 /** Reconstruct an assistant message with tool calls from accumulated data */
-export function reconstructToolCallMessage(
-  content: string,
-  toolCallsAccumulator: DeltaToolCall[]
-) {
+export function reconstructToolCallMessage(content: string, toolCallsAccumulator: DeltaToolCall[]) {
   return {
     role: 'assistant' as const,
     content,
-    tool_calls: toolCallsAccumulator.filter(tc => tc?.id).map(tc => ({
-      id: tc.id || '',
-      type: 'function' as const,
-      function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' },
-    })),
+    tool_calls: toolCallsAccumulator
+      .filter((tc) => tc?.id)
+      .map((tc) => ({
+        id: tc.id || '',
+        type: 'function' as const,
+        function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' },
+      })),
   }
 }
 
@@ -121,7 +118,7 @@ export function buildResponseWithFallback(
   messages: Array<{ role: string; content?: string | unknown; [key: string]: unknown }>,
   reasoning?: string
 ): OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
-  const lastUserMsg = [...messages].reverse().find(m => m?.role === 'user')
+  const lastUserMsg = [...messages].reverse().find((m) => m?.role === 'user')
   const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : undefined
   return {
     choices: [{ message: reconstructedMessage as OpenRouterResponse['choices'][0]['message'] }],
@@ -132,9 +129,7 @@ export function buildResponseWithFallback(
   } as OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } }
 }
 
-// ---------------------------------------------------------------------------
 // Thinking blocks
-// ---------------------------------------------------------------------------
 
 /** Build thinking blocks from web_search and research_plan tool results (returns a new array) */
 export function buildThinkingBlocksFromResults(
@@ -151,16 +146,29 @@ export function buildThinkingBlocksFromResults(
         query: String(q || ''),
         timestamp: Date.now(),
         toolInput: typeof args === 'object' ? args : { query: args },
-        toolOutput: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
+        toolOutput: {
+          success: tr.result?.success ?? false,
+          data: tr.result?.data,
+          error: tr.result?.error,
+          executionTime: tr.result?.executionTime,
+        },
       })
-    } else if (tr.toolCall.name === 'research_plan' && Array.isArray(tr.toolCall.arguments?.steps)) {
+    } else if (
+      tr.toolCall.name === 'research_plan' &&
+      Array.isArray(tr.toolCall.arguments?.steps)
+    ) {
       for (const step of tr.toolCall.arguments.steps) {
         blocks.push({
           type: 'searching',
           query: String(step?.query || ''),
           timestamp: Date.now(),
           toolInput: { query: step?.query },
-          toolOutput: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
+          toolOutput: {
+            success: tr.result?.success ?? false,
+            data: tr.result?.data,
+            error: tr.result?.error,
+            executionTime: tr.result?.executionTime,
+          },
         })
       }
     }
@@ -168,15 +176,18 @@ export function buildThinkingBlocksFromResults(
   return blocks
 }
 
-// ---------------------------------------------------------------------------
 // Tool result mapping
-// ---------------------------------------------------------------------------
 
 /** Map tool results for persistent storage (strips internal data) */
 export function mapToolResultsForStorage(toolResults: ToolCallResult[]): ToolCallResult[] {
-  return toolResults.map(tr => ({
+  return toolResults.map((tr) => ({
     toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
-    result: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime },
+    result: {
+      success: tr.result?.success ?? false,
+      data: tr.result?.data,
+      error: tr.result?.error,
+      executionTime: tr.result?.executionTime,
+    },
   }))
 }
 
@@ -189,9 +200,7 @@ export function mergeSavedToolResults(
   return existing ? [...existing, ...mapped] : mapped
 }
 
-// ---------------------------------------------------------------------------
 // Search query extraction
-// ---------------------------------------------------------------------------
 
 /** Extract search query string from the first web_search or research_plan result */
 export function extractSearchQuery(
@@ -202,7 +211,11 @@ export function extractSearchQuery(
   if (!firstSearch) return ''
   if (firstSearch.toolCall.name === 'research_plan') {
     return (
-      ((firstSearch.toolCall.arguments as Record<string, unknown>)?.steps as Array<{ query?: string }> | undefined)?.[0]?.query ?? ''
+      (
+        (firstSearch.toolCall.arguments as Record<string, unknown>)?.steps as
+          | Array<{ query?: string }>
+          | undefined
+      )?.[0]?.query ?? ''
     )
   }
   const args = firstSearch.toolCall.arguments
@@ -211,12 +224,12 @@ export function extractSearchQuery(
 
 /** Check if tool results contain web search or research plan calls */
 export function hasSearchResults(toolResults: ToolCallResult[] | undefined): boolean {
-  return (toolResults || []).some(r => r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan')
+  return (toolResults || []).some(
+    (r) => r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
+  )
 }
 
-// ---------------------------------------------------------------------------
 // Research plan callbacks
-// ---------------------------------------------------------------------------
 
 /** Create the research plan callbacks passed to handleToolCalls */
 export function createResearchPlanCallbacks(
@@ -228,11 +241,16 @@ export function createResearchPlanCallbacks(
   return {
     onToolStart: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => {
       if (toolCall?.name === 'research_plan') {
-        const args = toolCall.arguments as { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
+        const args = toolCall.arguments as {
+          topic?: string
+          steps?: Array<{ stepNumber: number; query: string; rationale?: string }>
+        }
         if (args?.topic && Array.isArray(args?.steps)) {
           const plan = { topic: args.topic, steps: args.steps }
           updateStreaming({ researchPlan: plan })
-          throttledUpdateStreamingMessage(sessionId, messageId, { researchPlan: plan } as Partial<Message>)
+          throttledUpdateStreamingMessage(sessionId, messageId, {
+            researchPlan: plan,
+          } as Partial<Message>)
         }
       }
     },
@@ -245,13 +263,15 @@ export function createResearchPlanCallbacks(
   }
 }
 
-// ---------------------------------------------------------------------------
 // Research plan persistence
-// ---------------------------------------------------------------------------
 
 /** Extract research plan data from saved tool results for final message update */
-export function extractResearchPlanData(savedToolResults: ToolCallResult[] | undefined): Record<string, unknown> {
-  const researchPlanResult = (savedToolResults || []).find(r => r?.toolCall?.name === 'research_plan')
+export function extractResearchPlanData(
+  savedToolResults: ToolCallResult[] | undefined
+): Record<string, unknown> {
+  const researchPlanResult = (savedToolResults || []).find(
+    (r) => r?.toolCall?.name === 'research_plan'
+  )
   const rpArgs = researchPlanResult?.toolCall?.arguments as
     | { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
     | undefined
@@ -264,9 +284,7 @@ export function extractResearchPlanData(savedToolResults: ToolCallResult[] | und
   return {}
 }
 
-// ---------------------------------------------------------------------------
 // Initial tool result processing
-// ---------------------------------------------------------------------------
 
 /**
  * Process the first round of tool results after the initial stream completes.
@@ -276,26 +294,26 @@ export function extractResearchPlanData(savedToolResults: ToolCallResult[] | und
  */
 export function processInitialToolResults(
   toolResults: ToolCallResult[],
-  localThinkingBlocks: ThinkingBlock[],
+  localThinkingBlocks: ThinkingBlock[]
 ): {
   updatedThinkingBlocks: ThinkingBlock[]
   savedToolResults: ToolCallResult[]
   hasSearchCalls: boolean
   searchQuery: string
 } {
-  const webSearchCalls = toolResults.filter(tr => tr.toolCall.name === 'web_search')
-  const researchPlanCalls = toolResults.filter(tr => tr.toolCall.name === 'research_plan')
+  const webSearchCalls = toolResults.filter((tr) => tr.toolCall.name === 'web_search')
+  const researchPlanCalls = toolResults.filter((tr) => tr.toolCall.name === 'research_plan')
   const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
   const searchQuery = hasSearchCalls ? extractSearchQuery(webSearchCalls, researchPlanCalls) : ''
-  const updatedThinkingBlocks = hasSearchCalls ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks) : localThinkingBlocks
+  const updatedThinkingBlocks = hasSearchCalls
+    ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
+    : localThinkingBlocks
   const savedToolResults = mapToolResultsForStorage(toolResults)
 
   return { updatedThinkingBlocks, savedToolResults, hasSearchCalls, searchQuery }
 }
 
-// ---------------------------------------------------------------------------
 // Stream metrics
-// ---------------------------------------------------------------------------
 
 /** Compute stream performance metrics (latency, TTFT, TPS) */
 export function computeStreamMetrics(
@@ -306,13 +324,11 @@ export function computeStreamMetrics(
   const endTime = performance.now()
   const latency = Math.round(endTime - startTime)
   const ttft = firstTokenTime ? Math.round(firstTokenTime - startTime) : undefined
-  const tps = outputTokens > 0 && latency > 0 ? (outputTokens / (latency / 1000)) : undefined
+  const tps = outputTokens > 0 && latency > 0 ? outputTokens / (latency / 1000) : undefined
   return { latency, ttft, tps }
 }
 
-// ---------------------------------------------------------------------------
 // Follow-up message building (research loop)
-// ---------------------------------------------------------------------------
 
 /** Build the follow-up message array for a research loop iteration */
 export function buildFollowUpMessages(
@@ -335,9 +351,7 @@ export function buildFollowUpMessages(
   return messages
 }
 
-// ---------------------------------------------------------------------------
 // Horizontal rule stripping
-// ---------------------------------------------------------------------------
 
 /** Strip standalone --- (markdown horizontal rule) from content when web search was used */
 export function stripStandaloneHorizontalRule(content: string): string {

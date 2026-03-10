@@ -8,13 +8,12 @@ import type { ChatSession, Message } from '../../../../contexts/ChatHistoryConte
  * The duplicate is always created as unpinned, but
  * preserves the original session's folderId, tags, and totalTokens.
  *
- * Requirements: 7.8
  */
 export function duplicateSession(session: ChatSession): ChatSession {
   const now = Date.now()
 
   // Deep-copy messages with new unique IDs
-  const duplicatedMessages: Message[] = session.messages.map(msg => ({
+  const duplicatedMessages: Message[] = session.messages.map((msg) => ({
     ...msg,
     id: crypto.randomUUID(),
   }))

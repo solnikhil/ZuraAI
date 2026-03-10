@@ -1,15 +1,12 @@
 /**
  * Property-Based Tests for Window Control Buttons Conditional Rendering
  *
- * Feature: frosted-sidebar-window-controls-fix
- * Task: 1.4 Write property tests for conditional rendering (Property 1, Property 5, Property 6)
  *
  * These tests verify the correctness properties defined in the design document:
  * - Property 1: Custom controls render only in frosted Windows mode
  * - Property 5: macOS never renders custom window controls
  * - Property 6: All custom control buttons exclude drag region
  *
- * **Validates: Requirements 1.1, 1.2, 4.1, 4.4, 5.3**
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -18,9 +15,7 @@ import React from 'react'
 import { render, cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom'
 
-// ============================================================================
 // Mocks — must be declared before any imports that use them
-// ============================================================================
 
 // Mutable mock state that property tests will mutate per iteration
 const mockSettingsUI = {
@@ -121,16 +116,12 @@ vi.mock('./shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
 
-// ============================================================================
 // Imports under test (after mocks)
-// ============================================================================
 
 import TitleBar from './TitleBar'
 import WindowControlButtons from './WindowControlButtons'
 
-// ============================================================================
 // Test Utilities
-// ============================================================================
 
 /**
  * Platform type as defined in the design document
@@ -184,9 +175,7 @@ function restoreNavigatorPlatform(): void {
   })
 }
 
-// ============================================================================
 // fast-check Arbitraries
-// ============================================================================
 
 /**
  * Arbitrary for platform values as specified in the design document
@@ -201,9 +190,7 @@ const conditionalRenderingArbitrary = fc.record({
   platform: platformArbitrary,
 })
 
-// ============================================================================
 // Global test setup
-// ============================================================================
 
 beforeEach(() => {
   // Set up window.windowControls mock
@@ -227,109 +214,148 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-// ============================================================================
-// Property 1: Custom controls render on all non-macOS platforms
-// ============================================================================
-
 /**
- * Feature: frosted-sidebar-window-controls-fix, Property 1: Custom controls render on all non-macOS platforms
  *
  * *For any* combination of `frostedSidebar` (true/false) and platform (win32/darwin/linux),
  * the TitleBar should render custom minimize, maximize/restore, and close buttons
  * if and only if the platform is not macOS (native overlay is disabled).
  *
- * **Validates: Requirements 1.1, 1.2, 4.1**
  */
 describe('Property 1: Custom controls render on all non-macOS platforms', () => {
   it('should render custom window control buttons iff platform is not macOS', () => {
     fc.assert(
-      fc.property(
-        conditionalRenderingArbitrary,
-        ({ frostedSidebar, platform }) => {
-          // Arrange: set the platform and frostedSidebar state
-          setNavigatorPlatform(platformToNavigatorString(platform))
-          mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
+      fc.property(conditionalRenderingArbitrary, ({ frostedSidebar, platform }) => {
+        // Arrange: set the platform and frostedSidebar state
+        setNavigatorPlatform(platformToNavigatorString(platform))
+        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
-          // Act: render TitleBar
-          const { queryByLabelText } = render(React.createElement(TitleBar))
+        // Act: render TitleBar
+        const { queryByLabelText } = render(React.createElement(TitleBar))
 
-          // Determine expected behavior — native overlay is disabled,
-          // so custom controls render on all non-macOS platforms
-          const isMacOS = isMacOSPlatform(platform)
-          const shouldRenderCustomControls = !isMacOS
+        // Determine expected behavior — native overlay is disabled,
+        // so custom controls render on all non-macOS platforms
+        const isMacOS = isMacOSPlatform(platform)
+        const shouldRenderCustomControls = !isMacOS
 
-          // Assert: check for custom control buttons by their aria-labels
-          const minimizeBtn = queryByLabelText('Minimize window')
-          const closeBtn = queryByLabelText('Close window')
+        // Assert: check for custom control buttons by their aria-labels
+        const minimizeBtn = queryByLabelText('Minimize window')
+        const closeBtn = queryByLabelText('Close window')
 
-          if (shouldRenderCustomControls) {
-            expect(minimizeBtn).toBeInTheDocument()
-            expect(closeBtn).toBeInTheDocument()
-          } else {
-            expect(minimizeBtn).not.toBeInTheDocument()
-            expect(closeBtn).not.toBeInTheDocument()
-          }
-
-          // Cleanup for next iteration
-          cleanup()
+        if (shouldRenderCustomControls) {
+          expect(minimizeBtn).toBeInTheDocument()
+          expect(closeBtn).toBeInTheDocument()
+        } else {
+          expect(minimizeBtn).not.toBeInTheDocument()
+          expect(closeBtn).not.toBeInTheDocument()
         }
-      ),
+
+        // Cleanup for next iteration
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })
 
   it('should always use WindowControlButtons wrapper on non-macOS platforms', () => {
     fc.assert(
-      fc.property(
-        conditionalRenderingArbitrary,
-        ({ frostedSidebar, platform }) => {
-          // Arrange
-          setNavigatorPlatform(platformToNavigatorString(platform))
-          mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
+      fc.property(conditionalRenderingArbitrary, ({ frostedSidebar, platform }) => {
+        // Arrange
+        setNavigatorPlatform(platformToNavigatorString(platform))
+        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
-          // Act
-          const { container } = render(React.createElement(TitleBar))
+        // Act
+        const { container } = render(React.createElement(TitleBar))
 
-          const isMacOS = isMacOSPlatform(platform)
+        const isMacOS = isMacOSPlatform(platform)
 
-          // The WindowControlButtons wrapper should be present on all non-macOS platforms
-          const windowControlsWrapper = container.querySelector('.app-titlebar__window-controls')
+        // The WindowControlButtons wrapper should be present on all non-macOS platforms
+        const windowControlsWrapper = container.querySelector('.app-titlebar__window-controls')
 
-          if (!isMacOS) {
-            expect(windowControlsWrapper).toBeInTheDocument()
-          } else {
-            expect(windowControlsWrapper).not.toBeInTheDocument()
-          }
-
-          cleanup()
+        if (!isMacOS) {
+          expect(windowControlsWrapper).toBeInTheDocument()
+        } else {
+          expect(windowControlsWrapper).not.toBeInTheDocument()
         }
-      ),
+
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })
 })
 
-// ============================================================================
-// Property 2: Maximize/restore icon reflects window state
-// ============================================================================
-
 /**
- * Feature: frosted-sidebar-window-controls-fix, Property 2: Maximize/restore icon reflects window state
  *
  * *For any* sequence of maximize state changes (true → false, false → true),
  * the rendered maximize/restore button icon should always match the current
  * `isMaximized` state — showing the restore icon when maximized and the
  * maximize icon when not maximized.
  *
- * **Validates: Requirements 1.7**
  */
 describe('Property 2: Maximize/restore icon reflects window state', () => {
   it('should show "Restore window" aria-label when isMaximized is true and "Maximize window" when false', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        (isMaximized) => {
-          // Arrange & Act: render WindowControlButtons with the given isMaximized state
+      fc.property(fc.boolean(), (isMaximized) => {
+        // Arrange & Act: render WindowControlButtons with the given isMaximized state
+        const { queryByLabelText } = render(
+          React.createElement(WindowControlButtons, {
+            isMaximized,
+            onMinimize: vi.fn(),
+            onToggleMaximize: vi.fn(),
+            onClose: vi.fn(),
+          })
+        )
+
+        // Assert: the correct aria-label is present based on isMaximized
+        if (isMaximized) {
+          expect(queryByLabelText('Restore window')).toBeInTheDocument()
+          expect(queryByLabelText('Maximize window')).not.toBeInTheDocument()
+        } else {
+          expect(queryByLabelText('Maximize window')).toBeInTheDocument()
+          expect(queryByLabelText('Restore window')).not.toBeInTheDocument()
+        }
+
+        cleanup()
+      }),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should show correct title attribute matching the isMaximized state', () => {
+    fc.assert(
+      fc.property(fc.boolean(), (isMaximized) => {
+        // Arrange & Act
+        const { container } = render(
+          React.createElement(WindowControlButtons, {
+            isMaximized,
+            onMinimize: vi.fn(),
+            onToggleMaximize: vi.fn(),
+            onClose: vi.fn(),
+          })
+        )
+
+        // Find the maximize/restore button (the second button)
+        const buttons = container.querySelectorAll('button')
+        const maxRestoreBtn = buttons[1] // minimize=0, max/restore=1, close=2
+
+        // Assert: title attribute matches state
+        if (isMaximized) {
+          expect(maxRestoreBtn.getAttribute('title')).toBe('Restore')
+        } else {
+          expect(maxRestoreBtn.getAttribute('title')).toBe('Maximize')
+        }
+
+        cleanup()
+      }),
+      { numRuns: 100 }
+    )
+  })
+
+  it('should maintain correct icon state across a sequence of maximize state changes', () => {
+    fc.assert(
+      fc.property(fc.array(fc.boolean(), { minLength: 1, maxLength: 20 }), (stateSequence) => {
+        // For each state in the sequence, render and verify the icon matches
+        for (const isMaximized of stateSequence) {
           const { queryByLabelText } = render(
             React.createElement(WindowControlButtons, {
               isMaximized,
@@ -339,7 +365,7 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
             })
           )
 
-          // Assert: the correct aria-label is present based on isMaximized
+          // The final state in each render should always be consistent
           if (isMaximized) {
             expect(queryByLabelText('Restore window')).toBeInTheDocument()
             expect(queryByLabelText('Maximize window')).not.toBeInTheDocument()
@@ -350,170 +376,88 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
 
           cleanup()
         }
-      ),
-      { numRuns: 100 }
-    )
-  })
-
-  it('should show correct title attribute matching the isMaximized state', () => {
-    fc.assert(
-      fc.property(
-        fc.boolean(),
-        (isMaximized) => {
-          // Arrange & Act
-          const { container } = render(
-            React.createElement(WindowControlButtons, {
-              isMaximized,
-              onMinimize: vi.fn(),
-              onToggleMaximize: vi.fn(),
-              onClose: vi.fn(),
-            })
-          )
-
-          // Find the maximize/restore button (the second button)
-          const buttons = container.querySelectorAll('button')
-          const maxRestoreBtn = buttons[1] // minimize=0, max/restore=1, close=2
-
-          // Assert: title attribute matches state
-          if (isMaximized) {
-            expect(maxRestoreBtn.getAttribute('title')).toBe('Restore')
-          } else {
-            expect(maxRestoreBtn.getAttribute('title')).toBe('Maximize')
-          }
-
-          cleanup()
-        }
-      ),
-      { numRuns: 100 }
-    )
-  })
-
-  it('should maintain correct icon state across a sequence of maximize state changes', () => {
-    fc.assert(
-      fc.property(
-        fc.array(fc.boolean(), { minLength: 1, maxLength: 20 }),
-        (stateSequence) => {
-          // For each state in the sequence, render and verify the icon matches
-          for (const isMaximized of stateSequence) {
-            const { queryByLabelText } = render(
-              React.createElement(WindowControlButtons, {
-                isMaximized,
-                onMinimize: vi.fn(),
-                onToggleMaximize: vi.fn(),
-                onClose: vi.fn(),
-              })
-            )
-
-            // The final state in each render should always be consistent
-            if (isMaximized) {
-              expect(queryByLabelText('Restore window')).toBeInTheDocument()
-              expect(queryByLabelText('Maximize window')).not.toBeInTheDocument()
-            } else {
-              expect(queryByLabelText('Maximize window')).toBeInTheDocument()
-              expect(queryByLabelText('Restore window')).not.toBeInTheDocument()
-            }
-
-            cleanup()
-          }
-        }
-      ),
+      }),
       { numRuns: 100 }
     )
   })
 
   it('should render exactly one maximize/restore button regardless of isMaximized state', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        (isMaximized) => {
-          const { container } = render(
-            React.createElement(WindowControlButtons, {
-              isMaximized,
-              onMinimize: vi.fn(),
-              onToggleMaximize: vi.fn(),
-              onClose: vi.fn(),
-            })
-          )
+      fc.property(fc.boolean(), (isMaximized) => {
+        const { container } = render(
+          React.createElement(WindowControlButtons, {
+            isMaximized,
+            onMinimize: vi.fn(),
+            onToggleMaximize: vi.fn(),
+            onClose: vi.fn(),
+          })
+        )
 
-          // There should always be exactly 3 buttons total (minimize, max/restore, close)
-          const buttons = container.querySelectorAll('button')
-          expect(buttons.length).toBe(3)
+        // There should always be exactly 3 buttons total (minimize, max/restore, close)
+        const buttons = container.querySelectorAll('button')
+        expect(buttons.length).toBe(3)
 
-          // Exactly one of the max/restore labels should be present
-          const maxBtn = container.querySelector('[aria-label="Maximize window"]')
-          const restoreBtn = container.querySelector('[aria-label="Restore window"]')
+        // Exactly one of the max/restore labels should be present
+        const maxBtn = container.querySelector('[aria-label="Maximize window"]')
+        const restoreBtn = container.querySelector('[aria-label="Restore window"]')
 
-          // XOR: exactly one should exist
-          const hasMax = maxBtn !== null
-          const hasRestore = restoreBtn !== null
-          expect(hasMax !== hasRestore).toBe(true)
+        // XOR: exactly one should exist
+        const hasMax = maxBtn !== null
+        const hasRestore = restoreBtn !== null
+        expect(hasMax !== hasRestore).toBe(true)
 
-          cleanup()
-        }
-      ),
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })
 })
 
-// ============================================================================
-// Property 5: macOS never renders custom window controls
-// ============================================================================
-
 /**
- * Feature: frosted-sidebar-window-controls-fix, Property 5: macOS never renders custom window controls
  *
  * *For any* value of `frostedSidebar` (true or false), when the platform is macOS,
  * the TitleBar should never render custom minimize, maximize/restore, or close
  * window control buttons.
  *
- * **Validates: Requirements 4.4**
  */
 describe('Property 5: macOS never renders custom window controls', () => {
   it('should never render custom minimize, maximize/restore, or close buttons on macOS', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        (frostedSidebar) => {
-          // Arrange: fix platform to macOS
-          setNavigatorPlatform('MacIntel')
-          mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
+      fc.property(fc.boolean(), (frostedSidebar) => {
+        // Arrange: fix platform to macOS
+        setNavigatorPlatform('MacIntel')
+        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
-          // Act
-          const { queryByLabelText, container } = render(React.createElement(TitleBar))
+        // Act
+        const { queryByLabelText, container } = render(React.createElement(TitleBar))
 
-          // Assert: no custom window control buttons should exist
-          expect(queryByLabelText('Minimize window')).not.toBeInTheDocument()
-          expect(queryByLabelText('Close window')).not.toBeInTheDocument()
+        // Assert: no custom window control buttons should exist
+        expect(queryByLabelText('Minimize window')).not.toBeInTheDocument()
+        expect(queryByLabelText('Close window')).not.toBeInTheDocument()
 
-          // Also verify no WindowControlButtons wrapper is rendered
-          const windowControlsWrapper = container.querySelector('.app-titlebar__window-controls')
-          expect(windowControlsWrapper).not.toBeInTheDocument()
+        // Also verify no WindowControlButtons wrapper is rendered
+        const windowControlsWrapper = container.querySelector('.app-titlebar__window-controls')
+        expect(windowControlsWrapper).not.toBeInTheDocument()
 
-          // Also verify no standalone maximize button (macOS uses native traffic lights)
-          const standaloneMaxBtn = container.querySelector('.app-titlebar__right .app-titlebar__window-btn')
-          expect(standaloneMaxBtn).not.toBeInTheDocument()
+        // Also verify no standalone maximize button (macOS uses native traffic lights)
+        const standaloneMaxBtn = container.querySelector(
+          '.app-titlebar__right .app-titlebar__window-btn'
+        )
+        expect(standaloneMaxBtn).not.toBeInTheDocument()
 
-          cleanup()
-        }
-      ),
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })
 })
 
-// ============================================================================
-// Property 6: All custom control buttons exclude drag region
-// ============================================================================
-
 /**
- * Feature: frosted-sidebar-window-controls-fix, Property 6: All custom control buttons exclude drag region
  *
  * *For any* rendered custom window control button (minimize, maximize/restore, close),
  * the button element should have the `no-drag` CSS class to prevent interference
  * with title bar dragging.
  *
- * **Validates: Requirements 5.3**
  */
 describe('Property 6: All custom control buttons exclude drag region', () => {
   it('should have no-drag class on all custom control buttons when rendered via TitleBar', () => {
@@ -537,59 +481,53 @@ describe('Property 6: All custom control buttons exclude drag region', () => {
 
   it('should have no-drag class on all buttons for any isMaximized state', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        (isMaximized) => {
-          // Render WindowControlButtons directly with the given isMaximized state
-          const { container } = render(
-            React.createElement(WindowControlButtons, {
-              isMaximized,
-              onMinimize: vi.fn(),
-              onToggleMaximize: vi.fn(),
-              onClose: vi.fn(),
-            })
-          )
-
-          // Query all buttons inside the component
-          const buttons = container.querySelectorAll('button')
-
-          // There should be exactly 3 buttons
-          expect(buttons.length).toBe(3)
-
-          // Property: every button must have the no-drag class
-          buttons.forEach((btn) => {
-            expect(btn.classList.contains('no-drag')).toBe(true)
+      fc.property(fc.boolean(), (isMaximized) => {
+        // Render WindowControlButtons directly with the given isMaximized state
+        const { container } = render(
+          React.createElement(WindowControlButtons, {
+            isMaximized,
+            onMinimize: vi.fn(),
+            onToggleMaximize: vi.fn(),
+            onClose: vi.fn(),
           })
+        )
 
-          cleanup()
-        }
-      ),
+        // Query all buttons inside the component
+        const buttons = container.querySelectorAll('button')
+
+        // There should be exactly 3 buttons
+        expect(buttons.length).toBe(3)
+
+        // Property: every button must have the no-drag class
+        buttons.forEach((btn) => {
+          expect(btn.classList.contains('no-drag')).toBe(true)
+        })
+
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })
 
   it('should have no-drag class on the wrapper div as well', () => {
     fc.assert(
-      fc.property(
-        fc.boolean(),
-        (isMaximized) => {
-          const { container } = render(
-            React.createElement(WindowControlButtons, {
-              isMaximized,
-              onMinimize: vi.fn(),
-              onToggleMaximize: vi.fn(),
-              onClose: vi.fn(),
-            })
-          )
+      fc.property(fc.boolean(), (isMaximized) => {
+        const { container } = render(
+          React.createElement(WindowControlButtons, {
+            isMaximized,
+            onMinimize: vi.fn(),
+            onToggleMaximize: vi.fn(),
+            onClose: vi.fn(),
+          })
+        )
 
-          // The wrapper div should also have no-drag
-          const wrapper = container.querySelector('.app-titlebar__window-controls')
-          expect(wrapper).toBeInTheDocument()
-          expect(wrapper!.classList.contains('no-drag')).toBe(true)
+        // The wrapper div should also have no-drag
+        const wrapper = container.querySelector('.app-titlebar__window-controls')
+        expect(wrapper).toBeInTheDocument()
+        expect(wrapper!.classList.contains('no-drag')).toBe(true)
 
-          cleanup()
-        }
-      ),
+        cleanup()
+      }),
       { numRuns: 100 }
     )
   })

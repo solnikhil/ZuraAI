@@ -1,33 +1,21 @@
 /**
- * useIsolatedStreaming - Hook for isolated streaming message updates
- * 
- * This hook provides integration between the StreamingContext and the chat area,
- * enabling isolated streaming updates that don't cause the entire message list
- * to re-render.
- * 
- * **Validates: Requirements 5.3**
- * **Property 22: Isolated Streaming Updates**
- * - For any streaming message update, only the specific message being updated
- *   SHALL re-render, not the entire message list.
- * 
- * Usage:
- * 1. Call startIsolatedStreaming() when beginning a new streaming message
- * 2. Call updateIsolatedStreaming() during streaming (instead of updateStreamingMessage)
- * 3. Call commitStreaming() when streaming completes to commit to the session
- * 4. Call cancelIsolatedStreaming() if streaming is aborted
- * 
- * @module useIsolatedStreaming
+ * Bridges the isolated streaming store with persisted chat history updates.
  */
 
 import { useCallback, useRef } from 'react'
-import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
+import {
+  useStreamingActions,
+  type StreamingMessageState,
+} from '../../../../contexts/StreamingContext'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
 
 interface UseIsolatedStreamingReturn {
   /** Start isolated streaming for a new message */
   startIsolatedStreaming: (sessionId: string, messageId: string) => void
   /** Update streaming content (isolated from main message list) */
-  updateIsolatedStreaming: (updates: Partial<Omit<StreamingMessageState, 'sessionId' | 'messageId' | 'isStreaming'>>) => void
+  updateIsolatedStreaming: (
+    updates: Partial<Omit<StreamingMessageState, 'sessionId' | 'messageId' | 'isStreaming'>>
+  ) => void
   /** Commit streaming content to the session and end streaming */
   commitStreaming: () => void
   /** Cancel streaming without committing */
@@ -40,7 +28,7 @@ interface UseIsolatedStreamingReturn {
 
 /**
  * Hook for managing isolated streaming updates
- * 
+ *
  * This hook wraps the StreamingContext actions and provides integration
  * with the ChatHistoryContext for committing final content.
  */
@@ -52,9 +40,9 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
     cancelStreaming,
     isMessageStreaming,
   } = useStreamingActions()
-  
+
   const { updateStreamingMessage } = useChatHistory()
-  
+
   // Track current streaming IDs for getStreamingIds
   const currentIdsRef = useRef<{ sessionId: string | null; messageId: string | null }>({
     sessionId: null,
@@ -65,20 +53,24 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
    * Start isolated streaming for a new message
    * This initializes the streaming context without affecting the main message list
    */
-  const startIsolatedStreaming = useCallback((sessionId: string, messageId: string) => {
-    currentIdsRef.current = { sessionId, messageId }
-    startStreaming(sessionId, messageId)
-  }, [startStreaming])
+  const startIsolatedStreaming = useCallback(
+    (sessionId: string, messageId: string) => {
+      currentIdsRef.current = { sessionId, messageId }
+      startStreaming(sessionId, messageId)
+    },
+    [startStreaming]
+  )
 
   /**
    * Update streaming content in the isolated context
    * This does NOT update the main message list - only the streaming context
    */
-  const updateIsolatedStreaming = useCallback((
-    updates: Partial<Omit<StreamingMessageState, 'sessionId' | 'messageId' | 'isStreaming'>>
-  ) => {
-    updateStreaming(updates)
-  }, [updateStreaming])
+  const updateIsolatedStreaming = useCallback(
+    (updates: Partial<Omit<StreamingMessageState, 'sessionId' | 'messageId' | 'isStreaming'>>) => {
+      updateStreaming(updates)
+    },
+    [updateStreaming]
+  )
 
   /**
    * Commit streaming content to the session
@@ -86,13 +78,13 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
    */
   const commitStreaming = useCallback(() => {
     const finalState = completeStreaming()
-    
+
     if (finalState.sessionId && finalState.messageId) {
       // Commit the final content to the session
       const updates: Partial<Message> = {
         content: finalState.content,
       }
-      
+
       // Include optional fields if present
       if (finalState.thinking !== undefined) {
         updates.thinking = finalState.thinking
@@ -118,11 +110,11 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
       if (finalState.usage !== undefined) {
         updates.usage = finalState.usage
       }
-      
+
       // Update the session with final content
       updateStreamingMessage(finalState.sessionId, finalState.messageId, updates)
     }
-    
+
     // Clear tracking
     currentIdsRef.current = { sessionId: null, messageId: null }
   }, [completeStreaming, updateStreamingMessage])

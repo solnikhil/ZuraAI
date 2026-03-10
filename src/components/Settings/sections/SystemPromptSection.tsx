@@ -2,7 +2,6 @@
  * SystemPromptSection component for Settings
  * Manages the AI system prompt configuration
  *
- * @module SystemPromptSection
  */
 
 import React, { useState, useEffect, useMemo } from 'react'
@@ -24,7 +23,11 @@ export interface SystemPromptSectionProps {
   /** Current title generation prompt value */
   titleGenerationPrompt: string
   /** Callback when system prompt changes */
-  onChange: (changes: { systemPrompt?: string, webSearchPrompt?: string, titleGenerationPrompt?: string }) => void
+  onChange: (changes: {
+    systemPrompt?: string
+    webSearchPrompt?: string
+    titleGenerationPrompt?: string
+  }) => void
 }
 
 /**
@@ -34,7 +37,7 @@ export function SystemPromptSection({
   systemPrompt,
   webSearchPrompt,
   titleGenerationPrompt,
-  onChange
+  onChange,
 }: SystemPromptSectionProps): React.ReactElement {
   const [localValue, setLocalValue] = useState(systemPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
@@ -43,7 +46,9 @@ export function SystemPromptSection({
   const [webSearchCharCount, setWebSearchCharCount] = useState(webSearchPrompt.length)
   const [isWebSearchEditorExpanded, setIsWebSearchEditorExpanded] = useState(false)
   const [localTitleGenerationValue, setLocalTitleGenerationValue] = useState(titleGenerationPrompt)
-  const [titleGenerationCharCount, setTitleGenerationCharCount] = useState(titleGenerationPrompt.length)
+  const [titleGenerationCharCount, setTitleGenerationCharCount] = useState(
+    titleGenerationPrompt.length
+  )
   const [isTitleGenerationEditorExpanded, setIsTitleGenerationEditorExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
@@ -133,16 +138,16 @@ export function SystemPromptSection({
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">System prompt</h3>
             <div className="settings-list-row__description">
-              Define the system prompt that shapes the assistant personality, capabilities, and response policy.
+              Define the system prompt that shapes the assistant personality, capabilities, and
+              response policy.
             </div>
             <div className="settings-prompt-note">
-              Keep this concise and policy-focused. Skill behavior is managed from the Skills section.
+              Keep this concise and policy-focused. Skill behavior is managed from the Skills
+              section.
             </div>
           </div>
           <div className="settings-prompt-metrics" aria-live="polite">
-            <span className="settings-prompt-badge">
-              {charCount.toLocaleString()} chars
-            </span>
+            <span className="settings-prompt-badge">{charCount.toLocaleString()} chars</span>
             <span className="settings-prompt-badge">
               ~{estTokensInput.toLocaleString()} tokens input
             </span>
@@ -153,7 +158,7 @@ export function SystemPromptSection({
           <button
             type="button"
             className="settings-prompt-toggle"
-            onClick={() => setIsEditorExpanded(prev => !prev)}
+            onClick={() => setIsEditorExpanded((prev) => !prev)}
             aria-expanded={isEditorExpanded}
           >
             <ChevronDown
@@ -173,7 +178,7 @@ export function SystemPromptSection({
             <div className="settings-prompt-editor-wrap">
               <textarea
                 value={localValue}
-                onChange={e => handleChange(e.target.value)}
+                onChange={(e) => handleChange(e.target.value)}
                 className="settings-prompt-editor"
                 placeholder="Enter your system prompt here..."
               />
@@ -181,7 +186,9 @@ export function SystemPromptSection({
 
             <div className="settings-prompt-footer">
               <div className="settings-prompt-warning" role="status" aria-live="polite">
-                {showLengthWarning ? 'Note: Very long system prompts may impact response quality.' : ''}
+                {showLengthWarning
+                  ? 'Note: Very long system prompts may impact response quality.'
+                  : ''}
               </div>
             </div>
           </>
@@ -193,7 +200,8 @@ export function SystemPromptSection({
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Web Search Prompt</h3>
             <div className="settings-list-row__description">
-              Instructions appended when Tavily is enabled. Use this to guide search depth and synthesis behavior.
+              Instructions appended when Tavily is enabled. Use this to guide search depth and
+              synthesis behavior.
             </div>
             <div className="settings-prompt-note">
               This only applies to sessions where Tavily is active.
@@ -247,7 +255,8 @@ export function SystemPromptSection({
           <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Title Generation Prompt</h3>
             <div className="settings-list-row__description">
-              Instructions used when auto-generating chat titles. Include <code>{'{{userMessage}}'}</code> to control where the first user message is inserted.
+              Instructions used when auto-generating chat titles. Include{' '}
+              <code>{'{{userMessage}}'}</code> to control where the first user message is inserted.
             </div>
             <div className="settings-prompt-note">
               This prompt only affects session title generation, not assistant responses.
@@ -277,7 +286,11 @@ export function SystemPromptSection({
             />
             {isTitleGenerationEditorExpanded ? 'Hide Title Prompt' : 'Show Title Prompt'}
           </button>
-          <button type="button" onClick={handleTitleGenerationReset} className="settings-row-button">
+          <button
+            type="button"
+            onClick={handleTitleGenerationReset}
+            className="settings-row-button"
+          >
             Load Default Title Prompt
           </button>
         </div>

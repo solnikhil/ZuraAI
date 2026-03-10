@@ -1,8 +1,6 @@
 /**
  * Settings sections barrel export
- * 
- * @module Settings/sections
- * Requirements: 6.1
+ *
  */
 
 export { UsageSection } from './UsageSection'

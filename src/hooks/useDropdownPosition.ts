@@ -1,9 +1,7 @@
 /**
  * Centralized dropdown position calculation hook for Zura AI
  * Consolidates duplicate dropdown positioning logic from Settings.tsx and ModelSelector.tsx
- * 
- * @module useDropdownPosition
- * Requirements: 4.3
+ *
  */
 
 import { useState, useEffect, useCallback, RefObject } from 'react'
@@ -47,13 +45,13 @@ const DEFAULT_POSITION: DropdownPosition = {
   top: 0,
   left: 0,
   width: 400,
-  showAbove: false
+  showAbove: false,
 }
 
 /**
  * Calculate optimal dropdown position relative to trigger element
  * Handles viewport boundaries and scroll position
- * 
+ *
  * @param options - Configuration options
  * @returns DropdownPosition with calculated values and recalculate function
  */
@@ -69,12 +67,12 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     offset = 12,
     viewportPadding = 16,
     recalculateOnResize = true,
-    recalculateOnScroll = true
+    recalculateOnScroll = true,
   } = options
 
   const [position, setPosition] = useState<DropdownPosition>({
     ...DEFAULT_POSITION,
-    width: preferredWidth
+    width: preferredWidth,
   })
 
   /**
@@ -86,14 +84,14 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     const rect = triggerRef.current.getBoundingClientRect()
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
-    
+
     // Calculate available space above and below
     const spaceAbove = rect.top
     const spaceBelow = viewportHeight - rect.bottom
-    
+
     // Determine if dropdown should appear above or below
     const showAbove = spaceAbove >= preferredHeight + viewportPadding || spaceAbove > spaceBelow
-    
+
     // Calculate top position
     let top: number
     if (showAbove) {
@@ -101,7 +99,7 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     } else {
       top = rect.bottom + offset
     }
-    
+
     // Calculate left position, keeping dropdown within viewport
     let left = rect.left
     if (left + preferredWidth > viewportWidth - viewportPadding) {
@@ -110,20 +108,20 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     if (left < viewportPadding) {
       left = viewportPadding
     }
-    
+
     // For electron apps, use document.body dimensions for better responsiveness
     const docWidth = document.body.clientWidth
-    
+
     // Adjust for application bounds if in electron (when doc is smaller than viewport)
     if (docWidth < viewportWidth) {
       left = Math.min(left, docWidth - preferredWidth - viewportPadding)
     }
-    
+
     setPosition({
       top,
       left,
       width: preferredWidth,
-      showAbove
+      showAbove,
     })
   }, [triggerRef, preferredWidth, preferredHeight, offset, viewportPadding])
 
@@ -153,19 +151,19 @@ export function useDropdownPosition(options: UseDropdownPositionOptions): {
     }
 
     return () => {
-      handlers.forEach(cleanup => cleanup())
+      handlers.forEach((cleanup) => cleanup())
     }
   }, [isOpen, calculatePosition, recalculateOnResize, recalculateOnScroll])
 
   return {
     position,
-    recalculate: calculatePosition
+    recalculate: calculatePosition,
   }
 }
 
 /**
  * Calculate max height for dropdown based on available space
- * 
+ *
  * @param position - Current dropdown position
  * @param viewportPadding - Padding from viewport edges
  * @param maxHeight - Maximum allowed height
@@ -177,7 +175,7 @@ export function calculateMaxHeight(
   maxHeight: number = 400
 ): number {
   const viewportHeight = window.innerHeight
-  
+
   if (position.showAbove) {
     // Space available above the trigger
     return Math.max(200, Math.min(position.top - viewportPadding, maxHeight))
@@ -189,7 +187,7 @@ export function calculateMaxHeight(
 
 /**
  * Get CSS transform value for dropdown animation
- * 
+ *
  * @param showAbove - Whether dropdown appears above trigger
  * @returns CSS transform string
  */
@@ -199,7 +197,7 @@ export function getDropdownTransform(showAbove: boolean): string {
 
 /**
  * Get animation keyframe name based on dropdown direction
- * 
+ *
  * @param showAbove - Whether dropdown appears above trigger
  * @returns Animation keyframe name
  */

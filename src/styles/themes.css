@@ -7,6 +7,7 @@
     /* Core surfaces */
     --theme-background: #181818;
     --theme-surface: #1B1913;
+    --theme-surface-subtle: rgba(255, 255, 255, 0.02);
     --theme-surface-hover: rgba(255, 255, 255, 0.05);
     --theme-surface-active: rgba(255, 255, 255, 0.08);
     --theme-surface-pressed: rgba(255, 255, 255, 0.1);
@@ -29,6 +30,7 @@
     --theme-accent-secondary: #b89558;
     --theme-accent-hover: #d4b07a;
     --theme-accent-muted: rgba(201, 166, 110, 0.15);
+    --theme-favorite: #d7b35b;
     
     /* Semantic */
     --theme-error: #ef4444;

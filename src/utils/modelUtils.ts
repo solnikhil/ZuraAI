@@ -1,9 +1,7 @@
 /**
  * Centralized model utilities for Zura AI
  * Consolidates duplicate model-related functions from Settings.tsx and ModelSelector.tsx
- * 
- * @module modelUtils
- * Requirements: 4.1
+ *
  */
 
 import React from 'react'
@@ -182,14 +180,8 @@ export function getCapabilitiesFromModel(
   if (model.supportsImageGeneration) capabilities.push('imageGen')
   if (model.supportsVideoRecognition) capabilities.push('videoRec')
 
-  if (
-    capabilities.length === 0 &&
-    model.code != null &&
-    model.displayName != null
-  ) {
-    const heuristicCaps = detectModelCapabilities(
-      model.code + ' ' + model.displayName
-    )
+  if (capabilities.length === 0 && model.code != null && model.displayName != null) {
+    const heuristicCaps = detectModelCapabilities(model.code + ' ' + model.displayName)
     if (heuristicCaps.includes('vision')) capabilities.push('vision')
     if (heuristicCaps.includes('code')) capabilities.push('toolCall')
     if (heuristicCaps.includes('reasoning')) capabilities.push('deepThinking')
@@ -252,7 +244,10 @@ const BADGE_PATTERNS = {
  * @param modelName - The model display name
  * @returns The detected model family key or null
  */
-function detectModelFamily(modelCode: string, modelName: string): keyof typeof MODEL_FAMILIES | null {
+function detectModelFamily(
+  modelCode: string,
+  modelName: string
+): keyof typeof MODEL_FAMILIES | null {
   const code = modelCode.toLowerCase()
   const name = modelName.toLowerCase()
 
@@ -267,7 +262,7 @@ function detectModelFamily(modelCode: string, modelName: string): keyof typeof M
 /**
  * Get visual attributes for a model based on its name/code
  * Centralizes icon detection, color assignment, and capability badges
- * 
+ *
  * @param model - Model object with code and displayName
  * @param options - Optional configuration
  * @returns ModelAttributes with icon, color, and optional badge
@@ -294,29 +289,35 @@ export function getModelAttributes(
   }
 
   // Detect badge type
-  if (BADGE_PATTERNS.fast.some(p => name.includes(p))) {
+  if (BADGE_PATTERNS.fast.some((p) => name.includes(p))) {
     badge = React.createElement(Zap, { size: badgeSize, color: '#fcc419', fill: 'currentColor' })
-  } else if (BADGE_PATTERNS.pro.some(p => name.includes(p))) {
-    badge = React.createElement(Sparkles, { size: badgeSize, color: '#da7756', fill: 'currentColor' })
-  } else if (BADGE_PATTERNS.reasoning.some(p => name.includes(p) || code.includes(p))) {
+  } else if (BADGE_PATTERNS.pro.some((p) => name.includes(p))) {
+    badge = React.createElement(Sparkles, {
+      size: badgeSize,
+      color: '#da7756',
+      fill: 'currentColor',
+    })
+  } else if (BADGE_PATTERNS.reasoning.some((p) => name.includes(p) || code.includes(p))) {
     badge = React.createElement(Brain, { size: badgeSize, color: '#be4bdb', fill: 'currentColor' })
   }
 
   // Deep Research badge - shown for models with deep-research in name/code
   if (name.includes('deep research') || code.includes('deep-research')) {
-    badge = React.createElement('div', {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '2px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        borderRadius: '4px',
-        padding: '1px 4px',
-        fontSize: '0.6rem',
-        fontWeight: 600,
-        color: '#fff'
-      }
-    },
+    badge = React.createElement(
+      'div',
+      {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '4px',
+          padding: '1px 4px',
+          fontSize: '0.6rem',
+          fontWeight: 600,
+          color: '#fff',
+        },
+      },
       React.createElement(Globe, { size: 8 }),
       React.createElement('span', null, 'Deep Research')
     )
@@ -324,19 +325,21 @@ export function getModelAttributes(
 
   // Online/Web Search badge - shown for models with :online variant
   if (code.includes(':online')) {
-    badge = React.createElement('div', {
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '2px',
-        background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-        borderRadius: '4px',
-        padding: '1px 4px',
-        fontSize: '0.6rem',
-        fontWeight: 600,
-        color: '#fff'
-      }
-    },
+    badge = React.createElement(
+      'div',
+      {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+          borderRadius: '4px',
+          padding: '1px 4px',
+          fontSize: '0.6rem',
+          fontWeight: 600,
+          color: '#fff',
+        },
+      },
       React.createElement(Globe, { size: 8 }),
       React.createElement('span', null, 'Online')
     )
@@ -348,7 +351,7 @@ export function getModelAttributes(
 /**
  * Get the appropriate icon component for a model
  * Simplified version that returns just the icon
- * 
+ *
  * @param modelName - The model name or code
  * @param size - Icon size (default: 16)
  * @returns React node with the appropriate icon
@@ -366,7 +369,7 @@ export function getModelIcon(modelName: string, size: number = 16): React.ReactN
 
 /**
  * Get the color associated with a model
- * 
+ *
  * @param modelName - The model name or code
  * @returns Hex color string
  */
@@ -383,7 +386,7 @@ export function getModelColor(modelName: string): string {
 
 /**
  * Detect model capabilities from name
- * 
+ *
  * @param modelName - The model name or code
  * @returns Array of detected capabilities
  */
@@ -399,7 +402,7 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
     name.includes('claude-3') || // Claude 3 models support vision
     name.includes('claude-sonnet') ||
     name.includes('claude-opus') ||
-    name.includes('gpt-4') ||  // GPT-4 family generally supports vision
+    name.includes('gpt-4') || // GPT-4 family generally supports vision
     name.includes('image') ||
     name.includes('multimodal')
   ) {
@@ -421,12 +424,24 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
   }
 
   // Reasoning capability
-  if (name.includes('reasoning') || name.includes('o1') || name.includes('think') || name.includes('r1') || name.includes('m2.1')) {
+  if (
+    name.includes('reasoning') ||
+    name.includes('o1') ||
+    name.includes('think') ||
+    name.includes('r1') ||
+    name.includes('m2.1')
+  ) {
     capabilities.push('reasoning')
   }
 
   // Fast/turbo models
-  if (name.includes('flash') || name.includes('turbo') || name.includes('instant') || name.includes('fast') || name.includes('lite')) {
+  if (
+    name.includes('flash') ||
+    name.includes('turbo') ||
+    name.includes('instant') ||
+    name.includes('fast') ||
+    name.includes('lite')
+  ) {
     capabilities.push('fast')
   }
 
@@ -446,7 +461,7 @@ export function detectModelCapabilities(modelName: string): ModelCapability[] {
 /**
  * Filter models by search query
  * Searches both displayName and code
- * 
+ *
  * @param models - Array of models to filter
  * @param query - Search query string
  * @returns Filtered array of models
@@ -458,9 +473,9 @@ export function filterModels<T extends { code: string; displayName: string }>(
   if (!query.trim()) return models
 
   const lowerQuery = query.toLowerCase()
-  return models.filter(m =>
-    m.displayName.toLowerCase().includes(lowerQuery) ||
-    m.code.toLowerCase().includes(lowerQuery)
+  return models.filter(
+    (m) =>
+      m.displayName.toLowerCase().includes(lowerQuery) || m.code.toLowerCase().includes(lowerQuery)
   )
 }
 
@@ -484,22 +499,20 @@ export function getModelContextLength(model: { maxContext?: number }): number | 
 
 /**
  * Group models by provider
- * 
+ *
  * @param models - Array of models with provider field
  * @returns Record of provider to models array
  */
-export function groupModelsByProvider<T extends ModelInfo>(
-  models: T[]
-): Record<string, T[]> {
+export function groupModelsByProvider<T extends ModelInfo>(models: T[]): Record<string, T[]> {
   const groups: Record<string, T[]> = {
     ollama: [],
     perplexity: [],
     openrouter: [],
     groq: [],
-    alibaba: []
+    alibaba: [],
   }
 
-  models.forEach(model => {
+  models.forEach((model) => {
     if (groups[model.provider]) {
       groups[model.provider].push(model)
     }
@@ -521,7 +534,7 @@ export const PROVIDER_CONFIG = {
 
 /**
  * Get provider display title
- * 
+ *
  * @param provider - Provider key
  * @returns Display title for the provider
  */
@@ -531,7 +544,7 @@ export function getProviderTitle(provider: string): string {
 
 /**
  * Get provider color
- * 
+ *
  * @param provider - Provider key
  * @returns Hex color for the provider
  */
@@ -542,11 +555,15 @@ export function getProviderColor(provider: string): string {
 /**
  * Get description for a model based on its attributes
  * Centralized function to avoid duplication across components
- * 
+ *
  * @param model - Model object with provider, code, and displayName
  * @returns Human-readable description string
  */
-export function getModelDescription(model: { provider: string; code: string; displayName: string }): string {
+export function getModelDescription(model: {
+  provider: string
+  code: string
+  displayName: string
+}): string {
   const name = model.displayName.toLowerCase()
   const code = model.code.toLowerCase()
 

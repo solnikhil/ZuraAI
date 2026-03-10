@@ -1,20 +1,13 @@
 /**
- * useStreamingChat - Custom hook for handling chat streaming logic
- * Composes provider-specific streaming hooks for cleaner architecture.
- * 
- * Requirements: 1.1, 7.1, 7.2, 7.3
- * Requirements: 3.2 - Throttle updateStreamingMessage calls to a maximum of 8 per second
- * Requirements: 5.3 - Isolated streaming updates
- * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
- * 
- * **Validates: Property 22: Isolated Streaming Updates**
- * - Uses StreamingContext for isolated streaming updates during streaming
- * - Only commits final content to the session when streaming completes
+ * Orchestrates provider streaming, tool execution, and final message commits.
  */
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
-import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
+import {
+  useStreamingActions,
+  type StreamingMessageState,
+} from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
@@ -26,7 +19,6 @@ import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
 import { getWebResearchMode, isWebResearchEnabled } from '../../../../skills'
 import type { AttachedFile } from '../FileUploadHandler'
 
-// Import provider-specific streaming hooks
 import {
   useOllamaStreaming,
   usePerplexityStreaming,
@@ -39,7 +31,6 @@ import {
   type ToolCallingHook,
 } from './streaming'
 
-// Import streaming services for regenerate (simplified streaming without full hook)
 import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamPerplexityCompletion } from '../../../../services/perplexity'
 import { streamGroqCompletion } from '../../../../services/groq'
@@ -65,7 +56,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   const [isLoading, setIsLoading] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // Streaming throttler instance - limits updates to 8/second per Requirements 3.2
+  // Throttle partial updates so long responses do not repaint the message list on every token.
   const throttlerRef = useRef<StreamingThrottler | null>(null)
   if (!throttlerRef.current) {
     throttlerRef.current = new StreamingThrottler({ maxUpdatesPerSecond: 8 })
@@ -78,36 +69,38 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     updateStreamingMessage,
     createSession,
     updateSessionTitle,
-    deleteMessageFromSession
+    deleteMessageFromSession,
   } = useChatHistory()
 
-  // Isolated streaming context for Property 22: Isolated Streaming Updates
-  // **Validates: Requirements 5.3**
-  const {
-    startStreaming,
-    updateStreaming,
-    completeStreaming,
-    cancelStreaming,
-  } = useStreamingActions()
+  // Keep in-flight content in the isolated streaming store until the response finishes.
+  const { startStreaming, updateStreaming, completeStreaming, cancelStreaming } =
+    useStreamingActions()
 
-  const buildFinalStreamingUpdates = useCallback((finalState: StreamingMessageState): Partial<Message> => {
-    const updates: Partial<Message> = {
-      content: finalState.content,
-    }
+  const buildFinalStreamingUpdates = useCallback(
+    (finalState: StreamingMessageState): Partial<Message> => {
+      const updates: Partial<Message> = {
+        content: finalState.content,
+      }
 
-    if (finalState.thinking !== undefined) updates.thinking = finalState.thinking
-    if (finalState.thinkingDuration !== undefined) updates.thinkingDuration = finalState.thinkingDuration
-    if (finalState.thinkingBlocks !== undefined) updates.thinkingBlocks = finalState.thinkingBlocks
-    if (finalState.researchStatus !== undefined) updates.researchStatus = finalState.researchStatus
-    if (finalState.researchPlan !== undefined) updates.researchPlan = finalState.researchPlan
-    if (finalState.researchProgress !== undefined) updates.researchProgress = finalState.researchProgress
-    if (finalState.toolResults !== undefined) updates.toolResults = finalState.toolResults
-    if (finalState.model !== undefined) updates.model = finalState.model
-    if (finalState.latency !== undefined) updates.latency = finalState.latency
-    if (finalState.usage !== undefined) updates.usage = finalState.usage
+      if (finalState.thinking !== undefined) updates.thinking = finalState.thinking
+      if (finalState.thinkingDuration !== undefined)
+        updates.thinkingDuration = finalState.thinkingDuration
+      if (finalState.thinkingBlocks !== undefined)
+        updates.thinkingBlocks = finalState.thinkingBlocks
+      if (finalState.researchStatus !== undefined)
+        updates.researchStatus = finalState.researchStatus
+      if (finalState.researchPlan !== undefined) updates.researchPlan = finalState.researchPlan
+      if (finalState.researchProgress !== undefined)
+        updates.researchProgress = finalState.researchProgress
+      if (finalState.toolResults !== undefined) updates.toolResults = finalState.toolResults
+      if (finalState.model !== undefined) updates.model = finalState.model
+      if (finalState.latency !== undefined) updates.latency = finalState.latency
+      if (finalState.usage !== undefined) updates.usage = finalState.usage
 
-    return updates
-  }, [])
+      return updates
+    },
+    []
+  )
 
   // Track current streaming message for isolated updates
   const streamingMessageRef = useRef<{ sessionId: string; messageId: string } | null>(null)
@@ -124,29 +117,32 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [])
 
-  const applyGeneratedSessionTitle = useCallback((sessionId: string, generatedTitle: string) => {
-    const normalizedTitle = generatedTitle.trim()
-    if (!normalizedTitle) return
+  const applyGeneratedSessionTitle = useCallback(
+    (sessionId: string, generatedTitle: string) => {
+      const normalizedTitle = generatedTitle.trim()
+      if (!normalizedTitle) return
 
-    clearTitleRevealInterval(sessionId)
+      clearTitleRevealInterval(sessionId)
 
-    if (settings.titleGenerationDisplayMode !== 'typewriter') {
-      updateSessionTitle(sessionId, normalizedTitle)
-      return
-    }
-
-    let visibleLength = 1
-    updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
-    const intervalId = window.setInterval(() => {
-      visibleLength += 1
-      updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
-      if (visibleLength >= normalizedTitle.length) {
-        clearTitleRevealInterval(sessionId)
+      if (settings.titleGenerationDisplayMode !== 'typewriter') {
+        updateSessionTitle(sessionId, normalizedTitle)
+        return
       }
-    }, 24)
 
-    titleRevealIntervalRef.current.set(sessionId, intervalId)
-  }, [clearTitleRevealInterval, settings.titleGenerationDisplayMode, updateSessionTitle])
+      let visibleLength = 1
+      updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+      const intervalId = window.setInterval(() => {
+        visibleLength += 1
+        updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+        if (visibleLength >= normalizedTitle.length) {
+          clearTitleRevealInterval(sessionId)
+        }
+      }, 24)
+
+      titleRevealIntervalRef.current.set(sessionId, intervalId)
+    },
+    [clearTitleRevealInterval, settings.titleGenerationDisplayMode, updateSessionTitle]
+  )
 
   useEffect(() => {
     return () => {
@@ -157,16 +153,17 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [])
 
-  const currentSession = sessions.find(s => s.id === currentSessionId)
+  const currentSession = sessions.find((s) => s.id === currentSessionId)
   const messages = currentSession?.messages || []
 
   // Create throttled update function that uses isolated streaming context
-  // **Validates: Property 22: Isolated Streaming Updates**
   const throttledUpdateStreamingMessage = useCallback(
     (sessionId: string, messageId: string, updates: Partial<Message>) => {
       // Use isolated streaming context for updates during streaming
-      if (streamingMessageRef.current?.sessionId === sessionId && 
-          streamingMessageRef.current?.messageId === messageId) {
+      if (
+        streamingMessageRef.current?.sessionId === sessionId &&
+        streamingMessageRef.current?.messageId === messageId
+      ) {
         // Update isolated streaming context (doesn't trigger message list re-render)
         if (throttlerRef.current) {
           throttlerRef.current.throttle(sessionId, messageId, updates, (_sid, _mid, upd) => {
@@ -192,8 +189,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     if (throttlerRef.current) {
       // Flush to the isolated streaming context
       throttlerRef.current.flush((sid, mid, upd) => {
-        if (streamingMessageRef.current?.sessionId === sid && 
-            streamingMessageRef.current?.messageId === mid) {
+        if (
+          streamingMessageRef.current?.sessionId === sid &&
+          streamingMessageRef.current?.messageId === mid
+        ) {
           updateStreaming(upd)
         } else {
           updateStreamingMessage(sid, mid, upd)
@@ -203,22 +202,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [updateStreamingMessage, updateStreaming])
 
   // Convert settings to StreamingSettings type for hooks
-  const streamingSettings: StreamingSettings = useMemo(() => ({
-    aiModel: settings.aiModel,
-    modelProvider: settings.modelProvider,
-    temperature: settings.temperature,
-    maxTokens: settings.maxTokens,
-    streamResponses: settings.streamResponses,
-    webSearchPrompt: settings.webSearchPrompt,
-    ollamaUrl: settings.ollamaUrl,
-    openRouterApiKey: settings.openRouterApiKey,
-    perplexityApiKey: settings.perplexityApiKey,
-    groqApiKey: settings.groqApiKey,
-    alibabaApiKey: settings.alibabaApiKey,
-  }), [settings])
+  const streamingSettings: StreamingSettings = useMemo(
+    () => ({
+      aiModel: settings.aiModel,
+      modelProvider: settings.modelProvider,
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      streamResponses: settings.streamResponses,
+      webSearchPrompt: settings.webSearchPrompt,
+      ollamaUrl: settings.ollamaUrl,
+      openRouterApiKey: settings.openRouterApiKey,
+      perplexityApiKey: settings.perplexityApiKey,
+      groqApiKey: settings.groqApiKey,
+      alibabaApiKey: settings.alibabaApiKey,
+    }),
+    [settings]
+  )
 
-  // Use the streaming tool calls hook
-  // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
   const {
     canUseTools,
     getToolsForRequest,
@@ -230,21 +230,18 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   } = useStreamingToolCalls({ settings: streamingSettings })
 
   // Create tool calling hook interface for provider hooks
-  const toolCalling: ToolCallingHook = useMemo(() => ({
-    canUseTools,
-    getToolsForRequest,
-    handleToolCalls,
-    getResearchContext,
-  }), [canUseTools, getToolsForRequest, handleToolCalls, getResearchContext])
+  const toolCalling: ToolCallingHook = useMemo(
+    () => ({
+      canUseTools,
+      getToolsForRequest,
+      handleToolCalls,
+      getResearchContext,
+    }),
+    [canUseTools, getToolsForRequest, handleToolCalls, getResearchContext]
+  )
 
-  // Use the research mode hook
-  // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
-  const {
-    calculateResearchConfig,
-  } = useResearchMode({ canUseTools })
+  const { calculateResearchConfig } = useResearchMode({ canUseTools })
 
-  // Initialize provider-specific streaming hooks
-  // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
   const { streamOllama } = useOllamaStreaming({
     settings: streamingSettings,
     toolCalling,
@@ -287,18 +284,21 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   const stopStreaming = useCallback(() => {
     // Flush any pending throttled updates before stopping
     flushThrottledUpdates()
-    
+
     // Commit any pending streaming content to the session
-    // **Validates: Property 22: Isolated Streaming Updates**
     if (streamingMessageRef.current) {
       const finalState = completeStreaming()
       if (finalState.sessionId && finalState.messageId && finalState.content) {
         // Commit final content to the session
-        updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
+        updateStreamingMessage(
+          finalState.sessionId,
+          finalState.messageId,
+          buildFinalStreamingUpdates(finalState)
+        )
       }
       streamingMessageRef.current = null
     }
-    
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
@@ -306,411 +306,506 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     setIsLoading(false)
     clearToolState()
     options.onStreamEnd?.()
-  }, [clearToolState, options, flushThrottledUpdates, completeStreaming, updateStreamingMessage, buildFinalStreamingUpdates])
+  }, [
+    clearToolState,
+    options,
+    flushThrottledUpdates,
+    completeStreaming,
+    updateStreamingMessage,
+    buildFinalStreamingUpdates,
+  ])
 
   /**
    * Main send message function
    * Uses composed provider-specific streaming hooks
    */
-  const sendMessage = useCallback(async (content: string, files: AttachedFile[]) => {
-    if ((!content.trim() && files.length === 0) || isLoading) return
+  const sendMessage = useCallback(
+    async (content: string, files: AttachedFile[]) => {
+      if ((!content.trim() && files.length === 0) || isLoading) return
 
-    clearToolState()
-    setIsLoading(true)
-    abortControllerRef.current = new AbortController()
-    options.onStreamStart?.()
-
-    let targetSessionId = currentSessionId
-    let isNewSession = false
-
-    const fileAttachments = files.map(f => ({
-      id: f.id, name: f.name, type: f.type, size: f.size, data: f.data, mimeType: f.mimeType
-    }))
-
-    if (!targetSessionId) {
-      targetSessionId = createSession(content)
-      isNewSession = true
-    } else {
-      addMessageToSession(targetSessionId, {
-        role: 'user',
-        content,
-        files: fileAttachments.length > 0 ? fileAttachments : undefined
-      })
-    }
-
-    const startTime = performance.now()
-
-    try {
-      // Build conversation history
-      const conversationHistory = messages.map(m => {
-        const msg: any = { role: m.role, content: m.content }
-        if (m.files?.length) msg.files = m.files
-        return msg
-      })
-
-      // Research mode setup - skills-driven web research, model-driven depth, no caps
-      const researchConfig = calculateResearchConfig({
-        skills: settings.skills,
-        modelProvider: settings.modelProvider,
-        enabledTools: settings.enabledTools,
-      }, content)
-
-      let researchMaxRounds = researchConfig.maxRounds
-      const forceWebSearch = researchConfig.forceWebSearch
-
-      // Start research mode when web search is enabled (maxRounds >= 0)
-      if (researchMaxRounds >= 0 && canUseTools) {
-        startResearchMode(researchMaxRounds, forceWebSearch)
-      }
-
-      const planFirstInstruction =
-        isWebResearchEnabled(settings.skills) &&
-        getWebResearchMode(settings.skills) === 'structured' &&
-        canUseTools
-          ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
-          : ''
-      const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
-        + planFirstInstruction
-        + getResearchContext(0, researchMaxRounds)
-      const imageFiles = files.filter(f => f.type === 'image')
-      const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
-      const optimizedHistory = buildOptimizedContext(conversationHistory, content, effectiveSystemPrompt, settings.aiModel)
-
-      // Create streaming message
-      const streamingMessageId = addMessageToSession(targetSessionId!, {
-        role: 'assistant',
-        content: '',
-        model: `${settings.modelProvider}/${settings.aiModel}`
-      })
-
-      // Start isolated streaming for Property 22: Isolated Streaming Updates
-      // **Validates: Requirements 5.3**
-      streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
-      startStreaming(targetSessionId!, streamingMessageId)
-
-      // Validate API key before sending
-      const isOpenRouter = settings.modelProvider === 'openrouter' ||
-        !['ollama', 'perplexity', 'groq', 'alibaba'].includes(settings.modelProvider)
-      const isAlibaba = settings.modelProvider === 'alibaba'
-      if (isAlibaba && !settings.alibabaApiKey?.trim()) {
-        deleteMessageFromSession(targetSessionId!, streamingMessageId)
-        streamingMessageRef.current = null
-        setIsLoading(false)
-        showToast('Alibaba API key is required. Add it in Settings > Providers and save.', 'error')
-        return
-      }
-      if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
-        deleteMessageFromSession(targetSessionId!, streamingMessageId)
-        streamingMessageRef.current = null
-        setIsLoading(false)
-        showToast('OpenRouter API key is required. Add it in Settings > Providers and save.', 'error')
-        return
-      }
-
-      // Use composed provider-specific streaming hooks
-      // Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
-      if (settings.modelProvider === 'ollama') {
-        await streamOllama({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: optimizedHistory,
-          startTime,
-          researchMaxRounds,
-          signal: abortControllerRef.current?.signal,
-        })
-      } else if (settings.modelProvider === 'perplexity') {
-        await streamPerplexity({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: optimizedHistory,
-          startTime,
-          signal: abortControllerRef.current?.signal,
-        })
-      } else if (settings.modelProvider === 'groq') {
-        await streamGroq({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: optimizedHistory,
-          startTime,
-          researchMaxRounds,
-          signal: abortControllerRef.current?.signal,
-        })
-      } else if (settings.modelProvider === 'alibaba') {
-        await streamAlibaba({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: optimizedHistory,
-          startTime,
-          researchMaxRounds,
-          signal: abortControllerRef.current?.signal,
-        })
-      } else {
-        // OpenRouter (default)
-        let openRouterMessages = [...optimizedHistory]
-        if (firstImage) {
-          const lastMessage = openRouterMessages[openRouterMessages.length - 1]
-          if (lastMessage?.role === 'user') {
-            openRouterMessages[openRouterMessages.length - 1] = {
-              role: 'user',
-              content: [
-                { type: 'text', text: lastMessage.content || content },
-                { type: 'image_url', image_url: { url: firstImage } }
-              ]
-            } as any
-          }
-        }
-        await streamOpenRouter({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: openRouterMessages,
-          startTime,
-          researchMaxRounds,
-          forceWebSearch,
-          signal: abortControllerRef.current?.signal,
-        })
-      }
-
-      // Commit streaming content to the session
-      // **Validates: Property 22: Isolated Streaming Updates**
-      if (streamingMessageRef.current) {
-        const finalState = completeStreaming()
-        // Explicitly commit the captured streaming state to ChatHistoryContext.
-        // The provider hooks call updateStreamingMessage too, but that setState
-        // may still be batched/pending when completeStreaming() resets the
-        // ephemeral StreamingContext, causing the content to vanish on re-render.
-        if (finalState.sessionId && finalState.messageId && finalState.content) {
-          updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
-        }
-        streamingMessageRef.current = null
-      }
-
-      setIsLoading(false)
       clearToolState()
-      options.onStreamEnd?.()
-      options.onMessageSent?.()
+      setIsLoading(true)
+      abortControllerRef.current = new AbortController()
+      options.onStreamStart?.()
 
-      // Generate title for new sessions (slight delay to avoid request burst after streaming)
-      if (isNewSession && targetSessionId) {
-        setTimeout(() => {
-          generateChatTitle(content, settings).then(title => {
-            if (title) applyGeneratedSessionTitle(targetSessionId!, title)
-          }).catch(console.error)
-        }, 1500)
+      let targetSessionId = currentSessionId
+      let isNewSession = false
+
+      const fileAttachments = files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        data: f.data,
+        mimeType: f.mimeType,
+      }))
+
+      if (!targetSessionId) {
+        targetSessionId = createSession(content)
+        isNewSession = true
+      } else {
+        addMessageToSession(targetSessionId, {
+          role: 'user',
+          content,
+          files: fileAttachments.length > 0 ? fileAttachments : undefined,
+        })
       }
 
-    } catch (error: any) {
-      // Silently handle abort (user clicked stop)
-      if (error.name === 'AbortError' || abortControllerRef.current === null) {
-        // Stream was aborted by user - loading state already cleared by stopStreaming
-        return
-      }
+      const startTime = performance.now()
 
-      // Cancel isolated streaming on error
-      if (streamingMessageRef.current) {
-        cancelStreaming()
-        streamingMessageRef.current = null
-      }
+      try {
+        // Build conversation history
+        const conversationHistory = messages.map((m) => {
+          const msg: any = { role: m.role, content: m.content }
+          if (m.files?.length) msg.files = m.files
+          return msg
+        })
 
-      setIsLoading(false)
-      let errorMsg = 'An unexpected error occurred.'
-      const msg = error.message || ''
+        // Research mode setup - skills-driven web research, model-driven depth, no caps
+        const researchConfig = calculateResearchConfig(
+          {
+            skills: settings.skills,
+            modelProvider: settings.modelProvider,
+            enabledTools: settings.enabledTools,
+          },
+          content
+        )
 
-      if (msg.includes('429') || msg.includes('rate limit')) {
-        // Surface the actual error detail from the provider
-        // Error messages now include [status] prefix from retry logic
-        const statusMatch = msg.match(/\[(\d+)\]\s*(.+)/)
-        if (statusMatch) {
-          errorMsg = `Provider error (${statusMatch[1]}): ${statusMatch[2]}`
-        } else if (msg.includes('Provider returned error') || msg.includes('provider:')) {
-          errorMsg = 'The upstream model provider returned an error (429). This usually means the model is temporarily overloaded. Try a different model or wait a moment.'
+        let researchMaxRounds = researchConfig.maxRounds
+        const forceWebSearch = researchConfig.forceWebSearch
+
+        // Start research mode when web search is enabled (maxRounds >= 0)
+        if (researchMaxRounds >= 0 && canUseTools) {
+          startResearchMode(researchMaxRounds, forceWebSearch)
+        }
+
+        const planFirstInstruction =
+          isWebResearchEnabled(settings.skills) &&
+          getWebResearchMode(settings.skills) === 'structured' &&
+          canUseTools
+            ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
+            : ''
+        const effectiveSystemPrompt =
+          getEffectiveSystemPrompt(settings) +
+          planFirstInstruction +
+          getResearchContext(0, researchMaxRounds)
+        const imageFiles = files.filter((f) => f.type === 'image')
+        const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
+        const optimizedHistory = buildOptimizedContext(
+          conversationHistory,
+          content,
+          effectiveSystemPrompt,
+          settings.aiModel
+        )
+
+        // Create streaming message
+        const streamingMessageId = addMessageToSession(targetSessionId!, {
+          role: 'assistant',
+          content: '',
+          model: `${settings.modelProvider}/${settings.aiModel}`,
+        })
+
+        // Keep partial assistant output out of persisted chat history until completion.
+        streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
+        startStreaming(targetSessionId!, streamingMessageId)
+
+        // Validate API key before sending
+        const isOpenRouter =
+          settings.modelProvider === 'openrouter' ||
+          !['ollama', 'perplexity', 'groq', 'alibaba'].includes(settings.modelProvider)
+        const isAlibaba = settings.modelProvider === 'alibaba'
+        if (isAlibaba && !settings.alibabaApiKey?.trim()) {
+          deleteMessageFromSession(targetSessionId!, streamingMessageId)
+          streamingMessageRef.current = null
+          setIsLoading(false)
+          showToast(
+            'Alibaba API key is required. Add it in Settings > Providers and save.',
+            'error'
+          )
+          return
+        }
+        if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
+          deleteMessageFromSession(targetSessionId!, streamingMessageId)
+          streamingMessageRef.current = null
+          setIsLoading(false)
+          showToast(
+            'OpenRouter API key is required. Add it in Settings > Providers and save.',
+            'error'
+          )
+          return
+        }
+
+        // Use composed provider-specific streaming hooks
+        if (settings.modelProvider === 'ollama') {
+          await streamOllama({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: optimizedHistory,
+            startTime,
+            researchMaxRounds,
+            signal: abortControllerRef.current?.signal,
+          })
+        } else if (settings.modelProvider === 'perplexity') {
+          await streamPerplexity({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: optimizedHistory,
+            startTime,
+            signal: abortControllerRef.current?.signal,
+          })
+        } else if (settings.modelProvider === 'groq') {
+          await streamGroq({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: optimizedHistory,
+            startTime,
+            researchMaxRounds,
+            signal: abortControllerRef.current?.signal,
+          })
+        } else if (settings.modelProvider === 'alibaba') {
+          await streamAlibaba({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: optimizedHistory,
+            startTime,
+            researchMaxRounds,
+            signal: abortControllerRef.current?.signal,
+          })
         } else {
-          errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+          // OpenRouter (default)
+          let openRouterMessages = [...optimizedHistory]
+          if (firstImage) {
+            const lastMessage = openRouterMessages[openRouterMessages.length - 1]
+            if (lastMessage?.role === 'user') {
+              openRouterMessages[openRouterMessages.length - 1] = {
+                role: 'user',
+                content: [
+                  { type: 'text', text: lastMessage.content || content },
+                  { type: 'image_url', image_url: { url: firstImage } },
+                ],
+              } as any
+            }
+          }
+          await streamOpenRouter({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: openRouterMessages,
+            startTime,
+            researchMaxRounds,
+            forceWebSearch,
+            signal: abortControllerRef.current?.signal,
+          })
         }
-        showToast(errorMsg, 'warning')
-      } else if (msg.includes('401') || msg.includes('403')) {
-        errorMsg = 'Invalid API key. Please check your API key in Settings.'
-        showToast(errorMsg, 'error')
-      } else if (msg.includes('network') || msg.includes('fetch')) {
-        errorMsg = 'Network error. Please check your internet connection.'
-        showToast(errorMsg, 'error')
-      } else if (msg.includes('API Key') || msg.includes('missing')) {
-        errorMsg = 'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
-        showToast(errorMsg, 'error')
-      } else {
-        errorMsg = `Error: ${msg || 'Unknown error'}`
-        showToast(errorMsg, 'error')
-      }
 
-      addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
-      clearToolState()
-      options.onStreamEnd?.()
-    }
-  }, [
-    isLoading, currentSessionId, messages, settings, canUseTools,
-    createSession, addMessageToSession, updateStreamingMessage, applyGeneratedSessionTitle,
-    deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
-    showToast, options, startStreaming, completeStreaming, cancelStreaming,
-    streamOllama, streamPerplexity, streamGroq, streamAlibaba, streamOpenRouter,
-    buildFinalStreamingUpdates,
-  ])
+        // Commit streaming content to the session
+        if (streamingMessageRef.current) {
+          const finalState = completeStreaming()
+          // Explicitly commit the captured streaming state to ChatHistoryContext.
+          // The provider hooks call updateStreamingMessage too, but that setState
+          // may still be batched/pending when completeStreaming() resets the
+          // ephemeral StreamingContext, causing the content to vanish on re-render.
+          if (finalState.sessionId && finalState.messageId && finalState.content) {
+            updateStreamingMessage(
+              finalState.sessionId,
+              finalState.messageId,
+              buildFinalStreamingUpdates(finalState)
+            )
+          }
+          streamingMessageRef.current = null
+        }
+
+        setIsLoading(false)
+        clearToolState()
+        options.onStreamEnd?.()
+        options.onMessageSent?.()
+
+        // Generate title for new sessions (slight delay to avoid request burst after streaming)
+        if (isNewSession && targetSessionId) {
+          setTimeout(() => {
+            generateChatTitle(content, settings)
+              .then((title) => {
+                if (title) applyGeneratedSessionTitle(targetSessionId!, title)
+              })
+              .catch(console.error)
+          }, 1500)
+        }
+      } catch (error: any) {
+        // Silently handle abort (user clicked stop)
+        if (error.name === 'AbortError' || abortControllerRef.current === null) {
+          // Stream was aborted by user - loading state already cleared by stopStreaming
+          return
+        }
+
+        // Cancel isolated streaming on error
+        if (streamingMessageRef.current) {
+          cancelStreaming()
+          streamingMessageRef.current = null
+        }
+
+        setIsLoading(false)
+        let errorMsg = 'An unexpected error occurred.'
+        const msg = error.message || ''
+
+        if (msg.includes('429') || msg.includes('rate limit')) {
+          // Surface the actual error detail from the provider
+          // Error messages now include [status] prefix from retry logic
+          const statusMatch = msg.match(/\[(\d+)\]\s*(.+)/)
+          if (statusMatch) {
+            errorMsg = `Provider error (${statusMatch[1]}): ${statusMatch[2]}`
+          } else if (msg.includes('Provider returned error') || msg.includes('provider:')) {
+            errorMsg =
+              'The upstream model provider returned an error (429). This usually means the model is temporarily overloaded. Try a different model or wait a moment.'
+          } else {
+            errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+          }
+          showToast(errorMsg, 'warning')
+        } else if (msg.includes('401') || msg.includes('403')) {
+          errorMsg = 'Invalid API key. Please check your API key in Settings.'
+          showToast(errorMsg, 'error')
+        } else if (msg.includes('network') || msg.includes('fetch')) {
+          errorMsg = 'Network error. Please check your internet connection.'
+          showToast(errorMsg, 'error')
+        } else if (msg.includes('API Key') || msg.includes('missing')) {
+          errorMsg =
+            'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
+          showToast(errorMsg, 'error')
+        } else {
+          errorMsg = `Error: ${msg || 'Unknown error'}`
+          showToast(errorMsg, 'error')
+        }
+
+        addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
+        clearToolState()
+        options.onStreamEnd?.()
+      }
+    },
+    [
+      isLoading,
+      currentSessionId,
+      messages,
+      settings,
+      canUseTools,
+      createSession,
+      addMessageToSession,
+      updateStreamingMessage,
+      applyGeneratedSessionTitle,
+      deleteMessageFromSession,
+      clearToolState,
+      startResearchMode,
+      getResearchContext,
+      calculateResearchConfig,
+      showToast,
+      options,
+      startStreaming,
+      completeStreaming,
+      cancelStreaming,
+      streamOllama,
+      streamPerplexity,
+      streamGroq,
+      streamAlibaba,
+      streamOpenRouter,
+      buildFinalStreamingUpdates,
+    ]
+  )
 
   /**
    * Regenerate a message with different instructions
    * Note: This uses direct streaming for simplicity, not the composed hooks
    */
-  const regenerateMessage = useCallback(async (message: any, instruction: string) => {
-    if (!currentSessionId || isLoading) return
+  const regenerateMessage = useCallback(
+    async (message: any, instruction: string) => {
+      if (!currentSessionId || isLoading) return
 
-    // Handle switch_model instruction
-    if (instruction === 'switch_model') {
-      const models = getModelOptions()
-      const currentModelIndex = models.findIndex(m => m.id === settings.aiModel)
-      const nextModel = models[(currentModelIndex + 1) % models.length]
-      updateSettings({ aiModel: nextModel.id })
-    }
-
-    const versions = message.responseVersions || []
-    versions.push({
-      id: message.id,
-      content: message.content,
-      timestamp: message.timestamp,
-      instruction: message.instruction,
-      model: message.model
-    })
-
-    clearToolState()
-    setIsLoading(true)
-    abortControllerRef.current = new AbortController()
-
-    try {
-      const session = sessions.find(s => s.id === currentSessionId)
-      if (!session) {
-        showToast('Session not found', 'error')
-        setIsLoading(false)
-        return
+      // Handle switch_model instruction
+      if (instruction === 'switch_model') {
+        const models = getModelOptions()
+        const currentModelIndex = models.findIndex((m) => m.id === settings.aiModel)
+        const nextModel = models[(currentModelIndex + 1) % models.length]
+        updateSettings({ aiModel: nextModel.id })
       }
 
-      const messageIndex = session.messages.findIndex(m => m.id === message.id)
-      if (messageIndex <= 0) {
-        showToast('Cannot regenerate - no user message found', 'error')
-        setIsLoading(false)
-        return
-      }
-
-      const userMessage = session.messages[messageIndex - 1]
-      // Get conversation history BEFORE the user message being regenerated
-      const conversationHistory = session.messages.slice(0, messageIndex - 1)
-
-      let systemPrompt = getEffectiveSystemPrompt(settings)
-      let userContent = userMessage.content
-
-      if (instruction === 'concise') {
-        userContent += '\n\nPlease provide a more concise response.'
-      } else if (instruction === 'detailed') {
-        userContent += '\n\nPlease provide more details and expand on your response.'
-      } else if (instruction && instruction.trim()) {
-        userContent += `\n\n[Regenerate Instruction]: ${instruction}`
-      }
-
-      deleteMessageFromSession(currentSessionId, message.id)
-      options.onRegenerateStart?.()
-
-      const streamingMessageId = addMessageToSession(currentSessionId, {
-        role: 'assistant',
-        content: '',
-        model: `${settings.modelProvider}/${settings.aiModel}`,
-        responseVersions: versions,
-        currentVersionIndex: versions.length
+      const versions = message.responseVersions || []
+      versions.push({
+        id: message.id,
+        content: message.content,
+        timestamp: message.timestamp,
+        instruction: message.instruction,
+        model: message.model,
       })
 
-      let accumulatedContent = ''
-      let accumulatedReasoning = ''
-
-      const apiMessages = buildOptimizedContext(conversationHistory, userContent, systemPrompt, settings.aiModel)
+      clearToolState()
+      setIsLoading(true)
+      abortControllerRef.current = new AbortController()
 
       try {
-        if (settings.modelProvider === 'ollama') {
-          for await (const chunk of streamOllamaCompletion(settings.ollamaUrl, settings.aiModel, apiMessages, { think: true, signal: abortControllerRef.current?.signal })) {
-            const thinkingDelta = chunk.message?.thinking || ''
-            const delta = chunk.message?.content || ''
-            if (thinkingDelta) accumulatedReasoning += thinkingDelta
-            accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, {
-              content: accumulatedContent,
-              thinking: accumulatedReasoning || undefined
-            })
-          }
-        } else if (settings.modelProvider === 'perplexity') {
-          for await (const chunk of streamPerplexityCompletion(settings.perplexityApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
-          }
-        } else if (settings.modelProvider === 'groq') {
-          for await (const chunk of streamGroqCompletion(settings.groqApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
-          }
-        } else if (settings.modelProvider === 'alibaba') {
-          for await (const chunk of streamAlibabaCompletion(settings.alibabaApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
-          }
-        } else {
-          for await (const chunk of streamOpenRouterCompletion(
-            getOpenRouterApiKey(settings.openRouterApiKey), settings.aiModel, apiMessages,
-            { temperature: settings.temperature, signal: abortControllerRef.current?.signal }
-          )) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
-            if (reasoningDelta) accumulatedReasoning += reasoningDelta
-            if (delta) accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, {
-              content: accumulatedContent,
-              thinking: accumulatedReasoning || undefined
-            })
-          }
-        }
-
-        updateStreamingMessage(currentSessionId, streamingMessageId, {
-          content: accumulatedContent,
-          thinking: accumulatedReasoning || undefined
-        })
-        setIsLoading(false)
-
-      } catch (streamError: any) {
-        // Silently handle abort (user clicked stop)
-        if (streamError.name === 'AbortError' || abortControllerRef.current === null) {
+        const session = sessions.find((s) => s.id === currentSessionId)
+        if (!session) {
+          showToast('Session not found', 'error')
+          setIsLoading(false)
           return
         }
-        deleteMessageFromSession(currentSessionId, streamingMessageId)
-        addMessageToSession(currentSessionId, {
+
+        const messageIndex = session.messages.findIndex((m) => m.id === message.id)
+        if (messageIndex <= 0) {
+          showToast('Cannot regenerate - no user message found', 'error')
+          setIsLoading(false)
+          return
+        }
+
+        const userMessage = session.messages[messageIndex - 1]
+        // Get conversation history BEFORE the user message being regenerated
+        const conversationHistory = session.messages.slice(0, messageIndex - 1)
+
+        let systemPrompt = getEffectiveSystemPrompt(settings)
+        let userContent = userMessage.content
+
+        if (instruction === 'concise') {
+          userContent += '\n\nPlease provide a more concise response.'
+        } else if (instruction === 'detailed') {
+          userContent += '\n\nPlease provide more details and expand on your response.'
+        } else if (instruction && instruction.trim()) {
+          userContent += `\n\n[Regenerate Instruction]: ${instruction}`
+        }
+
+        deleteMessageFromSession(currentSessionId, message.id)
+        options.onRegenerateStart?.()
+
+        const streamingMessageId = addMessageToSession(currentSessionId, {
           role: 'assistant',
-          content: message.content,
-          model: message.model,
-          thinking: message.thinking,
-          responseVersions: message.responseVersions,
-          currentVersionIndex: message.currentVersionIndex
+          content: '',
+          model: `${settings.modelProvider}/${settings.aiModel}`,
+          responseVersions: versions,
+          currentVersionIndex: versions.length,
         })
-        showToast(streamError.message || 'Failed to regenerate', 'error')
+
+        let accumulatedContent = ''
+        let accumulatedReasoning = ''
+
+        const apiMessages = buildOptimizedContext(
+          conversationHistory,
+          userContent,
+          systemPrompt,
+          settings.aiModel
+        )
+
+        try {
+          if (settings.modelProvider === 'ollama') {
+            for await (const chunk of streamOllamaCompletion(
+              settings.ollamaUrl,
+              settings.aiModel,
+              apiMessages,
+              { think: true, signal: abortControllerRef.current?.signal }
+            )) {
+              const thinkingDelta = chunk.message?.thinking || ''
+              const delta = chunk.message?.content || ''
+              if (thinkingDelta) accumulatedReasoning += thinkingDelta
+              accumulatedContent += delta
+              updateStreamingMessage(currentSessionId, streamingMessageId, {
+                content: accumulatedContent,
+                thinking: accumulatedReasoning || undefined,
+              })
+            }
+          } else if (settings.modelProvider === 'perplexity') {
+            for await (const chunk of streamPerplexityCompletion(
+              settings.perplexityApiKey,
+              settings.aiModel,
+              apiMessages,
+              { signal: abortControllerRef.current?.signal }
+            )) {
+              const delta = chunk.choices?.[0]?.delta?.content || ''
+              accumulatedContent += delta
+              updateStreamingMessage(currentSessionId, streamingMessageId, {
+                content: accumulatedContent,
+              })
+            }
+          } else if (settings.modelProvider === 'groq') {
+            for await (const chunk of streamGroqCompletion(
+              settings.groqApiKey,
+              settings.aiModel,
+              apiMessages,
+              { signal: abortControllerRef.current?.signal }
+            )) {
+              const delta = chunk.choices?.[0]?.delta?.content || ''
+              accumulatedContent += delta
+              updateStreamingMessage(currentSessionId, streamingMessageId, {
+                content: accumulatedContent,
+              })
+            }
+          } else if (settings.modelProvider === 'alibaba') {
+            for await (const chunk of streamAlibabaCompletion(
+              settings.alibabaApiKey,
+              settings.aiModel,
+              apiMessages,
+              { signal: abortControllerRef.current?.signal }
+            )) {
+              const delta = chunk.choices?.[0]?.delta?.content || ''
+              accumulatedContent += delta
+              updateStreamingMessage(currentSessionId, streamingMessageId, {
+                content: accumulatedContent,
+              })
+            }
+          } else {
+            for await (const chunk of streamOpenRouterCompletion(
+              getOpenRouterApiKey(settings.openRouterApiKey),
+              settings.aiModel,
+              apiMessages,
+              { temperature: settings.temperature, signal: abortControllerRef.current?.signal }
+            )) {
+              const delta = chunk.choices?.[0]?.delta?.content || ''
+              const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+              if (reasoningDelta) accumulatedReasoning += reasoningDelta
+              if (delta) accumulatedContent += delta
+              updateStreamingMessage(currentSessionId, streamingMessageId, {
+                content: accumulatedContent,
+                thinking: accumulatedReasoning || undefined,
+              })
+            }
+          }
+
+          updateStreamingMessage(currentSessionId, streamingMessageId, {
+            content: accumulatedContent,
+            thinking: accumulatedReasoning || undefined,
+          })
+          setIsLoading(false)
+        } catch (streamError: any) {
+          // Silently handle abort (user clicked stop)
+          if (streamError.name === 'AbortError' || abortControllerRef.current === null) {
+            return
+          }
+          deleteMessageFromSession(currentSessionId, streamingMessageId)
+          addMessageToSession(currentSessionId, {
+            role: 'assistant',
+            content: message.content,
+            model: message.model,
+            thinking: message.thinking,
+            responseVersions: message.responseVersions,
+            currentVersionIndex: message.currentVersionIndex,
+          })
+          showToast(streamError.message || 'Failed to regenerate', 'error')
+          setIsLoading(false)
+        }
+      } catch (error: any) {
+        // Silently handle abort (user clicked stop)
+        if (error.name === 'AbortError' || abortControllerRef.current === null) {
+          return
+        }
+        showToast(error.message || 'Failed to regenerate', 'error')
         setIsLoading(false)
       }
-
-    } catch (error: any) {
-      // Silently handle abort (user clicked stop)
-      if (error.name === 'AbortError' || abortControllerRef.current === null) {
-        return
-      }
-      showToast(error.message || 'Failed to regenerate', 'error')
-      setIsLoading(false)
-    }
-  }, [
-    currentSessionId, isLoading, sessions, settings,
-    addMessageToSession, updateStreamingMessage, deleteMessageFromSession,
-    clearToolState, showToast, updateSettings
-  ])
+    },
+    [
+      currentSessionId,
+      isLoading,
+      sessions,
+      settings,
+      addMessageToSession,
+      updateStreamingMessage,
+      deleteMessageFromSession,
+      clearToolState,
+      showToast,
+      updateSettings,
+    ]
+  )
 
   /**
    * Get available models for switching
@@ -719,19 +814,27 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     const allModels: Array<{ id: string; displayName: string }> = []
 
     if (settings.configuredModels) {
-      settings.configuredModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+      settings.configuredModels.forEach((m) =>
+        allModels.push({ id: m.code, displayName: m.displayName })
+      )
     }
     if (settings.ollamaModels) {
-      settings.ollamaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+      settings.ollamaModels.forEach((m) =>
+        allModels.push({ id: m.code, displayName: m.displayName })
+      )
     }
     if (settings.perplexityModels) {
-      settings.perplexityModels.forEach(m => allModels.push({ id: `perplexity/${m.code}`, displayName: m.displayName }))
+      settings.perplexityModels.forEach((m) =>
+        allModels.push({ id: `perplexity/${m.code}`, displayName: m.displayName })
+      )
     }
     if (settings.groqModels) {
-      settings.groqModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+      settings.groqModels.forEach((m) => allModels.push({ id: m.code, displayName: m.displayName }))
     }
     if (settings.alibabaModels) {
-      settings.alibabaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
+      settings.alibabaModels.forEach((m) =>
+        allModels.push({ id: m.code, displayName: m.displayName })
+      )
     }
 
     return allModels
@@ -742,6 +845,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     toolState,
     sendMessage,
     regenerateMessage,
-    stopStreaming
+    stopStreaming,
   }
 }

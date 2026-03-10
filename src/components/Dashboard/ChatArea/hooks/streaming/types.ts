@@ -1,10 +1,13 @@
 /**
  * Shared types for provider-specific streaming hooks
- * 
- * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
+ *
  */
 
-import type { Message, ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type {
+  Message,
+  ThinkingBlock,
+  ToolCallResult,
+} from '../../../../../contexts/ChatHistoryContext'
 import type { OpenRouterResponse } from '../../../../../tools/types'
 import type { ToolDefinition } from '../../../../../services/types'
 
@@ -50,7 +53,13 @@ export interface ProviderStreamingOptions {
   /** Streaming message ID */
   messageId: string
   /** Optimized conversation history */
-  messages: Array<{ role: string; content: string; images?: string[]; tool_calls?: unknown[]; thinking?: string }>
+  messages: Array<{
+    role: string
+    content: string
+    images?: string[]
+    tool_calls?: unknown[]
+    thinking?: string
+  }>
   /** Start time for latency calculation */
   startTime: number
   /** Abort signal for cancellation */
@@ -102,7 +111,10 @@ export interface HandleToolCallsOptions {
 export interface ToolCallingHook {
   canUseTools: boolean
   getToolsForRequest: () => ToolDefinition[] | null
-  handleToolCalls: (response: OpenRouterResponse, options?: HandleToolCallsOptions) => Promise<{
+  handleToolCalls: (
+    response: OpenRouterResponse,
+    options?: HandleToolCallsOptions
+  ) => Promise<{
     hasTools: boolean
     toolResults: ToolCallResult[]
     formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>

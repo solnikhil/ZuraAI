@@ -1,8 +1,6 @@
 /**
  * Unit Tests: groupSessions utility
  *
- * Feature: sidebar-redesign
- * Validates: Requirements 5.1, 5.2, 5.3
  *
  * Tests cover:
  * - Pinned sessions go to pinned group
@@ -17,9 +15,7 @@ import { describe, it, expect } from 'vitest'
 import { groupSessions } from '../utils/groupSessions'
 import type { ChatSession, Folder } from '../../../../contexts/ChatHistoryContext'
 
-// ============================================================================
 // Test Helpers
-// ============================================================================
 
 function makeSession(overrides: Partial<ChatSession> & { title: string }): ChatSession {
   return {
@@ -58,12 +54,9 @@ function todayNoon(): number {
   return d.getTime()
 }
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe('groupSessions', () => {
-  // Requirement 5.1: Pinned section
   describe('pinned sessions', () => {
     it('should place pinned sessions in the pinned group', () => {
       const sessions = [
@@ -82,7 +75,12 @@ describe('groupSessions', () => {
     it('should place pinned sessions in pinned group regardless of folderId', () => {
       const folder = makeFolder({ id: 'folder-1', name: 'Work' })
       const sessions = [
-        makeSession({ title: 'Pinned in Folder', pinned: true, folderId: 'folder-1', updatedAt: todayNoon() }),
+        makeSession({
+          title: 'Pinned in Folder',
+          pinned: true,
+          folderId: 'folder-1',
+          updatedAt: todayNoon(),
+        }),
       ]
 
       const result = groupSessions(sessions, [folder])
@@ -94,7 +92,6 @@ describe('groupSessions', () => {
     })
   })
 
-  // Requirement 8.1-8.4: Folder-assigned sessions
   describe('folder-assigned sessions', () => {
     it('should place folder-assigned sessions in the correct folder group', () => {
       const folder = makeFolder({ id: 'folder-1', name: 'Work' })
@@ -145,12 +142,9 @@ describe('groupSessions', () => {
     })
   })
 
-  // Requirement 5.2: Time-based grouping
   describe('time-based grouping', () => {
     it('should group sessions updated today into the today group', () => {
-      const sessions = [
-        makeSession({ title: 'Today Chat', updatedAt: todayNoon() }),
-      ]
+      const sessions = [makeSession({ title: 'Today Chat', updatedAt: todayNoon() })]
 
       const result = groupSessions(sessions, [])
 
@@ -159,9 +153,7 @@ describe('groupSessions', () => {
     })
 
     it('should group sessions updated yesterday into the yesterday group', () => {
-      const sessions = [
-        makeSession({ title: 'Yesterday Chat', updatedAt: daysAgo(1) }),
-      ]
+      const sessions = [makeSession({ title: 'Yesterday Chat', updatedAt: daysAgo(1) })]
 
       const result = groupSessions(sessions, [])
 
@@ -221,7 +213,6 @@ describe('groupSessions', () => {
     })
   })
 
-  // Requirement 5.3: Empty groups
   describe('empty groups', () => {
     it('should return empty arrays for time groups with no sessions', () => {
       const result = groupSessions([], [])

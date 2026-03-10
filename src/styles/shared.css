@@ -11,6 +11,14 @@
     --frosted-glass-filter: blur(15px) saturate(138%) brightness(1.08);
     --frosted-sidebar-shadow: 0 9px 26px rgba(0, 0, 0, 0.14), 1px 0 0 rgba(255, 255, 255, 0.08), 2px 0 0 rgba(0, 0, 0, 0.16);
     --theme-sidebar-solid: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-text-primary) 8%);
+    --motion-duration-micro: 120ms;
+    --motion-duration-fast: 160ms;
+    --motion-duration-normal: 220ms;
+    --motion-duration-slow: 320ms;
+    --motion-duration-deliberate: 360ms;
+    --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
 
@@ -89,6 +97,92 @@
     display: none;
 }
 
+.theme-composer-surface {
+    background: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-background) 8%);
+    border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
+    box-shadow: var(--theme-shadow-md);
+}
+
+.theme-menu-surface {
+    background: color-mix(in srgb, var(--theme-surface) 96%, var(--theme-background) 4%);
+    border: 1px solid var(--theme-border);
+    box-shadow: var(--theme-shadow-lg);
+    color: var(--theme-text-primary);
+    backdrop-filter: blur(20px) saturate(1.08);
+    -webkit-backdrop-filter: blur(20px) saturate(1.08);
+}
+
+.theme-menu-item {
+    border: 1px solid transparent;
+    color: var(--theme-text-secondary);
+    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-menu-item:hover,
+.theme-menu-item:focus-visible,
+.theme-menu-item[data-state='open'] {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.theme-menu-shortcut {
+    color: var(--theme-text-muted);
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-control-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--theme-text-secondary);
+    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-micro) var(--motion-ease-standard);
+}
+
+.theme-control-btn:hover,
+.theme-control-btn:focus-visible,
+.theme-control-btn.is-active,
+.theme-control-btn[data-state='open'],
+.theme-control-btn[aria-expanded='true'] {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.theme-control-btn:active {
+    transform: translateY(0.5px);
+}
+
+.theme-soft-badge {
+    background: var(--theme-surface-hover);
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text-secondary);
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-soft-badge:hover {
+    background: var(--theme-surface-active);
+    border-color: var(--theme-border-hover);
+    color: var(--theme-text-primary);
+}
+
+.theme-subtle-divider {
+    background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--theme-border) 68%, transparent) 18%, color-mix(in srgb, var(--theme-border-hover) 92%, transparent) 50%, color-mix(in srgb, var(--theme-border) 68%, transparent) 82%, transparent 100%);
+}
+
+.theme-modal-backdrop {
+    background: color-mix(in srgb, var(--theme-overlay-bg) 92%, black 8%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.theme-modal-surface {
+    background: color-mix(in srgb, var(--theme-surface) 94%, var(--theme-background) 6%);
+    border: 1px solid var(--theme-border);
+    box-shadow: var(--theme-shadow-lg);
+}
+
 
 /* Animation Keyframes */
 
@@ -127,15 +221,15 @@
 /* Transition Utilities */
 
 .transition-fast {
-    transition: all 0.15s ease;
+    transition: all var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .transition-normal {
-    transition: all 0.2s ease;
+    transition: all var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .transition-slow {
-    transition: all 0.3s ease;
+    transition: all var(--motion-duration-slow) var(--motion-ease-standard);
 }
 
 
@@ -150,7 +244,7 @@
     border-radius: 8px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
 .btn-primary {
@@ -242,20 +336,42 @@
     }
 }
 
+@keyframes viewEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 .action-btn-animate {
-    animation: actionBtnFadeUp 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: actionBtnFadeUp var(--motion-duration-normal) var(--motion-ease-emphasized) both;
+}
+
+.theme-section-enter {
+    animation: viewEnter var(--motion-duration-slow) var(--motion-ease-standard) both;
 }
 
 .message-action-surface {
     background: transparent;
     border: 1px solid transparent;
     border-radius: 10px;
-    transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .message-action-surface:hover,
 .message-action-surface:focus-visible {
-    background: #1d1d1d;
-    border-color: rgba(255, 255, 255, 0.06);
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .action-btn-animate,
+    .theme-section-enter {
+        animation: none;
+    }
 }
