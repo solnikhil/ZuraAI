@@ -151,18 +151,12 @@ export function InputArea({
       if (!event.shiftKey && key === 'u') {
         event.preventDefault()
         fileInputRef.current?.click()
-        return
-      }
-
-      if (event.shiftKey && key === 'k') {
-        event.preventDefault()
-        toggleWebResearchSkill()
       }
     }
 
     window.addEventListener('keydown', handleShortcut)
     return () => window.removeEventListener('keydown', handleShortcut)
-  }, [textareaRef, toggleWebResearchSkill])
+  }, [textareaRef])
 
   const handlePaste = async (event: React.ClipboardEvent) => {
     const items = event.clipboardData.items
@@ -426,10 +420,11 @@ export function InputArea({
                         >
                           <Radar className="h-4 w-4 text-white/75" />
                           <span>Tavily</span>
-                          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-white/45 opacity-0 transition-opacity duration-150 group-hover/menu-item:opacity-100">
-                            {webResearchEnabled && <Check className="h-3.5 w-3.5 text-emerald-300" />}
-                            Ctrl+Shift+K
-                          </span>
+                          {webResearchEnabled && (
+                            <span className="ml-auto inline-flex items-center text-emerald-300">
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>

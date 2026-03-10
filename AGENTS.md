@@ -32,9 +32,10 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) with a hash-route fallback for unmatched paths.
+- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, with a hash-route fallback for unmatched paths.
 - Persistence is split:
-  - **Settings + UI state** live in renderer `localStorage`.
+  - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
+  - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
   - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
 
 ---
@@ -44,6 +45,7 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
+  - `electron/startup/` — deferred startup orchestration and startup metrics
   - `electron/windows/` — main window, tray
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
   - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
@@ -51,9 +53,10 @@ Core capabilities:
   - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
-  - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) plus wildcard `*` fallback to a dedicated 404 renderer view
-- `src/contexts/` — app state (settings, chat history, app shell)
+  - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
+  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
+- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
 - `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
@@ -112,6 +115,11 @@ Core capabilities:
 - **Renderer route fallback**
   - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
 
+- **Shared shell layout**
+  - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
+  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
+  - `/` is a dashboard alias
+
 ### CORS Bypass (Main Process)
 There is currently no active CORS-bypass header injection in `electron/main.ts`.
 
@@ -122,6 +130,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 - IPC bridge and allowlists live in `electron/preload.ts`.
 - `window.ipcRenderer` is a **restricted wrapper** around `ipcRenderer`.
+- `window.windowControls` is a **separate dedicated bridge** exposed from preload for minimize / maximize / close state, rather than part of the generic `window.ipcRenderer` allowlists.
 
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
@@ -136,7 +145,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
 
-**Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also in the preload allowlist.
+**Dedicated preload bridges (not part of `window.ipcRenderer` allowlists):**
+- `window.windowControls`
+  - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
+  - listens for: `window-controls:state`
+
+**Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
 **If you add/rename any IPC channel:**
 1. Add it to the correct allowlist(s) in `electron/preload.ts`
@@ -145,6 +159,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 4. Validate all inputs in main process (treat renderer as untrusted)
 
 ### Key Runtime Flows
+
+#### Startup + Shell Initialization
+- Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
+- Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Renderer startup in `src/main.tsx` initializes renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
+- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
+- Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
@@ -225,6 +246,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Renderer (localStorage)**
 - Settings: `zura-settings`
+  - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
   - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Title generation settings:
@@ -246,6 +268,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `zura-ui:sidebarHidden`
 - Command bar:
   - History: `zura-commandbar-history-v1`
+- Model color assignments: `zura-model-colors`
 
 **Main process (`app.getPath('userData')`)**
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
@@ -333,7 +356,7 @@ These are useful breadcrumbs for agents:
 ## Build & Release Notes (Electron)
 - Packaging uses `electron-builder` (see `package.json#build`).
 - Auto-updater is enabled only when `app.isPackaged` (production) in `electron/updater.ts`.
-- `package.json#build.publish` currently contains placeholders; update repo/owner for real releases.
+- `package.json#build.publish` is currently configured for GitHub releases on `solnikhil/ZuraAI`; update it if packaging from a fork or different repo.
 
 ---
 
