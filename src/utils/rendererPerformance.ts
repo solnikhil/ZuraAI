@@ -2,7 +2,7 @@
  * Renderer Performance Tracking Module
  * 
  * This module tracks Time To Interactive (TTI) and First Contentful Paint (FCP) metrics
- * in the renderer process and exposes them via IPC to the main process.
+ * in the renderer process for local renderer-side decisions such as lazy loading.
  * 
  * **Validates: Requirement 6.3**
  * THE Renderer_Process SHALL track and report Time To Interactive (TTI) and 
@@ -461,23 +461,4 @@ export const rendererPerformanceTracker = new RendererPerformanceTracker();
  */
 export function initializeRendererPerformance(): void {
   rendererPerformanceTracker.initialize();
-}
-
-/**
- * Send renderer metrics to main process via IPC
- * This function should be called periodically or on demand
- */
-export async function reportRendererMetricsToMain(): Promise<void> {
-  if (typeof window === 'undefined' || !window.ipcRenderer) {
-    console.warn('[RendererPerformance] IPC not available');
-    return;
-  }
-
-  try {
-    const metrics = rendererPerformanceTracker.getMetrics();
-    await window.ipcRenderer.invoke('performance:report-renderer-metrics', metrics);
-    if (import.meta.env.DEV) console.log('[RendererPerformance] Metrics reported to main process');
-  } catch (error) {
-    console.error('[RendererPerformance] Failed to report metrics:', error);
-  }
 }

@@ -47,17 +47,6 @@ export interface UsageModelCatalog {
   ollamaModels?: string[]
 }
 
-export interface UsageRuntimeMetrics {
-  startupWindowVisibleMs: number | null
-  startupFullyLoadedMs: number | null
-  fcpMs: number | null
-  ttiMs: number | null
-  lcpMs: number | null
-  processCpuPercent: number | null
-  processMemoryMb: number | null
-  warnings: string[]
-}
-
 export interface UsageStats {
   todayMessages: number
   totalSessions: number

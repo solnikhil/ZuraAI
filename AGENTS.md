@@ -53,12 +53,13 @@ Core capabilities:
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) plus wildcard `*` fallback to a dedicated 404 renderer view
-  - `src/contexts/` — app state (settings, chat history, app shell)
-  - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
-  - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
-  - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
-  - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
-  - `src/tools/` — tool schema + adapters + tool execution coordinator
+- `src/contexts/` — app state (settings, chat history, app shell)
+- `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
+- `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
+- `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
+- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
+- `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
+- `src/tools/` — tool schema + adapters + tool execution coordinator
 
 - `dist/` — renderer build output (generated)
 - `dist-electron/` — electron build output (generated)
@@ -129,9 +130,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
-  - `get-process-metrics`
-  - `memory:get-metrics`, `memory:force-cleanup`
-  - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
   - `execute-tool`
   - `window-resize`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
@@ -178,6 +176,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
+
+#### Renderer Performance Tracking
+- Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
+- The tracker is initialized in `src/main.tsx` and consumed by `src/hooks/useLazyLoad.ts` for TTI-aware lazy loading.
+- There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
 
 #### Response Streaming Cadence
 - Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts` (`120ms`).
@@ -249,6 +252,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
+- No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
@@ -288,7 +292,7 @@ Never commit `.env` or API keys.
 
 ### Known Architecture Gaps / TODOs (Current Code)
 These are useful breadcrumbs for agents:
-- Only the built-in debug shortcut (`Shift+Escape`) is registered in main; user-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
+- User-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
 
 ---
 

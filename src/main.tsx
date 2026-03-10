@@ -27,11 +27,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import { getDefaultTheme, getThemeById } from './themes/themeRegistry'
 import { applyThemeToDocument } from './themes/themeUtils'
-import { 
-    initializeRendererPerformance, 
-    reportRendererMetricsToMain,
-    rendererPerformanceTracker 
-} from './utils/rendererPerformance'
+import { initializeRendererPerformance } from './utils/rendererPerformance'
 import { injectLazyImageStyles } from './components/shared/LazyImage'
 import { preloadMarkdown } from './utils/markdownPreloader'
 import './index.css'
@@ -51,36 +47,6 @@ injectLazyImageStyles()
 // Eagerly preload markdown rendering pipeline so chat messages render with
 // formatting immediately, avoiding a flash of unstyled/raw markdown text.
 preloadMarkdown()
-
-// Set up automatic reporting of metrics to main process
-// Report metrics when key performance events occur
-rendererPerformanceTracker.onMetricsUpdate((updates) => {
-    // Report to main process when FCP or TTI is captured
-    if (updates.fcp !== undefined || updates.tti !== undefined) {
-        reportRendererMetricsToMain().catch((error) => {
-            console.warn('[main.tsx] Failed to report renderer metrics:', error)
-        })
-    }
-})
-
-// Also report metrics after the page is fully loaded
-if (document.readyState === 'complete') {
-    // Page already loaded, report metrics after a short delay
-    setTimeout(() => {
-        reportRendererMetricsToMain().catch((error) => {
-            console.warn('[main.tsx] Failed to report renderer metrics on load:', error)
-        })
-    }, 100)
-} else {
-    window.addEventListener('load', () => {
-        // Report metrics after load event
-        setTimeout(() => {
-            reportRendererMetricsToMain().catch((error) => {
-                console.warn('[main.tsx] Failed to report renderer metrics on load:', error)
-            })
-        }, 100)
-    })
-}
 
 const savedSettings = localStorage.getItem('zura-settings')
 if (savedSettings) {

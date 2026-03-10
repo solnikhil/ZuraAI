@@ -31,29 +31,6 @@ export interface TerminalAPI {
     spawnCommand: (command: string, args?: string[]) => void
 }
 
-// =============================================================================
-// Memory Monitoring Types (Requirements 4.6, 6.6)
-// =============================================================================
-
-/**
- * Memory metrics from the main process
- */
-export interface MemoryMetrics {
-    heapUsed: number;      // V8 heap used (bytes)
-    heapTotal: number;     // V8 heap total (bytes)
-    external: number;      // V8 external memory (bytes)
-    rss: number;           // Resident Set Size (bytes)
-    timestamp: number;     // When metrics were collected
-}
-
-/**
- * Memory cleanup result
- */
-export interface MemoryCleanupResult {
-    success: boolean;
-    timestamp: number;
-}
-
 export interface WindowControlsAPI {
     minimize: () => Promise<void>
     toggleMaximize: () => Promise<void>

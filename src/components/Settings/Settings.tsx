@@ -11,7 +11,7 @@ import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
 import { SystemPromptSection } from './sections/SystemPromptSection'
 import { ExperimentalSection } from './sections/ExperimentalSection'
-import { computeUsageStats, type UsageRuntimeMetrics } from './sections/usageMetrics'
+import { computeUsageStats } from './sections/usageMetrics'
 import { normalizeSettingsSection } from '../../constants/settingsSections'
 
 import './Settings.css'
@@ -20,11 +20,6 @@ interface SettingsProps {
   activeSection?: string
   onUnsavedChange?: (hasChanges: boolean) => void
   showWarning?: boolean
-}
-
-function parseFiniteNumber(value: unknown): number | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return value
 }
 
 export default function Settings({
@@ -41,7 +36,6 @@ export default function Settings({
   const lastSyncedSettingsRef = useRef(settings)
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
-  const [usageRuntimeMetrics, setUsageRuntimeMetrics] = useState<UsageRuntimeMetrics | null>(null)
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   const usageModelCatalog = useMemo(() => ({
@@ -64,86 +58,6 @@ export default function Settings({
     return normalizeSettingsSection(activeSection) ?? 'providers'
   }, [activeSection])
 
-  const isElectron = typeof window !== 'undefined' && Boolean(window.ipcRenderer)
-
-  useEffect(() => {
-    if (normalizedActiveSection !== 'usage' || !isElectron) return
-
-    let isCancelled = false
-
-    const loadRuntimeUsageMetrics = async () => {
-      try {
-        const [performanceRaw, processRaw, thresholdsRaw] = await Promise.all([
-          window.ipcRenderer.invoke('performance:get-metrics'),
-          window.ipcRenderer.invoke('get-process-metrics'),
-          window.ipcRenderer.invoke('performance:check-thresholds'),
-        ])
-
-        if (isCancelled) return
-
-        const performance = (performanceRaw && typeof performanceRaw === 'object')
-          ? performanceRaw as Record<string, unknown>
-          : {}
-
-        const startup = (performance.startup && typeof performance.startup === 'object')
-          ? performance.startup as Record<string, unknown>
-          : {}
-
-        const renderer = (performance.renderer && typeof performance.renderer === 'object')
-          ? performance.renderer as Record<string, unknown>
-          : {}
-
-        const processMetrics = Array.isArray(processRaw)
-          ? processRaw as Array<Record<string, unknown>>
-          : []
-
-        const totalCpu = processMetrics.reduce((sum, metric) => {
-          const cpu = parseFiniteNumber(metric.cpu)
-          return sum + (cpu || 0)
-        }, 0)
-
-        const totalMemoryMb = processMetrics.reduce((sum, metric) => {
-          const memory = parseFiniteNumber(metric.memory)
-          return sum + (memory || 0)
-        }, 0)
-
-        const thresholdWarnings = (
-          thresholdsRaw &&
-          typeof thresholdsRaw === 'object' &&
-          Array.isArray((thresholdsRaw as Record<string, unknown>).warnings)
-        )
-          ? (thresholdsRaw as { warnings: unknown[] }).warnings.filter((entry): entry is string => typeof entry === 'string')
-          : []
-
-        setUsageRuntimeMetrics({
-          startupWindowVisibleMs: parseFiniteNumber(startup.windowVisible),
-          startupFullyLoadedMs: parseFiniteNumber(startup.fullyLoaded),
-          fcpMs: parseFiniteNumber(renderer.fcp),
-          ttiMs: parseFiniteNumber(renderer.tti),
-          lcpMs: parseFiniteNumber(renderer.lcp),
-          processCpuPercent: Number(totalCpu.toFixed(1)),
-          processMemoryMb: Math.round(totalMemoryMb),
-          warnings: thresholdWarnings,
-        })
-      } catch (error) {
-        if (!isCancelled) {
-          console.warn('[Settings] Failed to load runtime usage metrics:', error)
-          setUsageRuntimeMetrics(null)
-        }
-      }
-    }
-
-    void loadRuntimeUsageMetrics()
-    const intervalId = window.setInterval(() => {
-      void loadRuntimeUsageMetrics()
-    }, 15000)
-
-    return () => {
-      isCancelled = true
-      window.clearInterval(intervalId)
-    }
-  }, [normalizedActiveSection, isElectron])
-
   const handleExportUsageSnapshot = useCallback(() => {
     const snapshot = {
       exportedAt: new Date().toISOString(),
@@ -153,7 +67,6 @@ export default function Settings({
         includesApiKeys: false,
       },
       usage: usageStats,
-      runtime: usageRuntimeMetrics,
     }
 
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
@@ -165,7 +78,7 @@ export default function Settings({
     link.click()
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  }, [usageRuntimeMetrics, usageStats])
+  }, [usageStats])
 
   const handleExportWebSearchCsv = useCallback(() => {
     const rows: string[] = []
@@ -322,8 +235,6 @@ export default function Settings({
             {normalizedActiveSection === 'usage' && (
               <UsageSection
                 stats={usageStats}
-                runtimeMetrics={usageRuntimeMetrics}
-                isElectron={isElectron}
                 onExportSnapshot={handleExportUsageSnapshot}
                 onExportWebSearchCsv={handleExportWebSearchCsv}
               />

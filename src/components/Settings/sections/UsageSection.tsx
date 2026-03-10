@@ -3,23 +3,19 @@ import { MessageSquare, Clock, Zap, TrendingUp, Cpu, BarChart, Calendar, Shield,
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ActivityGraph } from '../ActivityGraph'
-import type { UsageStats, UsageRuntimeMetrics, UsageProvider } from './usageMetrics'
+import type { UsageStats, UsageProvider } from './usageMetrics'
 
 /**
  * Props for UsageSection component
  */
 export interface UsageSectionProps {
   stats: UsageStats
-  runtimeMetrics: UsageRuntimeMetrics | null
-  isElectron: boolean
   onExportSnapshot: () => void
   onExportWebSearchCsv: () => void
 }
 
 export function UsageSection({
   stats,
-  runtimeMetrics,
-  isElectron,
   onExportSnapshot,
   onExportWebSearchCsv,
 }: UsageSectionProps): React.ReactElement {
@@ -49,7 +45,7 @@ export function UsageSection({
     <div className="settings-section-layout settings-section-layout--wide settings-section-layout--usage">
       <div className="page-header">
         <h2 className="page-title">Usage Intelligence</h2>
-        <div className="page-subtitle">Monitor activity, performance, model mix, and web search effectiveness</div>
+        <div className="page-subtitle">Monitor activity, response trends, model mix, and web search effectiveness</div>
       </div>
 
       <div className="usage-stats-grid" style={{ marginTop: 24 }}>
@@ -115,37 +111,6 @@ export function UsageSection({
               <span className="stat-subtext">Throughput</span>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>{formatTps(stats.avgAssistantTps)}</span>
             </div>
-
-            {isElectron && (
-              <>
-                <div style={{ borderTop: '1px solid var(--theme-border-subtle)', marginTop: 6, paddingTop: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <span className="stat-subtext">Startup visible</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                      {runtimeMetrics?.startupWindowVisibleMs ? `${Math.round(runtimeMetrics.startupWindowVisibleMs)} ms` : 'N/A'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-                    <span className="stat-subtext">FCP / TTI</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                      {runtimeMetrics?.fcpMs ? `${Math.round(runtimeMetrics.fcpMs)}ms` : 'N/A'} / {runtimeMetrics?.ttiMs ? `${Math.round(runtimeMetrics.ttiMs)}ms` : 'N/A'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 6 }}>
-                    <span className="stat-subtext">CPU / memory</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
-                      {runtimeMetrics?.processCpuPercent != null ? `${runtimeMetrics.processCpuPercent.toFixed(1)}%` : 'N/A'} / {runtimeMetrics?.processMemoryMb != null ? `${runtimeMetrics.processMemoryMb} MB` : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                {runtimeMetrics?.warnings && runtimeMetrics.warnings.length > 0 && (
-                  <div className="stat-subtext" style={{ fontSize: '0.75rem' }}>
-                    {runtimeMetrics.warnings.length} performance warning{runtimeMetrics.warnings.length === 1 ? '' : 's'} detected
-                  </div>
-                )}
-              </>
-            )}
           </div>
         </div>
 
