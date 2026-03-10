@@ -2,7 +2,7 @@
  * SettingsContext - Combined settings context for backward compatibility
  * 
  * This module provides a unified settings interface that wraps both:
- * - SettingsUIContext: For frequently changing UI state (theme, title bar, command bar)
+ * - SettingsUIContext: For frequently changing UI state (theme, title bar, command palette)
  * - SettingsConfigContext: For stable configuration (API keys, models, AI parameters, tools)
  * 
  * **Validates: Requirements 8.1**
@@ -10,7 +10,7 @@
  *   values (theme, UI state) and stable values (API keys, model configs)
  * 
  * For new code, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, and command bar settings
+ * - useSettingsUI() - For theme, title bar, and command palette settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  * 
  * The combined useSettings() hook is maintained for backward compatibility.
@@ -21,6 +21,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { SettingsUIProvider, useSettingsUI, defaultSettingsUI, type SettingsUI } from './SettingsUIContext'
 import { SettingsConfigProvider, useSettingsConfig, defaultSettingsConfig, type SettingsConfig, type TodoItem } from './SettingsConfigContext'
+import { getAllToolDefinitions } from '../tools/definitions'
+import { migrateSkillsFromLegacySettings } from '../skills'
 
 // Re-export types for backward compatibility
 export type { TodoItem }
@@ -34,6 +36,58 @@ export interface Settings extends SettingsUI, SettingsConfig {}
 const defaultSettings: Settings = {
     ...defaultSettingsUI,
     ...defaultSettingsConfig,
+}
+
+const SECRET_SETTING_KEYS: Array<keyof Pick<Settings, 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'>> = [
+    'openRouterApiKey',
+    'perplexityApiKey',
+    'groqApiKey',
+    'tavilyApiKey',
+    'alibabaApiKey',
+]
+
+function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
+    const sanitized = { ...raw }
+    for (const key of SECRET_SETTING_KEYS) {
+        delete sanitized[key]
+    }
+    return sanitized
+}
+
+function parseStoredSettings(raw: string | null): Partial<Settings> {
+    if (!raw) return {}
+    try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed !== 'object' || parsed == null || Array.isArray(parsed)) {
+            return {}
+        }
+        return stripSecretSettings(parsed as Partial<Settings>)
+    } catch {
+        console.warn('[SettingsContext] Invalid zura-settings in localStorage. Falling back to defaults.')
+        return {}
+    }
+}
+
+function hasSettingsDiff(prev: Settings, updates: Record<string, unknown>): boolean {
+    for (const [key, value] of Object.entries(updates)) {
+        const current = (prev as unknown as Record<string, unknown>)[key]
+        const bothObjects =
+            typeof current === 'object' && current !== null &&
+            typeof value === 'object' && value !== null
+
+        if (bothObjects) {
+            if (JSON.stringify(current) !== JSON.stringify(value)) {
+                return true
+            }
+            continue
+        }
+
+        if (current !== value) {
+            return true
+        }
+    }
+
+    return false
 }
 
 interface SettingsContextType {
@@ -67,8 +121,9 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         const uiKeys: (keyof SettingsUI)[] = [
             'theme', 'activeTheme',
             'titleBarDensity', 'titleBarShowAppName', 'titleBarShowChatTitle', 'titleBarShowModel',
-            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast', 'chatBubbleStyle', 'chatSelectedOverlayStyle',
-            'modelSelector'
+            'commandBar', 'frostedSidebar', 'frostedPrompt', 'sidebarAutoHideOnResize', 'softenedContrast',
+            'chatBubbleStyle', 'chatSelectedOverlayStyle',
+            'modelSelector', 'promptAutoHide'
         ]
         
         const uiUpdates: Partial<SettingsUI> = {}
@@ -119,7 +174,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Load settings from localStorage
     const [storedSettings] = useState<Settings>(() => {
         const saved = localStorage.getItem('zura-settings')
-        const parsed = saved ? { ...defaultSettings, ...JSON.parse(saved) } : defaultSettings
+        const parsedFromStorage = parseStoredSettings(saved)
+        const parsed = { ...defaultSettings, ...parsedFromStorage }
 
         // Remove deprecated overlay-era settings from older persisted state
         delete (parsed as Record<string, unknown>).autoHideOverlay
@@ -149,9 +205,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
         // Initialize new fields if missing
         if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
-        // Migrate removed providers to openrouter
-        if (parsed.modelProvider === 'gemini' || parsed.modelProvider === 'minimax') {
+        // Migrate unknown providers to openrouter
+        if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.modelProvider)) {
             parsed.modelProvider = 'openrouter'
+        }
+        parsed.providerEnabled = {
+            ...defaultSettings.providerEnabled,
+            ...(typeof parsed.providerEnabled === 'object' && parsed.providerEnabled !== null ? parsed.providerEnabled : {}),
         }
         if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
         if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
@@ -176,15 +236,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             })
             parsed.groqModels = merged
         }
-        // Initialize NVIDIA fields if missing
-        if (!parsed.nvidiaApiKey) parsed.nvidiaApiKey = defaultSettings.nvidiaApiKey
-        // Always use full default list; merge preserves user's enabled state for models that exist in both
-        const userNvidia = parsed.nvidiaModels
-        const merged = defaultSettings.nvidiaModels.map((d) => {
-            const existing = Array.isArray(userNvidia) ? userNvidia.find((m: { code: string }) => m.code === d.code) : undefined
-            return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-        })
-        parsed.nvidiaModels = merged
         // Initialize Alibaba fields if missing
         if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
         // Always merge with full default list (expanded model catalog); preserve user's enabled state
@@ -210,9 +261,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             parsed.aiModel = deprecatedGroqModelMap[parsed.aiModel]
         }
         // Ensure titleModel exists; migrate gemini-* to OpenRouter model
+        if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
+        if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.titleModelProvider)) {
+            parsed.titleModelProvider = defaultSettings.titleModelProvider
+        }
         if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
         if (parsed.titleModel?.startsWith('gemini-')) {
             parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+        }
+        if (typeof parsed.titleGenerationPrompt !== 'string') {
+            parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
+        }
+        if (!parsed.titleGenerationDisplayMode || !['instant', 'typewriter'].includes(parsed.titleGenerationDisplayMode)) {
+            parsed.titleGenerationDisplayMode = defaultSettings.titleGenerationDisplayMode
         }
 
         // Max tokens sanity + migration
@@ -227,15 +288,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Initialize tool settings if missing
         if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
         if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
-        if (!parsed.enabledTools) parsed.enabledTools = defaultSettings.enabledTools
-        if (parsed.webSearchEnabled === undefined) parsed.webSearchEnabled = defaultSettings.webSearchEnabled
-        // Migration: deep research removed - ensure webSearchEnabled if it was on
-        if ((parsed as Record<string, unknown>).deepResearchEnabled === true) {
-            parsed.webSearchEnabled = true
+        const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
+        if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
+            parsed.enabledTools = defaultSettings.enabledTools
+        } else {
+            parsed.enabledTools = parsed.enabledTools.filter((tool: string) => availableToolNames.has(tool))
+            if (parsed.enabledTools.length === 0) {
+                parsed.enabledTools = defaultSettings.enabledTools
+            }
         }
-        delete (parsed as Record<string, unknown>).deepResearchEnabled
-        // structuredResearchEnabled restored - initialize if missing
-        if (parsed.structuredResearchEnabled === undefined) parsed.structuredResearchEnabled = defaultSettings.structuredResearchEnabled
+        const legacySettingsRecord = parsed as Record<string, unknown>
+        parsed.skills = migrateSkillsFromLegacySettings({
+            skills: legacySettingsRecord.skills,
+            webSearchEnabled: legacySettingsRecord.webSearchEnabled,
+            structuredResearchEnabled: legacySettingsRecord.structuredResearchEnabled,
+            deepResearchEnabled: legacySettingsRecord.deepResearchEnabled,
+        })
+        delete legacySettingsRecord.deepResearchEnabled
+        delete legacySettingsRecord.webSearchEnabled
+        delete legacySettingsRecord.structuredResearchEnabled
         // Initialize favoriteModels if missing
         if (!parsed.favoriteModels) parsed.favoriteModels = defaultSettings.favoriteModels
 
@@ -248,8 +319,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.rememberLastChatSession === undefined) parsed.rememberLastChatSession = defaultSettings.rememberLastChatSession
         if (parsed.rememberLastSettingsSection === undefined) parsed.rememberLastSettingsSection = defaultSettings.rememberLastSettingsSection
         if (parsed.rememberLastDashboardView === undefined) parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
-        // Initialize commandBar settings if missing
-        if (!parsed.commandBar) parsed.commandBar = defaultSettings.commandBar
+        // Initialize commandBar settings if missing; deep-merge with defaults
+        // so that new fields (overlayOpacity, paletteWidth, palettePosition)
+        // get their default values when upgrading from older persisted data
+        if (!parsed.commandBar) {
+            parsed.commandBar = defaultSettings.commandBar
+        } else {
+            parsed.commandBar = { ...defaultSettings.commandBar, ...parsed.commandBar }
+        }
 
         // Initialize configuredModels if missing or empty
         if (!parsed.configuredModels || parsed.configuredModels.length === 0) {
@@ -263,8 +340,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
         // Initialize sidebarAutoHideOnResize if missing
         if (parsed.sidebarAutoHideOnResize === undefined) parsed.sidebarAutoHideOnResize = defaultSettings.sidebarAutoHideOnResize
+        // Initialize promptAutoHide if missing; deep-merge with defaults
+        if (!parsed.promptAutoHide) {
+            parsed.promptAutoHide = defaultSettings.promptAutoHide
+        } else {
+            parsed.promptAutoHide = { ...defaultSettings.promptAutoHide, ...parsed.promptAutoHide }
+        }
         // Initialize softenedContrast if missing
         if (parsed.softenedContrast === undefined) parsed.softenedContrast = defaultSettings.softenedContrast
+        // Remove deprecated notification settings from persisted payloads
+        delete (parsed as Record<string, unknown>).notificationsEnabled
+        delete (parsed as Record<string, unknown>).nativeNotificationsEnabled
+        delete (parsed as Record<string, unknown>).toastDuration
+        delete (parsed as Record<string, unknown>).doNotDisturb
         // Initialize chatBubbleStyle if missing
         if (!parsed.chatBubbleStyle) parsed.chatBubbleStyle = defaultSettings.chatBubbleStyle
         // Initialize/migrate chatSelectedOverlayStyle if missing
@@ -286,84 +374,101 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
+        // Remove deprecated response transition mode from persisted payloads
+        delete (parsed as Record<string, unknown>).responseTransitionMode
+
         return parsed
     })
-
-    // Extract UI and Config settings for child providers
-    const initialUISettings = useMemo<Partial<SettingsUI>>(() => ({
-        theme: storedSettings.theme,
-        activeTheme: storedSettings.activeTheme,
-        titleBarDensity: storedSettings.titleBarDensity,
-        titleBarShowAppName: storedSettings.titleBarShowAppName,
-        titleBarShowChatTitle: storedSettings.titleBarShowChatTitle,
-        titleBarShowModel: storedSettings.titleBarShowModel,
-        commandBar: storedSettings.commandBar,
-        frostedSidebar: storedSettings.frostedSidebar,
-        frostedPrompt: storedSettings.frostedPrompt,
-        sidebarAutoHideOnResize: storedSettings.sidebarAutoHideOnResize,
-        softenedContrast: storedSettings.softenedContrast,
-        chatBubbleStyle: storedSettings.chatBubbleStyle,
-        chatSelectedOverlayStyle: storedSettings.chatSelectedOverlayStyle,
-    }), [storedSettings])
-
-    const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
-        openRouterApiKey: storedSettings.openRouterApiKey,
-        perplexityApiKey: storedSettings.perplexityApiKey,
-        groqApiKey: storedSettings.groqApiKey,
-        tavilyApiKey: storedSettings.tavilyApiKey,
-        nvidiaApiKey: storedSettings.nvidiaApiKey,
-        alibabaApiKey: storedSettings.alibabaApiKey,
-        aiModel: storedSettings.aiModel,
-        modelProvider: storedSettings.modelProvider,
-        configuredModels: storedSettings.configuredModels,
-        ollamaUrl: storedSettings.ollamaUrl,
-        ollamaModels: storedSettings.ollamaModels,
-        perplexityModels: storedSettings.perplexityModels,
-        groqModels: storedSettings.groqModels,
-        nvidiaModels: storedSettings.nvidiaModels,
-        alibabaModels: storedSettings.alibabaModels,
-        temperature: storedSettings.temperature,
-        maxTokens: storedSettings.maxTokens,
-        systemPrompt: storedSettings.systemPrompt,
-        webSearchPrompt: storedSettings.webSearchPrompt,
-        streamResponses: storedSettings.streamResponses,
-        toolsEnabled: storedSettings.toolsEnabled,
-        enabledTools: storedSettings.enabledTools,
-        webSearchEnabled: storedSettings.webSearchEnabled,
-        structuredResearchEnabled: storedSettings.structuredResearchEnabled,
-        titleModel: storedSettings.titleModel,
-        favoriteModels: storedSettings.favoriteModels,
-        quickPrompts: storedSettings.quickPrompts,
-        todos: storedSettings.todos,
-        rememberLastChatSession: storedSettings.rememberLastChatSession,
-        rememberLastSettingsSection: storedSettings.rememberLastSettingsSection,
-        rememberLastDashboardView: storedSettings.rememberLastDashboardView,
-    }), [storedSettings])
 
     // Track combined settings for localStorage persistence
     const [combinedSettings, setCombinedSettings] = useState<Settings>(storedSettings)
 
+    // Extract UI and Config settings for child providers
+    const initialUISettings = useMemo<Partial<SettingsUI>>(() => ({
+        theme: combinedSettings.theme,
+        activeTheme: combinedSettings.activeTheme,
+        titleBarDensity: combinedSettings.titleBarDensity,
+        titleBarShowAppName: combinedSettings.titleBarShowAppName,
+        titleBarShowChatTitle: combinedSettings.titleBarShowChatTitle,
+        titleBarShowModel: combinedSettings.titleBarShowModel,
+        commandBar: combinedSettings.commandBar,
+        frostedSidebar: combinedSettings.frostedSidebar,
+        frostedPrompt: combinedSettings.frostedPrompt,
+        sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
+        promptAutoHide: combinedSettings.promptAutoHide,
+        softenedContrast: combinedSettings.softenedContrast,
+        chatBubbleStyle: combinedSettings.chatBubbleStyle,
+        chatSelectedOverlayStyle: combinedSettings.chatSelectedOverlayStyle,
+        modelSelector: combinedSettings.modelSelector,
+    }), [combinedSettings])
+
+    const initialConfigSettings = useMemo<Partial<SettingsConfig>>(() => ({
+        openRouterApiKey: combinedSettings.openRouterApiKey,
+        perplexityApiKey: combinedSettings.perplexityApiKey,
+        groqApiKey: combinedSettings.groqApiKey,
+        tavilyApiKey: combinedSettings.tavilyApiKey,
+        alibabaApiKey: combinedSettings.alibabaApiKey,
+        aiModel: combinedSettings.aiModel,
+        modelProvider: combinedSettings.modelProvider,
+        providerEnabled: combinedSettings.providerEnabled,
+        configuredModels: combinedSettings.configuredModels,
+        ollamaUrl: combinedSettings.ollamaUrl,
+        ollamaModels: combinedSettings.ollamaModels,
+        perplexityModels: combinedSettings.perplexityModels,
+        groqModels: combinedSettings.groqModels,
+        alibabaModels: combinedSettings.alibabaModels,
+        temperature: combinedSettings.temperature,
+        maxTokens: combinedSettings.maxTokens,
+        systemPrompt: combinedSettings.systemPrompt,
+        webSearchPrompt: combinedSettings.webSearchPrompt,
+        streamResponses: combinedSettings.streamResponses,
+        toolsEnabled: combinedSettings.toolsEnabled,
+        enabledTools: combinedSettings.enabledTools,
+        skills: combinedSettings.skills,
+        titleModel: combinedSettings.titleModel,
+        titleModelProvider: combinedSettings.titleModelProvider,
+        titleGenerationPrompt: combinedSettings.titleGenerationPrompt,
+        titleGenerationDisplayMode: combinedSettings.titleGenerationDisplayMode,
+        favoriteModels: combinedSettings.favoriteModels,
+        quickPrompts: combinedSettings.quickPrompts,
+        todos: combinedSettings.todos,
+        rememberLastChatSession: combinedSettings.rememberLastChatSession,
+        rememberLastSettingsSection: combinedSettings.rememberLastSettingsSection,
+        rememberLastDashboardView: combinedSettings.rememberLastDashboardView,
+    }), [combinedSettings])
+
     // Callbacks to sync settings from child contexts
     const handleUISettingsChange = useCallback((uiSettings: SettingsUI) => {
-        setCombinedSettings(prev => ({ ...prev, ...uiSettings }))
+        setCombinedSettings((prev) => {
+            if (!hasSettingsDiff(prev, uiSettings as unknown as Record<string, unknown>)) {
+                return prev
+            }
+            return { ...prev, ...uiSettings }
+        })
     }, [])
 
     const handleConfigSettingsChange = useCallback((configSettings: SettingsConfig) => {
-        setCombinedSettings(prev => ({ ...prev, ...configSettings }))
+        setCombinedSettings((prev) => {
+            if (!hasSettingsDiff(prev, configSettings as unknown as Record<string, unknown>)) {
+                return prev
+            }
+            return { ...prev, ...configSettings }
+        })
     }, [])
 
     // Persist combined settings to localStorage
     useEffect(() => {
-        localStorage.setItem('zura-settings', JSON.stringify(combinedSettings))
+        const sanitizedSettings = stripSecretSettings(combinedSettings as unknown as Record<string, unknown>) as unknown as Settings
+        localStorage.setItem('zura-settings', JSON.stringify(sanitizedSettings))
     }, [combinedSettings])
 
 
     // Listen for storage events from other windows/tabs
     useEffect(() => {
         const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === 'zura-settings' && e.newValue) {
-                const newSettings = JSON.parse(e.newValue)
-                setCombinedSettings(newSettings)
+            if (e.key === 'zura-settings') {
+                const newSettings = parseStoredSettings(e.newValue)
+                setCombinedSettings((prev) => ({ ...prev, ...newSettings }))
             }
         }
         window.addEventListener('storage', handleStorageChange)
@@ -391,7 +496,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
  * Combined settings hook for backward compatibility
  * 
  * For better performance, prefer using the specific hooks:
- * - useSettingsUI() - For theme, title bar, and command bar settings
+ * - useSettingsUI() - For theme, title bar, and command palette settings
  * - useSettingsConfig() - For API keys, models, AI parameters, tool settings
  */
 export function useSettings() {

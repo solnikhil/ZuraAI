@@ -1,3 +1,4 @@
+import { parseNDJSONStream } from './streamUtils'
 
 export interface OllamaModel {
     name: string
@@ -52,6 +53,56 @@ export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> 
     }
 }
 
+/** Default Ollama context length when /api/show doesn't return one */
+const OLLAMA_DEFAULT_CONTEXT = 4096
+
+/**
+ * Fetch context length for a single Ollama model via /api/show.
+ * Returns the context_length from model_info, or OLLAMA_DEFAULT_CONTEXT on failure.
+ */
+export const getOllamaModelContextLength = async (
+    baseUrl: string,
+    modelName: string
+): Promise<number> => {
+    try {
+        const response = await fetch(`${baseUrl}/api/show`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: modelName }),
+        })
+        if (!response.ok) return OLLAMA_DEFAULT_CONTEXT
+        const data = await response.json()
+        // model_info keys are like "<architecture>.context_length"
+        const modelInfo = data.model_info
+        if (modelInfo && typeof modelInfo === 'object') {
+            for (const key of Object.keys(modelInfo)) {
+                if (key.endsWith('.context_length') && typeof modelInfo[key] === 'number') {
+                    return modelInfo[key]
+                }
+            }
+        }
+        return OLLAMA_DEFAULT_CONTEXT
+    } catch {
+        return OLLAMA_DEFAULT_CONTEXT
+    }
+}
+
+/**
+ * Enrich an array of basic Ollama model entries with context lengths fetched in parallel.
+ */
+export const enrichOllamaModelsWithContext = async (
+    baseUrl: string,
+    models: Array<{ code: string; displayName: string; [key: string]: unknown }>
+): Promise<Array<{ code: string; displayName: string; maxContext: number; [key: string]: unknown }>> => {
+    const results = await Promise.allSettled(
+        models.map(m => getOllamaModelContextLength(baseUrl, m.code))
+    )
+    return models.map((m, i) => ({
+        ...m,
+        maxContext: results[i].status === 'fulfilled' ? results[i].value : OLLAMA_DEFAULT_CONTEXT,
+    }))
+}
+
 export interface OllamaStreamChunk {
     model: string
     created_at: string
@@ -90,73 +141,39 @@ export async function* streamOllamaCompletion(
         signal?: AbortSignal
     }
 ): AsyncGenerator<OllamaStreamChunk, void, unknown> {
-    try {
-        const response = await fetch(`${baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model,
-                messages,
-                stream: true,
-                think: options?.think ?? true,
-                tools: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? options.tools : undefined,
-                tool_choice: options?.tools && Array.isArray(options.tools) && options.tools.length > 0 ? 'auto' : undefined,
-                options: {
-                    temperature: options?.temperature,
-                    num_ctx: options?.num_ctx
-                }
-            }),
-            signal: options?.signal
-        })
-
-        if (!response.ok) {
-            const errorText = await response.text().catch(() => '')
-            throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
-        }
-
-        const reader = response.body?.getReader()
-        if (!reader) {
-            throw new Error("Failed to get response reader")
-        }
-
-        const decoder = new TextDecoder()
-        let buffer = ''
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                const lines = buffer.split('\n')
-                buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.trim() === '') continue
-                    try {
-                        const chunk: OllamaStreamChunk = JSON.parse(line)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                        if (chunk.done) {
-                            return
-                        }
-                    } catch (e) {
-                        // Skip invalid JSON
-                        console.warn('Failed to parse Ollama chunk:', line)
-                    }
-                }
+    const response = await fetch(`${baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: true,
+            think: options?.think ?? true,
+            tools: options?.tools && options.tools.length > 0 ? options.tools : undefined,
+            tool_choice: options?.tools && options.tools.length > 0 ? 'auto' : undefined,
+            options: {
+                temperature: options?.temperature,
+                num_ctx: options?.num_ctx
             }
-        } finally {
-            reader.releaseLock()
-        }
-    } catch (error: any) {
-        console.error('Ollama stream error:', error)
-        throw error
+        }),
+        signal: options?.signal
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
     }
+
+    const reader = response.body?.getReader()
+    if (!reader) {
+        throw new Error("Failed to get response reader")
+    }
+
+    yield* parseNDJSONStream<OllamaStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+    })
 }
 
 export const generateOllamaCompletion = async (

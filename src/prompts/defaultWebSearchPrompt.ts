@@ -1,9 +1,15 @@
-// Default web search prompt - appended when Web Search is enabled
+// Default web search prompt - appended when the Web Research skill is enabled
 
 export const defaultWebSearchPrompt = `You have access to the web_search tool for real-time information. Use it when the user needs:
 - Current events, news, or recent data
 - Facts, figures, or statistics you cannot verify from context
 - Verification of uncertain information
+
+URL-FIRST ROUTING:
+- If the user provides a specific URL, call web_search with that URL in the query. The system will route it to focused URL extraction.
+- URL only (e.g. "https://foo.com/article") -> direct extraction.
+- Query + URL (e.g. "summarize pricing https://foo.com/pricing") -> extraction reranked to the query.
+- If there is no URL, use normal web search behavior.
 
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 

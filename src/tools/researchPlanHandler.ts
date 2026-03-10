@@ -67,7 +67,9 @@ function formatStepResult(
 export type OnResearchPlanProgress = (currentStep: number, totalSteps: number, query?: string) => void
 
 /**
- * Execute a research_plan tool call: run web_search for each step and return combined results.
+ * Execute a research_plan tool call: run web_search for each step in parallel.
+ * Steps are fired concurrently (up to MAX_CONCURRENT) and results are
+ * reassembled in the original step order.
  */
 export async function executeResearchPlanTool(
   toolCall: ToolCall,
@@ -84,21 +86,28 @@ export async function executeResearchPlanTool(
     }
   }
 
-  const parts: string[] = []
+  const totalSteps = plan.steps.length
+  let completedCount = 0
 
-  for (let i = 0; i < plan.steps.length; i++) {
-    const step = plan.steps[i]
-    onProgress?.(i + 1, plan.steps.length, step.query)
+  // Signal that research is starting
+  onProgress?.(1, totalSteps, plan.steps[0]?.query)
 
+  // Execute all steps in parallel — each step is an independent web search
+  const stepPromises = plan.steps.map(async (step) => {
     const result: ToolResult = await executeTool('web_search', {
       query: step.query,
       num_results: 5,
       search_depth: 'advanced'
     })
 
-    parts.push(formatStepResult(step, result))
-  }
+    // Report progress as each step completes
+    completedCount++
+    onProgress?.(completedCount, totalSteps, step.query)
 
+    return formatStepResult(step, result)
+  })
+
+  const parts = await Promise.all(stepPromises)
   const combinedResults = [`# Research: ${plan.topic}`, '', ...parts].join('\n')
 
   return {

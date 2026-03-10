@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
-
-/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
-const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
+import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
+import { CommandPalette } from './CommandPalette'
 
-const NOISE_SVG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E")`
+/** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
+const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
 
 function AppShellContent() {
     const navigate = useNavigate()
@@ -17,25 +17,64 @@ function AppShellContent() {
     const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
-    const { sidebarCollapsed, sidebarHidden, setSidebarHidden } = useAppShell()
+    const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden, isResizingSidebar } = useAppShell()
+    const isDev = import.meta.env.DEV
+    const hasRunInitialSidebarAutoHideCheckRef = useRef(false)
+    const lastSidebarAutoHideWidthRef = useRef<number | null>(null)
 
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const hasSidebar = isDashboardRoute || location.pathname === '/chat'
 
-    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle
+    // Auto-hide sidebar when window is at or below threshold (if enabled); user can unhide via titlebar toggle.
+    // Debounced to prevent rapid show/hide flicker when resizing near the threshold boundary.
+    // Only auto-hides (never auto-shows) to avoid fighting user intent.
+    // Uses threshold-crossing detection so incidental resizes while already narrow
+    // don't repeatedly re-hide a user-unhidden sidebar.
     useEffect(() => {
-        if (!hasSidebar || !sidebarAutoHideOnResize) return
-        const handler = () => {
-            const width = window.innerWidth
-            if (width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
+        if (!hasSidebar || !sidebarAutoHideOnResize) {
+            lastSidebarAutoHideWidthRef.current = window.innerWidth
+            return
+        }
+
+        const applyHideIfStillNarrow = () => {
+            if (window.innerWidth <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX) {
                 setSidebarHidden(true)
             }
         }
-        handler() // Initial check on mount
+
+        const currentWidth = window.innerWidth
+        if (!hasRunInitialSidebarAutoHideCheckRef.current) {
+            hasRunInitialSidebarAutoHideCheckRef.current = true
+            applyHideIfStillNarrow()
+        }
+        lastSidebarAutoHideWidthRef.current = currentWidth
+
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+        const handler = () => {
+            if (debounceTimer) clearTimeout(debounceTimer)
+            debounceTimer = setTimeout(() => {
+                const width = window.innerWidth
+                const previousWidth = lastSidebarAutoHideWidthRef.current ?? width
+                const crossedIntoNarrowRange = previousWidth > SIDEBAR_AUTO_HIDE_THRESHOLD_PX && width <= SIDEBAR_AUTO_HIDE_THRESHOLD_PX
+                lastSidebarAutoHideWidthRef.current = width
+
+                if (crossedIntoNarrowRange) {
+                    setSidebarHidden(true)
+                }
+                debounceTimer = null
+            }, 200)
+        }
+
         window.addEventListener('resize', handler)
-        return () => window.removeEventListener('resize', handler)
+        return () => {
+            window.removeEventListener('resize', handler)
+            if (debounceTimer) clearTimeout(debounceTimer)
+        }
     }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
-    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const sidebarWidthPx = sidebarHidden
+        ? 0
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
     const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
 
     // Detect Windows platform (same pattern as TitleBar)
@@ -45,6 +84,8 @@ function AppShellContent() {
 
     // Track window maximize state for resize handles
     const [isMaximized, setIsMaximized] = useState(false)
+    const [resizeIndicator, setResizeIndicator] = useState<string | null>(null)
+    const resizeIndicatorTimerRef = useRef<number | null>(null)
 
     useEffect(() => {
         if (!window.windowControls) return
@@ -56,6 +97,39 @@ function AppShellContent() {
         })
         return cleanup
     }, [])
+
+    // Dev-only resize indicator (helps tune responsive layouts while resizing)
+    useEffect(() => {
+        if (!isDev) return
+
+        const getSizeLabel = () => {
+            const width = window.outerWidth || window.innerWidth
+            const height = window.outerHeight || window.innerHeight
+            return `${width} x ${height}`
+        }
+
+        const clearHideTimer = () => {
+            if (resizeIndicatorTimerRef.current !== null) {
+                window.clearTimeout(resizeIndicatorTimerRef.current)
+                resizeIndicatorTimerRef.current = null
+            }
+        }
+
+        const onResize = () => {
+            setResizeIndicator(getSizeLabel())
+            clearHideTimer()
+            resizeIndicatorTimerRef.current = window.setTimeout(() => {
+                setResizeIndicator(null)
+                resizeIndicatorTimerRef.current = null
+            }, 600)
+        }
+
+        window.addEventListener('resize', onResize)
+        return () => {
+            window.removeEventListener('resize', onResize)
+            clearHideTimer()
+        }
+    }, [isDev])
 
     // Toggle frosted-mode class on html element + notify main process for native blur
     useEffect(() => {
@@ -92,43 +166,63 @@ function AppShellContent() {
             backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
             position: 'relative'
         }}>
-            {/* Glass panel under the titlebar for frosted mode */}
-            {frostedSidebar && isDashboardRoute && sidebarWidthPx > 0 && (
+            {/* Glass panel covering full sidebar column (titlebar + content) for frosted mode.
+                A single backdrop-filter layer avoids the Chromium compositing seam that appeared
+                when the titlebar glass strip and this panel each had their own backdrop-filter.
+                During active sidebar resize, we hint the compositor with will-change and
+                simplify the backdrop-filter to avoid expensive per-frame GPU recomposition. */}
+            {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
                 <div style={{
                     position: 'absolute',
                     left: 0,
-                    top: titlebarHeightPx,
+                    top: 0,
                     bottom: 0,
                     width: `${sidebarWidthPx}px`,
-                    background: 'var(--frosted-glass-gradient)',
-                    borderRight: 'var(--frosted-glass-border)',
-                    boxShadow: 'var(--frosted-glass-shadow)',
-                    transition: 'width 0.2s ease',
+                    background: `linear-gradient(180deg, rgba(10, 10, 14, 0.46) 0px, rgba(6, 6, 10, 0.33) ${titlebarHeightPx}px, rgba(6, 6, 10, 0.3) 100%)`,
+                    borderRight: 'none',
+                    boxShadow: 'none',
+                    backdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
+                    WebkitBackdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
                     zIndex: 0,
                     pointerEvents: 'none',
-                    boxSizing: 'border-box'
-                }}>
-                    <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        backgroundImage: NOISE_SVG,
-                        backgroundSize: '200px 200px',
-                        opacity: 'var(--frosted-glass-noise-opacity)',
-                        mixBlendMode: 'overlay' as const,
-                        pointerEvents: 'none' as const
-                    }} />
-                </div>
+                    boxSizing: 'border-box',
+                    willChange: isResizingSidebar ? 'width' : 'auto',
+                    transition: isResizingSidebar ? 'none' : undefined,
+                }} />
             )}
             <TitleBar />
+            <CommandPalette />
             <div className="app-content" style={{
                 backgroundColor: frostedSidebar ? 'transparent' : undefined,
                 borderTop: 'none'
             }}>
                 <Outlet />
             </div>
-            {/* Render CSS-based resize handles when frosted mode is active on Windows */}
-            {frostedSidebar && isWindows && (
+            {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}
+            {isWindows && (
                 <ResizeHandles disabled={isMaximized} />
+            )}
+            {isDev && resizeIndicator && (
+                <div style={{
+                    position: 'fixed',
+                    top: '10px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 2000,
+                    pointerEvents: 'none',
+                    padding: '6px 10px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--theme-border)',
+                    background: 'color-mix(in srgb, var(--theme-surface) 88%, black 12%)',
+                    color: 'var(--theme-text-primary)',
+                    fontSize: '0.78rem',
+                    lineHeight: 1,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                    boxShadow: 'var(--theme-shadow-sm)',
+                    letterSpacing: '0.02em'
+                }}>
+                    {resizeIndicator}
+                </div>
             )}
         </div>
     )

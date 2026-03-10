@@ -17,13 +17,15 @@
  * - For any message list with more than 50 messages, virtualization SHALL be active
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
+import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
-import { useToast } from '../shared/Toast'
-import { useToolCalling } from '../../hooks/useToolCalling'
+import { useQuickSend } from '../../contexts/QuickSendContext'
+import { useSettings } from '../../contexts/SettingsContext'
 import { ToolCallIndicator, ToolResultDisplay } from '../../tools/ui'
 
 // Extracted components
@@ -31,7 +33,7 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
-import { useStreamingChat } from './ChatArea/hooks'
+import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/FileUploadHandler'
 
 /**
@@ -42,8 +44,7 @@ const VIRTUALIZATION_THRESHOLD = 50
 
 export default function ChatArea() {
   const { sessions, currentSessionId } = useChatHistory()
-  const { showToast } = useToast()
-  const { toolState } = useToolCalling()
+  const { settings } = useSettings()
   
   // Get streaming state for virtualized list
   // **Validates: Property 22: Isolated Streaming Updates**
@@ -52,10 +53,12 @@ export default function ChatArea() {
   // Local state
   const [input, setInput] = useState('')
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [promptFocused, setPromptFocused] = useState(false)
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Get current session and messages
   const currentSession = sessions.find(s => s.id === currentSessionId)
@@ -72,7 +75,7 @@ export default function ChatArea() {
   const userScrolledAwayRef = useRef(false)
 
   // Use the streaming chat hook
-  const { isLoading, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
+  const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onMessageSent: () => {
       setInput('')
       setAttachedFiles([])
@@ -84,6 +87,41 @@ export default function ChatArea() {
       })
     }
   })
+
+  // Prompt auto-hide
+  const promptAutoHideSettings = settings.promptAutoHide
+  const { isPromptHidden, resetTimer, triggerZoneProps } = usePromptAutoHide({
+    enabled: promptAutoHideSettings.enabled,
+    isLoading,
+    isFocused: promptFocused,
+    hasInput: input.trim().length > 0,
+    hasFiles: attachedFiles.length > 0,
+    timeoutSeconds: promptAutoHideSettings.timeout,
+    textareaRef: inputTextareaRef as React.RefObject<HTMLTextAreaElement | null>,
+  })
+
+  // Callbacks for InputArea props
+  const handlePromptActivity = useCallback(() => {
+    resetTimer()
+  }, [resetTimer])
+
+  const handlePromptFocusChange = useCallback((focused: boolean) => {
+    setPromptFocused(focused)
+  }, [])
+
+  const handleTextareaRefCallback = useCallback((ref: React.RefObject<HTMLTextAreaElement | null>) => {
+    inputTextareaRef.current = ref.current
+  }, [])
+
+  // Quick-send: consume a pending message queued from the command palette
+  const { pendingMessage, consumeMessage } = useQuickSend()
+  useEffect(() => {
+    if (!pendingMessage || isLoading) return
+    const message = consumeMessage()
+    if (message) {
+      sendMessage(message, [])
+    }
+  }, [pendingMessage, isLoading, consumeMessage, sendMessage])
 
   // Scroll helpers
   const scrollToNewMessage = (smooth = false) => {
@@ -152,9 +190,8 @@ export default function ChatArea() {
   // Copy message content - memoized to prevent unnecessary re-renders
   // **Validates: Property 22: Isolated Streaming Updates**
   const handleCopy = useCallback((content: string) => {
-    navigator.clipboard.writeText(content)
-    showToast('Copied to clipboard', 'success')
-  }, [showToast])
+    void navigator.clipboard.writeText(content)
+  }, [])
 
   // Render message callback for VirtualMessageList
   // **Validates: Property 17: Virtual Scrolling Activation**
@@ -169,13 +206,13 @@ export default function ChatArea() {
         {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
           <div style={{ marginBottom: '12px' }}>
             {msg.toolResults
-              .filter((r: any) => r.toolCall.name !== 'web_search')
-              .map((result: any, i: number) => (
+              .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
+              .map((result: ToolCallResult, i: number) => (
                 <ToolResultDisplay
                   key={`stored-${i}`}
                   toolName={result.toolCall.name}
-                  result={result.result.success ? result.result.data : undefined}
-                  error={result.result.success ? undefined : result.result.error}
+                   result={result.result?.success ? result.result.data : undefined}
+                   error={result.result?.success ? undefined : result.result?.error}
                 />
               ))}
           </div>
@@ -209,8 +246,8 @@ export default function ChatArea() {
                 <ToolResultDisplay
                   key={i}
                   toolName={result.toolCall.name}
-                  result={result.result.success ? result.result.data : undefined}
-                  error={result.result.success ? undefined : result.result.error}
+                   result={result.result?.success ? result.result.data : undefined}
+                   error={result.result?.success ? undefined : result.result?.error}
                 />
               ))}
           </div>
@@ -267,6 +304,7 @@ export default function ChatArea() {
               attachedFiles={attachedFiles}
               onFilesChange={setAttachedFiles}
               onError={(msg) => showToast(msg, 'error')}
+              showContextRing={false}
             />
           </div>
         </div>
@@ -338,8 +376,8 @@ export default function ChatArea() {
                   {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
                     <div style={{ marginBottom: '12px' }}>
                       {msg.toolResults
-                        .filter((r: any) => r.toolCall.name !== 'web_search')
-                        .map((result: any, i: number) => (
+                        .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
+                        .map((result: ToolCallResult, i: number) => (
                           <ToolResultDisplay
                             key={`stored-${i}`}
                             toolName={result.toolCall.name}
@@ -407,9 +445,19 @@ export default function ChatArea() {
         </ScrollArea>
       )}
 
-      {/* Input Area */}
-      <div className="chat-input-overlay">
-        <div className="chat-input-overlay__inner">
+      {/* Input Area - always mounted, animated via transform for smooth GPU slide */}
+      <motion.div
+        className="chat-input-overlay"
+        animate={isPromptHidden ? { y: '100%', opacity: 0 } : { y: 0, opacity: 1 }}
+        initial={false}
+        transition={{ type: 'tween', duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+        style={{ willChange: 'transform, opacity' }}
+        aria-hidden={isPromptHidden}
+      >
+        <div
+          className="chat-input-overlay__inner"
+          style={{ pointerEvents: isPromptHidden ? 'none' : undefined }}
+        >
           <InputArea
             input={input}
             setInput={setInput}
@@ -418,9 +466,48 @@ export default function ChatArea() {
             attachedFiles={attachedFiles}
             onFilesChange={setAttachedFiles}
             onError={(msg) => showToast(msg, 'error')}
+            showContextRing={true}
+            onActivity={handlePromptActivity}
+            onFocusChange={handlePromptFocusChange}
+            textareaRefCallback={handleTextareaRefCallback}
           />
         </div>
-      </div>
+      </motion.div>
+
+      {/* Hover trigger zone - only visible when prompt is hidden */}
+      <AnimatePresence>
+        {isPromptHidden && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            {...triggerZoneProps}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '100%',
+              maxWidth: 'min(860px, 100%)',
+              height: '48px',
+              cursor: 'pointer',
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '4px',
+              borderRadius: '2px',
+              background: 'var(--theme-text-muted)',
+              opacity: 0.4,
+            }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Styles */}
       <style>{`
@@ -458,7 +545,7 @@ export default function ChatArea() {
         }
         .chat-input-overlay__inner {
           width: 100%;
-          max-width: min(900px, 100%);
+          max-width: min(860px, 100%);
           margin: 0 auto;
           pointer-events: auto;
         }

@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useSettings } from '../../../contexts/SettingsContext'
-import { checkOllamaStatus, listOllamaModels } from '../../../services/ollama'
+import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../../services/ollama'
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
@@ -87,9 +87,13 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'nvidia', 'alibaba'] as const
+  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'alibaba'] as const
+  const providerEnabled = settings.providerEnabled || {}
 
   const isProviderEnabled = useCallback((provider: string): boolean => {
+    const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
+    if (!manuallyEnabled) return false
+
     switch (provider) {
       case 'ollama':
         return Boolean(settings.ollamaUrl?.trim())
@@ -99,14 +103,12 @@ export function useModelSelector(): UseModelSelectorReturn {
         return Boolean(settings.perplexityApiKey?.trim())
       case 'groq':
         return Boolean(settings.groqApiKey?.trim())
-      case 'nvidia':
-        return Boolean(settings.nvidiaApiKey?.trim())
       case 'alibaba':
         return Boolean(settings.alibabaApiKey?.trim())
       default:
         return false
     }
-  }, [settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.nvidiaApiKey, settings.alibabaApiKey])
+  }, [providerEnabled, settings.ollamaUrl, settings.openRouterApiKey, settings.perplexityApiKey, settings.groqApiKey, settings.alibabaApiKey])
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
@@ -123,7 +125,6 @@ export function useModelSelector(): UseModelSelectorReturn {
     perplexity: false,
     openrouter: false,
     groq: false,
-    nvidia: false,
     alibaba: false
   })
   
@@ -175,8 +176,9 @@ export function useModelSelector(): UseModelSelectorReturn {
           code: m.name,
           displayName: `${m.name} (${m.details.parameter_size})`
         }))
+        const enriched = await enrichOllamaModelsWithContext(url, formatted)
         const enabledMap = new Map(existing)
-        const merged = formatted.map(m => ({
+        const merged = enriched.map(m => ({
           ...m,
           enabled: enabledMap.get(m.code) ?? true
         }))
@@ -186,7 +188,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     void refresh()
   }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
   
-  // Get ALL models from ENABLED providers only (provider has API key or ollamaUrl)
+  // Get ALL models from providers that are manually enabled and configured
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 
@@ -210,11 +212,6 @@ export function useModelSelector(): UseModelSelectorReturn {
         .filter(m => m.enabled !== false)
         .forEach(m => models.push({ ...m, provider: 'groq' }))
     }
-    if (isProviderEnabled('nvidia') && settings.nvidiaModels) {
-      settings.nvidiaModels
-        .filter(m => m.enabled !== false)
-        .forEach(m => models.push({ ...m, provider: 'nvidia' }))
-    }
     if (isProviderEnabled('alibaba') && settings.alibabaModels) {
       settings.alibabaModels
         .filter(m => m.enabled !== false)
@@ -235,7 +232,6 @@ export function useModelSelector(): UseModelSelectorReturn {
       perplexity: filteredModels.filter(m => m.provider === 'perplexity'),
       openrouter: filteredModels.filter(m => m.provider === 'openrouter'),
       groq: filteredModels.filter(m => m.provider === 'groq'),
-      nvidia: filteredModels.filter(m => m.provider === 'nvidia'),
       alibaba: filteredModels.filter(m => m.provider === 'alibaba')
     }
   }, [filteredModels])

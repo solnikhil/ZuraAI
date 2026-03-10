@@ -1,11 +1,12 @@
 /**
  * useResearchMode - Hook for managing web search mode state and logic
  *
- * Single unified web search mode: model decides how many searches to perform
- * based on the user's question. No caps, no deep/structured research modes.
+ * Unified web search mode: model decides depth based on the user's question.
+ * Structured mode is supported via research_plan (configured elsewhere).
  */
 
 import { useState, useCallback } from 'react'
+import { getWebResearchMode, isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
 
 /**
  * Base system prompt for web search - planning and multi-turn guidance
@@ -14,6 +15,12 @@ const WEB_SEARCH_BASE_PROMPT = `You have access to the web_search tool for real-
 - Current events, news, or recent data
 - Facts, figures, or statistics you cannot verify from context
 - Verification of uncertain information
+
+URL-FIRST ROUTING:
+- If the user provides a specific URL, call web_search with that URL in the query. The system will route it to focused URL extraction.
+- URL only (e.g. "https://foo.com/article") -> direct extraction.
+- Query + URL (e.g. "summarize pricing https://foo.com/pricing") -> extraction reranked to the query.
+- If there is no URL, use normal web search behavior.
 
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
@@ -33,9 +40,9 @@ function getFollowUpResearchPrompt(searchCount: number): string {
   return `\n\n*** WEB SEARCH PROGRESS ***
 You have completed ${searchCount} search(es).${hasMultipleSearches ? `
 
-IMPORTANT: You have search results above. Provide your synthesized answer NOW based on those results. Do NOT output planning, meta-commentary, or "I should..." reasoning—output the actual answer directly.` : `
+IMPORTANT: You have sufficient search results. Provide your synthesized answer NOW. Do NOT search again—output the actual answer directly.` : `
 
-For list/comparison questions (e.g. "what providers offer X"): If your results seem incomplete or miss major players, call web_search again with a different query before answering. Do NOT synthesize an incomplete list. For other questions: If you have sufficient information, provide your answer now.`}`
+You have search results above. For most questions, one search is enough—provide your answer now. Only search again if the results are clearly incomplete or missing critical information for the specific question asked.`}`
 }
 
 const FORCE_WEB_SEARCH_PREFIX = `The user has requested a web search. Call web_search at least once before answering.
@@ -54,8 +61,6 @@ export interface ResearchModeState {
   maxRounds: number
   /** Number of searches completed */
   searchCount: number
-  /** If true, must complete exactly maxRounds searches (unused - always false) */
-  mandatory: boolean
   /** User explicitly requested web search - nudge model to search */
   forceWebSearch: boolean
 }
@@ -66,8 +71,6 @@ export interface ResearchModeState {
 export interface ResearchModeConfig {
   /** Maximum research rounds (0 = uncapped, model decides) */
   maxRounds: number
-  /** Whether research is mandatory (always false) */
-  mandatory: boolean
   /** Whether to force web search (user explicitly requested) */
   forceWebSearch: boolean
 }
@@ -76,8 +79,8 @@ export interface ResearchModeConfig {
  * Settings required for research mode
  */
 export interface ResearchModeSettings {
-  /** Whether web search is enabled */
-  webSearchEnabled: boolean
+  /** Skill state map */
+  skills: SkillsSettings
   /** Model provider */
   modelProvider: string
   /** Enabled tools list */
@@ -90,7 +93,7 @@ export interface ResearchModeSettings {
 export interface UseResearchModeOptions {
   /** Whether tools can be used with current provider/model */
   canUseTools: boolean
-  /** Custom web search prompt (appended when Web Search is enabled) */
+  /** Custom web search prompt (appended when Web Research skill is enabled) */
   webSearchPrompt?: string
 }
 
@@ -101,7 +104,7 @@ export interface UseResearchModeReturn {
   /** Current research mode state */
   researchState: ResearchModeState
   /** Start research mode with specified parameters */
-  startResearchMode: (maxRounds: number, mandatory?: boolean, forceWebSearch?: boolean) => void
+  startResearchMode: (maxRounds: number, forceWebSearch?: boolean) => void
   /** Stop/reset research mode */
   stopResearchMode: () => void
   /** Increment search count */
@@ -111,8 +114,7 @@ export interface UseResearchModeReturn {
   /** Get research context for system prompt */
   getResearchContext: (
     actualSearchCount?: number,
-    maxRoundsOverride?: number,
-    mandatoryOverride?: boolean
+    maxRoundsOverride?: number
   ) => string
   /** Calculate research mode configuration from settings */
   calculateResearchConfig: (
@@ -135,7 +137,6 @@ const INITIAL_STATE: ResearchModeState = {
   currentRound: 0,
   maxRounds: 0,
   searchCount: 0,
-  mandatory: false,
   forceWebSearch: false,
 }
 
@@ -163,13 +164,12 @@ export function useResearchMode({
 }: UseResearchModeOptions): UseResearchModeReturn {
   const [researchState, setResearchState] = useState<ResearchModeState>(INITIAL_STATE)
 
-  const startResearchMode = useCallback((maxRounds: number, mandatory: boolean = false, forceWebSearch: boolean = false) => {
+  const startResearchMode = useCallback((maxRounds: number, forceWebSearch: boolean = false) => {
     setResearchState({
       isActive: true,
       currentRound: 0,
       maxRounds,
       searchCount: 0,
-      mandatory,
       forceWebSearch,
     })
   }, [])
@@ -219,12 +219,17 @@ export function useResearchMode({
     settings: ResearchModeSettings,
     userMessage: string
   ): ResearchModeConfig => {
-    const webSearchEnabledBySettings =
-      (settings.enabledTools?.length ? settings.enabledTools.includes('web_search') : true) &&
-      settings.webSearchEnabled
+    const webResearchEnabled = isWebResearchEnabled(settings.skills)
+    const webResearchMode = getWebResearchMode(settings.skills)
+    const enabledTools = settings.enabledTools?.length ? settings.enabledTools : ['web_search']
+    const hasWebSearch = enabledTools.includes('web_search')
+    const hasStructuredEntryPoint = enabledTools.includes('research_plan') || hasWebSearch
+    const webSearchEnabledBySettings = webResearchEnabled && (
+      webResearchMode === 'structured' ? hasStructuredEntryPoint : hasWebSearch
+    )
 
     const forceWebSearch =
-      ['openrouter', 'groq', 'nvidia'].includes(settings.modelProvider) &&
+      ['openrouter', 'groq', 'alibaba', 'ollama'].includes(settings.modelProvider) &&
       canUseTools &&
       webSearchEnabledBySettings &&
       checkUserRequestsWebSearch(userMessage)
@@ -234,15 +239,13 @@ export function useResearchMode({
 
     return {
       maxRounds,
-      mandatory: false,
       forceWebSearch,
     }
   }, [canUseTools])
 
   const getResearchContext = useCallback((
     actualSearchCount?: number,
-    maxRoundsOverride?: number,
-    _mandatoryOverride?: boolean
+    maxRoundsOverride?: number
   ): string => {
     const maxRounds = maxRoundsOverride ?? researchState.maxRounds
     const isActive = maxRoundsOverride !== undefined ? maxRounds >= 0 : researchState.isActive

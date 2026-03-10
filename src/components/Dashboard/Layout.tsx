@@ -24,7 +24,6 @@ function SettingsLoadingFallback() {
 export default function DashboardLayout() {
     const {
         dashboardView: view,
-        setDashboardView: setView,
         activeSettingsSection,
         setActiveSettingsSection,
         hasUnsavedSettings,
@@ -63,12 +62,8 @@ export default function DashboardLayout() {
         }}>
             <Sidebar
                 view={view}
-                onOpenSettings={() => setView('settings')}
-                onCloseSettings={() => handleNavigate(() => setView('chat'))}
-                onNavigateToChat={() => setView('chat')}
                 activeSettingsSection={activeSettingsSection}
                 onNavigateSettings={(section) => handleNavigate(() => setActiveSettingsSection(section))}
-                hasUnsavedSettings={hasUnsavedSettings}
             />
 
             {/* Main Content Area - ChatArea or Settings - always has solid background */}
@@ -77,7 +72,8 @@ export default function DashboardLayout() {
                 position: 'relative', 
                 overflow: 'hidden',
                 backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
-                zIndex: 1
+                zIndex: 1,
+                contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
             }}>
                 {view === 'settings' ? (
                     <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, animation: 'fadeIn 0.3s ease' }}>

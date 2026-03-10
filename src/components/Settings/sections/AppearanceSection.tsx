@@ -1,15 +1,15 @@
 /**
  * AppearanceSection component for Settings
- * Unified appearance settings: titlebar, chat bubble style
+ * Continuous vertical layout for all appearance settings.
  *
  * @module AppearanceSection
  */
 
-import React, { useLayoutEffect, useMemo, useState } from 'react'
-import { PanelLeft, MessageSquare, Paintbrush, Command } from '../../icons'
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
-import { useSettings } from '../../../contexts/SettingsContext'
+import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
 import { getThemeById, getDefaultTheme, getThemesByCategory, themeCategories } from '../../../themes/themeRegistry'
@@ -37,8 +37,8 @@ const chatBubblePresets = [
     label: 'Soft Glass',
     description: 'Translucent bubble with blur and border',
     previewStyle: {
-      background: 'rgba(255, 255, 255, 0.08)',
-      border: '1px solid var(--theme-border)',
+      background: 'rgba(148, 163, 184, 0.18)',
+      border: '1px solid rgba(255, 255, 255, 0.22)',
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',
@@ -151,15 +151,41 @@ const chatSelectedOverlayPresets: Array<{
   },
 ]
 
-export interface AppearanceSectionProps {}
+export interface AppearanceSectionProps {
+  settings: Settings
+  onChange: (changes: Partial<Settings>) => void
+  initialCommandPaletteTab?: boolean
+  onParamsConsumed?: () => void
+}
 
-export function AppearanceSection(_props: AppearanceSectionProps): React.ReactElement {
-  const { settings, updateSettings } = useSettings()
+type TitleProviderKey = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+
+const TITLE_PROVIDER_OPTIONS: Array<{ key: TitleProviderKey; label: string }> = [
+  { key: 'openrouter', label: 'OpenRouter' },
+  { key: 'groq', label: 'Groq' },
+  { key: 'alibaba', label: 'Alibaba Cloud' },
+  { key: 'perplexity', label: 'Perplexity' },
+  { key: 'ollama', label: 'Ollama' },
+]
+
+export function AppearanceSection({
+  settings,
+  onChange,
+  initialCommandPaletteTab,
+  onParamsConsumed,
+}: AppearanceSectionProps): React.ReactElement {
+  const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
-  const [appearancePage, setAppearancePage] = useState<'themes' | 'titlebar' | 'chatbubbles' | 'modelselector'>('themes')
-  
+
+  // Consume the initialCommandPaletteTab param (no longer needed for tab switching but keep the callback)
+  useEffect(() => {
+    if (initialCommandPaletteTab) {
+      onParamsConsumed?.()
+    }
+  }, [initialCommandPaletteTab, onParamsConsumed])
+
   // Helper to get modelSelector with defaults
   const getModelSelector = () => ({
     ...defaultSettingsUI.modelSelector!,
@@ -168,15 +194,56 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
   const commandBar = settings.commandBar
   const maxRecents = clampNumber(commandBar.maxRecents, 0, 3)
   const maxSuggestions = clampNumber(commandBar.maxSuggestions, 3, 12)
-  const blurPx = clampNumber(commandBar.blurPx, 0, 30)
-  const fieldSurface = clampNumber(commandBar.fieldSurface, 20, 90)
-  const fieldSurfaceFocused = clampNumber(commandBar.fieldSurfaceFocused, 20, 90)
-  const dropdownSurface = clampNumber(commandBar.dropdownSurface, 20, 90)
+  const overlayOpacity = clampNumber(commandBar.overlayOpacity, 0, 80)
+  const promptAutoHide = settings.promptAutoHide
+  const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
+  const titleProvider = (settings.titleModelProvider || 'openrouter') as TitleProviderKey
+
+  const titleProviderModelMap = useMemo(() => ({
+    openrouter: settings.configuredModels || [],
+    perplexity: settings.perplexityModels || [],
+    groq: settings.groqModels || [],
+    alibaba: settings.alibabaModels || [],
+    ollama: settings.ollamaModels || [],
+  }), [
+    settings.configuredModels,
+    settings.perplexityModels,
+    settings.groqModels,
+    settings.alibabaModels,
+    settings.ollamaModels,
+  ])
+
+  const titleProviderModelsAll = titleProviderModelMap[titleProvider] || []
+  const titleProviderEnabledModels = titleProviderModelsAll.filter((model) => model.enabled !== false)
+  const titleProviderModels = titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
+
+  const handleTitleProviderChange = (provider: TitleProviderKey) => {
+    const nextModelsAll = titleProviderModelMap[provider] || []
+    const nextEnabled = nextModelsAll.filter((model) => model.enabled !== false)
+    const nextCandidates = nextEnabled.length > 0 ? nextEnabled : nextModelsAll
+    const nextTitleModel = nextCandidates.some((model) => model.code === settings.titleModel)
+      ? settings.titleModel
+      : (nextCandidates[0]?.code || settings.titleModel)
+
+    updateSettings({
+      titleModelProvider: provider,
+      titleModel: nextTitleModel,
+    })
+  }
 
   const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
     updateSettings({
       commandBar: {
         ...settings.commandBar,
+        ...changes
+      }
+    })
+  }
+
+  const updatePromptAutoHide = (changes: Partial<typeof settings.promptAutoHide>) => {
+    updateSettings({
+      promptAutoHide: {
+        ...settings.promptAutoHide,
         ...changes
       }
     })
@@ -193,459 +260,297 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
 
 
   return (
-    <div style={{ width: '100%', padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout settings-section-layout--wide" style={{ width: '100%' }}>
       <div className="page-header">
         <h2 className="page-title">Appearance</h2>
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      <div
-        style={{
-          display: 'inline-flex',
-          gap: 4,
-          flexWrap: 'wrap',
-          marginTop: 16,
-          padding: 4,
-          borderRadius: 12,
-          border: '1px solid var(--theme-border)',
-          background: 'var(--theme-surface)'
-        }}
-      >
-        <button
-          onClick={() => setAppearancePage('themes')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'themes' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'themes' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
-        >
-          Themes
-        </button>
-        <button
-          onClick={() => setAppearancePage('titlebar')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'titlebar' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'titlebar' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
-        >
-          Titlebar
-        </button>
-        <button
-          onClick={() => setAppearancePage('chatbubbles')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'chatbubbles' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'chatbubbles' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
-        >
-          Chat Bubbles
-        </button>
-        <button
-          onClick={() => setAppearancePage('modelselector')}
-          style={{
-            padding: '8px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--theme-border)',
-            background: appearancePage === 'modelselector' ? 'var(--theme-surface-active)' : 'transparent',
-            color: 'var(--theme-text-primary)',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: appearancePage === 'modelselector' ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-            transition: 'background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease'
-          }}
-        >
-          Model Selector
-        </button>
-      </div>
+      {/* ── Themes ── */}
+      <h3 className="appearance-group-heading">Themes</h3>
+      <Card className="settings-section-card">
+        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+          Pick the look and feel for dashboard and settings.
+        </p>
 
-      {appearancePage === 'themes' && (
-        <Card className="settings-section-card" style={{ marginTop: 24 }}>
-          <h3 style={{
-            margin: '0 0 8px',
-            fontSize: '1.05rem',
-            fontWeight: 600,
-            color: 'var(--theme-text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <Paintbrush size={20} style={{ color: 'var(--theme-accent)' }} />
-            Themes
-          </h3>
-          <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-            Pick the look and feel for dashboard and settings.
-          </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {themeCategories.map((category) => {
+            const isActive = selectedThemeCategory === category.id
+            return (
+              <button
+                key={category.id}
+                onClick={() => setSelectedThemeCategory(category.id)}
+                style={{
+                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  color: 'var(--theme-text-primary)',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {category.name}
+              </button>
+            )
+          })}
+        </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-            {themeCategories.map((category) => {
-              const isActive = selectedThemeCategory === category.id
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedThemeCategory(category.id)}
-                  style={{
-                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                    background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
-                    color: 'var(--theme-text-primary)',
-                    borderRadius: 999,
-                    padding: '6px 12px',
-                    fontSize: '0.78rem',
-                    cursor: 'pointer',
-                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {category.name}
-                </button>
-              )
-            })}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 12
+        }}>
+          {filteredThemes.map((theme) => {
+            const isActive = settings.activeTheme === theme.id
+            return (
+              <button
+                key={theme.id}
+                onClick={() => updateSettings({ activeTheme: theme.id, theme: theme.isDark ? 'dark' : 'light' })}
+                style={{
+                  textAlign: 'left',
+                  padding: 14,
+                  borderRadius: 12,
+                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
+                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.background }} />
+                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.surface }} />
+                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.accent }} />
+                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.textPrimary }} />
+                </div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
+                  {theme.name}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  {theme.description || 'Theme preset'}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </Card>
+
+      {/* ── Command Palette ── */}
+      <h3 className="appearance-group-heading">Command Palette</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Enable command palette</h3>
+            <div className="settings-list-row__description">Show the floating command palette when activated via keyboard shortcut</div>
           </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12
-          }}>
-            {filteredThemes.map((theme) => {
-              const isActive = settings.activeTheme === theme.id
-              return (
-                <button
-                  key={theme.id}
-                  onClick={() => updateSettings({ activeTheme: theme.id, theme: theme.isDark ? 'dark' : 'light' })}
-                  style={{
-                    textAlign: 'left',
-                    padding: 14,
-                    borderRadius: 12,
-                    border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                    background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
-                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 12 }}>
-                    <div style={{ height: 16, borderRadius: 6, background: theme.colors.background }} />
-                    <div style={{ height: 16, borderRadius: 6, background: theme.colors.surface }} />
-                    <div style={{ height: 16, borderRadius: 6, background: theme.colors.accent }} />
-                    <div style={{ height: 16, borderRadius: 6, background: theme.colors.textPrimary }} />
-                  </div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: 4 }}>
-                    {theme.name}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                    {theme.description || 'Theme preset'}
-                  </div>
-                </button>
-              )
-            })}
+          <div className="settings-list-row__control">
+            <Switch
+              checked={commandBar.enabled}
+              onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
+              aria-label="Enable command palette"
+            />
           </div>
-        </Card>
-      )}
+        </div>
 
-      {appearancePage === 'titlebar' && (
-        <>
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 20px',
-              fontSize: '1.1rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <PanelLeft size={20} style={{ color: 'var(--theme-accent)' }} />
-              Titlebar
-            </h3>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Recent commands</h3>
+            <div className="settings-list-row__description">Show recently executed commands at the top of the palette</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={commandBar.showRecents}
+              onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
+              aria-label="Show recent commands in command palette"
+            />
+          </div>
+        </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 0',
-              borderBottom: '1px solid var(--theme-border-subtle)'
-            }}>
-              <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                  Show App Name
-                </h4>
-                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  Display the application name in the titlebar
-                </p>
-              </div>
-              <Switch
-                checked={settings.titleBarShowAppName}
-                onCheckedChange={(checked) => updateSettings({ titleBarShowAppName: checked })}
-                aria-label="Show app name in titlebar"
-              />
-            </div>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Max recents</h3>
+            <div className="settings-list-row__description">How many recent commands to show</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={maxRecents}
+              onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
+              className="setting-input-scira"
+              disabled={!commandBar.showRecents}
+              aria-label="Max recent commands in command palette"
+            >
+              <option value={0}>0</option>
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+            </select>
+          </div>
+        </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 0',
-              borderBottom: '1px solid var(--theme-border-subtle)'
-            }}>
-              <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                  Show Chat Title
-                </h4>
-                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  Display the current chat title in the titlebar
-                </p>
-              </div>
-              <Switch
-                checked={settings.titleBarShowChatTitle}
-                onCheckedChange={(checked) => updateSettings({ titleBarShowChatTitle: checked })}
-                aria-label="Show chat title in titlebar"
-              />
-            </div>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Tab autocomplete</h3>
+            <div className="settings-list-row__description">Press Tab to complete the highlighted command</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={commandBar.enableTabAutocomplete}
+              onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
+              aria-label="Enable tab autocomplete in command palette"
+            />
+          </div>
+        </div>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 0'
-            }}>
-              <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: '0.95rem', fontWeight: 500, color: 'var(--theme-text-primary)' }}>
-                  Show Model
-                </h4>
-                <p style={{ margin: '0', fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  Display the current AI model in the titlebar
-                </p>
-              </div>
-              <Switch
-                checked={settings.titleBarShowModel}
-                onCheckedChange={(checked) => updateSettings({ titleBarShowModel: checked })}
-                aria-label="Show model in titlebar"
-              />
-            </div>
-          </Card>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Max results</h3>
+            <div className="settings-list-row__description">Maximum number of suggestions shown in the results list</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={maxSuggestions}
+              onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
+              className="setting-input-scira"
 
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Command size={18} style={{ color: 'var(--theme-accent)' }} />
-              Command Bar
-            </h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Customize titlebar command bar behavior and visual style.
-            </p>
+              aria-label="Max results in command palette"
+            >
+              {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
+                <option key={count} value={count}>{count}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable command bar</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show the command bar in the titlebar</div>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Overlay opacity</h3>
+            <div className="settings-list-row__description">Controls how much the background is dimmed</div>
+          </div>
+          <div className="settings-list-row__control">
+            <input
+              type="range"
+              min={0}
+              max={80}
+              value={overlayOpacity}
+              onChange={(e) => updateCommandBar({ overlayOpacity: Number(e.target.value) })}
+              aria-label="Command palette overlay opacity"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Palette width</h3>
+            <div className="settings-list-row__description">Controls the maximum width of the palette</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={commandBar.paletteWidth ?? 'default'}
+              onChange={(e) => updateCommandBar({ paletteWidth: e.target.value as 'narrow' | 'default' | 'wide' })}
+              className="setting-input-scira"
+
+              aria-label="Command palette width"
+            >
+              <option value="narrow">Narrow (440px)</option>
+              <option value="default">Default (560px)</option>
+              <option value="wide">Wide (680px)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Vertical position</h3>
+            <div className="settings-list-row__description">Controls the vertical placement of the palette</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={commandBar.palettePosition ?? 'center'}
+              onChange={(e) => updateCommandBar({ palettePosition: e.target.value as 'top' | 'center' | 'lower' })}
+              className="setting-input-scira"
+
+              aria-label="Command palette vertical position"
+            >
+              <option value="top">Top (12%)</option>
+              <option value="center">Center (20%)</option>
+              <option value="lower">Lower (30%)</option>
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Chat Bubbles ── */}
+      <h3 className="appearance-group-heading">Chat Bubbles</h3>
+      <Card className="settings-section-card">
+        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+          Choose how your user messages are rendered in dashboard chat.
+        </p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '12px'
+        }}>
+          {chatBubblePresets.map((preset) => {
+            const isActive = currentChatBubbleStyle === preset.id
+            return (
+              <button
+                key={preset.id}
+                onClick={() => updateSettings({ chatBubbleStyle: preset.id })}
+                style={{
+                  textAlign: 'left',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  display: 'inline-block',
+                  padding: '9px 14px',
+                  borderRadius: '18px 18px 6px 18px',
+                  fontSize: '0.85rem',
+                  marginBottom: '10px',
+                  ...preset.previewStyle
+                }}>
+                  who are you
                 </div>
-                <Switch
-                  checked={commandBar.enabled}
-                  onCheckedChange={(checked) => updateCommandBar({ enabled: checked })}
-                  aria-label="Enable command bar in titlebar"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Size</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls command bar width</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
+                  {preset.label}
                 </div>
-                <select
-                  value={commandBar.size === 'medium' ? 'medium' : 'small'}
-                  onChange={(e) => updateCommandBar({ size: e.target.value as 'small' | 'medium' })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Recent commands</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show your last 1-3 commands at the top</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  {preset.description}
                 </div>
-                <Switch
-                  checked={commandBar.showRecents}
-                  onCheckedChange={(checked) => updateCommandBar({ showRecents: checked })}
-                  aria-label="Show recent commands"
-                />
-              </div>
+              </button>
+            )
+          })}
+        </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max recents</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How many recent commands to show</div>
-                </div>
-                <select
-                  value={maxRecents}
-                  onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
-                  className="setting-input-scira"
-                  style={{ width: 120 }}
-                  disabled={!commandBar.showRecents}
-                >
-                  <option value={0}>0</option>
-                  <option value={1}>1</option>
-                  <option value={2}>2</option>
-                  <option value={3}>3</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Tab autocomplete</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Press Tab to complete commands</div>
-                </div>
-                <Switch
-                  checked={commandBar.enableTabAutocomplete}
-                  onCheckedChange={(checked) => updateCommandBar({ enableTabAutocomplete: checked })}
-                  aria-label="Enable tab autocomplete"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Max results</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Limit dropdown height and clutter</div>
-                </div>
-                <select
-                  value={maxSuggestions}
-                  onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
-                  className="setting-input-scira"
-                  style={{ width: 120 }}
-                >
-                  {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                    <option key={count} value={count}>{count}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Background blur</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Glass effect for the dropdown</div>
-                </div>
-                <Switch
-                  checked={commandBar.enableBlur}
-                  onCheckedChange={(checked) => updateCommandBar({ enableBlur: checked })}
-                  aria-label="Enable command bar background blur"
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Blur strength</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Higher values look more frosted</div>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={30}
-                  value={blurPx}
-                  onChange={(e) => updateCommandBar({ blurPx: Number(e.target.value) })}
-                  disabled={!commandBar.enableBlur}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Lower values = more transparent</div>
-                </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={fieldSurface}
-                  onChange={(e) => updateCommandBar({ fieldSurface: Number(e.target.value) })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Field opacity (focused)</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Applied when command bar is active</div>
-                </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={fieldSurfaceFocused}
-                  onChange={(e) => updateCommandBar({ fieldSurfaceFocused: Number(e.target.value) })}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', alignItems: 'center', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown opacity</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Controls suggestion transparency</div>
-                </div>
-                <input
-                  type="range"
-                  min={20}
-                  max={90}
-                  value={dropdownSurface}
-                  onChange={(e) => updateCommandBar({ dropdownSurface: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-          </Card>
-        </>
-      )}
-
-      {appearancePage === 'chatbubbles' && (
-        <Card className="settings-section-card" style={{ marginTop: 24 }}>
-          <h3 style={{
+        <div style={{
+          marginTop: 22,
+          paddingTop: 18,
+          borderTop: '1px solid var(--theme-border-subtle)'
+        }}>
+          <h4 style={{
             margin: '0 0 6px',
-            fontSize: '1.1rem',
+            fontSize: '1rem',
             fontWeight: 600,
-            color: 'var(--theme-text-primary)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
+            color: 'var(--theme-text-primary)'
           }}>
-            <MessageSquare size={20} style={{ color: 'var(--theme-accent)' }} />
-            Chat Bubble Style
-          </h3>
+            Chat Selected Overlay
+          </h4>
           <p style={{
-            margin: '0 0 18px',
-            color: 'var(--theme-text-muted)',
-            fontSize: '0.85rem'
+            margin: '0 0 14px',
+            fontSize: '0.82rem',
+            color: 'var(--theme-text-muted)'
           }}>
-            Choose how your user messages are rendered in dashboard chat.
+            Choose the selected chat highlight style in the sidebar.
           </p>
 
           <div style={{
@@ -653,12 +558,12 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: '12px'
           }}>
-            {chatBubblePresets.map((preset) => {
-              const isActive = currentChatBubbleStyle === preset.id
+            {chatSelectedOverlayPresets.map((preset) => {
+              const isActive = currentChatSelectedOverlayStyle === preset.id
               return (
                 <button
                   key={preset.id}
-                  onClick={() => updateSettings({ chatBubbleStyle: preset.id })}
+                  onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
                   style={{
                     textAlign: 'left',
                     padding: '14px',
@@ -671,14 +576,33 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
                   }}
                 >
                   <div style={{
-                    display: 'inline-block',
-                    padding: '9px 14px',
-                    borderRadius: '18px 18px 6px 18px',
-                    fontSize: '0.85rem',
-                    marginBottom: '10px',
+                    height: 34,
+                    borderRadius: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 10px',
+                    marginBottom: 10,
                     ...preset.previewStyle
                   }}>
-                    who are you
+                    <span style={{
+                      fontSize: '0.82rem',
+                      color: 'var(--theme-text-primary)',
+                      fontWeight: 600,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      Opensource
+                    </span>
+                    <span style={{
+                      marginLeft: 8,
+                      color: 'var(--theme-text-muted)',
+                      fontSize: '0.85rem',
+                      lineHeight: 1
+                    }}>
+                      ...
+                    </span>
                   </div>
                   <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
                     {preset.label}
@@ -690,571 +614,551 @@ export function AppearanceSection(_props: AppearanceSectionProps): React.ReactEl
               )
             })}
           </div>
+        </div>
+      </Card>
 
-          <div style={{
-            marginTop: 22,
-            paddingTop: 18,
-            borderTop: '1px solid var(--theme-border-subtle)'
-          }}>
-            <h4 style={{
-              margin: '0 0 6px',
-              fontSize: '1rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)'
-            }}>
-              Chat Selected Overlay
-            </h4>
-            <p style={{
-              margin: '0 0 14px',
-              fontSize: '0.82rem',
-              color: 'var(--theme-text-muted)'
-            }}>
-              Choose the selected chat highlight style in the sidebar.
-            </p>
+      {/* ── Chat Title Generation ── */}
+      <h3 className="appearance-group-heading">Chat Title Generation</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Title provider</h3>
+            <div className="settings-list-row__description">Choose which provider generates automatic chat titles</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={titleProvider}
+              onChange={(e) => handleTitleProviderChange(e.target.value as TitleProviderKey)}
+              className="setting-input-scira"
+              aria-label="Title generation provider"
+            >
+              {TITLE_PROVIDER_OPTIONS.map((provider) => (
+                <option key={provider.key} value={provider.key}>{provider.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '12px'
-            }}>
-              {chatSelectedOverlayPresets.map((preset) => {
-                const isActive = currentChatSelectedOverlayStyle === preset.id
-                return (
-                  <button
-                    key={preset.id}
-                    onClick={() => updateSettings({ chatSelectedOverlayStyle: preset.id })}
-                    style={{
-                      textAlign: 'left',
-                      padding: '14px',
-                      borderRadius: '12px',
-                      border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                      background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
-                      boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <div style={{
-                      height: 34,
-                      borderRadius: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0 10px',
-                      marginBottom: 10,
-                      ...preset.previewStyle
-                    }}>
-                      <span style={{
-                        fontSize: '0.82rem',
-                        color: 'var(--theme-text-primary)',
-                        fontWeight: 600,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        Prompt Optimization Guide
-                      </span>
-                      <span style={{
-                        marginLeft: 8,
-                        color: 'var(--theme-text-muted)',
-                        fontSize: '0.85rem',
-                        lineHeight: 1
-                      }}>
-                        ...
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px' }}>
-                      {preset.label}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                      {preset.description}
-                    </div>
-                  </button>
-                )
-              })}
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Title model</h3>
+            <div className="settings-list-row__description">Model used for auto-title generation under the selected provider</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={settings.titleModel}
+              onChange={(e) => updateSettings({ titleModel: e.target.value })}
+              className="setting-input-scira"
+              aria-label="Title generation model"
+            >
+              {titleProviderModels.map((model) => (
+                <option key={model.code} value={model.code}>{model.displayName}</option>
+              ))}
+              {!titleProviderModels.some((model) => model.code === settings.titleModel) && settings.titleModel && (
+                <option value={settings.titleModel}>{settings.titleModel}</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Sidebar title reveal</h3>
+            <div className="settings-list-row__description">Show generated titles instantly or reveal them with a typewriter effect</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={settings.titleGenerationDisplayMode || 'instant'}
+              onChange={(e) => updateSettings({ titleGenerationDisplayMode: e.target.value as 'instant' | 'typewriter' })}
+              className="setting-input-scira"
+              aria-label="Sidebar title reveal mode"
+            >
+              <option value="instant">Instant</option>
+              <option value="typewriter">Typewriter</option>
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Prompt Auto-Hide ── */}
+      <h3 className="appearance-group-heading">Prompt Auto-Hide</h3>
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Enable prompt auto-hide</h3>
+            <div className="settings-list-row__description">Automatically hide the chat input area after a period of inactivity. Hover the bottom of the chat or press any key to bring it back.</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={promptAutoHide.enabled}
+              onCheckedChange={(checked) => updatePromptAutoHide({ enabled: checked })}
+              aria-label="Enable prompt auto-hide"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Inactivity timeout</h3>
+            <div className="settings-list-row__description">
+              Seconds of inactivity before the prompt hides ({promptTimeout}s)
             </div>
           </div>
-        </Card>
-      )}
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="range"
+              min={30}
+              max={600}
+              step={10}
+              value={promptTimeout}
+              onChange={(e) => updatePromptAutoHide({ timeout: Number(e.target.value) })}
+              disabled={!promptAutoHide.enabled}
+              aria-label="Prompt auto-hide timeout"
+              style={{ minWidth: 120 }}
+            />
+            <span style={{
+              fontSize: '0.82rem',
+              color: 'var(--theme-text-muted)',
+              minWidth: 40,
+              textAlign: 'right',
+            }}>{promptTimeout}s</span>
+          </div>
+        </div>
+      </Card>
 
-      {appearancePage === 'modelselector' && (
-        <>
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <PanelLeft size={20} style={{ color: 'var(--theme-accent)' }} />
-              Layout
-            </h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Configure the model selector layout and positioning.
-            </p>
+      {/* ── Model Selector ── */}
+      <h3 className="appearance-group-heading">Model Selector</h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Sidebar position</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Place provider sidebar on left or right</div>
-                </div>
-                <select
-                  value={getModelSelector().sidebarPosition}
-                  onChange={(e) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      sidebarPosition: e.target.value as 'left' | 'right'
-                    } 
-                  })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="left">Left</option>
-                  <option value="right">Right</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show sidebar labels</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display provider names alongside icons</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().sidebarShowLabels}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      sidebarShowLabels: checked
-                    } 
-                  })}
-                  aria-label="Show sidebar labels"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show model count badges</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display number of models per provider</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().sidebarShowModelCount}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      sidebarShowModelCount: checked
-                    } 
-                  })}
-                  aria-label="Show model count badges"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Dropdown width</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Control the overall selector size</div>
-                </div>
-                <select
-                  value={getModelSelector().dropdownWidth}
-                  onChange={(e) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      dropdownWidth: e.target.value as 'compact' | 'default' | 'wide'
-                    } 
-                  })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="compact">Compact (420px)</option>
-                  <option value="default">Default (520px)</option>
-                  <option value="wide">Wide (640px)</option>
-                </select>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <MessageSquare size={20} style={{ color: 'var(--theme-accent)' }} />
-              Display
-            </h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Control what information is shown for each model.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show model descriptions</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display model capability descriptions</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showDescriptions}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showDescriptions: checked
-                    } 
-                  })}
-                  aria-label="Show model descriptions"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show capability badges</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display tools, vision, search & other capability labels</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showCapabilityBadges}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showCapabilityBadges: checked
-                    } 
-                  })}
-                  aria-label="Show capability badges"
-                />
-              </div>
-
-              {getModelSelector().showCapabilityBadges && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, paddingLeft: 8, borderLeft: '2px solid var(--theme-border)' }}>
-                  <div>
-                    <div style={{ fontWeight: 500, fontSize: '0.85rem', color: 'var(--theme-text-primary)' }}>Badge display</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Show icon only, text only, or both</div>
-                  </div>
-                  <select
-                    value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
-                    onChange={(e) => updateSettings({ 
-                      modelSelector: { 
-                        ...getModelSelector(),
-                        capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both'
-                      } 
-                    })}
-                    className="setting-input-scira"
-                    style={{ width: 140 }}
-                  >
-                    <option value="icon">Icon only</option>
-                    <option value="text">Text only</option>
-                    <option value="both">Icon + text</option>
-                  </select>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show provider logos</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Use provider logos instead of fallback icons</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showProviderLogos}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showProviderLogos: checked
-                    } 
-                  })}
-                  aria-label="Show provider logos"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show favorite stars</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display favorite toggle buttons</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showFavoriteStars}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showFavoriteStars: checked
-                    } 
-                  })}
-                  aria-label="Show favorite stars"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show context length</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display context length (e.g. 200K, 1M) next to each model</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showContextLength !== false}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showContextLength: checked
-                    } 
-                  })}
-                  aria-label="Show context length"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show info tooltips</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Enable hover tooltips with model details</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showInfoTooltips}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showInfoTooltips: checked
-                    } 
-                  })}
-                  aria-label="Show info tooltips"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Active indicator style</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How the selected model is highlighted</div>
-                </div>
-                <select
-                  value={getModelSelector().activeIndicatorStyle}
-                  onChange={(e) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight'
-                    } 
-                  })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="dot">Dot</option>
-                  <option value="checkmark">Checkmark</option>
-                  <option value="highlight">Highlight</option>
-                </select>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Paintbrush size={20} style={{ color: 'var(--theme-accent)' }} />
-              Density
-            </h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Control spacing between model items.
-            </p>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: 12
-            }}>
-              {(['compact', 'comfortable', 'spacious'] as const).map((density) => {
-                const isActive = getModelSelector().itemDensity === density
-                return (
-                  <button
-                    key={density}
-                    onClick={() => updateSettings({ 
-                      modelSelector: { 
-                        ...getModelSelector(),
-                        itemDensity: density
-                      } 
-                    })}
-                    style={{
-                      textAlign: 'left',
-                      padding: 14,
-                      borderRadius: 12,
-                      border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
-                      background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
-                      boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px', textTransform: 'capitalize' }}>
-                      {density}
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                      {density === 'compact' && 'Tighter spacing, more models visible'}
-                      {density === 'comfortable' && 'Balanced spacing for readability'}
-                      {density === 'spacious' && 'More breathing room between items'}
-                    </div>
-                  </button>
-                )
+      {/* Layout */}
+      <Card className="settings-list-card">
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Sidebar position</h3>
+            <div className="settings-list-row__description">Place provider sidebar on left or right</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={getModelSelector().sidebarPosition}
+              onChange={(e) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  sidebarPosition: e.target.value as 'left' | 'right'
+                }
               })}
+              className="setting-input-scira"
+
+            >
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show sidebar labels</h3>
+            <div className="settings-list-row__description">Display provider names alongside icons</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().sidebarShowLabels}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  sidebarShowLabels: checked
+                }
+              })}
+              aria-label="Show sidebar labels"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show model count badges</h3>
+            <div className="settings-list-row__description">Display number of models per provider</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().sidebarShowModelCount}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  sidebarShowModelCount: checked
+                }
+              })}
+              aria-label="Show model count badges"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Dropdown width</h3>
+            <div className="settings-list-row__description">Control the overall selector size</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={getModelSelector().dropdownWidth}
+              onChange={(e) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  dropdownWidth: e.target.value as 'compact' | 'default' | 'wide'
+                }
+              })}
+              className="setting-input-scira"
+
+            >
+              <option value="compact">Compact (420px)</option>
+              <option value="default">Default (520px)</option>
+              <option value="wide">Wide (640px)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show model descriptions</h3>
+            <div className="settings-list-row__description">Display model capability descriptions</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showDescriptions}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showDescriptions: checked
+                }
+              })}
+              aria-label="Show model descriptions"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show capability badges</h3>
+            <div className="settings-list-row__description">Display tools, vision, search & other capability labels</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showCapabilityBadges}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showCapabilityBadges: checked
+                }
+              })}
+              aria-label="Show capability badges"
+            />
+          </div>
+        </div>
+
+        {getModelSelector().showCapabilityBadges && (
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Badge display</h3>
+              <div className="settings-list-row__description">Show icon only, text only, or both</div>
             </div>
-          </Card>
-
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Command size={18} style={{ color: 'var(--theme-accent)' }} />
-              Behavior
-            </h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Configure how the model selector behaves.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Default view on open</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>What to show when selector opens</div>
-                </div>
-                <select
-                  value={getModelSelector().defaultView}
-                  onChange={(e) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      defaultView: e.target.value as 'favorites' | 'lastUsed'
-                    } 
-                  })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                >
-                  <option value="lastUsed">Last Used Provider</option>
-                  <option value="favorites">Favorites</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Auto-close on select</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Close dropdown when a model is selected</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().autoCloseOnSelect}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      autoCloseOnSelect: checked
-                    } 
-                  })}
-                  aria-label="Auto-close on select"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Remember last provider</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Restore last selected provider on open</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().rememberProvider}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      rememberProvider: checked
-                    } 
-                  })}
-                  aria-label="Remember last provider"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Show search bar</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Display search input for filtering models</div>
-                </div>
-                <Switch
-                  checked={getModelSelector().showSearch}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      showSearch: checked
-                    } 
-                  })}
-                  aria-label="Show search bar"
-                />
-              </div>
+            <div className="settings-list-row__control">
+              <select
+                value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
+                onChange={(e) => updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both'
+                  }
+                })}
+                className="setting-input-scira"
+  
+              >
+                <option value="icon">Icon only</option>
+                <option value="text">Text only</option>
+                <option value="both">Icon + text</option>
+              </select>
             </div>
-          </Card>
+          </div>
+        )}
 
-          <Card className="settings-section-card" style={{ marginTop: 24 }}>
-            <h3 style={{
-              margin: '0 0 8px',
-              fontSize: '1.05rem',
-              fontWeight: 600,
-              color: 'var(--theme-text-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px'
-            }}>
-              <Paintbrush size={20} style={{ color: 'var(--theme-accent)' }} />
-              Animations
-            </h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-              Control animation effects and timing.
-            </p>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show provider logos</h3>
+            <div className="settings-list-row__description">Use provider logos instead of fallback icons</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showProviderLogos}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showProviderLogos: checked
+                }
+              })}
+              aria-label="Show provider logos"
+            />
+          </div>
+        </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Enable animations</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>Smooth transitions and effects</div>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show favorite stars</h3>
+            <div className="settings-list-row__description">Display favorite toggle buttons</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showFavoriteStars}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showFavoriteStars: checked
+                }
+              })}
+              aria-label="Show favorite stars"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show context length</h3>
+            <div className="settings-list-row__description">Display context length (e.g. 200K, 1M) next to each model</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showContextLength !== false}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showContextLength: checked
+                }
+              })}
+              aria-label="Show context length"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show info tooltips</h3>
+            <div className="settings-list-row__description">Enable hover tooltips with model details</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showInfoTooltips}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showInfoTooltips: checked
+                }
+              })}
+              aria-label="Show info tooltips"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Active indicator style</h3>
+            <div className="settings-list-row__description">How the selected model is highlighted</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={getModelSelector().activeIndicatorStyle}
+              onChange={(e) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight'
+                }
+              })}
+              className="setting-input-scira"
+
+            >
+              <option value="dot">Dot</option>
+              <option value="checkmark">Checkmark</option>
+              <option value="highlight">Highlight</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Default view on open</h3>
+            <div className="settings-list-row__description">What to show when selector opens</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={getModelSelector().defaultView}
+              onChange={(e) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  defaultView: e.target.value as 'favorites' | 'lastUsed'
+                }
+              })}
+              className="setting-input-scira"
+
+            >
+              <option value="lastUsed">Last Used Provider</option>
+              <option value="favorites">Favorites</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Auto-close on select</h3>
+            <div className="settings-list-row__description">Close dropdown when a model is selected</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().autoCloseOnSelect}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  autoCloseOnSelect: checked
+                }
+              })}
+              aria-label="Auto-close on select"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Remember last provider</h3>
+            <div className="settings-list-row__description">Restore last selected provider on open</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().rememberProvider}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  rememberProvider: checked
+                }
+              })}
+              aria-label="Remember last provider"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Show search bar</h3>
+            <div className="settings-list-row__description">Display search input for filtering models</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().showSearch}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  showSearch: checked
+                }
+              })}
+              aria-label="Show search bar"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Enable animations</h3>
+            <div className="settings-list-row__description">Smooth transitions and effects</div>
+          </div>
+          <div className="settings-list-row__control">
+            <Switch
+              checked={getModelSelector().enableAnimations}
+              onCheckedChange={(checked) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  enableAnimations: checked
+                }
+              })}
+              aria-label="Enable animations"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Stagger animation speed</h3>
+            <div className="settings-list-row__description">How quickly items appear in sequence</div>
+          </div>
+          <div className="settings-list-row__control">
+            <select
+              value={getModelSelector().staggerSpeed}
+              onChange={(e) => updateSettings({
+                modelSelector: {
+                  ...getModelSelector(),
+                  staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow'
+                }
+              })}
+              className="setting-input-scira"
+
+              disabled={!getModelSelector().enableAnimations}
+            >
+              <option value="fast">Fast</option>
+              <option value="normal">Normal</option>
+              <option value="slow">Slow</option>
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Model Selector Density ── */}
+      <Card className="settings-section-card" style={{ marginTop: 16 }}>
+        <h4 style={{
+          margin: '0 0 6px',
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          color: 'var(--theme-text-primary)'
+        }}>
+          Item Density
+        </h4>
+        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
+          Control spacing between model items.
+        </p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12
+        }}>
+          {(['compact', 'comfortable', 'spacious'] as const).map((density) => {
+            const isActive = getModelSelector().itemDensity === density
+            return (
+              <button
+                key={density}
+                onClick={() => updateSettings({
+                  modelSelector: {
+                    ...getModelSelector(),
+                    itemDensity: density
+                  }
+                })}
+                style={{
+                  textAlign: 'left',
+                  padding: 14,
+                  borderRadius: 12,
+                  border: isActive ? '1px solid var(--theme-border-hover)' : '1px solid var(--theme-border)',
+                  background: isActive ? 'var(--theme-surface-active)' : 'var(--theme-surface-subtle)',
+                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--theme-text-primary)', marginBottom: '4px', textTransform: 'capitalize' }}>
+                  {density}
                 </div>
-                <Switch
-                  checked={getModelSelector().enableAnimations}
-                  onCheckedChange={(checked) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      enableAnimations: checked
-                    } 
-                  })}
-                  aria-label="Enable animations"
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                <div>
-                  <div style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--theme-text-primary)' }}>Stagger animation speed</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>How quickly items appear in sequence</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
+                  {density === 'compact' && 'Tighter spacing, more models visible'}
+                  {density === 'comfortable' && 'Balanced spacing for readability'}
+                  {density === 'spacious' && 'More breathing room between items'}
                 </div>
-                <select
-                  value={getModelSelector().staggerSpeed}
-                  onChange={(e) => updateSettings({ 
-                    modelSelector: { 
-                      ...getModelSelector(),
-                      staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow'
-                    } 
-                  })}
-                  className="setting-input-scira"
-                  style={{ width: 160 }}
-                  disabled={!getModelSelector().enableAnimations}
-                >
-                  <option value="fast">Fast</option>
-                  <option value="normal">Normal</option>
-                  <option value="slow">Slow</option>
-                </select>
-              </div>
-            </div>
-          </Card>
-        </>
-      )}
+              </button>
+            )
+          })}
+        </div>
+      </Card>
     </div>
   )
 }

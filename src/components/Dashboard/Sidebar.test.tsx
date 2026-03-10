@@ -24,11 +24,6 @@ const mockSettingsUI = {
         commandBar: {
             enabled: true,
             size: 'medium' as const,
-            fieldSurface: 35,
-            fieldSurfaceFocused: 50,
-            dropdownSurface: 35,
-            enableBlur: true,
-            blurPx: 14,
             maxSuggestions: 5,
             showRecents: true,
             maxRecents: 3,
@@ -47,8 +42,12 @@ const mockAppShell = {
     setHasUnsavedSettings: vi.fn(),
     sidebarCollapsed: false,
     toggleSidebarCollapsed: vi.fn(),
+    sidebarWidth: 300,
+    setSidebarWidth: vi.fn(),
     sidebarHidden: false,
     toggleSidebarHidden: vi.fn(),
+    isResizingSidebar: false,
+    setIsResizingSidebar: vi.fn(),
 }
 
 const mockChatHistory = {
@@ -112,6 +111,7 @@ describe('Sidebar Glassmorphism Styles', () => {
         // Reset mock values to defaults
         mockSettingsUI.settingsUI.frostedSidebar = false
         mockAppShell.sidebarCollapsed = false
+        mockAppShell.sidebarWidth = 300
         mockAppShell.sidebarHidden = false
     })
 
@@ -119,7 +119,7 @@ describe('Sidebar Glassmorphism Styles', () => {
         /**
          * Test: Solid background when frostedSidebar is false
          * Requirements: 2.5 - WHEN frosted sidebar is disabled, THE Sidebar SHALL use 
-         * the existing solid `var(--theme-surface)` background
+         * the existing solid `var(--theme-sidebar-solid)` background
          */
         it('applies solid background when frostedSidebar is false', () => {
             mockSettingsUI.settingsUI.frostedSidebar = false
@@ -128,17 +128,16 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toBeInTheDocument()
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
 
-        it('does not apply glassmorphism border when frostedSidebar is false', () => {
+        it('does not apply right border when frostedSidebar is false', () => {
             mockSettingsUI.settingsUI.frostedSidebar = false
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container') as HTMLElement
             
-            // Check the inline style contains the theme border variable
-            expect(sidebar.style.borderRight).toBe('1px solid var(--theme-border)')
+            expect(sidebar.style.borderRight).toBe('0px solid transparent')
         })
     })
 
@@ -198,7 +197,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             // When hidden, should use solid background (shouldApplyGlass is false)
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
 
         it('does not apply glassmorphism border when sidebar is hidden', () => {
@@ -258,19 +257,30 @@ describe('Sidebar Glassmorphism Styles', () => {
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
         })
     })
 
     describe('Expanded Sidebar State', () => {
-        it('has 260px width when sidebar is expanded', () => {
+        it('has 300px width when sidebar is expanded', () => {
             mockAppShell.sidebarCollapsed = false
             mockAppShell.sidebarHidden = false
             
             const { container } = render(<Sidebar {...defaultProps} />)
             const sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ width: '260px' })
+            expect(sidebar).toHaveStyle({ width: '300px' })
+        })
+
+        it('uses stored custom width when sidebar is expanded', () => {
+            mockAppShell.sidebarCollapsed = false
+            mockAppShell.sidebarHidden = false
+            mockAppShell.sidebarWidth = 384
+
+            const { container } = render(<Sidebar {...defaultProps} />)
+            const sidebar = container.querySelector('.sidebar-container')
+
+            expect(sidebar).toHaveStyle({ width: '384px' })
         })
 
         it('applies transparent background when expanded and frostedSidebar is true', () => {
@@ -282,6 +292,13 @@ describe('Sidebar Glassmorphism Styles', () => {
             const sidebar = container.querySelector('.sidebar-container')
             
             expect(sidebar).toHaveStyle({ background: 'transparent' })
+        })
+
+        it('renders resize handle when expanded and visible', () => {
+            const { container } = render(<Sidebar {...defaultProps} />)
+            const resizeHandle = container.querySelector('.sidebar-resize-handle')
+
+            expect(resizeHandle).toBeInTheDocument()
         })
     })
 
@@ -308,7 +325,25 @@ describe('Sidebar Glassmorphism Styles', () => {
             // Hidden takes precedence - width should be 0px
             expect(sidebar).toHaveStyle({ width: '0px' })
             // No glassmorphism when hidden
-            expect(sidebar).toHaveStyle({ background: 'var(--theme-surface)' })
+            expect(sidebar).toHaveStyle({ background: 'var(--theme-sidebar-solid)' })
+        })
+
+        it('does not render resize handle when hidden', () => {
+            mockAppShell.sidebarHidden = true
+
+            const { container } = render(<Sidebar {...defaultProps} />)
+            const resizeHandle = container.querySelector('.sidebar-resize-handle')
+
+            expect(resizeHandle).not.toBeInTheDocument()
+        })
+
+        it('does not render resize handle when collapsed', () => {
+            mockAppShell.sidebarCollapsed = true
+
+            const { container } = render(<Sidebar {...defaultProps} />)
+            const resizeHandle = container.querySelector('.sidebar-resize-handle')
+
+            expect(resizeHandle).not.toBeInTheDocument()
         })
 
         it('applies correct styles when transitioning from hidden to visible', () => {
@@ -326,7 +361,7 @@ describe('Sidebar Glassmorphism Styles', () => {
             rerender(<Sidebar {...defaultProps} />)
             sidebar = container.querySelector('.sidebar-container')
             
-            expect(sidebar).toHaveStyle({ width: '260px' })
+            expect(sidebar).toHaveStyle({ width: '300px' })
             expect(sidebar).toHaveStyle({ background: 'transparent' })
         })
     })

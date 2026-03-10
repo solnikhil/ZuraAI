@@ -36,11 +36,6 @@ const mockSettingsUI = {
     commandBar: {
       enabled: true,
       size: 'medium' as const,
-      fieldSurface: 35,
-      fieldSurfaceFocused: 50,
-      dropdownSurface: 35,
-      enableBlur: true,
-      blurPx: 14,
       maxSuggestions: 5,
       showRecents: true,
       maxRecents: 3,
@@ -59,8 +54,12 @@ const mockAppShell = {
   setHasUnsavedSettings: vi.fn(),
   sidebarCollapsed: false,
   toggleSidebarCollapsed: vi.fn(),
+  sidebarWidth: 300,
+  setSidebarWidth: vi.fn(),
   sidebarHidden: false,
   toggleSidebarHidden: vi.fn(),
+  isResizingSidebar: false,
+  setIsResizingSidebar: vi.fn(),
 }
 
 const mockChatHistory = {
@@ -115,11 +114,6 @@ vi.mock('../contexts/SettingsContext', () => ({
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/dashboard' }),
   useNavigate: () => vi.fn(),
-}))
-
-// Mock TitleBarCommandBar to avoid its complex dependencies
-vi.mock('./TitleBarCommandBar', () => ({
-  default: () => React.createElement('div', { 'data-testid': 'mock-command-bar' }),
 }))
 
 // Mock Toast context
@@ -213,7 +207,7 @@ const conditionalRenderingArbitrary = fc.record({
 
 beforeEach(() => {
   // Set up window.windowControls mock
-  window.windowControls = {
+  ;(window as any).windowControls = {
     minimize: vi.fn().mockResolvedValue(undefined),
     toggleMaximize: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),

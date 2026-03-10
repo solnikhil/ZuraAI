@@ -1,13 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useSettings } from './SettingsContext'
+import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
+import { normalizeSettingsSection } from '../constants/settingsSections'
 
 export type DashboardView = 'chat' | 'settings'
 
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 
 export interface SettingsSectionParams {
     provider?: ProviderKey
     manageMode?: 'providers' | 'search-apis'
+    commandPaletteTab?: boolean
 }
 
 interface AppShellContextType {
@@ -21,9 +24,14 @@ interface AppShellContextType {
     setHasUnsavedSettings: (hasUnsaved: boolean) => void
     sidebarCollapsed: boolean
     toggleSidebarCollapsed: () => void
+    sidebarWidth: number
+    setSidebarWidth: (width: number) => void
     sidebarHidden: boolean
     toggleSidebarHidden: () => void
     setSidebarHidden: (hidden: boolean) => void
+    /** True while the user is actively dragging the sidebar resize handle */
+    isResizingSidebar: boolean
+    setIsResizingSidebar: (resizing: boolean) => void
 }
 
 const AppShellContext = createContext<AppShellContextType | undefined>(undefined)
@@ -32,24 +40,9 @@ const STORAGE_KEYS = {
     dashboardView: 'zura-ui:dashboardView',
     settingsSection: 'zura-ui:settingsSection',
     sidebarCollapsed: 'zura-ui:sidebarCollapsed',
+    sidebarWidth: 'zura-ui:sidebarWidth',
     sidebarHidden: 'zura-ui:sidebarHidden',
 } as const
-
-const VALID_SETTINGS_SECTIONS = new Set<string>([
-    'usage',
-    'providers',
-    'themes',
-    'systemprompt',
-    'experimental',
-])
-
-function normalizeSettingsSection(section: string | null): string | null {
-    if (!section) return null
-    if (section === 'tools' || section === 'models' || section === 'preferences') return 'providers'
-    if (section === 'commandbar') return 'themes'
-    const normalized = VALID_SETTINGS_SECTIONS.has(section) ? section : null
-    return normalized
-}
 
 function readStoredDashboardView(): DashboardView | null {
 
@@ -72,6 +65,14 @@ function readStoredBoolean(key: string): boolean | null {
     return null
 }
 
+function readStoredSidebarWidth(): number | null {
+    const raw = localStorage.getItem(STORAGE_KEYS.sidebarWidth)
+    if (raw == null) return null
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return null
+    return clampSidebarWidth(parsed)
+}
+
 export function AppShellProvider({ children }: { children: React.ReactNode }) {
     const { settings } = useSettings()
 
@@ -84,9 +85,9 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
 
     const [activeSettingsSection, setActiveSettingsSectionState] = useState<string>(() => {
         if (settings.rememberLastSettingsSection) {
-            return readStoredSettingsSection() ?? 'usage'
+            return readStoredSettingsSection() ?? 'providers'
         }
-        return 'usage'
+        return 'providers'
     })
 
     const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false)
@@ -98,6 +99,13 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         return false
     })
 
+    const [sidebarWidth, setSidebarWidthState] = useState<number>(() => {
+        if (settings.rememberLastDashboardView) {
+            return readStoredSidebarWidth() ?? SIDEBAR_DEFAULT_WIDTH_PX
+        }
+        return SIDEBAR_DEFAULT_WIDTH_PX
+    })
+
     const [sidebarHidden, setSidebarHiddenState] = useState<boolean>(() => {
         if (settings.rememberLastDashboardView) {
             return readStoredBoolean(STORAGE_KEYS.sidebarHidden) ?? false
@@ -107,8 +115,17 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
 
     const [settingsSectionParams, setSettingsSectionParamsState] = useState<SettingsSectionParams | null>(null)
 
+    const [isResizingSidebar, setIsResizingSidebarState] = useState(false)
+    const setIsResizingSidebar = useCallback((resizing: boolean) => {
+        setIsResizingSidebarState(resizing)
+    }, [])
+
     const toggleSidebarCollapsed = useCallback(() => {
         setSidebarCollapsed(prev => !prev)
+    }, [])
+
+    const setSidebarWidth = useCallback((width: number) => {
+        setSidebarWidthState(clampSidebarWidth(width))
     }, [])
 
     const toggleSidebarHidden = useCallback(() => {
@@ -124,7 +141,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const setActiveSettingsSection = useCallback((section: string) => {
-        const normalized = normalizeSettingsSection(section) ?? 'usage'
+        const normalized = normalizeSettingsSection(section) ?? 'providers'
         setActiveSettingsSectionState(normalized)
     }, [])
 
@@ -148,6 +165,14 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         }
         localStorage.setItem(STORAGE_KEYS.sidebarCollapsed, String(sidebarCollapsed))
     }, [sidebarCollapsed, settings.rememberLastDashboardView])
+
+    useEffect(() => {
+        if (!settings.rememberLastDashboardView) {
+            localStorage.removeItem(STORAGE_KEYS.sidebarWidth)
+            return
+        }
+        localStorage.setItem(STORAGE_KEYS.sidebarWidth, String(clampSidebarWidth(sidebarWidth)))
+    }, [sidebarWidth, settings.rememberLastDashboardView])
 
     useEffect(() => {
         if (!settings.rememberLastDashboardView) {
@@ -176,20 +201,28 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
         setHasUnsavedSettings,
         sidebarCollapsed,
         toggleSidebarCollapsed,
+        sidebarWidth,
+        setSidebarWidth,
         sidebarHidden,
         toggleSidebarHidden,
         setSidebarHidden,
+        isResizingSidebar,
+        setIsResizingSidebar,
     }), [
         activeSettingsSection,
         dashboardView,
         hasUnsavedSettings,
+        isResizingSidebar,
         setActiveSettingsSection,
         setDashboardView,
+        setIsResizingSidebar,
         setSettingsSectionParamsCallback,
         setSidebarHidden,
         settingsSectionParams,
         sidebarCollapsed,
+        sidebarWidth,
         sidebarHidden,
+        setSidebarWidth,
         toggleSidebarCollapsed,
         toggleSidebarHidden,
     ])
@@ -211,7 +244,7 @@ export function useAppShell() {
             return {
                 dashboardView: 'chat' as DashboardView,
                 setDashboardView: () => {},
-                activeSettingsSection: 'usage',
+                activeSettingsSection: 'providers',
                 setActiveSettingsSection: () => {},
                 settingsSectionParams: null,
                 setSettingsSectionParams: () => {},
@@ -219,9 +252,13 @@ export function useAppShell() {
                 setHasUnsavedSettings: () => {},
                 sidebarCollapsed: false,
                 toggleSidebarCollapsed: () => {},
+                sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
+                setSidebarWidth: () => {},
                 sidebarHidden: false,
                 toggleSidebarHidden: () => {},
                 setSidebarHidden: () => {},
+                isResizingSidebar: false,
+                setIsResizingSidebar: () => {},
             }
         }
         throw new Error('useAppShell must be used within a AppShellProvider')

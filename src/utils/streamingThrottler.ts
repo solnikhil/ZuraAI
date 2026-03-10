@@ -283,16 +283,6 @@ export class StreamingThrottler {
 let globalThrottler: StreamingThrottler | null = null
 
 /**
- * Get the global streaming throttler instance
- */
-export function getStreamingThrottler(config?: Partial<ThrottlerConfig>): StreamingThrottler {
-  if (!globalThrottler) {
-    globalThrottler = new StreamingThrottler(config)
-  }
-  return globalThrottler
-}
-
-/**
  * Reset the global streaming throttler (useful for testing)
  */
 export function resetStreamingThrottler(): void {
@@ -302,4 +292,4 @@ export function resetStreamingThrottler(): void {
   }
 }
 
-export type { ThrottlerConfig, PendingUpdate }
+export type { ThrottlerConfig }

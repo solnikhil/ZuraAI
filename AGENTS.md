@@ -11,7 +11,7 @@ Zura AI is a Windows-first desktop AI assistant built with **Electron + React + 
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, NVIDIA, Alibaba Cloud)
+- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; `web_search` and `research_plan` — the latter expands to `web_search` in renderer)
 
@@ -32,9 +32,10 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`).
+- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, with a hash-route fallback for unmatched paths.
 - Persistence is split:
-  - **Settings + UI state** live in renderer `localStorage`.
+  - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
+  - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
   - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
 
 ---
@@ -44,6 +45,7 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
+  - `electron/startup/` — deferred startup orchestration and startup metrics
   - `electron/windows/` — main window, tray
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
   - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
@@ -51,12 +53,16 @@ Core capabilities:
   - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
-  - `src/main.tsx` — renderer entrypoint; applies saved theme; renders `App`
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`)
-  - `src/contexts/` — app state (settings, chat history, app shell)
-  - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
-  - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
-  - `src/tools/` — tool schema + adapters + tool execution coordinator
+  - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
+  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
+- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync)
+- `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
+- `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
+- `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
+- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
+- `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
+- `src/tools/` — tool schema + adapters + tool execution coordinator
 
 - `dist/` — renderer build output (generated)
 - `dist-electron/` — electron build output (generated)
@@ -99,37 +105,52 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
+  - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and dev-only Inspect Element)
   - External links are opened via `shell.openExternal`.
 
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
   - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
 
+- **Renderer route fallback**
+  - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
+
+- **Shared shell layout**
+  - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
+  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
+  - `/` is a dashboard alias
+
+### CORS Bypass (Main Process)
+There is currently no active CORS-bypass header injection in `electron/main.ts`.
+
+If a new provider lacks CORS headers and renderer `fetch()` is blocked, add a narrowly scoped `session.defaultSession.webRequest.onHeadersReceived` handler in main process for that provider domain only.
+
 ### IPC Surface (Security-Critical)
 The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 - IPC bridge and allowlists live in `electron/preload.ts`.
 - `window.ipcRenderer` is a **restricted wrapper** around `ipcRenderer`.
+- `window.windowControls` is a **separate dedicated bridge** exposed from preload for minimize / maximize / close state, rather than part of the generic `window.ipcRenderer` allowlists.
 
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
-  - `open-settings`
-  - `set-titlebar-overlay`
   - `set-native-blur`
   - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
-  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`, `secure-storage:clear`, `secure-storage:status`
-  - `get-process-metrics`
-  - `memory:get-metrics`, `memory:force-cleanup`
-  - `performance:report-renderer-metrics`, `performance:get-metrics`, `performance:get-renderer-metrics`, `performance:check-thresholds`
+  - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
   - `execute-tool`
   - `window-resize`
   - `updater:check-for-updates`, `updater:quit-and-install`, `updater:get-version`
 - `ON_CHANNELS`:
   - `update-available`, `update-downloaded`
 
-**Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also in the preload allowlist.
+**Dedicated preload bridges (not part of `window.ipcRenderer` allowlists):**
+- `window.windowControls`
+  - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
+  - listens for: `window-controls:state`
+
+**Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
 **If you add/rename any IPC channel:**
 1. Add it to the correct allowlist(s) in `electron/preload.ts`
@@ -139,6 +160,13 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 ### Key Runtime Flows
 
+#### Startup + Shell Initialization
+- Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
+- Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Renderer startup in `src/main.tsx` initializes renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
+- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
+- Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
+
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
@@ -147,7 +175,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
-  - `src/services/nvidia.ts` (`streamNvidiaCompletion`)
   - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
@@ -156,25 +183,79 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
   - Main tool registry: `electron/tools/index.ts` (restricted)
 
-#### “Research Mode” - Toggles: `settings.webSearchEnabled`, `settings.structuredResearchEnabled`. When ON, the `web_search` tool is available to the model.
-- **Normal mode** (`webSearchEnabled` only): Model-driven depth; model decides how many searches. No caps; loop continues until final answer (safety cap: 50 rounds). Unified prompt: `useResearchMode.ts`.
-- **Structured Research Mode** (`structuredResearchEnabled` + `webSearchEnabled`): Plan-first flow for OpenRouter/Groq/NVIDIA/Alibaba. The main chat model calls the `research_plan` tool with 2–6 search steps. The renderer handler (`src/tools/researchPlanHandler.ts`) expands this into multiple `web_search` calls, shows the plan in the UI (`ResearchPlanBlock`), and returns combined results. The model then synthesizes the final answer in the same stream. `web_search` is hidden from the model in this mode so it must use `research_plan`.
+#### Skills-Based Research (`settings.skills`)
+- Research capability is now controlled by built-in skills, not direct tool toggles.
+- Built-in skill: `web_research` (`settings.skills.web_research`).
+- **Normal mode** (`settings.skills.web_research.config.mode = "normal"`): model can call `web_search` directly; model decides depth. No hard cap (safety cap remains in loop guard).
+- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, updates streaming research metadata (`researchPlan`, `researchProgress`), and returns aggregated results for final synthesis.
+- Tool schema exposure is skill-gated in renderer:
+  - Skill OFF: expose neither `web_search` nor `research_plan`
+  - Skill ON (normal): expose `web_search`
+  - Skill ON (structured): expose `web_search` + `research_plan`
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
-- Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`).
-- `set-titlebar-overlay` remains exposed for compatibility, but `electron/windows/mainWindow.ts#setTitleBarOverlay` is currently a guarded no-op when native overlay is disabled.
+- Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
+- Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
+
+#### Renderer Performance Tracking
+- Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
+- The tracker is initialized in `src/main.tsx` and consumed by `src/hooks/useLazyLoad.ts` for TTI-aware lazy loading.
+- There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
+
+#### Response Streaming Cadence
+- Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts` (`120ms`).
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `nvidiaModels`, `alibabaModels`) now support optional `enabled?: boolean`.
-- Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`) now support optional `enabled?: boolean`.
+- Provider-level toggles are persisted in `settings.providerEnabled` (`openrouter`, `ollama`, `perplexity`, `groq`, `alibaba`) and are independent from whether API keys/endpoints are filled.
+- Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
+
+#### Command Palette Quick-Send
+- The command palette (`Ctrl+Space`) supports sending a chat message directly via **Shift+Enter**.
+- When the user types text that doesn't match any command well (top score < 100), a "Send as chat message" suggestion appears automatically.
+- Runtime behavior is controlled by `settings.commandBar`: `enabled` gates both mount and hotkey registration, and suggestion/recents limits use `maxSuggestions`, `showRecents`, and `maxRecents`.
+- Architecture uses a **`QuickSendContext`** (`src/contexts/QuickSendContext.tsx`) as a lightweight message queue bridge between the command palette and `ChatArea`:
+  1. Command palette calls `queueMessage(content)` + navigates to `/dashboard` + sets dashboard view to `chat`.
+  2. `ChatArea` (`src/components/Dashboard/ChatArea.tsx`) has a `useEffect` that watches for `pendingMessage` from the context.
+  3. When a pending message is detected and the chat is not currently streaming, `ChatArea` calls `sendMessage()` from `useStreamingChat` and then `consumeMessage()` to clear the queue.
+- This handles the case where the user is on a non-chat page (e.g., Settings): navigation happens first, `ChatArea` mounts, then picks up the pending message.
+- `QuickSendProvider` is mounted in `App.tsx` above the `Router` so it's accessible to both the command palette and `ChatArea`.
+
+#### Sidebar Session Organization
+- The chat sidebar no longer supports archiving/unarchiving sessions.
+- Session grouping is now based on pinning, folder assignment, and recency buckets only.
+- Search overlays and list rendering include all sessions (subject to active filters), with no archive-only section or archive toggle.
+- Chat session metadata includes `pinned`, `folderId`, and `tags`; legacy `archived` values in persisted data are ignored during migration.
+
+#### Sidebar Width Resizing
+- Sidebar width is user-resizable from the dashboard via a right-edge drag handle in `src/components/Dashboard/Sidebar.tsx`.
+- The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
+- Current shell width calculations (sidebar panel, frosted glass continuation, titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
+
+#### Chat Title Generation Controls
+- Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
+- Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
+- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`.
+- New-session title reveal behavior is applied in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`:
+  - `instant`: apply generated title immediately
+  - `typewriter`: progressively reveal generated title in sidebar
 
 ### Data Persistence
 
 **Renderer (localStorage)**
 - Settings: `zura-settings`
+  - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
+  - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+  - Title generation settings:
+    - `titleModelProvider` (provider used for title generation)
+    - `titleModel` (model used for title generation)
+    - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
+    - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
+  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
@@ -183,54 +264,58 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `zura-ui:dashboardView`
   - `zura-ui:settingsSection`
   - `zura-ui:sidebarCollapsed`
+  - `zura-ui:sidebarWidth`
   - `zura-ui:sidebarHidden`
 - Command bar:
   - History: `zura-commandbar-history-v1`
-  - UI collapsed flags: `zura-commandbar-recents-collapsed`, `zura-commandbar-shortcuts-collapsed`
+- Model color assignments: `zura-model-colors`
 
 **Main process (`app.getPath('userData')`)**
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `nvidiaApiKey`, `alibabaApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
+- No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` when structured research enabled) 
+  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` definitions)
+  - Skill gating: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which schemas are exposed to the model per request
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
 
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (**currently only `web_search` enabled**)
   - Web search: `electron/tools/webSearch.ts`
-    - Primary: Tavily API when key exists (`TAVILY_API_KEY` env or secure storage `tavilyApiKey`)
-    - Fallback: duck-duck-scrape (real DuckDuckGo web search) when no key or Tavily fails
+    - Input classification happens at the top of `executeWebSearch`:
+      - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
+      - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
+      - **Natural-language query (no URL)** → Tavily **Search** (`/search`)
+      - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
+    - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
 
-**Note:** Other tool implementations exist in `electron/tools/*` (e.g. `datetime`, `clipboard`, `calculator`, `urlFetcher`) but are not wired to IPC by default.
+**Note:** Only `web_search` is implemented in `electron/tools/`. Previously existing but unused tool files (`datetime`, `clipboard`, `calculator`, `urlFetcher`) have been removed.
 
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
-- NVIDIA: `src/services/nvidia.ts` (NVIDIA NIM API; OpenAI-compatible tool calling)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
-- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModel`)
+- Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)
 
 ### Environment & Secrets
-- `VITE_OPENROUTER_API_KEY` — optional default OpenRouter key for renderer (Vite env)
-- `TAVILY_API_KEY` — optional Tavily key for main-process `web_search`
 - `VITE_DEV_SERVER_URL` — set in dev (used by Electron windows)
+
+API keys are configured in-app and stored via secure storage (`secure-storage.json` under `app.getPath('userData')`).
 
 Never commit `.env` or API keys.
 
 ### Known Architecture Gaps / TODOs (Current Code)
 These are useful breadcrumbs for agents:
-- No `globalShortcut.register(...)` calls were found; shortcut strings exist in settings, but main-process global hotkey registration appears pending.
-- `src/contexts/SettingsContext.tsx` sends `settings-changed`, but that channel is not allowlisted/handled; settings sync primarily happens via `localStorage` + `storage` events.
-- **Title bar command bar** (`src/components/TitleBarCommandBar.tsx`, `src/components/TitleBar.css`): The expanded-state styling (shadows, borders) has been reported to cause visual discomfort. Consider switching up the renderer/styling approach (e.g. frosted glass, different elevation treatment, or alternative component structure) if users report discomfort.
+- User-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
 
 ---
 
@@ -241,6 +326,7 @@ These are useful breadcrumbs for agents:
 - Treat the renderer as untrusted; validate/sanitize everything in main-process handlers.
 - Keep `contextIsolation: true` and `nodeIntegration: false` for all BrowserWindows.
 - Use shadcn UI components for all UI work; do not introduce other UI component libraries.
+- Keep shared interaction states (hover/active/focus) centralized in base classes for reusable controls (e.g. titlebar icon buttons) so variants stay visually consistent.
 - When changing IPC:
   - update `electron/preload.ts` allowlists
   - update typings in `src/electron.d.ts`
@@ -254,6 +340,7 @@ These are useful breadcrumbs for agents:
 - Don’t add new tools (or allow arbitrary tool names) without a clear security review.
 - Don’t commit secrets (API keys, tokens) or `.env` files.
 - Don’t edit generated output (`dist/`, `dist-electron/`).
+- Don’t add variant-specific hover/active styles for shared titlebar icon controls unless intentional and documented in the PR.
 
 ---
 
@@ -269,7 +356,7 @@ These are useful breadcrumbs for agents:
 ## Build & Release Notes (Electron)
 - Packaging uses `electron-builder` (see `package.json#build`).
 - Auto-updater is enabled only when `app.isPackaged` (production) in `electron/updater.ts`.
-- `package.json#build.publish` currently contains placeholders; update repo/owner for real releases.
+- `package.json#build.publish` is currently configured for GitHub releases on `solnikhil/ZuraAI`; update it if packaging from a fork or different repo.
 
 ---
 

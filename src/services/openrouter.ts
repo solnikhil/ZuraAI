@@ -1,6 +1,33 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import { parseSSEStream } from './streamUtils'
 
 // OpenRouter API service with streaming support
+
+// Retry configuration for transient errors (429, 502, 503, 529)
+const MAX_RETRIES = 3
+const INITIAL_BACKOFF_MS = 1500
+const BACKOFF_MULTIPLIER = 2
+const RETRYABLE_STATUS_CODES = [429, 502, 503, 529]
+
+/**
+ * Parse retry delay from OpenRouter error response or use exponential backoff.
+ * OpenRouter 429 responses may include metadata.retry_after (seconds).
+ */
+function getRetryDelay(attempt: number, errorBody?: string): number {
+    if (errorBody) {
+        try {
+            const parsed = JSON.parse(errorBody)
+            const retryAfter = parsed?.error?.metadata?.retry_after
+            if (typeof retryAfter === 'number' && retryAfter > 0) {
+                return Math.min(retryAfter * 1000, 30000) // Cap at 30s, convert to ms
+            }
+        } catch { /* ignore parse errors */ }
+    }
+    return INITIAL_BACKOFF_MS * Math.pow(BACKOFF_MULTIPLIER, attempt)
+}
+
+/** Sleep helper */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export interface OpenRouterStreamChunk {
     id: string
@@ -105,80 +132,6 @@ interface OpenRouterRequestBody {
     }
 }
 
-export async function generateOpenRouterCompletion(
-    apiKey: string,
-    model: string,
-    messages: ChatMessage[],
-    options?: {
-        temperature?: number
-        maxTokens?: number
-        stream?: boolean
-        tools?: ToolDefinition[]
-        toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
-        responseFormat?: OpenRouterRequestBody['response_format']
-        reasoning?: {
-            max_tokens?: number
-            effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
-            exclude?: boolean
-            enabled?: boolean
-        }
-        signal?: AbortSignal
-    }
-): Promise<OpenRouterResponse> {
-    if (!apiKey) {
-        throw new Error("OpenRouter API Key is missing")
-    }
-
-    const requestBody: OpenRouterRequestBody = {
-        model,
-        messages,
-    }
-
-    if (options?.temperature !== undefined) {
-        requestBody.temperature = options.temperature
-    }
-    if (options?.maxTokens !== undefined) {
-        requestBody.max_tokens = options.maxTokens
-    }
-    if (options?.stream !== undefined) {
-        requestBody.stream = options.stream
-    }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
-        requestBody.tools = options.tools
-        // Only set tool_choice if explicitly provided - let OpenRouter use provider defaults otherwise
-        // Some providers don't support 'auto', so we only set it when explicitly requested
-        if (options.toolChoice !== undefined) {
-            requestBody.tool_choice = options.toolChoice
-        }
-    }
-    if (options?.reasoning) {
-        requestBody.reasoning = options.reasoning
-    }
-    if (options?.responseFormat) {
-        requestBody.response_format = options.responseFormat
-    }
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
-
-    if (!response.ok) {
-        const errorText = await response.text()
-        const errorData = parseErrorResponse(errorText)
-        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
-    }
-
-    const result = await response.json()
-    return result
-}
-
 export async function* streamOpenRouterCompletion(
     apiKey: string,
     model: string,
@@ -214,7 +167,7 @@ export async function* streamOpenRouterCompletion(
     if (options?.maxTokens !== undefined) {
         requestBody.max_tokens = options.maxTokens
     }
-    if (options?.tools && Array.isArray(options.tools) && options.tools.length > 0) {
+    if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
         // Only set tool_choice if explicitly provided - let OpenRouter use provider defaults otherwise
         // Some providers don't support 'auto', so we only set it when explicitly requested
@@ -226,21 +179,45 @@ export async function* streamOpenRouterCompletion(
         requestBody.reasoning = options.reasoning
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
+    // Retry loop for the initial HTTP request (before streaming starts)
+    let response: Response | null = null
+    let lastError: Error | null = null
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+            const delay = getRetryDelay(attempt - 1, lastError?.message)
+            console.log(`[Zura] OpenRouter stream retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
+            await sleep(delay)
+        }
 
-    if (!response.ok) {
+        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://zura.ai",
+                "X-Title": "Zura AI"
+            },
+            body: JSON.stringify(requestBody),
+            signal: options?.signal
+        })
+
+        if (response.ok) break // Success, proceed to streaming
+
         const errorText = await response.text()
         const errorData = parseErrorResponse(errorText)
         const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
+
+        if (RETRYABLE_STATUS_CODES.includes(response.status) && attempt < MAX_RETRIES) {
+            console.warn(`[Zura] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
+            lastError = new Error(errorText)
+            continue
+        }
+
+        throw new Error(`[${response.status}] ${errorMessage}`)
+    }
+
+    if (!response || !response.ok) {
+        throw lastError || new Error('OpenRouter stream request failed after retries')
     }
 
     const reader = response.body?.getReader()
@@ -248,41 +225,72 @@ export async function* streamOpenRouterCompletion(
         throw new Error("Failed to get response reader")
     }
 
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-            for (const line of lines) {
-                if (line.trim() === '') continue
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6)
-                    if (data === '[DONE]') {
-                        return
-                    }
-                    try {
-                        const chunk: OpenRouterStreamChunk = JSON.parse(data)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                    } catch (e) {
-                        // Skip invalid JSON
-                        console.warn('Failed to parse chunk:', data)
-                    }
-                }
+    yield* parseSSEStream<OpenRouterStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+        providerName: 'OpenRouter',
+        onParsed(parsed: unknown) {
+            const chunk = parsed as any
+            // OpenRouter can send error objects inside the SSE stream
+            // when the upstream provider fails mid-generation
+            if (chunk.error) {
+                const errorMsg = chunk.error.message || 'Stream error from provider'
+                const code = chunk.error.code || 'unknown'
+                const provider = chunk.error.metadata?.provider_name || ''
+                const raw = chunk.error.metadata?.raw || ''
+                const detail = provider ? ` (provider: ${provider})` : ''
+                const rawDetail = raw && raw !== errorMsg ? ` — ${String(raw).slice(0, 200)}` : ''
+                throw new Error(`${code} ${errorMsg}${detail}${rawDetail}`)
             }
+            return chunk as OpenRouterStreamChunk
         }
-    } finally {
-        reader.releaseLock()
+    })
+}
+
+/**
+ * Non-streaming OpenRouter completion (used for lightweight calls like title generation).
+ */
+export async function generateOpenRouterCompletion(
+    apiKey: string,
+    model: string,
+    messages: ChatMessage[],
+    options?: {
+        temperature?: number
+        max_tokens?: number
     }
+): Promise<OpenRouterResponse> {
+    if (!apiKey) {
+        throw new Error("OpenRouter API Key is missing")
+    }
+
+    const requestBody: OpenRouterRequestBody = {
+        model,
+        messages,
+    }
+    if (options?.temperature !== undefined) {
+        requestBody.temperature = options.temperature
+    }
+    if (options?.max_tokens !== undefined) {
+        requestBody.max_tokens = options.max_tokens
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://zura.ai",
+            "X-Title": "Zura AI"
+        },
+        body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+        const errorText = await response.text()
+        const errorData = parseErrorResponse(errorText)
+        throw new Error(extractErrorMessage(errorData, errorText, response.status, response.statusText))
+    }
+
+    return response.json()
 }
 
 const SYNTHESIS_SYSTEM = `You are a research synthesizer. Given a user question and web search results, write a clear, well-structured answer. Use the research to support your response. Cite sources when relevant. Be concise but thorough.`

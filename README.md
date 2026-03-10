@@ -1,12 +1,12 @@
 # Zura AI
 
-Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript.
+A Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript.
 
 ![Zura AI](public/icon.png)
 
 ## What it does
 
-- Multi-provider chat (OpenRouter, Ollama, Perplexity, Groq, NVIDIA, Alibaba Cloud)
+- Multi-provider chat (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Streaming responses with tool support (`web_search`, `research_plan`)
 - Local chat history persistence through the Electron main process
 - Secure key storage using Electron `safeStorage` when available
@@ -30,21 +30,19 @@ Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScr
 git clone https://github.com/solnikhil/ZuraAI.git
 cd ZuraAI
 npm install
-# macOS/Linux/Git Bash
-cp .env.example .env
-# Windows Command Prompt
-copy .env.example .env
 npm run dev
 ```
 
-## Environment variables
+## API keys
 
-Create `.env` from `.env.example`.
+No `.env` setup is required.
 
-- `VITE_OPENROUTER_API_KEY` (optional): default OpenRouter key for renderer use
-- `TAVILY_API_KEY` (optional): Tavily key for main-process web search tool
+Add provider/search API keys in the app under Settings.
 
-You can also add keys through Settings in the app.
+Notes:
+
+- Ollama does not require an API key, but the Ollama server must be running (`http://localhost:11434` by default).
+- Keys are stored through Electron secure storage (`safeStorage` when available).
 
 ## Scripts
 
@@ -64,6 +62,14 @@ You can also add keys through Settings in the app.
 - Preload exposes a narrow allowlisted IPC surface
 
 See `AGENTS.md` for architecture details.
+
+## Project docs
+
+- `AGENTS.md` - architecture and security boundaries
+- `CONTRIBUTING.md` - contribution workflow and quality checks
+- `SECURITY.md` - vulnerability reporting process
+- `SUPPORT.md` - user support and issue reporting guidance
+- `docs/release-checklist.md` - release steps for maintainers
 
 ## Contributing
 

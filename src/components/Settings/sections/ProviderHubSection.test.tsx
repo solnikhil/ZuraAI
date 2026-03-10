@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProviderHubSection } from './ProviderHubSection'
 
 describe('ProviderHubSection', () => {
@@ -8,11 +8,9 @@ describe('ProviderHubSection', () => {
     openRouterApiKey: '',
     perplexityApiKey: '',
     groqApiKey: '',
-    nvidiaApiKey: '',
+    alibabaApiKey: '',
     tavilyApiKey: '',
     ollamaUrl: 'http://localhost:11434',
-    toolsEnabled: true,
-    webSearchEnabled: true,
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter' as const,
     configuredModels: [
@@ -22,27 +20,26 @@ describe('ProviderHubSection', () => {
     ],
     perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
-    nvidiaModels: [{ code: 'meta/llama3-70b', displayName: 'Llama 3 70B' }],
+    alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
-    titleModel: 'google/gemini-2.0-flash-exp:free',
     onChange: vi.fn(),
   }
 
   it('renders providers controls', () => {
     render(<ProviderHubSection {...baseProps} />)
 
-    expect(screen.getByText('Providers')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Providers' })).toBeInTheDocument()
     expect(screen.getByText('Model Providers')).toBeInTheDocument()
     expect(screen.getByText('Search APIs')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search Providers...')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /add custom model/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add custom model/i })).not.toBeInTheDocument()
   })
 
   it('creates a custom model from add dialog', () => {
     const onChange = vi.fn()
     render(<ProviderHubSection {...baseProps} onChange={onChange} />)
 
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
     fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
     expect(screen.getByText('Create Custom AI Model')).toBeInTheDocument()
 
@@ -55,14 +52,6 @@ describe('ProviderHubSection', () => {
         expect.objectContaining({ code: 'custom/provider-model-1', displayName: 'Custom Provider Model 1' }),
       ]),
     }))
-  })
-
-  it('opens custom order dialog from group header action', () => {
-    render(<ProviderHubSection {...baseProps} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /custom order for enabled providers/i }))
-    expect(screen.getByText('Custom Order')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /update/i })).toBeInTheDocument()
   })
 
   it('removes current-model selection controls from settings list', () => {
@@ -182,5 +171,84 @@ describe('ProviderHubSection', () => {
     expect(onChange.mock.calls[0][0].configuredModels).not.toContainEqual(
       expect.objectContaining({ code: 'x-ai/grok-4.1-fast' })
     )
+  })
+
+  it('disables provider without clearing API key', () => {
+    const onChange = vi.fn()
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        openRouterApiKey="or-key-123"
+        providerEnabled={{
+          openrouter: true,
+          perplexity: true,
+          groq: true,
+          ollama: true,
+          alibaba: true,
+        }}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Toggle OpenRouter'))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      providerEnabled: expect.objectContaining({ openrouter: false }),
+    }))
+    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ openRouterApiKey: '' }))
+  })
+
+  it('does not open provider detail when toggling provider switch', () => {
+    const onChange = vi.fn()
+    render(
+      <ProviderHubSection
+        {...baseProps}
+        providerEnabled={{
+          openrouter: false,
+          perplexity: true,
+          groq: true,
+          ollama: true,
+          alibaba: true,
+        }}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Toggle OpenRouter'))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
+      providerEnabled: expect.objectContaining({ openrouter: true }),
+    }))
+    expect(screen.queryByLabelText('Back to providers')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/OpenRouter API Key/i)).not.toBeInTheDocument()
+  })
+
+  it('runs Alibaba connectivity check against chat completions endpoint', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ id: 'ok' }),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} alibabaApiKey="test-key" />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+
+    const checkButton = await screen.findByRole('button', { name: /^check$/i })
+    fireEvent.click(checkButton)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/chat/completions'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-key',
+          }),
+        })
+      )
+    })
+
+    fetchMock.mockRestore()
   })
 })

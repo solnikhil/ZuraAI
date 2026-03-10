@@ -12,24 +12,18 @@ import { useModelSelector } from '../ModelSelector/useModelSelector'
 import { estimateTokens, estimateMessageTokens } from '../../../utils/tokenUtils'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
-const DEFAULT_MAX_CONTEXT = 8192
+export const DEFAULT_MAX_CONTEXT = 8192
 const CIRCLE_SIZE = 18
 const STROKE_WIDTH = 2
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
-/** ~4 chars per token heuristic for streaming output */
-function estimateOutputTokens(content: string): number {
-  if (!content) return 0
-  return Math.ceil(content.length / 4)
-}
-
-interface TokenBreakdown {
+export interface TokenBreakdown {
   systemPrompt: number
   chatMessages: number
   currentInput: number
@@ -38,6 +32,56 @@ interface TokenBreakdown {
   maxContext: number
   remaining: number
   fillRatio: number
+}
+
+export interface ComputeTokenBreakdownParams {
+  messages: Array<{ role: string; content: string }>
+  systemPrompt: string
+  currentInput: string
+  streamingContent: string
+  maxContext: number | undefined
+}
+
+/**
+ * Pure function to compute the token breakdown for the context details ring.
+ * Extracted for testability.
+ */
+export function computeTokenBreakdown({
+  messages,
+  systemPrompt,
+  currentInput,
+  streamingContent,
+  maxContext: rawMaxContext,
+}: ComputeTokenBreakdownParams): TokenBreakdown {
+  const systemPromptTokens = systemPrompt
+    ? estimateMessageTokens({ role: 'system', content: systemPrompt })
+    : 0
+  const chatMessagesTokens = messages.reduce(
+    (sum, m) => sum + estimateMessageTokens(m),
+    0
+  )
+  const currentInputTokens = estimateTokens(currentInput)
+  const streamingOutputTokens = estimateTokens(streamingContent)
+
+  const totalUsed =
+    systemPromptTokens +
+    chatMessagesTokens +
+    currentInputTokens +
+    streamingOutputTokens
+  const maxContext = rawMaxContext ?? DEFAULT_MAX_CONTEXT
+  const remaining = Math.max(0, maxContext - totalUsed)
+  const fillRatio = maxContext > 0 ? Math.min(1, totalUsed / maxContext) : 0
+
+  return {
+    systemPrompt: systemPromptTokens,
+    chatMessages: chatMessagesTokens,
+    currentInput: currentInputTokens,
+    streamingOutput: streamingOutputTokens,
+    totalUsed,
+    maxContext,
+    remaining,
+    fillRatio,
+  }
 }
 
 function BreakdownRow({
@@ -77,54 +121,43 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
   const { currentModel } = useModelSelector()
 
   const breakdown = useMemo((): TokenBreakdown => {
-    const messages = currentSessionId
+    const sessionMessages = currentSessionId
       ? sessions.find(s => s.id === currentSessionId)?.messages ?? []
       : []
-    const systemPrompt = settings.systemPrompt ?? ''
-
-    const messagesForEstimate = messages.map(m => ({
-      role: m.role,
-      content: m.content + (m.thinking ? `\n${m.thinking}` : ''),
-    }))
-
-    const systemPromptTokens = systemPrompt
-      ? estimateMessageTokens({ role: 'system', content: systemPrompt })
-      : 0
-    const chatMessagesTokens = messagesForEstimate.reduce(
-      (sum, m) => sum + estimateMessageTokens(m),
-      0
+    const hasActiveStreamingMessage = Boolean(
+      streamingState.isStreaming &&
+      currentSessionId &&
+      streamingState.sessionId === currentSessionId &&
+      streamingState.messageId
     )
-    const currentInputTokens = estimateTokens(input)
-    const streamingOutputTokens =
-      streamingState.isStreaming && streamingState.content
-        ? estimateOutputTokens(streamingState.content)
-        : 0
+    const streamingMessageId = hasActiveStreamingMessage ? streamingState.messageId : null
+    const streamingMessage = streamingMessageId
+      ? sessionMessages.find(m => m.id === streamingMessageId)
+      : undefined
+    const messages = streamingMessageId
+      ? sessionMessages.filter(m => m.id !== streamingMessageId)
+      : sessionMessages
 
-    const totalUsed =
-      systemPromptTokens +
-      chatMessagesTokens +
-      currentInputTokens +
-      streamingOutputTokens
-    const maxContext = currentModel?.maxContext ?? DEFAULT_MAX_CONTEXT
-    const remaining = Math.max(0, maxContext - totalUsed)
-    const fillRatio = maxContext > 0 ? Math.min(1, totalUsed / maxContext) : 0
+    const effectiveStreamingContent =
+      hasActiveStreamingMessage
+        ? (streamingState.content || streamingMessage?.content || '')
+        : ''
 
-    return {
-      systemPrompt: systemPromptTokens,
-      chatMessages: chatMessagesTokens,
-      currentInput: currentInputTokens,
-      streamingOutput: streamingOutputTokens,
-      totalUsed,
-      maxContext,
-      remaining,
-      fillRatio,
-    }
+    return computeTokenBreakdown({
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      systemPrompt: settings.systemPrompt ?? '',
+      currentInput: input,
+      streamingContent: effectiveStreamingContent,
+      maxContext: currentModel?.maxContext,
+    })
   }, [
     currentSessionId,
     sessions,
     settings.systemPrompt,
     input,
     streamingState.isStreaming,
+    streamingState.sessionId,
+    streamingState.messageId,
     streamingState.content,
     currentModel?.maxContext,
   ])
@@ -133,9 +166,26 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
 
   const [open, setOpen] = useState(false)
   const [isPinned, setIsPinned] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const HOVER_DELAY_MS = 200
+  const HOVER_OPEN_DELAY_MS = 200
+  const HOVER_CLOSE_DELAY_MS = 150
+
+  const clearHoverTimeout = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
+    }
+  }
+
+  const scheduleHoverAction = (action: () => void, delayMs: number) => {
+    clearHoverTimeout()
+    hoverTimeoutRef.current = setTimeout(() => {
+      hoverTimeoutRef.current = null
+      action()
+    }, delayMs)
+  }
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -145,59 +195,63 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
   }
 
   const handleTriggerMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
+    if (isPinned) {
+      clearHoverTimeout()
+      return
     }
-    hoverTimeoutRef.current = setTimeout(() => {
-      hoverTimeoutRef.current = null
+
+    scheduleHoverAction(() => {
       setOpen(true)
-    }, HOVER_DELAY_MS)
+    }, HOVER_OPEN_DELAY_MS)
   }
 
   const handleTriggerMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
     if (!isPinned) {
-      hoverTimeoutRef.current = setTimeout(() => {
-        hoverTimeoutRef.current = null
+      scheduleHoverAction(() => {
         setOpen(false)
-      }, 150)
+      }, HOVER_CLOSE_DELAY_MS)
     }
   }
 
   const handleContentMouseEnter = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
-    }
+    clearHoverTimeout()
   }
 
   const handleContentMouseLeave = () => {
     if (!isPinned) {
-      hoverTimeoutRef.current = setTimeout(() => {
-        hoverTimeoutRef.current = null
+      scheduleHoverAction(() => {
         setOpen(false)
-      }, 150)
+      }, HOVER_CLOSE_DELAY_MS)
     }
   }
 
   const handleTriggerClick = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current)
-      hoverTimeoutRef.current = null
+    clearHoverTimeout()
+
+    if (isPinned) {
+      setIsPinned(false)
+      setOpen(false)
+      return
     }
-    setIsPinned((p) => !p)
-    setOpen((o) => !o)
+
+    setIsPinned(true)
+    setOpen(true)
+  }
+
+  const handleContentInteractOutside = (event: Event) => {
+    const target = event.target
+    if (!(target instanceof Node)) {
+      return
+    }
+
+    if (triggerRef.current?.contains(target)) {
+      event.preventDefault()
+    }
   }
 
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current)
-      }
+      clearHoverTimeout()
     }
   }, [])
 
@@ -209,10 +263,12 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <motion.button
+          ref={triggerRef}
           type="button"
           aria-label={ariaLabel}
+          aria-pressed={isPinned}
           className={cn(
             'flex items-center justify-center rounded-full cursor-pointer',
             className
@@ -253,13 +309,14 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
             />
           </svg>
         </motion.button>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         side="top"
         sideOffset={8}
         align="end"
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
+        onInteractOutside={handleContentInteractOutside}
         onCloseAutoFocus={(e) => e.preventDefault()}
         className={cn(
           'w-64 rounded-xl border border-white/10 bg-neutral-900/95 p-4 shadow-xl backdrop-blur-sm',
@@ -267,7 +324,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
         )}
       >
         <div className="space-y-3">
-          {/* Header */}
           <div className="flex items-center justify-between animate-token-context-item animate-token-context-item-delay-1">
             <h4 className="text-sm font-semibold text-white">Context Details</h4>
             <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white/80">
@@ -275,7 +331,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
             </span>
           </div>
 
-          {/* Breakdown */}
           <div className="space-y-2 animate-token-context-item animate-token-context-item-delay-2">
             <BreakdownRow
               label="System Prompt"
@@ -313,7 +368,6 @@ export function TokenUsageIndicator({ input, className }: TokenUsageIndicatorPro
                 />
               </div>
 
-              {/* Summary */}
               <div className="space-y-1.5 border-t border-white/10 pt-3 animate-token-context-item animate-token-context-item-delay-4">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-1.5">

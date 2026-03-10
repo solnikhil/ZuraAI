@@ -1,13 +1,13 @@
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
-  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis' }
+  | { type: 'open_settings_section'; section: string; provider?: ProviderKey; manageMode?: 'providers' | 'search-apis'; commandPaletteTab?: boolean }
   | { type: 'toggle_sidebar_hidden' }
   | { type: 'toggle_sidebar_collapsed' }
   | { type: 'new_chat' }
   | { type: 'export_chat'; format: 'markdown' | 'text' }
-  | { type: 'run_tool'; toolName: string; args: Record<string, unknown> }
+  | { type: 'send_chat_message'; content: string }
 
 export interface CommandBarSuggestion {
   id: string
@@ -19,8 +19,6 @@ export interface CommandBarSuggestion {
 }
 
 export interface CommandBarSuggestionContext {
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
   hasCurrentSession: boolean
 }
 
@@ -127,7 +125,7 @@ export function normalizeUrlCandidate(input: string): string | null {
   }
 }
 
-// Kept for future actions; currently not exposed in the command bar.
+// Kept for future actions; currently not exposed in the command palette.
 export function looksLikeMathExpression(input: string): boolean {
   const trimmed = input.trim()
   if (!trimmed) return false
@@ -171,6 +169,13 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       action: { type: 'open_settings_section', section: 'providers' }
     },
     {
+      id: 'go-settings-skills',
+      title: 'Skills Settings',
+      subtitle: 'Built-in skills and modes',
+      keywords: ['skills', 'web research', 'research mode', 'capabilities'],
+      action: { type: 'open_settings_section', section: 'skills' }
+    },
+    {
       id: 'go-settings-openrouter',
       title: 'OpenRouter Settings',
       subtitle: 'API keys & models',
@@ -197,13 +202,6 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
       subtitle: 'Local models',
       keywords: ['ollama', 'local'],
       action: { type: 'open_settings_section', section: 'providers', provider: 'ollama' }
-    },
-    {
-      id: 'go-settings-nvidia',
-      title: 'NVIDIA Settings',
-      subtitle: 'NIM API models',
-      keywords: ['nvidia', 'nim'],
-      action: { type: 'open_settings_section', section: 'providers', provider: 'nvidia' }
     },
     {
       id: 'go-settings-alibaba',
@@ -235,10 +233,10 @@ function buildBaseSuggestions(ctx: CommandBarSuggestionContext): Array<Omit<Comm
     },
     {
       id: 'go-settings-commandbar',
-      title: 'Command Bar Settings',
-      subtitle: 'Customize command bar in Appearance',
-      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette'],
-      action: { type: 'open_settings_section', section: 'themes' }
+      title: 'Command Palette Settings',
+      subtitle: 'Customize floating command palette',
+      keywords: ['command', 'bar', 'commandbar', 'shortcut', 'palette', 'floating', 'overlay'],
+      action: { type: 'open_settings_section', section: 'themes', commandPaletteTab: true }
     },
     {
       id: 'go-settings-experimental',
@@ -306,21 +304,6 @@ export function getCommandBarSuggestions(
   const results: CommandBarSuggestion[] = []
   const base = buildBaseSuggestions(ctx)
 
-  // Quick actions (only when not in commands-only mode)
-  if (!commandsOnly && query) {
-    // Quick web search action
-    if (ctx.toolsEnabled && ctx.webSearchEnabled && query.trim().length >= 3) {
-      results.push({
-        id: 'quick-web-search',
-        title: `Web Search: ${query}`,
-        subtitle: 'Search & add to chat',
-        keywords: ['search', 'web', 'tavily'],
-        action: { type: 'run_tool', toolName: 'web_search', args: { query } },
-        score: 40 + Math.min(query.trim().length, 20)
-      })
-    }
-  }
-
   // Base suggestions (filter on query if provided)
   for (let index = 0; index < base.length; index++) {
     const suggestion = base[index]
@@ -383,10 +366,28 @@ export function getCommandBarSuggestions(
     }
   }
 
-  return Array.from(deduped.values())
+  const sorted = Array.from(deduped.values())
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score
       return a.title.localeCompare(b.title)
     })
     .slice(0, Math.max(1, limit))
+
+  // If there's a non-empty query and no command scored above the confidence threshold,
+  // append a "Send as chat message" suggestion so the user can quick-send from the palette.
+  const SEND_SUGGESTION_THRESHOLD = 100
+  if (query.length > 0 && !commandsOnly) {
+    const topScore = sorted.length > 0 ? sorted[0].score : 0
+    if (topScore < SEND_SUGGESTION_THRESHOLD) {
+      sorted.push({
+        id: 'quick-send-message',
+        title: 'Send as chat message',
+        subtitle: query,
+        action: { type: 'send_chat_message', content: query },
+        score: -1,
+      })
+    }
+  }
+
+  return sorted
 }

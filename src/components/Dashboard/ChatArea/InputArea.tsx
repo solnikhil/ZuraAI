@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Paperclip, Globe, Image, X, SendHorizonal, Square } from 'lucide-react'
+import { Paperclip, Image, X, SendHorizonal, Square, Plus, Check, Wrench, Radar } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { processFiles, type AttachedFile } from './FileUploadHandler'
@@ -24,6 +24,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu'
+import { withWebResearchEnabled } from '../../../skills'
 
 export interface InputAreaProps {
   input: string
@@ -34,6 +45,13 @@ export interface InputAreaProps {
   attachedFiles: AttachedFile[]
   onFilesChange: (files: AttachedFile[]) => void
   onError?: (message: string) => void
+  showContextRing?: boolean
+  /** Called on any user activity inside the prompt area (typing, click, focus, mouse move) */
+  onActivity?: () => void
+  /** Called when textarea focus state changes */
+  onFocusChange?: (focused: boolean) => void
+  /** Expose the textarea ref to the parent (for keyboard reactivation focus) */
+  textareaRefCallback?: (ref: React.RefObject<HTMLTextAreaElement | null>) => void
 }
 
 /**
@@ -47,23 +65,32 @@ export function InputArea({
   isLoading,
   attachedFiles,
   onFilesChange,
-  onError
+  onError,
+  showContextRing = true,
+  onActivity,
+  onFocusChange,
+  textareaRefCallback,
 }: InputAreaProps) {
   const [isDragging, setIsDragging] = React.useState(false)
   const [showImageModal, setShowImageModal] = React.useState(false)
   const [isFocused, setIsFocused] = React.useState(false)
+  const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 52,
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const imageOnlyInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
   const { frostedPrompt } = settings
+  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
+
+  // Expose textarea ref to parent for keyboard reactivation
+  React.useEffect(() => {
+    textareaRefCallback?.(textareaRef)
+  }, [textareaRef, textareaRefCallback])
 
   const imageFiles = attachedFiles.filter(f => f.type === 'image')
-
-  // Web search is enabled when webSearchEnabled is true
-  const showSearch = settings.webSearchEnabled
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -89,6 +116,47 @@ export function InputArea({
       fileInputRef.current.value = ''
     }
   }
+
+  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files || files.length === 0) return
+
+    const newFiles = await processFiles(files, { onError })
+    if (newFiles.length > 0) {
+      onFilesChange([...attachedFiles, ...newFiles])
+    }
+
+    if (imageOnlyInputRef.current) {
+      imageOnlyInputRef.current.value = ''
+    }
+  }
+
+  const toggleWebResearchSkill = React.useCallback(() => {
+    const nextEnabled = !webResearchEnabled
+    updateSettings({
+      skills: withWebResearchEnabled(settings.skills, nextEnabled),
+    })
+  }, [settings.skills, updateSettings, webResearchEnabled])
+
+  React.useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      const isMeta = event.ctrlKey || event.metaKey
+      if (!isMeta) return
+
+      const activeElement = document.activeElement
+      const isComposerActive = activeElement === textareaRef.current
+      if (!isComposerActive) return
+
+      const key = event.key.toLowerCase()
+      if (!event.shiftKey && key === 'u') {
+        event.preventDefault()
+        fileInputRef.current?.click()
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [textareaRef])
 
   const handlePaste = async (event: React.ClipboardEvent) => {
     const items = event.clipboardData.items
@@ -142,11 +210,8 @@ export function InputArea({
     onFilesChange(attachedFiles.filter(f => f.id !== fileId))
   }
 
-  const toggleSearch = () => {
-    updateSettings({ webSearchEnabled: !settings.webSearchEnabled })
-  }
-
   const handleContainerClick = () => {
+    onActivity?.()
     if (textareaRef.current) {
       textareaRef.current.focus()
     }
@@ -155,6 +220,16 @@ export function InputArea({
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentBanner = attachedFiles.length > 0
 
+  // Throttled mouse-move activity signal (fire at most once per 2s)
+  const lastMouseActivityRef = React.useRef(0)
+  const handleMouseMoveActivity = React.useCallback(() => {
+    const now = Date.now()
+    if (now - lastMouseActivityRef.current > 2000) {
+      lastMouseActivityRef.current = now
+      onActivity?.()
+    }
+  }, [onActivity])
+
   return (
     <TooltipProvider>
       <div
@@ -162,9 +237,9 @@ export function InputArea({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onMouseMove={handleMouseMoveActivity}
       >
-        {/* Wider container - max-w-2xl = 672px */}
-        <div className="relative max-w-2xl w-full mx-auto">
+        <div className="relative w-full mx-auto">
           {/* Attached Files Badges */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
@@ -208,7 +283,9 @@ export function InputArea({
             aria-label="Chat input container"
             initial={false}
             animate={{
-              boxShadow: frostedPrompt
+              boxShadow: quickActionsOpen
+                ? "none"
+                : frostedPrompt
                 ? (isFocused
                   ? "0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)"
                   : "0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)")
@@ -219,7 +296,7 @@ export function InputArea({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5",
-              frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
+              quickActionsOpen ? "bg-[#292929]" : frostedPrompt ? "zura-frosted-prompt" : "bg-[#292929]",
               showAttachmentBanner ? "pt-3" : "pt-2",
               isDragging && "ring-2 ring-[var(--theme-accent)]"
             )}
@@ -253,7 +330,7 @@ export function InputArea({
               <Textarea
                 ref={textareaRef}
                 value={input}
-                placeholder={isDragging ? "Drop files here..." : "What can I do for you?"}
+                placeholder={isDragging ? "Drop files here..." : "Type / for commands"}
                 className={cn(
                   "w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none",
                   "bg-transparent",
@@ -261,13 +338,14 @@ export function InputArea({
                   "placeholder:text-[var(--theme-text-muted)]",
                   "transition-colors duration-200"
                 )}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
+                onFocus={() => { setIsFocused(true); onFocusChange?.(true); onActivity?.() }}
+                onBlur={() => { setIsFocused(false); onFocusChange?.(false) }}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 onChange={(e) => {
                   setInput(e.target.value)
                   adjustHeight()
+                  onActivity?.()
                 }}
                 disabled={isLoading}
               />
@@ -277,59 +355,83 @@ export function InputArea({
             <div className="h-12 rounded-b-xl relative bg-transparent">
               {/* Left side controls */}
               <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
-                {/* Model Selector */}
-                <ModelSelector minimal={true} />
-
-                      <div className="mx-1 h-4 w-px bg-white/10" />
-
-                {/* Web Search Toggle - KokonutUI style */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    toggleSearch()
-                  }}
-                  className={cn(
-                    "rounded-full transition-all flex items-center gap-2 px-2 py-1 h-8 cursor-pointer",
-                    showSearch
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/70 hover:bg-white/5"
-                  )}
-                >
-                  <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                    <motion.div
-                      animate={{
-                        rotate: showSearch ? 180 : 0,
-                        scale: showSearch ? 1.1 : 1,
-                      }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 260,
-                        damping: 25,
-                      }}
+                <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <motion.button
+                      type="button"
+                      onClick={(e) => e.stopPropagation()}
+                      className={cn(
+                        "h-8 w-8 inline-flex items-center justify-center rounded-[10px] border border-transparent text-white/70 transition-[color,background-color,border-color,box-shadow] duration-150",
+                        "hover:text-white hover:bg-[#1d1d1d] hover:border-white/[0.06] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+                        quickActionsOpen && "bg-[#1d1d1d] border-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                      )}
+                      aria-label="Open quick actions"
                     >
-                      <Globe
-                        className={cn(
-                          "w-4 h-4",
-                          showSearch ? "text-white" : "text-inherit"
-                        )}
-                      />
-                    </motion.div>
-                  </div>
-                  <AnimatePresence>
-                    {showSearch && (
-                      <motion.span
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: "auto", opacity: 1 }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-sm overflow-hidden whitespace-nowrap text-white shrink-0 pr-1"
-                      >
-                        Search
-                      </motion.span>
+                      <Plus size={20} />
+                    </motion.button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    alignOffset={0}
+                    side="top"
+                    sideOffset={2}
+                    style={{
+                      boxShadow: 'none',
+                      backdropFilter: 'none',
+                      WebkitBackdropFilter: 'none',
+                    }}
+                    className={cn(
+                      "w-[248px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none data-[state=open]:animate-none data-[state=closed]:animate-none"
                     )}
-                  </AnimatePresence>
-                </button>
+                  >
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault()
+                        fileInputRef.current?.click()
+                        setQuickActionsOpen(false)
+                      }}
+                      className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                    >
+                      <Paperclip className="h-4 w-4 text-white/75" />
+                      <span>Add files or photos</span>
+                      <span className="ml-auto text-[11px] text-white/40 opacity-0 transition-opacity duration-150 group-hover/menu-item:opacity-100">
+                        Ctrl+U
+                      </span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator className="mx-3 my-1 h-px bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.04)_15%,rgba(255,255,255,0.08)_50%,rgba(255,255,255,0.04)_85%,transparent_100%)]" />
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] data-[state=open]:border-transparent data-[state=open]:bg-[#1d1d1d] data-[state=open]:text-white data-[state=open]:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                        <Wrench className="h-4 w-4 text-white/75" />
+                        <span>Skills</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={-10}
+                        className="w-[220px] rounded-xl border border-white/10 bg-[#232323] p-1.5 text-white shadow-none"
+                      >
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            toggleWebResearchSkill()
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 rounded-lg border border-transparent px-2.5 text-[13px] text-white/90 transition-[color,background-color,box-shadow] duration-150 hover:bg-[#1d1d1d] hover:text-white hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:bg-[#1d1d1d] focus:text-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        >
+                          <Radar className="h-4 w-4 text-white/75" />
+                          <span>Tavily</span>
+                          {webResearchEnabled && (
+                            <span className="ml-auto inline-flex items-center text-emerald-300">
+                              <Check className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {showContextRing && <TokenUsageIndicator input={input} />}
 
                 {/* Images button */}
                 <AnimatePresence>
@@ -369,12 +471,9 @@ export function InputArea({
                 </AnimatePresence>
               </div>
 
-              {/* Right side controls - Token indicator + Attach + Send */}
+              {/* Right side controls - Model + Send */}
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
-                {/* Separator + Token usage circle */}
-                <div className="mx-1 h-4 w-px bg-white/10" />
-                <TokenUsageIndicator input={input} />
-                {/* Attach file button - no background when no files */}
+                <ModelSelector minimal={true} popoverAlign="end" />
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -383,30 +482,14 @@ export function InputArea({
                   accept="image/*,.txt,.doc,.docx,.csv,.json,.xml"
                   className="hidden"
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                      <motion.label
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className={cn(
-                          "cursor-pointer rounded-lg p-2 transition-colors duration-150 hover:bg-white/10",
-                          attachedFiles.length > 0
-                            ? "text-white"
-                            : "text-white/50 hover:text-white/70"
-                        )}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                          fileInputRef.current?.click()
-                        }}
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </motion.label>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="rounded-full">
-                    {attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : 'Attach files'}
-                  </TooltipContent>
-                </Tooltip>
+                <input
+                  type="file"
+                  ref={imageOnlyInputRef}
+                  onChange={handleImageSelect}
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                />
 
                 {/* Send / Stop button */}
                 {isLoading ? (

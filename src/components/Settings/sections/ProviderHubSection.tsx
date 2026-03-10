@@ -2,25 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   AlertCircle,
-  ArrowUpDown,
   CircleHelp,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
-  ChevronRight,
   Edit2,
   Eye,
   EyeOff,
   Globe,
-  GripVertical,
-  Layers,
   Loader2,
   Lock,
   MoreVertical,
   Plus,
   Search,
   Trash2,
-  Wrench,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -44,15 +38,16 @@ import {
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'nvidia' | 'alibaba'
+type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
+type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
 interface ProviderDefinition {
   key: ProviderKey
   name: string
   description: string
   apiKeyField?: keyof Pick<ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'alibabaApiKey'
   >
 }
 
@@ -68,12 +63,6 @@ const PROVIDERS: ProviderDefinition[] = [
     name: 'Groq',
     description: 'Ultra-low-latency model inference for high-speed chat experiences.',
     apiKeyField: 'groqApiKey',
-  },
-  {
-    key: 'nvidia',
-    name: 'NVIDIA',
-    description: 'NVIDIA NIM API with access to Llama, Mistral, Nemotron, and other text models.',
-    apiKeyField: 'nvidiaApiKey',
   },
   {
     key: 'alibaba',
@@ -99,12 +88,20 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   perplexity: 'https://api.perplexity.ai',
   groq: 'https://api.groq.com/openai/v1',
   ollama: 'http://localhost:11434',
-  nvidia: 'https://integrate.api.nvidia.com',
   alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
 }
 
-type SearchApiKey = 'tavily' | 'runtime'
-// Future: 'serpapi' | 'brave'
+const CATALOG_BASE_BACKGROUND = '#212121'
+const CATALOG_CARD_BACKGROUND = '#2c2c2c'
+const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
+  openrouter: true,
+  perplexity: true,
+  groq: true,
+  ollama: true,
+  alibaba: true,
+}
+
+type SearchApiKey = 'tavily'
 
 interface SearchApiDefinition {
   key: SearchApiKey
@@ -115,7 +112,6 @@ interface SearchApiDefinition {
   color?: string
   learnMoreUrl?: string
   apiKeyField?: 'tavilyApiKey'
-  isRuntime?: boolean
 }
 
 const SEARCH_APIS: SearchApiDefinition[] = [
@@ -129,14 +125,6 @@ const SEARCH_APIS: SearchApiDefinition[] = [
     learnMoreUrl: 'https://tavily.com',
     apiKeyField: 'tavilyApiKey',
   },
-  {
-    key: 'runtime',
-    name: 'Search Runtime',
-    description: 'Control web search and deep research availability.',
-    shortDescription: 'Enable tools, web search, and deep research.',
-    icon: <Wrench size={18} />,
-    isRuntime: true,
-  },
 ]
 
 interface ModelBasic {
@@ -145,46 +133,22 @@ interface ModelBasic {
   enabled?: boolean
 }
 
-function mergeOrderKeys(current: ProviderKey[], available: ProviderKey[]): ProviderKey[] {
-  const currentFiltered = current.filter((key) => available.includes(key))
-  const missing = available.filter((key) => !currentFiltered.includes(key))
-  return [...currentFiltered, ...missing]
-}
-
-function sortByOrder(items: ProviderDefinition[], orderedKeys: ProviderKey[]): ProviderDefinition[] {
-  const indexMap = new Map<ProviderKey, number>()
-  orderedKeys.forEach((key, index) => indexMap.set(key, index))
-  return [...items].sort((a, b) => {
-    const aIndex = indexMap.get(a.key)
-    const bIndex = indexMap.get(b.key)
-    if (aIndex === undefined && bIndex === undefined) return 0
-    if (aIndex === undefined) return 1
-    if (bIndex === undefined) return -1
-    return aIndex - bIndex
-  })
-}
-
 export interface ProviderHubSectionProps {
   openRouterApiKey: string
   perplexityApiKey: string
   groqApiKey: string
-  nvidiaApiKey: string
   alibabaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
-  structuredResearchEnabled?: boolean
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
+  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   perplexityModels: ModelBasic[]
   groqModels: ModelBasic[]
-  nvidiaModels: ModelBasic[]
   alibabaModels: ModelBasic[]
   ollamaModels: ModelBasic[]
   maxTokens: number
-  titleModel: string
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
@@ -192,23 +156,18 @@ export interface ProviderHubSectionProps {
     openRouterApiKey: string
     perplexityApiKey: string
     groqApiKey: string
-    nvidiaApiKey: string
     alibabaApiKey: string
     tavilyApiKey: string
     ollamaUrl: string
-    toolsEnabled: boolean
-    webSearchEnabled: boolean
-    structuredResearchEnabled?: boolean
     configuredModels: ConfiguredModel[]
     perplexityModels: ConfiguredModel[]
     groqModels: ConfiguredModel[]
-    nvidiaModels: ConfiguredModel[]
     alibabaModels: ConfiguredModel[]
     ollamaModels: ConfiguredModel[]
     maxTokens: number
-    titleModel: string
     aiModel: string
-    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'nvidia' | 'alibaba'
+    modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+    providerEnabled: ProviderEnabledMap
   }>) => void
 }
 
@@ -216,22 +175,17 @@ export function ProviderHubSection({
   openRouterApiKey,
   perplexityApiKey,
   groqApiKey,
-  nvidiaApiKey,
   alibabaApiKey,
   tavilyApiKey,
   ollamaUrl,
-  toolsEnabled,
-  webSearchEnabled,
-  structuredResearchEnabled = false,
   aiModel,
   modelProvider,
+  providerEnabled,
   configuredModels,
   perplexityModels,
   groqModels,
-  nvidiaModels,
   alibabaModels,
   ollamaModels,
-  titleModel,
   initialProvider,
   initialManageMode,
   onParamsConsumed,
@@ -239,21 +193,6 @@ export function ProviderHubSection({
 }: ProviderHubSectionProps): React.ReactElement {
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(initialProvider ? 'detail' : 'catalog')
-  const [query, setQuery] = useState('')
-  const [catalogFilter, setCatalogFilter] = useState<'all' | ProviderKey>('all')
-  const [sidebarExpandedGroups, setSidebarExpandedGroups] = useState<{ enabled: boolean; disabled: boolean }>({
-    enabled: true,
-    disabled: true,
-  })
-  const [sidebarActiveGroup, setSidebarActiveGroup] = useState<'enabled' | 'disabled'>('enabled')
-  const [customOrderDialogOpen, setCustomOrderDialogOpen] = useState(false)
-  const [customOrderDialogGroup, setCustomOrderDialogGroup] = useState<'enabled' | 'disabled'>('enabled')
-  const [customOrderDraft, setCustomOrderDraft] = useState<ProviderDefinition[]>([])
-  const [draggedProviderIndex, setDraggedProviderIndex] = useState<number | null>(null)
-  const [providerOrder, setProviderOrder] = useState<{ enabled: ProviderKey[]; disabled: ProviderKey[] }>({
-    enabled: [],
-    disabled: [],
-  })
   const [providerModelQuery, setProviderModelQuery] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(initialProvider ?? 'openrouter')
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
@@ -302,7 +241,6 @@ export function ProviderHubSection({
     openrouter: configuredModels,
     perplexity: perplexityModels,
     groq: groqModels,
-    nvidia: nvidiaModels,
     alibaba: alibabaModels,
     ollama: ollamaModels,
   }
@@ -357,36 +295,65 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'openRouterApiKey') return openRouterApiKey ?? ''
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
-    if (provider.apiKeyField === 'nvidiaApiKey') return nvidiaApiKey ?? ''
     if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
     return ''
   }
 
-  const isProviderEnabled = (provider: ProviderDefinition): boolean => {
-    if (provider.key === 'ollama') return Boolean(ollamaUrl.trim())
-    return Boolean(getProviderApiKey(provider).trim())
-  }
+  const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
+    return {
+      openrouter: providerEnabled?.openrouter !== false,
+      perplexity: providerEnabled?.perplexity !== false,
+      groq: providerEnabled?.groq !== false,
+      ollama: providerEnabled?.ollama !== false,
+      alibaba: providerEnabled?.alibaba !== false,
+    }
+  }, [
+    providerEnabled?.openrouter,
+    providerEnabled?.perplexity,
+    providerEnabled?.groq,
+    providerEnabled?.ollama,
+    providerEnabled?.alibaba,
+  ])
+
+  const isProviderEnabled = (provider: ProviderDefinition): boolean => normalizedProviderEnabled[provider.key]
 
   const setProviderApiKey = (provider: ProviderDefinition, value: string) => {
     if (!provider.apiKeyField) return
     if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: value })
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
-    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: value })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
   }
 
-  const clearProvider = (provider: ProviderDefinition) => {
-    if (provider.key === 'ollama') {
-      onChange({ ollamaUrl: '' })
-      return
+  const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
+    const nextProviderEnabled: ProviderEnabledMap = {
+      ...DEFAULT_PROVIDER_ENABLED,
+      ...providerEnabled,
+      [providerKey]: enabled,
     }
-    if (!provider.apiKeyField) return
-    if (provider.apiKeyField === 'openRouterApiKey') onChange({ openRouterApiKey: '' })
-    if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: '' })
-    if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: '' })
-    if (provider.apiKeyField === 'nvidiaApiKey') onChange({ nvidiaApiKey: '' })
-    if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: '' })
+
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {
+      providerEnabled: nextProviderEnabled,
+    }
+
+    if (!enabled && modelProvider === providerKey) {
+      const fallbackProvider = PROVIDERS.find((provider) => {
+        if (!nextProviderEnabled[provider.key]) return false
+        const models = providerModelMap[provider.key] || []
+        return models.some((model) => model.enabled !== false)
+      })
+
+      const fallbackModel = fallbackProvider
+        ? (providerModelMap[fallbackProvider.key] || []).find((model) => model.enabled !== false)
+        : null
+
+      if (fallbackProvider && fallbackModel) {
+        updates.modelProvider = fallbackProvider.key
+        updates.aiModel = fallbackModel.code
+      }
+    }
+
+    onChange(updates)
   }
 
   const addCustomModel = (model: ConfiguredModel) => {
@@ -411,7 +378,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -437,7 +403,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -452,7 +417,6 @@ export function ProviderHubSection({
     if (provider === 'openrouter') updates.configuredModels = updatedModels
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
-    if (provider === 'nvidia') updates.nvidiaModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
@@ -489,102 +453,11 @@ export function ProviderHubSection({
     setDeleteConfirmOpen(false)
   }
 
-  const filteredProviders = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return PROVIDERS
-    return PROVIDERS.filter((provider) => {
-      return (
-        provider.name.toLowerCase().includes(normalized) ||
-        provider.description.toLowerCase().includes(normalized)
-      )
-    })
-  }, [query])
-
-  const enabledProvidersBase = useMemo(() => {
-    return filteredProviders.filter((provider) => isProviderEnabled(provider))
-  }, [filteredProviders])
-
-  const disabledProvidersBase = useMemo(() => {
-    return filteredProviders.filter((provider) => !isProviderEnabled(provider))
-  }, [filteredProviders])
-
-  useEffect(() => {
-    const enabledKeys = enabledProvidersBase.map((provider) => provider.key)
-    const disabledKeys = disabledProvidersBase.map((provider) => provider.key)
-
-    setProviderOrder((previous) => {
-      const nextEnabled = mergeOrderKeys(previous.enabled, enabledKeys)
-      const nextDisabled = mergeOrderKeys(previous.disabled, disabledKeys)
-
-      const enabledSame = nextEnabled.length === previous.enabled.length && nextEnabled.every((key, index) => key === previous.enabled[index])
-      const disabledSame = nextDisabled.length === previous.disabled.length && nextDisabled.every((key, index) => key === previous.disabled[index])
-      if (enabledSame && disabledSame) {
-        return previous
-      }
-
-      return {
-        enabled: nextEnabled,
-        disabled: nextDisabled,
-      }
-    })
-  }, [enabledProvidersBase, disabledProvidersBase])
-
-  const enabledProvidersForSidebar = useMemo(() => {
-    return sortByOrder(enabledProvidersBase, providerOrder.enabled)
-  }, [enabledProvidersBase, providerOrder.enabled])
-
-  const disabledProvidersForSidebar = useMemo(() => {
-    return sortByOrder(disabledProvidersBase, providerOrder.disabled)
-  }, [disabledProvidersBase, providerOrder.disabled])
-
-  const catalogProviders = useMemo(() => {
-    if (catalogFilter === 'all') return filteredProviders
-    return filteredProviders.filter((provider) => provider.key === catalogFilter)
-  }, [filteredProviders, catalogFilter])
-
-  const enabledProviders = useMemo(() => {
-    const filtered = enabledProvidersForSidebar.filter((provider) => catalogProviders.includes(provider))
-    return filtered
-  }, [enabledProvidersForSidebar, catalogProviders])
-
-  const disabledProviders = useMemo(() => {
-    const filtered = disabledProvidersForSidebar.filter((provider) => catalogProviders.includes(provider))
-    return filtered
-  }, [disabledProvidersForSidebar, catalogProviders])
-
-  const openCustomOrderDialog = (group: 'enabled' | 'disabled') => {
-    setSidebarActiveGroup(group)
-    setCustomOrderDialogGroup(group)
-    setCustomOrderDraft(group === 'enabled' ? enabledProvidersForSidebar : disabledProvidersForSidebar)
-    setDraggedProviderIndex(null)
-    setCustomOrderDialogOpen(true)
-  }
-
-  const updateCustomOrder = () => {
-    const orderedKeys = customOrderDraft.map((provider) => provider.key)
-    setProviderOrder((previous) => ({
-      ...previous,
-      [customOrderDialogGroup]: orderedKeys,
-    }))
-    setCustomOrderDialogOpen(false)
-  }
-
-  const moveCustomOrderItem = (toIndex: number) => {
-    if (draggedProviderIndex === null || draggedProviderIndex === toIndex) return
-    setCustomOrderDraft((previous) => {
-      const next = [...previous]
-      const [moved] = next.splice(draggedProviderIndex, 1)
-      next.splice(toIndex, 0, moved)
-      return next
-    })
-    setDraggedProviderIndex(toIndex)
-  }
-
   const runConnectivityCheck = async () => {
     const selectedKey = getProviderApiKey(selectedProviderDef).trim()
     const endpoint = providerProxyUrls[selectedProviderDef.key] || PROVIDER_ENDPOINTS[selectedProviderDef.key]
 
-    if (!selectedKey) {
+    if (selectedProviderDef.key !== 'ollama' && !selectedKey) {
       setConnectivityStatus('error')
       setConnectivityMeta(null)
       setConnectivityDetails(`Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`)
@@ -648,6 +521,25 @@ export function ProviderHubSection({
         if (!response.ok && response.status !== 400) {
           throw new Error(`Perplexity check failed (${response.status}).`)
         }
+      } else if (selectedProviderDef.key === 'alibaba') {
+        const response = await fetch(`${endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${selectedKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: connectivityModel,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        })
+        if (!response.ok && response.status !== 400) {
+          throw new Error(`Alibaba Cloud check failed (${response.status}).`)
+        }
+      } else {
+        throw new Error(`Connectivity check is not supported for provider: ${selectedProviderDef.key}`)
       }
 
       const latencyMs = Math.max(1, Date.now() - startedAt)
@@ -667,7 +559,7 @@ export function ProviderHubSection({
   }
 
   return (
-    <div className="min-w-0 px-4 pb-20 sm:px-6 md:px-8 lg:px-8">
+    <div className="settings-section-layout settings-section-layout--wide min-w-0">
       <div className="page-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="page-title">Providers</h2>
@@ -700,137 +592,28 @@ export function ProviderHubSection({
       </div>
 
       {manageMode === 'providers' && providerView === 'catalog' && (
-        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
-            <div className="flex h-full flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search Providers..."
-                    className="border-border bg-secondary pl-9"
-                  />
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setAddDialogOpen(true)}
-                  aria-label="Add custom model"
-                >
-                  <Plus size={16} />
-                </Button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setCatalogFilter('all')}
-                className="flex items-center justify-between rounded-md px-3 py-2 text-sm transition"
-                style={{
-                  background: catalogFilter === 'all' ? 'var(--theme-surface-active)' : 'transparent',
-                  color: 'var(--theme-text-primary)',
-                }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Layers size={15} />
-                  All
-                </span>
-              </button>
-
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <SidebarGroupHeader
-                  label="Enabled"
-                  count={enabledProvidersForSidebar.length}
-                  active={sidebarActiveGroup === 'enabled'}
-                  expanded={sidebarExpandedGroups.enabled}
-                  onToggle={() => {
-                    setSidebarActiveGroup('enabled')
-                    setSidebarExpandedGroups((previous) => ({ ...previous, enabled: !previous.enabled }))
-                  }}
-                  onOpenCustomOrder={() => openCustomOrderDialog('enabled')}
-                />
-                {sidebarExpandedGroups.enabled && (
-                  <div className="mt-1 space-y-1">
-                    {enabledProvidersForSidebar.map((provider) => (
-                      <ProviderSidebarItem
-                        key={`enabled-${provider.key}`}
-                        provider={provider}
-                        active={catalogFilter === provider.key}
-                        enabled={true}
-                        onClick={() => {
-                          setSidebarActiveGroup('enabled')
-                          setCatalogFilter(provider.key)
-                          setSelectedProvider(provider.key)
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-3" />
-                <SidebarGroupHeader
-                  label="Disabled"
-                  count={disabledProvidersForSidebar.length}
-                  active={sidebarActiveGroup === 'disabled'}
-                  expanded={sidebarExpandedGroups.disabled}
-                  onToggle={() => {
-                    setSidebarActiveGroup('disabled')
-                    setSidebarExpandedGroups((previous) => ({ ...previous, disabled: !previous.disabled }))
-                  }}
-                  onOpenCustomOrder={() => openCustomOrderDialog('disabled')}
-                />
-                {sidebarExpandedGroups.disabled && (
-                  <div className="mt-1 space-y-1">
-                    {disabledProvidersForSidebar.map((provider) => (
-                      <ProviderSidebarItem
-                        key={`disabled-${provider.key}`}
-                        provider={provider}
-                        active={catalogFilter === provider.key}
-                        enabled={false}
-                        onClick={() => {
-                          setSidebarActiveGroup('disabled')
-                          setCatalogFilter(provider.key)
-                          setSelectedProvider(provider.key)
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(640px,calc(100vh-200px))] xl:h-[min(780px,calc(100vh-230px))]">
+        <div className="mt-4 min-w-0">
+          <Card
+            className="settings-section-card provider-hub-base-card min-w-0 overflow-y-auto"
+            style={{ background: CATALOG_BASE_BACKGROUND }}
+          >
             <ProviderSection
-              title="Enabled"
-              providers={enabledProviders}
+              providers={PROVIDERS}
               onCardClick={(provider) => {
                 setSelectedProvider(provider.key)
-                setCatalogFilter(provider.key)
                 setProviderView('detail')
               }}
               isProviderEnabled={isProviderEnabled}
-              clearProvider={clearProvider}
-            />
-
-            <ProviderSection
-              title="Disabled"
-              providers={disabledProviders}
-              onCardClick={(provider) => {
-                setSelectedProvider(provider.key)
-                setCatalogFilter(provider.key)
-                setProviderView('detail')
-              }}
-              isProviderEnabled={isProviderEnabled}
-              clearProvider={clearProvider}
+              setProviderEnabled={setProviderEnabled}
+              getApiKey={getProviderApiKey}
+              modelMap={providerModelMap}
             />
           </Card>
         </div>
       )}
 
       {manageMode === 'providers' && providerView === 'detail' && (
-        <Card className="settings-section-card mt-4">
+        <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
           <div className="space-y-6">
             <div className="flex items-center justify-between gap-2">
               <div className="inline-flex items-center gap-2">
@@ -849,11 +632,11 @@ export function ProviderHubSection({
                 </span>
               </div>
               <Switch
+                className="provider-hub-toggle"
                 checked={isProviderEnabled(selectedProviderDef)}
                 onCheckedChange={(checked) => {
-                  if (!checked) {
-                    clearProvider(selectedProviderDef)
-                  } else {
+                  setProviderEnabled(selectedProviderDef.key, checked)
+                  if (checked) {
                     apiKeyOrEndpointInputRef.current?.focus()
                   }
                 }}
@@ -868,7 +651,7 @@ export function ProviderHubSection({
                     label="API Key"
                     description={`Please enter your ${selectedProviderDef.name} API key`}
                     control={(
-                      <div className="relative">
+                      <div className="relative w-full">
                         <Input
                           ref={apiKeyOrEndpointInputRef}
                           type={showApiKey ? 'text' : 'password'}
@@ -1105,71 +888,25 @@ export function ProviderHubSection({
                 />
               </div>
             </div>
-
-            <div className="grid gap-4 border-t border-border pt-5 md:grid-cols-1">
-              <DetailField
-                label="Title Generation Model"
-                description="Model used to auto-generate chat titles."
-                control={(
-                  <select
-                    value={titleModel}
-                    onChange={(e) => onChange({ titleModel: e.target.value })}
-                    className="h-10 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
-                  >
-                    {providerModels.map((model) => (
-                      <option key={model.code} value={model.code}>{model.displayName}</option>
-                    ))}
-                    {!providerModels.some((model) => model.code === titleModel) && (
-                      <option value={titleModel}>{titleModel}</option>
-                    )}
-                  </select>
-                )}
-              />
-            </div>
           </div>
         </Card>
       )}
 
       {manageMode === 'search-apis' && searchApiView === 'catalog' && (
-        <div className="mt-4 grid min-w-0 gap-3 lg:gap-4 lg:grid-cols-[minmax(0,240px)_1fr] xl:grid-cols-[minmax(0,280px)_1fr]">
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-hidden lg:h-[min(400px,calc(60vh-120px))]">
-            <div className="flex h-full flex-col gap-2">
-              <div className="px-2 py-2 text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Search APIs
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1 space-y-1">
-                {SEARCH_APIS.map((api) => (
-                  <SearchApiSidebarItem
-                    key={api.key}
-                    api={api}
-                    active={selectedSearchApi === api.key}
-                    enabled={
-                      api.isRuntime
-                        ? toolsEnabled
-                        : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
-                    }
-                    onClick={() => {
-                      setSelectedSearchApi(api.key)
-                      setSearchApiView('detail')
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="settings-section-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]">
+        <div className="mt-4 min-w-0">
+          <Card
+            className="settings-section-card provider-hub-base-card min-w-0 h-[min(320px,calc(50vh-100px))] overflow-y-auto lg:h-[min(400px,calc(60vh-120px))]"
+            style={{ background: CATALOG_BASE_BACKGROUND }}
+          >
             <SearchApiSection
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
-              toolsEnabled={toolsEnabled}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
                 setSearchApiView('detail')
               }}
               onTavilyDisable={() => onChange({ tavilyApiKey: '' })}
-              onRuntimeDisable={() => onChange({ toolsEnabled: false })}
             />
           </Card>
         </div>
@@ -1179,50 +916,10 @@ export function ProviderHubSection({
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
-          toolsEnabled={toolsEnabled}
-          webSearchEnabled={webSearchEnabled}
-          structuredResearchEnabled={structuredResearchEnabled}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
       )}
-
-      <Dialog open={customOrderDialogOpen} onOpenChange={setCustomOrderDialogOpen}>
-        <DialogContent className="border-border bg-card sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle>Custom Order</DialogTitle>
-            <DialogDescription>
-              Drag providers to set display order for the {customOrderDialogGroup} list.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
-            {customOrderDraft.map((provider, index) => (
-              <div
-                key={`order-${provider.key}`}
-                draggable
-                onDragStart={() => setDraggedProviderIndex(index)}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  moveCustomOrderItem(index)
-                }}
-                className="flex items-center justify-between rounded-md border border-transparent px-2 py-2 hover:border-border"
-              >
-                <span className="inline-flex min-w-0 items-center gap-2">
-                  <ProviderLogo provider={provider.key} size={18} />
-                  <span className="truncate text-sm text-foreground">{provider.name}</span>
-                </span>
-                <GripVertical size={16} className="text-muted-foreground" />
-              </div>
-            ))}
-          </div>
-
-          <Button onClick={updateCustomOrder}>Update</Button>
-        </DialogContent>
-      </Dialog>
 
       <CreateCustomModelDialog
         open={addDialogOpen}
@@ -1289,39 +986,32 @@ export function ProviderHubSection({
 }
 
 function ProviderSection({
-  title,
   providers,
   onCardClick,
   isProviderEnabled,
-  clearProvider,
+  setProviderEnabled,
+  getApiKey,
+  modelMap,
 }: {
-  title: string
   providers: ProviderDefinition[]
   onCardClick: (provider: ProviderDefinition) => void
   isProviderEnabled: (provider: ProviderDefinition) => boolean
-  clearProvider: (provider: ProviderDefinition) => void
-}): React.ReactElement {
+  setProviderEnabled: (providerKey: ProviderKey, enabled: boolean) => void
+  getApiKey: (provider: ProviderDefinition) => string
+  modelMap: Record<ProviderKey, ModelBasic[]>
+}): React.ReactElement | null {
   if (providers.length === 0) {
-    return (
-      <div className="mt-3">
-        <div className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-          <span>{title}</span>
-          <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">0</span>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="mt-3 first:mt-0">
-      <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-        <span>{title}</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{providers.length}</span>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
         {providers.map((provider) => {
           const enabled = isProviderEnabled(provider)
+          const hasApiKey = provider.apiKeyField ? getApiKey(provider).trim().length > 0 : true
+          const models = modelMap[provider.key] || []
+          const modelCount = models.length
+          const enabledModelCount = models.filter((m) => m.enabled !== false).length
           return (
             <div
               key={provider.key}
@@ -1334,111 +1024,58 @@ function ProviderSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
+              className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+              style={{ background: CATALOG_CARD_BACKGROUND }}
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <ProviderLogo provider={provider.key} size={18} />
-                  <span className="truncate text-[15px] font-semibold text-foreground">{provider.name}</span>
-                </div>
-                <Switch
-                  checked={enabled}
-                  onCheckedChange={(checked) => {
-                    if (!checked) {
-                      clearProvider(provider)
-                    } else {
-                      onCardClick(provider)
-                    }
-                  }}
-                  aria-label={`Toggle ${provider.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
+              {/* Logo */}
+              <div className="flex shrink-0 items-center justify-center">
+                <ProviderLogo provider={provider.key} size={20} />
               </div>
 
-              <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">{provider.description}</p>
-              <div className="mt-4 border-t border-border pt-2" />
+              {/* Name + Description */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-foreground">{provider.name}</span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{provider.description}</p>
+              </div>
+
+              {/* Status badges */}
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    background: hasApiKey ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
+                    color: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                  }}
+                >
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: hasApiKey ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                  />
+                  {provider.apiKeyField ? (hasApiKey ? 'Key set' : 'No key') : 'Local'}
+                </span>
+                {modelCount > 0 && (
+                  <span className="hidden rounded-md bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
+                    {enabledModelCount}/{modelCount} models
+                  </span>
+                )}
+              </div>
+
+              {/* Toggle */}
+              <Switch
+                className="provider-hub-toggle"
+                checked={enabled}
+                onCheckedChange={(checked) => {
+                  setProviderEnabled(provider.key, checked)
+                }}
+                aria-label={`Toggle ${provider.name}`}
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           )
         })}
       </div>
-    </div>
-  )
-}
-
-function ProviderSidebarItem({
-  provider,
-  active,
-  enabled,
-  onClick,
-}: {
-  provider: ProviderDefinition
-  active: boolean
-  enabled: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition"
-      style={{
-        background: active ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-        color: 'var(--theme-text-primary)',
-      }}
-    >
-      <span className="inline-flex min-w-0 items-center gap-2">
-        <ProviderLogo provider={provider.key} size={16} />
-        <span className="truncate">{provider.name}</span>
-      </span>
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ background: enabled ? '#b8f221' : '#4b5563' }}
-      />
-    </button>
-  )
-}
-
-function SidebarGroupHeader({
-  label,
-  count,
-  active,
-  expanded,
-  onToggle,
-  onOpenCustomOrder,
-}: {
-  label: string
-  count: number
-  active: boolean
-  expanded: boolean
-  onToggle: () => void
-  onOpenCustomOrder: () => void
-}): React.ReactElement {
-  return (
-    <div
-      className="flex items-center justify-between rounded-md px-2 py-2"
-      style={{
-        background: active ? 'var(--theme-surface-active)' : 'var(--theme-surface-hover)',
-      }}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        className="inline-flex items-center gap-1 text-sm font-medium text-foreground"
-      >
-        <span>{label}</span>
-        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{count}</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onOpenCustomOrder}
-        className="rounded p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-        aria-label={`Custom order for ${label.toLowerCase()} providers`}
-      >
-        <ArrowUpDown size={14} />
-      </button>
-    </div>
   )
 }
 
@@ -1452,12 +1089,12 @@ function DetailField({
   control: React.ReactNode
 }): React.ReactElement {
   return (
-    <div className="grid gap-3 md:grid-cols-[220px_1fr] md:items-start">
-      <div>
-        <div className="text-sm font-semibold text-foreground">{label}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+    <div className="settings-list-row settings-list-row--field provider-hub-detail-field">
+      <div className="settings-list-row__meta">
+        <div className="settings-list-row__label">{label}</div>
+        <div className="settings-list-row__description">{description}</div>
       </div>
-      <div>{control}</div>
+      <div className="settings-list-row__control settings-list-row__control--stretch provider-hub-detail-field__control">{control}</div>
     </div>
   )
 }
@@ -1583,6 +1220,7 @@ function ModelGroup({
               </DropdownMenu>
               <div onClick={(e) => e.stopPropagation()} role="presentation">
                 <Switch
+                  className="provider-hub-toggle"
                   checked={enabled}
                   onCheckedChange={(checked) => onToggleModel(model.code, checked)}
                   aria-label={`Toggle ${model.displayName}`}
@@ -1596,55 +1234,18 @@ function ModelGroup({
   )
 }
 
-function SearchApiSidebarItem({
-  api,
-  active,
-  enabled,
-  onClick,
-}: {
-  api: SearchApiDefinition
-  active: boolean
-  enabled: boolean
-  onClick: () => void
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition"
-      style={{
-        background: active ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-        color: 'var(--theme-text-primary)',
-      }}
-    >
-      <span className="inline-flex min-w-0 items-center gap-2">
-        <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-        <span className="truncate">{api.name}</span>
-      </span>
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{ background: enabled ? '#b8f221' : '#4b5563' }}
-      />
-    </button>
-  )
-}
-
 function SearchApiSection({
   apis,
   selectedApi,
   tavilyApiKey,
-  toolsEnabled,
   onCardClick,
   onTavilyDisable,
-  onRuntimeDisable,
 }: {
   apis: SearchApiDefinition[]
   selectedApi: SearchApiKey
   tavilyApiKey: string
-  toolsEnabled: boolean
   onCardClick: (api: SearchApiDefinition) => void
   onTavilyDisable: () => void
-  onRuntimeDisable: () => void
 }): React.ReactElement {
   return (
     <div className="mt-3 first:mt-0">
@@ -1652,11 +1253,14 @@ function SearchApiSection({
         <span>Search APIs</span>
         <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{apis.length}</span>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+      <div
+        className="grid gap-3"
+        style={{
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        }}
+      >
         {apis.map((api) => {
-          const enabled = api.isRuntime
-            ? toolsEnabled
-            : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+          const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
           return (
             <div
               key={api.key}
@@ -1669,8 +1273,11 @@ function SearchApiSection({
               }}
               role="button"
               tabIndex={0}
-              className="w-full rounded-xl border border-border bg-secondary/35 p-4 text-left transition hover:border-[var(--theme-border-hover)]"
-              style={{ boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none' }}
+              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
+              style={{
+                background: CATALOG_CARD_BACKGROUND,
+                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none',
+              }}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
@@ -1683,11 +1290,11 @@ function SearchApiSection({
                   )}
                 </div>
                 <Switch
+                  className="provider-hub-toggle"
                   checked={enabled}
                   onCheckedChange={(checked) => {
                     if (!checked) {
-                      if (api.isRuntime) onRuntimeDisable()
-                      else if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
+                      if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
                     } else {
                       onCardClick(api)
                     }
@@ -1711,27 +1318,19 @@ function SearchApiSection({
 function SearchApiDetail({
   api,
   tavilyApiKey,
-  toolsEnabled,
-  webSearchEnabled,
-  structuredResearchEnabled = false,
   onBack,
   onChange,
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
-  toolsEnabled: boolean
-  webSearchEnabled: boolean
-  structuredResearchEnabled?: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
   const [showApiKey, setShowApiKey] = useState(false)
-  const isEnabled = api.isRuntime
-    ? toolsEnabled
-    : Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+  const isEnabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
 
   return (
-    <Card className="settings-section-card mt-4">
+    <Card className="settings-section-card provider-hub-base-card mt-4" style={{ background: CATALOG_BASE_BACKGROUND }}>
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-2">
@@ -1754,12 +1353,11 @@ function SearchApiDetail({
             )}
           </div>
           <Switch
+            className="provider-hub-toggle"
             checked={isEnabled}
             onCheckedChange={(checked) => {
               if (!checked) {
-                if (api.isRuntime) {
-                  onChange({ toolsEnabled: false })
-                } else if (api.apiKeyField === 'tavilyApiKey') {
+                if (api.apiKeyField === 'tavilyApiKey') {
                   onChange({ tavilyApiKey: '' })
                 }
               }
@@ -1769,31 +1367,13 @@ function SearchApiDetail({
         </div>
 
         <div className="border-t border-border pt-6">
-          {api.isRuntime ? (
-            <div className="space-y-3">
-              <ToggleRow
-                label="Enable Tools"
-                checked={toolsEnabled}
-                onCheckedChange={(checked) => onChange({ toolsEnabled: checked })}
-              />
-              <ToggleRow
-                label="Enable Web Search"
-                checked={webSearchEnabled}
-                onCheckedChange={(checked) => onChange({ webSearchEnabled: checked })}
-              />
-              <ToggleRow
-                label="Step-by-step research"
-                checked={structuredResearchEnabled}
-                onCheckedChange={(checked) => onChange({ structuredResearchEnabled: checked })}
-              />
-            </div>
-          ) : api.apiKeyField === 'tavilyApiKey' ? (
+          {api.apiKeyField === 'tavilyApiKey' ? (
             <div className="space-y-6">
               <DetailField
                 label="API Key"
                 description="Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here."
                 control={
-                  <div className="relative">
+                  <div className="relative w-full">
                     <Input
                       type={showApiKey ? 'text' : 'password'}
                       value={tavilyApiKey}
@@ -1832,23 +1412,6 @@ function SearchApiDetail({
         </div>
       </div>
     </Card>
-  )
-}
-
-function ToggleRow({
-  label,
-  checked,
-  onCheckedChange,
-}: {
-  label: string
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-}): React.ReactElement {
-  return (
-    <div className="flex items-center justify-between rounded-md border border-border bg-secondary/50 px-3 py-2">
-      <span className="text-sm text-foreground">{label}</span>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
-    </div>
   )
 }
 

@@ -12,16 +12,18 @@
  * - Only commits final content to the session when streaming completes
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
-import { useStreamingActions } from '../../../../contexts/StreamingContext'
+import { useStreamingActions, type StreamingMessageState } from '../../../../contexts/StreamingContext'
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
+import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
+import { getWebResearchMode, isWebResearchEnabled } from '../../../../skills'
 import type { AttachedFile } from '../FileUploadHandler'
 
 // Import provider-specific streaming hooks
@@ -30,7 +32,6 @@ import {
   usePerplexityStreaming,
   useGroqStreaming,
   useOpenRouterStreaming,
-  useNvidiaStreaming,
   useAlibabaStreaming,
   useStreamingToolCalls,
   useResearchMode,
@@ -42,7 +43,6 @@ import {
 import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamPerplexityCompletion } from '../../../../services/perplexity'
 import { streamGroqCompletion } from '../../../../services/groq'
-import { streamNvidiaCompletion } from '../../../../services/nvidia'
 import { streamAlibabaCompletion } from '../../../../services/alibaba'
 import { streamOpenRouterCompletion } from '../../../../services/openrouter'
 
@@ -55,6 +55,7 @@ export interface UseStreamingChatOptions {
 
 export interface UseStreamingChatReturn {
   isLoading: boolean
+  toolState: ToolCallState
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
   regenerateMessage: (message: any, instruction: string) => Promise<void>
   stopStreaming: () => void
@@ -89,11 +90,72 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     cancelStreaming,
   } = useStreamingActions()
 
+  const buildFinalStreamingUpdates = useCallback((finalState: StreamingMessageState): Partial<Message> => {
+    const updates: Partial<Message> = {
+      content: finalState.content,
+    }
+
+    if (finalState.thinking !== undefined) updates.thinking = finalState.thinking
+    if (finalState.thinkingDuration !== undefined) updates.thinkingDuration = finalState.thinkingDuration
+    if (finalState.thinkingBlocks !== undefined) updates.thinkingBlocks = finalState.thinkingBlocks
+    if (finalState.researchStatus !== undefined) updates.researchStatus = finalState.researchStatus
+    if (finalState.researchPlan !== undefined) updates.researchPlan = finalState.researchPlan
+    if (finalState.researchProgress !== undefined) updates.researchProgress = finalState.researchProgress
+    if (finalState.toolResults !== undefined) updates.toolResults = finalState.toolResults
+    if (finalState.model !== undefined) updates.model = finalState.model
+    if (finalState.latency !== undefined) updates.latency = finalState.latency
+    if (finalState.usage !== undefined) updates.usage = finalState.usage
+
+    return updates
+  }, [])
+
   // Track current streaming message for isolated updates
   const streamingMessageRef = useRef<{ sessionId: string; messageId: string } | null>(null)
+  const titleRevealIntervalRef = useRef<Map<string, number>>(new Map())
 
   const { settings, updateSettings } = useSettings()
   const { showToast } = useToast()
+
+  const clearTitleRevealInterval = useCallback((sessionId: string) => {
+    const timerId = titleRevealIntervalRef.current.get(sessionId)
+    if (timerId !== undefined) {
+      window.clearInterval(timerId)
+      titleRevealIntervalRef.current.delete(sessionId)
+    }
+  }, [])
+
+  const applyGeneratedSessionTitle = useCallback((sessionId: string, generatedTitle: string) => {
+    const normalizedTitle = generatedTitle.trim()
+    if (!normalizedTitle) return
+
+    clearTitleRevealInterval(sessionId)
+
+    if (settings.titleGenerationDisplayMode !== 'typewriter') {
+      updateSessionTitle(sessionId, normalizedTitle)
+      return
+    }
+
+    let visibleLength = 1
+    updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+    const intervalId = window.setInterval(() => {
+      visibleLength += 1
+      updateSessionTitle(sessionId, normalizedTitle.slice(0, visibleLength))
+      if (visibleLength >= normalizedTitle.length) {
+        clearTitleRevealInterval(sessionId)
+      }
+    }, 24)
+
+    titleRevealIntervalRef.current.set(sessionId, intervalId)
+  }, [clearTitleRevealInterval, settings.titleGenerationDisplayMode, updateSessionTitle])
+
+  useEffect(() => {
+    return () => {
+      for (const timerId of titleRevealIntervalRef.current.values()) {
+        window.clearInterval(timerId)
+      }
+      titleRevealIntervalRef.current.clear()
+    }
+  }, [])
 
   const currentSession = sessions.find(s => s.id === currentSessionId)
   const messages = currentSession?.messages || []
@@ -152,7 +214,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     openRouterApiKey: settings.openRouterApiKey,
     perplexityApiKey: settings.perplexityApiKey,
     groqApiKey: settings.groqApiKey,
-    nvidiaApiKey: settings.nvidiaApiKey,
     alibabaApiKey: settings.alibabaApiKey,
   }), [settings])
 
@@ -162,6 +223,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     canUseTools,
     getToolsForRequest,
     handleToolCalls,
+    toolState,
     clearToolState,
     startResearchMode,
     getResearchContext,
@@ -214,14 +276,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
-  const { streamNvidia } = useNvidiaStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
   const { streamAlibaba } = useAlibabaStreaming({
     settings: streamingSettings,
     toolCalling,
@@ -240,19 +294,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       const finalState = completeStreaming()
       if (finalState.sessionId && finalState.messageId && finalState.content) {
         // Commit final content to the session
-        updateStreamingMessage(finalState.sessionId, finalState.messageId, {
-          content: finalState.content,
-          thinking: finalState.thinking,
-          thinkingDuration: finalState.thinkingDuration,
-          thinkingBlocks: finalState.thinkingBlocks,
-          researchStatus: finalState.researchStatus,
-          researchPlan: finalState.researchPlan,
-          researchProgress: finalState.researchProgress,
-          toolResults: finalState.toolResults,
-          model: finalState.model,
-          latency: finalState.latency,
-          usage: finalState.usage,
-        })
+        updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
       }
       streamingMessageRef.current = null
     }
@@ -264,7 +306,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     setIsLoading(false)
     clearToolState()
     options.onStreamEnd?.()
-  }, [clearToolState, options, flushThrottledUpdates, completeStreaming, updateStreamingMessage])
+  }, [clearToolState, options, flushThrottledUpdates, completeStreaming, updateStreamingMessage, buildFinalStreamingUpdates])
 
   /**
    * Main send message function
@@ -306,29 +348,30 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         return msg
       })
 
-      // Research mode setup - single web search toggle, model-driven depth, no caps
+      // Research mode setup - skills-driven web research, model-driven depth, no caps
       const researchConfig = calculateResearchConfig({
-        webSearchEnabled: settings.webSearchEnabled,
+        skills: settings.skills,
         modelProvider: settings.modelProvider,
         enabledTools: settings.enabledTools,
       }, content)
 
       let researchMaxRounds = researchConfig.maxRounds
-      let researchMandatory = researchConfig.mandatory
       const forceWebSearch = researchConfig.forceWebSearch
 
       // Start research mode when web search is enabled (maxRounds >= 0)
       if (researchMaxRounds >= 0 && canUseTools) {
-        startResearchMode(researchMaxRounds, researchMandatory, forceWebSearch)
+        startResearchMode(researchMaxRounds, forceWebSearch)
       }
 
       const planFirstInstruction =
-        settings.structuredResearchEnabled && settings.webSearchEnabled && canUseTools
+        isWebResearchEnabled(settings.skills) &&
+        getWebResearchMode(settings.skills) === 'structured' &&
+        canUseTools
           ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
           : ''
       const effectiveSystemPrompt = getEffectiveSystemPrompt(settings)
         + planFirstInstruction
-        + getResearchContext(0, researchMaxRounds, researchMandatory)
+        + getResearchContext(0, researchMaxRounds)
       const imageFiles = files.filter(f => f.type === 'image')
       const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
       const optimizedHistory = buildOptimizedContext(conversationHistory, content, effectiveSystemPrompt, settings.aiModel)
@@ -347,16 +390,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       // Validate API key before sending
       const isOpenRouter = settings.modelProvider === 'openrouter' ||
-        !['ollama', 'perplexity', 'groq', 'nvidia', 'alibaba'].includes(settings.modelProvider)
-      const isNvidia = settings.modelProvider === 'nvidia'
+        !['ollama', 'perplexity', 'groq', 'alibaba'].includes(settings.modelProvider)
       const isAlibaba = settings.modelProvider === 'alibaba'
-      if (isNvidia && !settings.nvidiaApiKey?.trim()) {
-        deleteMessageFromSession(targetSessionId!, streamingMessageId)
-        streamingMessageRef.current = null
-        setIsLoading(false)
-        showToast('NVIDIA API key is required. Add it in Settings > Providers and save.', 'error')
-        return
-      }
       if (isAlibaba && !settings.alibabaApiKey?.trim()) {
         deleteMessageFromSession(targetSessionId!, streamingMessageId)
         streamingMessageRef.current = null
@@ -381,7 +416,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'perplexity') {
@@ -399,17 +433,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
-          signal: abortControllerRef.current?.signal,
-        })
-      } else if (settings.modelProvider === 'nvidia') {
-        await streamNvidia({
-          sessionId: targetSessionId!,
-          messageId: streamingMessageId,
-          messages: optimizedHistory,
-          startTime,
-          researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else if (settings.modelProvider === 'alibaba') {
@@ -419,7 +442,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: optimizedHistory,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           signal: abortControllerRef.current?.signal,
         })
       } else {
@@ -443,7 +465,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           messages: openRouterMessages,
           startTime,
           researchMaxRounds,
-          researchMandatory,
           forceWebSearch,
           signal: abortControllerRef.current?.signal,
         })
@@ -452,9 +473,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       // Commit streaming content to the session
       // **Validates: Property 22: Isolated Streaming Updates**
       if (streamingMessageRef.current) {
-        completeStreaming()
-        // The final update is already applied by the provider functions via updateStreamingMessage
-        // Just clear the streaming ref
+        const finalState = completeStreaming()
+        // Explicitly commit the captured streaming state to ChatHistoryContext.
+        // The provider hooks call updateStreamingMessage too, but that setState
+        // may still be batched/pending when completeStreaming() resets the
+        // ephemeral StreamingContext, causing the content to vanish on re-render.
+        if (finalState.sessionId && finalState.messageId && finalState.content) {
+          updateStreamingMessage(finalState.sessionId, finalState.messageId, buildFinalStreamingUpdates(finalState))
+        }
         streamingMessageRef.current = null
       }
 
@@ -463,11 +489,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       options.onStreamEnd?.()
       options.onMessageSent?.()
 
-      // Generate title for new sessions
+      // Generate title for new sessions (slight delay to avoid request burst after streaming)
       if (isNewSession && targetSessionId) {
-        generateChatTitle(content, settings).then(title => {
-          if (title) updateSessionTitle(targetSessionId!, title)
-        }).catch(console.error)
+        setTimeout(() => {
+          generateChatTitle(content, settings).then(title => {
+            if (title) applyGeneratedSessionTitle(targetSessionId!, title)
+          }).catch(console.error)
+        }, 1500)
       }
 
     } catch (error: any) {
@@ -485,21 +513,31 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       setIsLoading(false)
       let errorMsg = 'An unexpected error occurred.'
+      const msg = error.message || ''
 
-      if (error.message?.includes('429') || error.message?.includes('rate limit')) {
-        errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+      if (msg.includes('429') || msg.includes('rate limit')) {
+        // Surface the actual error detail from the provider
+        // Error messages now include [status] prefix from retry logic
+        const statusMatch = msg.match(/\[(\d+)\]\s*(.+)/)
+        if (statusMatch) {
+          errorMsg = `Provider error (${statusMatch[1]}): ${statusMatch[2]}`
+        } else if (msg.includes('Provider returned error') || msg.includes('provider:')) {
+          errorMsg = 'The upstream model provider returned an error (429). This usually means the model is temporarily overloaded. Try a different model or wait a moment.'
+        } else {
+          errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
+        }
         showToast(errorMsg, 'warning')
-      } else if (error.message?.includes('401') || error.message?.includes('403')) {
+      } else if (msg.includes('401') || msg.includes('403')) {
         errorMsg = 'Invalid API key. Please check your API key in Settings.'
         showToast(errorMsg, 'error')
-      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      } else if (msg.includes('network') || msg.includes('fetch')) {
         errorMsg = 'Network error. Please check your internet connection.'
         showToast(errorMsg, 'error')
-      } else if (error.message?.includes('API Key') || error.message?.includes('missing')) {
+      } else if (msg.includes('API Key') || msg.includes('missing')) {
         errorMsg = 'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
         showToast(errorMsg, 'error')
       } else {
-        errorMsg = `Error: ${error.message || 'Unknown error'}`
+        errorMsg = `Error: ${msg || 'Unknown error'}`
         showToast(errorMsg, 'error')
       }
 
@@ -509,10 +547,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     }
   }, [
     isLoading, currentSessionId, messages, settings, canUseTools,
-    createSession, addMessageToSession, updateStreamingMessage, updateSessionTitle,
+    createSession, addMessageToSession, updateStreamingMessage, applyGeneratedSessionTitle,
     deleteMessageFromSession, clearToolState, startResearchMode, getResearchContext, calculateResearchConfig,
     showToast, options, startStreaming, completeStreaming, cancelStreaming,
-    streamOllama, streamPerplexity, streamGroq, streamNvidia, streamAlibaba, streamOpenRouter,
+    streamOllama, streamPerplexity, streamGroq, streamAlibaba, streamOpenRouter,
+    buildFinalStreamingUpdates,
   ])
 
   /**
@@ -613,12 +652,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             accumulatedContent += delta
             updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
           }
-        } else if (settings.modelProvider === 'nvidia') {
-          for await (const chunk of streamNvidiaCompletion(settings.nvidiaApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
-            const delta = chunk.choices?.[0]?.delta?.content || ''
-            accumulatedContent += delta
-            updateStreamingMessage(currentSessionId, streamingMessageId, { content: accumulatedContent })
-          }
         } else if (settings.modelProvider === 'alibaba') {
           for await (const chunk of streamAlibabaCompletion(settings.alibabaApiKey, settings.aiModel, apiMessages, { signal: abortControllerRef.current?.signal })) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
@@ -697,9 +730,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     if (settings.groqModels) {
       settings.groqModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
-    if (settings.nvidiaModels) {
-      settings.nvidiaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
-    }
     if (settings.alibabaModels) {
       settings.alibabaModels.forEach(m => allModels.push({ id: m.code, displayName: m.displayName }))
     }
@@ -709,6 +739,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   return {
     isLoading,
+    toolState,
     sendMessage,
     regenerateMessage,
     stopStreaming

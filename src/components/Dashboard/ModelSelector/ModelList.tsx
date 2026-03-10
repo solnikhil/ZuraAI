@@ -220,7 +220,7 @@ function ModelItem({
       </div>
 
       {/* Feature Badges (Right side) */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex shrink-0 self-start items-start gap-1 pt-0.5">
         {capabilities.map((capKey) => {
           const badgeConfig = CAPABILITY_BADGES[capKey]
           if (!badgeConfig) return null

@@ -29,8 +29,6 @@ contextBridge.exposeInMainWorld('windowControls', {
 // This prevents arbitrary IPC access if the renderer is compromised.
 
 const SEND_CHANNELS = new Set<string>([
-  'open-settings',
-  'set-titlebar-overlay',
   'set-native-blur',
   'spawn-terminal-command',
 ])
@@ -47,21 +45,6 @@ const INVOKE_CHANNELS = new Set<string>([
   'secure-storage:get',
   'secure-storage:set',
   'secure-storage:get-all',
-  'secure-storage:clear',
-  'secure-storage:status',
-
-  // Process metrics
-  'get-process-metrics',
-  
-  // Memory monitoring (Requirement 4.6, 6.6)
-  'memory:get-metrics',
-  'memory:force-cleanup',
-
-  // Performance monitoring (Requirement 6.3)
-  'performance:report-renderer-metrics',
-  'performance:get-metrics',
-  'performance:get-renderer-metrics',
-  'performance:check-thresholds',
 
   // Tools
   'execute-tool',
@@ -122,8 +105,6 @@ contextBridge.exposeInMainWorld('secureStorage', Object.freeze({
   get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
   set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
   getAll: () => ipcRenderer.invoke('secure-storage:get-all'),
-  clear: () => ipcRenderer.invoke('secure-storage:clear'),
-  getStatus: () => ipcRenderer.invoke('secure-storage:status'),
 }))
 
 // Auto-updater API

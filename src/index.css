@@ -100,6 +100,27 @@
 
 * {
     box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Global dark scrollbar for Electron/Chromium */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 html,
@@ -146,6 +167,8 @@ html.frosted-mode body {
     min-height: 0;
     overflow: hidden;
     border-top: none;
+    /* Isolate layout reflow so sidebar resize doesn't reflow the entire chat message tree */
+    contain: layout style;
 }
 
 .zura-frosted-prompt {
@@ -443,8 +466,6 @@ html.frosted-mode body {
         opacity: 1;
     }
 }
-
-
 /* === KaTeX Math Styling - Clean & Minimal === */
 
 

@@ -4,13 +4,12 @@
  * Feature: sidebar-redesign, Property 7: Backward-compatible migration preserves existing data
  * Validates: Requirements 11.5
  *
- * For any valid v1 ChatSession (without pinned, archived, folderId, tags fields),
+ * For any valid v1 ChatSession (without pinned, folderId, tags fields),
  * applying migrateSession produces a valid v2 ChatSession where:
  *   (a) pinned defaults to false
- *   (b) archived defaults to false
- *   (c) folderId defaults to null
- *   (d) tags defaults to []
- *   (e) all original fields (id, title, messages, createdAt, updatedAt, totalTokens) are unchanged
+ *   (b) folderId defaults to null
+ *   (c) tags defaults to []
+ *   (d) all original fields (id, title, messages, createdAt, updatedAt, totalTokens) are unchanged
  */
 
 import { describe, it, expect } from 'vitest'
@@ -35,7 +34,7 @@ const messageArb: fc.Arbitrary<Message> = fc.record({
 
 /**
  * Arbitrary for a v1 ChatSession — one that does NOT have the new sidebar
- * redesign fields (pinned, archived, folderId, tags).
+ * redesign fields (pinned, folderId, tags).
  * This simulates sessions stored before the v2 migration.
  */
 const v1ChatSessionArb: fc.Arbitrary<ChatSession> = fc.record({
@@ -56,7 +55,7 @@ describe('Property 7: Backward-compatible migration preserves existing data', ()
      * **Validates: Requirements 11.5**
      *
      * For any valid v1 ChatSession, applying migrateSession produces a valid v2
-     * ChatSession with pinned=false, archived=false, folderId=null, tags=[],
+     * ChatSession with pinned=false, folderId=null, tags=[],
      * and all original fields unchanged.
      */
     it('should apply correct defaults for new fields on v1 sessions', () => {
@@ -67,13 +66,10 @@ describe('Property 7: Backward-compatible migration preserves existing data', ()
                 // (a) pinned defaults to false
                 expect(migrated.pinned).toBe(false)
 
-                // (b) archived defaults to false
-                expect(migrated.archived).toBe(false)
-
-                // (c) folderId defaults to null
+                // (b) folderId defaults to null
                 expect(migrated.folderId).toBeNull()
 
-                // (d) tags defaults to []
+                // (c) tags defaults to []
                 expect(migrated.tags).toEqual([])
             }),
             { numRuns: 200 }
@@ -85,7 +81,7 @@ describe('Property 7: Backward-compatible migration preserves existing data', ()
             fc.property(v1ChatSessionArb, (v1Session) => {
                 const migrated = migrateSession(v1Session)
 
-                // (e) All original fields are unchanged
+                // (d) All original fields are unchanged
                 expect(migrated.id).toBe(v1Session.id)
                 expect(migrated.title).toBe(v1Session.title)
                 expect(migrated.createdAt).toBe(v1Session.createdAt)
@@ -121,7 +117,6 @@ describe('Property 7: Backward-compatible migration preserves existing data', ()
             updatedAt: fc.integer({ min: 0, max: Date.now() }),
             totalTokens: fc.option(fc.integer({ min: 0, max: 1000000 }), { nil: undefined }),
             pinned: fc.boolean(),
-            archived: fc.boolean(),
             folderId: fc.option(fc.uuid(), { nil: null }),
             tags: fc.array(fc.string({ minLength: 1, maxLength: 30 }), { minLength: 0, maxLength: 5 }),
         })
@@ -132,7 +127,6 @@ describe('Property 7: Backward-compatible migration preserves existing data', ()
 
                 // When fields are already set, they should be preserved
                 expect(migrated.pinned).toBe(v2Session.pinned)
-                expect(migrated.archived).toBe(v2Session.archived)
                 expect(migrated.folderId).toBe(v2Session.folderId)
                 expect(migrated.tags).toEqual(v2Session.tags)
 

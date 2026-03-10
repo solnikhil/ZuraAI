@@ -12,7 +12,7 @@ import React from 'react'
 export interface ModelWithProvider {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia' | 'alibaba'
+  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
   /** Max context length in tokens (from ConfiguredModel or fallback lookup) */
   maxContext?: number
   /** Capability fields from ConfiguredModel (API-derived) */
@@ -30,9 +30,14 @@ export interface ModelWithProvider {
 export type ViewMode = 'favorites' | 'all'
 
 /**
+ * Responsive compact mode for model selector UI
+ */
+export type ModelSelectorCompactMode = 'none' | 'compact' | 'tight'
+
+/**
  * Provider key type union
  */
-export type ProviderKey = 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'nvidia' | 'alibaba'
+export type ProviderKey = 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
 
 /**
  * Provider configuration
@@ -53,7 +58,6 @@ export interface GroupedModels {
   perplexity: ModelWithProvider[]
   openrouter: ModelWithProvider[]
   groq: ModelWithProvider[]
-  nvidia: ModelWithProvider[]
   alibaba: ModelWithProvider[]
 }
 

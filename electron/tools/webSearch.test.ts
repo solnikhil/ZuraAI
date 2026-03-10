@@ -67,6 +67,153 @@ describe('executeWebSearch', () => {
         })
     })
 
+    describe('URL intent routing', () => {
+        it('routes URL-only queries to Tavily Extract with basic defaults', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    results: [
+                        {
+                            url: 'https://foo.com/article',
+                            raw_content: '# Article\nSome extracted content here.',
+                            images: ['https://foo.com/image.png']
+                        }
+                    ],
+                    failed_results: []
+                })
+            })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({ query: 'https://foo.com/article' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.source).toBe('tavily_extract')
+            expect(fetchMock).toHaveBeenCalledTimes(1)
+            expect(fetchMock.mock.calls[0][0]).toBe('https://api.tavily.com/extract')
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.urls).toEqual(['https://foo.com/article'])
+            expect(body.format).toBe('markdown')
+            expect(body.extract_depth).toBe('basic')
+            expect(body.query).toBeUndefined()
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('routes query + URL to Tavily Extract with reranking query', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    results: [
+                        {
+                            url: 'https://foo.com/pricing',
+                            raw_content: 'Pricing details from the page',
+                            images: []
+                        }
+                    ],
+                    failed_results: []
+                })
+            })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({ query: 'using this page, tell me the pricing details https://foo.com/pricing' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.source).toBe('tavily_extract')
+            expect(result.data?.intent).toBe('url_extract_with_query')
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.extract_depth).toBe('advanced')
+            expect(body.chunks_per_source).toBe(3)
+            expect(body.query).toBe('using this page, tell me the pricing details')
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('falls back to search when URL extraction fails', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn()
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 500,
+                    text: () => Promise.resolve('extract failed')
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        results: [{ title: 'Pricing', url: 'https://foo.com/pricing', content: 'Summary' }],
+                        images: []
+                    })
+                })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({ query: 'pricing details https://foo.com/pricing' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.source).toBe('tavily')
+            expect(result.data?.message).toContain('Direct URL extraction failed')
+            expect(fetchMock.mock.calls[0][0]).toBe('https://api.tavily.com/extract')
+            expect(fetchMock.mock.calls[1][0]).toBe('https://api.tavily.com/search')
+
+            const searchBody = JSON.parse(fetchMock.mock.calls[1][1].body)
+            expect(searchBody.query).toContain('site:foo.com')
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('uses DuckDuckGo fallback for URL queries without Tavily key', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('')
+            vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
+                results: [{ title: 'Fallback', url: 'https://foo.com/article', description: 'Fallback snippet' }],
+                noResults: false,
+                vqd: 'x'
+            } as any)
+
+            const result = await executeWebSearch({ query: 'https://foo.com/article' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.source).toBe('duckduckgo')
+            expect(result.data?.message).toContain('URL-focused extraction')
+            expect(duckDuckScrapeSearch).toHaveBeenCalledWith('https://foo.com/article', expect.any(Object))
+        })
+
+        it('marks docs exploration phrasing with URL as site_exploration intent', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    results: [
+                        {
+                            url: 'https://docs.example.com',
+                            raw_content: 'API reference content',
+                            images: []
+                        }
+                    ],
+                    failed_results: []
+                })
+            })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({ query: 'scan this site for API references https://docs.example.com' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.source).toBe('tavily_extract')
+            expect(result.data?.intent).toBe('site_exploration')
+
+            globalThis.fetch = originalFetch
+        })
+    })
+
     describe('Tavily fallback chain', () => {
         it('uses Tavily when key is available and succeeds', async () => {
             vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')

@@ -10,18 +10,19 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  Copy, Check, Info, Wrench, X, File, RotateCcw,
+  Copy, Check, Info, X, File, RotateCcw,
   ChevronLeft, ChevronRight, CornerDownLeft
 } from '../../icons'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+// Separator import removed (no longer used after streaming)
 import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
-import type { Message, ThinkingBlock } from '../../../contexts/ChatHistoryContext'
+import type { Message, ThinkingBlock, ToolCallResult, FileAttachment } from '../../../contexts/ChatHistoryContext'
 import type { WebSource } from './WebSourceCitation'
+import { getWebImageSourceLabel, inferWebToolModeFromResultData } from '../../../tools/ui/webToolDisplay'
 
 export interface MessageRendererProps {
   message: Message & {
@@ -42,10 +43,7 @@ export interface MessageRendererProps {
       model?: string
     }>
     currentVersionIndex?: number
-    toolResults?: Array<{
-      toolCall: { id: string; name: string; arguments: any }
-      result: { success: boolean; data?: any; error?: string; executionTime?: number }
-    }>
+    toolResults?: ToolCallResult[]
     researchPlan?: { topic: string; steps: Array<{ stepNumber: number; query: string; rationale?: string }> }
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
@@ -56,14 +54,61 @@ export interface MessageRendererProps {
   onRegenerate?: (instruction: string) => void
 }
 
+const MESSAGE_ACTION_ICON_SIZE = 14
+const RESPONSE_INFO_WIDTH = 260
+const RESPONSE_INFO_PADDING = 12
+const RESPONSE_INFO_HIDE_DELAY_MS = 120
+const RESPONSE_INFO_OFFSET_X = 14
+const RESPONSE_INFO_ESTIMATED_HEIGHT = 400
+
 /**
- * Convert reference-style URLs to markdown links
+ * Strip trailing "References" or "Sources" sections that the model may generate.
+ * These are redundant because the app renders numbered citations as interactive links.
+ * Matches a heading (e.g. "## References", "**References**", "References") followed by
+ * numbered entries like "[1] ..." until the end of the content.
+ */
+function stripReferencesSection(content: string): string {
+  if (!content) return content
+  // Match a References/Sources heading (markdown ## or bold ** or plain) followed by
+  // numbered list entries through end of string
+  return content.replace(
+    /\n+(?:#{1,4}\s*)?(?:\*{1,2})?(?:References|Sources)(?:\*{1,2})?:?\s*\n+(?:\s*\[?\d+\]?[\s.:\-–—].+(?:\n|$))+$/i,
+    ''
+  ).trimEnd()
+}
+
+/**
+ * Convert reference-style URLs to markdown links.
+ * Skips URLs inside fenced code blocks and inline code spans.
  */
 function convertUrlsToMarkdownLinks(content: string): string {
   if (!content) return content
 
+  // Split by fenced code blocks first — preserve them untouched
+  const fencedParts = content.split(/(```[\s\S]*?```)/g)
+
+  const processed = fencedParts.map((part, fIdx) => {
+    // Odd indices are fenced code blocks — skip
+    if (fIdx % 2 === 1) return part
+
+    // Split by inline code spans — preserve them untouched
+    const inlineParts = part.split(/(`[^`]+`)/g)
+
+    return inlineParts.map((seg, iIdx) => {
+      // Odd indices are inline code spans — skip
+      if (iIdx % 2 === 1) return seg
+
+      return convertUrlsInText(seg)
+    }).join('')
+  }).join('')
+
+  return processed
+}
+
+/** Apply URL→link conversion to a plain-text (non-code) segment */
+function convertUrlsInText(text: string): string {
   // Pattern 1: Reference-style URLs like [1] https://example.com
-  let result = content.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[]+)/gm, (_match, prefix, num, url) => {
+  let result = text.replace(/(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm, (_match, prefix, num, url) => {
     const cleanUrl = url.replace(/[.,;:!?]+$/, '')
     return `${prefix}[[${num}]](${cleanUrl})`
   })
@@ -80,8 +125,8 @@ function convertUrlsToMarkdownLinks(content: string): string {
       return `${indent}[[${num}]](${cleanUrl})`
     }
 
-    // Pattern 3: Plain URLs
-    const urlRegex = /(https?:\/\/[^\s\)\]\[]+)/g
+    // Pattern 3: Plain URLs (exclude backticks from URL chars)
+    const urlRegex = /(https?:\/\/[^\s\)\]\[`]+)/g
     let lastIndex = 0
     let lineResult = ''
 
@@ -107,170 +152,58 @@ function convertUrlsToMarkdownLinks(content: string): string {
 }
 
 /**
- * Tool Details Modal Component
+ * Convert numeric citations like [1] or [2,3] to markdown links
+ * using the ordered URLs from web search results.
  */
-function ToolDetailsModal({ toolResults, onClose }: {
-  toolResults: MessageRendererProps['message']['toolResults']
-  onClose: () => void
-}) {
-  if (!toolResults) return null
+function convertNumericCitationsToMarkdownLinks(content: string, orderedSourceUrls: string[]): string {
+  if (!content || orderedSourceUrls.length === 0) return content
 
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 10000,
-      padding: '20px'
-    }} onClick={onClose}>
-      <ScrollArea
-        style={{
-          backgroundColor: 'var(--theme-surface)',
-          borderRadius: '12px',
-          maxWidth: '800px',
-          width: '100%',
-          maxHeight: '90vh',
-          border: '1px solid var(--theme-border)',
-          boxShadow: 'var(--theme-shadow-lg)'
-        }}
-        viewportStyle={{ padding: '24px' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px'
-        }}>
-          <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>
-            Tools Used ({toolResults.length})
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#b0b0b0',
-              cursor: 'pointer',
-              padding: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X size={20} />
-          </button>
-        </div>
+  const parts = content.split(/(```[\s\S]*?```)/g)
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {toolResults.map((result, idx) => (
-            <div
-              key={idx}
-              style={{
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '8px',
-                padding: '16px'
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '12px'
-              }}>
-                <Wrench size={16} color={result.result.success ? '#4ade80' : '#f87171'} />
-                <span style={{ color: '#fff', fontWeight: 600, fontSize: '1rem' }}>
-                  {result.toolCall.name.replace(/_/g, ' ')}
-                </span>
-                {result.result.executionTime && (
-                  <span style={{ color: '#b0b0b0', fontSize: '0.85rem', marginLeft: 'auto' }}>
-                    {result.result.executionTime}ms
-                  </span>
-                )}
-              </div>
+  return parts.map((part, index) => {
+    // Keep fenced code blocks unchanged
+    if (index % 2 === 1) return part
 
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
-                  Arguments:
-                </div>
-                <pre style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  fontSize: '0.85rem',
-                  color: '#e0e0e0',
-                  overflowX: 'auto',
-                  margin: 0
-                }}>
-                  {JSON.stringify(result.toolCall.arguments, null, 2)}
-                </pre>
-              </div>
+    return part.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (match, refs, offset, sourceText) => {
+      const prevChar = offset > 0 ? sourceText[offset - 1] : ''
+      const nextChar = sourceText[offset + match.length] || ''
 
-              {result.result.success ? (
-                <div>
-                  <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
-                    Result:
-                  </div>
-                  <ScrollArea
-                    style={{
-                      background: 'rgba(34, 197, 94, 0.1)',
-                      borderRadius: '4px',
-                      maxHeight: '300px'
-                    }}
-                    viewportStyle={{ padding: '8px' }}
-                  >
-                    <pre style={{
-                      fontSize: '0.85rem',
-                      color: '#4ade80',
-                      overflowX: 'auto',
-                      margin: 0
-                    }}>
-                      {JSON.stringify(result.result.data, null, 2)}
-                    </pre>
-                  </ScrollArea>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ color: '#b0b0b0', fontSize: '0.85rem', marginBottom: '4px' }}>
-                    Error:
-                  </div>
-                  <div style={{
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    color: '#f87171',
-                    margin: 0
-                  }}>
-                    {result.result.error}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
-    </div>
-  )
+      // Skip markdown links like [text](url) and already-converted forms like [[1]](url)
+      if (nextChar === '(' || prevChar === '[') return match
+
+      const refNumbers = String(refs)
+        .split(',')
+        .map((s) => Number.parseInt(s.trim(), 10))
+
+      if (refNumbers.some((n) => !Number.isInteger(n) || n < 1 || n > orderedSourceUrls.length)) {
+        return match
+      }
+
+      return refNumbers
+        .map((n) => `[[${n}]](${orderedSourceUrls[n - 1]})`)
+        .join(', ')
+    })
+  }).join('')
 }
+
 
 /**
  * Web Search Image Carousel Component
  * Renders inline with the message flow—no card container, minimal chrome.
  * Uses smooth scroll animation when navigating between pages.
  */
-function WebSearchImageCarousel({ images }: { images: Array<{ url: string; description?: string }> }) {
+function WebSearchImageCarousel({
+  images,
+  mode
+}: {
+  images: Array<{ url: string; description?: string }>
+  mode: 'search' | 'extract' | 'mixed'
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const imagesPerPage = 4
   const totalPages = Math.ceil(images.length / imagesPerPage)
+  const sourceLabel = getWebImageSourceLabel(mode)
 
   const scrollToPage = (page: number) => {
     const el = scrollRef.current
@@ -306,7 +239,7 @@ function WebSearchImageCarousel({ images }: { images: Array<{ url: string; descr
           fontSize: '0.8rem',
           fontWeight: 500
         }}>
-          {images.length} {images.length === 1 ? 'image' : 'images'} from search
+          {images.length} {images.length === 1 ? 'image' : 'images'} from {sourceLabel}
         </span>
         {images.length > imagesPerPage && (
           <div style={{
@@ -450,8 +383,8 @@ function UserMessageBubble({
       color: 'var(--theme-user-message-text)'
     },
     glass: {
-      background: 'rgba(255, 255, 255, 0.08)',
-      border: '1px solid var(--theme-border)',
+      background: 'rgba(148, 163, 184, 0.18)',
+      border: '1px solid rgba(255, 255, 255, 0.22)',
       boxShadow: 'var(--theme-shadow-sm)',
       color: 'var(--theme-text-primary)',
       backdropFilter: 'blur(16px)',
@@ -502,7 +435,7 @@ function UserMessageBubble({
           maxWidth: '70%',
           width: '100%'
         }}>
-          {message.files.map((file: any) => (
+          {message.files.map((file: FileAttachment) => (
             file.type === 'image' ? (
               <div
                 key={file.id}
@@ -781,24 +714,42 @@ function MessageRendererComponent({
 }: MessageRendererProps) {
   const { settings } = useSettings()
   const [copied, setCopied] = useState(false)
-  const [showToolModal, setShowToolModal] = useState(false)
-  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number; showAbove: boolean } | null>(null)
+
+  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
   const [isHoveringInfo, setIsHoveringInfo] = useState(false)
   const [showRegenerateModal, setShowRegenerateModal] = useState(false)
   const [regenerateInstruction, setRegenerateInstruction] = useState('')
   const [displayVersionIndex, setDisplayVersionIndex] = useState(0)
   const infoTriggerRef = useRef<HTMLDivElement>(null)
+  const infoPopoverRef = useRef<HTMLDivElement>(null)
+  const hidePopoverTimeoutRef = useRef<number | null>(null)
   const messageRef = useRef<HTMLDivElement>(null)
   const regenerateInputRef = useRef<HTMLTextAreaElement>(null)
 
   // Track if content has arrived during streaming
   const [hasContentDuringStreaming, setHasContentDuringStreaming] = useState(false)
+  // Track whether to trigger the staggered button animation.
+  // null = no animation (historical messages), true = animate in
+  const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
+  const prevIsStreamingRef = useRef(isStreaming)
 
   // Reset content tracking when streaming starts
   useEffect(() => {
     if (isStreaming) {
       setHasContentDuringStreaming(false)
     }
+  }, [isStreaming])
+
+  // Trigger staggered button animation ONLY when streaming transitions from true → false
+  useEffect(() => {
+    if (prevIsStreamingRef.current && !isStreaming) {
+      // Streaming just ended on this message - trigger animation
+      setShowActionButtons(false)
+      requestAnimationFrame(() => {
+        setShowActionButtons(true)
+      })
+    }
+    prevIsStreamingRef.current = isStreaming
   }, [isStreaming])
 
   // Track when content arrives during streaming
@@ -812,6 +763,9 @@ function MessageRendererComponent({
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
   const currentVersionIndex = message.currentVersionIndex || 0
+  const messageActionButtonClassName = showActionButtons === true
+    ? 'message-action-surface action-btn-animate'
+    : 'message-action-surface'
 
   // Reset display version when message changes
   useEffect(() => {
@@ -829,58 +783,90 @@ function MessageRendererComponent({
   }
 
   const displayMessage = getVersionContent()
-  const processedContent = convertUrlsToMarkdownLinks(displayMessage?.content || '')
 
   // Build web source map from tool results
-  const webSourceMap = useMemo(() => {
+  const { webSourceMap, orderedWebSourceUrls } = useMemo(() => {
     const map = new Map<string, WebSource>()
-    if (!message.toolResults) return map
+    const orderedUrls: string[] = []
+    if (!message.toolResults) {
+      return { webSourceMap: map, orderedWebSourceUrls: orderedUrls }
+    }
+
     for (const tr of message.toolResults) {
-      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
-        const results = tr.result.data.results || tr.result.data
+      if (tr.toolCall.name === 'web_search' && tr.result?.success && tr.result?.data) {
+        const dataObj = tr.result.data as Record<string, unknown>
+        const results = (dataObj.results as unknown[]) || tr.result.data
         if (Array.isArray(results)) {
-          for (const entry of results) {
+          for (const rawEntry of results) {
+            const entry = rawEntry as Record<string, unknown>
             if (entry.url) {
-              map.set(entry.url, {
-                title: entry.title || '',
-                url: entry.url,
-                snippet: entry.snippet || entry.description || '',
-                favicon: entry.favicon || ''
+              const url = String(entry.url)
+              if (!map.has(url)) {
+                orderedUrls.push(url)
+              }
+              map.set(String(entry.url), {
+                title: String(entry.title || ''),
+                url,
+                snippet: String(entry.snippet || entry.description || ''),
+                favicon: String(entry.favicon || '')
               })
             }
           }
         }
       }
     }
-    return map
+    return { webSourceMap: map, orderedWebSourceUrls: orderedUrls }
   }, [message.toolResults])
 
+  const processedContent = useMemo(() => {
+    const withUrlLinks = convertUrlsToMarkdownLinks(displayMessage?.content || '')
+    const withCitations = convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+    // Strip model-generated References/Sources sections — citations are rendered as interactive links
+    return orderedWebSourceUrls.length > 0 ? stripReferencesSection(withCitations) : withCitations
+  }, [displayMessage?.content, orderedWebSourceUrls])
+
   // Extract all images from web_search tool results
-  const webSearchImages = useMemo(() => {
-    const images: Array<{ url: string; description?: string }> = []
-    if (!message.toolResults) return images
+  const { webSearchImages, webImageMode } = useMemo(() => {
+    const images: Array<{ url: string; description?: string; mode: 'search' | 'extract' }> = []
+    if (!message.toolResults) {
+      return { webSearchImages: images, webImageMode: 'search' as const }
+    }
+
+    const modeSet = new Set<'search' | 'extract'>()
+
     for (const tr of message.toolResults) {
-      if (tr.toolCall.name === 'web_search' && tr.result.success && tr.result.data) {
-        const resultImages = tr.result.data.images || []
+      if (tr.toolCall.name === 'web_search' && tr.result?.success && tr.result?.data) {
+        const dataObj = tr.result.data as Record<string, unknown>
+        const mode = inferWebToolModeFromResultData(dataObj) || 'search'
+        modeSet.add(mode)
+        const resultImages = (dataObj.images as unknown[]) || []
         if (Array.isArray(resultImages)) {
           for (const img of resultImages) {
             if (typeof img === 'string') {
-              images.push({ url: img })
-            } else if (img?.url) {
-              images.push({
-                url: img.url,
-                description: img.description || img.alt || undefined
-              })
+              images.push({ url: img, mode })
+            } else if (img && typeof img === 'object') {
+              const imgObj = img as Record<string, unknown>
+              if (imgObj.url) {
+                images.push({
+                  url: String(imgObj.url),
+                  description: String(imgObj.description || imgObj.alt || '') || undefined,
+                  mode,
+                })
+              }
             }
           }
         }
       }
     }
-    return images
+
+    const webImageMode: 'search' | 'extract' | 'mixed' =
+      modeSet.size > 1 ? 'mixed' : (modeSet.values().next().value || 'search')
+
+    return { webSearchImages: images, webImageMode }
   }, [message.toolResults])
 
   const isUser = message.role === 'user'
-  const hasThinking = typeof (message as any).thinking === 'string' && (message as any).thinking.trim().length > 0
+  const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
   const showThinkingSpinner = isStreaming && !hasThinking
 
   // Handle copy
@@ -928,54 +914,103 @@ function MessageRendererComponent({
     })
   }
 
-  // Update popover position
+  // Update popover position relative to the info trigger.
   const updatePopoverPosition = () => {
-    if (infoTriggerRef.current) {
-      const rect = infoTriggerRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const popoverHeight = 400
-      const popoverWidth = message.toolResults && message.toolResults.length > 0 ? 400 : 280
-      const padding = 20
+    const rect = infoTriggerRef.current?.getBoundingClientRect()
+    if (!rect) {
+      return
+    }
 
-      const spaceAbove = rect.top
-      const spaceBelow = viewportHeight - rect.bottom
-      const showAbove = spaceAbove >= popoverHeight + padding || spaceBelow < popoverHeight + padding
+    const popoverRect = infoPopoverRef.current?.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    const padding = RESPONSE_INFO_PADDING
+    const popoverWidth = popoverRect?.width || RESPONSE_INFO_WIDTH
+    const popoverHeight = popoverRect?.height || RESPONSE_INFO_ESTIMATED_HEIGHT
 
-      let left = rect.left
-      if (left + popoverWidth > viewportWidth - padding) {
-        left = viewportWidth - popoverWidth - padding
-      }
-      if (left < padding) {
-        left = padding
-      }
+    const spaceOnRight = viewportWidth - rect.right - padding
+    const spaceOnLeft = rect.left - padding
+    const prefersRight = spaceOnRight >= popoverWidth || spaceOnRight >= spaceOnLeft
 
-      setPopoverPosition({ top: rect.top, left, showAbove })
+    let left = prefersRight
+      ? rect.right + RESPONSE_INFO_OFFSET_X
+      : rect.left - popoverWidth - RESPONSE_INFO_OFFSET_X
+
+    const maxLeft = viewportWidth - popoverWidth - padding
+    if (left > maxLeft) {
+      left = rect.left - popoverWidth - RESPONSE_INFO_OFFSET_X
+    }
+    if (left < padding) {
+      left = rect.right + RESPONSE_INFO_OFFSET_X
+    }
+
+    left = Math.min(Math.max(left, padding), Math.max(padding, maxLeft))
+
+    let top = rect.top + (rect.height / 2) - (popoverHeight / 2)
+    const maxTop = viewportHeight - popoverHeight - padding
+    top = Math.min(Math.max(top, padding), Math.max(padding, maxTop))
+
+    setPopoverPosition({ top, left })
+  }
+
+  const clearHidePopoverTimeout = () => {
+    if (hidePopoverTimeoutRef.current !== null) {
+      window.clearTimeout(hidePopoverTimeoutRef.current)
+      hidePopoverTimeoutRef.current = null
     }
   }
 
+  const scheduleHidePopover = () => {
+    clearHidePopoverTimeout()
+    hidePopoverTimeoutRef.current = window.setTimeout(() => {
+      setIsHoveringInfo(false)
+      setPopoverPosition(null)
+      hidePopoverTimeoutRef.current = null
+    }, RESPONSE_INFO_HIDE_DELAY_MS)
+  }
+
   const handleInfoMouseEnter = () => {
+    clearHidePopoverTimeout()
     setIsHoveringInfo(true)
     updatePopoverPosition()
   }
 
   const handleInfoMouseLeave = () => {
-    setIsHoveringInfo(false)
-    setPopoverPosition(null)
+    scheduleHidePopover()
+  }
+
+  const handlePopoverMouseEnter = () => {
+    clearHidePopoverTimeout()
+    setIsHoveringInfo(true)
+    updatePopoverPosition()
+  }
+
+  const handlePopoverMouseLeave = () => {
+    scheduleHidePopover()
   }
 
   // Update position on scroll/resize when hovering
   useEffect(() => {
     if (isHoveringInfo) {
+      const animationFrame = window.requestAnimationFrame(() => {
+        updatePopoverPosition()
+      })
       const handleUpdate = () => updatePopoverPosition()
       window.addEventListener('scroll', handleUpdate, true)
       window.addEventListener('resize', handleUpdate)
       return () => {
+        window.cancelAnimationFrame(animationFrame)
         window.removeEventListener('scroll', handleUpdate, true)
         window.removeEventListener('resize', handleUpdate)
       }
     }
   }, [isHoveringInfo])
+
+  useEffect(() => {
+    return () => {
+      clearHidePopoverTimeout()
+    }
+  }, [])
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -997,6 +1032,17 @@ function MessageRendererComponent({
   }
 
   // Render assistant message
+  const shouldShowInfoTooltip = !isStreaming && (
+    Boolean(message.content) ||
+    Boolean(message.thinking) ||
+    Boolean(message.model) ||
+    Boolean(message.usage) ||
+    Boolean(message.finishReason) ||
+    typeof message.requestedMaxTokens === 'number' ||
+    typeof message.latency === 'number' ||
+    Boolean(message.toolResults)
+  )
+
   return (
     <div
       style={{ marginBottom: '24px' }}
@@ -1008,7 +1054,7 @@ function MessageRendererComponent({
       {(hasThinking || showThinkingSpinner || (message.thinkingBlocks && message.thinkingBlocks.length > 0) || message.researchStatus?.isSearching || (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
-            thinking={(message as any).thinking || ''}
+            thinking={message.thinking || ''}
             isThinking={isStreaming && !message.content && !message.researchStatus?.isSearching && (!activeToolCalls || activeToolCalls.length === 0)}
             thinkingDuration={message.thinkingDuration}
             isSearching={message.researchStatus?.isSearching || false}
@@ -1019,23 +1065,20 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {/* Web Search Image Carousel - shown after thinking ends, before message content */}
+      {/* Web Search/Extract image carousel - shown after thinking ends, before message content */}
       {!isStreaming && webSearchImages.length > 0 && (
-        <WebSearchImageCarousel images={webSearchImages} />
+        <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
 
       {/* Message content - only show when not streaming or when content has arrived */}
       {( !isStreaming || hasContentDuringStreaming || message.thinkingBlocks?.length || message.researchStatus) && (
         <div className="markdown-content">
-          <LazyMarkdown content={processedContent} webSources={webSourceMap} />
+          <LazyMarkdown content={processedContent} webSources={webSourceMap} isStreaming={isStreaming} />
         </div>
       )}
 
-      {/* Separator - added when model is done streaming to separate response from post-streaming tasks */}
-      {!isStreaming && message.content && <Separator orientation="horizontal" style={{ width: '25%', margin: '16px 0' }} />}
-
       {/* Action Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', overflow: 'visible' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '12px', overflow: 'visible' }}>
         {/* Version Indicator */}
         {message.responseVersions && message.responseVersions.length > 0 && (
           <>
@@ -1052,7 +1095,7 @@ function MessageRendererComponent({
                 alignItems: 'center'
               }}
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
 
             <span style={{
@@ -1076,56 +1119,29 @@ function MessageRendererComponent({
                 alignItems: 'center'
               }}
             >
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
           </>
         )}
 
-        {/* Tools Button */}
-        {message.toolResults && message.toolResults.length > 0 && (
-          <button
-            onClick={() => setShowToolModal(true)}
-            style={{
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
-              color: '#60a5fa',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              transition: 'all 0.2s',
-              fontSize: '0.8rem',
-              fontFamily: 'inherit',
-              fontWeight: 500
-            }}
-          >
-            <Wrench size={14} />
-            <span>{message.toolResults.length} {message.toolResults.length === 1 ? 'tool' : 'tools'}</span>
-          </button>
-        )}
-
-        {/* Copy Button - hide while streaming */}
+        {/* Copy Button - hide while streaming, animate in after */}
         {!isStreaming && (
           <button
             onClick={handleCopy}
+            className={messageActionButtonClassName}
             style={{
-              background: 'transparent',
-              border: 'none',
               color: copied ? 'var(--theme-success)' : 'var(--theme-text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s',
-              fontSize: '0.8rem',
-              fontFamily: 'inherit'
+              padding: '6px',
+              fontSize: '0.85rem',
+              fontFamily: 'inherit',
+              animationDelay: '0ms'
             }}
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? <Check size={MESSAGE_ACTION_ICON_SIZE} /> : <Copy size={MESSAGE_ACTION_ICON_SIZE} />}
           </button>
         )}
 
@@ -1133,92 +1149,70 @@ function MessageRendererComponent({
         {!isStreaming && message.role === 'assistant' && onRegenerate && (
           <button
             onClick={openRegenerateModal}
+            className={messageActionButtonClassName}
             style={{
-              background: 'transparent',
-              border: 'none',
               color: 'var(--theme-text-muted)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: 'all 0.2s'
+              padding: '6px',
+              animationDelay: '60ms'
             }}
             title="Regenerate with custom instructions"
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={MESSAGE_ACTION_ICON_SIZE} />
           </button>
         )}
 
         {/* Info Tooltip */}
-        {(message.usage || message.toolResults) && (
+        {shouldShowInfoTooltip && (
           <div
             ref={infoTriggerRef}
+            className={messageActionButtonClassName}
             style={{
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: '4px',
+              padding: '6px',
+              cursor: 'pointer',
               flexShrink: 0,
               overflow: 'visible',
               minWidth: '22px',
-              minHeight: '22px'
+              minHeight: '22px',
+              animationDelay: '120ms'
             }}
             onMouseEnter={handleInfoMouseEnter}
             onMouseLeave={handleInfoMouseLeave}
           >
             <div style={{ position: 'relative', display: 'flex' }}>
               <Info
-                size={14}
+                size={MESSAGE_ACTION_ICON_SIZE}
                 style={{
                   cursor: 'pointer',
                   color: 'var(--theme-text-muted)',
                   flexShrink: 0,
                   display: 'block',
-                  width: '14px',
-                  height: '14px'
+                  width: `${MESSAGE_ACTION_ICON_SIZE}px`,
+                  height: `${MESSAGE_ACTION_ICON_SIZE}px`
                 }}
               />
-              {/* Sources badge */}
-              {message.toolResults && message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-6px',
-                  right: '-8px',
-                  background: '#60a5fa',
-                  color: 'white',
-                  fontSize: '0.65rem',
-                  fontWeight: 'bold',
-                  minWidth: '16px',
-                  height: '16px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 4px',
-                  border: '2px solid var(--theme-bg)',
-                  pointerEvents: 'none'
-                }}>
-                  {message.toolResults.filter((tr: any) => tr.toolCall.name === 'web_search').length}
-                </span>
-              )}
             </div>
           </div>
         )}
 
         {/* Info Popover */}
-        {popoverPosition && (
+        {popoverPosition && typeof document !== 'undefined' && createPortal(
           <div
+            ref={infoPopoverRef}
+            onMouseEnter={handlePopoverMouseEnter}
+            onMouseLeave={handlePopoverMouseLeave}
             style={{
               position: 'fixed',
-              top: popoverPosition.showAbove
-                ? popoverPosition.top - 10 // Adjustment for shadow/margin
-                : popoverPosition.top + 30,
+              top: popoverPosition.top,
               left: popoverPosition.left,
-              zIndex: 1000,
-              transform: popoverPosition.showAbove ? 'translateY(-100%)' : 'none'
+              zIndex: 1000
             }}
           >
             <ResponseInfo
@@ -1228,17 +1222,12 @@ function MessageRendererComponent({
               finishReason={message.finishReason}
               requestedMaxTokens={message.requestedMaxTokens}
             />
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 
-      {/* Tool Details Modal */}
-      {showToolModal && message.toolResults && (
-        <ToolDetailsModal
-          toolResults={message.toolResults}
-          onClose={() => setShowToolModal(false)}
-        />
-      )}
+
 
       {/* Regenerate Modal */}
       {showRegenerateModal && (

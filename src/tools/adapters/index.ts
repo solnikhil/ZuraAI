@@ -18,7 +18,7 @@
 // - formatResultsForProvider() switch cases
 // - buildMessagesWithToolResults() switch cases
 //
-// Providers WITH tool support: openrouter, groq, ollama
+// Providers WITH tool support: openrouter, groq, ollama, alibaba
 // ============================================================================
 
 // Tool Adapters - Convert tool definitions to provider-specific formats
@@ -35,13 +35,12 @@ export type ProviderToolFormat = OpenAITool[]
  */
 export function convertToolsForProvider(
     tools: ToolDefinition[],
-    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
 ): ProviderToolFormat | null {
     switch (provider) {
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             // All use OpenAI-compatible format
             return convertToOpenRouterFormat(tools)
@@ -61,7 +60,7 @@ export function convertToolsForProvider(
  * EXCLUDED: perplexity (see header comment)
  */
 export function providerSupportsTools(provider: string): boolean {
-    return ['openrouter', 'groq', 'ollama', 'nvidia', 'alibaba'].includes(provider)
+    return ['openrouter', 'groq', 'ollama', 'alibaba'].includes(provider)
 }
 
 /**
@@ -99,23 +98,6 @@ export const modelsWithToolSupport: Record<string, string[]> = {
         'llama3.2',
         'mistral',
         'mixtral',
-    ],
-    nvidia: [
-        'meta/llama3-70b',
-        'meta/llama3-8b',
-        'nvidia/nemotron-4-340b-instruct',
-        'mistralai/mistral-large',
-        'mistralai/mixtral-8x7b-instruct',
-        'mistralai/mistral-7b-instruct',
-        'google/gemma-2-9b-it',
-        'microsoft/phi-3-medium-4k-instruct',
-        'deepseek-ai/deepseek-r1',
-        'snowflake/arctic',
-        'z-ai/glm4.7',
-        'minimaxai/minimax-m2',
-        'moonshotai/kimi-k2-5',
-        'moonshotai/kimi-k2-instruct',
-        'moonshotai/kimi-k2-instruct-0905',
     ],
     alibaba: [
         'qwen-plus',

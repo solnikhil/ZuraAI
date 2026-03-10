@@ -16,6 +16,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { ChevronDown } from 'lucide-react'
+import type { ToolCallResult } from '../../../contexts/ChatHistoryContext'
 
 interface Message {
   id: string
@@ -25,7 +26,7 @@ interface Message {
   model?: string
   image?: string
   thinking?: string
-  toolResults?: any[]
+  toolResults?: ToolCallResult[]
   usage?: {
     inputTokens: number
     outputTokens: number
@@ -75,6 +76,27 @@ export function VirtualMessageList({
   // Track scroll state
   const [atBottom, setAtBottom] = useState(true)
   const [isScrolling, setIsScrolling] = useState(false)
+  
+  // Track viewport height so preRenderBuffer recalculates on window resize
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window !== 'undefined' ? window.innerHeight : 800
+  )
+  
+  useEffect(() => {
+    let rafId: number | null = null
+    const handleResize = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        setViewportHeight(window.innerHeight)
+      })
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [])
   
   /**
    * followOutput callback - only auto-scroll when new messages are added
@@ -135,8 +157,8 @@ export function VirtualMessageList({
     }
   }, [atBottom, isGenerating, isScrolling, streamingContent, autoScrollEnabled])
   
-  // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages
-  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800
+  // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages.
+  // viewportHeight is tracked via state + resize listener above so it stays current.
   const preRenderBuffer = Math.min(Math.max(Math.round(viewportHeight * 1.25), 480), 1200)
   
   // Don't render virtuoso for empty lists

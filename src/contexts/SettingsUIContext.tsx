@@ -4,7 +4,7 @@
  * This context contains settings that change frequently during user interaction:
  * - Theme settings (theme, activeTheme)
  * - Title bar customization
- * - Command bar settings
+ * - Command palette settings
  * 
  * **Validates: Requirements 8.1**
  * - THE SettingsContext SHALL split into separate contexts for frequently-changing 
@@ -15,7 +15,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
-import { applyThemeToDocument, softenThemeColors } from '../themes/themeUtils'
+import { applyThemeToDocument } from '../themes/themeUtils'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
@@ -69,19 +69,17 @@ export interface SettingsUI {
     titleBarShowChatTitle: boolean
     titleBarShowModel: boolean
     
-    // Command bar settings
+    // Command palette settings
     commandBar: {
         enabled: boolean
         size: 'small' | 'medium' | 'large'
-        fieldSurface: number
-        fieldSurfaceFocused: number
-        dropdownSurface: number
-        enableBlur: boolean
-        blurPx: number
         maxSuggestions: number
         showRecents: boolean
         maxRecents: number
         enableTabAutocomplete: boolean
+        overlayOpacity: number                          // range: 0–80
+        paletteWidth: 'narrow' | 'default' | 'wide'
+        palettePosition: 'top' | 'center' | 'lower'
     }
     
     // Frosted sidebar (glassmorphism effect)
@@ -92,6 +90,13 @@ export interface SettingsUI {
 
     // Sidebar auto-hide when window is narrow
     sidebarAutoHideOnResize: boolean
+
+    // Prompt auto-hide (slide away after inactivity)
+    promptAutoHide: {
+        enabled: boolean
+        /** Inactivity timeout in seconds before prompt hides (30–600) */
+        timeout: number
+    }
 
     // Softened contrast (reduce harshness of text and surfaces)
     softenedContrast: boolean
@@ -119,19 +124,21 @@ export const defaultSettingsUI: SettingsUI = {
     commandBar: {
         enabled: true,
         size: 'medium',
-        fieldSurface: 35,
-        fieldSurfaceFocused: 50,
-        dropdownSurface: 35,
-        enableBlur: true,
-        blurPx: 14,
         maxSuggestions: 5,
         showRecents: true,
         maxRecents: 3,
         enableTabAutocomplete: true,
+        overlayOpacity: 45,
+        paletteWidth: 'default',
+        palettePosition: 'center',
     },
     frostedSidebar: false,
     frostedPrompt: false,
     sidebarAutoHideOnResize: true,
+    promptAutoHide: {
+        enabled: false,
+        timeout: 120,
+    },
     softenedContrast: false,
     chatBubbleStyle: 'solid',
     chatSelectedOverlayStyle: 'linear',
@@ -183,12 +190,24 @@ export function SettingsUIProvider({
     onSettingsChange 
 }: SettingsUIProviderProps) {
     const [settingsUI, setSettingsUI] = useState<SettingsUI>(() => {
-        // Deep merge modelSelector if present
+        // Deep merge nested objects so new fields get defaults
         const merged = { ...defaultSettingsUI, ...initialSettings }
+        if (initialSettings?.commandBar) {
+            merged.commandBar = {
+                ...defaultSettingsUI.commandBar,
+                ...initialSettings.commandBar,
+            }
+        }
         if (initialSettings?.modelSelector) {
             merged.modelSelector = {
                 ...defaultSettingsUI.modelSelector!,
                 ...initialSettings.modelSelector,
+            }
+        }
+        if (initialSettings?.promptAutoHide) {
+            merged.promptAutoHide = {
+                ...defaultSettingsUI.promptAutoHide,
+                ...initialSettings.promptAutoHide,
             }
         }
         return merged
@@ -199,12 +218,28 @@ export function SettingsUIProvider({
         if (initialSettings) {
             setSettingsUI(prev => {
                 const merged = { ...prev, ...initialSettings }
+                // Deep merge commandBar so new fields keep defaults
+                if (initialSettings.commandBar) {
+                    merged.commandBar = {
+                        ...defaultSettingsUI.commandBar,
+                        ...prev.commandBar,
+                        ...initialSettings.commandBar,
+                    }
+                }
                 // Deep merge modelSelector
                 if (initialSettings.modelSelector) {
                     merged.modelSelector = {
                         ...defaultSettingsUI.modelSelector!,
                         ...prev.modelSelector,
                         ...initialSettings.modelSelector,
+                    }
+                }
+                // Deep merge promptAutoHide
+                if (initialSettings.promptAutoHide) {
+                    merged.promptAutoHide = {
+                        ...defaultSettingsUI.promptAutoHide,
+                        ...prev.promptAutoHide,
+                        ...initialSettings.promptAutoHide,
                     }
                 }
                 return merged
@@ -216,20 +251,7 @@ export function SettingsUIProvider({
     useLayoutEffect(() => {
         const theme = getThemeById(settingsUI.activeTheme) || getDefaultTheme()
         applyThemeToDocument(theme, { softenedContrast: settingsUI.softenedContrast })
-
-        // Keep native Windows title bar overlay in sync
-        if (window.ipcRenderer) {
-            const height = settingsUI.titleBarDensity === 'compact' ? 36 : 44
-            const effectiveTheme = settingsUI.softenedContrast ? softenThemeColors(theme) : theme
-            const overlayColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.background
-            const overlaySymbolColor = settingsUI.frostedSidebar ? '#00000000' : effectiveTheme.colors.textPrimary
-            window.ipcRenderer.send('set-titlebar-overlay', {
-                color: overlayColor,
-                symbolColor: overlaySymbolColor,
-                height,
-            })
-        }
-    }, [settingsUI.activeTheme, settingsUI.titleBarDensity, settingsUI.frostedSidebar, settingsUI.softenedContrast])
+    }, [settingsUI.activeTheme, settingsUI.softenedContrast])
 
     // Notify parent of changes
     useEffect(() => {
@@ -245,6 +267,14 @@ export function SettingsUIProvider({
                     ...defaultSettingsUI.modelSelector!,
                     ...prev.modelSelector,
                     ...newSettings.modelSelector,
+                }
+            }
+            // Deep merge promptAutoHide if present
+            if (newSettings.promptAutoHide) {
+                merged.promptAutoHide = {
+                    ...defaultSettingsUI.promptAutoHide,
+                    ...prev.promptAutoHide,
+                    ...newSettings.promptAutoHide,
                 }
             }
             return merged
@@ -265,7 +295,7 @@ export function SettingsUIProvider({
 
 /**
  * Hook to access UI-related settings
- * Use this hook when you only need theme, title bar, or command bar settings
+ * Use this hook when you only need theme, title bar, or command palette settings
  */
 export function useSettingsUI() {
     const context = useContext(SettingsUIContext)

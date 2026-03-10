@@ -1,14 +1,14 @@
 /**
  * Unit tests for ChatHistoryContext sidebar redesign actions
- * Tests pin, archive, duplicate, folder, and tag operations
+ * Tests pin, duplicate, folder, and tag operations
  * 
  * Tests the action logic by verifying state transformations through the context.
- * Uses jsdom environment with proper React 18 act() handling.
+ * Uses jsdom environment.
  * 
- * Validates: Requirements 5.4, 5.5, 7.6, 7.7, 7.8, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 12.3
+ * Validates: Requirements 5.4, 5.5, 7.6, 7.8, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { ChatSession, Folder } from './ChatHistoryContext'
 
 /**
@@ -31,7 +31,6 @@ function createMockSession(overrides: Partial<ChatSession> = {}): ChatSession {
         updatedAt: Date.now() - 5000,
         totalTokens: 0,
         pinned: false,
-        archived: false,
         folderId: null,
         tags: [],
         ...overrides,
@@ -64,18 +63,6 @@ function unpinSessionAction(sessions: ChatSession[], id: string): ChatSession[] 
     )
 }
 
-function archiveSessionAction(sessions: ChatSession[], id: string): ChatSession[] {
-    return sessions.map(s =>
-        s.id === id ? { ...s, archived: true, updatedAt: Date.now() } : s
-    )
-}
-
-function unarchiveSessionAction(sessions: ChatSession[], id: string): ChatSession[] {
-    return sessions.map(s =>
-        s.id === id ? { ...s, archived: false, updatedAt: Date.now() } : s
-    )
-}
-
 function duplicateSessionAction(sessions: ChatSession[], id: string): ChatSession[] {
     const original = sessions.find(s => s.id === id)
     if (!original) return sessions
@@ -93,7 +80,6 @@ function duplicateSessionAction(sessions: ChatSession[], id: string): ChatSessio
         updatedAt: now,
         totalTokens: original.totalTokens,
         pinned: false,
-        archived: false,
         folderId: original.folderId,
         tags: [...(original.tags || [])],
     }
@@ -210,38 +196,6 @@ describe('ChatHistoryContext Sidebar Redesign Actions', () => {
         })
     })
 
-    describe('Archive Operations (Requirements 7.7, 12.3)', () => {
-        it('archiveSession should set archived to true', () => {
-            const session = createMockSession({ id: 's1', archived: false })
-            const result = archiveSessionAction([session], 's1')
-
-            expect(result[0].archived).toBe(true)
-        })
-
-        it('unarchiveSession should set archived to false', () => {
-            const session = createMockSession({ id: 's1', archived: true })
-            const result = unarchiveSessionAction([session], 's1')
-
-            expect(result[0].archived).toBe(false)
-        })
-
-        it('archiveSession should update the updatedAt timestamp', () => {
-            const session = createMockSession({ id: 's1', updatedAt: 1000 })
-            const result = archiveSessionAction([session], 's1')
-
-            expect(result[0].updatedAt).toBeGreaterThan(1000)
-        })
-
-        it('archiveSession should not affect other sessions', () => {
-            const s1 = createMockSession({ id: 's1', archived: false })
-            const s2 = createMockSession({ id: 's2', archived: false })
-            const result = archiveSessionAction([s1, s2], 's1')
-
-            expect(result[0].archived).toBe(true)
-            expect(result[1].archived).toBe(false)
-        })
-    })
-
     describe('Duplicate Operation (Requirement 7.8)', () => {
         it('duplicateSession should create a new session with "Copy of " prefix', () => {
             const session = createMockSession({ id: 's1', title: 'Original Chat' })
@@ -270,12 +224,11 @@ describe('ChatHistoryContext Sidebar Redesign Actions', () => {
             expect(result[0].messages[1].id).not.toBe('msg2')
         })
 
-        it('duplicateSession should set pinned and archived to false', () => {
-            const session = createMockSession({ id: 's1', pinned: true, archived: true })
+        it('duplicateSession should set pinned to false', () => {
+            const session = createMockSession({ id: 's1', pinned: true })
             const result = duplicateSessionAction([session], 's1')
 
             expect(result[0].pinned).toBe(false)
-            expect(result[0].archived).toBe(false)
         })
 
         it('duplicateSession should preserve folderId and tags', () => {
@@ -482,15 +435,6 @@ describe('ChatHistoryContext Sidebar Redesign Actions', () => {
     })
 
     describe('Combined Operations', () => {
-        it('pin then archive should result in both flags set', () => {
-            const session = createMockSession({ id: 's1' })
-            const pinned = pinSessionAction([session], 's1')
-            const archived = archiveSessionAction(pinned, 's1')
-
-            expect(archived[0].pinned).toBe(true)
-            expect(archived[0].archived).toBe(true)
-        })
-
         it('assign folder then delete folder should unassign session', () => {
             const folder = createMockFolder({ id: 'f1' })
             const session = createMockSession({ id: 's1', folderId: null })

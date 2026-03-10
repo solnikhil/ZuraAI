@@ -7,8 +7,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
+import { ChevronDown } from 'lucide-react'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
+import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -19,8 +21,10 @@ export interface SystemPromptSectionProps {
   systemPrompt: string
   /** Current web search prompt value */
   webSearchPrompt: string
+  /** Current title generation prompt value */
+  titleGenerationPrompt: string
   /** Callback when system prompt changes */
-  onChange: (changes: { systemPrompt?: string; webSearchPrompt?: string }) => void
+  onChange: (changes: { systemPrompt?: string, webSearchPrompt?: string, titleGenerationPrompt?: string }) => void
 }
 
 /**
@@ -29,72 +33,75 @@ export interface SystemPromptSectionProps {
 export function SystemPromptSection({
   systemPrompt,
   webSearchPrompt,
+  titleGenerationPrompt,
   onChange
 }: SystemPromptSectionProps): React.ReactElement {
-  const [isDirtySystem, setIsDirtySystem] = useState(false)
-  const [isDirtyWebSearch, setIsDirtyWebSearch] = useState(false)
   const [localValue, setLocalValue] = useState(systemPrompt)
-  const [localWebSearchValue, setLocalWebSearchValue] = useState(webSearchPrompt)
   const [charCount, setCharCount] = useState(systemPrompt.length)
-  const [charCountWebSearch, setCharCountWebSearch] = useState(webSearchPrompt.length)
+  const [isEditorExpanded, setIsEditorExpanded] = useState(false)
+  const [localWebSearchValue, setLocalWebSearchValue] = useState(webSearchPrompt)
+  const [webSearchCharCount, setWebSearchCharCount] = useState(webSearchPrompt.length)
+  const [isWebSearchEditorExpanded, setIsWebSearchEditorExpanded] = useState(false)
+  const [localTitleGenerationValue, setLocalTitleGenerationValue] = useState(titleGenerationPrompt)
+  const [titleGenerationCharCount, setTitleGenerationCharCount] = useState(titleGenerationPrompt.length)
+  const [isTitleGenerationEditorExpanded, setIsTitleGenerationEditorExpanded] = useState(false)
 
-  const isDirty = isDirtySystem || isDirtyWebSearch
-
-  // Sync local state when prop changes, but not while user has unsaved edits
+  // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
-    if (!isDirtySystem) {
+    if (systemPrompt !== localValue) {
       setLocalValue(systemPrompt)
       setCharCount(systemPrompt.length)
     }
-  }, [systemPrompt, isDirtySystem])
+  }, [systemPrompt, localValue])
 
   useEffect(() => {
-    if (!isDirtyWebSearch) {
+    if (webSearchPrompt !== localWebSearchValue) {
       setLocalWebSearchValue(webSearchPrompt)
-      setCharCountWebSearch(webSearchPrompt.length)
+      setWebSearchCharCount(webSearchPrompt.length)
     }
-  }, [webSearchPrompt, isDirtyWebSearch])
+  }, [webSearchPrompt, localWebSearchValue])
+
+  useEffect(() => {
+    if (titleGenerationPrompt !== localTitleGenerationValue) {
+      setLocalTitleGenerationValue(titleGenerationPrompt)
+      setTitleGenerationCharCount(titleGenerationPrompt.length)
+    }
+  }, [titleGenerationPrompt, localTitleGenerationValue])
 
   const handleChange = (value: string) => {
     setLocalValue(value)
     setCharCount(value.length)
-    setIsDirtySystem(true)
-  }
-
-  const handleWebSearchChange = (value: string) => {
-    setLocalWebSearchValue(value)
-    setCharCountWebSearch(value.length)
-    setIsDirtyWebSearch(true)
-  }
-
-  const handleSave = () => {
-    const changes: { systemPrompt?: string; webSearchPrompt?: string } = {}
-    if (isDirtySystem) changes.systemPrompt = localValue
-    if (isDirtyWebSearch) changes.webSearchPrompt = localWebSearchValue
-    onChange(changes)
-    setIsDirtySystem(false)
-    setIsDirtyWebSearch(false)
+    onChange({ systemPrompt: value })
   }
 
   const handleReset = () => {
     setLocalValue(defaultSystemPrompt)
     setCharCount(defaultSystemPrompt.length)
-    setIsDirtySystem(true)
+    onChange({ systemPrompt: defaultSystemPrompt })
+  }
+
+  const handleWebSearchChange = (value: string) => {
+    setLocalWebSearchValue(value)
+    setWebSearchCharCount(value.length)
+    onChange({ webSearchPrompt: value })
   }
 
   const handleWebSearchReset = () => {
     setLocalWebSearchValue(defaultWebSearchPrompt)
-    setCharCountWebSearch(defaultWebSearchPrompt.length)
-    setIsDirtyWebSearch(true)
+    setWebSearchCharCount(defaultWebSearchPrompt.length)
+    onChange({ webSearchPrompt: defaultWebSearchPrompt })
   }
 
-  const handleCancel = () => {
-    setLocalValue(systemPrompt)
-    setCharCount(systemPrompt.length)
-    setLocalWebSearchValue(webSearchPrompt)
-    setCharCountWebSearch(webSearchPrompt.length)
-    setIsDirtySystem(false)
-    setIsDirtyWebSearch(false)
+  const handleTitleGenerationChange = (value: string) => {
+    setLocalTitleGenerationValue(value)
+    setTitleGenerationCharCount(value.length)
+    onChange({ titleGenerationPrompt: value })
+  }
+
+  const handleTitleGenerationReset = () => {
+    setLocalTitleGenerationValue(defaultTitleGenerationPrompt)
+    setTitleGenerationCharCount(defaultTitleGenerationPrompt.length)
+    onChange({ titleGenerationPrompt: defaultTitleGenerationPrompt })
   }
 
   const estTokensInput = useMemo(
@@ -102,373 +109,189 @@ export function SystemPromptSection({
     [localValue]
   )
 
-  const estTokensWebSearch = useMemo(
+  const estWebSearchTokensInput = useMemo(
     () => estimateMessageTokens({ role: 'system', content: localWebSearchValue }),
     [localWebSearchValue]
   )
 
+  const estTitleGenerationTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: localTitleGenerationValue }),
+    [localTitleGenerationValue]
+  )
+
+  const showLengthWarning = charCount > 10000
+
   return (
-    <div style={{ padding: '32px', paddingBottom: 100 }}>
+    <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">System Prompt</h2>
         <div className="page-subtitle">Customize how the AI assistant behaves and responds</div>
       </div>
 
-      {/* System Prompt Editor */}
-      <Card
-        className="settings-section-card"
-        style={{
-          background: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
-          borderRadius: 12,
-          padding: 0,
-          overflow: 'hidden'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--theme-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div>
-            <h3 className="section-head" style={{ marginBottom: 4 }}>
-              AI Behavior & Instructions
-            </h3>
-            <div className="section-desc">
-              Define the system prompt that shapes the AI's personality, capabilities, and guidelines
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">System prompt</h3>
+            <div className="settings-list-row__description">
+              Define the system prompt that shapes the assistant personality, capabilities, and response policy.
             </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: '0.8rem',
-                color: 'var(--theme-text-muted)',
-                lineHeight: 1.5
-              }}
-            >
-              When Web Search is enabled, web search instructions are appended at the end of this basic prompt.
+            <div className="settings-prompt-note">
+              Keep this concise and policy-focused. Skill behavior is managed from the Skills section.
             </div>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              fontSize: '0.75rem',
-              color: 'var(--theme-text-muted)'
-            }}
-          >
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
               {charCount.toLocaleString()} chars
             </span>
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
+            <span className="settings-prompt-badge">
               ~{estTokensInput.toLocaleString()} tokens input
             </span>
           </div>
         </div>
 
-        {/* Editor Area */}
-        <div style={{ padding: '20px 24px' }}>
-          <textarea
-            value={localValue}
-            onChange={e => handleChange(e.target.value)}
-            className="setting-input-scira"
-            style={{
-              width: '100%',
-              minHeight: '400px',
-              padding: '16px',
-              fontSize: '0.9rem',
-              lineHeight: 1.6,
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              background: 'var(--theme-surface)',
-              border: '1px solid var(--theme-border)',
-              borderRadius: 8,
-              color: 'var(--theme-text-primary)',
-              resize: 'vertical',
-              transition: 'border-color 0.2s ease'
-            }}
-            onFocus={e => {
-              e.target.style.borderColor = 'var(--theme-accent)'
-            }}
-            onBlur={e => {
-              e.target.style.borderColor = 'var(--theme-border)'
-            }}
-            placeholder="Enter your system prompt here..."
-          />
-
-          {/* Character count bar */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: 12
-            }}
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsEditorExpanded(prev => !prev)}
+            aria-expanded={isEditorExpanded}
           >
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-              {charCount > 10000 && (
-                <span style={{ color: '#f59e0b' }}>
-                  Note: Very long system prompts may impact response quality
-                </span>
-              )}
-            </div>
-
-            {/* Quick actions */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleReset}
-                style={{
-                  padding: '8px 14px',
-                  background: 'transparent',
-                  border: '1px solid var(--theme-border)',
-                  color: 'var(--theme-text-secondary)',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-accent)'
-                  e.currentTarget.style.color = 'var(--theme-accent)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-border)'
-                  e.currentTarget.style.color = 'var(--theme-text-secondary)'
-                }}
-              >
-                Load Default Prompt
-              </button>
-            </div>
-          </div>
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isEditorExpanded ? 'Hide System Prompt' : 'Show System Prompt'}
+          </button>
+          <button type="button" onClick={handleReset} className="settings-row-button">
+            Load Default Prompt
+          </button>
         </div>
 
-        {/* Action Footer - shared when either card is dirty */}
-        {isDirty && (
-          <div
-            style={{
-              padding: '16px 24px',
-              borderTop: '1px solid var(--theme-border)',
-              background: 'rgba(0,0,0,0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: 12
-            }}
-          >
-            <span
-              style={{
-                fontSize: '0.85rem',
-                color: 'var(--theme-text-muted)',
-                marginRight: 'auto'
-              }}
-            >
-              You have unsaved changes
-            </span>
-            <button
-              onClick={handleCancel}
-              style={{
-                padding: '8px 16px',
-                background: 'transparent',
-                border: '1px solid var(--theme-border)',
-                color: 'var(--theme-text-secondary)',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              style={{
-                padding: '8px 20px',
-                background: 'var(--theme-accent)',
-                border: 'none',
-                color: '#fff',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-1px)'
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 188, 212, 0.3)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              Save Changes
-            </button>
-          </div>
+        {isEditorExpanded && (
+          <>
+            <div className="settings-prompt-editor-wrap">
+              <textarea
+                value={localValue}
+                onChange={e => handleChange(e.target.value)}
+                className="settings-prompt-editor"
+                placeholder="Enter your system prompt here..."
+              />
+            </div>
+
+            <div className="settings-prompt-footer">
+              <div className="settings-prompt-warning" role="status" aria-live="polite">
+                {showLengthWarning ? 'Note: Very long system prompts may impact response quality.' : ''}
+              </div>
+            </div>
+          </>
         )}
       </Card>
 
-      {/* Web Search Prompt Editor */}
-      <Card
-        className="settings-section-card"
-        style={{
-          marginTop: 24,
-          background: 'var(--theme-surface)',
-          border: '1px solid var(--theme-border)',
-          borderRadius: 12,
-          padding: 0,
-          overflow: 'hidden'
-        }}
-      >
-        <div
-          style={{
-            padding: '20px 24px',
-            borderBottom: '1px solid var(--theme-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div>
-            <h3 className="section-head" style={{ marginBottom: 4 }}>
-              Web Search Prompt
-            </h3>
-            <div className="section-desc">
-              Instructions appended when Web Search is enabled
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Web Search Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions appended when Tavily is enabled. Use this to guide search depth and synthesis behavior.
             </div>
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: '0.8rem',
-                color: 'var(--theme-text-muted)',
-                lineHeight: 1.5
-              }}
-            >
-              This prompt is appended at the end of the basic system prompt when Web Search is enabled.
+            <div className="settings-prompt-note">
+              This only applies to sessions where Tavily is active.
             </div>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              fontSize: '0.75rem',
-              color: 'var(--theme-text-muted)'
-            }}
-          >
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
-              {charCountWebSearch.toLocaleString()} chars
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {webSearchCharCount.toLocaleString()} chars
             </span>
-            <span
-              style={{
-                padding: '4px 10px',
-                background: 'rgba(255,255,255,0.05)',
-                borderRadius: 6
-              }}
-            >
-              ~{estTokensWebSearch.toLocaleString()} tokens input
+            <span className="settings-prompt-badge">
+              ~{estWebSearchTokensInput.toLocaleString()} tokens input
             </span>
           </div>
         </div>
 
-        <div style={{ padding: '20px 24px' }}>
-          <textarea
-            value={localWebSearchValue}
-            onChange={e => handleWebSearchChange(e.target.value)}
-            className="setting-input-scira"
-            style={{
-              width: '100%',
-              minHeight: '280px',
-              padding: '16px',
-              fontSize: '0.9rem',
-              lineHeight: 1.6,
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              background: 'var(--theme-surface)',
-              border: '1px solid var(--theme-border)',
-              borderRadius: 8,
-              color: 'var(--theme-text-primary)',
-              resize: 'vertical',
-              transition: 'border-color 0.2s ease'
-            }}
-            onFocus={e => {
-              e.target.style.borderColor = 'var(--theme-accent)'
-            }}
-            onBlur={e => {
-              e.target.style.borderColor = 'var(--theme-border)'
-            }}
-            placeholder="Enter web search instructions here..."
-          />
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: 12
-            }}
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsWebSearchEditorExpanded((prev) => !prev)}
+            aria-expanded={isWebSearchEditorExpanded}
           >
-            <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-              {charCountWebSearch > 5000 && (
-                <span style={{ color: '#f59e0b' }}>
-                  Note: Very long prompts may impact response quality
-                </span>
-              )}
-            </div>
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isWebSearchEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isWebSearchEditorExpanded ? 'Hide Web Search Prompt' : 'Show Web Search Prompt'}
+          </button>
+          <button type="button" onClick={handleWebSearchReset} className="settings-row-button">
+            Load Default Web Search Prompt
+          </button>
+        </div>
 
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleWebSearchReset}
-                style={{
-                  padding: '8px 14px',
-                  background: 'transparent',
-                  border: '1px solid var(--theme-border)',
-                  color: 'var(--theme-text-secondary)',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-accent)'
-                  e.currentTarget.style.color = 'var(--theme-accent)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--theme-border)'
-                  e.currentTarget.style.color = 'var(--theme-text-secondary)'
-                }}
-              >
-                Load Default Prompt
-              </button>
+        {isWebSearchEditorExpanded && (
+          <>
+            <div className="settings-prompt-editor-wrap">
+              <textarea
+                value={localWebSearchValue}
+                onChange={(e) => handleWebSearchChange(e.target.value)}
+                className="settings-prompt-editor"
+                placeholder="Enter your web search prompt here..."
+              />
+            </div>
+          </>
+        )}
+      </Card>
+
+      <Card className="settings-list-card settings-prompt-card">
+        <div className="settings-prompt-header">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Title Generation Prompt</h3>
+            <div className="settings-list-row__description">
+              Instructions used when auto-generating chat titles. Include <code>{'{{userMessage}}'}</code> to control where the first user message is inserted.
+            </div>
+            <div className="settings-prompt-note">
+              This prompt only affects session title generation, not assistant responses.
             </div>
           </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge">
+              {titleGenerationCharCount.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge">
+              ~{estTitleGenerationTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
         </div>
+
+        <div className="settings-prompt-controls">
+          <button
+            type="button"
+            className="settings-prompt-toggle"
+            onClick={() => setIsTitleGenerationEditorExpanded((prev) => !prev)}
+            aria-expanded={isTitleGenerationEditorExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isTitleGenerationEditorExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isTitleGenerationEditorExpanded ? 'Hide Title Prompt' : 'Show Title Prompt'}
+          </button>
+          <button type="button" onClick={handleTitleGenerationReset} className="settings-row-button">
+            Load Default Title Prompt
+          </button>
+        </div>
+
+        {isTitleGenerationEditorExpanded && (
+          <div className="settings-prompt-editor-wrap">
+            <textarea
+              value={localTitleGenerationValue}
+              onChange={(e) => handleTitleGenerationChange(e.target.value)}
+              className="settings-prompt-editor"
+              placeholder="Enter your title generation prompt here..."
+            />
+          </div>
+        )}
       </Card>
     </div>
   )

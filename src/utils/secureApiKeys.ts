@@ -1,11 +1,25 @@
 // Utility functions for managing API keys in secure storage
 
+type SecureStorageKey =
+    | 'openRouterApiKey'
+    | 'perplexityApiKey'
+    | 'groqApiKey'
+    | 'tavilyApiKey'
+    | 'alibabaApiKey'
+
+const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
+    'openRouterApiKey',
+    'perplexityApiKey',
+    'groqApiKey',
+    'tavilyApiKey',
+    'alibabaApiKey',
+]
+
 export async function loadApiKeysFromSecureStorage(): Promise<{
     openRouterApiKey: string
     perplexityApiKey: string
     groqApiKey: string
     tavilyApiKey: string
-    nvidiaApiKey: string
     alibabaApiKey: string
 }> {
     const defaults = {
@@ -13,7 +27,6 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
         perplexityApiKey: '',
         groqApiKey: '',
         tavilyApiKey: '',
-        nvidiaApiKey: '',
         alibabaApiKey: '',
     }
 
@@ -22,14 +35,39 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     }
 
     try {
-        const allKeys = await window.secureStorage.getAll()
+        // Single IPC roundtrip instead of 5 individual calls
+        if (window.secureStorage.getAll) {
+            const all = await window.secureStorage.getAll()
+            return {
+                openRouterApiKey: all.openRouterApiKey || '',
+                perplexityApiKey: all.perplexityApiKey || '',
+                groqApiKey: all.groqApiKey || '',
+                tavilyApiKey: all.tavilyApiKey || '',
+                alibabaApiKey: all.alibabaApiKey || '',
+            }
+        }
+
+        // Fallback for older preload (shouldn't happen, but safe)
+        const [
+            openRouterApiKey,
+            perplexityApiKey,
+            groqApiKey,
+            tavilyApiKey,
+            alibabaApiKey,
+        ] = await Promise.all([
+            window.secureStorage.get('openRouterApiKey'),
+            window.secureStorage.get('perplexityApiKey'),
+            window.secureStorage.get('groqApiKey'),
+            window.secureStorage.get('tavilyApiKey'),
+            window.secureStorage.get('alibabaApiKey'),
+        ])
+
         return {
-            openRouterApiKey: allKeys.openRouterApiKey || '',
-            perplexityApiKey: allKeys.perplexityApiKey || '',
-            groqApiKey: allKeys.groqApiKey || '',
-            tavilyApiKey: allKeys.tavilyApiKey || '',
-            nvidiaApiKey: allKeys.nvidiaApiKey || '',
-            alibabaApiKey: allKeys.alibabaApiKey || '',
+            openRouterApiKey: openRouterApiKey || '',
+            perplexityApiKey: perplexityApiKey || '',
+            groqApiKey: groqApiKey || '',
+            tavilyApiKey: tavilyApiKey || '',
+            alibabaApiKey: alibabaApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)
@@ -38,7 +76,7 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
 }
 
 export async function saveApiKeyToSecureStorage(
-    key: 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey',
+    key: SecureStorageKey,
     value: string
 ): Promise<boolean> {
     if (!window.secureStorage) {
@@ -53,16 +91,7 @@ export async function saveApiKeyToSecureStorage(
     }
 }
 
-export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boolean> {
-    const keysToMigrate: Array<'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'nvidiaApiKey' | 'alibabaApiKey'> = [
-        'openRouterApiKey',
-        'perplexityApiKey',
-        'groqApiKey',
-        'tavilyApiKey',
-        'nvidiaApiKey',
-        'alibabaApiKey',
-    ]
-
+export async function migrateApiKeysFromLocalStorage(settings: Record<string, string | undefined>): Promise<boolean> {
     const hasMigrated = localStorage.getItem('zura-api-keys-migrated') === 'true'
     if (hasMigrated) {
         return true
@@ -74,50 +103,19 @@ export async function migrateApiKeysFromLocalStorage(settings: any): Promise<boo
 
     try {
         let migratedCount = 0
-        for (const key of keysToMigrate) {
+        for (const key of SECURE_API_KEY_NAMES) {
             if (settings[key] && settings[key].trim()) {
                 const success = await window.secureStorage.set(key, settings[key])
                 if (success) migratedCount++
             }
         }
 
-        if (migratedCount > 0 || keysToMigrate.every(k => !settings[k] || !settings[k].trim())) {
+        if (migratedCount > 0 || SECURE_API_KEY_NAMES.every(k => !settings[k] || !settings[k].trim())) {
             localStorage.setItem('zura-api-keys-migrated', 'true')
         }
         return true
     } catch (error) {
         console.error('[SecureApiKeys] Migration failed:', error)
         return false
-    }
-}
-
-export async function getSecureStorageStatus(): Promise<{
-    available: boolean
-    encryptionAvailable: boolean
-    storageFileExists: boolean
-    keyCount: number
-    lastError: string | null
-} | null> {
-    if (!window.secureStorage) {
-        return null
-    }
-
-    try {
-        const status = await window.secureStorage.getStatus()
-        return {
-            available: true,
-            encryptionAvailable: status.encryptionAvailable,
-            storageFileExists: status.storageFileExists,
-            keyCount: status.keyCount,
-            lastError: status.lastError,
-        }
-    } catch (error) {
-        return {
-            available: false,
-            encryptionAvailable: false,
-            storageFileExists: false,
-            keyCount: 0,
-            lastError: String(error),
-        }
     }
 }

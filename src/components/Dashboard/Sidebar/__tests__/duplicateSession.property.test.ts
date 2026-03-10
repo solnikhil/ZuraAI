@@ -36,7 +36,6 @@ const chatSessionArb: fc.Arbitrary<ChatSession> = fc.record({
     updatedAt: fc.integer({ min: 0, max: Date.now() }),
     totalTokens: fc.option(fc.integer({ min: 0, max: 1000000 }), { nil: undefined }),
     pinned: fc.option(fc.boolean(), { nil: undefined }),
-    archived: fc.option(fc.boolean(), { nil: undefined }),
     folderId: fc.option(fc.uuid(), { nil: null }),
     tags: fc.option(fc.array(fc.string({ minLength: 1, maxLength: 30 }), { minLength: 0, maxLength: 5 }), { nil: undefined }),
 })
@@ -104,12 +103,11 @@ describe('Property 5: Duplicate session preserves content with correct title', (
         )
     })
 
-    it('duplicate is always unpinned and unarchived', () => {
+    it('duplicate is always unpinned', () => {
         fc.assert(
             fc.property(chatSessionArb, (session) => {
                 const dup = duplicateSession(session)
                 expect(dup.pinned).toBe(false)
-                expect(dup.archived).toBe(false)
             }),
             { numRuns: 200 }
         )

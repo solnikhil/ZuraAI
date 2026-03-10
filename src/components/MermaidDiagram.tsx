@@ -60,12 +60,22 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
         return () => observer.disconnect()
     }, [])
 
-    // Render mermaid diagram
+    // Track the last successfully rendered code to avoid redundant renders
+    const lastRenderedCodeRef = useRef<string>('')
+
+    // Render mermaid diagram with debounce to prevent rapid re-renders
     useEffect(() => {
         let mounted = true
         let timeoutId: NodeJS.Timeout | null = null
+        let debounceId: NodeJS.Timeout | null = null
 
         const renderDiagram = async () => {
+            // Skip if code hasn't changed since last successful render (and theme is the same)
+            const cacheKey = `${code.trim()}::${isDark}`
+            if (lastRenderedCodeRef.current === cacheKey) {
+                return
+            }
+
             try {
                 setIsLoading(true)
                 setError(null)
@@ -99,6 +109,9 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                         throw new Error('Mermaid instance does not have render method. Available methods: ' + Object.keys(mermaidInstance).join(', '))
                     }
                 }
+
+                // Bail out early if unmounted during async init
+                if (!mounted) return
 
                 // Initialize mermaid only once with security settings
                 if (!mermaidInitialized) {
@@ -201,6 +214,7 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
                 }
 
                 if (mounted) {
+                    lastRenderedCodeRef.current = cacheKey
                     setSvg(result.svg)
                     setIsLoading(false)
                 }
@@ -217,12 +231,18 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
             }
         }
 
-        renderDiagram()
+        // Debounce the render call to prevent rapid re-renders when code
+        // changes quickly (e.g. multiple diagrams in a message during edits).
+        // Use a short debounce (300ms) so completed diagrams still feel responsive.
+        debounceId = setTimeout(renderDiagram, 300)
 
         return () => {
             mounted = false
             if (timeoutId) {
                 clearTimeout(timeoutId)
+            }
+            if (debounceId) {
+                clearTimeout(debounceId)
             }
         }
     }, [code, isDark, uniqueId])

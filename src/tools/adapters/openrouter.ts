@@ -400,6 +400,28 @@ export function parseOpenRouterToolCalls(response: OpenRouterResponse & { _fallb
 const MAX_TOOL_RESULT_CHARS = 32000
 
 /**
+ * Strip UI-only fields from web search data before sending to the model.
+ * Removes favicon, source, displayed_link from results and images array
+ * to reduce token usage and prevent models from echoing raw metadata.
+ */
+function stripUiFieldsFromToolData(data: unknown): unknown {
+    if (!data || typeof data !== 'object') return data
+    const obj = data as Record<string, unknown>
+
+    if (Array.isArray(obj.results)) {
+        const cleaned: Record<string, unknown> = { query: obj.query }
+        cleaned.results = (obj.results as Array<Record<string, unknown>>).map(r => {
+            const { favicon, source, displayed_link, ...rest } = r
+            return rest
+        })
+        cleaned.resultCount = obj.resultCount
+        return cleaned
+    }
+
+    return data
+}
+
+/**
  * Format tool results for sending back to OpenRouter.
  * Truncates large results to avoid 400 errors from context limits.
  */
@@ -408,9 +430,20 @@ export function formatToolResultsForOpenRouter(
     results: ToolResult[]
 ): OpenRouterToolResultMessage[] {
     return toolCalls.map((tc, i) => {
-        const content = results[i].success
-            ? JSON.stringify(results[i].data)
-            : `Error: ${results[i].error}`
+        const r = results[i]
+        if (!r) {
+            return {
+                role: 'tool' as const,
+                tool_call_id: tc.id,
+                content: 'Error: No result available for this tool call'
+            }
+        }
+        const data = tc.name === 'web_search' && r.success
+            ? stripUiFieldsFromToolData(r.data)
+            : r.data
+        const content = r.success
+            ? JSON.stringify(data)
+            : `Error: ${r.error}`
         const truncated = content.length > MAX_TOOL_RESULT_CHARS
             ? content.slice(0, MAX_TOOL_RESULT_CHARS) + '...[truncated]'
             : content

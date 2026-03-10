@@ -11,7 +11,7 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, groq, ollama
+// Providers WITH tool support: openrouter, groq, ollama, alibaba
 // ============================================================================
 
 // Tool Manager - Coordinates tool execution in chat flow
@@ -115,7 +115,7 @@ function coerceToolArguments(toolCall: ToolCall): ToolCall {
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'nvidia' | 'alibaba'
+    provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
     model: string
     enabledTools?: string[]  // If not provided, all tools enabled
     onToolStart?: (toolCall: ToolCall) => void
@@ -154,7 +154,6 @@ export function parseToolCallsFromResponse(response: ProviderResponse, provider:
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return parseOpenRouterToolCalls(response as OpenRouterResponse)
         case 'perplexity':
@@ -174,7 +173,6 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return hasToolCalls(response as OpenRouterResponse)
         case 'perplexity':
@@ -200,7 +198,6 @@ export function formatResultsForProvider(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return formatToolResultsForOpenRouter(toolCalls, toolResults)
         case 'perplexity':
@@ -229,35 +226,34 @@ export async function processToolCalls(
         return { toolCalls: [], results: [], formattedResults: [] }
     }
     
-    const results: ToolCallResult[] = []
+    // Phase 1: Validate, coerce, and separate valid from invalid tool calls
+    const validCalls: ToolCall[] = []
+    const errorResults: ToolCallResult[] = []
     
     for (const toolCall of toolCalls) {
-        // Coerce arguments to correct types based on schema
         const coercedToolCall = coerceToolArguments(toolCall)
-        
-        // Validate required parameters before executing
         const validationError = validateRequiredParameters(coercedToolCall)
+        
         if (validationError) {
             console.warn(`Tool validation failed for ${coercedToolCall.name}:`, validationError)
-            // Notify tool start (so UI shows the attempt)
             config.onToolStart?.(coercedToolCall)
-            // Add error result without executing
             const errorResult: ToolCallResult = {
                 toolCall: coercedToolCall,
-                result: {
-                    success: false,
-                    error: validationError
-                }
+                result: { success: false, error: validationError }
             }
-            results.push(errorResult)
+            errorResults.push(errorResult)
             config.onToolComplete?.(errorResult)
-            continue
+        } else {
+            validCalls.push(coercedToolCall)
         }
-        
-        // Notify tool start (UI can show research plan from toolCall.arguments when name === 'research_plan')
-        config.onToolStart?.(coercedToolCall)
-        
-        // Execute tool - research_plan is handled in renderer (expands to web_search per step)
+    }
+    
+    // Phase 2: Fire onToolStart for all valid calls, then execute in parallel
+    for (const tc of validCalls) {
+        config.onToolStart?.(tc)
+    }
+    
+    const executionPromises = validCalls.map(async (coercedToolCall): Promise<ToolCallResult> => {
         try {
             let result: ToolCallResult[]
             if (coercedToolCall.name === 'research_plan') {
@@ -269,23 +265,22 @@ export async function processToolCalls(
             } else {
                 result = await executeToolCalls([coercedToolCall])
             }
-            results.push(...result)
-            
-            // Notify tool complete
             config.onToolComplete?.(result[0])
+            return result[0]
         } catch (execError: unknown) {
             const errorMessage = execError instanceof Error ? execError.message : `Failed to execute ${coercedToolCall.name}`
             console.error(`Tool execution error for ${coercedToolCall.name}:`, execError)
-            // Add error result instead of crashing
-            results.push({
+            const errorResult: ToolCallResult = {
                 toolCall: coercedToolCall,
-                result: {
-                    success: false,
-                    error: errorMessage
-                }
-            })
+                result: { success: false, error: errorMessage }
+            }
+            config.onToolComplete?.(errorResult)
+            return errorResult
         }
-    }
+    })
+    
+    const executionResults = await Promise.all(executionPromises)
+    const results = [...errorResults, ...executionResults]
     
     const formattedResults = formatResultsForProvider(toolCalls, results, config.provider)
     
@@ -315,7 +310,6 @@ export function buildMessagesWithToolResults(
         case 'openrouter':
         case 'groq':
         case 'ollama':
-        case 'nvidia':
         case 'alibaba':
             return [
                 ...originalMessages,

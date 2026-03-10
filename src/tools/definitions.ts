@@ -28,12 +28,19 @@ export interface ToolDefinition {
 
 /**
  * Active tools in Zura AI
- * NOTE: Per request, only "web_search" is enabled.
+ * web_search is the only main-process IPC tool.
+ * research_plan is renderer-only and expands into web_search steps.
  */
 export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'web_search',
     description: `Search the internet for real-time information. Returns text results and images.
+
+URL-aware behavior:
+- If the query contains specific URL(s), this tool automatically routes to focused URL extraction (Tavily Extract).
+- URL only (e.g. "https://example.com/page"): extract that page directly.
+- Query + URL (e.g. "summarize pricing https://example.com/pricing"): extract and rerank content for the query.
+- Natural-language query without URL: search with Tavily.
 
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
@@ -45,7 +52,7 @@ Query formulation best practices:
       properties: {
         query: {
           type: 'string',
-          description: `Search query. Use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). Avoid conversational phrasing like "Can you find..." or "I want to know...".`
+          description: `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments").`
         },
         num_results: {
           type: 'number',
@@ -65,8 +72,8 @@ Query formulation best practices:
         },
         topic: {
           type: 'string',
-          description: 'Content type: "general" for broad searches, "news" for current events and real-time updates.',
-          enum: ['general', 'news'],
+          description: 'Content type: "general" for broad searches, "news" for current events and real-time updates, "finance" for market/financial topics.',
+          enum: ['general', 'news', 'finance'],
           default: 'general'
         }
       },

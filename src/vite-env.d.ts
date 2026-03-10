@@ -5,7 +5,3 @@ interface ImportMeta {
     readonly url: string
     readonly env: ImportMetaEnv
 }
-
-interface ImportMetaEnv {
-    readonly VITE_OPENROUTER_API_KEY: string
-}

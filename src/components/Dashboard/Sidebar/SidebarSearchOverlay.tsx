@@ -57,8 +57,7 @@ export default function SidebarSearchOverlay({
     const [highlightedIndex, setHighlightedIndex] = useState(0)
 
     const results = useMemo(() => {
-        const searchableSessions = sessions.filter(session => session.archived !== true)
-        return filterSessions(searchableSessions, query)
+        return filterSessions(sessions, query)
             .sort((a, b) => b.updatedAt - a.updatedAt)
     }, [sessions, query])
 

@@ -4,18 +4,11 @@ import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
-import { EyeIcon, EyeOffIcon } from './icons'
-import TitleBarCommandBar from './TitleBarCommandBar'
+import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
+import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
+import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
-
-const SETTINGS_SECTION_LABELS: Record<string, string> = {
-    usage: 'Usage',
-    providers: 'Providers',
-    themes: 'Appearance',
-    systemprompt: 'System Prompt',
-    experimental: 'Experimental',
-}
 
 function getModelDisplayName(settings: Settings): string {
     const allModels: Array<{ code: string; displayName: string }> = [
@@ -23,6 +16,7 @@ function getModelDisplayName(settings: Settings): string {
         ...(settings.perplexityModels || []),
         ...(settings.configuredModels || []),
         ...(settings.groqModels || []),
+        ...(settings.alibabaModels || []),
     ]
 
     const currentModel = allModels.find(m => m.code === settings.aiModel)
@@ -35,12 +29,14 @@ export default function TitleBar() {
     const { sessions, currentSessionId } = useChatHistory()
     const {
         dashboardView,
-        setDashboardView: _setDashboardView,
+        setDashboardView,
         activeSettingsSection,
         hasUnsavedSettings,
         sidebarCollapsed,
+        sidebarWidth,
         sidebarHidden,
         toggleSidebarHidden,
+        isResizingSidebar,
     } = useAppShell()
     const { settingsUI } = useSettingsUI()
     const { frostedSidebar } = settingsUI
@@ -65,7 +61,7 @@ export default function TitleBar() {
 
         if (isDashboardRoute) {
             if (dashboardView === 'settings') {
-                const label = SETTINGS_SECTION_LABELS[activeSettingsSection] || 'Settings'
+                const label = SETTINGS_SECTION_MAP[activeSettingsSection as SettingsSectionId]?.navLabel || 'Settings'
                 return `Settings — ${label}`
             }
             return currentSession?.title || 'New Conversation'
@@ -83,9 +79,11 @@ export default function TitleBar() {
     }, [centerTitle, modelDisplayName, settings.titleBarShowModel])
 
     const density = settings.titleBarDensity || 'comfortable'
-    const showTitle = settings.titleBarShowChatTitle !== false
-    const showModel = settings.titleBarShowModel !== false
-    const sidebarWidthPx = sidebarHidden ? 0 : (sidebarCollapsed ? 60 : 260)
+    const isSettingsView = dashboardView === 'settings'
+    const settingsButtonDisabled = isSettingsView && hasUnsavedSettings
+    const sidebarWidthPx = sidebarHidden
+        ? 0
+        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
 
     // Detect macOS platform
     const isMacOS = useMemo(() => {
@@ -127,6 +125,17 @@ export default function TitleBar() {
         handleToggleMaximize()
     }, [handleToggleMaximize])
 
+    const handleSettingsButtonClick = useCallback(() => {
+        if (isSettingsView) {
+            if (!hasUnsavedSettings) {
+                setDashboardView('chat')
+            }
+            return
+        }
+
+        setDashboardView('settings')
+    }, [hasUnsavedSettings, isSettingsView, setDashboardView])
+
     return (
         <div
             className={[
@@ -139,20 +148,37 @@ export default function TitleBar() {
             style={{}}
             onDoubleClick={handleTitleBarDoubleClick}
         >
-            {/* Solid background for the content (right) side of the titlebar in frosted mode */}
+            {/* Sidebar region overlay: glass in frosted mode, solid in non-frosted mode */}
             {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
                 <div
                     className="app-titlebar__sidebar-glass"
                     style={{
                         width: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'width' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
                     }}
                 />
             )}
-            {frostedSidebar && hasSidebar && (
+            {/* Content-side titlebar background should always match the main content panel */}
+            {hasSidebar && (
                 <div
                     className="app-titlebar__content-bg"
                     style={{
                         left: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'left' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
+                    }}
+                />
+            )}
+
+            {/* Non-frosted mode: solid surface overlay so titlebar above sidebar matches sidebar color */}
+            {!frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
+                <div
+                    className="app-titlebar__sidebar-solid"
+                    style={{
+                        width: `${sidebarWidthPx}px`,
+                        willChange: isResizingSidebar ? 'width' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
                     }}
                 />
             )}
@@ -169,6 +195,26 @@ export default function TitleBar() {
                         >
                             {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
                         </button>
+                        <button
+                            type="button"
+                            className={[
+                                'app-titlebar__icon-btn',
+                                isSettingsView ? 'app-titlebar__icon-btn--back' : 'app-titlebar__icon-btn--settings',
+                                settingsButtonDisabled ? 'app-titlebar__icon-btn--disabled' : null,
+                            ].filter(Boolean).join(' ')}
+                            onClick={handleSettingsButtonClick}
+                            aria-label={isSettingsView ? 'Back to chat' : 'Open settings'}
+                            title={
+                                settingsButtonDisabled
+                                    ? 'Save or discard changes to go back'
+                                    : isSettingsView
+                                        ? 'Back to chat'
+                                        : 'Open settings'
+                            }
+                            disabled={settingsButtonDisabled}
+                        >
+                            {isSettingsView ? <ArrowLeft size={16} /> : <SettingsIcon size={16} />}
+                        </button>
                     </div>
                 )}
                 {hasUnsavedSettings && dashboardView === 'settings' && (
@@ -181,15 +227,9 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__center">
-                <TitleBarCommandBar idlePlaceholder={showTitle ? centerTitle : undefined} />
             </div>
 
             <div className="app-titlebar__right">
-                {showModel && dashboardView !== 'settings' && (
-                    <span className="app-titlebar__model no-drag" title={settings.aiModel}>
-                        {modelDisplayName}
-                    </span>
-                )}
                 {/* Windows: always render custom window controls since native overlay is disabled */}
                 {!isMacOS && (
                     <WindowControlButtons

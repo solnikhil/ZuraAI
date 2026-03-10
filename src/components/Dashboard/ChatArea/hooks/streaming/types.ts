@@ -4,7 +4,9 @@
  * Requirements: 5.4 - Refactor useStreamingChat into smaller, focused hooks
  */
 
-import type { Message, ThinkingBlock } from '../../../../../contexts/ChatHistoryContext'
+import type { Message, ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type { OpenRouterResponse } from '../../../../../tools/types'
+import type { ToolDefinition } from '../../../../../services/types'
 
 /**
  * Common streaming result returned by all provider hooks
@@ -21,7 +23,7 @@ export interface StreamingResult {
   /** Array of thinking blocks for research mode */
   thinkingBlocks?: ThinkingBlock[]
   /** Tool results from function calls */
-  toolResults?: any[]
+  toolResults?: ToolCallResult[] | null
   /** Token usage statistics */
   usage?: {
     inputTokens: number
@@ -48,7 +50,7 @@ export interface ProviderStreamingOptions {
   /** Streaming message ID */
   messageId: string
   /** Optimized conversation history */
-  messages: any[]
+  messages: Array<{ role: string; content: string; images?: string[]; tool_calls?: unknown[]; thinking?: string }>
   /** Start time for latency calculation */
   startTime: number
   /** Abort signal for cancellation */
@@ -61,8 +63,6 @@ export interface ProviderStreamingOptions {
 export interface ToolCallingOptions extends ProviderStreamingOptions {
   /** Maximum research rounds */
   researchMaxRounds: number
-  /** Whether research is mandatory */
-  researchMandatory: boolean
 }
 
 /**
@@ -91,8 +91,8 @@ export type FlushCallback = () => void
  * Options for handleToolCalls (research plan UI updates)
  */
 export interface HandleToolCallsOptions {
-  onToolStart?: (toolCall: any) => void
-  onToolComplete?: (result: any) => void
+  onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
+  onToolComplete?: (result: ToolCallResult) => void
   onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
 }
 
@@ -101,14 +101,14 @@ export interface HandleToolCallsOptions {
  */
 export interface ToolCallingHook {
   canUseTools: boolean
-  getToolsForRequest: () => any[] | null
-  handleToolCalls: (response: any, options?: HandleToolCallsOptions) => Promise<{
+  getToolsForRequest: () => ToolDefinition[] | null
+  handleToolCalls: (response: OpenRouterResponse, options?: HandleToolCallsOptions) => Promise<{
     hasTools: boolean
-    toolResults: any[]
-    formattedResults: any[]
+    toolResults: ToolCallResult[]
+    formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
     needsFollowUp: boolean
   }>
-  getResearchContext: (searchCount: number, maxRounds: number, mandatory: boolean) => string
+  getResearchContext: (searchCount: number, maxRounds: number) => string
 }
 
 /**
@@ -127,6 +127,5 @@ export interface StreamingSettings {
   openRouterApiKey?: string
   perplexityApiKey?: string
   groqApiKey?: string
-  nvidiaApiKey?: string
   alibabaApiKey?: string
 }

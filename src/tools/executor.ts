@@ -29,12 +29,12 @@ export async function executeTool(toolName: string, args: Record<string, unknown
             )
         })
 
-        let result: any
+        let result: { success: boolean; data?: unknown; error?: string }
         try {
             result = await Promise.race([
                 window.ipcRenderer.invoke('execute-tool', toolName, args),
                 timeoutPromise
-            ])
+            ]) as { success: boolean; data?: unknown; error?: string }
         } finally {
             if (timeoutId) clearTimeout(timeoutId)
         }
@@ -70,24 +70,11 @@ export async function executeTool(toolName: string, args: Record<string, unknown
 /**
  * Execute a tool call object
  */
-export async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
-    try {
-        const result = await executeTool(toolCall.name, toolCall.arguments)
-        
-        return {
-            toolCall,
-            result
-        }
-    } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : `Failed to execute ${toolCall.name}`
-        console.error(`Error executing tool ${toolCall.name}:`, error)
-        return {
-            toolCall,
-            result: {
-                success: false,
-                error: errorMessage
-            }
-        }
+async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
+    const result = await executeTool(toolCall.name, toolCall.arguments)
+    return {
+        toolCall,
+        result
     }
 }
 
@@ -97,18 +84,3 @@ export async function executeToolCall(toolCall: ToolCall): Promise<ToolCallResul
 export async function executeToolCalls(toolCalls: ToolCall[]): Promise<ToolCallResult[]> {
     return Promise.all(toolCalls.map(executeToolCall))
 }
-
-/**
- * Execute multiple tool calls sequentially
- */
-export async function executeToolCallsSequential(toolCalls: ToolCall[]): Promise<ToolCallResult[]> {
-    const results: ToolCallResult[] = []
-    
-    for (const toolCall of toolCalls) {
-        const result = await executeToolCall(toolCall)
-        results.push(result)
-    }
-    
-    return results
-}
-

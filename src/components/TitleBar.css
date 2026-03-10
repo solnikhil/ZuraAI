@@ -1,4 +1,5 @@
 .app-titlebar {
+    --titlebar-nav-icon-color: rgb(198 197 199);
     position: relative;
     z-index: 50;
     display: flex;
@@ -6,7 +7,7 @@
     justify-content: flex-start;
     height: 44px;
     padding: 0 12px;
-    background: var(--theme-background);
+    background: var(--theme-surface);
     border-bottom: 1px solid var(--theme-border);
     user-select: none;
     -webkit-app-region: drag;
@@ -21,7 +22,21 @@
 }
 
 
-/* Solid background for the right (content) side of the titlebar in frosted mode */
+/* Non-frosted: solid surface panel above sidebar so titlebar matches sidebar color */
+
+.app-titlebar__sidebar-solid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--theme-sidebar-solid);
+    z-index: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+
+/* Solid background for the right (content) side of the titlebar */
 
 .app-titlebar__content-bg {
     position: absolute;
@@ -41,26 +56,26 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--frosted-glass-gradient);
-    border-right: var(--frosted-glass-border);
-    box-shadow: var(--frosted-glass-shadow);
+    /* Tinting + blur are now provided by the single full-height continuation panel
+       in AppShellLayout so we avoid a double-backdrop-filter compositing seam. */
+    background: transparent;
+    border-right: none;
+    box-shadow: none;
     z-index: 0;
     pointer-events: none;
+    overflow: hidden;
     box-sizing: border-box;
 }
-
-
-/* Noise texture overlay for frosted titlebar glass (matches sidebar) */
 
 .app-titlebar__sidebar-glass::after {
     content: '';
     position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-    background-size: 200px 200px;
-    opacity: var(--frosted-glass-noise-opacity);
-    mix-blend-mode: overlay;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
     pointer-events: none;
+    background: color-mix(in srgb, var(--theme-border) 96%, rgba(255, 255, 255, 0.06));
 }
 
 
@@ -88,6 +103,10 @@
 
 .app-titlebar--compact {
     height: 36px;
+}
+
+.app-titlebar--custom-controls {
+    padding-right: 0;
 }
 
 .app-titlebar__left,
@@ -141,15 +160,23 @@
     max-width: calc(100% - 400px);
 }
 
-.app-titlebar__middle .app-titlebar__tab-group,
-.app-titlebar__center .app-titlebar__commandbar {
+.app-titlebar__center-title {
+    font-size: 0.78rem;
+    color: var(--theme-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.app-titlebar__middle .app-titlebar__tab-group {
     pointer-events: auto;
 }
 
 .app-titlebar__right {
     justify-content: flex-end;
     margin-left: auto;
-    gap: 10px;
+    gap: 8px;
     position: relative;
     z-index: 2;
 }
@@ -164,7 +191,7 @@
 .app-titlebar__controls {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     -webkit-app-region: no-drag;
 }
 
@@ -233,6 +260,10 @@
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
+.app-titlebar__controls .app-titlebar__icon-btn {
+    color: var(--titlebar-nav-icon-color);
+}
+
 .app-titlebar__icon-btn:hover {
     background: var(--theme-surface-hover);
     border-color: var(--theme-border);
@@ -247,33 +278,90 @@
     outline-offset: 2px;
 }
 
+.app-titlebar__icon-btn--settings {
+    color: var(--titlebar-nav-icon-color);
+}
+
+.app-titlebar__icon-btn--back {
+    color: var(--titlebar-nav-icon-color);
+    border-color: transparent;
+    background: transparent;
+}
+
+.app-titlebar__icon-btn--disabled,
+.app-titlebar__icon-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+    transform: none;
+}
+
+.app-titlebar__icon-btn--disabled:hover,
+.app-titlebar__icon-btn:disabled:hover {
+    border-color: transparent;
+    background: transparent;
+}
+
 .app-titlebar__window-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 46px;
+    height: 100%;
+    border-radius: 0;
 }
-
-.app-titlebar__window-btn--close:hover {
-    background: #c42b1c;
-    border-color: #c42b1c;
-    color: #ffffff;
-}
-
-.app-titlebar__window-btn--close:active {
-    background: #a5271b;
-    border-color: #a5271b;
-}
-
 
 /* WindowControlButtons wrapper (frosted mode custom controls) */
 
 .app-titlebar__window-controls {
     display: inline-flex;
-    align-items: center;
-    gap: 4px;
+    align-items: stretch;
+    gap: 0;
+    height: 32px;
+    position: relative;
+    z-index: 7000;
+    background: transparent;
+    border-left: 1px solid color-mix(in srgb, var(--theme-border) 85%, transparent);
+    padding: 0;
     -webkit-app-region: no-drag;
+    align-self: flex-start;
+    margin-left: 4px;
 }
 
+.app-titlebar__window-controls .app-titlebar__window-btn {
+    width: 38px;
+    min-width: 38px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: color-mix(in srgb, var(--theme-text-primary) 84%, transparent);
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn svg {
+    display: block;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:hover {
+    background: rgba(79, 84, 92, 0.32);
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:active {
+    background: rgba(79, 84, 92, 0.24);
+    transform: none;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn--close:hover {
+    background: #ed4245;
+    color: #ffffff;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn--close:active {
+    background: #c03537;
+}
+
+.app-titlebar__window-controls .app-titlebar__window-btn:focus-visible {
+    outline: 2px solid var(--theme-accent);
+    outline-offset: -2px;
+}
 
 /* Close button red hover state (icon-btn modifier for frosted mode) */
 
@@ -347,303 +435,6 @@
     -webkit-app-region: no-drag;
 }
 
-.app-titlebar__commandbar {
-    position: relative;
-    z-index: 20;
-    pointer-events: auto;
-    -webkit-app-region: no-drag;
-    transition: width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), max-width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.app-titlebar__commandbar--collapsed {
-    width: 280px;
-    max-width: 280px;
-}
-
-.app-titlebar__commandbar--expanded {
-    width: 100%;
-    max-width: var(--commandbar-width, 512px);
-}
-
-.app-titlebar__commandbar-field {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 29px;
-    padding: 0 12px;
-    border-radius: 10px;
-    background: var(--theme-surface);
-    border: 1px solid var(--theme-border-subtle);
-    transition: border-color 0.15s ease, background 0.15s ease;
-    box-sizing: border-box;
-}
-
-.app-titlebar__commandbar-field--collapsed {
-    padding: 0 10px;
-    gap: 6px;
-    background: color-mix(in srgb, var(--theme-surface) 85%, var(--theme-background));
-    border-color: var(--theme-border-subtle);
-}
-
-.app-titlebar__commandbar-field--collapsed .app-titlebar__commandbar-icon {
-    opacity: 0.7;
-}
-
-.app-titlebar__commandbar-field--focused {
-    background: var(--theme-surface);
-    border-color: var(--theme-border);
-}
-
-.app-titlebar__commandbar-field:has(.app-titlebar__commandbar-input:focus-visible) {
-    outline: 1px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
-    outline-offset: 1px;
-}
-
-.app-titlebar__commandbar-icon {
-    color: var(--theme-text-muted);
-    flex-shrink: 0;
-}
-
-.app-titlebar__commandbar-input-wrap {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    display: flex;
-    align-items: center;
-}
-
-.app-titlebar__commandbar-ghost {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    pointer-events: none;
-    font-size: 0.82rem;
-    font-family: inherit;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.app-titlebar__commandbar-ghost-prefix {
-    color: transparent;
-    white-space: pre;
-}
-
-.app-titlebar__commandbar-ghost-suffix {
-    color: color-mix(in srgb, var(--theme-text-muted) 50%, transparent);
-    white-space: pre;
-}
-
-.app-titlebar__commandbar-input {
-    position: relative;
-    z-index: 1;
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: var(--theme-text-secondary);
-    font-size: 0.82rem;
-}
-
-.app-titlebar__commandbar-input::placeholder {
-    color: var(--theme-text-muted);
-}
-
-.app-titlebar__commandbar-hint {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--theme-text-secondary);
-    padding: 2px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--theme-border);
-    background: var(--theme-surface-active);
-    flex-shrink: 0;
-    white-space: nowrap;
-    min-width: 97px;
-    height: 21px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 3px;
-    align-self: center;
-    box-sizing: border-box;
-}
-
-.app-titlebar__commandbar-hint--inline {
-    border: none;
-    background: transparent;
-    min-width: 0;
-    height: auto;
-    padding: 0 0 0 6px;
-    margin-left: 0;
-    color: var(--theme-text-muted);
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: 0.02em;
-    opacity: 0.6;
-}
-
-
-/* === COMMAND BAR DROPDOWN - KokonutUI Exact Style === */
-
-.app-titlebar__commandbar-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--theme-surface);
-    border: 1px solid var(--theme-border);
-    border-radius: 6px;
-    box-shadow: var(--theme-shadow-md);
-    overflow: hidden;
-    z-index: 5000;
-    -webkit-app-region: no-drag;
-    transform-origin: top center;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-}
-
-.app-titlebar__commandbar-dropdown::-webkit-scrollbar {
-    display: none;
-}
-
-.app-titlebar__commandbar-section {
-    padding: 8px 12px 4px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.app-titlebar__commandbar-section--clickable {
-    cursor: pointer;
-    border-radius: 6px;
-    margin: 0;
-    padding: 8px 12px;
-    transition: background 0.15s ease;
-}
-
-.app-titlebar__commandbar-section--clickable:hover {
-    background: var(--theme-surface-hover);
-}
-
-.app-titlebar__commandbar-section-label {
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: var(--theme-text-muted);
-}
-
-.app-titlebar__commandbar-divider {
-    height: 1px;
-    background: var(--theme-border);
-    margin: 4px 0;
-}
-
-.app-titlebar__commandbar-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-radius: 6px;
-    transition: background 0.15s ease;
-}
-
-.app-titlebar__commandbar-item:hover {
-    background: var(--theme-surface-hover);
-}
-
-.app-titlebar__commandbar-item--active {
-    background: var(--theme-surface-active);
-}
-
-.app-titlebar__commandbar-item-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: var(--theme-text-muted);
-}
-
-
-/* Color-coded icons - KokonutUI style */
-
-.app-titlebar__commandbar-item-icon--navigate {
-    color: #3b82f6;
-}
-
-.app-titlebar__commandbar-item-icon--create {
-    color: #22c55e;
-}
-
-.app-titlebar__commandbar-item-icon--toggle {
-    color: #a855f7;
-}
-
-.app-titlebar__commandbar-item-icon--tool {
-    color: #f97316;
-}
-
-.app-titlebar__commandbar-item-icon--export {
-    color: #ec4899;
-}
-
-.app-titlebar__commandbar-item-text {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-}
-
-.app-titlebar__commandbar-item-title {
-    font-size: 0.875rem;
-    font-weight: 400;
-    color: var(--theme-text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.app-titlebar__commandbar-item-subtitle {
-    font-size: 0.75rem;
-    color: var(--theme-text-tertiary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.app-titlebar__commandbar-item-shortcut {
-    font-size: 0.75rem;
-    color: var(--theme-text-tertiary);
-    white-space: nowrap;
-}
-
-.app-titlebar--compact .app-titlebar__commandbar--collapsed {
-    width: 260px;
-    max-width: 260px;
-}
-
-.app-titlebar--compact .app-titlebar__commandbar-field {
-    height: 28px;
-    border-radius: 10px;
-}
-
-.app-titlebar--compact .app-titlebar__commandbar-hint {
-    height: 20px;
-    padding: 2px 8px;
-}
-
-.app-titlebar--compact .app-titlebar__commandbar-hint--inline {
-    height: auto;
-    padding: 0 0 0 6px;
-}
-
-.app-titlebar--compact .app-titlebar__commandbar-dropdown {
-    top: calc(100% + 8px);
-}
 
 .app-titlebar--compact .app-titlebar__middle,
 .app-titlebar--compact .app-titlebar__center {

@@ -1,4 +1,5 @@
 import { ChatMessage, parseErrorResponse, extractErrorMessage } from './types'
+import { parseSSEStream } from './streamUtils'
 
 /**
  * Citation/search result from Perplexity API
@@ -164,41 +165,10 @@ export async function* streamPerplexityCompletion(
         throw new Error("Failed to get response reader")
     }
 
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    try {
-        while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
-
-            for (const line of lines) {
-                if (line.trim() === '') continue
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6)
-                    if (data === '[DONE]') {
-                        return
-                    }
-                    try {
-                        const chunk: PerplexityStreamChunk = JSON.parse(data)
-                        if (options?.onChunk) {
-                            options.onChunk(chunk)
-                        }
-                        yield chunk
-                    } catch (e) {
-                        // Skip invalid JSON
-                        console.warn('Failed to parse Perplexity chunk:', data)
-                    }
-                }
-            }
-        }
-    } finally {
-        reader.releaseLock()
-    }
+    yield* parseSSEStream<PerplexityStreamChunk>(reader, {
+        onChunk: options?.onChunk,
+        providerName: 'Perplexity'
+    })
 }
 
 export const generatePerplexityCompletion = async (
@@ -228,8 +198,7 @@ export const generatePerplexityCompletion = async (
         requestBody.max_tokens = options.max_tokens
     }
 
-    try {
-        const makeRequest = async (body: PerplexityRequestBody) => {
+    const makeRequest = async (body: PerplexityRequestBody) => {
             const res = await fetch("https://api.perplexity.ai/chat/completions", {
                 method: "POST",
                 headers: {
@@ -271,7 +240,4 @@ export const generatePerplexityCompletion = async (
         }
         
         return result
-    } catch (error) {
-        throw error
-    }
 }

@@ -29,12 +29,6 @@ export function registerToolHandlers(): void {
     }
 
     const handler = toolHandlers[toolName]
-    if (!handler) {
-      return {
-        success: false,
-        error: 'Tool handler not found'
-      }
-    }
 
     try {
       return await handler(args)

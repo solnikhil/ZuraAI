@@ -6,24 +6,25 @@ import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import PinnedSection from './PinnedSection'
 import FolderSection from './FolderSection'
-import TimeGroup from './TimeGroup'
 import { ChevronDown } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
+const CHAT_LIST_BASE_HORIZONTAL_PADDING = 8
+const CHAT_LIST_SCROLLBAR_GUTTER = 6
+
 interface SidebarChatListProps {
     groupedSessions: GroupedSessions
     folders: Folder[]
     chatSelectedOverlayStyle: ChatSelectedOverlayStyle
+    isFrosted: boolean
     currentSessionId: string | null
     streamingSessionId: string | null
     focusIndex: number
     flatVisibleSessions: ChatSession[]
     renamingSessionId: string | null
     searchQuery: string
-    showArchived: boolean
-    archivedSessions: ChatSession[]
     bottomPadding?: number
     onSelectSession: (id: string) => void
     onContextAction: (action: ChatRowAction, sessionId: string) => void
@@ -31,22 +32,25 @@ interface SidebarChatListProps {
     onRenameConfirm: (id: string, newTitle: string) => void
     onRenameCancel: () => void
     onDropSessionToFolder: (sessionId: string, folderId: string) => void
-    onToggleArchived: () => void
     onKeyDown: (e: React.KeyboardEvent) => void
+}
+
+/** Time-group definition for sub-labels inside "Your chats" */
+interface TimeGroupBucket {
+    label: string
+    sessions: ChatSession[]
 }
 
 export default function SidebarChatList({
     groupedSessions,
     folders,
     chatSelectedOverlayStyle,
+    isFrosted,
     currentSessionId,
     streamingSessionId,
     focusIndex,
     flatVisibleSessions,
     renamingSessionId,
-    searchQuery,
-    showArchived,
-    archivedSessions,
     bottomPadding = 8,
     onSelectSession,
     onContextAction,
@@ -54,18 +58,66 @@ export default function SidebarChatList({
     onRenameConfirm,
     onRenameCancel,
     onDropSessionToFolder,
-    onToggleArchived,
     onKeyDown,
 }: SidebarChatListProps) {
     const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
     const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
-    const chronologicalSessions = [
-        ...groupedSessions.today,
-        ...groupedSessions.yesterday,
-        ...groupedSessions.previous7Days,
-        ...groupedSessions.previous30Days,
-        ...groupedSessions.older,
-    ]
+    const viewportRef = React.useRef<HTMLDivElement | null>(null)
+    const [hasVerticalScrollbar, setHasVerticalScrollbar] = React.useState(false)
+
+    const updateScrollbarState = React.useCallback(() => {
+        const viewport = viewportRef.current
+        if (!viewport) return
+
+        const shouldShowVerticalScrollbar = viewport.scrollHeight > viewport.clientHeight + 1
+        setHasVerticalScrollbar(prev => prev === shouldShowVerticalScrollbar ? prev : shouldShowVerticalScrollbar)
+    }, [])
+
+    React.useEffect(() => {
+        updateScrollbarState()
+
+        const viewport = viewportRef.current
+        if (!viewport) return
+
+        const onScroll = () => updateScrollbarState()
+        const onResize = () => updateScrollbarState()
+
+        viewport.addEventListener('scroll', onScroll, { passive: true })
+        window.addEventListener('resize', onResize)
+
+        let resizeObserver: ResizeObserver | null = null
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(() => {
+                updateScrollbarState()
+            })
+
+            resizeObserver.observe(viewport)
+            const viewportContent = viewport.firstElementChild
+            if (viewportContent instanceof HTMLElement) {
+                resizeObserver.observe(viewportContent)
+            }
+        }
+
+        return () => {
+            viewport.removeEventListener('scroll', onScroll)
+            window.removeEventListener('resize', onResize)
+            resizeObserver?.disconnect()
+        }
+    }, [updateScrollbarState])
+
+    const horizontalPadding = `${CHAT_LIST_BASE_HORIZONTAL_PADDING + (hasVerticalScrollbar ? CHAT_LIST_SCROLLBAR_GUTTER : 0)}px`
+
+    // Build time-group buckets (only include non-empty ones)
+    const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
+        const buckets: TimeGroupBucket[] = [
+            { label: 'Today', sessions: groupedSessions.today },
+            { label: 'Yesterday', sessions: groupedSessions.yesterday },
+            { label: 'Previous 7 days', sessions: groupedSessions.previous7Days },
+            { label: 'Previous 30 days', sessions: groupedSessions.previous30Days },
+            { label: 'Older', sessions: groupedSessions.older },
+        ]
+        return buckets.filter(b => b.sessions.length > 0)
+    }, [groupedSessions])
 
     const renderChatRow = (session: ChatSession) => {
         const flatIndex = flatVisibleSessions.findIndex(s => s.id === session.id)
@@ -74,7 +126,6 @@ export default function SidebarChatList({
             <ChatRowContextMenu
                 key={session.id}
                 isPinned={session.pinned === true}
-                isArchived={session.archived === true}
                 onAction={(action) => onContextAction(action, session.id)}
                 dropdownOpen={dropdownOpenId === session.id}
                 onDropdownOpenChange={(open) => {
@@ -93,6 +144,7 @@ export default function SidebarChatList({
                     <ChatRow
                         session={session}
                         selectedOverlayStyle={chatSelectedOverlayStyle}
+                        isFrosted={isFrosted}
                         isActive={currentSessionId === session.id}
                         isMenuOpen={dropdownOpenId === session.id}
                         isFocused={flatIndex === focusIndex}
@@ -105,58 +157,35 @@ export default function SidebarChatList({
                         onMoreClick={(_e, id) => {
                             setDropdownOpenId(id)
                         }}
+                        onContextMenu={(e, id) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setDropdownOpenId(id)
+                        }}
                     />
                 </div>
             </ChatRowContextMenu>
         )
     }
 
-    const hasAnyVisibleSessions = flatVisibleSessions.length > 0
-
     return (
         <ScrollArea
-            style={{ flex: 1, minWidth: 0 }}
+            className="sidebar-chatlist"
+            viewportRef={viewportRef}
             viewportStyle={{
                 display: 'flex',
                 flexDirection: 'column',
-                paddingLeft: '8px',
-                paddingRight: '14px',
+                paddingLeft: horizontalPadding,
+                paddingRight: horizontalPadding,
             }}
         >
             <div
                 role="listbox"
                 tabIndex={0}
                 onKeyDown={onKeyDown}
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    outline: 'none',
-                    paddingBottom: bottomPadding,
-                }}
+                className="sidebar-chatlist__listbox"
+                style={{ paddingBottom: bottomPadding }}
             >
-                {!hasAnyVisibleSessions && searchQuery && (
-                    <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '16px 8px',
-                        textAlign: 'center',
-                    }}>
-                        No chats found
-                    </div>
-                )}
-
-                {!hasAnyVisibleSessions && !searchQuery && (
-                    <div style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '16px 8px',
-                        textAlign: 'center',
-                    }}>
-                        No chats yet
-                    </div>
-                )}
-
                 {/* Pinned Section */}
                 {groupedSessions.pinned.length > 0 && (
                     <PinnedSection sessions={groupedSessions.pinned}>
@@ -179,65 +208,28 @@ export default function SidebarChatList({
                     )
                 })}
 
+                {/* "Your chats" — with time-group sub-labels */}
                 <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
                     <CollapsibleTrigger asChild>
-                        <div style={{
-                            fontSize: '0.82rem',
-                            color: 'var(--theme-text-secondary)',
-                            padding: '8px 6px 4px',
-                            fontWeight: 500,
-                            letterSpacing: '0.01em',
-                            textTransform: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            borderRadius: '8px',
-                            width: 'fit-content',
-                        }}>
-                            <span>Your chats</span>
+                        <div className="sidebar-section-label">
                             <ChevronDown
                                 size={10}
-                                style={{
-                                    transition: 'transform 0.15s ease',
-                                    transform: isYourChatsOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
-                                    flexShrink: 0,
-                                }}
+                                className={`sidebar-section-label__chevron ${isYourChatsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
                             />
+                            <span>Your chats</span>
                         </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingTop: '2px' }}>
-                            {chronologicalSessions.map(s => renderChatRow(s))}
+                        <div className="sidebar-section-content" style={{ paddingTop: '2px' }}>
+                            {timeGroups.map(group => (
+                                <React.Fragment key={group.label}>
+                                    {group.sessions.map(s => renderChatRow(s))}
+                                </React.Fragment>
+                            ))}
                         </div>
                     </CollapsibleContent>
                 </Collapsible>
 
-                {/* Archived toggle */}
-                <div
-                    onClick={onToggleArchived}
-                    style={{
-                        fontSize: '0.7rem',
-                        color: 'var(--theme-text-muted)',
-                        padding: '8px 4px',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        opacity: 0.7,
-                        transition: 'opacity 0.15s ease',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
-                    onMouseLeave={e => { e.currentTarget.style.opacity = '0.7' }}
-                >
-                    {showArchived ? 'Hide archived' : `Archived (${archivedSessions.length})`}
-                </div>
-
-                {/* Archived sessions */}
-                {showArchived && archivedSessions.length > 0 && (
-                    <TimeGroup label="Archived" sessions={archivedSessions}>
-                        {archivedSessions.map(s => renderChatRow(s))}
-                    </TimeGroup>
-                )}
             </div>
         </ScrollArea>
     )

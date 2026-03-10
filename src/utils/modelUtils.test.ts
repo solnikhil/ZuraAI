@@ -199,7 +199,7 @@ describe('modelUtils', () => {
   describe('filterModels', () => {
     const testModels: ModelInfo[] = [
       { code: 'gpt-4', displayName: 'GPT-4', provider: 'openrouter' },
-      { code: 'gemini-pro', displayName: 'Gemini Pro', provider: 'gemini' },
+      { code: 'gemini-pro', displayName: 'Gemini Pro', provider: 'openrouter' },
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
       { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' }
     ]
@@ -236,7 +236,7 @@ describe('modelUtils', () => {
   describe('groupModelsByProvider', () => {
     const testModels: ModelInfo[] = [
       { code: 'gpt-4', displayName: 'GPT-4', provider: 'openrouter' },
-      { code: 'llama3-70b', displayName: 'Llama 3 70B', provider: 'nvidia' },
+      { code: 'qwen-plus', displayName: 'Qwen Plus', provider: 'alibaba' },
       { code: 'claude-3', displayName: 'Claude 3', provider: 'openrouter' },
       { code: 'llama-3', displayName: 'Llama 3', provider: 'ollama' },
       { code: 'sonar', displayName: 'Sonar', provider: 'perplexity' },
@@ -247,7 +247,7 @@ describe('modelUtils', () => {
       const groups = groupModelsByProvider(testModels)
 
       expect(groups.openrouter).toHaveLength(2)
-      expect(groups.nvidia).toHaveLength(1)
+      expect(groups.alibaba).toHaveLength(1)
       expect(groups.ollama).toHaveLength(1)
       expect(groups.perplexity).toHaveLength(1)
       expect(groups.groq).toHaveLength(1)
@@ -260,7 +260,7 @@ describe('modelUtils', () => {
       expect(groups.ollama).toEqual([])
       expect(groups.perplexity).toEqual([])
       expect(groups.groq).toEqual([])
-      expect(groups.nvidia).toEqual([])
+      expect(groups.alibaba).toEqual([])
     })
   })
 
@@ -270,7 +270,7 @@ describe('modelUtils', () => {
       expect(getProviderTitle('perplexity')).toBe('Perplexity')
       expect(getProviderTitle('groq')).toBe('Groq')
       expect(getProviderTitle('ollama')).toBe('Ollama')
-      expect(getProviderTitle('nvidia')).toBe('NVIDIA')
+      expect(getProviderTitle('alibaba')).toBe('Alibaba Cloud')
     })
 
     it('returns provider name for unknown providers', () => {
@@ -284,7 +284,7 @@ describe('modelUtils', () => {
       expect(getProviderColor('perplexity')).toBe('#22c55e')
       expect(getProviderColor('groq')).toBe('#f97316')
       expect(getProviderColor('ollama')).toBe('#339af0')
-      expect(getProviderColor('nvidia')).toBe('#76b900')
+      expect(getProviderColor('alibaba')).toBe('#ff6a00')
     })
 
     it('returns default color for unknown providers', () => {

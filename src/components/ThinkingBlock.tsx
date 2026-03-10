@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search } from './icons'
+import { ChevronRight, Loader2, Search, Globe } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
+import { getWebToolLabel, inferWebToolModeFromArgs, inferWebToolModeFromResultData } from '../tools/ui/webToolDisplay'
 
-const toolDisplayNames: Record<string, string> = {
-    web_search: 'Web Search',
-}
-
-function formatToolDisplayName(name: string): string {
-    return toolDisplayNames[name] || name.replace(/_/g, ' ')
+function formatToolDisplayName(
+    name: string,
+    args?: Record<string, unknown>,
+    toolOutputData?: unknown
+): string {
+    if (name === 'web_search') {
+        const mode = inferWebToolModeFromResultData(toolOutputData) || inferWebToolModeFromArgs(args)
+        return getWebToolLabel(mode)
+    }
+    return name.replace(/_/g, ' ')
 }
 
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
-    const displayName = formatToolDisplayName(tool.name)
+    const displayName = formatToolDisplayName(tool.name, tool.arguments)
     if (tool.name === 'web_search' && tool.arguments?.query) {
         return `Using ${displayName}: "${String(tool.arguments.query)}"`
     }
@@ -44,12 +49,40 @@ function formatDuration(ms: number): string {
     return `${remainingSeconds}s`
 }
 
+/**
+ * Strip UI-only fields from web search tool output for cleaner display.
+ * Removes favicon, source, displayed_link from results and images array
+ * since those are rendered separately in the UI (image carousel, source badges).
+ */
+function cleanToolOutputForDisplay(data: unknown): unknown {
+    if (!data || typeof data !== 'object') return data
+    const obj = data as Record<string, unknown>
+
+    // Clean web search results array
+    if (Array.isArray(obj.results)) {
+        const cleaned = { ...obj }
+        cleaned.results = (obj.results as Array<Record<string, unknown>>).map(r => {
+            const { favicon, source, displayed_link, ...rest } = r
+            return rest
+        })
+        // Strip images array (shown in carousel), and metadata fields
+        delete cleaned.images
+        delete cleaned.imageCount
+        delete cleaned.source
+        return cleaned
+    }
+
+    return data
+}
+
 /** Inline Web Search tool call - dropdown with JSON input/output, follows thinking block style */
 function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
     const [isExpanded, setIsExpanded] = useState(false)
     const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
         (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
     const query = block.query || ''
+    const mode = inferWebToolModeFromResultData(block.toolOutput?.data) || inferWebToolModeFromArgs(block.toolInput)
+    const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
 
     return (
         <div className="thinking-block thinking-inline-tool-call">
@@ -59,10 +92,10 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
             >
                 <div className="thinking-label">
                     <span className="thinking-tool-calling-icon">
-                        <Search size={14} />
+                        {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
                     </span>
                     <span className="thinking-text">
-                        Web Search{query ? `: "${query}"` : ''}
+                        {displayName}{query ? `: "${query}"` : ''}
                     </span>
                     {hasDetails && (
                         <motion.div
@@ -105,7 +138,7 @@ function InlineWebSearchBlock({ block }: { block: ThinkingBlockType }) {
                                         {block.toolOutput.error
                                             ? block.toolOutput.error
                                             : block.toolOutput.data !== undefined
-                                                ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
                                                 : '{}'}
                                     </pre>
                                 </div>
@@ -141,12 +174,14 @@ function renderThinkingWithToolCalls(thinking: string, searchBlocks: ThinkingBlo
 
 // Component for a single completed block (collapsed by default)
 function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; defaultExpanded?: boolean }) {
-    const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : block.type === 'thinking'
+    const shouldExpand = defaultExpanded !== undefined ? defaultExpanded : false
     const [isExpanded, setIsExpanded] = useState(shouldExpand)
 
     if (block.type === 'searching') {
         const hasDetails = (block.toolInput && Object.keys(block.toolInput).length > 0) ||
             (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
+        const mode = inferWebToolModeFromResultData(block.toolOutput?.data) || inferWebToolModeFromArgs(block.toolInput)
+        const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
         return (
             <div className="thinking-block completed thinking-tool-call">
                 <div
@@ -155,10 +190,10 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                 >
                     <div className="thinking-label">
                         <span className="thinking-tool-calling-icon">
-                            <Search size={14} />
+                            {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
                         </span>
                         <span className="thinking-text">
-                            Web Search{block.query ? `: "${block.query}"` : ''}
+                            {displayName}{block.query ? `: "${block.query}"` : ''}
                         </span>
                         {hasDetails && (
                             <ChevronRight size={14} className={`thinking-chevron ${isExpanded ? 'rotated' : ''}`} />
@@ -196,7 +231,7 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
                                             {block.toolOutput.error
                                                 ? block.toolOutput.error
                                                 : block.toolOutput.data !== undefined
-                                                    ? JSON.stringify(block.toolOutput.data, null, 2)
+                                                    ? JSON.stringify(cleanToolOutputForDisplay(block.toolOutput.data), null, 2)
                                                     : '{}'}
                                         </pre>
                                     </div>
@@ -255,45 +290,91 @@ function CompletedBlock({ block, defaultExpanded }: { block: ThinkingBlockType; 
 
 export default function ThinkingBlock({ thinking, isThinking = false, thinkingDuration, isSearching = false, searchQuery, activeToolCalls = [], completedBlocks = [] }: ThinkingBlockProps) {
     const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
-    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls) // Expand only for active state
-    const [elapsedTime, setElapsedTime] = useState(0) // Track elapsed time in seconds
-    // Initialize finalTime from thinkingDuration if provided (convert ms to seconds)
+    const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
+    const [elapsedTime, setElapsedTime] = useState(0)
     const [finalTime, setFinalTime] = useState<number | null>(
-        thinkingDuration ? thinkingDuration / 1000 : null
+        thinkingDuration !== undefined ? thinkingDuration / 1000 : null
     )
     const thinkingStartRef = useRef<number | null>(null)
+    // Grace-period timeout ref — keeps the timer alive during brief gaps between
+    // research loop rounds so the displayed time doesn't jump back to 0.
+    const graceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    // Start timer immediately when isThinking becomes true
+    // Whether any active state is happening right now.
+    const isActiveSession = isThinking || isSearching || hasActiveToolCalls
+
+    // Unified timer: starts when any active state begins, keeps running across
+    // brief inactive gaps (grace period), and only finalizes when the response
+    // is truly done. This prevents the timer from resetting between web search rounds.
     useEffect(() => {
-        if (isThinking && !thinkingStartRef.current) {
-            thinkingStartRef.current = Date.now()
-            setFinalTime(null)
-            setElapsedTime(0)
-        }
-    }, [isThinking])
+        let interval: ReturnType<typeof setInterval> | undefined
 
-    // Live timer effect - runs while isThinking is true
-    useEffect(() => {
-        let interval: NodeJS.Timeout
+        if (isActiveSession) {
+            // Cancel any pending grace-period finalization — we're active again.
+            if (graceTimeoutRef.current) {
+                clearTimeout(graceTimeoutRef.current)
+                graceTimeoutRef.current = null
+            }
 
-        if (isThinking && thinkingStartRef.current) {
+            // Start timer if not already running (never reset an existing one).
+            if (!thinkingStartRef.current) {
+                thinkingStartRef.current = Date.now()
+                setFinalTime(null)
+                setElapsedTime(0)
+            }
+
+            // Live tick
             interval = setInterval(() => {
                 setElapsedTime((Date.now() - thinkingStartRef.current!) / 1000)
-            }, 100) // Update every 100ms for smoother display
-        } else if (!isThinking && thinkingStartRef.current) {
-            // isThinking just became false - capture final time
+            }, 100)
+        } else if (thinkingStartRef.current) {
+            // All active states ended. Update the displayed time immediately but
+            // don't finalize yet — a new round may start within the grace window.
             const elapsed = (Date.now() - thinkingStartRef.current) / 1000
-            setFinalTime(elapsed)
             setElapsedTime(elapsed)
-            thinkingStartRef.current = null
+
+            // Grace period: if no new active state within 2s, finalize the timer.
+            // 2s is enough to cover the gap between tool-result processing and the
+            // next streaming round starting.
+            graceTimeoutRef.current = setTimeout(() => {
+                if (thinkingStartRef.current) {
+                    const finalElapsed = (Date.now() - thinkingStartRef.current) / 1000
+                    setFinalTime(finalElapsed)
+                    setElapsedTime(finalElapsed)
+                    thinkingStartRef.current = null
+                }
+                graceTimeoutRef.current = null
+            }, 2000)
         }
 
         return () => {
             if (interval) clearInterval(interval)
         }
-    }, [isThinking])
+    }, [isActiveSession])
 
-    // Auto-expand while actively thinking, tool calling, or searching; expand when we have content to show
+    // Cleanup grace timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (graceTimeoutRef.current) {
+                clearTimeout(graceTimeoutRef.current)
+            }
+        }
+    }, [])
+
+    // Keep final time in sync with provider-reported duration updates.
+    useEffect(() => {
+        if (isActiveSession || thinkingDuration === undefined) return
+        // Only sync if the timer has already been finalized (no active start ref
+        // and no pending grace timeout).
+        if (thinkingStartRef.current || graceTimeoutRef.current) return
+
+        const durationInSeconds = Math.max(0, thinkingDuration / 1000)
+        setFinalTime(durationInSeconds)
+        setElapsedTime(durationInSeconds)
+    }, [thinkingDuration, isActiveSession])
+
+    // Auto-expand while actively thinking, tool calling, or searching.
+    // Once complete, leave the expanded state alone so the user's toggle is respected.
     useEffect(() => {
         if (isThinking && thinking && thinking.trim().length > 0) {
             setIsExpanded(true)
@@ -301,11 +382,18 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
             setIsExpanded(true)
         } else if (isSearching) {
             setIsExpanded(true)
-        } else if (!isThinking && !isSearching && !hasActiveToolCalls) {
-            const hasContentToShow = (thinking && thinking.trim().length > 0) || completedBlocks.length > 0
-            setIsExpanded(hasContentToShow)
         }
-    }, [isThinking, isSearching, hasActiveToolCalls, thinking, completedBlocks.length])
+    }, [isThinking, isSearching, hasActiveToolCalls, thinking])
+
+    // When thinking content changes while NOT actively thinking (e.g. switching chats),
+    // reset to collapsed so old expanded state doesn't carry over.
+    const prevThinkingRef = useRef(thinking)
+    useEffect(() => {
+        if (prevThinkingRef.current !== thinking && !isThinking && !isSearching && !hasActiveToolCalls) {
+            setIsExpanded(false)
+        }
+        prevThinkingRef.current = thinking
+    }, [thinking, isThinking, isSearching, hasActiveToolCalls])
 
     const handleToggle = () => {
         setIsExpanded(!isExpanded)
@@ -323,6 +411,8 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
     const searchBlocks = completedBlocks.filter(b => b.type === 'searching')
     const hasThinkingWithToolCalls = hasThinkingContent && /\n\s*---\s*\n?/.test(thinking) && searchBlocks.length > 0
     const blocksToRender = hasThinkingWithToolCalls ? completedBlocks.filter(b => b.type !== 'searching') : completedBlocks
+    const searchingMode = inferWebToolModeFromArgs(searchQuery ? { query: searchQuery } : undefined)
+    const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
 
     return (
         <div className="thinking-blocks-container">
@@ -331,7 +421,6 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                 <CompletedBlock
                     key={`completed-${index}-${block.timestamp}`}
                     block={block}
-                    defaultExpanded={!!(block.content && block.content.trim().length > 0)}
                 />
             ))}
 
@@ -353,7 +442,7 @@ export default function ThinkingBlock({ thinking, isThinking = false, thinkingDu
                             ) : isSearching ? (
                                 <span className="thinking-text">
                                     <AITextLoading 
-                                        text={`Searching web${searchQuery ? `: "${searchQuery}"` : ''}`}
+                                        text={`${searchingLabel}${searchQuery ? `: "${searchQuery}"` : ''}`}
                                         animationKey="searching"
                                     />
                                 </span>

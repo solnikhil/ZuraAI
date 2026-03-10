@@ -87,17 +87,3 @@ export function assignColor(modelName: string): string {
   
   return newColor
 }
-
-/**
- * Get all current color mappings
- */
-export function getAllMappings(): ColorMapping {
-  return loadMappings()
-}
-
-/**
- * Clear all color mappings (for testing/reset)
- */
-export function clearMappings(): void {
-  localStorage.removeItem(STORAGE_KEY)
-}

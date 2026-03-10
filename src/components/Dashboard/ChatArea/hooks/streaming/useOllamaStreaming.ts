@@ -8,6 +8,8 @@
 
 import { useCallback } from 'react'
 import { streamOllamaCompletion } from '../../../../../services/ollama'
+import type { ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type { OpenRouterMessage } from '../../../../../tools/types'
 import type {
   StreamingResult,
   ToolCallingOptions,
@@ -16,9 +18,7 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
-
-const UPDATE_INTERVAL = 120 // ms
-const SMOOTH_UPDATE_INTERVAL = 40 // ms
+import { getStreamingUpdateInterval } from './streamingUtils'
 
 export interface UseOllamaStreamingOptions {
   settings: StreamingSettings
@@ -42,7 +42,7 @@ export function useOllamaStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseOllamaStreamingOptions): UseOllamaStreamingReturn {
-  const updateInterval = settings.streamResponses ? SMOOTH_UPDATE_INTERVAL : UPDATE_INTERVAL
+  const updateInterval = getStreamingUpdateInterval()
 
   const streamOllama = useCallback(async (
     options: ToolCallingOptions
@@ -53,7 +53,6 @@ export function useOllamaStreaming({
       messages: optimizedHistory,
       startTime,
       researchMaxRounds,
-      researchMandatory,
       signal,
     } = options
 
@@ -64,11 +63,11 @@ export function useOllamaStreaming({
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     let lastUpdateTime = Date.now()
-    let finalUsage: any = {}
+    let finalUsage: { inputTokens: number; outputTokens: number; totalTokens: number } = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
     let hasToolCalls = false
-    let finalMessage: any = null
+    let finalMessage: Record<string, unknown> | null = null
     let isDone = false
-    let savedToolResults: any = null
+    let savedToolResults: ToolCallResult[] | undefined = undefined
     let firstTokenTime: number | null = null
     let thinkingStartTime: number | null = null
     let thinkingEndTime: number | null = null
@@ -103,7 +102,7 @@ export function useOllamaStreaming({
 
         if (chunk.message) {
           finalMessage = chunk.message
-          if ((chunk.message as any)?.tool_calls?.length > 0) {
+          if ((chunk.message as unknown as { tool_calls?: unknown[] })?.tool_calls?.length) {
             hasToolCalls = true
           }
         }
@@ -142,7 +141,7 @@ export function useOllamaStreaming({
         thinking: accumulatedReasoning || undefined,
         thinkingDuration
       })
-    } catch (streamError: any) {
+    } catch (streamError: unknown) {
       console.error('Ollama streaming failed, trying non-streaming:', streamError)
 
       // Fallback to non-streaming
@@ -206,11 +205,11 @@ export function useOllamaStreaming({
     }
 
     // Handle tool calls
-    if (canUseTools && hasToolCalls && finalMessage?.tool_calls?.length > 0) {
+    if (canUseTools && hasToolCalls && finalMessage && (finalMessage as unknown as { tool_calls?: unknown[] })?.tool_calls?.length) {
       let toolResult
       try {
-        toolResult = await handleToolCalls({ choices: [{ message: finalMessage }] })
-      } catch (toolError: any) {
+        toolResult = await handleToolCalls({ choices: [{ message: finalMessage as unknown as OpenRouterMessage }] })
+      } catch (toolError: unknown) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
       }
@@ -220,14 +219,14 @@ export function useOllamaStreaming({
         let followUpContent = ''
         let followUpReasoning = ''
         let followUpLastUpdate = Date.now()
-        let followUpUsage: any = {}
+        let followUpUsage: { inputTokens: number; outputTokens: number; totalTokens: number } = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
-        const webSearchCount = toolResult.toolResults?.filter((r: any) => r.toolCall.name === 'web_search').length || 0
-        const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds, researchMandatory)
+        const webSearchCount = toolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
+        const researchContextMsg = getResearchContext(webSearchCount, researchMaxRounds)
 
-        const followUpMessages: any[] = [
+        const followUpMessages: Array<Record<string, unknown>> = [
           ...optimizedHistory,
-          finalMessage,
+          ...(finalMessage ? [finalMessage] : []),
           ...toolResult.formattedResults
         ]
 
@@ -279,10 +278,10 @@ export function useOllamaStreaming({
         }
       }
 
-      savedToolResults = toolResult?.toolResults?.map((tr: any) => ({
+      savedToolResults = toolResult?.toolResults?.map((tr: ToolCallResult) => ({
         toolCall: { id: tr.toolCall.id, name: tr.toolCall.name, arguments: tr.toolCall.arguments },
-        result: { success: tr.result.success, data: tr.result.data, error: tr.result.error, executionTime: tr.result.executionTime }
-      })) || null
+        result: { success: tr.result?.success ?? false, data: tr.result?.data, error: tr.result?.error, executionTime: tr.result?.executionTime }
+      })) || undefined
     }
 
     const endTime = performance.now()

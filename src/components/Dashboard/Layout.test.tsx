@@ -21,6 +21,8 @@ const mockAppShell = {
     toggleSidebarCollapsed: vi.fn(),
     sidebarHidden: false,
     toggleSidebarHidden: vi.fn(),
+    isResizingSidebar: false,
+    setIsResizingSidebar: vi.fn(),
 }
 
 const mockChatHistory = {
@@ -55,11 +57,6 @@ const mockSettingsUI = {
         commandBar: {
             enabled: true,
             size: 'medium' as const,
-            fieldSurface: 35,
-            fieldSurfaceFocused: 50,
-            dropdownSurface: 35,
-            enableBlur: true,
-            blurPx: 14,
             maxSuggestions: 5,
             showRecents: true,
             maxRecents: 3,

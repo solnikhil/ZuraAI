@@ -2,12 +2,12 @@
  * Property-Based Test: Session grouping is a complete, disjoint partition
  *
  * Feature: sidebar-redesign, Property 3: Session grouping is a complete, disjoint partition of visible sessions
- * Validates: Requirements 5.1, 5.2, 12.1
+ * Validates: Requirements 5.1, 5.2
  *
  * For any list of ChatSessions and Folders, groupSessions(sessions, folders) should produce
- * groups where: (a) every non-archived session appears in exactly one group, (b) no archived
- * session appears in any group, (c) all sessions in the pinned group have pinned === true,
- * (d) all sessions in a folder group have the matching folderId, and (e) all sessions in a
+ * groups where: (a) every session appears in exactly one group, (b) all sessions in the pinned
+ * group have pinned === true, (c) all sessions in a folder group have the matching folderId,
+ * and (d) all sessions in a
  * time group have updatedAt within that group's time range.
  */
 
@@ -35,7 +35,6 @@ function chatSessionArb(folderIds: string[]): fc.Arbitrary<ChatSession> {
         createdAt: fc.integer({ min: 0, max: Date.now() }),
         updatedAt: fc.integer({ min: 0, max: Date.now() }),
         pinned: fc.option(fc.boolean(), { nil: undefined }),
-        archived: fc.option(fc.boolean(), { nil: undefined }),
         folderId: fc.option(
             folderIds.length > 0
                 ? fc.oneof(fc.constantFrom(...folderIds), fc.uuid())
@@ -66,7 +65,7 @@ function collectAllGrouped(grouped: GroupedSessions): ChatSession[] {
 // ============================================================================
 
 describe('Property 3: Session grouping is a complete, disjoint partition of visible sessions', () => {
-    it('every non-archived session appears in exactly one group', () => {
+    it('every session appears in exactly one group', () => {
         fc.assert(
             fc.property(
                 fc.array(folderArb, { minLength: 0, maxLength: 5 }).chain(folders => {
@@ -79,45 +78,18 @@ describe('Property 3: Session grouping is a complete, disjoint partition of visi
                 ([folders, sessions]) => {
                     const grouped = groupSessions(sessions, folders)
                     const allGrouped = collectAllGrouped(grouped)
-                    const nonArchived = sessions.filter(s => s.archived !== true)
 
-                    // Every non-archived session should appear
-                    expect(allGrouped.length).toBe(nonArchived.length)
+                    // Every session should appear
+                    expect(allGrouped.length).toBe(sessions.length)
 
                     // Check uniqueness (no duplicates)
                     const ids = allGrouped.map(s => s.id)
                     expect(new Set(ids).size).toBe(ids.length)
 
-                    // Every non-archived session ID should be in the grouped result
+                    // Every session ID should be in the grouped result
                     const groupedIds = new Set(ids)
-                    for (const session of nonArchived) {
+                    for (const session of sessions) {
                         expect(groupedIds.has(session.id)).toBe(true)
-                    }
-                }
-            ),
-            { numRuns: 100 }
-        )
-    })
-
-    it('no archived session appears in any group', () => {
-        fc.assert(
-            fc.property(
-                fc.array(folderArb, { minLength: 0, maxLength: 5 }).chain(folders => {
-                    const folderIds = folders.map(f => f.id)
-                    return fc.tuple(
-                        fc.constant(folders),
-                        fc.array(chatSessionArb(folderIds), { minLength: 0, maxLength: 30 })
-                    )
-                }),
-                ([folders, sessions]) => {
-                    const grouped = groupSessions(sessions, folders)
-                    const allGrouped = collectAllGrouped(grouped)
-                    const archivedIds = new Set(
-                        sessions.filter(s => s.archived === true).map(s => s.id)
-                    )
-
-                    for (const session of allGrouped) {
-                        expect(archivedIds.has(session.id)).toBe(false)
                     }
                 }
             ),

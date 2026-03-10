@@ -2,16 +2,15 @@
  * Unit Tests: groupSessions utility
  *
  * Feature: sidebar-redesign
- * Validates: Requirements 5.1, 5.2, 5.3, 12.1
+ * Validates: Requirements 5.1, 5.2, 5.3
  *
  * Tests cover:
- * - Archived sessions are excluded entirely
  * - Pinned sessions go to pinned group
  * - Folder-assigned (non-pinned) sessions go to folder groups
  * - Remaining sessions grouped by updatedAt into time groups
  * - Empty time groups are empty arrays (hidden by UI)
  * - Invalid folderId falls back to time grouping
- * - Edge cases (empty inputs, all archived, etc.)
+ * - Edge cases (empty inputs, mixed groups, etc.)
  */
 
 import { describe, it, expect } from 'vitest'
@@ -30,7 +29,6 @@ function makeSession(overrides: Partial<ChatSession> & { title: string }): ChatS
     createdAt: overrides.createdAt ?? Date.now(),
     updatedAt: overrides.updatedAt ?? Date.now(),
     pinned: overrides.pinned,
-    archived: overrides.archived,
     folderId: overrides.folderId,
     tags: overrides.tags,
   }
@@ -65,42 +63,6 @@ function todayNoon(): number {
 // ============================================================================
 
 describe('groupSessions', () => {
-  // Requirement 12.1: Archived sessions excluded
-  describe('archived session exclusion', () => {
-    it('should exclude archived sessions from all groups', () => {
-      const sessions = [
-        makeSession({ title: 'Archived Chat', archived: true, updatedAt: todayNoon() }),
-        makeSession({ title: 'Active Chat', updatedAt: todayNoon() }),
-      ]
-
-      const result = groupSessions(sessions, [])
-
-      expect(result.today).toHaveLength(1)
-      expect(result.today[0].title).toBe('Active Chat')
-      expect(result.pinned).toHaveLength(0)
-      expect(result.yesterday).toHaveLength(0)
-      expect(result.previous7Days).toHaveLength(0)
-      expect(result.previous30Days).toHaveLength(0)
-      expect(result.older).toHaveLength(0)
-    })
-
-    it('should return all empty groups when all sessions are archived', () => {
-      const sessions = [
-        makeSession({ title: 'Archived 1', archived: true, updatedAt: todayNoon() }),
-        makeSession({ title: 'Archived 2', archived: true, updatedAt: daysAgo(5) }),
-      ]
-
-      const result = groupSessions(sessions, [])
-
-      expect(result.pinned).toHaveLength(0)
-      expect(result.today).toHaveLength(0)
-      expect(result.yesterday).toHaveLength(0)
-      expect(result.previous7Days).toHaveLength(0)
-      expect(result.previous30Days).toHaveLength(0)
-      expect(result.older).toHaveLength(0)
-    })
-  })
-
   // Requirement 5.1: Pinned section
   describe('pinned sessions', () => {
     it('should place pinned sessions in the pinned group', () => {
@@ -115,17 +77,6 @@ describe('groupSessions', () => {
       expect(result.pinned[0].title).toBe('Pinned Chat')
       expect(result.today).toHaveLength(1)
       expect(result.today[0].title).toBe('Normal Chat')
-    })
-
-    it('should not place archived+pinned sessions in any group', () => {
-      const sessions = [
-        makeSession({ title: 'Archived Pinned', pinned: true, archived: true, updatedAt: todayNoon() }),
-      ]
-
-      const result = groupSessions(sessions, [])
-
-      expect(result.pinned).toHaveLength(0)
-      expect(result.today).toHaveLength(0)
     })
 
     it('should place pinned sessions in pinned group regardless of folderId', () => {
@@ -291,7 +242,6 @@ describe('groupSessions', () => {
       const folder = makeFolder({ id: 'work', name: 'Work' })
       const sessions = [
         makeSession({ title: 'Pinned Today', pinned: true, updatedAt: todayNoon() }),
-        makeSession({ title: 'Archived Today', archived: true, updatedAt: todayNoon() }),
         makeSession({ title: 'Work Chat', folderId: 'work', updatedAt: daysAgo(3) }),
         makeSession({ title: 'Regular Today', updatedAt: todayNoon() }),
         makeSession({ title: 'Regular Yesterday', updatedAt: daysAgo(1) }),
@@ -312,13 +262,12 @@ describe('groupSessions', () => {
       expect(result.older[0].title).toBe('Regular Old')
     })
 
-    it('should handle sessions with undefined optional fields as non-pinned, non-archived, no folder', () => {
+    it('should handle sessions with undefined optional fields as non-pinned, no folder', () => {
       const sessions = [
         makeSession({
           title: 'Bare Session',
           updatedAt: todayNoon(),
           pinned: undefined,
-          archived: undefined,
           folderId: undefined,
         }),
       ]

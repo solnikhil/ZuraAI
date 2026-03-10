@@ -61,29 +61,6 @@ export interface OpenRouterResponse {
     }>
 }
 
-/**
- * Gemini content part format
- */
-export interface GeminiPart {
-    text?: string
-    functionCall?: {
-        name: string
-        args: Record<string, unknown>
-    }
-}
-
-/**
- * Gemini API response format
- */
-export interface GeminiResponse {
-    candidates?: Array<{
-        content?: {
-            parts?: GeminiPart[]
-        }
-        finishReason?: string
-    }>
-}
-
 // ==================== Tool result formatting types ====================
 
 /**
@@ -93,19 +70,6 @@ export interface OpenRouterToolResultMessage {
     role: 'tool'
     tool_call_id: string
     content: string
-}
-
-/**
- * Gemini function response format
- */
-export interface GeminiFunctionResponse {
-    functionResponse: {
-        name: string
-        response: {
-            result?: unknown
-            error?: string
-        }
-    }
 }
 
 // ==================== Search result types ====================
@@ -119,33 +83,4 @@ export interface WebSearchData {
         url: string
         snippet: string
     }>
-}
-
-/**
- * URL fetch result data
- */
-export interface UrlFetchData {
-    content?: string
-}
-
-/**
- * Calculator result data
- */
-export interface CalculatorData {
-    result?: number | string
-}
-
-/**
- * DateTime result data
- */
-export interface DateTimeData {
-    datetime?: string
-    formatted?: string
-}
-
-/**
- * Clipboard result data
- */
-export interface ClipboardData {
-    content?: string
 }
