@@ -75,7 +75,7 @@
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/ui": "^4.0.18",
-    "electron": "^40.4.1",
+    "electron": "^40.8.0",
     "electron-builder": "^26.5.0",
     "electron-devtools-installer": "^4.0.0",
     "fast-check": "^4.5.3",
