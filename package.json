@@ -45,7 +45,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "duck-duck-scrape": "^2.2.7",
-    "electron-updater": "^6.7.3",
+    "electron-updater": "^6.8.3",
     "framer-motion": "^12.35.1",
     "lucide-react": "^0.563.0",
     "mermaid": "^11.12.2",
