@@ -60,7 +60,7 @@ Report them privately through GitHub Security Advisories:
 
 - https://github.com/solnikhil/ZuraAI/security/advisories/new
 
-See `SECURITY.md` for the full policy.
+Use the private advisory link above for now.
 
 ## Contributing fixes
 

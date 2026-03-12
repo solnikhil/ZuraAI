@@ -1,14 +1,24 @@
 # Contributing to Zura AI
 
-Thanks for taking the time to contribute.
+Thanks for contributing to Zura AI.
+
+Zura AI is a Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript. Contributions should stay aligned with the app's security model, desktop architecture, and existing UI patterns.
 
 ## Before you start
 
-- Read `AGENTS.md` for architecture and security boundaries
-- Search existing issues and pull requests before opening a new one
-- Keep changes focused and scoped
+- Read `AGENTS.md` before making architecture, IPC, provider, tool, or storage changes.
+- Read `SUPPORT.md` if you are debugging a user-reported issue or want to understand the issue flow.
+- Search existing issues and pull requests before starting new work.
+- Keep changes scoped. Small focused PRs are easier to review and safer to merge.
 
 ## Local setup
+
+Requirements:
+
+- Node.js `>= 18`
+- npm
+
+Clone and install:
 
 ```bash
 git clone https://github.com/solnikhil/ZuraAI.git
@@ -16,79 +26,69 @@ cd ZuraAI
 npm install
 ```
 
-Run locally:
+Useful commands:
 
 ```bash
 npm run dev
+npm run typecheck
+npm test
+npm run build
 ```
 
-For a detailed development guide covering prerequisites, the IPC security model, cross-platform notes, and more, see [`docs/development.md`](docs/development.md).
+## Ways to contribute
+
+- Fix bugs or regressions in the desktop app
+- Improve provider integrations, streaming, or tool-calling behavior
+- Improve UI, settings flows, and desktop polish
+- Add or improve tests
+- Improve docs, contributor workflow, and release tooling
+
+## Issue workflow
+
+- Use the single GitHub issue form and choose the right `Issue type`.
+- For bugs, include clear repro steps, expected behavior, actual behavior, and sanitized logs.
+- For provider issues, include the provider, model, and any relevant non-secret settings.
+- For feature requests, explain the user problem and the workflow you want to improve.
+- Do not post secrets, tokens, private prompts, or personal data in public issues.
+
+For vulnerabilities, use the private GitHub Security Advisory reporting link instead of opening a public issue.
 
 ## Development expectations
 
-- Use TypeScript and existing project patterns
-- Keep renderer untrusted; validate privileged inputs in main-process handlers
-- Avoid broadening IPC without explicit allowlisting and typing updates
-- Do not commit secrets, keys, or `.env`
-- Do not commit generated output (`dist/`, `dist-electron/`)
+- Use TypeScript and follow existing project structure and naming patterns.
+- Treat the renderer as untrusted.
+- Keep privileged behavior in the Electron main process.
+- Do not broaden IPC casually; use narrow allowlists and validate inputs in main-process handlers.
+- Do not commit secrets, API keys, tokens, or `.env` files.
+- Do not commit generated output such as `dist/` or `dist-electron/`.
+- Use shadcn-style project components and existing UI patterns instead of introducing a new component library.
 
-## Comments and docs
+## Architecture-sensitive changes
 
-- Comment intent, invariants, security boundaries, and non-obvious tradeoffs
-- Skip comments that only restate the code or label obvious JSX sections
-- Prefer short docblocks on exported APIs and complex modules over line-by-line narration
-- Move requirement traceability, ticket notes, and historical implementation context to PRs or docs instead of source comments
+If your change touches architecture-level behavior, update the `Architecture` section in `AGENTS.md` in the same PR.
 
-## Conventional commits
+This includes changes to:
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. This enables automated changelog generation and makes the git history easier to read.
+- IPC channels or preload-exposed APIs
+- Storage locations or persistence behavior
+- Tool execution policy or available tools
+- AI providers or provider capability rules
+- Windows, routing boundaries, or major data flow
 
-### Format
+If you add or change an exposed Electron capability, make sure the related pieces stay in sync:
 
-```
-type(scope): description
+- `electron/preload.ts`
+- `src/electron.d.ts`
+- relevant main-process handlers under `electron/`
 
-[optional body]
+## Code and docs style
 
-[optional footer(s)]
-```
+- Prefer clear code over clever code.
+- Add comments for intent, invariants, security boundaries, and non-obvious tradeoffs.
+- Skip comments that only restate the code.
+- Keep docs and templates up to date when process or contributor expectations change.
 
-### Commit types
-
-| Type       | Description                                             |
-| ---------- | ------------------------------------------------------- |
-| `feat`     | A new feature                                           |
-| `fix`      | A bug fix                                               |
-| `docs`     | Documentation-only changes                              |
-| `chore`    | Maintenance tasks (deps, configs, tooling)              |
-| `refactor` | Code change that neither fixes a bug nor adds a feature |
-| `test`     | Adding or updating tests                                |
-| `perf`     | Performance improvements                                |
-| `ci`       | CI/CD configuration changes                             |
-| `build`    | Build system or external dependency changes             |
-
-### Examples
-
-```bash
-# Feature
-git commit -m "feat(provider): add Codex provider integration"
-
-# Bug fix
-git commit -m "fix(ipc): prevent chat-store race condition on rapid saves"
-
-# Documentation
-git commit -m "docs: add cross-platform build instructions"
-
-# Chore
-git commit -m "chore(deps): bump electron to v33"
-
-# Breaking change (note the ! after the type)
-git commit -m "feat(settings)!: migrate settings schema to v2
-
-BREAKING CHANGE: Settings from v1 require migration. Run the app once to auto-migrate."
-```
-
-## Quality checks
+## Testing expectations
 
 Before opening a PR, run:
 
@@ -97,35 +97,61 @@ npm run typecheck
 npm test
 ```
 
-If your change affects packaging, also run:
+Also run this when your change affects packaging, Electron build behavior, release flow, or app startup integration:
 
 ```bash
 npm run build
 ```
 
+If you changed UI behavior, include a short note in the PR about how you verified it manually.
+
 ## Pull requests
 
-- Use a clear title and describe the why behind the change
-- Link related issues
-- Include screenshots for UI updates
-- Mention any security-sensitive changes explicitly
+- Use a clear title.
+- Explain what changed and why.
+- Link the related issue when there is one.
+- Include screenshots or recordings for UI changes.
+- Call out security-sensitive or architecture-sensitive changes explicitly.
+- Follow the checklist in `.github/pull_request_template.md`.
 
-## DCO sign-off
+## Commit messages
 
-A [Developer Certificate of Origin](https://developercertificate.org/) (DCO) sign-off is optional but recommended. It certifies that you wrote or have the right to submit the code you are contributing.
+This repo uses Conventional Commits.
 
-Add a sign-off line to your commits with the `-s` flag:
+Format:
+
+```text
+type(scope): description
+```
+
+Common types:
+
+- `feat`
+- `fix`
+- `refactor`
+- `docs`
+- `test`
+- `chore`
+- `ci`
+- `build`
+- `perf`
+
+Examples:
 
 ```bash
-git commit -s -m "feat(provider): add new provider support"
+git commit -m "feat(provider): add new provider integration"
+git commit -m "fix(ipc): validate tool execution payloads"
+git commit -m "docs: update issue and support workflow"
 ```
 
-This appends a `Signed-off-by` trailer to your commit message:
+## Optional DCO sign-off
 
+A DCO sign-off is optional but welcome.
+
+```bash
+git commit -s -m "fix(settings): preserve provider enablement state"
 ```
-Signed-off-by: Your Name <your.email@example.com>
-```
 
-## Architecture updates
+## Community guidelines
 
-If you change architecture-level behavior (IPC channels, storage locations, tools, providers, windows, or data flow), update the `Architecture` section in `AGENTS.md` in the same PR.
+Please follow `CODE_OF_CONDUCT.md` in all project interactions.

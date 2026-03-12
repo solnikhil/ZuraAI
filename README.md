@@ -18,7 +18,7 @@
     <a href="https://github.com/solnikhil/ZuraAI/issues">Issues</a> |
     <a href="CONTRIBUTING.md">Contributing</a> |
     <a href="AGENTS.md">Architecture</a> |
-    <a href="SECURITY.md">Security</a>
+    <a href="https://github.com/solnikhil/ZuraAI/security/advisories/new">Report Security Issue</a>
   </p>
 
   <p>
@@ -142,7 +142,6 @@ For the full architecture and security notes, see `AGENTS.md`.
 
 - `AGENTS.md` - architecture, IPC boundaries, data flow, and agent rules for this repo
 - `CONTRIBUTING.md` - local workflow, quality checks, and commit conventions
-- `SECURITY.md` - responsible disclosure process and security notes for contributors
 - `CODE_OF_CONDUCT.md` - community expectations
 - `docs/mcp-roadmap.md` - planned MCP implementation phases
 
