@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Support and troubleshooting guide
+    url: https://github.com/solnikhil/ZuraAI/blob/main/SUPPORT.md
+    about: Read this first for setup help, troubleshooting steps, and guidance before using the unified issue form.
   - name: Security report
     url: https://github.com/solnikhil/ZuraAI/security/advisories/new
     about: Report vulnerabilities privately instead of opening a public issue.

@@ -1,0 +1,190 @@
+name: Open an issue
+description: Report a bug, provider problem, feature request, or other project issue for Zura AI
+title: "[Issue]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this single form for bugs, provider/model problems, feature requests, documentation gaps, and release/build issues.
+
+        Do not include API keys, tokens, or private data. For security issues, use the private security reporting link instead of a public issue.
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue type
+      options:
+        - Bug or regression
+        - Provider or model issue
+        - Feature request
+        - Performance or reliability issue
+        - Build, packaging, or updater issue
+        - Documentation issue
+        - Developer experience or tooling issue
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: area
+    attributes:
+      label: Affected area
+      description: Select every area that applies.
+      options:
+        - label: Dashboard chat
+        - label: Streaming or tool calling
+        - label: Web research or search tools
+        - label: Provider settings or model selection
+        - label: Chat history or secure storage
+        - label: Window shell or title bar
+        - label: Build, packaging, or updater
+        - label: Documentation
+        - label: Tests, CI, or developer tooling
+
+  - type: dropdown
+    id: app-context
+    attributes:
+      label: Where did you hit this?
+      options:
+        - Packaged desktop app
+        - Local dev build (npm run dev)
+        - Renderer preview/build
+        - Docs only
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      description: Use the release version, tag, or commit SHA if built from source.
+      placeholder: e.g. 0.0.1 or main@abcdef1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: providers
+    attributes:
+      label: Provider(s) involved
+      description: Optional, but useful for provider, model, and tool-calling issues.
+      multiple: true
+      options:
+        - OpenRouter
+        - Ollama
+        - Perplexity
+        - Groq
+        - Alibaba Cloud
+        - Tavily or web search
+        - Multiple providers
+        - None
+        - Other
+    validations:
+      required: false
+
+  - type: input
+    id: models
+    attributes:
+      label: Model(s) involved
+      description: Optional. Include exact model names if relevant.
+      placeholder: e.g. gpt-4o-mini, qwen-max, llama3.1:8b
+    validations:
+      required: false
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the bug, request, regression, or problem.
+      placeholder: Streaming stops after the first tool call when web research is enabled.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Why does this matter?
+      description: Describe the impact, user problem, or value of the request.
+      placeholder: This blocks research-heavy chats and makes the feature unreliable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Steps to reproduce or desired workflow
+      description: For bugs, share reliable repro steps. For feature requests, describe the desired workflow.
+      placeholder: |
+        1. Open Settings and enable...
+        2. Go back to Dashboard...
+        3. Send this prompt...
+        4. Observe the result...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior or proposed solution
+      description: For bugs, say what should happen. For requests, describe the ideal outcome.
+      placeholder: The stream should continue normally after the tool result returns.
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Relevant setup
+      description: Optional. Share non-secret settings or environment details that matter.
+      placeholder: |
+        - Provider enabled: yes
+        - API key present: yes
+        - Web research mode: structured
+        - Custom endpoint: no
+    validations:
+      required: false
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or mockups
+      description: Paste sanitized errors, attach screenshots, or include mockups.
+      render: shell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Interested in contributing?
+      options:
+        - Yes, I can open a PR
+        - I can help test or refine the scope
+        - No
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for similar reports or requests.
+          required: true
+        - label: I removed or redacted secrets, API keys, tokens, and personal data.
+          required: true
+        - label: I believe this issue is relevant to Zura AI itself.
+          required: true
