@@ -158,3 +158,7 @@ Contributions are welcome. Before opening a pull request:
 ## License
 
 MIT. See `LICENSE`.
+
+---
+
+If things feel a little rough around the edges, that is honest: this is my first open-source app, and I am still figuring things out as I build in public. Thanks for the patience, the feedback, and the help.
