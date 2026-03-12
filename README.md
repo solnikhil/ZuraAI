@@ -7,11 +7,11 @@
   <p><strong>Desktop AI for people who want model choice, fast research, and local control.</strong></p>
 
   <p>
-    Zura AI is a Windows-first desktop assistant built with Electron, React, Vite, and TypeScript.<br />
+    Zura AI is a desktop assistant built with Electron, React, Vite, and TypeScript.<br />
     Chat across leading cloud providers and Ollama, stream answers, run built-in web research, and keep your data local.
   </p>
 
-  <p><sub>No Zura account. No cloud sync. Bring your own providers.</sub></p>
+  <p><sub>macOS and Windows supported. No Zura account. No cloud sync. Bring your own providers.</sub></p>
 
   <p>
     <a href="https://github.com/solnikhil/ZuraAI/releases">Releases</a> |
@@ -25,7 +25,8 @@
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/ci.yml?branch=main&label=CI&style=flat-square" alt="CI status" /></a>
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/codeql.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/codeql.yml?branch=main&label=CodeQL&style=flat-square" alt="CodeQL status" /></a>
     <a href="https://github.com/solnikhil/ZuraAI/actions/workflows/secret-scan.yml"><img src="https://img.shields.io/github/actions/workflow/status/solnikhil/ZuraAI/secret-scan.yml?branch=main&label=Secret%20Scan&style=flat-square" alt="Secret Scan status" /></a>
-    <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4?style=flat-square" alt="Windows first" />
+    <img src="https://img.shields.io/badge/storage-local--first-1f6feb?style=flat-square" alt="Local-first storage" />
+    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-4b5563?style=flat-square" alt="macOS and Windows support" />
     <img src="https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node 18 or newer" />
     <a href="LICENSE"><img src="https://img.shields.io/github/license/solnikhil/ZuraAI?style=flat-square" alt="License" /></a>
   </p>
@@ -65,6 +66,7 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | Research | Built-in web search, structured research planning, citations, and inline search results |
 | Media | Image attachments for vision-capable models |
 | Organization | Pinned chats, folders, tags, recency grouping, and title generation |
+| Platform | Desktop app support for macOS and Windows |
 | Privacy | Local chat history, secure API key storage, and no telemetry |
 | Workflow | Command palette quick-send, provider hub controls, and local usage analytics |
 
@@ -78,13 +80,15 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | `Groq` | Fast responses | Useful when low latency matters more than provider breadth |
 | `Alibaba Cloud` | Qwen-based workflows | Good option for teams already using Alibaba Cloud models |
 
+Zura is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
+
 ## Quick start
 
 ### Requirements
 
 - Node.js `>= 18`
 - npm `>= 9`
-- Windows 10/11 as the primary target platform
+- macOS or Windows
 
 ### Install and run
 

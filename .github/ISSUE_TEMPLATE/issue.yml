@@ -90,7 +90,7 @@ body:
         - Alibaba Cloud
         - Tavily or web search
         - Multiple providers
-        - None
+        - Not provider-related
         - Other
     validations:
       required: false

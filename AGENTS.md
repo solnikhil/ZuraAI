@@ -7,7 +7,7 @@ This file is the single source of truth for how an automated coding agent should
 ---
 
 ## What This Project Is
-Zura AI is a Windows-first desktop AI assistant built with **Electron + React + Vite + TypeScript**.
+ Zura AI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
