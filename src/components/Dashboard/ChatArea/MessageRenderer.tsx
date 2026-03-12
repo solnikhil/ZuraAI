@@ -36,6 +36,7 @@ import {
   getWebImageSourceLabel,
   inferWebToolModeFromResultData,
 } from '../../../tools/ui/webToolDisplay'
+import { formatFileSize } from './attachmentUtils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -480,8 +481,8 @@ function UserMessageBubble({
       {message.files && message.files.length > 0 && (
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, max-content))',
             gap: '8px',
             maxWidth: '70%',
             width: '100%',
@@ -492,12 +493,13 @@ function UserMessageBubble({
               <div
                 key={file.id}
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '12px',
+                  background: 'color-mix(in srgb, var(--theme-surface) 88%, transparent)',
+                  border: '1px solid var(--theme-border)',
+                  borderRadius: '16px',
                   padding: '8px',
                   maxWidth: '100%',
                   overflow: 'hidden',
+                  boxShadow: 'var(--theme-shadow-sm)',
                 }}
               >
                 <img
@@ -506,18 +508,20 @@ function UserMessageBubble({
                   style={{
                     maxWidth: '100%',
                     maxHeight: '300px',
-                    borderRadius: '8px',
-                    objectFit: 'contain',
+                    borderRadius: '12px',
+                    objectFit: 'cover',
                     display: 'block',
-                    width: 'auto',
+                    width: '100%',
                     height: 'auto',
+                    background:
+                      'color-mix(in srgb, var(--theme-background) 84%, black 16%)',
                   }}
                 />
                 <div
                   style={{
-                    padding: '6px 8px 0',
+                    padding: '10px 8px 2px',
                     fontSize: '0.75rem',
-                    color: '#b0b0b0',
+                    color: 'var(--theme-text-secondary)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -525,25 +529,35 @@ function UserMessageBubble({
                 >
                   {file.name}
                 </div>
+                <div
+                  style={{
+                    padding: '0 8px 6px',
+                    fontSize: '0.72rem',
+                    color: 'var(--theme-text-muted)',
+                  }}
+                >
+                  {formatFileSize(file.size)}
+                </div>
               </div>
             ) : (
               <div
                 key={file.id}
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
+                  background: 'color-mix(in srgb, var(--theme-surface) 88%, transparent)',
+                  border: '1px solid var(--theme-border)',
+                  borderRadius: '14px',
+                  padding: '12px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                   maxWidth: '100%',
+                  boxShadow: 'var(--theme-shadow-sm)',
                 }}
               >
-                <File size={16} color="#888" />
+                <File size={16} color="var(--theme-text-muted)" />
                 <span
                   style={{
-                    color: '#e0e0e0',
+                    color: 'var(--theme-text-primary)',
                     fontSize: '0.85rem',
                     flex: 1,
                     overflow: 'hidden',
@@ -553,8 +567,8 @@ function UserMessageBubble({
                 >
                   {file.name}
                 </span>
-                <span style={{ color: '#b0b0b0', fontSize: '0.75rem' }}>
-                  {(file.size / 1024).toFixed(1)} KB
+                <span style={{ color: 'var(--theme-text-muted)', fontSize: '0.75rem' }}>
+                  {formatFileSize(file.size)}
                 </span>
               </div>
             )

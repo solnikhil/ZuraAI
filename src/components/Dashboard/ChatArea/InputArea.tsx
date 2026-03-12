@@ -6,8 +6,7 @@ import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Paperclip,
-  Image,
-  X,
+  ImagePlus,
   SendHorizonal,
   Square,
   Plus,
@@ -16,14 +15,18 @@ import {
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
-import { processFiles, type AttachedFile } from './FileUploadHandler'
+import {
+  canAnalyzeImageAttachments,
+  mergeAttachedFiles,
+  processFiles,
+  providerSupportsVisionUploads,
+  type AttachedFile,
+} from './attachmentUtils'
 import { TokenUsageIndicator } from './TokenUsageIndicator'
 import { SkillLogo } from '@/components/shared'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import {
   maybeAnimate,
   motionDuration,
@@ -42,7 +45,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
-import { withWebResearchEnabled } from '../../../skills'
+import { withWebResearchEnabled } from '@/skills'
+import { ComposerAttachments } from './ComposerAttachments'
 
 export interface InputAreaProps {
   input: string
@@ -75,8 +79,8 @@ export function InputArea({
   onFocusChange,
   textareaRefCallback,
 }: InputAreaProps) {
+  const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
-  const [showImageModal, setShowImageModal] = React.useState(false)
   const [isFocused, setIsFocused] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
@@ -84,7 +88,6 @@ export function InputArea({
     maxHeight: 200,
   })
   const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const imageOnlyInputRef = React.useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
@@ -103,7 +106,38 @@ export function InputArea({
     textareaRefCallback?.(textareaRef)
   }, [textareaRef, textareaRefCallback])
 
-  const imageFiles = attachedFiles.filter((f) => f.type === 'image')
+  const visionUploadsAvailable = providerSupportsVisionUploads(settings.modelProvider)
+  const canUseImageUploads = canAnalyzeImageAttachments(settings)
+
+  const commitFiles = React.useCallback(
+    (incoming: AttachedFile[]) => {
+      let acceptedIncoming = incoming
+
+      if (!canUseImageUploads) {
+        const nonImageFiles = incoming.filter((file) => file.type !== 'image')
+        if (nonImageFiles.length !== incoming.length) {
+          onError?.(
+            visionUploadsAvailable
+              ? 'Select a vision-capable model to attach images.'
+              : 'Image attachments are not available for the current provider.'
+          )
+        }
+        acceptedIncoming = nonImageFiles
+      }
+
+      if (acceptedIncoming.length === 0) return
+
+      const merged = mergeAttachedFiles(attachedFiles, acceptedIncoming)
+      if (merged.length === attachedFiles.length) return
+
+      if (merged.length > MAX_ATTACHMENTS) {
+        onError?.(`You can attach up to ${MAX_ATTACHMENTS} items at a time.`)
+      }
+
+      onFilesChange(merged.slice(0, MAX_ATTACHMENTS))
+    },
+    [attachedFiles, canUseImageUploads, onError, onFilesChange, visionUploadsAvailable]
+  )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -121,26 +155,10 @@ export function InputArea({
     if (!files || files.length === 0) return
 
     const newFiles = await processFiles(files, { onError })
-    if (newFiles.length > 0) {
-      onFilesChange([...attachedFiles, ...newFiles])
-    }
+    commitFiles(newFiles)
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
-    }
-  }
-
-  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files || files.length === 0) return
-
-    const newFiles = await processFiles(files, { onError })
-    if (newFiles.length > 0) {
-      onFilesChange([...attachedFiles, ...newFiles])
-    }
-
-    if (imageOnlyInputRef.current) {
-      imageOnlyInputRef.current.value = ''
     }
   }
 
@@ -186,9 +204,7 @@ export function InputArea({
     if (files.length > 0) {
       event.preventDefault()
       const newFiles = await processFiles(files, { onError })
-      if (newFiles.length > 0) {
-        onFilesChange([...attachedFiles, ...newFiles])
-      }
+      commitFiles(newFiles)
       return
     }
   }
@@ -213,9 +229,7 @@ export function InputArea({
     const files = e.dataTransfer.files
     if (files && files.length > 0) {
       const newFiles = await processFiles(files, { onError })
-      if (newFiles.length > 0) {
-        onFilesChange([...attachedFiles, ...newFiles])
-      }
+      commitFiles(newFiles)
     }
   }
 
@@ -231,7 +245,8 @@ export function InputArea({
   }
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
-  const showAttachmentBanner = attachedFiles.length > 0
+  const showAttachmentRail = attachedFiles.length > 0
+  const placeholder = isDragging ? 'Drop files here...' : 'Type / for commands'
 
   // Throttled mouse-move activity signal (fire at most once per 2s)
   const lastMouseActivityRef = React.useRef(0)
@@ -253,41 +268,6 @@ export function InputArea({
         onMouseMove={handleMouseMoveActivity}
       >
         <div className="relative w-full mx-auto">
-          <AnimatePresence>
-            {attachedFiles.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={standardTransition}
-                className="mb-2 flex flex-wrap gap-1.5"
-              >
-                {attachedFiles.map((file) => (
-                  <motion.div
-                    key={file.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={fastTransition}
-                  >
-                    <Badge
-                      variant="secondary"
-                      className="theme-soft-badge gap-1 pr-1 text-[var(--theme-text-secondary)]"
-                    >
-                      <span className="max-w-[100px] truncate text-xs">{file.name}</span>
-                      <button
-                        onClick={() => removeFile(file.id)}
-                        className="ml-1 rounded-full p-0.5 text-[var(--theme-text-muted)] transition-colors hover:bg-[var(--theme-error-bg)] hover:text-[var(--theme-error)]"
-                      >
-                        <X size={12} />
-                      </button>
-                    </Badge>
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <motion.div
             role="textbox"
             tabIndex={0}
@@ -308,7 +288,7 @@ export function InputArea({
             className={cn(
               'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
               frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
-              showAttachmentBanner ? 'pt-3' : 'pt-2',
+              showAttachmentRail ? 'pt-3' : 'pt-2',
               isDragging && 'ring-2 ring-[var(--theme-accent)]'
             )}
             onClick={handleContainerClick}
@@ -319,60 +299,60 @@ export function InputArea({
             }}
           >
             <AnimatePresence initial={false}>
-              {showAttachmentBanner && (
+              {isDragging && (
                 <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={fastTransition}
-                  className="mx-2 mb-2.5 flex items-center gap-2 text-xs"
+                  className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[22px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
                 >
-                  <div className="flex flex-1 items-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[var(--theme-surface-active)] text-[9px] font-semibold text-[var(--theme-text-secondary)]">
-                      AA
-                    </span>
-                    <span className="tracking-tighter text-[var(--theme-text-secondary)]">
-                      is free this weekend!
-                    </span>
+                  <div className="flex items-center gap-3 rounded-full bg-[var(--theme-surface)] px-4 py-2 text-sm text-[var(--theme-text-primary)] shadow-lg">
+                    <ImagePlus className="h-4 w-4 text-[var(--theme-accent)]" />
+                    Drop files to attach them
                   </div>
-                  <span className="tracking-tighter text-[var(--theme-text-muted)]">Ship Now!</span>
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="overflow-y-auto max-h-[200px]">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                placeholder={isDragging ? 'Drop files here...' : 'Type / for commands'}
-                className={cn(
-                  'w-full rounded-xl rounded-b-none px-4 py-3.5 border-none resize-none focus-visible:ring-0 leading-[1.4] shadow-none',
-                  'bg-transparent',
-                  'text-[var(--theme-text-primary)]',
-                  'placeholder:text-[var(--theme-text-muted)]',
-                  'transition-colors duration-200'
-                )}
-                onFocus={() => {
-                  setIsFocused(true)
-                  onFocusChange?.(true)
-                  onActivity?.()
-                }}
-                onBlur={() => {
-                  setIsFocused(false)
-                  onFocusChange?.(false)
-                }}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                onChange={(e) => {
-                  setInput(e.target.value)
-                  adjustHeight()
-                  onActivity?.()
-                }}
-                disabled={isLoading}
-              />
+
+            {showAttachmentRail && <ComposerAttachments files={attachedFiles} onRemove={removeFile} />}
+
+            <div className="px-2 pb-1">
+              <div className="overflow-y-auto max-h-[200px]">
+                <Textarea
+                  ref={textareaRef}
+                  value={input}
+                  placeholder={placeholder}
+                  className={cn(
+                    'w-full rounded-xl border-none px-4 py-3.5 resize-none focus-visible:ring-0 leading-[1.45] shadow-none',
+                    'bg-transparent',
+                    'text-[var(--theme-text-primary)]',
+                    'placeholder:text-[var(--theme-text-muted)]',
+                    'transition-colors duration-200'
+                  )}
+                  onFocus={() => {
+                    setIsFocused(true)
+                    onFocusChange?.(true)
+                    onActivity?.()
+                  }}
+                  onBlur={() => {
+                    setIsFocused(false)
+                    onFocusChange?.(false)
+                  }}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    adjustHeight()
+                    onActivity?.()
+                  }}
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
-            <div className="h-12 rounded-b-xl relative bg-transparent">
-              <div className="absolute left-3 bottom-3 flex items-center gap-1.5">
+            <div className="flex items-center justify-between gap-3 px-3 pb-3 pt-2">
+              <div className="flex items-center gap-1.5">
                 <DropdownMenu open={quickActionsOpen} onOpenChange={setQuickActionsOpen}>
                   <DropdownMenuTrigger asChild>
                     <motion.button
@@ -403,7 +383,7 @@ export function InputArea({
                       className="group/menu-item h-9 px-2.5 text-[13px]"
                     >
                       <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
-                      <span>Add files or photos</span>
+                      <span>Add photos & files</span>
                       <span className="theme-menu-shortcut ml-auto text-[11px] opacity-0 group-hover/menu-item:opacity-100">
                         Ctrl+U
                       </span>
@@ -442,60 +422,16 @@ export function InputArea({
                 </DropdownMenu>
 
                 {showContextRing && <TokenUsageIndicator input={input} />}
-
-                <AnimatePresence>
-                  {imageFiles.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8, width: 0 }}
-                      animate={{ opacity: 1, scale: 1, width: 'auto' }}
-                      exit={{ opacity: 0, scale: 0.8, width: 0 }}
-                      transition={fastTransition}
-                      className="flex items-center"
-                    >
-                      <div className="mx-1 h-4 w-px bg-[var(--theme-border)]" />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <motion.button
-                            type="button"
-                            whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
-                            whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setShowImageModal(true)
-                            }}
-                            className="theme-control-btn h-8 gap-1 rounded-lg px-2"
-                          >
-                            <Image size={16} />
-                            {imageFiles.length > 1 && (
-                              <span className="text-xs font-medium">{imageFiles.length}</span>
-                            )}
-                          </motion.button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="rounded-full">
-                          {imageFiles.length} image{imageFiles.length > 1 ? 's' : ''} attached
-                        </TooltipContent>
-                      </Tooltip>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
 
-              <div className="absolute right-3 bottom-3 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <ModelSelector minimal={true} popoverAlign="end" />
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   multiple
-                  accept="image/*,.txt,.doc,.docx,.csv,.json,.xml"
-                  className="hidden"
-                />
-                <input
-                  type="file"
-                  ref={imageOnlyInputRef}
-                  onChange={handleImageSelect}
-                  multiple
-                  accept="image/*"
+                  accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json,.xml"
                   className="hidden"
                 />
 
@@ -559,84 +495,6 @@ export function InputArea({
           </motion.div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showImageModal && imageFiles.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={standardTransition}
-            className="theme-modal-backdrop fixed inset-0 z-[10000] flex items-center justify-center p-5"
-            onClick={() => setShowImageModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={standardTransition}
-              className="theme-modal-surface relative max-h-[90%] w-[90%] max-w-[800px] overflow-hidden rounded-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b border-[var(--theme-border)] p-4">
-                <h3 className="text-lg font-medium text-[var(--theme-text-primary)]">
-                  Attached Images ({imageFiles.length})
-                </h3>
-                <motion.button
-                  whileHover={maybeAnimate(animationsEnabled, { scale: 1.08 })}
-                  whileTap={maybeAnimate(animationsEnabled, { scale: 0.94 })}
-                  onClick={() => setShowImageModal(false)}
-                  className="theme-control-btn rounded-full p-2"
-                >
-                  <X size={20} />
-                </motion.button>
-              </div>
-
-              <ScrollArea className="p-4" style={{ maxHeight: 'calc(90vh - 80px)' }}>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                  {imageFiles.map((file) => (
-                    <motion.div
-                      key={file.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={standardTransition}
-                      className="relative overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface-subtle)]"
-                    >
-                      <img
-                        src={file.data}
-                        alt={file.name}
-                        className="h-[200px] w-full object-contain"
-                        style={{ background: 'color-mix(in srgb, var(--theme-background) 88%, black 12%)' }}
-                      />
-                      <div className="border-t border-[var(--theme-border)] p-3">
-                        <div className="mb-1 truncate text-sm text-[var(--theme-text-secondary)]">
-                          {file.name}
-                        </div>
-                        <div className="text-xs text-[var(--theme-text-muted)]">
-                          {(file.size / 1024).toFixed(1)} KB
-                        </div>
-                      </div>
-                      <motion.button
-                        whileHover={maybeAnimate(animationsEnabled, { scale: 1.08 })}
-                        whileTap={maybeAnimate(animationsEnabled, { scale: 0.94 })}
-                        onClick={() => {
-                          removeFile(file.id)
-                          if (imageFiles.length === 1) {
-                            setShowImageModal(false)
-                          }
-                        }}
-                        className="theme-control-btn absolute right-2 top-2 rounded-full p-1.5 text-[var(--theme-error)] hover:!bg-[var(--theme-error-bg)] hover:!text-[var(--theme-error)]"
-                      >
-                        <X size={14} />
-                      </motion.button>
-                    </motion.div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </TooltipProvider>
   )
 }

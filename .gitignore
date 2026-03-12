@@ -76,6 +76,10 @@ $RECYCLE.BIN/
 .kiro/
 .claude/
 
+# CLI files
+.opencode/
+
+
 # Tools
 .eslintcache
 .stylelintcache

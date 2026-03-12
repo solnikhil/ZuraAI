@@ -11,6 +11,7 @@ import type {
   ToolCallResult,
   Message,
 } from '../../../../../contexts/ChatHistoryContext'
+import type { MessageContent } from '../../../../../services/types'
 import type { OpenRouterResponse } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
 
@@ -335,11 +336,11 @@ export function buildFollowUpMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{ role: string; content: string; tool_calls?: unknown[] }>,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
   lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{ role: string; content: string; tool_calls?: unknown[] }> {
-  const messages: Array<{ role: string; content: string; tool_calls?: unknown[] }> = []
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  const messages: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
   if (researchRound >= 4) {
     messages.push({

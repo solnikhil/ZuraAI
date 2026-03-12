@@ -16,8 +16,14 @@ import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
-import { getWebResearchMode, isWebResearchEnabled } from '../../../../skills'
-import type { AttachedFile } from '../FileUploadHandler'
+import { getWebResearchMode, isWebResearchEnabled } from '@/skills'
+import {
+  buildProviderMessages,
+  canAnalyzeImageAttachments,
+  isImageAttachment,
+  type AttachedFile,
+  type ConversationMessage,
+} from '../attachmentUtils'
 
 import {
   useOllamaStreaming,
@@ -50,6 +56,20 @@ export interface UseStreamingChatReturn {
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
   regenerateMessage: (message: any, instruction: string) => Promise<void>
   stopStreaming: () => void
+}
+
+function hasImageAttachments(files?: AttachedFile[]) {
+  return (files || []).some(isImageAttachment)
+}
+
+function toConversationMessages(
+  messages: Array<{ role: string; content: string; files?: AttachedFile[] }>
+): ConversationMessage[] {
+  return messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+    files: message.files,
+  }))
 }
 
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
@@ -339,27 +359,39 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         data: f.data,
         mimeType: f.mimeType,
       }))
+      const outboundUserMessage = {
+        role: 'user' as const,
+        content,
+        files: fileAttachments.length > 0 ? fileAttachments : undefined,
+      }
+
+      if (hasImageAttachments(fileAttachments) && !canAnalyzeImageAttachments(settings)) {
+        setIsLoading(false)
+        showToast(
+          'Current model cannot analyze attached images. Switch to a vision-capable model or remove the images.',
+          'warning'
+        )
+        return
+      }
 
       if (!targetSessionId) {
-        targetSessionId = createSession(content)
+        targetSessionId = createSession()
         isNewSession = true
-      } else {
-        addMessageToSession(targetSessionId, {
-          role: 'user',
-          content,
-          files: fileAttachments.length > 0 ? fileAttachments : undefined,
-        })
       }
+
+      addMessageToSession(targetSessionId, outboundUserMessage)
 
       const startTime = performance.now()
 
       try {
         // Build conversation history
-        const conversationHistory = messages.map((m) => {
-          const msg: any = { role: m.role, content: m.content }
-          if (m.files?.length) msg.files = m.files
-          return msg
-        })
+        const conversationHistory = toConversationMessages(
+          messages.map((message) => ({
+            role: message.role,
+            content: message.content,
+            files: message.files as AttachedFile[] | undefined,
+          }))
+        )
 
         // Research mode setup - skills-driven web research, model-driven depth, no caps
         const researchConfig = calculateResearchConfig(
@@ -389,13 +421,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           getEffectiveSystemPrompt(settings) +
           planFirstInstruction +
           getResearchContext(0, researchMaxRounds)
-        const imageFiles = files.filter((f) => f.type === 'image')
-        const firstImage = imageFiles.length > 0 ? imageFiles[0].data : undefined
         const optimizedHistory = buildOptimizedContext(
           conversationHistory,
-          content,
+          outboundUserMessage,
           effectiveSystemPrompt,
           settings.aiModel
+        )
+        const providerMessages = buildProviderMessages(
+          optimizedHistory as ConversationMessage[],
+          settings.modelProvider
         )
 
         // Create streaming message
@@ -440,7 +474,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           await streamOllama({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
-            messages: optimizedHistory,
+            messages: providerMessages,
             startTime,
             researchMaxRounds,
             signal: abortControllerRef.current?.signal,
@@ -449,7 +483,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           await streamPerplexity({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
-            messages: optimizedHistory,
+            messages: providerMessages,
             startTime,
             signal: abortControllerRef.current?.signal,
           })
@@ -457,7 +491,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           await streamGroq({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
-            messages: optimizedHistory,
+            messages: providerMessages,
             startTime,
             researchMaxRounds,
             signal: abortControllerRef.current?.signal,
@@ -466,30 +500,16 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           await streamAlibaba({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
-            messages: optimizedHistory,
+            messages: providerMessages,
             startTime,
             researchMaxRounds,
             signal: abortControllerRef.current?.signal,
           })
         } else {
-          // OpenRouter (default)
-          let openRouterMessages = [...optimizedHistory]
-          if (firstImage) {
-            const lastMessage = openRouterMessages[openRouterMessages.length - 1]
-            if (lastMessage?.role === 'user') {
-              openRouterMessages[openRouterMessages.length - 1] = {
-                role: 'user',
-                content: [
-                  { type: 'text', text: lastMessage.content || content },
-                  { type: 'image_url', image_url: { url: firstImage } },
-                ],
-              } as any
-            }
-          }
           await streamOpenRouter({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
-            messages: openRouterMessages,
+            messages: providerMessages,
             startTime,
             researchMaxRounds,
             forceWebSearch,
@@ -654,7 +674,22 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         const userMessage = session.messages[messageIndex - 1]
         // Get conversation history BEFORE the user message being regenerated
-        const conversationHistory = session.messages.slice(0, messageIndex - 1)
+        const conversationHistory = toConversationMessages(
+          session.messages.slice(0, messageIndex - 1).map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+            files: entry.files as AttachedFile[] | undefined,
+          }))
+        )
+
+        if (hasImageAttachments(userMessage.files as AttachedFile[] | undefined) && !canAnalyzeImageAttachments(settings)) {
+          showToast(
+            'This response was generated from an image prompt. Switch back to a vision-capable model to regenerate it.',
+            'warning'
+          )
+          setIsLoading(false)
+          return
+        }
 
         let systemPrompt = getEffectiveSystemPrompt(settings)
         let userContent = userMessage.content
@@ -681,11 +716,20 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         let accumulatedContent = ''
         let accumulatedReasoning = ''
 
-        const apiMessages = buildOptimizedContext(
-          conversationHistory,
-          userContent,
-          systemPrompt,
-          settings.aiModel
+        const outboundUserMessage = {
+          role: 'user' as const,
+          content: userContent,
+          files: userMessage.files as AttachedFile[] | undefined,
+        }
+
+        const apiMessages = buildProviderMessages(
+          buildOptimizedContext(
+            conversationHistory,
+            outboundUserMessage,
+            systemPrompt,
+            settings.aiModel
+          ) as ConversationMessage[],
+          settings.modelProvider
         )
 
         try {

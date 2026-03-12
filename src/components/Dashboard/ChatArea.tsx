@@ -19,7 +19,7 @@ import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
-import type { AttachedFile } from './ChatArea/FileUploadHandler'
+import type { AttachedFile } from './ChatArea/attachmentUtils'
 
 /**
  * Virtualization threshold - activate virtual scrolling for lists > 50 messages

@@ -9,7 +9,7 @@ import type {
   ToolCallResult,
 } from '../../../../../contexts/ChatHistoryContext'
 import type { OpenRouterResponse } from '../../../../../tools/types'
-import type { ToolDefinition } from '../../../../../services/types'
+import type { MessageContent, ToolDefinition } from '../../../../../services/types'
 
 /**
  * Common streaming result returned by all provider hooks
@@ -55,7 +55,7 @@ export interface ProviderStreamingOptions {
   /** Optimized conversation history */
   messages: Array<{
     role: string
-    content: string
+    content: string | MessageContent[]
     images?: string[]
     tool_calls?: unknown[]
     thinking?: string

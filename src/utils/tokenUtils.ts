@@ -23,8 +23,8 @@ export function estimateMessageTokens(message: { role: string; content: string }
 /**
  * Estimate total tokens for a conversation
  */
-export function estimateConversationTokens(
-    messages: Array<{ role: string; content: string }>,
+export function estimateConversationTokens<T extends { role: string; content: string }>(
+    messages: T[],
     systemPrompt?: string
 ): number {
     let total = 0
@@ -82,8 +82,8 @@ function getContextWindow(model: string): ContextWindow {
  * 2. Keep last N messages that fit
  * 3. Optionally summarize older messages
  */
-export function truncateHistory(
-    messages: Array<{ role: string; content: string }>,
+export function truncateHistory<T extends { role: string; content: string }>(
+    messages: T[],
     systemPrompt: string | undefined,
     model: string,
     options: {
@@ -91,7 +91,7 @@ export function truncateHistory(
         summarizeOlder?: boolean    // Whether to summarize truncated messages
     } = {}
 ): {
-    truncatedMessages: Array<{ role: string; content: string }>
+    truncatedMessages: Array<T | { role: string; content: string }>
     wasTruncated: boolean
     originalTokens: number
     finalTokens: number
@@ -122,7 +122,7 @@ export function truncateHistory(
 
     // Calculate how many older messages we can fit
     const olderMessages = messages.slice(0, -keepLastN)
-    const truncatedMessages: Array<{ role: string; content: string }> = []
+    const truncatedMessages: Array<T | { role: string; content: string }> = []
 
     // Add older messages from most recent to oldest until we run out of space
     for (let i = olderMessages.length - 1; i >= 0; i--) {
@@ -159,14 +159,19 @@ export function truncateHistory(
 /**
  * Smart context builder - builds optimized message history for API calls
  */
-export function buildOptimizedContext(
-    messages: Array<{ role: string; content: string }>,
-    newUserMessage: string,
+export function buildOptimizedContext<T extends { role: string; content: string }>(
+    messages: T[],
+    newUserMessage: string | T,
     systemPrompt: string | undefined,
     model: string
-): Array<{ role: string; content: string }> {
+): Array<T | { role: string; content: string }> {
+    const nextUserMessage =
+        typeof newUserMessage === 'string'
+            ? ({ role: 'user', content: newUserMessage } as T)
+            : newUserMessage
+
     // Build full history including new message
-    const fullHistory = [...messages, { role: 'user', content: newUserMessage }]
+    const fullHistory = [...messages, nextUserMessage]
 
     // Truncate if needed
     const { truncatedMessages } = truncateHistory(fullHistory, systemPrompt, model, {
@@ -175,7 +180,7 @@ export function buildOptimizedContext(
     })
 
     // Prepend system prompt
-    const result: Array<{ role: string; content: string }> = []
+    const result: Array<T | { role: string; content: string }> = []
     if (systemPrompt) {
         result.push({ role: 'system', content: systemPrompt })
     }

@@ -2,4 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: Security report
     url: https://github.com/solnikhil/ZuraAI/security/advisories/new
-    about: Report vulnerabilities privately
+    about: Report vulnerabilities privately instead of opening a public issue.
+  - name: Setup and contribution guide
+    url: https://github.com/solnikhil/ZuraAI/blob/main/CONTRIBUTING.md
+    about: Review local setup, quality checks, and contribution expectations before opening an issue.
