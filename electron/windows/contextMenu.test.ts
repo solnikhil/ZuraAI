@@ -16,7 +16,7 @@ function createParams(overrides: Partial<ContextMenuParams> = {}): ContextMenuPa
 describe('buildMainContextMenuTemplate', () => {
     it('returns edit actions for editable targets', () => {
         const template = buildMainContextMenuTemplate(createParams({ isEditable: true }), {
-            isDevMode: false,
+            allowInspectElement: false,
             onInspectElement: vi.fn(),
         })
 
@@ -31,7 +31,7 @@ describe('buildMainContextMenuTemplate', () => {
 
     it('returns copy and select all for text selection', () => {
         const template = buildMainContextMenuTemplate(createParams({ selectionText: 'selected text' }), {
-            isDevMode: false,
+            allowInspectElement: false,
             onInspectElement: vi.fn(),
         })
 
@@ -43,7 +43,7 @@ describe('buildMainContextMenuTemplate', () => {
         const openExternal = vi.fn()
         const copyText = vi.fn()
         const template = buildMainContextMenuTemplate(createParams({ linkURL: 'https://example.com' }), {
-            isDevMode: false,
+            allowInspectElement: false,
             onInspectElement: vi.fn(),
             openExternal,
             copyText,
@@ -61,7 +61,7 @@ describe('buildMainContextMenuTemplate', () => {
 
     it('does not add unsafe link actions', () => {
         const template = buildMainContextMenuTemplate(createParams({ linkURL: 'javascript:alert(1)' }), {
-            isDevMode: false,
+            allowInspectElement: false,
             onInspectElement: vi.fn(),
         })
 
@@ -70,10 +70,10 @@ describe('buildMainContextMenuTemplate', () => {
         expect(labels).not.toContain('Copy Link Address')
     })
 
-    it('adds inspect element in dev mode', () => {
+    it('adds inspect element when allowed', () => {
         const inspect = vi.fn()
         const template = buildMainContextMenuTemplate(createParams(), {
-            isDevMode: true,
+            allowInspectElement: true,
             onInspectElement: inspect,
         })
 
@@ -81,5 +81,15 @@ describe('buildMainContextMenuTemplate', () => {
         expect(inspectItem).toBeTruthy()
         inspectItem?.click?.(undefined as any, undefined as any, undefined as any)
         expect(inspect).toHaveBeenCalledTimes(1)
+    })
+
+    it('omits inspect element when not allowed', () => {
+        const template = buildMainContextMenuTemplate(createParams(), {
+            allowInspectElement: false,
+            onInspectElement: vi.fn(),
+        })
+
+        const inspectItem = template.find(item => item.label === 'Inspect Element')
+        expect(inspectItem).toBeUndefined()
     })
 })

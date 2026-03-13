@@ -1,8 +1,8 @@
-import { app, BrowserWindow, Menu, clipboard, shell } from 'electron'
+import { BrowserWindow, Menu, clipboard, shell } from 'electron'
 import type { ContextMenuParams, MenuItemConstructorOptions } from 'electron'
 
 interface BuildContextMenuOptions {
-    isDevMode: boolean
+    allowInspectElement: boolean
     onInspectElement: () => void
     openExternal?: (url: string) => void | Promise<void>
     copyText?: (value: string) => void
@@ -90,7 +90,7 @@ export function buildMainContextMenuTemplate(
         template.push({ role: 'selectAll' })
     }
 
-    if (options.isDevMode) {
+    if (options.allowInspectElement) {
         template.push(
             { type: 'separator' },
             {
@@ -106,7 +106,7 @@ export function buildMainContextMenuTemplate(
 export function attachMainWindowContextMenu(window: BrowserWindow): void {
     window.webContents.on('context-menu', (_event, params) => {
         const template = buildMainContextMenuTemplate(params, {
-            isDevMode: !app.isPackaged,
+            allowInspectElement: true,
             onInspectElement: () => {
                 window.webContents.inspectElement(params.x, params.y)
             },

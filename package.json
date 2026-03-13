@@ -20,8 +20,9 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build:renderer": "tsc && vite build",
-    "build": "tsc && vite build && electron-builder",
-    "build:dir": "tsc && vite build && electron-builder --dir",
+    "generate-icons": "node scripts/generate-icons.mjs",
+    "build": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder",
+    "build:dir": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
@@ -81,6 +82,7 @@
     "fast-check": "^4.5.3",
     "jsdom": "^28.1.0",
     "knip": "^5.83.1",
+    "png-to-ico": "^3.0.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
@@ -92,8 +94,13 @@
     "appId": "com.zura.ai",
     "productName": "Zura",
     "executableName": "Zura",
+    "copyright": "Copyright (c) 2026 Nikhil",
     "asar": true,
     "compression": "maximum",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
     "publish": {
       "provider": "github",
       "owner": "solnikhil",
@@ -101,16 +108,30 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
-      "icon": "public/icon.png",
+      "icon": "build/icon.ico",
       "executableName": "Zura"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
       "shortcutName": "Zura",
-      "allowToChangeInstallationDirectory": false
+      "uninstallDisplayName": "Zura AI",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/sidebar.bmp",
+      "uninstallerSidebar": "build/sidebar.bmp",
+      "include": "installer/installer.nsh",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Zura-Setup-${version}.${ext}"
     },
     "files": [
       "dist/**/*",

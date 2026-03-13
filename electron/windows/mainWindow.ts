@@ -3,10 +3,9 @@ import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
 import { attachMainWindowContextMenu } from './contextMenu'
 
-const DIST_PATH = process.env.DIST || path.join(__dirname, '../../dist')
-
-// Production mode check
-const isProduction = require('electron').app.isPackaged
+export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
+  return envDist || path.join(dirname, '../dist')
+}
 
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
 const devServerOrigin = devServerUrl ? new URL(devServerUrl).origin : null
@@ -34,6 +33,8 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     mainWindow.focus()
     return mainWindow
   }
+
+  const distPath = resolveDistPath(__dirname)
 
   const isWindows = process.platform === 'win32'
   const isMacOS = process.platform === 'darwin'
@@ -64,7 +65,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false, // Required for preload to use Node.js APIs like fs
-      devTools: options?.devTools ?? !isProduction,
+      devTools: options?.devTools ?? true,
       spellcheck: false,
       additionalArguments: ['--process-name=Zura-Dashboard'],
     },
@@ -104,11 +105,13 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
   // Track window creation
   deferredInitializer.markWindowCreated()
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
-  } else {
-    mainWindow.loadFile(path.join(DIST_PATH, 'index.html'), { hash: 'dashboard' })
-  }
+  const loadPromise = process.env.VITE_DEV_SERVER_URL
+    ? mainWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/dashboard`)
+    : mainWindow.loadFile(path.join(distPath, 'index.html'), { hash: 'dashboard' })
+
+  void loadPromise.catch((error) => {
+    console.error('[MAIN] Failed to load main window:', error)
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null

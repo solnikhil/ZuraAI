@@ -105,7 +105,7 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
-  - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and dev-only Inspect Element)
+  - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and Inspect Element in both development and packaged builds)
   - External links are opened via `shell.openExternal`.
 
 - **Dev vs prod loading**
@@ -119,6 +119,13 @@ Core capabilities:
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
   - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
   - `/` is a dashboard alias
+
+### Windows Installer Packaging
+- Windows packaging uses `electron-builder` + NSIS **one-click installer** (`oneClick: true`), with a repo-local include override at `installer/installer.nsh`.
+- The installer applies Windows dark mode APIs (DWM dark title bar, `SetPreferredAppMode(ForceDark)`, `SetWindowTheme("DarkMode_Explorer")`, `SetCtlColors`) for a dark-themed install experience.
+- Personalized install: greets the user by Windows username, shows branded progress messages, and dark-themes all visible controls (progress bar, details listbox, buttons).
+- Installer assets (`build/icon.ico`, `build/sidebar.bmp`) are generated at build time by `scripts/generate-icons.mjs` and are gitignored.
+- Build output goes to `release/` directory (gitignored). Installer artifact: `Zura-Setup-{version}.exe`.
 
 ### CORS Bypass (Main Process)
 There is currently no active CORS-bypass header injection in `electron/main.ts`.
