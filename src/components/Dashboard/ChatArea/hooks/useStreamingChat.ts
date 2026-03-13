@@ -558,6 +558,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         // Cancel isolated streaming on error
         if (streamingMessageRef.current) {
+          deleteMessageFromSession(
+            streamingMessageRef.current.sessionId,
+            streamingMessageRef.current.messageId
+          )
           cancelStreaming()
           streamingMessageRef.current = null
         }

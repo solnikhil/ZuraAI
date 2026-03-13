@@ -257,8 +257,6 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
         return () => { mounted = false }
     }, [loadAttempted])
 
-    if (!loadAttempted) return <MarkdownSkeleton />
-
     const SyntaxHighlighter = syntaxHighlighter
     // Memoize the normalized content to avoid re-running expensive math/tree
     // transformations on every render when content hasn't changed.
@@ -607,6 +605,8 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 p: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLParagraphElement>) => <p {...props} />
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [copiedCode, isStreaming, normalizedContent, SyntaxHighlighter, prismStyle, webSources])
+
+    if (!loadAttempted) return <MarkdownSkeleton />
 
     return (
         <ReactMarkdown

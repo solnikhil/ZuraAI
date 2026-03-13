@@ -14,6 +14,7 @@ let mermaidInitialized = false
 let mermaidInstance: any = null
 
 export default function MermaidDiagram({ code }: MermaidDiagramProps) {
+  const isValidCode = typeof code === 'string' && code.trim().length > 0
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -23,29 +24,6 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const [isDark, setIsDark] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const uniqueId = useId().replace(/:/g, '-') // Replace colons with dashes for valid HTML id
-
-  // Validate code prop
-  if (!code || typeof code !== 'string') {
-    return (
-      <div
-        style={{
-          margin: '12px 0',
-          padding: '12px',
-          borderRadius: '8px',
-          background: 'var(--theme-error-bg)',
-          border: '1px solid var(--theme-error)',
-          color: 'var(--theme-error)',
-          fontSize: '0.9rem',
-        }}
-      >
-        <AlertCircle
-          size={16}
-          style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}
-        />
-        Invalid mermaid diagram code
-      </div>
-    )
-  }
 
   // Detect theme changes
   useEffect(() => {
@@ -70,6 +48,13 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
 
   // Render mermaid diagram with debounce to prevent rapid re-renders
   useEffect(() => {
+    if (!isValidCode) {
+      setSvg(null)
+      setError(null)
+      setIsLoading(false)
+      return
+    }
+
     let mounted = true
     let timeoutId: NodeJS.Timeout | null = null
     let debounceId: NodeJS.Timeout | null = null
@@ -259,12 +244,34 @@ export default function MermaidDiagram({ code }: MermaidDiagramProps) {
         clearTimeout(debounceId)
       }
     }
-  }, [code, isDark, uniqueId])
+  }, [code, isDark, isValidCode, uniqueId])
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  if (!isValidCode) {
+    return (
+      <div
+        style={{
+          margin: '12px 0',
+          padding: '12px',
+          borderRadius: '8px',
+          background: 'var(--theme-error-bg)',
+          border: '1px solid var(--theme-error)',
+          color: 'var(--theme-error)',
+          fontSize: '0.9rem',
+        }}
+      >
+        <AlertCircle
+          size={16}
+          style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'middle' }}
+        />
+        Invalid mermaid diagram code
+      </div>
+    )
   }
 
   if (showSource) {

@@ -15,6 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { Button } from '@/components/ui/button'
 import { ModelIcon } from './ModelIcon'
 import {
   getModelAttributes,
@@ -27,6 +28,7 @@ import {
 import { removeEmojis } from '../../../utils/textUtils'
 import { ProviderLogo } from '@/components/shared'
 import { useSettings } from '../../../contexts/SettingsContext'
+import { useAppShell } from '../../../contexts/AppShellContext'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
 import { cn } from '@/lib/utils'
@@ -137,6 +139,7 @@ export function ModelSelectorDropdown({
   compactMode = 'none',
 }: ModelSelectorDropdownProps): React.ReactElement {
   const { settings } = useSettings()
+  const { setDashboardView, setActiveSettingsSection } = useAppShell()
   const modelSelector = settings.modelSelector || {
     sidebarPosition: 'left',
     sidebarShowLabels: true,
@@ -188,6 +191,13 @@ export function ModelSelectorDropdown({
   const showDescriptions = modelSelector.showDescriptions && !isTight
   const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
   const showContextLength = modelSelector.showContextLength !== false && !isTight
+  const emptyStateHeading =
+    viewMode === 'favorites' ? 'No favorite models yet' : 'No models configured'
+
+  const handleOpenProviders = () => {
+    setActiveSettingsSection('providers')
+    setDashboardView('settings')
+  }
 
   return (
     <div
@@ -229,76 +239,90 @@ export function ModelSelectorDropdown({
         <Command className="flex-1 rounded-none border-0" shouldFilter={false}>
           <CommandList className="max-h-full">
             <CommandEmpty>
-              <div className="py-6 text-center text-sm text-muted-foreground">No models found</div>
-            </CommandEmpty>
-            <CommandGroup
-              heading={
-                viewMode === 'favorites'
-                  ? 'Favorites'
-                  : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
-              }
-            >
-              <AnimatePresence mode="wait">
-                {modelSelector.enableAnimations ? (
-                  <motion.div
-                    key={activeTabKey}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="flex flex-col gap-1"
-                  >
-                    {currentModels.map((model, index) => (
-                      <ModelItem
-                        key={`${model.provider}-${model.code}`}
-                        model={model}
-                        index={index}
-                        staggerDelay={staggerDelay}
-                        densityClasses={densityClasses}
-                        isActive={
-                          selectedModelCode === model.code &&
-                          selectedModelProvider === model.provider
-                        }
-                        isFavorite={favoriteModels.includes(model.code)}
-                        modelSelector={modelSelector}
-                        compactMode={compactMode}
-                        showDescriptions={showDescriptions}
-                        showCapabilityBadges={showCapabilityBadges}
-                        showContextLength={showContextLength}
-                        animationsEnabled={modelSelector.enableAnimations}
-                        onSelect={onModelSelect}
-                        onToggleFavorite={onToggleFavorite}
-                      />
-                    ))}
-                  </motion.div>
-                ) : (
-                  <div className="flex flex-col gap-1">
-                    {currentModels.map((model) => (
-                      <ModelItem
-                        key={`${model.provider}-${model.code}`}
-                        model={model}
-                        index={0}
-                        staggerDelay={0}
-                        densityClasses={densityClasses}
-                        isActive={
-                          selectedModelCode === model.code &&
-                          selectedModelProvider === model.provider
-                        }
-                        isFavorite={favoriteModels.includes(model.code)}
-                        modelSelector={modelSelector}
-                        compactMode={compactMode}
-                        showDescriptions={showDescriptions}
-                        showCapabilityBadges={showCapabilityBadges}
-                        showContextLength={showContextLength}
-                        animationsEnabled={modelSelector.enableAnimations}
-                        onSelect={onModelSelect}
-                        onToggleFavorite={onToggleFavorite}
-                      />
-                    ))}
+              <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-foreground">{emptyStateHeading}</div>
+                  <div className="max-w-xs text-sm leading-6 text-muted-foreground">
+                    {viewMode === 'favorites'
+                      ? 'Star a model after enabling a provider to pin it here for quick access.'
+                      : 'Enable a provider in Settings, add your API key or local model, then come back to select it.'}
                   </div>
-                )}
-              </AnimatePresence>
-            </CommandGroup>
+                </div>
+                <Button type="button" size="sm" onClick={handleOpenProviders}>
+                  Open Provider Settings
+                </Button>
+              </div>
+            </CommandEmpty>
+            {currentModels.length > 0 && (
+              <CommandGroup
+                heading={
+                  viewMode === 'favorites'
+                    ? 'Favorites'
+                    : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
+                }
+              >
+                <AnimatePresence mode="wait">
+                  {modelSelector.enableAnimations ? (
+                    <motion.div
+                      key={activeTabKey}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex flex-col gap-1"
+                    >
+                      {currentModels.map((model, index) => (
+                        <ModelItem
+                          key={`${model.provider}-${model.code}`}
+                          model={model}
+                          index={index}
+                          staggerDelay={staggerDelay}
+                          densityClasses={densityClasses}
+                          isActive={
+                            selectedModelCode === model.code &&
+                            selectedModelProvider === model.provider
+                          }
+                          isFavorite={favoriteModels.includes(model.code)}
+                          modelSelector={modelSelector}
+                          compactMode={compactMode}
+                          showDescriptions={showDescriptions}
+                          showCapabilityBadges={showCapabilityBadges}
+                          showContextLength={showContextLength}
+                          animationsEnabled={modelSelector.enableAnimations}
+                          onSelect={onModelSelect}
+                          onToggleFavorite={onToggleFavorite}
+                        />
+                      ))}
+                    </motion.div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {currentModels.map((model) => (
+                        <ModelItem
+                          key={`${model.provider}-${model.code}`}
+                          model={model}
+                          index={0}
+                          staggerDelay={0}
+                          densityClasses={densityClasses}
+                          isActive={
+                            selectedModelCode === model.code &&
+                            selectedModelProvider === model.provider
+                          }
+                          isFavorite={favoriteModels.includes(model.code)}
+                          modelSelector={modelSelector}
+                          compactMode={compactMode}
+                          showDescriptions={showDescriptions}
+                          showCapabilityBadges={showCapabilityBadges}
+                          showContextLength={showContextLength}
+                          animationsEnabled={modelSelector.enableAnimations}
+                          onSelect={onModelSelect}
+                          onToggleFavorite={onToggleFavorite}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </AnimatePresence>
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </div>

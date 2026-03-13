@@ -856,6 +856,8 @@ function MessageRendererComponent({
   }
 
   const displayMessage = getVersionContent()
+  const displayContent = displayMessage?.content || ''
+  const hasDisplayContent = displayContent.trim().length > 0
 
   // Build web source map from tool results
   const { webSourceMap, orderedWebSourceUrls } = useMemo(() => {
@@ -1107,7 +1109,7 @@ function MessageRendererComponent({
   // Render assistant message
   const shouldShowInfoTooltip =
     !isStreaming &&
-    (Boolean(message.content) ||
+    (hasDisplayContent ||
       Boolean(message.thinking) ||
       Boolean(message.model) ||
       Boolean(message.usage) ||
@@ -1115,6 +1117,12 @@ function MessageRendererComponent({
       typeof message.requestedMaxTokens === 'number' ||
       typeof message.latency === 'number' ||
       Boolean(message.toolResults))
+
+  const shouldShowActionRow =
+    !isStreaming &&
+    (hasDisplayContent ||
+      totalVersions > 0 ||
+      shouldShowInfoTooltip)
 
   return (
     <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
@@ -1160,15 +1168,16 @@ function MessageRendererComponent({
         </div>
       )}
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          marginTop: '12px',
-          overflow: 'visible',
-        }}
-      >
+      {shouldShowActionRow && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginTop: '12px',
+            overflow: 'visible',
+          }}
+        >
         {message.responseVersions && message.responseVersions.length > 0 && (
           <>
             <button
@@ -1219,7 +1228,7 @@ function MessageRendererComponent({
         )}
 
         {/* Copy Button - hide while streaming, animate in after */}
-        {!isStreaming && (
+        {hasDisplayContent && (
           <button
             onClick={handleCopy}
             className={messageActionButtonClassName}
@@ -1243,7 +1252,7 @@ function MessageRendererComponent({
           </button>
         )}
 
-        {!isStreaming && message.role === 'assistant' && onRegenerate && (
+        {message.role === 'assistant' && onRegenerate && (
           <button
             onClick={openRegenerateModal}
             className={messageActionButtonClassName}
@@ -1322,7 +1331,8 @@ function MessageRendererComponent({
             </div>,
             document.body
           )}
-      </div>
+        </div>
+      )}
 
       <Dialog open={showRegenerateModal} onOpenChange={setShowRegenerateModal}>
         <DialogContent showCloseButton className="max-w-[500px] gap-0 overflow-hidden p-0">

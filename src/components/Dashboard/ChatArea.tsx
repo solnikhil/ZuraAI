@@ -100,6 +100,30 @@ export default function ChatArea() {
     }
   }, [pendingMessage, isLoading, consumeMessage, sendMessage])
 
+  useEffect(() => {
+    const handlePromptShortcut = (event: KeyboardEvent) => {
+      const activeElement = document.activeElement as HTMLElement | null
+      const tagName = activeElement?.tagName
+      const isEditable =
+        activeElement?.isContentEditable === true ||
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT'
+
+      if (isEditable) return
+
+      const key = event.key.toLowerCase()
+      const isFocusPromptShortcut = (event.metaKey || event.ctrlKey) && key === 'k'
+      if (!isFocusPromptShortcut) return
+
+      event.preventDefault()
+      inputTextareaRef.current?.focus()
+    }
+
+    window.addEventListener('keydown', handlePromptShortcut)
+    return () => window.removeEventListener('keydown', handlePromptShortcut)
+  }, [])
+
   const scrollToNewMessage = (smooth = false) => {
     const container = messagesContainerRef.current
     if (!container) return

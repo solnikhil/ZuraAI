@@ -246,7 +246,7 @@ export function InputArea({
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentRail = attachedFiles.length > 0
-  const placeholder = isDragging ? 'Drop files here...' : 'Type / for commands'
+  const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
 
   // Throttled mouse-move activity signal (fire at most once per 2s)
   const lastMouseActivityRef = React.useRef(0)
