@@ -121,9 +121,10 @@ Core capabilities:
   - `/` is a dashboard alias
 
 ### Windows Installer Packaging
-- Windows packaging uses `electron-builder` + NSIS **one-click installer** (`oneClick: true`), with a repo-local include override at `installer/installer.nsh`.
+- Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
+- The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\Zura` subfolder when the user picks a custom location.
 - The installer applies Windows dark mode APIs (DWM dark title bar, `SetPreferredAppMode(ForceDark)`, `SetWindowTheme("DarkMode_Explorer")`, `SetCtlColors`) for a dark-themed install experience.
-- Personalized install: greets the user by Windows username, shows branded progress messages, and dark-themes all visible controls (progress bar, details listbox, buttons).
+- Personalized install: greets the user by Windows username, shows branded progress messages, and dark-themes the wizard chrome plus visible controls (including progress bar, details listbox, and buttons).
 - Installer assets (`build/icon.ico`, `build/sidebar.bmp`) are generated at build time by `scripts/generate-icons.mjs` and are gitignored.
 - Build output goes to `release/` directory (gitignored). Installer artifact: `Zura-Setup-{version}.exe`.
 

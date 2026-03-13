@@ -1,7 +1,8 @@
 ; =============================================================================
-; Zura AI — Dark Theme NSIS Include (One-Click Installer)
+; Zura AI — Dark Theme NSIS Include (Wizard Installer)
 ;
 ; Personalised, dark-themed install experience.
+; Uses the directory page selection as the final install path.
 ; Uses Windows dark mode APIs, custom control coloring, and branded messages.
 ;
 ; Color palette (Catppuccin Mocha):
@@ -12,6 +13,10 @@
 
 !include "LogicLib.nsh"
 
+!ifndef BUILD_UNINSTALLER
+Var ZuraSelectedInstallDir
+!endif
+
 ; ---------------------------------------------------------------------------
 ; customHeader — runs before MUI page macros
 ; ---------------------------------------------------------------------------
@@ -19,6 +24,23 @@
   ; No compile-time MUI defines here — dark theming is applied at runtime
   ; in customShowInstFiles via SetCtlColors + DarkMode_Explorer theme.
 !macroend
+
+; ---------------------------------------------------------------------------
+; customPageAfterChangeDir — preserve the exact selected install directory
+; ---------------------------------------------------------------------------
+!macro customPageAfterChangeDir
+  !ifndef BUILD_UNINSTALLER
+    !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !define MUI_PAGE_CUSTOMFUNCTION_PRE zuraInstFilesPre
+  !endif
+!macroend
+
+!ifndef BUILD_UNINSTALLER
+Function zuraInstFilesPre
+  StrCpy $ZuraSelectedInstallDir $INSTDIR
+  Call instFilesPre
+FunctionEnd
+!endif
 
 ; ---------------------------------------------------------------------------
 ; Shared dark-theming logic (installer + uninstaller)
@@ -83,6 +105,10 @@
 ; customShowInstFiles — called when the install-progress page is shown
 ; ---------------------------------------------------------------------------
 !macro customShowInstFiles
+  ${If} $ZuraSelectedInstallDir != ""
+    StrCpy $INSTDIR $ZuraSelectedInstallDir
+  ${EndIf}
+
   ; --- Dark-theme the instfiles page controls ---
   FindWindow $R0 "#32770" "" $HWNDPARENT
   StrCmp $R0 0 _zura_done_instfiles
