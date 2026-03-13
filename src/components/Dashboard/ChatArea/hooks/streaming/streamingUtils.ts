@@ -20,6 +20,8 @@ import type { UpdateStreamingCallback } from './types'
 export const UPDATE_INTERVAL = 120 // ms – normal update cadence
 export const SAFETY_CAP = 50 // absolute max research rounds
 export const MAX_RESEARCH_ROUNDS = 6 // practical cap before forcing final answer
+export const FINAL_SYNTHESIS_PROMPT =
+  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned.\n\n'
 
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
@@ -350,6 +352,28 @@ export function buildFollowUpMessages(
   }
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
+}
+
+/** Build a final no-tools synthesis request after the research loop is capped. */
+export function buildFinalSynthesisMessages(
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
+  lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  return [
+    { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
 }
 
 // Horizontal rule stripping

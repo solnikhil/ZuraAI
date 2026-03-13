@@ -185,7 +185,7 @@ export async function* streamOpenRouterCompletion(
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         if (attempt > 0) {
             const delay = getRetryDelay(attempt - 1, lastError?.message)
-            console.log(`[Zura] OpenRouter stream retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
+            console.log(`[ZuraAI] OpenRouter stream retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
             await sleep(delay)
         }
 
@@ -194,8 +194,8 @@ export async function* streamOpenRouterCompletion(
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://zura.ai",
-                "X-Title": "Zura AI"
+                "HTTP-Referer": "https://zuraai.in",
+                "X-Title": "ZuraAI"
             },
             body: JSON.stringify(requestBody),
             signal: options?.signal
@@ -208,7 +208,7 @@ export async function* streamOpenRouterCompletion(
         const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
 
         if (RETRYABLE_STATUS_CODES.includes(response.status) && attempt < MAX_RETRIES) {
-            console.warn(`[Zura] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
+            console.warn(`[ZuraAI] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
             lastError = new Error(errorText)
             continue
         }
@@ -278,8 +278,8 @@ export async function generateOpenRouterCompletion(
         headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://zura.ai",
-            "X-Title": "Zura AI"
+            "HTTP-Referer": "https://zuraai.in",
+            "X-Title": "ZuraAI"
         },
         body: JSON.stringify(requestBody)
     })

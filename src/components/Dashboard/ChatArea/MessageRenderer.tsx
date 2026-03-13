@@ -38,6 +38,7 @@ import {
 } from '../../../tools/ui/webToolDisplay'
 import { formatFileSize } from './attachmentUtils'
 import { Button } from '@/components/ui/button'
+import type { StreamingPhase } from '../../../contexts/StreamingContext'
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,7 @@ export interface MessageRendererProps {
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
   isStreaming?: boolean
+  streamPhase?: StreamingPhase
   /** Active tool calls during streaming (for in-message tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   onCopy?: (content: string) => void
@@ -608,6 +610,9 @@ function areMessagePropsEqual(
   if (prevProps.isStreaming !== nextProps.isStreaming) {
     return false
   }
+  if (prevProps.streamPhase !== nextProps.streamPhase) {
+    return false
+  }
 
   // Compare activeToolCalls (for tool calling animation)
   const prevActive = prevProps.activeToolCalls || []
@@ -725,7 +730,11 @@ function areMessagePropsEqual(
   for (let i = 0; i < prevToolResults.length; i++) {
     if (
       prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
-      prevToolResults[i].result.success !== nextToolResults[i].result.success
+      prevToolResults[i].toolCall.name !== nextToolResults[i].toolCall.name ||
+      prevToolResults[i].result.success !== nextToolResults[i].result.success ||
+      prevToolResults[i].result.error !== nextToolResults[i].result.error ||
+      prevToolResults[i].result.executionTime !== nextToolResults[i].result.executionTime ||
+      prevToolResults[i].result.data !== nextToolResults[i].result.data
     ) {
       return false
     }
@@ -780,6 +789,7 @@ function areMessagePropsEqual(
 function MessageRendererComponent({
   message,
   isStreaming = false,
+  streamPhase,
   activeToolCalls,
   onCopy,
   onRegenerate,
@@ -942,7 +952,8 @@ function MessageRendererComponent({
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
-  const showThinkingSpinner = isStreaming && !hasThinking
+  const isReasoningPhase = streamPhase === 'reasoning'
+  const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
 
   // Handle copy
   const handleCopy = () => {
@@ -1133,10 +1144,11 @@ function MessageRendererComponent({
         (activeToolCalls && activeToolCalls.length > 0)) && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
+            messageId={message.id}
             thinking={message.thinking || ''}
             isThinking={
               isStreaming &&
-              !message.content &&
+              isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               (!activeToolCalls || activeToolCalls.length === 0)
             }

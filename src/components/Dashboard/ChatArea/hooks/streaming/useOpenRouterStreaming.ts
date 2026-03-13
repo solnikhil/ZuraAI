@@ -34,6 +34,7 @@ import {
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
   buildFollowUpMessages,
+  buildFinalSynthesisMessages,
   extractResearchPlanData,
   type DeltaToolCall,
 } from './streamingUtils'
@@ -156,6 +157,14 @@ export function useOpenRouterStreaming({
       let savedToolResults: ToolCallResult[] | undefined = undefined
       let localThinkingBlocks: ThinkingBlock[] = []
       let firstTokenTime: number | null = null
+      let pendingFinalSynthesis:
+        | {
+            lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] }
+            formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+            totalSearchCount: number
+            researchRound: number
+          }
+        | null = null
 
       // Reasoning/thinking time tracking (OpenRouter-specific)
       let thinkingStartTime: number | null = null
@@ -187,6 +196,7 @@ export function useOpenRouterStreaming({
         if (reasoningDelta) {
           if (!thinkingStartTime) thinkingStartTime = performance.now()
           accumulatedReasoning += reasoningDelta
+          updateStreaming({ phase: 'reasoning' })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
             thinking: accumulatedReasoning,
@@ -202,6 +212,7 @@ export function useOpenRouterStreaming({
               accumulatedReasoning += detail.content
             }
           }
+          updateStreaming({ phase: 'reasoning' })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
             thinking: accumulatedReasoning,
@@ -215,6 +226,9 @@ export function useOpenRouterStreaming({
         }
 
         if (delta) accumulatedContent += delta
+        if (delta && !reasoningDelta && (!reasoningDetails || reasoningDetails.length === 0)) {
+          updateStreaming({ phase: 'answering' })
+        }
 
         if (chunk.choices?.[0]?.delta?.tool_calls) {
           hasToolCallsFlag = true
@@ -251,6 +265,7 @@ export function useOpenRouterStreaming({
 
       // Flush + final content state
       flushThrottledUpdates()
+      updateStreaming({ phase: 'answering' })
       updateStreamingMessage(sessionId, messageId, {
         content: accumulatedContent,
         thinking: accumulatedReasoning || undefined,
@@ -286,7 +301,7 @@ export function useOpenRouterStreaming({
         try {
           toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
         } catch (toolError: unknown) {
-          console.error('[Zura] Tool calls processing error:', toolError)
+          console.error('[ZuraAI] Tool calls processing error:', toolError)
           toolResult = {
             hasTools: false,
             toolResults: [],
@@ -310,6 +325,11 @@ export function useOpenRouterStreaming({
             currentSearch: processed.searchQuery,
             isSearching: true,
           }
+          updateStreaming({
+            phase: 'searching',
+            researchStatus,
+            thinkingBlocks: localThinkingBlocks,
+          })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             researchStatus,
             ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
@@ -354,6 +374,7 @@ export function useOpenRouterStreaming({
               maxRounds: researchMaxRounds,
               isSearching: false,
             }
+            updateStreaming({ phase: 'reasoning', researchStatus: loopResearchStatus })
             throttledUpdateStreamingMessage(sessionId, messageId, {
               researchStatus: loopResearchStatus,
             })
@@ -370,7 +391,7 @@ export function useOpenRouterStreaming({
             )) {
               if ((chunk as unknown as Record<string, unknown>).error) {
                 console.error(
-                  '[Zura] Research loop stream error:',
+                  '[ZuraAI] Research loop stream error:',
                   (chunk as unknown as Record<string, unknown>).error
                 )
               }
@@ -380,6 +401,7 @@ export function useOpenRouterStreaming({
               // Reasoning in follow-up rounds
               const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
               if (reasoningDelta) {
+                updateStreaming({ phase: 'reasoning' })
                 followUpReasoning += reasoningDelta
                 const combinedThinking =
                   accumulatedReasoning +
@@ -390,9 +412,16 @@ export function useOpenRouterStreaming({
                   thinking: combinedThinking,
                 })
               }
+              if (delta && !reasoningDelta) {
+                updateStreaming({ phase: 'answering' })
+              }
 
               if (chunk.choices?.[0]?.delta?.tool_calls) {
                 accumulateDeltaToolCalls(followUpToolCalls, chunk.choices[0].delta.tool_calls)
+              }
+
+              if (chunk.choices?.[0]?.finish_reason) {
+                finishReason = chunk.choices[0].finish_reason
               }
 
               if (chunk.usage) {
@@ -425,6 +454,7 @@ export function useOpenRouterStreaming({
               content: accumulatedContent,
               ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
             }
+            updateStreaming({ phase: 'answering', ...contentUpdate })
             throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
             updateStreamingMessage(sessionId, messageId, contentUpdate)
 
@@ -451,7 +481,7 @@ export function useOpenRouterStreaming({
                 )
               } catch (e: unknown) {
                 console.error(
-                  '[Zura] Research loop: handleToolCalls failed:',
+                  '[ZuraAI] Research loop: handleToolCalls failed:',
                   e instanceof Error ? e.message : e,
                   'Round:',
                   researchRound
@@ -491,6 +521,7 @@ export function useOpenRouterStreaming({
                     },
                     thinkingBlocks: localThinkingBlocks,
                   }
+                  updateStreaming({ phase: 'searching', ...webSearchUpdate })
                   throttledUpdateStreamingMessage(sessionId, messageId, webSearchUpdate)
                   updateStreamingMessage(sessionId, messageId, webSearchUpdate)
                 }
@@ -506,6 +537,7 @@ export function useOpenRouterStreaming({
                 },
                 ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
               }
+              updateStreaming(doneSearchingUpdate)
               throttledUpdateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
               updateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
 
@@ -517,12 +549,124 @@ export function useOpenRouterStreaming({
               toolResult = nextToolResult
               researchRound++
 
+              const reachedResearchCap = researchRound >= MAX_RESEARCH_ROUNDS
+              if (
+                reachedResearchCap &&
+                nextToolResult.needsFollowUp &&
+                nextToolResult.formattedResults.length > 0
+              ) {
+                pendingFinalSynthesis = {
+                  lastAssistantMessage: reconstructedFollowUp,
+                  formattedResults: nextToolResult.formattedResults,
+                  totalSearchCount,
+                  researchRound,
+                }
+              }
+
               hasMoreToolCalls =
-                researchRound >= MAX_RESEARCH_ROUNDS ? false : nextToolResult.needsFollowUp
+                reachedResearchCap ? false : nextToolResult.needsFollowUp
             } else {
               hasMoreToolCalls = false
             }
           }
+        }
+
+        if (pendingFinalSynthesis) {
+          const researchContextMsg = getResearchContext(
+            pendingFinalSynthesis.totalSearchCount,
+            researchMaxRounds
+          )
+          const synthesisMessages = buildFinalSynthesisMessages(
+            researchContextMsg,
+            pendingFinalSynthesis.researchRound,
+            pendingFinalSynthesis.totalSearchCount,
+            openRouterMessages,
+            pendingFinalSynthesis.lastAssistantMessage,
+            pendingFinalSynthesis.formattedResults
+          )
+
+          let synthesisContent = ''
+          let synthesisReasoning = ''
+
+          updateStreaming({
+            phase: 'reasoning',
+            researchStatus: {
+              currentRound: pendingFinalSynthesis.researchRound,
+              maxRounds: researchMaxRounds,
+              isSearching: false,
+            },
+          })
+
+          for await (const chunk of streamOpenRouterCompletion(
+            getOpenRouterApiKey(settings.openRouterApiKey),
+            settings.aiModel,
+            synthesisMessages,
+            { temperature: settings.temperature, signal }
+          )) {
+            const delta = chunk.choices?.[0]?.delta?.content || ''
+            const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+
+            if (reasoningDelta) {
+              updateStreaming({ phase: 'reasoning' })
+              synthesisReasoning += reasoningDelta
+            }
+            if (delta) {
+              updateStreaming({ phase: 'answering' })
+              synthesisContent += delta
+            }
+
+            if (chunk.usage) {
+              finalUsage = chunk.usage
+              const rt = extractReasoningTokens(chunk.usage)
+              if (rt > 0) totalThinkingTokens += rt
+            }
+
+            if (chunk.choices?.[0]?.finish_reason) {
+              finishReason = chunk.choices[0].finish_reason
+            }
+
+            const combinedThinking = synthesisReasoning
+              ? accumulatedReasoning +
+                (accumulatedReasoning ? '\n\n---\n\n' : '') +
+                synthesisReasoning
+              : accumulatedReasoning
+
+            const now = Date.now()
+            if (now - lastUpdateTime >= updateInterval) {
+              throttledUpdateStreamingMessage(sessionId, messageId, {
+                content: accumulatedContent + synthesisContent,
+                thinking: combinedThinking || undefined,
+                researchStatus: {
+                  currentRound: pendingFinalSynthesis.researchRound,
+                  maxRounds: researchMaxRounds,
+                  isSearching: false,
+                },
+              })
+              lastUpdateTime = now
+            }
+          }
+
+          accumulatedContent += synthesisContent
+          if (synthesisReasoning) {
+            accumulatedReasoning +=
+              (accumulatedReasoning ? '\n\n---\n\n' : '') + synthesisReasoning
+          }
+
+          flushThrottledUpdates()
+          const synthesisUpdate = {
+            content: accumulatedContent,
+            ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+            researchStatus: {
+              currentRound: pendingFinalSynthesis.researchRound,
+              maxRounds: researchMaxRounds,
+              isSearching: false,
+            },
+          }
+          updateStreaming({ phase: 'answering', ...synthesisUpdate })
+          throttledUpdateStreamingMessage(sessionId, messageId, synthesisUpdate)
+          updateStreamingMessage(sessionId, messageId, synthesisUpdate)
+
+          usage = mergeUsage(usage, finalUsage as Record<string, number>, totalThinkingTokens)
         }
       }
 

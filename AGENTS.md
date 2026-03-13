@@ -1,4 +1,4 @@
-# AGENTS.md — Zura AI Agent Guide
+# AGENTS.md — ZuraAI Agent Guide
 
 This file is the single source of truth for how an automated coding agent should work in this repo.
 
@@ -7,7 +7,7 @@ This file is the single source of truth for how an automated coding agent should
 ---
 
 ## What This Project Is
- Zura AI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
+ ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
@@ -122,11 +122,11 @@ Core capabilities:
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
-- The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\Zura` subfolder when the user picks a custom location.
+- The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\ZuraAI` subfolder when the user picks a custom location.
 - The installer applies Windows dark mode APIs (DWM dark title bar, `SetPreferredAppMode(ForceDark)`, `SetWindowTheme("DarkMode_Explorer")`, `SetCtlColors`) for a dark-themed install experience.
 - Personalized install: greets the user by Windows username, shows branded progress messages, and dark-themes the wizard chrome plus visible controls (including progress bar, details listbox, and buttons).
 - Installer assets (`build/icon.ico`, `build/sidebar.bmp`) are generated at build time by `scripts/generate-icons.mjs` and are gitignored.
-- Build output goes to `release/` directory (gitignored). Installer artifact: `Zura-Setup-{version}.exe`.
+- Build output goes to `release/` directory (gitignored). Installer artifact: `ZuraAI-Setup-{version}.exe`.
 
 ### CORS Bypass (Main Process)
 There is currently no active CORS-bypass header injection in `electron/main.ts`.
@@ -190,6 +190,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
   - Main tool registry: `electron/tools/index.ts` (restricted)
+- Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
+  - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.

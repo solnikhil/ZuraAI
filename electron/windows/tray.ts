@@ -51,14 +51,14 @@ export function createTray(): Tray {
         },
         { type: 'separator' },
         {
-            label: 'Quit Zura',
+            label: 'Quit ZuraAI',
             click: () => {
                 require('electron').app.quit()
             }
         }
     ])
 
-    tray.setToolTip('Zura AI')
+    tray.setToolTip('ZuraAI')
     tray.setContextMenu(contextMenu)
 
     return tray

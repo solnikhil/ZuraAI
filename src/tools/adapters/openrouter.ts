@@ -42,7 +42,7 @@ export interface OpenAITool {
 export type OpenAIToolCall = OpenRouterToolCall
 
 /**
- * Convert Zura tool definitions to OpenAI/OpenRouter format
+ * Convert ZuraAI tool definitions to OpenAI/OpenRouter format
  */
 function convertProperty(value: import('../definitions').ToolParameter): Record<string, unknown> {
     const base: Record<string, unknown> = {

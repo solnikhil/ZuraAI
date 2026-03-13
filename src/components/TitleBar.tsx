@@ -53,7 +53,7 @@ export default function TitleBar() {
     const modelDisplayName = useMemo(() => getModelDisplayName(settings), [settings])
 
     const centerTitle = useMemo(() => {
-        if (isLegacyChatRoute) return 'Zura Chat'
+        if (isLegacyChatRoute) return 'ZuraAI Chat'
 
         if (isSettingsRoute) {
             return 'Settings'

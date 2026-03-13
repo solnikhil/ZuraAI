@@ -3,7 +3,10 @@
  */
 
 import { memo, useMemo } from 'react'
-import { useMessageStreamingState } from '../../../contexts/StreamingContext'
+import {
+  useMessageStreamingState,
+  type StreamingPhase,
+} from '../../../contexts/StreamingContext'
 import { MessageRenderer } from './MessageRenderer'
 import type {
   Message,
@@ -37,6 +40,8 @@ interface StreamingMessageProps {
   sessionId: string
   /** Active tool calls during streaming (for in-message tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
+  /** Ephemeral streaming phase for the active message */
+  streamPhase?: StreamingPhase
   /** Callback when content is copied */
   onCopy?: (content: string) => void
   /** Callback when regenerate is requested */
@@ -97,6 +102,7 @@ function StreamingMessageComponent({
       message={displayMessage}
       isStreaming={isStreaming}
       activeToolCalls={activeToolCalls}
+      streamPhase={streamingState?.phase}
       onCopy={onCopy}
       onRegenerate={onRegenerate}
     />

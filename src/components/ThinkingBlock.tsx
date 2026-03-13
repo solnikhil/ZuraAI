@@ -32,6 +32,7 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
 }
 
 interface ThinkingBlockProps {
+  messageId?: string
   thinking: string
   isThinking?: boolean
   thinkingDuration?: number // in milliseconds
@@ -340,6 +341,7 @@ function CompletedBlock({
 }
 
 export default function ThinkingBlock({
+  messageId,
   thinking,
   isThinking = false,
   thinkingDuration,
@@ -444,20 +446,17 @@ export default function ThinkingBlock({
     }
   }, [isThinking, isSearching, hasActiveToolCalls, thinking])
 
-  // When thinking content changes while NOT actively thinking (e.g. switching chats),
-  // reset to collapsed so old expanded state doesn't carry over.
-  const prevThinkingRef = useRef(thinking)
   useEffect(() => {
-    if (
-      prevThinkingRef.current !== thinking &&
-      !isThinking &&
-      !isSearching &&
-      !hasActiveToolCalls
-    ) {
-      setIsExpanded(false)
+    setIsExpanded(isThinking || isSearching || hasActiveToolCalls)
+    setElapsedTime(0)
+    setFinalTime(thinkingDuration !== undefined ? thinkingDuration / 1000 : null)
+    thinkingStartRef.current = null
+
+    if (graceTimeoutRef.current) {
+      clearTimeout(graceTimeoutRef.current)
+      graceTimeoutRef.current = null
     }
-    prevThinkingRef.current = thinking
-  }, [thinking, isThinking, isSearching, hasActiveToolCalls])
+  }, [messageId])
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded)

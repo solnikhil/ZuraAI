@@ -1,5 +1,5 @@
 /**
- * Centralized dropdown position calculation hook for Zura AI
+ * Centralized dropdown position calculation hook for ZuraAI
  * Consolidates duplicate dropdown positioning logic from Settings.tsx and ModelSelector.tsx
  *
  */

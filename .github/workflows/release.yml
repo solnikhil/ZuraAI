@@ -35,8 +35,8 @@ jobs:
         shell: pwsh
         run: |
           $requiredPatterns = @(
-            'release/Zura-Setup-*.exe',
-            'release/Zura-Setup-*.exe.blockmap',
+            'release/ZuraAI-Setup-*.exe',
+            'release/ZuraAI-Setup-*.exe.blockmap',
             'release/latest.yml'
           )
 
@@ -69,8 +69,8 @@ jobs:
         shell: pwsh
         run: |
           $artifacts = @(
-            Get-ChildItem -Path 'release/Zura-Setup-*.exe'
-            Get-ChildItem -Path 'release/Zura-Setup-*.exe.blockmap'
+            Get-ChildItem -Path 'release/ZuraAI-Setup-*.exe'
+            Get-ChildItem -Path 'release/ZuraAI-Setup-*.exe.blockmap'
             Get-ChildItem -Path 'release/latest.yml'
           ) | Sort-Object Name
 
@@ -92,7 +92,7 @@ jobs:
         with:
           body_path: release-notes.md
           files: |
-            release/Zura-Setup-*.exe
-            release/Zura-Setup-*.exe.blockmap
+            release/ZuraAI-Setup-*.exe
+            release/ZuraAI-Setup-*.exe.blockmap
             release/latest.yml
           fail_on_unmatched_files: true

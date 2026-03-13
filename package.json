@@ -1,7 +1,7 @@
 {
   "name": "zura",
   "version": "0.0.1",
-  "description": "Zura AI - Desktop AI Assistant",
+  "description": "ZuraAI - Desktop AI Assistant",
   "author": "Nikhil",
   "license": "MIT",
   "main": "dist-electron/main.js",
@@ -91,9 +91,9 @@
     "vitest": "^4.0.18"
   },
   "build": {
-    "appId": "com.zura.ai",
-    "productName": "Zura",
-    "executableName": "Zura",
+    "appId": "in.zuraai.desktop",
+    "productName": "ZuraAI",
+    "executableName": "ZuraAI",
     "copyright": "Copyright (c) 2026 Nikhil",
     "asar": true,
     "compression": "maximum",
@@ -116,7 +116,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "executableName": "Zura"
+      "executableName": "ZuraAI"
     },
     "nsis": {
       "oneClick": false,
@@ -124,15 +124,15 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Zura",
-      "uninstallDisplayName": "Zura AI",
+      "shortcutName": "ZuraAI",
+      "uninstallDisplayName": "ZuraAI",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerSidebar": "build/sidebar.bmp",
       "uninstallerSidebar": "build/sidebar.bmp",
       "include": "installer/installer.nsh",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "Zura-Setup-${version}.${ext}"
+      "artifactName": "ZuraAI-Setup-${version}.${ext}"
     },
     "files": [
       "dist/**/*",

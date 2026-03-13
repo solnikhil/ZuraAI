@@ -20,17 +20,20 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 // Disable window animations
 app.commandLine.appendSwitch('wm-window-animations-disabled')
 
+const WINDOWS_APP_ID = 'in.zuraai.desktop'
+const APP_NAME = 'ZuraAI'
+
 // Add process identifier for Task Manager (visible in "Command line" column)
-app.commandLine.appendSwitch('process-name', 'Zura-Main')
+app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
 
 // Set App Name explicitly for Windows Task Manager
 if (process.platform === 'win32') {
-  app.setAppUserModelId('Zura AI')
+  app.setAppUserModelId(WINDOWS_APP_ID)
 }
-app.setName('Zura AI')
+app.setName(APP_NAME)
 
 // Set process title for main process (shows in Task Manager)
-process.title = 'Zura AI - Main'
+process.title = 'ZuraAI - Main'
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

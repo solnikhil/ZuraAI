@@ -1,11 +1,11 @@
 # FUTURE: MCP Support Implementation Order
 
 Status: FUTURE
-Scope: add MCP to Zura in small, safe phases
+Scope: add MCP to ZuraAI in small, safe phases
 
 ## Goal
 
-Add MCP without weakening Zura's current security model.
+Add MCP without weakening ZuraAI's current security model.
 
 Current strengths that make this possible:
 - tool execution already routes through Electron main process

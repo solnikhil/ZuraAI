@@ -1,5 +1,5 @@
 name: Open an issue
-description: Report a bug, provider problem, feature request, or other project issue for Zura AI
+description: Report a bug, provider problem, feature request, or other project issue for ZuraAI
 title: "[Issue]: "
 body:
   - type: markdown
@@ -186,5 +186,5 @@ body:
           required: true
         - label: I removed or redacted secrets, API keys, tokens, and personal data.
           required: true
-        - label: I believe this issue is relevant to Zura AI itself.
+        - label: I believe this issue is relevant to ZuraAI itself.
           required: true

@@ -27,7 +27,7 @@ export interface ToolDefinition {
 }
 
 /**
- * Active tools in Zura AI
+ * Active tools in ZuraAI
  * web_search is the only main-process IPC tool.
  * research_plan is renderer-only and expands into web_search steps.
  */

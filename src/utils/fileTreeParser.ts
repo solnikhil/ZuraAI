@@ -18,8 +18,16 @@ function joinPath(parent: string, name: string): string {
   return `${parent}/${clean}`
 }
 
+function reserveUniqueId(baseId: string, usedIds: Map<string, number>): string {
+  const seenCount = usedIds.get(baseId) ?? 0
+  usedIds.set(baseId, seenCount + 1)
+  return seenCount === 0 ? baseId : `${baseId}__${seenCount + 1}`
+}
+
 function normalizeChildren(input: unknown, parentId: string): FileTreeNode[] {
   if (!Array.isArray(input)) return []
+
+  const usedIds = new Map<string, number>()
 
   return input
     .map((raw) => {
@@ -27,7 +35,7 @@ function normalizeChildren(input: unknown, parentId: string): FileTreeNode[] {
       const name = safeString(raw.name || raw.label || raw.title)
       if (!name) return null
       const description = safeString(raw.description || raw.comment || raw.desc)
-      const id = safeString(raw.id) || joinPath(parentId, name)
+      const id = reserveUniqueId(safeString(raw.id) || joinPath(parentId, name), usedIds)
       const children = normalizeChildren(raw.children, id)
       const explicitType = raw.type === 'file' || raw.type === 'folder' ? raw.type : undefined
       const inferredType: FileTreeNode['type'] = explicitType || (children.length > 0 ? 'folder' : 'file')
@@ -167,7 +175,8 @@ export function parseTreeText(content: string): FileTreeNode[] {
   }
 
   const root: FileTreeNode[] = []
-  const stack: Array<{ depth: number; node: FileTreeNode }> = []
+  const rootUsedIds = new Map<string, number>()
+  const stack: Array<{ depth: number; node: FileTreeNode; childIds: Map<string, number> }> = []
 
   for (let i = 0; i < parsedLines.length; i++) {
     const { depth, name, description, folderHint } = parsedLines[i]
@@ -176,9 +185,10 @@ export function parseTreeText(content: string): FileTreeNode[] {
       stack.pop()
     }
 
-    const parent = stack[stack.length - 1]?.node
+    const parentEntry = stack[stack.length - 1]
+    const parent = parentEntry?.node
     const parentId = parent?.id || ''
-    const id = joinPath(parentId, name)
+    const id = reserveUniqueId(joinPath(parentId, name), parentEntry?.childIds || rootUsedIds)
 
     const next = parsedLines[i + 1]
     const hasChildren = !!next && next.depth > depth
@@ -198,7 +208,7 @@ export function parseTreeText(content: string): FileTreeNode[] {
       root.push(node)
     }
 
-    if (hasChildren) stack.push({ depth, node })
+    if (hasChildren) stack.push({ depth, node, childIds: new Map<string, number>() })
   }
 
   // If we have a root name, wrap all nodes under it

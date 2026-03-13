@@ -34,6 +34,7 @@ import {
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
   buildFollowUpMessages,
+  buildFinalSynthesisMessages,
   type DeltaToolCall,
 } from './streamingUtils'
 
@@ -96,6 +97,14 @@ export function useAlibabaStreaming({
     let savedToolResults: ToolCallResult[] | undefined = undefined
     let firstTokenTime: number | null = null
     let localThinkingBlocks: ThinkingBlock[] = []
+    let pendingFinalSynthesis:
+      | {
+          lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] }
+          formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+          totalSearchCount: number
+          researchRound: number
+        }
+      | null = null
 
     const hasResearchPlanTool = Array.isArray(alibabaTools)
       && alibabaTools.some((tool) => (tool as { function?: { name?: string } })?.function?.name === 'research_plan')
@@ -113,6 +122,7 @@ export function useAlibabaStreaming({
       const delta = chunk.choices?.[0]?.delta?.content || ''
       if (!firstTokenTime && delta) firstTokenTime = performance.now()
       accumulatedContent += delta
+      if (delta) updateStreaming({ phase: 'answering' })
 
       if (chunk.choices?.[0]?.delta?.tool_calls) {
         hasToolCallsFlag = true
@@ -135,6 +145,7 @@ export function useAlibabaStreaming({
 
     // Flush + final content state
     flushThrottledUpdates()
+    updateStreaming({ phase: 'answering' })
     updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
 
     let usage = fillMissingUsage(parseAlibabaUsage(finalUsage), accumulatedContent, { deriveInputFromTotal: true })
@@ -159,6 +170,16 @@ export function useAlibabaStreaming({
       savedToolResults = processed.savedToolResults
 
       if (processed.hasSearchCalls) {
+        updateStreaming({
+          phase: 'searching',
+          researchStatus: {
+            currentRound: 1,
+            maxRounds: researchMaxRounds,
+            currentSearch: processed.searchQuery,
+            isSearching: true,
+          },
+          thinkingBlocks: localThinkingBlocks,
+        })
         updateStreamingMessage(sessionId, messageId, {
           researchStatus: { currentRound: 1, maxRounds: researchMaxRounds, currentSearch: processed.searchQuery, isSearching: true },
           thinkingBlocks: localThinkingBlocks,
@@ -180,6 +201,11 @@ export function useAlibabaStreaming({
           let followUpToolCalls: DeltaToolCall[] = []
           let followUpUsage: Record<string, number> = {}
 
+          updateStreaming({
+            phase: 'reasoning',
+            researchStatus: { currentRound: researchRound, maxRounds: researchMaxRounds, isSearching: false },
+          })
+
           for await (const chunk of streamAlibabaCompletion(
             settings.alibabaApiKey || '',
             settings.aiModel,
@@ -188,12 +214,16 @@ export function useAlibabaStreaming({
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             followUpContent += delta
+            if (delta) updateStreaming({ phase: 'answering' })
 
             if (chunk.choices?.[0]?.delta?.tool_calls) {
               accumulateDeltaToolCalls(followUpToolCalls, chunk.choices[0].delta.tool_calls)
             }
 
             if (chunk.usage) followUpUsage = chunk.usage
+            if (chunk.choices?.[0]?.finish_reason) {
+              finishReason = chunk.choices[0].finish_reason
+            }
 
             const now = Date.now()
             if (now - lastUpdateTime >= updateInterval) {
@@ -204,6 +234,7 @@ export function useAlibabaStreaming({
 
           accumulatedContent += followUpContent
           flushThrottledUpdates()
+          updateStreaming({ phase: 'answering', content: accumulatedContent })
           updateStreamingMessage(sessionId, messageId, { content: accumulatedContent })
 
           usage = fillMissingUsage(
@@ -234,16 +265,109 @@ export function useAlibabaStreaming({
             totalSearchCount += newWebSearches + newResearchPlanSteps
 
             localThinkingBlocks = buildThinkingBlocksFromResults(nextToolResult.toolResults || [], localThinkingBlocks)
+            updateStreaming({ phase: 'searching', thinkingBlocks: localThinkingBlocks })
             savedToolResults = mergeSavedToolResults(savedToolResults, nextToolResult.toolResults || [])
             lastAssistantMessage = reconstructedFollowUp
             toolResult = nextToolResult
             researchRound++
 
-            hasMoreToolCalls = researchRound >= MAX_RESEARCH_ROUNDS ? false : nextToolResult.needsFollowUp
+            const reachedResearchCap = researchRound >= MAX_RESEARCH_ROUNDS
+            if (
+              reachedResearchCap &&
+              nextToolResult.needsFollowUp &&
+              nextToolResult.formattedResults.length > 0
+            ) {
+              pendingFinalSynthesis = {
+                lastAssistantMessage: reconstructedFollowUp,
+                formattedResults: nextToolResult.formattedResults,
+                totalSearchCount,
+                researchRound,
+              }
+            }
+
+            hasMoreToolCalls = reachedResearchCap ? false : nextToolResult.needsFollowUp
           } else {
             hasMoreToolCalls = false
           }
         }
+      }
+
+      if (pendingFinalSynthesis) {
+        const researchContextMsg = getResearchContext(
+          pendingFinalSynthesis.totalSearchCount,
+          researchMaxRounds
+        )
+        const synthesisMessages = buildFinalSynthesisMessages(
+          researchContextMsg,
+          pendingFinalSynthesis.researchRound,
+          pendingFinalSynthesis.totalSearchCount,
+          optimizedHistory,
+          pendingFinalSynthesis.lastAssistantMessage,
+          pendingFinalSynthesis.formattedResults
+        )
+
+        let synthesisContent = ''
+        let synthesisUsage: Record<string, number> = {}
+
+        updateStreaming({ phase: 'reasoning' })
+
+        for await (const chunk of streamAlibabaCompletion(
+          settings.alibabaApiKey || '',
+          settings.aiModel,
+          synthesisMessages,
+          { temperature: settings.temperature, max_tokens: settings.maxTokens, signal }
+        )) {
+          const delta = chunk.choices?.[0]?.delta?.content || ''
+          synthesisContent += delta
+          if (delta) updateStreaming({ phase: 'answering' })
+          if (chunk.usage) synthesisUsage = chunk.usage
+          if (chunk.choices?.[0]?.finish_reason) {
+            finishReason = chunk.choices[0].finish_reason
+          }
+
+          const now = Date.now()
+          if (now - lastUpdateTime >= updateInterval) {
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              content: accumulatedContent + synthesisContent,
+              researchStatus: {
+                currentRound: pendingFinalSynthesis.researchRound,
+                maxRounds: researchMaxRounds,
+                isSearching: false,
+              },
+            })
+            lastUpdateTime = now
+          }
+        }
+
+        accumulatedContent += synthesisContent
+        flushThrottledUpdates()
+        updateStreaming({
+          phase: 'answering',
+          content: accumulatedContent,
+          researchStatus: {
+            currentRound: pendingFinalSynthesis.researchRound,
+            maxRounds: researchMaxRounds,
+            isSearching: false,
+          },
+        })
+        updateStreamingMessage(sessionId, messageId, {
+          content: accumulatedContent,
+          researchStatus: {
+            currentRound: pendingFinalSynthesis.researchRound,
+            maxRounds: researchMaxRounds,
+            isSearching: false,
+          },
+        })
+
+        usage = fillMissingUsage(
+          {
+            inputTokens: (usage.inputTokens || 0) + (synthesisUsage.prompt_tokens ?? synthesisUsage.input_tokens ?? 0),
+            outputTokens: (usage.outputTokens || 0) + (synthesisUsage.completion_tokens ?? synthesisUsage.output_tokens ?? 0),
+            totalTokens: (usage.totalTokens || 0) + (synthesisUsage.total_tokens ?? 0),
+          },
+          accumulatedContent,
+          { deriveInputFromTotal: true }
+        )
       }
     }
 
