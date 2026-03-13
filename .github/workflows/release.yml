@@ -31,6 +31,22 @@ jobs:
       - name: Build Windows artifacts
         run: npm run build
 
+      - name: Verify packaged release artifacts
+        shell: pwsh
+        run: |
+          $requiredPatterns = @(
+            'release/Zura-Setup-*.exe',
+            'release/Zura-Setup-*.exe.blockmap',
+            'release/latest.yml'
+          )
+
+          foreach ($pattern in $requiredPatterns) {
+            $matches = Get-ChildItem -Path $pattern -ErrorAction SilentlyContinue
+            if (-not $matches) {
+              throw "Missing expected release artifact: $pattern"
+            }
+          }
+
       - name: Generate changelog
         id: changelog
         shell: bash
@@ -50,27 +66,33 @@ jobs:
 
       - name: Compute SHA-256 checksums
         id: checksums
-        shell: bash
+        shell: pwsh
         run: |
-          echo "## SHA-256 Checksums" > checksums.md
-          echo "" >> checksums.md
-          echo '```' >> checksums.md
-          for file in dist/*.exe dist/*.blockmap; do
-            if [ -f "$file" ]; then
-              sha256sum "$file" | sed 's|dist/||' >> checksums.md
-            fi
-          done
-          echo '```' >> checksums.md
+          $artifacts = @(
+            Get-ChildItem -Path 'release/Zura-Setup-*.exe'
+            Get-ChildItem -Path 'release/Zura-Setup-*.exe.blockmap'
+            Get-ChildItem -Path 'release/latest.yml'
+          ) | Sort-Object Name
 
-          # Append checksums to release notes
-          echo "" >> release-notes.md
-          cat checksums.md >> release-notes.md
+          Set-Content -Path checksums.md -Value '## SHA-256 Checksums'
+          Add-Content -Path checksums.md -Value ''
+          Add-Content -Path checksums.md -Value '```'
+
+          foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash -Path $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            Add-Content -Path checksums.md -Value "$hash  $($artifact.Name)"
+          }
+
+          Add-Content -Path checksums.md -Value '```'
+          Add-Content -Path release-notes.md -Value ''
+          Get-Content -Path checksums.md | Add-Content -Path release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-notes.md
           files: |
-            dist/*.exe
-            dist/*.blockmap
-          fail_on_unmatched_files: false
+            release/Zura-Setup-*.exe
+            release/Zura-Setup-*.exe.blockmap
+            release/latest.yml
+          fail_on_unmatched_files: true
