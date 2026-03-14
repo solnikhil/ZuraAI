@@ -85,10 +85,10 @@ contextBridge.exposeInMainWorld(
       // Extra validation for tool execution
       if (channel === 'execute-tool') {
         const toolName = args[0]
-        if (toolName !== 'web_search') {
+        if (toolName !== 'web_search' && toolName !== 'run_website_smoke_test') {
           return Promise.resolve({
             success: false,
-            error: `Tool "${String(toolName)}" is disabled. Only "web_search" is available.`,
+            error: `Tool "${String(toolName)}" is disabled.`,
           })
         }
       }
@@ -105,6 +105,14 @@ contextBridge.exposeInMainWorld(
     get: (key: string) => ipcRenderer.invoke('secure-storage:get', key),
     set: (key: string, value: string) => ipcRenderer.invoke('secure-storage:set', key, value),
     getAll: () => ipcRenderer.invoke('secure-storage:get-all'),
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'testingArtifacts',
+  Object.freeze({
+    openRunFolder: (runId: string) => ipcRenderer.invoke('testing-artifacts:open-run-folder', runId),
+    openTrace: (runId: string) => ipcRenderer.invoke('testing-artifacts:open-trace', runId),
   })
 )
 

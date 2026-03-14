@@ -1,6 +1,7 @@
-export type SkillId = 'web_research'
+export type SkillId = 'web_research' | 'testing'
 
 export type WebResearchMode = 'normal' | 'structured'
+export type TestingMode = 'website_smoke'
 
 export interface SkillState {
   enabled: boolean
@@ -13,8 +14,15 @@ export interface WebResearchSkillState extends SkillState {
   }
 }
 
+export interface TestingSkillState extends SkillState {
+  config: {
+    mode: TestingMode
+  }
+}
+
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
+  testing: TestingSkillState
 }
 
 export interface BuiltInSkill {
@@ -37,6 +45,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
       'Structured mode uses research_plan first, then executes web searches.',
     ],
   },
+  {
+    id: 'testing',
+    name: 'Testing',
+    description: 'Lets the agent propose and run approved website smoke tests from chat.',
+    note: 'Chat-driven, approval-gated website testing with screenshots, traces, and plain-English results.',
+    usageGuidance: [
+      'When the user asks you to test a workflow, gather enough details in chat, then draft a spec with propose_website_smoke_test before running anything.',
+      'Keep the flow to one page context with a small number of steps and visible assertions.',
+      'Do not request arbitrary code execution, shell commands, or desktop app automation.',
+    ],
+  },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
@@ -46,8 +65,16 @@ const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
   },
 }
 
+const DEFAULT_TESTING_SKILL: TestingSkillState = {
+  enabled: false,
+  config: {
+    mode: 'website_smoke',
+  },
+}
+
 export const defaultSkillsSettings: SkillsSettings = {
   web_research: DEFAULT_WEB_RESEARCH_SKILL,
+  testing: DEFAULT_TESTING_SKILL,
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -56,6 +83,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function normalizeWebResearchMode(mode: unknown): WebResearchMode {
   return mode === 'structured' ? 'structured' : 'normal'
+}
+
+export function normalizeTestingMode(mode: unknown): TestingMode {
+  return mode === 'website_smoke' ? 'website_smoke' : 'website_smoke'
 }
 
 function normalizeGenericSkillState(raw: unknown): SkillState | null {
@@ -75,7 +106,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research') continue
+      if (skillId === 'web_research' || skillId === 'testing') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -89,6 +120,8 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   const rawWebResearchConfig = isRecord(rawWebResearch?.config)
     ? rawWebResearch.config
     : undefined
+  const rawTesting = isRecord(raw) && isRecord(raw.testing) ? raw.testing : undefined
+  const rawTestingConfig = isRecord(rawTesting?.config) ? rawTesting.config : undefined
 
   normalized.web_research = {
     enabled:
@@ -97,6 +130,16 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
         : defaultSkillsSettings.web_research.enabled,
     config: {
       mode: normalizeWebResearchMode(rawWebResearchConfig?.mode),
+    },
+  }
+
+  normalized.testing = {
+    enabled:
+      isRecord(rawTesting) && typeof rawTesting.enabled === 'boolean'
+        ? rawTesting.enabled
+        : defaultSkillsSettings.testing.enabled,
+    config: {
+      mode: normalizeTestingMode(rawTestingConfig?.mode),
     },
   }
 
@@ -178,6 +221,25 @@ export function withWebResearchMode(skills: SkillsSettings | undefined, mode: We
   }
 }
 
+export function isTestingEnabled(skills: SkillsSettings | undefined): boolean {
+  return normalizeSkillsSettings(skills).testing.enabled
+}
+
+export function getTestingMode(skills: SkillsSettings | undefined): TestingMode {
+  return normalizeSkillsSettings(skills).testing.config.mode
+}
+
+export function withTestingEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
+  const normalized = normalizeSkillsSettings(skills)
+  return {
+    ...normalized,
+    testing: {
+      ...normalized.testing,
+      enabled,
+    },
+  }
+}
+
 export function getWebResearchToolExposure(skills: SkillsSettings | undefined): {
   exposeWebSearch: boolean
   exposeResearchPlan: boolean
@@ -192,11 +254,26 @@ export function getWebResearchToolExposure(skills: SkillsSettings | undefined): 
   }
 }
 
+export function getTestingToolExposure(skills: SkillsSettings | undefined): {
+  exposeWebsiteSmokeTestProposal: boolean
+  exposeWebsiteSmokeTestRun: boolean
+} {
+  const normalized = normalizeSkillsSettings(skills)
+
+  return {
+    exposeWebsiteSmokeTestProposal:
+      normalized.testing.enabled && normalized.testing.config.mode === 'website_smoke',
+    exposeWebsiteSmokeTestRun: false,
+  }
+}
+
 export function buildEnabledSkillsPrompt(skills: SkillsSettings | undefined): string {
   if (!skills) return ''
 
   const lines: string[] = []
-  const webResearch = normalizeSkillsSettings(skills).web_research
+  const normalized = normalizeSkillsSettings(skills)
+  const webResearch = normalized.web_research
+  const testing = normalized.testing
 
   if (webResearch.enabled) {
     if (webResearch.config.mode === 'structured') {
@@ -206,6 +283,18 @@ export function buildEnabledSkillsPrompt(skills: SkillsSettings | undefined): st
       lines.push('- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
       lines.push('- Use concise, targeted queries and cite relevant sources in the final response.')
     }
+  }
+
+  if (testing.enabled) {
+    lines.push(
+      '- Testing (`testing`): when the user asks you to test a website workflow, gather the needed details in chat, then call `propose_website_smoke_test` to draft the URL, steps, and visible assertions.'
+    )
+    lines.push(
+      '- After proposing the spec, wait for user approval. Do not call `run_website_smoke_test` directly from the model response.'
+    )
+    lines.push(
+      '- Keep tests browser-only, single-context, and structured. Do not invent code, shell commands, or unsupported desktop actions.'
+    )
   }
 
   if (lines.length === 0) {

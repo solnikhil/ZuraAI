@@ -21,6 +21,7 @@ import {
 } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
 import { executeResearchPlanTool } from './researchPlanHandler'
+import { executeWebsiteSmokeProposalTool } from './websiteSmokeProposalHandler'
 import { ToolCall, ToolCallResult, OpenRouterResponse, OpenRouterToolResultMessage } from './types'
 
 // Type for provider API responses
@@ -266,6 +267,9 @@ export async function processToolCalls(
           config.onResearchPlanProgress
         )
         result = [singleResult]
+      } else if (coercedToolCall.name === 'propose_website_smoke_test') {
+        const singleResult = await executeWebsiteSmokeProposalTool(coercedToolCall)
+        result = [singleResult]
       } else {
         result = await executeToolCalls([coercedToolCall])
       }
@@ -342,5 +346,5 @@ export function getToolsSummaryForPrompt(enabledTools?: string[]): string {
 
 ${toolsList}
 
-When you need to use a tool, the system will automatically execute it and provide you with the results. You can then use those results to formulate your response to the user.`
+When you need to use a tool, the system will automatically execute the tool call and provide you with the result. Some tools may return a proposal that requires user approval before any external action happens; follow the tool description and the returned result.`
 }

@@ -77,20 +77,35 @@ function StreamingMessageComponent({
       return message
     }
 
+    const hasStreamingField = <K extends keyof typeof streamingState>(key: K) =>
+      Object.prototype.hasOwnProperty.call(streamingState, key)
+
     // Streaming - merge streaming state with base message
     return {
       ...message,
       content: streamingState.content || message.content,
-      thinking: streamingState.thinking ?? message.thinking,
-      thinkingDuration: streamingState.thinkingDuration ?? message.thinkingDuration,
-      thinkingBlocks: streamingState.thinkingBlocks ?? message.thinkingBlocks,
-      researchStatus: streamingState.researchStatus ?? message.researchStatus,
-      researchPlan: streamingState.researchPlan ?? message.researchPlan,
-      researchProgress: streamingState.researchProgress ?? message.researchProgress,
-      toolResults: streamingState.toolResults ?? message.toolResults,
-      model: streamingState.model ?? message.model,
-      latency: streamingState.latency ?? message.latency,
-      usage: streamingState.usage ?? message.usage,
+      thinking: hasStreamingField('thinking') ? streamingState.thinking : message.thinking,
+      thinkingDuration: hasStreamingField('thinkingDuration')
+        ? streamingState.thinkingDuration
+        : message.thinkingDuration,
+      thinkingBlocks: hasStreamingField('thinkingBlocks')
+        ? streamingState.thinkingBlocks
+        : message.thinkingBlocks,
+      researchStatus: hasStreamingField('researchStatus')
+        ? streamingState.researchStatus
+        : message.researchStatus,
+      researchPlan: hasStreamingField('researchPlan')
+        ? streamingState.researchPlan
+        : message.researchPlan,
+      researchProgress: hasStreamingField('researchProgress')
+        ? streamingState.researchProgress
+        : message.researchProgress,
+      toolResults: hasStreamingField('toolResults')
+        ? streamingState.toolResults
+        : message.toolResults,
+      model: hasStreamingField('model') ? streamingState.model : message.model,
+      latency: hasStreamingField('latency') ? streamingState.latency : message.latency,
+      usage: hasStreamingField('usage') ? streamingState.usage : message.usage,
     }
   }, [message, streamingState])
 
@@ -101,6 +116,7 @@ function StreamingMessageComponent({
     <MessageRenderer
       message={displayMessage}
       isStreaming={isStreaming}
+      sessionId={sessionId}
       activeToolCalls={activeToolCalls}
       streamPhase={streamingState?.phase}
       onCopy={onCopy}

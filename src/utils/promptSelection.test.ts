@@ -54,4 +54,21 @@ describe('Tool Enablement', () => {
         expect(prompt).toContain('Enabled Skills:')
         expect(prompt).toContain('Tavily (`web_research`)')
     })
+
+    it('includes testing guidance in the effective system prompt when testing is enabled', () => {
+        const prompt = getEffectiveSystemPrompt({
+            systemPrompt: 'Base prompt',
+            skills: {
+                ...defaultSkillsSettings,
+                testing: {
+                    enabled: true,
+                    config: { mode: 'website_smoke' },
+                },
+            },
+        })
+
+        expect(prompt).toContain('Testing (`testing`)')
+        expect(prompt).toContain('propose_website_smoke_test')
+        expect(prompt).toContain('wait for user approval')
+    })
 })

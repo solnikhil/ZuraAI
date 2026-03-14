@@ -10,6 +10,9 @@ import { ChevronDown } from 'lucide-react'
 import { defaultSystemPrompt } from '../../../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../../../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../../../prompts/defaultTitleGenerationPrompt'
+import type { SkillsSettings } from '@/skills'
+import { buildEnabledSkillsPrompt } from '@/skills'
+import { getEffectiveSystemPrompt } from '@/utils/promptSelection'
 import { estimateMessageTokens } from '../../../utils/tokenUtils'
 
 /**
@@ -18,6 +21,8 @@ import { estimateMessageTokens } from '../../../utils/tokenUtils'
 export interface SystemPromptSectionProps {
   /** Current system prompt value */
   systemPrompt: string
+  /** Current skills config */
+  skills: SkillsSettings
   /** Current web search prompt value */
   webSearchPrompt: string
   /** Current title generation prompt value */
@@ -35,6 +40,7 @@ export interface SystemPromptSectionProps {
  */
 export function SystemPromptSection({
   systemPrompt,
+  skills,
   webSearchPrompt,
   titleGenerationPrompt,
   onChange,
@@ -50,6 +56,7 @@ export function SystemPromptSection({
     titleGenerationPrompt.length
   )
   const [isTitleGenerationEditorExpanded, setIsTitleGenerationEditorExpanded] = useState(false)
+  const [isEffectivePromptExpanded, setIsEffectivePromptExpanded] = useState(false)
 
   // Sync local state when props change (e.g. discard/reset from parent settings bar)
   useEffect(() => {
@@ -124,6 +131,16 @@ export function SystemPromptSection({
     [localTitleGenerationValue]
   )
 
+  const enabledSkillsPrompt = useMemo(() => buildEnabledSkillsPrompt(skills), [skills])
+  const effectiveSystemPrompt = useMemo(
+    () => getEffectiveSystemPrompt({ systemPrompt: localValue, skills }),
+    [localValue, skills]
+  )
+  const effectivePromptTokensInput = useMemo(
+    () => estimateMessageTokens({ role: 'system', content: effectiveSystemPrompt }),
+    [effectiveSystemPrompt]
+  )
+
   const showLengthWarning = charCount > 10000
 
   return (
@@ -132,6 +149,70 @@ export function SystemPromptSection({
         <h2 className="page-title">System Prompt</h2>
         <div className="page-subtitle">Customize how the AI assistant behaves and responds</div>
       </div>
+
+      <Card className="settings-list-card settings-prompt-card settings-prompt-card--effective">
+        <div className="settings-prompt-header settings-prompt-header--effective">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Effective Runtime Prompt</h3>
+            <div className="settings-list-row__description">
+              Preview the actual system prompt sent at runtime after enabled skill instructions are appended.
+            </div>
+            <div className="settings-prompt-note settings-prompt-note--effective">
+              This is read-only. Edit the base prompt below or change skills in the Skills section.
+            </div>
+          </div>
+          <div className="settings-prompt-metrics" aria-live="polite">
+            <span className="settings-prompt-badge settings-prompt-badge--effective">
+              {effectiveSystemPrompt.length.toLocaleString()} chars
+            </span>
+            <span className="settings-prompt-badge settings-prompt-badge--effective">
+              ~{effectivePromptTokensInput.toLocaleString()} tokens input
+            </span>
+          </div>
+        </div>
+
+        {enabledSkillsPrompt && (
+          <div className="settings-prompt-preview-note settings-prompt-preview-note--effective">
+            Skill instructions are currently being appended from enabled skills.
+          </div>
+        )}
+
+        <div className="settings-prompt-controls settings-prompt-controls--effective">
+          <button
+            type="button"
+            className="settings-prompt-toggle settings-prompt-toggle--effective"
+            onClick={() => setIsEffectivePromptExpanded((prev) => !prev)}
+            aria-expanded={isEffectivePromptExpanded}
+          >
+            <ChevronDown
+              size={14}
+              className={`settings-prompt-toggle__icon ${isEffectivePromptExpanded ? 'is-open' : ''}`}
+              aria-hidden="true"
+            />
+            {isEffectivePromptExpanded ? 'Hide Effective Prompt' : 'Show Effective Prompt'}
+          </button>
+        </div>
+
+        {isEffectivePromptExpanded && (
+          <>
+            {enabledSkillsPrompt && (
+              <div className="settings-prompt-skills-block settings-prompt-skills-block--effective">
+                <div className="settings-prompt-skills-block__label">Appended Skill Instructions</div>
+                <pre className="settings-prompt-preview settings-prompt-preview--effective">{enabledSkillsPrompt}</pre>
+              </div>
+            )}
+
+            <div className="settings-prompt-editor-wrap settings-prompt-editor-wrap--effective">
+              <textarea
+                value={effectiveSystemPrompt}
+                readOnly
+                className="settings-prompt-editor settings-prompt-editor--readonly settings-prompt-editor--effective"
+                aria-label="Effective runtime prompt preview"
+              />
+            </div>
+          </>
+        )}
+      </Card>
 
       <Card className="settings-list-card settings-prompt-card">
         <div className="settings-prompt-header">

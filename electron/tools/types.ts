@@ -2,9 +2,9 @@
 
 export interface ToolResult {
     success: boolean
-    data?: any
+    data?: unknown
     error?: string
 }
 
-export type ToolHandler = (args: any) => Promise<ToolResult>
+export type ToolHandler = (args: unknown) => Promise<ToolResult>
 

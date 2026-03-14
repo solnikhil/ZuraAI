@@ -47,6 +47,8 @@ export {
   Ellipsis,
   Paintbrush,
   Bell,
+  Play,
+  ShieldCheck,
 } from 'lucide-react'
 
 // Animated icons

@@ -85,7 +85,7 @@ const HoverLinkAnimation = ({
       className={cn('relative inline-block cursor-pointer', className)}
       {...rest}
     >
-      <motion.div
+      <motion.span
         aria-hidden="true"
         variants={barAnim}
         className="absolute w-full bg-current"

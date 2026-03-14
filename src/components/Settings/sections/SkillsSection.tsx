@@ -12,6 +12,8 @@ import {
 import {
   BUILT_IN_SKILLS,
   isWebResearchEnabled,
+  isTestingEnabled,
+  withTestingEnabled,
   withWebResearchEnabled,
   type SkillsSettings,
 } from '@/skills'
@@ -23,8 +25,16 @@ export interface SkillsSectionProps {
 
 export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.ReactElement {
   const webResearchEnabled = isWebResearchEnabled(skills)
+  const testingEnabled = isTestingEnabled(skills)
 
-  const setEnabled = (enabled: boolean) => {
+  const setEnabled = (skillId: string, enabled: boolean) => {
+    if (skillId === 'testing') {
+      onChange({
+        skills: withTestingEnabled(skills, enabled),
+      })
+      return
+    }
+
     onChange({
       skills: withWebResearchEnabled(skills, enabled),
     })
@@ -32,6 +42,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
 
   const isSkillEnabled = (skillId: string): boolean => {
     if (skillId === 'web_research') return webResearchEnabled
+    if (skillId === 'testing') return testingEnabled
     return false
   }
 
@@ -39,7 +50,9 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
     <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
-        <div className="page-subtitle">Enable built-in capabilities that control tool access and agent behavior.</div>
+        <div className="page-subtitle">
+          Enable built-in capabilities that shape web research, website testing, and tool access behavior.
+        </div>
       </div>
 
       <Card className="settings-list-card settings-skills-card p-0">
@@ -56,6 +69,16 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                   <div className="skills-row__content">
                     <h3 className="skills-row__title">{skill.name}</h3>
                     <div className="skills-row__description">{skill.description}</div>
+                    <div className="skills-row__note">{skill.note}</div>
+                    {enabled && skill.usageGuidance.length > 0 && (
+                      <div className="skills-row__guidance" aria-label={`${skill.name} guidance`}>
+                        {skill.usageGuidance.slice(0, 2).map((item) => (
+                          <div key={item} className="skills-row__guidance-item">
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -78,7 +101,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setEnabled(!enabled)}>
+                      <DropdownMenuItem onClick={() => setEnabled(skill.id, !enabled)}>
                         {enabled ? 'Disable' : 'Enable'}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -94,7 +117,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="skills-marketplace-note__inner">
           <Info size={15} className="skills-marketplace-note__icon" />
           <div className="skills-marketplace-note__text">
-            Built-in skills only. There is no marketplace in this app version.
+            Built-in skills only. Enable a skill here, then use it from chat. Testing stays approval-gated before any browser run starts.
           </div>
         </div>
       </Card>

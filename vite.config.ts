@@ -16,7 +16,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: [],
+                            external: ['playwright', 'playwright-core'],
                         },
                     },
                 },

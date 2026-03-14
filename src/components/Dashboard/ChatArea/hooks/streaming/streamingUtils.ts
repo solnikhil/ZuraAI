@@ -179,6 +179,48 @@ export function buildThinkingBlocksFromResults(
   return blocks
 }
 
+/** Create a persisted reasoning block from a completed active thinking segment. */
+export function createThinkingBlock(
+  content: string | undefined,
+  duration?: number
+): ThinkingBlock | null {
+  const normalizedContent = content?.trim()
+  if (!normalizedContent) return null
+
+  return {
+    type: 'thinking',
+    content: normalizedContent,
+    ...(duration !== undefined ? { duration: Math.max(0, duration) } : {}),
+    timestamp: Date.now(),
+  }
+}
+
+/** Append a completed thinking segment as its own block. */
+export function appendCompletedThinkingBlock(
+  existingBlocks: ThinkingBlock[],
+  content: string | undefined,
+  duration?: number
+): ThinkingBlock[] {
+  const block = createThinkingBlock(content, duration)
+  return block ? [...existingBlocks, block] : existingBlocks
+}
+
+/** Join completed reasoning blocks and any active segment for non-UI fallback context. */
+export function getThinkingTranscript(
+  blocks: ThinkingBlock[],
+  activeThinking?: string
+): string | undefined {
+  const completedThinking = blocks
+    .filter((block) => block.type === 'thinking' && block.content)
+    .map((block) => block.content!.trim())
+    .filter(Boolean)
+
+  const active = activeThinking?.trim()
+  const segments = active ? [...completedThinking, active] : completedThinking
+
+  return segments.length > 0 ? segments.join('\n\n---\n\n') : undefined
+}
+
 // Tool result mapping
 
 /** Map tool results for persistent storage (strips internal data) */

@@ -12,7 +12,7 @@ const MAX_QUERY_LENGTH = 500
 const MAX_EXTRACT_URLS = 20
 const EXTRACT_SNIPPET_LENGTH = 500
 
-interface WebSearchArgs {
+export interface WebSearchArgs {
     query: string
     num_results?: number
     search_depth?: 'basic' | 'advanced'

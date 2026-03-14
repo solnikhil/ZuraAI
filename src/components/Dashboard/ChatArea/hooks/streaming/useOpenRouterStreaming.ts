@@ -7,6 +7,7 @@
  */
 
 import { useCallback } from 'react'
+import { TOOL_FOLLOW_UP_SPLIT_MARKER } from '../../messageTimeline'
 import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
 import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
@@ -26,9 +27,11 @@ import {
   accumulateDeltaToolCalls,
   reconstructToolCallMessage,
   buildResponseWithFallback,
+  appendCompletedThinkingBlock,
   createResearchPlanCallbacks,
   processInitialToolResults,
   buildThinkingBlocksFromResults,
+  getThinkingTranscript,
   mergeSavedToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
@@ -60,6 +63,10 @@ function extractReasoningTokens(usage: Record<string, unknown>): number {
     (usage as Record<string, number>).reasoning_tokens ||
     0
   )
+}
+
+function hasVisibleToolResults(toolResults: ToolCallResult[] | undefined): boolean {
+  return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
 }
 
 /** Parse OpenRouter usage into our standard format (includes cached token support) */
@@ -147,7 +154,6 @@ export function useOpenRouterStreaming({
       const openRouterTools = tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
 
       let accumulatedContent = ''
-      let accumulatedReasoning = ''
       let lastUpdateTime = Date.now()
       let finalUsage: Record<string, unknown> = {}
       let totalThinkingTokens = 0
@@ -166,10 +172,30 @@ export function useOpenRouterStreaming({
           }
         | null = null
 
-      // Reasoning/thinking time tracking (OpenRouter-specific)
-      let thinkingStartTime: number | null = null
-      let thinkingEndTime: number | null = null
-      let thinkingDuration: number | undefined = undefined
+      // Active reasoning segment tracking (OpenRouter-specific)
+      let activeThinking = ''
+      let activeThinkingStartTime: number | null = null
+
+      const finalizeActiveThinking = () => {
+        if (!activeThinking.trim()) return false
+
+        const thinkingEndTime = performance.now()
+        const thinkingDuration = activeThinkingStartTime
+          ? thinkingEndTime - activeThinkingStartTime
+          : undefined
+
+        localThinkingBlocks = appendCompletedThinkingBlock(
+          localThinkingBlocks,
+          activeThinking,
+          thinkingDuration
+        )
+        activeThinking = ''
+        activeThinkingStartTime = null
+        return true
+      }
+
+      const getReasoningTranscript = (currentThinking?: string) =>
+        getThinkingTranscript(localThinkingBlocks, currentThinking)
 
       const initialToolChoice = computeInitialToolChoice(
         openRouterTools as DeltaToolCall[] | undefined,
@@ -194,35 +220,51 @@ export function useOpenRouterStreaming({
         // Reasoning (simple format)
         const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
         if (reasoningDelta) {
-          if (!thinkingStartTime) thinkingStartTime = performance.now()
-          accumulatedReasoning += reasoningDelta
-          updateStreaming({ phase: 'reasoning' })
+          if (!activeThinkingStartTime) activeThinkingStartTime = performance.now()
+          activeThinking += reasoningDelta
+          updateStreaming({
+            phase: 'reasoning',
+            thinking: activeThinking,
+            thinkingBlocks: localThinkingBlocks,
+          })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
-            thinking: accumulatedReasoning,
+            thinking: activeThinking,
+            thinkingBlocks: localThinkingBlocks,
           })
         }
 
         // Reasoning (extended format, e.g. DeepSeek R1)
         const reasoningDetails = chunk.choices?.[0]?.delta?.reasoning_details
         if (reasoningDetails && reasoningDetails.length > 0) {
-          if (!thinkingStartTime) thinkingStartTime = performance.now()
+          if (!activeThinkingStartTime) activeThinkingStartTime = performance.now()
           for (const detail of reasoningDetails) {
             if (detail.type === 'text' && typeof detail.content === 'string') {
-              accumulatedReasoning += detail.content
+              activeThinking += detail.content
             }
           }
-          updateStreaming({ phase: 'reasoning' })
+          updateStreaming({
+            phase: 'reasoning',
+            thinking: activeThinking,
+            thinkingBlocks: localThinkingBlocks,
+          })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
-            thinking: accumulatedReasoning,
+            thinking: activeThinking,
+            thinkingBlocks: localThinkingBlocks,
           })
         }
 
-        // Mark thinking as done when content starts after reasoning
-        if (delta && accumulatedReasoning && !thinkingEndTime) {
-          thinkingEndTime = performance.now()
-          if (thinkingStartTime) thinkingDuration = thinkingEndTime - thinkingStartTime
+        // Finalize the current thought before the answer continues.
+        if (delta && activeThinking) {
+          finalizeActiveThinking()
+          const completedThinkingUpdate = {
+            thinking: undefined,
+            thinkingDuration: undefined,
+            thinkingBlocks: localThinkingBlocks,
+          }
+          updateStreaming(completedThinkingUpdate)
+          updateStreamingMessage(sessionId, messageId, completedThinkingUpdate)
         }
 
         if (delta) accumulatedContent += delta
@@ -250,26 +292,31 @@ export function useOpenRouterStreaming({
         if (now - lastUpdateTime >= updateInterval) {
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
-            thinkingDuration,
+            thinking: activeThinking || undefined,
+            thinkingBlocks: localThinkingBlocks,
           })
           lastUpdateTime = now
         }
       }
 
-      // Finalize thinking duration if stream ended while still reasoning
-      if (accumulatedReasoning && !thinkingEndTime) {
-        thinkingEndTime = performance.now()
-        if (thinkingStartTime) thinkingDuration = thinkingEndTime - thinkingStartTime
+      // Finalize any reasoning that ended with the stream.
+      if (activeThinking) {
+        finalizeActiveThinking()
       }
 
       // Flush + final content state
       flushThrottledUpdates()
-      updateStreaming({ phase: 'answering' })
+      updateStreaming({
+        phase: 'answering',
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: localThinkingBlocks,
+      })
       updateStreamingMessage(sessionId, messageId, {
         content: accumulatedContent,
-        thinking: accumulatedReasoning || undefined,
-        thinkingDuration,
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: localThinkingBlocks,
       })
 
       let usage = parseOpenRouterUsage(finalUsage as Record<string, number>, totalThinkingTokens)
@@ -288,7 +335,7 @@ export function useOpenRouterStreaming({
         const responseWithFallback = buildResponseWithFallback(
           reconstructedMessage,
           openRouterMessages,
-          accumulatedReasoning
+          getReasoningTranscript()
         )
         const researchPlanCallbacks = createResearchPlanCallbacks(
           updateStreaming as (u: Record<string, unknown>) => void,
@@ -332,7 +379,6 @@ export function useOpenRouterStreaming({
           })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             researchStatus,
-            ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
             thinkingBlocks: localThinkingBlocks,
           })
           updateStreamingMessage(sessionId, messageId, {
@@ -343,6 +389,18 @@ export function useOpenRouterStreaming({
 
         // Research loop
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+          if (
+            hasVisibleToolResults(toolResult.toolResults) &&
+            !accumulatedContent.includes(TOOL_FOLLOW_UP_SPLIT_MARKER)
+          ) {
+            accumulatedContent += TOOL_FOLLOW_UP_SPLIT_MARKER
+            updateStreaming({ content: accumulatedContent, thinkingBlocks: localThinkingBlocks })
+            throttledUpdateStreamingMessage(sessionId, messageId, {
+              content: accumulatedContent,
+              thinkingBlocks: localThinkingBlocks,
+            })
+          }
+
           let totalSearchCount =
             toolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search')
               .length || 0
@@ -368,17 +426,47 @@ export function useOpenRouterStreaming({
             let followUpReasoning = ''
             let followUpToolCalls: DeltaToolCall[] = []
             let followUpUsage: Record<string, unknown> = {}
+            let followUpThinkingStartTime: number | null = null
+
+            const finalizeFollowUpReasoning = () => {
+              if (!followUpReasoning.trim()) return false
+
+              const thinkingEndTime = performance.now()
+              const thinkingDuration = followUpThinkingStartTime
+                ? thinkingEndTime - followUpThinkingStartTime
+                : undefined
+
+              localThinkingBlocks = appendCompletedThinkingBlock(
+                localThinkingBlocks,
+                followUpReasoning,
+                thinkingDuration
+              )
+              followUpReasoning = ''
+              followUpThinkingStartTime = null
+              return true
+            }
 
             const loopResearchStatus = {
               currentRound: researchRound,
               maxRounds: researchMaxRounds,
               isSearching: false,
             }
-            updateStreaming({ phase: 'reasoning', researchStatus: loopResearchStatus })
+            updateStreaming({
+              phase: 'reasoning',
+              researchStatus: loopResearchStatus,
+              thinking: undefined,
+              thinkingBlocks: localThinkingBlocks,
+            })
             throttledUpdateStreamingMessage(sessionId, messageId, {
               researchStatus: loopResearchStatus,
+              thinking: undefined,
+              thinkingBlocks: localThinkingBlocks,
             })
-            updateStreamingMessage(sessionId, messageId, { researchStatus: loopResearchStatus })
+            updateStreamingMessage(sessionId, messageId, {
+              researchStatus: loopResearchStatus,
+              thinking: undefined,
+              thinkingBlocks: localThinkingBlocks,
+            })
 
             // Brief delay before follow-up call to avoid triggering provider rate limits
             await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -401,16 +489,29 @@ export function useOpenRouterStreaming({
               // Reasoning in follow-up rounds
               const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
               if (reasoningDelta) {
-                updateStreaming({ phase: 'reasoning' })
+                if (!followUpThinkingStartTime) followUpThinkingStartTime = performance.now()
                 followUpReasoning += reasoningDelta
-                const combinedThinking =
-                  accumulatedReasoning +
-                  (accumulatedReasoning ? '\n\n---\n\n' : '') +
-                  followUpReasoning
+                updateStreaming({
+                  phase: 'reasoning',
+                  researchStatus: loopResearchStatus,
+                  thinking: followUpReasoning,
+                  thinkingBlocks: localThinkingBlocks,
+                })
                 throttledUpdateStreamingMessage(sessionId, messageId, {
                   content: accumulatedContent + followUpContent,
-                  thinking: combinedThinking,
+                  thinking: followUpReasoning,
+                  thinkingBlocks: localThinkingBlocks,
                 })
+              }
+              if (delta && followUpReasoning) {
+                finalizeFollowUpReasoning()
+                const completedThinkingUpdate = {
+                  thinking: undefined,
+                  thinkingDuration: undefined,
+                  thinkingBlocks: localThinkingBlocks,
+                }
+                updateStreaming(completedThinkingUpdate)
+                updateStreamingMessage(sessionId, messageId, completedThinkingUpdate)
               }
               if (delta && !reasoningDelta) {
                 updateStreaming({ phase: 'answering' })
@@ -432,27 +533,23 @@ export function useOpenRouterStreaming({
 
               const now = Date.now()
               if (now - lastUpdateTime >= updateInterval) {
-                const combinedThinking =
-                  accumulatedReasoning +
-                  (accumulatedReasoning ? '\n\n---\n\n' : '') +
-                  followUpReasoning
                 throttledUpdateStreamingMessage(sessionId, messageId, {
                   content: accumulatedContent + followUpContent,
-                  thinking: combinedThinking || undefined,
+                  thinking: followUpReasoning || undefined,
+                  thinkingBlocks: localThinkingBlocks,
                 })
                 lastUpdateTime = now
               }
             }
 
             accumulatedContent += followUpContent
-            if (followUpReasoning) {
-              accumulatedReasoning +=
-                (accumulatedReasoning ? '\n\n---\n\n' : '') + followUpReasoning
-            }
+            if (followUpReasoning) finalizeFollowUpReasoning()
             flushThrottledUpdates()
             const contentUpdate = {
               content: accumulatedContent,
-              ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+              thinking: undefined,
+              thinkingDuration: undefined,
+              thinkingBlocks: localThinkingBlocks,
             }
             updateStreaming({ phase: 'answering', ...contentUpdate })
             throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
@@ -470,7 +567,7 @@ export function useOpenRouterStreaming({
               const followUpResponseWithFallback = buildResponseWithFallback(
                 reconstructedFollowUp,
                 openRouterMessages,
-                followUpReasoning || accumulatedReasoning
+                getReasoningTranscript()
               )
 
               let nextToolResult
@@ -511,8 +608,8 @@ export function useOpenRouterStreaming({
                   const searchQuery =
                     typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
                   const webSearchUpdate = {
-                    thinking: accumulatedReasoning,
-                    thinkingDuration,
+                    thinking: undefined,
+                    thinkingDuration: undefined,
                     researchStatus: {
                       currentRound: researchRound,
                       maxRounds: researchMaxRounds,
@@ -535,7 +632,9 @@ export function useOpenRouterStreaming({
                   maxRounds: researchMaxRounds,
                   isSearching: false,
                 },
-                ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+                thinking: undefined,
+                thinkingDuration: undefined,
+                thinkingBlocks: localThinkingBlocks,
               }
               updateStreaming(doneSearchingUpdate)
               throttledUpdateStreamingMessage(sessionId, messageId, doneSearchingUpdate)
@@ -587,9 +686,29 @@ export function useOpenRouterStreaming({
 
           let synthesisContent = ''
           let synthesisReasoning = ''
+          let synthesisThinkingStartTime: number | null = null
+          const finalizeSynthesisReasoning = () => {
+            if (!synthesisReasoning.trim()) return false
+
+            const thinkingEndTime = performance.now()
+            const thinkingDuration = synthesisThinkingStartTime
+              ? thinkingEndTime - synthesisThinkingStartTime
+              : undefined
+
+            localThinkingBlocks = appendCompletedThinkingBlock(
+              localThinkingBlocks,
+              synthesisReasoning,
+              thinkingDuration
+            )
+            synthesisReasoning = ''
+            synthesisThinkingStartTime = null
+            return true
+          }
 
           updateStreaming({
             phase: 'reasoning',
+            thinking: undefined,
+            thinkingBlocks: localThinkingBlocks,
             researchStatus: {
               currentRound: pendingFinalSynthesis.researchRound,
               maxRounds: researchMaxRounds,
@@ -607,10 +726,30 @@ export function useOpenRouterStreaming({
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
 
             if (reasoningDelta) {
-              updateStreaming({ phase: 'reasoning' })
+              if (!synthesisThinkingStartTime) synthesisThinkingStartTime = performance.now()
               synthesisReasoning += reasoningDelta
+              updateStreaming({
+                phase: 'reasoning',
+                thinking: synthesisReasoning,
+                thinkingBlocks: localThinkingBlocks,
+                researchStatus: {
+                  currentRound: pendingFinalSynthesis.researchRound,
+                  maxRounds: researchMaxRounds,
+                  isSearching: false,
+                },
+              })
             }
             if (delta) {
+              if (synthesisReasoning) {
+                finalizeSynthesisReasoning()
+                const completedThinkingUpdate = {
+                  thinking: undefined,
+                  thinkingDuration: undefined,
+                  thinkingBlocks: localThinkingBlocks,
+                }
+                updateStreaming(completedThinkingUpdate)
+                updateStreamingMessage(sessionId, messageId, completedThinkingUpdate)
+              }
               updateStreaming({ phase: 'answering' })
               synthesisContent += delta
             }
@@ -625,17 +764,12 @@ export function useOpenRouterStreaming({
               finishReason = chunk.choices[0].finish_reason
             }
 
-            const combinedThinking = synthesisReasoning
-              ? accumulatedReasoning +
-                (accumulatedReasoning ? '\n\n---\n\n' : '') +
-                synthesisReasoning
-              : accumulatedReasoning
-
             const now = Date.now()
             if (now - lastUpdateTime >= updateInterval) {
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + synthesisContent,
-                thinking: combinedThinking || undefined,
+                thinking: synthesisReasoning || undefined,
+                thinkingBlocks: localThinkingBlocks,
                 researchStatus: {
                   currentRound: pendingFinalSynthesis.researchRound,
                   maxRounds: researchMaxRounds,
@@ -647,15 +781,14 @@ export function useOpenRouterStreaming({
           }
 
           accumulatedContent += synthesisContent
-          if (synthesisReasoning) {
-            accumulatedReasoning +=
-              (accumulatedReasoning ? '\n\n---\n\n' : '') + synthesisReasoning
-          }
+          if (synthesisReasoning) finalizeSynthesisReasoning()
 
           flushThrottledUpdates()
           const synthesisUpdate = {
             content: accumulatedContent,
-            ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
+            thinking: undefined,
+            thinkingDuration: undefined,
+            thinkingBlocks: localThinkingBlocks,
             researchStatus: {
               currentRound: pendingFinalSynthesis.researchRound,
               maxRounds: researchMaxRounds,
@@ -685,8 +818,8 @@ export function useOpenRouterStreaming({
 
       updateStreamingMessage(sessionId, messageId, {
         content: finalContent,
-        ...(accumulatedReasoning ? { thinking: accumulatedReasoning } : {}),
-        ...(thinkingDuration !== undefined ? { thinkingDuration } : {}),
+        thinking: undefined,
+        thinkingDuration: undefined,
         ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
         ...researchPlanData,
         model: `openrouter/${settings.aiModel}`,
@@ -699,8 +832,6 @@ export function useOpenRouterStreaming({
       return {
         content: finalContent,
         model: `openrouter/${settings.aiModel}`,
-        thinking: accumulatedReasoning || undefined,
-        thinkingDuration,
         thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
         toolResults: savedToolResults,
         usage: { ...usage, tps, ttft: metrics.ttft },

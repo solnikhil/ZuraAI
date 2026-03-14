@@ -1,9 +1,11 @@
 // Tool Handlers - Main Process Tool Execution
 //
-// SECURITY: Only "web_search" is enabled.
+// SECURITY: Only explicitly registered tools are enabled.
 
 import { ipcMain } from 'electron'
 import { executeWebSearch } from './webSearch'
+import type { WebSearchArgs } from './webSearch'
+import { executeWebsiteSmokeTest } from './websiteSmokeTest'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -12,7 +14,8 @@ export type { ToolResult, ToolHandler } from './types'
  * Registry of all tool handlers (restricted)
  */
 const toolHandlers: Record<string, ToolHandler> = {
-  web_search: executeWebSearch,
+  web_search: (args) => executeWebSearch(args as WebSearchArgs),
+  run_website_smoke_test: executeWebsiteSmokeTest,
 }
 
 /**
@@ -20,15 +23,15 @@ const toolHandlers: Record<string, ToolHandler> = {
  * Call this from main.ts during app initialization
  */
 export function registerToolHandlers(): void {
-  ipcMain.handle('execute-tool', async (_event, toolName: string, args: any): Promise<ToolResult> => {
-    if (toolName !== 'web_search') {
+  ipcMain.handle('execute-tool', async (_event, toolName: string, args: unknown): Promise<ToolResult> => {
+    const handler = toolHandlers[toolName]
+
+    if (!handler) {
       return {
         success: false,
-        error: `Tool "${String(toolName)}" is disabled. Only "web_search" is available.`
+        error: `Tool "${String(toolName)}" is disabled.`
       }
     }
-
-    const handler = toolHandlers[toolName]
 
     try {
       return await handler(args)

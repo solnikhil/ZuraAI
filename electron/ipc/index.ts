@@ -4,6 +4,10 @@ import {
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+import {
+  registerTestingArtifactHandlers,
+  unregisterTestingArtifactHandlers,
+} from './testingArtifactHandlers'
 
 /**
  * Registers every main-process IPC handler exposed by the app.
@@ -23,6 +27,7 @@ export function registerAllHandlers(): void {
   registerChatStoreHandlers()
   registerSecureStorageHandlers()
   registerSystemHandlers()
+  registerTestingArtifactHandlers()
 }
 
 /**
@@ -38,6 +43,7 @@ export function unregisterAllHandlers(): void {
   unregisterChatStoreHandlers()
   unregisterSecureStorageHandlers()
   unregisterSystemHandlers()
+  unregisterTestingArtifactHandlers()
 }
 
 /**
@@ -50,3 +56,7 @@ export {
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+export {
+  registerTestingArtifactHandlers,
+  unregisterTestingArtifactHandlers,
+} from './testingArtifactHandlers'

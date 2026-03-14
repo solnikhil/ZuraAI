@@ -1,7 +1,7 @@
 // OpenRouter/OpenAI Function Calling Adapter
 // Converts tool definitions to OpenAI-compatible format
 
-import { ToolDefinition, getToolByName } from '../definitions'
+import { ToolDefinition, ToolSchemaProperty, getToolByName } from '../definitions'
 import { 
     ToolCall,
     ToolResult,
@@ -9,6 +9,43 @@ import {
     OpenRouterToolCall,
     OpenRouterToolResultMessage
 } from '../types'
+
+function formatWebsiteSmokeProposalToolResult(data: unknown): string {
+    if (!data || typeof data !== 'object') {
+        return 'Website smoke test proposal created. The UI already shows the full proposal card. Reply briefly, mention any key assumption, and ask the user to approve or request edits. Do not repeat the full plan.'
+    }
+
+    const record = data as Record<string, unknown>
+    const proposal = record.proposal && typeof record.proposal === 'object'
+        ? record.proposal as Record<string, unknown>
+        : null
+    const steps = Array.isArray(proposal?.steps) ? proposal.steps : []
+    const assertions = Array.isArray(proposal?.assertions) ? proposal.assertions : []
+    const assumptionRefs = steps
+        .map(step => {
+            if (!step || typeof step !== 'object') return null
+            const target = (step as Record<string, unknown>).target
+            if (!target || typeof target !== 'object') return null
+            const by = String((target as Record<string, unknown>).by || '').trim()
+            const value = String((target as Record<string, unknown>).value || '').trim()
+            return by && value ? `${by}:${value}` : null
+        })
+        .filter((value): value is string => Boolean(value))
+        .slice(0, 4)
+
+    return [
+        'Website smoke test proposal created successfully.',
+        'The full proposal card is already rendered in the UI for the user.',
+        `Summary: ${String(record.summary || 'Proposal ready for review.')}`,
+        proposal?.url ? `URL: ${String(proposal.url)}` : null,
+        proposal?.goal ? `Goal: ${String(proposal.goal)}` : null,
+        `Step count: ${steps.length}`,
+        `Assertion count: ${assertions.length}`,
+        assumptionRefs.length > 0 ? `Key target assumptions: ${assumptionRefs.join(', ')}` : null,
+        'In your next assistant message, do not repeat the full plan, tables, or markdown spec.',
+        'Respond in 1-3 short sentences: mention any important assumption and ask the user to approve or request edits.',
+    ].filter(Boolean).join('\n')
+}
 
 /**
  * OpenAI/OpenRouter tool format
@@ -25,11 +62,9 @@ export interface OpenAITool {
                 description: string
                 enum?: string[]
                 default?: unknown
-                items?: {
-                    type: string
-                    properties: Record<string, { type: string; description: string; enum?: string[] }>
-                    required: string[]
-                }
+                properties?: Record<string, unknown>
+                required?: string[]
+                items?: unknown
             }>
             required: string[]
         }
@@ -44,24 +79,21 @@ export type OpenAIToolCall = OpenRouterToolCall
 /**
  * Convert ZuraAI tool definitions to OpenAI/OpenRouter format
  */
-function convertProperty(value: import('../definitions').ToolParameter): Record<string, unknown> {
+function convertProperty(value: ToolSchemaProperty): Record<string, unknown> {
     const base: Record<string, unknown> = {
         type: value.type,
         description: value.description,
         ...(value.enum && { enum: value.enum }),
         ...(value.default !== undefined && { default: value.default })
     }
+    if (value.properties) {
+        base.properties = Object.fromEntries(
+            Object.entries(value.properties).map(([key, property]) => [key, convertProperty(property)])
+        )
+        base.required = value.required || []
+    }
     if (value.type === 'array' && value.items) {
-        base.items = {
-            type: 'object',
-            properties: Object.fromEntries(
-                Object.entries(value.items.properties).map(([k, v]) => [
-                    k,
-                    { type: v.type, description: v.description, ...(v.enum && { enum: v.enum }) }
-                ])
-            ),
-            required: value.items.required || []
-        }
+        base.items = convertProperty(value.items)
     }
     return base
 }
@@ -442,7 +474,9 @@ export function formatToolResultsForOpenRouter(
             ? stripUiFieldsFromToolData(r.data)
             : r.data
         const content = r.success
-            ? JSON.stringify(data)
+            ? tc.name === 'propose_website_smoke_test'
+                ? formatWebsiteSmokeProposalToolResult(data)
+                : JSON.stringify(data)
             : `Error: ${r.error}`
         const truncated = content.length > MAX_TOOL_RESULT_CHARS
             ? content.slice(0, MAX_TOOL_RESULT_CHARS) + '...[truncated]'

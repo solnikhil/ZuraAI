@@ -10,6 +10,8 @@ describe('SkillsSection', () => {
 
     expect(screen.getByText('Skills')).toBeInTheDocument()
     expect(screen.getByText('Tavily')).toBeInTheDocument()
+    expect(screen.getByText('Testing')).toBeInTheDocument()
+    expect(screen.getByText(/plain-english results/i)).toBeInTheDocument()
     expect(screen.getByText('Active')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /more actions for tavily/i })).toBeInTheDocument()
   })
@@ -29,5 +31,24 @@ describe('SkillsSection', () => {
         }),
       }),
     }))
+  })
+
+  it('keeps testing as a chat-only skill with no manual launcher', () => {
+    render(
+      <SkillsSection
+        skills={{
+          ...defaultSkillsSettings,
+          testing: {
+            enabled: true,
+            config: { mode: 'website_smoke' },
+          },
+        }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /run website smoke test/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Testing guidance')).toBeInTheDocument()
+    expect(screen.getByText(/gather enough details in chat/i)).toBeInTheDocument()
   })
 })
