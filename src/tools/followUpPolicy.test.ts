@@ -3,23 +3,23 @@ import { describe, expect, it } from 'vitest'
 import { shouldRequestToolFollowUp } from './followUpPolicy'
 
 describe('shouldRequestToolFollowUp', () => {
-  it('keeps the second model pass for website smoke test proposals', () => {
+  it('keeps the second model pass for research plan outputs', () => {
     expect(
       shouldRequestToolFollowUp(
         [
           {
             toolCall: {
               id: 'tool-1',
-              name: 'propose_website_smoke_test',
-              arguments: {},
+              name: 'research_plan',
+              arguments: { topic: 'AI', steps: [{ stepNumber: 1, query: 'AI news' }] },
             },
             result: {
               success: true,
-              data: { status: 'awaiting_approval' },
+              data: { combinedResults: '# Research' },
             },
           },
         ],
-        [{ role: 'tool', tool_call_id: 'tool-1', content: '{"status":"awaiting_approval"}' }]
+        [{ role: 'tool', tool_call_id: 'tool-1', content: '{"combinedResults":"# Research"}' }]
       )
     ).toBe(true)
   })

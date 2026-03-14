@@ -31,11 +31,6 @@ export interface TerminalAPI {
     spawnCommand: (command: string, args?: string[]) => void
 }
 
-export interface TestingArtifactsAPI {
-    openRunFolder: (runId: string) => Promise<boolean>
-    openTrace: (runId: string) => Promise<boolean>
-}
-
 export interface WindowControlsAPI {
     minimize: () => Promise<void>
     toggleMaximize: () => Promise<void>
@@ -50,7 +45,6 @@ declare global {
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
         terminal: TerminalAPI
-        testingArtifacts: TestingArtifactsAPI
         windowControls: WindowControlsAPI
     }
 }

@@ -13,7 +13,7 @@ Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
-- Tool calling system (restricted; `web_search`, renderer-side `research_plan`, renderer-side `propose_website_smoke_test`, and main-process `run_website_smoke_test`)
+- Tool calling system (restricted; `web_search` in main process and renderer-side `research_plan`)
 
 ---
 
@@ -36,7 +36,7 @@ Core capabilities:
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
-  - **Chat history**, **secure storage**, and **testing run artifacts** live in the main process under `app.getPath('userData')`.
+  - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
 
 ---
 
@@ -50,7 +50,6 @@ Core capabilities:
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
-- `electron/testing/` — website smoke test runner, validation, locator resolution, artifact storage, and summaries
 - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
@@ -63,9 +62,7 @@ Core capabilities:
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
 - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
-- `src/testing/` — shared website smoke test contracts
 - `src/tools/` — tool schema + adapters + tool execution coordinator
-- `src/components/testing/` — renderer UI for approval-gated website smoke test proposals and results
 
 - `dist/` — renderer build output (generated)
 - `dist-electron/` — electron build output (generated)
@@ -99,7 +96,6 @@ Core capabilities:
 |   ipcRenderer,         |
 |   secureStorage,       |
 |   updater, terminal,   |
-|   testingArtifacts,    |
 |   windowControls       |
 +------------------------+
 ```
@@ -161,8 +157,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls`
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
-- `window.testingArtifacts`
-  - invokes: `testing-artifacts:open-run-folder`, `testing-artifacts:open-trace`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
@@ -209,18 +203,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Skill OFF: expose neither `web_search` nor `research_plan`
   - Skill ON (normal): expose `web_search`
   - Skill ON (structured): expose `web_search` + `research_plan`
-
-#### Website Smoke Testing (`settings.skills.testing`)
-- Website smoke testing is a built-in skill: `testing` with mode `website_smoke`.
-- Tool schema exposure is skill-gated in renderer:
-  - Skill OFF: expose no testing schema
-  - Skill ON: expose `propose_website_smoke_test`
-- Agent-driven workflow is approval-gated:
-  1. The model drafts a structured spec via renderer-side `propose_website_smoke_test`.
-  2. Renderer shows the proposed URL, ordered steps, and visible assertions in an approval card.
-  3. Only after explicit user approval does renderer invoke `window.ipcRenderer.invoke('execute-tool', 'run_website_smoke_test', args)` to start the trusted Playwright runner.
-- The trusted runner validates structured input, launches a fresh Playwright Chromium browser/context, opens exactly one page, executes up to 10 ordered steps, evaluates up to 5 visible assertions, captures screenshots/trace artifacts, and returns a plain-English result summary.
-- Artifact actions use the dedicated preload bridge `window.testingArtifacts` (`testing-artifacts:open-run-folder`, `testing-artifacts:open-trace`) instead of exposing generic filesystem access to the renderer.
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -283,7 +265,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (model used for title generation)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`, plus `testing` with `enabled` + `config.mode = "website_smoke"`).
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
@@ -304,22 +286,19 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
-- Website smoke testing artifacts: `testing-runs/<run-id>/` (`electron/testing/artifactStore.ts`)
-  - Stores `metadata.json`, `summary.txt`, `step-log.json`, screenshots (`final.png`, `failure.png`, optional `step-*.png`), and optional `trace.zip`
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan`, `propose_website_smoke_test`, `run_website_smoke_test` definitions)
+  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` definitions)
   - Skill gating: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which schemas are exposed to the model per request
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
-  - Proposal handler: `src/tools/websiteSmokeProposalHandler.ts` creates approval-gated testing specs in renderer without invoking privileged browser execution
   - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
 
 - Main process side:
-  - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`, `run_website_smoke_test`)
+  - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
   - Web search: `electron/tools/webSearch.ts`
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
@@ -327,10 +306,8 @@ Tool execution is intentionally restricted.
       - **Natural-language query (no URL)** → Tavily **Search** (`/search`)
       - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
     - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
-  - Website smoke testing: `electron/tools/websiteSmokeTest.ts` → `electron/testing/validation.ts` + `electron/testing/runner.ts`
-    - Accepts structured browser intent only (no arbitrary JS, no shell commands, no model-supplied Playwright code)
-    - Uses Playwright Chromium with one browser context and one page per run
-    - Enforces limits: max 10 steps, max 5 assertions, max 90 seconds, http/https only
+
+There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
 
 **Note:** The main-process tool registry remains intentionally restricted; tools must be explicitly defined in `src/tools/definitions.ts`, skill-gated in renderer, and registered in `electron/tools/index.ts`.
 

@@ -5,7 +5,6 @@
 import { ipcMain } from 'electron'
 import { executeWebSearch } from './webSearch'
 import type { WebSearchArgs } from './webSearch'
-import { executeWebsiteSmokeTest } from './websiteSmokeTest'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -15,7 +14,6 @@ export type { ToolResult, ToolHandler } from './types'
  */
 const toolHandlers: Record<string, ToolHandler> = {
   web_search: (args) => executeWebSearch(args as WebSearchArgs),
-  run_website_smoke_test: executeWebsiteSmokeTest,
 }
 
 /**

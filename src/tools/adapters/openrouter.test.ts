@@ -4,51 +4,34 @@ import { getToolByName } from '../definitions'
 import { convertToOpenRouterFormat, formatToolResultsForOpenRouter } from './openrouter'
 
 describe('convertToOpenRouterFormat', () => {
-  it('preserves nested website smoke test schemas', () => {
-    const smokeTool = getToolByName('run_website_smoke_test')
-    expect(smokeTool).toBeDefined()
+  it('preserves nested research plan schemas', () => {
+    const researchTool = getToolByName('research_plan')
+    expect(researchTool).toBeDefined()
 
-    const converted = convertToOpenRouterFormat([smokeTool!])[0]
+    const converted = convertToOpenRouterFormat([researchTool!])[0]
     const steps = converted.function.parameters.properties.steps as {
       items?: { properties?: Record<string, unknown> }
     }
-    const options = converted.function.parameters.properties.options as {
-      properties?: Record<string, unknown>
-    }
 
     expect(steps.items?.properties).toBeDefined()
-    expect(options.properties?.viewport).toBeDefined()
-    expect(options.properties?.trace).toBeDefined()
+    expect(steps.items?.properties?.query).toBeDefined()
+    expect(steps.items?.properties?.stepNumber).toBeDefined()
   })
 
-  it('formats website smoke proposals as concise follow-up guidance', () => {
+  it('formats tool results as JSON payloads', () => {
     const formatted = formatToolResultsForOpenRouter(
-      [{ id: 'tool-1', name: 'propose_website_smoke_test' }],
+      [{ id: 'tool-1', name: 'research_plan' }],
       [
         {
           success: true,
           data: {
-            summary: 'Proposal ready.',
-            proposal: {
-              url: 'http://localhost:3000/',
-              goal: 'Test login flow',
-              steps: [
-                { type: 'goto', url: 'http://localhost:3000/' },
-                {
-                  type: 'fill',
-                  target: { by: 'placeholder', value: 'Username' },
-                  value: 'admin',
-                },
-              ],
-              assertions: [{ type: 'urlContains', value: 'dashboard' }],
-            },
+            combinedResults: '# Research\n- Result A',
           },
         },
       ]
     )
 
-    expect(formatted[0]?.content).toContain('The full proposal card is already rendered in the UI')
-    expect(formatted[0]?.content).toContain('Key target assumptions: placeholder:Username')
-    expect(formatted[0]?.content).toContain('do not repeat the full plan')
+    expect(formatted[0]?.content).toContain('combinedResults')
+    expect(formatted[0]?.content).toContain('Result A')
   })
 })

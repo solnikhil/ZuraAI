@@ -1,5 +1,5 @@
 import React from 'react'
-import { Search, Loader2, Globe, FlaskConical } from '../../components/icons'
+import { Search, Loader2, Globe } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
 
 import './ToolCallIndicator.css'
@@ -11,14 +11,10 @@ function formatToolDisplayName(name: string): string {
 
 const toolIcons: Record<string, React.ReactNode> = {
   web_search: <Search size={16} />,
-  propose_website_smoke_test: <FlaskConical size={16} />,
-  run_website_smoke_test: <FlaskConical size={16} />,
 }
 
 const toolDisplayNames: Record<string, string> = {
   web_search: 'Web Search',
-  propose_website_smoke_test: 'Website Smoke Test Plan',
-  run_website_smoke_test: 'Website Smoke Test',
 }
 
 interface ToolCallIndicatorProps {
@@ -56,12 +52,6 @@ export default function ToolCallIndicator({
         }
         if (toolName === 'web_search') {
           return `Tool: ${displayName}`
-        }
-        if (toolName === 'run_website_smoke_test') {
-          return `Running ${displayName}...`
-        }
-        if (toolName === 'propose_website_smoke_test') {
-          return `Drafting ${displayName}...`
         }
         return `Using ${displayName}...`
       case 'complete':

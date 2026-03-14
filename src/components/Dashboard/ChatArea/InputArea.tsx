@@ -12,7 +12,6 @@ import {
   Plus,
   Check,
   Wrench,
-  FlaskConical,
 } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
@@ -46,7 +45,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
-import { withTestingEnabled, withWebResearchEnabled } from '@/skills'
+import { withWebResearchEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
 
 export interface InputAreaProps {
@@ -93,7 +92,6 @@ export function InputArea({
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
   const webResearchEnabled = settings.skills?.web_research?.enabled !== false
-  const testingEnabled = settings.skills?.testing?.enabled === true
   const standardTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.normal),
     ease: motionEasing.standard,
@@ -170,13 +168,6 @@ export function InputArea({
       skills: withWebResearchEnabled(settings.skills, nextEnabled),
     })
   }, [settings.skills, updateSettings, webResearchEnabled])
-
-  const toggleTestingSkill = React.useCallback(() => {
-    const nextEnabled = !testingEnabled
-    updateSettings({
-      skills: withTestingEnabled(settings.skills, nextEnabled),
-    })
-  }, [settings.skills, testingEnabled, updateSettings])
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -423,35 +414,7 @@ export function InputArea({
                             <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
                               <Check className="h-3.5 w-3.5" />
                             </span>
-                            )}
-                          </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={(event) => {
-                            event.preventDefault()
-                            toggleTestingSkill()
-                            setQuickActionsOpen(false)
-                          }}
-                          className="group/menu-item h-auto min-h-9 px-2.5 py-2 text-[13px]"
-                        >
-                          <div className="flex w-full items-start gap-2.5">
-                            <div className="mt-0.5 flex h-4 w-4 items-center justify-center text-[var(--theme-text-secondary)]">
-                              <FlaskConical className="h-4 w-4" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span>Testing</span>
-                                <span className="text-[11px] text-[var(--theme-text-muted)]">Chat workflow tests</span>
-                              </div>
-                              <div className="mt-0.5 text-[11px] leading-4 text-[var(--theme-text-muted)]">
-                                Proposes a browser smoke test in chat and waits for approval before running it.
-                              </div>
-                            </div>
-                            {testingEnabled && (
-                              <span className="ml-auto inline-flex items-center text-[var(--theme-success)]">
-                                <Check className="h-3.5 w-3.5" />
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuSub>

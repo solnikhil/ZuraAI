@@ -135,12 +135,12 @@ describe('MessageRenderer follow-up timeline', () => {
             {
               toolCall: {
                 id: 'tool-1',
-                name: 'propose_website_smoke_test',
+                name: 'research_plan',
                 arguments: {},
               },
               result: {
                 success: true,
-                data: { status: 'awaiting_approval' },
+                data: { combinedResults: '# Research\n- Result' },
               },
             },
           ],
@@ -158,7 +158,7 @@ describe('MessageRenderer follow-up timeline', () => {
       expect(sequence).toEqual([
         'Initial reasoning',
         'Initial response.',
-        'propose_website_smoke_test',
+        'research_plan',
         'Follow-up reasoning',
         'Follow-up response.',
       ])

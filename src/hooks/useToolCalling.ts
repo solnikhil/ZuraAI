@@ -14,7 +14,7 @@ import type { OpenRouterResponse } from '../tools/types'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
-import { getTestingToolExposure, getWebResearchToolExposure } from '../skills'
+import { getWebResearchToolExposure } from '../skills'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -53,8 +53,6 @@ export function useToolCalling() {
             : allToolNames
 
         const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
-        const testingToolExposure = getTestingToolExposure(settings.skills)
-
         if (!webResearchToolExposure.exposeWebSearch) {
             enabledTools = enabledTools.filter((tool) => tool !== 'web_search' && tool !== 'research_plan')
         } else {
@@ -70,16 +68,6 @@ export function useToolCalling() {
                 enabledTools = enabledTools.filter((tool) => tool !== 'research_plan')
             }
         }
-
-        if (testingToolExposure.exposeWebsiteSmokeTestProposal) {
-            if (!enabledTools.includes('propose_website_smoke_test')) {
-                enabledTools.push('propose_website_smoke_test')
-            }
-        } else {
-            enabledTools = enabledTools.filter((tool) => tool !== 'propose_website_smoke_test')
-        }
-
-        enabledTools = enabledTools.filter((tool) => tool !== 'run_website_smoke_test')
 
         return [...new Set(enabledTools)]
     }

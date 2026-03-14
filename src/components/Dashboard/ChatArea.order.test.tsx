@@ -33,10 +33,6 @@ vi.mock('@/components/shared/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
 
-vi.mock('@/components/testing/WebsiteSmokeTestProposalCard', () => ({
-  default: () => <div data-testid="tool-result-display">proposal-card</div>,
-}))
-
 vi.mock('./ChatArea/attachmentUtils', () => ({
   formatFileSize: () => '1 KB',
 }))
@@ -56,12 +52,12 @@ describe('MessageRenderer tool result ordering', () => {
             {
               toolCall: {
                 id: 'tool-1',
-                name: 'propose_website_smoke_test',
-                arguments: {},
+                name: 'research_plan',
+                arguments: { topic: 'test topic', steps: [{ stepNumber: 1, query: 'test query' }] },
               },
               result: {
                 success: true,
-                data: { status: 'awaiting_approval' },
+                data: { combinedResults: '# Research\n- Result' },
               },
             },
           ],

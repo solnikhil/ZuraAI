@@ -33,8 +33,8 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     id: 'skills',
     navLabel: 'Skills',
     title: 'Skills & Capabilities',
-    description: 'Enable built-in research and testing skills and control tool access behavior.',
-    keywords: ['tools', 'research', 'testing', 'capabilities', 'web search', 'smoke test', 'playwright'],
+    description: 'Enable built-in research skills and control tool access behavior.',
+    keywords: ['tools', 'research', 'capabilities', 'web search', 'tavily'],
   },
   {
     id: 'themes',

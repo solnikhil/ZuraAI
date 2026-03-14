@@ -12,8 +12,6 @@ import {
 import {
   BUILT_IN_SKILLS,
   isWebResearchEnabled,
-  isTestingEnabled,
-  withTestingEnabled,
   withWebResearchEnabled,
   type SkillsSettings,
 } from '@/skills'
@@ -25,16 +23,8 @@ export interface SkillsSectionProps {
 
 export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.ReactElement {
   const webResearchEnabled = isWebResearchEnabled(skills)
-  const testingEnabled = isTestingEnabled(skills)
 
-  const setEnabled = (skillId: string, enabled: boolean) => {
-    if (skillId === 'testing') {
-      onChange({
-        skills: withTestingEnabled(skills, enabled),
-      })
-      return
-    }
-
+  const setEnabled = (_skillId: string, enabled: boolean) => {
     onChange({
       skills: withWebResearchEnabled(skills, enabled),
     })
@@ -42,7 +32,6 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
 
   const isSkillEnabled = (skillId: string): boolean => {
     if (skillId === 'web_research') return webResearchEnabled
-    if (skillId === 'testing') return testingEnabled
     return false
   }
 
@@ -51,7 +40,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
         <div className="page-subtitle">
-          Enable built-in capabilities that shape web research, website testing, and tool access behavior.
+          Enable built-in capabilities that shape web research behavior and tool access.
         </div>
       </div>
 
@@ -117,7 +106,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="skills-marketplace-note__inner">
           <Info size={15} className="skills-marketplace-note__icon" />
           <div className="skills-marketplace-note__text">
-            Built-in skills only. Enable a skill here, then use it from chat. Testing stays approval-gated before any browser run starts.
+            Built-in skills only. Enable a skill here, then use it from chat.
           </div>
         </div>
       </Card>

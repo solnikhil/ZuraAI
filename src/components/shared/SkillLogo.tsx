@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { FlaskConical, Globe, Radar } from 'lucide-react'
+import { Globe, Radar } from 'lucide-react'
 
 export type SkillLogoSize = 'sm' | 'md' | 'lg'
 
@@ -20,19 +20,16 @@ const SIZE_MAP: Record<SkillLogoSize, number> = {
 const SKILL_ASSET_NAMES: Record<string, string> = {
   web_research: 'tavily',
   tavily: 'tavily',
-  testing: 'testing',
 }
 
 const SKILL_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
   web_research: Radar,
   tavily: Radar,
-  testing: FlaskConical,
 }
 
 const SKILL_FALLBACK_COLORS: Record<string, string> = {
   web_research: '#4dabf7',
   tavily: '#4dabf7',
-  testing: '#f59f00',
 }
 
 const ASSET_EXTENSIONS = ['svg', 'png', 'webp', 'jpg', 'jpeg'] as const

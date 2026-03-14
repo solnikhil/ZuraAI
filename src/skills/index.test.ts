@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildEnabledSkillsPrompt,
   defaultSkillsSettings,
-  getTestingToolExposure,
   getWebResearchToolExposure,
-  isTestingEnabled,
   migrateSkillsFromLegacySettings,
 } from './index'
 
@@ -70,46 +68,9 @@ describe('skills tool exposure', () => {
     })
   })
 
-  it('keeps testing tool hidden by default', () => {
-    expect(isTestingEnabled(defaultSkillsSettings)).toBe(false)
-    expect(getTestingToolExposure(defaultSkillsSettings)).toEqual({
-      exposeWebsiteSmokeTestProposal: false,
-      exposeWebsiteSmokeTestRun: false,
-    })
-  })
-
-  it('exposes only the website smoke proposal tool when testing skill is enabled', () => {
-    const exposure = getTestingToolExposure({
-      ...defaultSkillsSettings,
-      testing: {
-        enabled: true,
-        config: { mode: 'website_smoke' },
-      },
-    })
-
-    expect(exposure).toEqual({
-      exposeWebsiteSmokeTestProposal: true,
-      exposeWebsiteSmokeTestRun: false,
-    })
-  })
-
   it('builds concise enabled skills prompt', () => {
     const prompt = buildEnabledSkillsPrompt(defaultSkillsSettings)
     expect(prompt).toContain('Enabled Skills:')
     expect(prompt).toContain('Tavily (`web_research`)')
-  })
-
-  it('includes testing guidance in the enabled skills prompt', () => {
-    const prompt = buildEnabledSkillsPrompt({
-      ...defaultSkillsSettings,
-      testing: {
-        enabled: true,
-        config: { mode: 'website_smoke' },
-      },
-    })
-
-    expect(prompt).toContain('Testing (`testing`)')
-    expect(prompt).toContain('propose_website_smoke_test')
-    expect(prompt).toContain('wait for user approval')
   })
 })

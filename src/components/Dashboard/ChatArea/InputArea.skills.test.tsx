@@ -12,10 +12,6 @@ const mockSettings = {
         enabled: true,
         config: { mode: 'normal' },
       },
-      testing: {
-        enabled: false,
-        config: { mode: 'website_smoke' },
-      },
     },
     frostedPrompt: false,
     modelProvider: 'openrouter',
@@ -58,10 +54,10 @@ import InputArea from './InputArea'
 describe('InputArea skills menu', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSettings.settings.skills.testing.enabled = false
+    mockSettings.settings.skills.web_research.enabled = true
   })
 
-  it('shows both Tavily and Testing in the chat skills menu', async () => {
+  it('shows Tavily in the chat skills menu', async () => {
     render(
       <InputArea
         input=""
@@ -78,11 +74,9 @@ describe('InputArea skills menu', () => {
     fireEvent.click(await screen.findByText('Skills'))
 
     expect(await screen.findByText('Tavily')).toBeInTheDocument()
-    expect(await screen.findByText('Testing')).toBeInTheDocument()
-    expect(screen.getByText(/chat workflow tests/i)).toBeInTheDocument()
   })
 
-  it('toggles the testing skill from the chat skills menu', async () => {
+  it('toggles the Tavily skill from the chat skills menu', async () => {
     render(
       <InputArea
         input=""
@@ -97,12 +91,12 @@ describe('InputArea skills menu', () => {
     const quickActions = screen.getByRole('button', { name: /open quick actions/i })
     fireEvent.pointerDown(quickActions, { button: 0, ctrlKey: false })
     fireEvent.click(await screen.findByText('Skills'))
-    fireEvent.click(await screen.findByText('Testing'))
+    fireEvent.click(await screen.findByText('Tavily'))
 
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         skills: expect.objectContaining({
-          testing: expect.objectContaining({ enabled: true }),
+          web_research: expect.objectContaining({ enabled: false }),
         }),
       })
     )

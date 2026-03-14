@@ -21,7 +21,6 @@ import {
 } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
 import { executeResearchPlanTool } from './researchPlanHandler'
-import { executeWebsiteSmokeProposalTool } from './websiteSmokeProposalHandler'
 import { ToolCall, ToolCallResult, OpenRouterResponse, OpenRouterToolResultMessage } from './types'
 
 // Type for provider API responses
@@ -266,9 +265,6 @@ export async function processToolCalls(
           coercedToolCall,
           config.onResearchPlanProgress
         )
-        result = [singleResult]
-      } else if (coercedToolCall.name === 'propose_website_smoke_test') {
-        const singleResult = await executeWebsiteSmokeProposalTool(coercedToolCall)
         result = [singleResult]
       } else {
         result = await executeToolCalls([coercedToolCall])

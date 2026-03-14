@@ -8,9 +8,6 @@ import {
   Globe,
 } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
-import WebsiteSmokeTestProposalCard from '@/components/testing/WebsiteSmokeTestProposalCard'
-import WebsiteSmokeTestResultCard from '@/components/testing/WebsiteSmokeTestResultCard'
-import type { WebsiteSmokeTestProposalResult, WebsiteSmokeTestResult } from '@/testing/types'
 
 import './ToolResultDisplay.css'
 
@@ -60,9 +57,9 @@ export default function ToolResultDisplay({
   toolName,
   result,
   error,
-  sessionId,
-  messageId,
-  toolResultIndex,
+  sessionId: _sessionId,
+  messageId: _messageId,
+  toolResultIndex: _toolResultIndex,
 }: ToolResultDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -174,21 +171,6 @@ export default function ToolResultDisplay({
         )}
       </div>
     )
-  }
-
-  if (toolName === 'propose_website_smoke_test') {
-    return (
-      <WebsiteSmokeTestProposalCard
-        proposalResult={result as WebsiteSmokeTestProposalResult}
-        sessionId={sessionId}
-        messageId={messageId}
-        toolResultIndex={toolResultIndex}
-      />
-    )
-  }
-
-  if (toolName === 'run_website_smoke_test') {
-    return <WebsiteSmokeTestResultCard result={result as WebsiteSmokeTestResult} />
   }
 
   return (
