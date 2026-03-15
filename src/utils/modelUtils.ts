@@ -1,5 +1,5 @@
 /**
- * Centralized model utilities for Zura AI
+ * Centralized model utilities for ZuraAI
  * Consolidates duplicate model-related functions from Settings.tsx and ModelSelector.tsx
  *
  */

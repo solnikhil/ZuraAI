@@ -1,7 +1,7 @@
 {
   "name": "zura",
-  "version": "0.0.1",
-  "description": "Zura AI - Desktop AI Assistant",
+  "version": "0.0.2",
+  "description": "ZuraAI - Desktop AI Assistant",
   "author": "Nikhil",
   "license": "MIT",
   "main": "dist-electron/main.js",
@@ -38,6 +38,7 @@
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
@@ -52,6 +53,8 @@
     "mermaid": "^11.12.2",
     "motion": "^12.35.1",
     "next-themes": "^0.4.6",
+    "playwright": "^1.58.2",
+    "radix-ui": "^1.4.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",
@@ -91,9 +94,9 @@
     "vitest": "^4.0.18"
   },
   "build": {
-    "appId": "com.zura.ai",
-    "productName": "Zura",
-    "executableName": "Zura",
+    "appId": "in.zuraai.desktop",
+    "productName": "ZuraAI",
+    "executableName": "ZuraAI",
     "copyright": "Copyright (c) 2026 Nikhil",
     "asar": true,
     "compression": "maximum",
@@ -116,7 +119,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "executableName": "Zura"
+      "executableName": "ZuraAI"
     },
     "nsis": {
       "oneClick": false,
@@ -124,15 +127,15 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Zura",
-      "uninstallDisplayName": "Zura AI",
+      "shortcutName": "ZuraAI",
+      "uninstallDisplayName": "ZuraAI",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerSidebar": "build/sidebar.bmp",
       "uninstallerSidebar": "build/sidebar.bmp",
       "include": "installer/installer.nsh",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "Zura-Setup-${version}.${ext}"
+      "artifactName": "ZuraAI-Setup-${version}.${ext}"
     },
     "files": [
       "dist/**/*",

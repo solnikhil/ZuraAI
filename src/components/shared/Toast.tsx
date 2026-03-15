@@ -1,5 +1,5 @@
 /**
- * Shared Toast component for Zura AI
+ * Shared Toast component for ZuraAI
  * Provides toast notifications with different types (success, error, warning, info)
  * Now powered by shadcn's Sonner toaster
  *

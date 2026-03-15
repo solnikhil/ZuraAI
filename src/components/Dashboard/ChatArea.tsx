@@ -8,7 +8,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
 import { useToast } from '../shared/Toast'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
-import type { ToolCallResult } from '../../contexts/ChatHistoryContext'
 import { useStreamingState } from '../../contexts/StreamingContext'
 import { useQuickSend } from '../../contexts/QuickSendContext'
 import { useSettings } from '../../contexts/SettingsContext'
@@ -200,21 +199,6 @@ export default function ChatArea() {
 
       return (
         <div data-message-id={msg.id}>
-          {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-            <div style={{ marginBottom: '12px' }}>
-              {msg.toolResults
-                .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
-                .map((result: ToolCallResult, i: number) => (
-                  <ToolResultDisplay
-                    key={`stored-${i}`}
-                    toolName={result.toolCall.name}
-                    result={result.result?.success ? result.result.data : undefined}
-                    error={result.result?.success ? undefined : result.result?.error}
-                  />
-                ))}
-            </div>
-          )}
-
           {isStreamingMsg ? (
             <StreamingMessage
               message={msg}
@@ -227,6 +211,7 @@ export default function ChatArea() {
             <MessageRenderer
               message={msg}
               isStreaming={false}
+              sessionId={currentSessionId || undefined}
               onCopy={handleCopy}
               onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
             />
@@ -235,15 +220,19 @@ export default function ChatArea() {
           {isLastAssistant && toolState.toolResults.length > 0 && (
             <div style={{ marginTop: '8px', marginBottom: '24px' }}>
               {toolState.toolResults
-                .filter((r) => r.toolCall.name !== 'web_search')
-                .map((result, i) => (
-                  <ToolResultDisplay
-                    key={i}
-                    toolName={result.toolCall.name}
-                    result={result.result?.success ? result.result.data : undefined}
-                    error={result.result?.success ? undefined : result.result?.error}
-                  />
-                ))}
+                .map((result, i) =>
+                  result.toolCall.name === 'web_search' ? null : (
+                    <ToolResultDisplay
+                      key={i}
+                      toolName={result.toolCall.name}
+                      result={result.result?.success ? result.result.data : undefined}
+                      error={result.result?.success ? undefined : result.result?.error}
+                      sessionId={currentSessionId || undefined}
+                      messageId={msg.id}
+                      toolResultIndex={i}
+                    />
+                  )
+                )}
             </div>
           )}
         </div>
@@ -381,21 +370,6 @@ export default function ChatArea() {
 
               return (
                 <div key={msg.id} data-message-id={msg.id}>
-                  {msg.role === 'assistant' && msg.toolResults && msg.toolResults.length > 0 && (
-                    <div style={{ marginBottom: '12px' }}>
-                      {msg.toolResults
-                        .filter((r: ToolCallResult) => r.toolCall.name !== 'web_search')
-                        .map((result: ToolCallResult, i: number) => (
-                          <ToolResultDisplay
-                            key={`stored-${i}`}
-                            toolName={result.toolCall.name}
-                            result={result.result.success ? result.result.data : undefined}
-                            error={result.result.success ? undefined : result.result.error}
-                          />
-                        ))}
-                    </div>
-                  )}
-
                   {isStreamingMessage ? (
                     <StreamingMessage
                       message={msg}
@@ -408,6 +382,7 @@ export default function ChatArea() {
                     <MessageRenderer
                       message={msg}
                       isStreaming={false}
+                      sessionId={currentSessionId || undefined}
                       onCopy={handleCopy}
                       onRegenerate={(instruction) => regenerateMessage(msg, instruction)}
                     />
@@ -416,15 +391,19 @@ export default function ChatArea() {
                   {isLastAssistant && toolState.toolResults.length > 0 && (
                     <div style={{ marginTop: '8px', marginBottom: '24px' }}>
                       {toolState.toolResults
-                        .filter((r) => r.toolCall.name !== 'web_search')
-                        .map((result, i) => (
-                          <ToolResultDisplay
-                            key={i}
-                            toolName={result.toolCall.name}
-                            result={result.result.success ? result.result.data : undefined}
-                            error={result.result.success ? undefined : result.result.error}
-                          />
-                        ))}
+                        .map((result, i) =>
+                          result.toolCall.name === 'web_search' ? null : (
+                            <ToolResultDisplay
+                              key={i}
+                              toolName={result.toolCall.name}
+                              result={result.result.success ? result.result.data : undefined}
+                              error={result.result.success ? undefined : result.result.error}
+                              sessionId={currentSessionId || undefined}
+                              messageId={msg.id}
+                              toolResultIndex={i}
+                            />
+                          )
+                        )}
                     </div>
                   )}
                 </div>

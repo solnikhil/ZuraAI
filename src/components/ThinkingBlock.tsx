@@ -32,6 +32,8 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
 }
 
 interface ThinkingBlockProps {
+  messageId?: string
+  activeBlockKey?: string
   thinking: string
   isThinking?: boolean
   thinkingDuration?: number // in milliseconds
@@ -47,6 +49,10 @@ function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
+
+  if (ms > 0 && seconds === 0) {
+    return '<1s'
+  }
 
   if (minutes > 0) {
     return `${minutes}m ${remainingSeconds}s`
@@ -213,6 +219,10 @@ function CompletedBlock({
   const [isExpanded, setIsExpanded] = useState(shouldExpand)
   const { animationsEnabled } = useMotionPreferences()
 
+  useEffect(() => {
+    setIsExpanded(shouldExpand)
+  }, [block.timestamp, shouldExpand])
+
   if (block.type === 'searching') {
     const hasDetails =
       (block.toolInput && Object.keys(block.toolInput).length > 0) ||
@@ -222,7 +232,7 @@ function CompletedBlock({
       inferWebToolModeFromArgs(block.toolInput)
     const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
     return (
-      <div className="thinking-block completed thinking-tool-call">
+      <div className={`thinking-block completed thinking-tool-call ${isExpanded ? 'expanded' : ''}`}>
         <div
           className={`thinking-header completed tool-call ${hasDetails ? 'clickable' : ''}`}
           onClick={() => hasDetails && setIsExpanded(!isExpanded)}
@@ -303,7 +313,7 @@ function CompletedBlock({
   // Thinking block
   const hasContent = block.content && block.content.trim().length > 0
   return (
-    <div className="thinking-block completed">
+    <div className={`thinking-block completed ${isExpanded ? 'expanded' : ''}`}>
       <div className="thinking-header completed" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="thinking-label">
           <span className="thinking-text">
@@ -340,6 +350,8 @@ function CompletedBlock({
 }
 
 export default function ThinkingBlock({
+  messageId,
+  activeBlockKey,
   thinking,
   isThinking = false,
   thinkingDuration,
@@ -362,6 +374,18 @@ export default function ThinkingBlock({
   // Whether any active state is happening right now.
   const isActiveSession = isThinking || isSearching || hasActiveToolCalls
 
+  useEffect(() => {
+    setIsExpanded(isThinking || isSearching || hasActiveToolCalls)
+    setElapsedTime(0)
+    setFinalTime(thinkingDuration !== undefined ? thinkingDuration / 1000 : null)
+    thinkingStartRef.current = null
+
+    if (graceTimeoutRef.current) {
+      clearTimeout(graceTimeoutRef.current)
+      graceTimeoutRef.current = null
+    }
+  }, [messageId, activeBlockKey])
+
   // Unified timer: starts when any active state begins, keeps running across
   // brief inactive gaps (grace period), and only finalizes when the response
   // is truly done. This prevents the timer from resetting between web search rounds.
@@ -376,7 +400,7 @@ export default function ThinkingBlock({
       }
 
       // Start timer if not already running (never reset an existing one).
-      if (!thinkingStartRef.current) {
+      if (thinkingStartRef.current === null) {
         thinkingStartRef.current = Date.now()
         setFinalTime(null)
         setElapsedTime(0)
@@ -384,7 +408,10 @@ export default function ThinkingBlock({
 
       // Live tick
       interval = setInterval(() => {
-        setElapsedTime((Date.now() - thinkingStartRef.current!) / 1000)
+        const startTime = thinkingStartRef.current
+        if (startTime === null) return
+
+        setElapsedTime((Date.now() - startTime) / 1000)
       }, 100)
     } else if (thinkingStartRef.current) {
       // All active states ended. Update the displayed time immediately but
@@ -444,21 +471,6 @@ export default function ThinkingBlock({
     }
   }, [isThinking, isSearching, hasActiveToolCalls, thinking])
 
-  // When thinking content changes while NOT actively thinking (e.g. switching chats),
-  // reset to collapsed so old expanded state doesn't carry over.
-  const prevThinkingRef = useRef(thinking)
-  useEffect(() => {
-    if (
-      prevThinkingRef.current !== thinking &&
-      !isThinking &&
-      !isSearching &&
-      !hasActiveToolCalls
-    ) {
-      setIsExpanded(false)
-    }
-    prevThinkingRef.current = thinking
-  }, [thinking, isThinking, isSearching, hasActiveToolCalls])
-
   const handleToggle = () => {
     setIsExpanded(!isExpanded)
   }
@@ -480,11 +492,19 @@ export default function ThinkingBlock({
 
   // When thinking contains --- and we have search blocks, show them inline (don't duplicate above)
   const searchBlocks = completedBlocks.filter((b) => b.type === 'searching')
-  const hasThinkingWithToolCalls =
-    hasThinkingContent && /\n\s*---\s*\n?/.test(thinking) && searchBlocks.length > 0
-  const blocksToRender = hasThinkingWithToolCalls
+  const hasCompletedThinkingBlocks = completedBlocks.some((block) => block.type === 'thinking')
+  const hasLegacyInlineThinkingWithToolCalls =
+    hasThinkingContent &&
+    !hasCompletedThinkingBlocks &&
+    /\n\s*---\s*\n?/.test(thinking) &&
+    searchBlocks.length > 0
+  const blocksToRender = hasLegacyInlineThinkingWithToolCalls
     ? completedBlocks.filter((b) => b.type !== 'searching')
     : completedBlocks
+  const latestCompletedThinkingIndex = blocksToRender.reduce(
+    (latestIndex, block, index) => (block.type === 'thinking' ? index : latestIndex),
+    -1
+  )
   const searchingMode = inferWebToolModeFromArgs(searchQuery ? { query: searchQuery } : undefined)
   const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
 
@@ -492,7 +512,11 @@ export default function ThinkingBlock({
     <div className="thinking-blocks-container">
       {/* Render completed blocks first - exclude search when shown inline in thinking */}
       {blocksToRender.map((block, index) => (
-        <CompletedBlock key={`completed-${index}-${block.timestamp}`} block={block} />
+        <CompletedBlock
+          key={`completed-${index}-${block.timestamp}`}
+          block={block}
+          defaultExpanded={!showActiveBlock && index === latestCompletedThinkingIndex}
+        />
       ))}
 
       {showActiveBlock && (
@@ -561,7 +585,9 @@ export default function ThinkingBlock({
                 style={{ overflow: 'hidden' }}
               >
                 <div className="thinking-content">
-                  {renderThinkingWithToolCalls(thinking, completedBlocks)}
+                  {hasLegacyInlineThinkingWithToolCalls
+                    ? renderThinkingWithToolCalls(thinking, completedBlocks)
+                    : thinking}
                 </div>
               </motion.div>
             )}

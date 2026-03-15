@@ -1,5 +1,5 @@
 ; =============================================================================
-; Zura AI — Dark Theme NSIS Include (Wizard Installer)
+; ZuraAI — Dark Theme NSIS Include (Wizard Installer)
 ;
 ; Personalised, dark-themed install experience.
 ; Uses the directory page selection as the final install path.
@@ -149,7 +149,7 @@ FunctionEnd
 
   GetDlgItem $R1 $HWNDPARENT 1036
   StrCmp $R1 0 +2
-    SendMessage $R1 0x000C 0 "STR:Setting up Zura AI — this will only take a moment."
+    SendMessage $R1 0x000C 0 "STR:Setting up ZuraAI — this will only take a moment."
 
   _zura_done_instfiles:
 !macroend
@@ -159,9 +159,9 @@ FunctionEnd
 ; ---------------------------------------------------------------------------
 !macro customInstall
   DetailPrint ""
-  DetailPrint "Preparing Zura AI for you..."
+  DetailPrint "Preparing ZuraAI for you..."
   DetailPrint "Registering application..."
   DetailPrint "Creating shortcuts..."
   DetailPrint ""
-  DetailPrint "All set — launching Zura AI!"
+  DetailPrint "All set — launching ZuraAI!"
 !macroend

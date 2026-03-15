@@ -12,6 +12,7 @@ import {
 import { ToolCall } from '../tools/executor'
 import type { OpenRouterResponse } from '../tools/types'
 import { getAllToolDefinitions } from '../tools/definitions'
+import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure } from '../skills'
 
@@ -52,7 +53,6 @@ export function useToolCalling() {
             : allToolNames
 
         const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
-
         if (!webResearchToolExposure.exposeWebSearch) {
             enabledTools = enabledTools.filter((tool) => tool !== 'web_search' && tool !== 'research_plan')
         } else {
@@ -171,7 +171,7 @@ export function useToolCalling() {
                 hasTools: true,
                 toolResults: results,
                 formattedResults,
-                needsFollowUp: formattedResults.length > 0,
+                needsFollowUp: shouldRequestToolFollowUp(results, formattedResults),
             }
         } catch (error: unknown) {
             setToolState((prev) => ({ ...prev, isProcessingTools: false }))

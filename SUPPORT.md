@@ -5,7 +5,7 @@ Use this guide to decide where to ask for help and what to include when reportin
 ## Before opening an issue
 
 - Search existing issues first to avoid duplicates.
-- Make sure the problem is in Zura AI itself and not just an upstream provider outage or account limitation.
+- Make sure the problem is in ZuraAI itself and not just an upstream provider outage or account limitation.
 - Remove API keys, tokens, prompts with private data, and personal information from anything you share.
 
 ## How to open an issue
@@ -45,7 +45,7 @@ Other helpful checks:
 
 ## What to include in a good report
 
-- The Zura AI version, release tag, or commit SHA you tested.
+- The ZuraAI version, release tag, or commit SHA you tested.
 - Your operating system.
 - The exact provider and model involved, if relevant.
 - Short, reliable steps to reproduce the issue.

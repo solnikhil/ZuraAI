@@ -7,7 +7,7 @@
 
 import { useCallback } from 'react'
 import { streamOllamaCompletion } from '../../../../../services/ollama'
-import type { ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
 import type { OpenRouterMessage } from '../../../../../tools/types'
 import type {
   StreamingResult,
@@ -17,7 +17,7 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
-import { getStreamingUpdateInterval } from './streamingUtils'
+import { appendCompletedThinkingBlock, getStreamingUpdateInterval } from './streamingUtils'
 
 export interface UseOllamaStreamingOptions {
   settings: StreamingSettings
@@ -59,7 +59,6 @@ export function useOllamaStreaming({
       const ollamaTools = tools && Array.isArray(tools) ? tools : undefined
 
       let accumulatedContent = ''
-      let accumulatedReasoning = ''
       let lastUpdateTime = Date.now()
       let finalUsage: { inputTokens: number; outputTokens: number; totalTokens: number } = {
         inputTokens: 0,
@@ -71,9 +70,27 @@ export function useOllamaStreaming({
       let isDone = false
       let savedToolResults: ToolCallResult[] | undefined = undefined
       let firstTokenTime: number | null = null
-      let thinkingStartTime: number | null = null
-      let thinkingEndTime: number | null = null
-      let thinkingDuration: number | undefined = undefined
+      let localThinkingBlocks: ThinkingBlock[] = []
+      let activeThinking = ''
+      let activeThinkingStartTime: number | null = null
+
+      const finalizeActiveThinking = () => {
+        if (!activeThinking.trim()) return false
+
+        const thinkingEndTime = performance.now()
+        const thinkingDuration = activeThinkingStartTime
+          ? thinkingEndTime - activeThinkingStartTime
+          : undefined
+
+        localThinkingBlocks = appendCompletedThinkingBlock(
+          localThinkingBlocks,
+          activeThinking,
+          thinkingDuration
+        )
+        activeThinking = ''
+        activeThinkingStartTime = null
+        return true
+      }
 
       try {
         for await (const chunk of streamOllamaCompletion(
@@ -88,17 +105,19 @@ export function useOllamaStreaming({
 
           const thinkingDelta = chunk.message?.thinking || ''
           if (thinkingDelta) {
-            if (!thinkingStartTime) thinkingStartTime = performance.now()
-            accumulatedReasoning += thinkingDelta
+            if (!activeThinkingStartTime) activeThinkingStartTime = performance.now()
+            activeThinking += thinkingDelta
           }
 
           if (chunk.message?.content) {
             accumulatedContent += chunk.message.content
-            if (accumulatedReasoning && !thinkingEndTime) {
-              thinkingEndTime = performance.now()
-              if (thinkingStartTime) {
-                thinkingDuration = thinkingEndTime - thinkingStartTime
-              }
+            if (activeThinking) {
+              finalizeActiveThinking()
+              updateStreamingMessage(sessionId, messageId, {
+                thinking: undefined,
+                thinkingDuration: undefined,
+                thinkingBlocks: localThinkingBlocks,
+              })
             }
           }
 
@@ -122,26 +141,22 @@ export function useOllamaStreaming({
           if (now - lastUpdateTime >= updateInterval && !isDone) {
             throttledUpdateStreamingMessage(sessionId, messageId, {
               content: accumulatedContent,
-              thinking: accumulatedReasoning || undefined,
-              thinkingDuration,
+              thinking: activeThinking || undefined,
+              thinkingBlocks: localThinkingBlocks,
             })
             lastUpdateTime = now
           }
         }
 
-        if (accumulatedReasoning && !thinkingEndTime) {
-          thinkingEndTime = performance.now()
-          if (thinkingStartTime) {
-            thinkingDuration = thinkingEndTime - thinkingStartTime
-          }
-        }
+        if (activeThinking) finalizeActiveThinking()
 
         // Flush throttled updates and apply final content state
         flushThrottledUpdates()
         updateStreamingMessage(sessionId, messageId, {
           content: accumulatedContent,
-          thinking: accumulatedReasoning || undefined,
-          thinkingDuration,
+          thinking: undefined,
+          thinkingDuration: undefined,
+          thinkingBlocks: localThinkingBlocks,
         })
       } catch (streamError: unknown) {
         console.error('Ollama streaming failed, trying non-streaming:', streamError)
@@ -167,7 +182,10 @@ export function useOllamaStreaming({
         if (nonStreamingResponse.ok) {
           const data = await nonStreamingResponse.json()
           accumulatedContent = data.message?.content || ''
-          accumulatedReasoning = data.message?.thinking || ''
+          localThinkingBlocks = appendCompletedThinkingBlock(
+            localThinkingBlocks,
+            data.message?.thinking || ''
+          )
           finalUsage = {
             inputTokens: data.prompt_eval_count || 0,
             outputTokens: data.eval_count || 0,
@@ -179,7 +197,9 @@ export function useOllamaStreaming({
           }
           updateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
+            thinking: undefined,
+            thinkingDuration: undefined,
+            thinkingBlocks: localThinkingBlocks,
           })
         } else {
           throw new Error(`Ollama API Error: ${nonStreamingResponse.statusText}`)
@@ -188,8 +208,9 @@ export function useOllamaStreaming({
 
       updateStreamingMessage(sessionId, messageId, {
         content: accumulatedContent,
-        thinking: accumulatedReasoning || undefined,
-        thinkingDuration,
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: localThinkingBlocks,
       })
 
       if (!accumulatedContent) {
@@ -236,10 +257,29 @@ export function useOllamaStreaming({
           let followUpContent = ''
           let followUpReasoning = ''
           let followUpLastUpdate = Date.now()
+          let followUpThinkingStartTime: number | null = null
           let followUpUsage: { inputTokens: number; outputTokens: number; totalTokens: number } = {
             inputTokens: 0,
             outputTokens: 0,
             totalTokens: 0,
+          }
+
+          const finalizeFollowUpReasoning = () => {
+            if (!followUpReasoning.trim()) return false
+
+            const thinkingEndTime = performance.now()
+            const thinkingDuration = followUpThinkingStartTime
+              ? thinkingEndTime - followUpThinkingStartTime
+              : undefined
+
+            localThinkingBlocks = appendCompletedThinkingBlock(
+              localThinkingBlocks,
+              followUpReasoning,
+              thinkingDuration
+            )
+            followUpReasoning = ''
+            followUpThinkingStartTime = null
+            return true
           }
 
           const webSearchCount =
@@ -264,9 +304,20 @@ export function useOllamaStreaming({
             { temperature: settings.temperature, think: true, tools: ollamaTools, signal }
           )) {
             const thinkingDelta = chunk.message?.thinking || ''
-            if (thinkingDelta) followUpReasoning += thinkingDelta
+            if (thinkingDelta) {
+              if (!followUpThinkingStartTime) followUpThinkingStartTime = performance.now()
+              followUpReasoning += thinkingDelta
+            }
             if (chunk.message?.content) {
               followUpContent += chunk.message.content
+              if (followUpReasoning) {
+                finalizeFollowUpReasoning()
+                updateStreamingMessage(sessionId, messageId, {
+                  thinking: undefined,
+                  thinkingDuration: undefined,
+                  thinkingBlocks: localThinkingBlocks,
+                })
+              }
             }
             if (chunk.done) {
               followUpUsage = {
@@ -280,18 +331,21 @@ export function useOllamaStreaming({
             if (now - followUpLastUpdate >= updateInterval && !chunk.done) {
               throttledUpdateStreamingMessage(sessionId, messageId, {
                 content: accumulatedContent + followUpContent,
-                thinking: accumulatedReasoning + followUpReasoning || undefined,
+                thinking: followUpReasoning || undefined,
+                thinkingBlocks: localThinkingBlocks,
               })
               followUpLastUpdate = now
             }
           }
 
           accumulatedContent += followUpContent
-          accumulatedReasoning += followUpReasoning
+          if (followUpReasoning) finalizeFollowUpReasoning()
           flushThrottledUpdates()
           updateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
+            thinking: undefined,
+            thinkingDuration: undefined,
+            thinkingBlocks: localThinkingBlocks,
           })
 
           finalUsage = {
@@ -329,18 +383,18 @@ export function useOllamaStreaming({
         latency,
         usage: { ...finalUsage, tps, ttft },
         toolResults: savedToolResults,
-        thinking: accumulatedReasoning || undefined,
-        thinkingDuration,
+        thinking: undefined,
+        thinkingDuration: undefined,
+        thinkingBlocks: localThinkingBlocks,
       })
 
       return {
         content: accumulatedContent,
         model: `ollama/${settings.aiModel}`,
         toolResults: savedToolResults,
+        thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
         usage: { ...finalUsage, tps, ttft },
         latency,
-        thinking: accumulatedReasoning || undefined,
-        thinkingDuration,
       }
     },
     [

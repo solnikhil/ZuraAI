@@ -28,6 +28,25 @@ import {
 } from '@/components/ui/tree'
 import { parseFileTreeBlock, type FileTreeNode } from '@/utils/fileTreeParser'
 
+function isFolderNode(node: FileTreeNode): boolean {
+  return node.type === 'folder' || (!!node.children && node.children.length > 0)
+}
+
+export function sortNodesForDisplay(nodes: FileTreeNode[]): FileTreeNode[] {
+  return [...nodes]
+    .sort((a, b) => {
+      const aIsFolder = isFolderNode(a)
+      const bIsFolder = isFolderNode(b)
+
+      if (aIsFolder === bIsFolder) return 0
+      return aIsFolder ? -1 : 1
+    })
+    .map((node) => ({
+      ...node,
+      ...(node.children ? { children: sortNodesForDisplay(node.children) } : {}),
+    }))
+}
+
 function collectExpandedIds(nodes: FileTreeNode[], maxDepth: number): string[] {
   const ids: string[] = []
   const walk = (ns: FileTreeNode[], depth: number) => {
@@ -168,7 +187,7 @@ function TreeNodes({ nodes, level }: { nodes: FileTreeNode[]; level: number }) {
         const isLast = idx === nodes.length - 1
 
         return (
-          <TreeNode key={node.id} nodeId={node.id} level={level} isLast={isLast}>
+          <TreeNode key={`${node.id}:${idx}`} nodeId={node.id} level={level} isLast={isLast}>
              <TreeNodeTrigger className="font-mono text-sm [&[data-selected=true]]:bg-transparent" hasChildren={hasChildren}>
               <TreeExpander hasChildren={hasChildren} />
               <TreeIcon isFolder={isFolder} icon={!isFolder ? iconForLeaf(node) : undefined} />
@@ -211,9 +230,11 @@ export default function MarkdownFileTree({
     }
   }, [language, content])
 
-  const defaultExpandedIds = React.useMemo(() => collectExpandedIds(nodes, 2), [nodes])
+  const sortedNodes = React.useMemo(() => sortNodesForDisplay(nodes), [nodes])
 
-  if (!nodes || nodes.length === 0) {
+  const defaultExpandedIds = React.useMemo(() => collectExpandedIds(sortedNodes, 2), [sortedNodes])
+
+  if (!sortedNodes || sortedNodes.length === 0) {
     return (
       <pre className={cn('overflow-x-auto rounded-lg border border-border bg-muted/30 p-3 text-sm', className)}>
         <code>{content}</code>
@@ -239,7 +260,7 @@ export default function MarkdownFileTree({
           onSelectionChange={() => {}}
         >
           <TreeView>
-            <TreeNodes nodes={nodes} level={0} />
+            <TreeNodes nodes={sortedNodes} level={0} />
           </TreeView>
         </TreeProvider>
       </div>

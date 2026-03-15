@@ -1,5 +1,5 @@
 /**
- * Centralized text processing utilities for Zura AI
+ * Centralized text processing utilities for ZuraAI
  *
  */
 

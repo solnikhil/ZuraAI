@@ -1,17 +1,17 @@
 <div align="center">
   <a name="readme-top"></a>
-  <img src="public/icon.png" alt="Zura AI icon" width="96" height="96" />
+  <img src="public/icon.png" alt="ZuraAI icon" width="96" height="96" />
 
-  <h1>Zura AI</h1>
+  <h1>ZuraAI</h1>
 
   <p><strong>Desktop AI for people who want model choice, fast research, and local control.</strong></p>
 
   <p>
-    Zura AI is a desktop assistant built with Electron, React, Vite, and TypeScript.<br />
+    ZuraAI is a desktop assistant built with Electron, React, Vite, and TypeScript.<br />
     Chat across leading cloud providers and Ollama, stream answers, run built-in web research, and keep your data local.
   </p>
 
-  <p><sub>macOS and Windows supported. No Zura account. No cloud sync. Bring your own providers.</sub></p>
+  <p><sub>macOS and Windows supported. No ZuraAI account. No cloud sync. Bring your own providers.</sub></p>
 
   <p>
     <a href="https://github.com/solnikhil/ZuraAI/releases">Releases</a> |
@@ -35,7 +35,7 @@
 <details>
   <summary><strong>Contents</strong></summary>
 
-- [Why Zura](#why-zura)
+- [Why ZuraAI](#why-zuraai)
 - [At a glance](#at-a-glance)
 - [Provider lineup](#provider-lineup)
 - [Quick start](#quick-start)
@@ -47,9 +47,9 @@
 
 </details>
 
-## Why Zura
+## Why ZuraAI
 
-Most desktop AI apps make you pick one provider, one workflow, or one trust model. Zura is built for people who want all three under control.
+Most desktop AI apps make you pick one provider, one workflow, or one trust model. ZuraAI is built for people who want all three under control.
 
 - Multi-provider by design: use `OpenRouter`, `Ollama`, `Perplexity`, `Groq`, and `Alibaba Cloud` from one desktop app.
 - Research that stays in the flow: turn on built-in web search or use structured research mode with live progress and citations.
@@ -60,7 +60,7 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 
 ## At a glance
 
-| Area | What Zura gives you |
+| Area | What ZuraAI gives you |
 | --- | --- |
 | Models | One interface for cloud models and local Ollama models |
 | Research | Built-in web search, structured research planning, citations, and inline search results |
@@ -80,7 +80,7 @@ Most desktop AI apps make you pick one provider, one workflow, or one trust mode
 | `Groq` | Fast responses | Useful when low latency matters more than provider breadth |
 | `Alibaba Cloud` | Qwen-based workflows | Good option for teams already using Alibaba Cloud models |
 
-Zura is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
+ZuraAI is actively adding and testing new providers. If the model stack you want is missing, open an issue and we can prioritize it.
 
 ## Quick start
 
@@ -100,7 +100,7 @@ npm run dev
 ```
 
 > [!NOTE]
-> Zura does not require a `.env` file. Add provider keys inside the app under Settings. If you use `Ollama`, make sure the local server is running at `http://localhost:11434` or your configured endpoint.
+> ZuraAI does not require a `.env` file. Add provider keys inside the app under Settings. If you use `Ollama`, make sure the local server is running at `http://localhost:11434` or your configured endpoint.
 
 ### Build production artifacts
 
@@ -125,7 +125,7 @@ Use `npm run build:dir` if you want an unpacked directory build instead of the i
 
 ## Security model
 
-Zura is built around a narrow desktop security boundary.
+ZuraAI is built around a narrow desktop security boundary.
 
 - The renderer is treated as untrusted.
 - Privileged work stays in the Electron main process.

@@ -39,8 +39,11 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -374,6 +377,11 @@ export function InputArea({
                     sideOffset={2}
                     className="w-[248px] rounded-xl p-1.5"
                   >
+                    <DropdownMenuLabel className="px-2.5 pb-1 pt-1 text-xs uppercase tracking-[0.12em] text-[var(--theme-text-muted)]">
+                      Quick Actions
+                    </DropdownMenuLabel>
+
+                    <DropdownMenuGroup>
                     <DropdownMenuItem
                       onSelect={(event) => {
                         event.preventDefault()
@@ -384,10 +392,11 @@ export function InputArea({
                     >
                       <Paperclip className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                       <span>Add photos & files</span>
-                      <span className="theme-menu-shortcut ml-auto text-[11px] opacity-0 group-hover/menu-item:opacity-100">
+                      <DropdownMenuShortcut className="text-[11px] opacity-0 group-hover/menu-item:opacity-100">
                         Ctrl+U
-                      </span>
+                      </DropdownMenuShortcut>
                     </DropdownMenuItem>
+                    </DropdownMenuGroup>
 
                     <DropdownMenuSeparator className="mx-3 my-1 h-px" />
 

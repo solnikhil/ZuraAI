@@ -8,7 +8,7 @@
  * A custom comparison function ensures deep equality checking for message objects.
  */
 
-import React, { useState, useRef, useEffect, useMemo, memo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Copy,
@@ -25,6 +25,7 @@ import LazyMarkdown from '../../LazyMarkdown'
 import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
+import ToolResultDisplay from '../../../tools/ui/ToolResultDisplay'
 import type {
   Message,
   ThinkingBlock,
@@ -38,6 +39,13 @@ import {
 } from '../../../tools/ui/webToolDisplay'
 import { formatFileSize } from './attachmentUtils'
 import { Button } from '@/components/ui/button'
+import type { StreamingPhase } from '../../../contexts/StreamingContext'
+import {
+  removeToolFollowUpSplitMarker,
+  shouldCaptureFollowUpSnapshot,
+  splitMessageTimeline,
+  type FollowUpTimelineSnapshot,
+} from './messageTimeline'
 import {
   Dialog,
   DialogContent,
@@ -75,6 +83,8 @@ export interface MessageRendererProps {
     researchProgress?: { currentStep: number; totalSteps: number; currentQuery?: string }
   }
   isStreaming?: boolean
+  streamPhase?: StreamingPhase
+  sessionId?: string
   /** Active tool calls during streaming (for in-message tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   onCopy?: (content: string) => void
@@ -87,6 +97,52 @@ const RESPONSE_INFO_PADDING = 12
 const RESPONSE_INFO_HIDE_DELAY_MS = 120
 const RESPONSE_INFO_OFFSET_X = 14
 const RESPONSE_INFO_ESTIMATED_HEIGHT = 400
+
+function areOptionalRecordsEqual(
+  a?: Record<string, unknown>,
+  b?: Record<string, unknown>
+): boolean {
+  if (a === b) return true
+  if (!a || !b) return !a && !b
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+function areThinkingBlocksEqual(prevBlocks: ThinkingBlock[], nextBlocks: ThinkingBlock[]): boolean {
+  if (prevBlocks === nextBlocks) return true
+  if (prevBlocks.length !== nextBlocks.length) return false
+
+  for (let i = 0; i < prevBlocks.length; i++) {
+    const prevBlock = prevBlocks[i]
+    const nextBlock = nextBlocks[i]
+
+    if (
+      prevBlock.type !== nextBlock.type ||
+      prevBlock.content !== nextBlock.content ||
+      prevBlock.query !== nextBlock.query ||
+      prevBlock.duration !== nextBlock.duration ||
+      prevBlock.timestamp !== nextBlock.timestamp ||
+      !areOptionalRecordsEqual(prevBlock.toolInput, nextBlock.toolInput)
+    ) {
+      return false
+    }
+
+    const prevOutput = prevBlock.toolOutput
+    const nextOutput = nextBlock.toolOutput
+    if (prevOutput !== nextOutput) {
+      if (!prevOutput || !nextOutput) return false
+      if (
+        prevOutput.success !== nextOutput.success ||
+        prevOutput.error !== nextOutput.error ||
+        prevOutput.executionTime !== nextOutput.executionTime ||
+        JSON.stringify(prevOutput.data) !== JSON.stringify(nextOutput.data)
+      ) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
 
 /**
  * Strip trailing "References" or "Sources" sections that the model may generate.
@@ -608,6 +664,9 @@ function areMessagePropsEqual(
   if (prevProps.isStreaming !== nextProps.isStreaming) {
     return false
   }
+  if (prevProps.streamPhase !== nextProps.streamPhase) {
+    return false
+  }
 
   // Compare activeToolCalls (for tool calling animation)
   const prevActive = prevProps.activeToolCalls || []
@@ -666,16 +725,8 @@ function areMessagePropsEqual(
   // Compare thinking blocks array (by length and content)
   const prevThinkingBlocks = prevMsg.thinkingBlocks || []
   const nextThinkingBlocks = nextMsg.thinkingBlocks || []
-  if (prevThinkingBlocks.length !== nextThinkingBlocks.length) {
+  if (!areThinkingBlocksEqual(prevThinkingBlocks, nextThinkingBlocks)) {
     return false
-  }
-  for (let i = 0; i < prevThinkingBlocks.length; i++) {
-    if (
-      prevThinkingBlocks[i].content !== nextThinkingBlocks[i].content ||
-      prevThinkingBlocks[i].type !== nextThinkingBlocks[i].type
-    ) {
-      return false
-    }
   }
 
   // Compare research status
@@ -725,7 +776,11 @@ function areMessagePropsEqual(
   for (let i = 0; i < prevToolResults.length; i++) {
     if (
       prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
-      prevToolResults[i].result.success !== nextToolResults[i].result.success
+      prevToolResults[i].toolCall.name !== nextToolResults[i].toolCall.name ||
+      prevToolResults[i].result.success !== nextToolResults[i].result.success ||
+      prevToolResults[i].result.error !== nextToolResults[i].result.error ||
+      prevToolResults[i].result.executionTime !== nextToolResults[i].result.executionTime ||
+      prevToolResults[i].result.data !== nextToolResults[i].result.data
     ) {
       return false
     }
@@ -780,6 +835,8 @@ function areMessagePropsEqual(
 function MessageRendererComponent({
   message,
   isStreaming = false,
+  streamPhase,
+  sessionId,
   activeToolCalls,
   onCopy,
   onRegenerate,
@@ -803,6 +860,7 @@ function MessageRendererComponent({
   // Track whether to trigger the staggered button animation.
   // null = no animation (historical messages), true = animate in
   const [showActionButtons, setShowActionButtons] = useState<boolean | null>(null)
+  const [followUpSnapshot, setFollowUpSnapshot] = useState<FollowUpTimelineSnapshot | null>(null)
   const prevIsStreamingRef = useRef(isStreaming)
 
   // Reset content tracking when streaming starts
@@ -831,6 +889,10 @@ function MessageRendererComponent({
     }
   }, [isStreaming, message.content])
 
+  useEffect(() => {
+    setFollowUpSnapshot(null)
+  }, [message.id])
+
   // Get all versions including current message
   const versions = message.responseVersions || []
   const totalVersions = versions.length + (message.content ? 1 : 0)
@@ -856,8 +918,10 @@ function MessageRendererComponent({
   }
 
   const displayMessage = getVersionContent()
-  const displayContent = displayMessage?.content || ''
+  const rawDisplayContent = displayMessage?.content || ''
+  const displayContent = removeToolFollowUpSplitMarker(rawDisplayContent)
   const hasDisplayContent = displayContent.trim().length > 0
+  const completedBlocks = message.thinkingBlocks || []
 
   // Build web source map from tool results
   const { webSourceMap, orderedWebSourceUrls } = useMemo(() => {
@@ -893,12 +957,18 @@ function MessageRendererComponent({
     return { webSourceMap: map, orderedWebSourceUrls: orderedUrls }
   }, [message.toolResults])
 
-  const processedContent = useMemo(() => {
-    const withUrlLinks = convertUrlsToMarkdownLinks(displayMessage?.content || '')
-    const withCitations = convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
-    // Strip model-generated References/Sources sections — citations are rendered as interactive links
-    return orderedWebSourceUrls.length > 0 ? stripReferencesSection(withCitations) : withCitations
-  }, [displayMessage?.content, orderedWebSourceUrls])
+  const processMessageContent = useCallback(
+    (content: string) => {
+      if (!content.trim()) {
+        return ''
+      }
+
+      const withUrlLinks = convertUrlsToMarkdownLinks(content)
+      const withCitations = convertNumericCitationsToMarkdownLinks(withUrlLinks, orderedWebSourceUrls)
+      return orderedWebSourceUrls.length > 0 ? stripReferencesSection(withCitations) : withCitations
+    },
+    [orderedWebSourceUrls]
+  )
 
   // Extract all images from web_search tool results
   const { webSearchImages, webImageMode } = useMemo(() => {
@@ -942,14 +1012,82 @@ function MessageRendererComponent({
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
-  const showThinkingSpinner = isStreaming && !hasThinking
+  const isReasoningPhase = streamPhase === 'reasoning'
+  const showThinkingSpinner = isStreaming && isReasoningPhase && !hasThinking
+  const completedThinkingCount = completedBlocks.filter((block) => block.type === 'thinking').length
+  const activeThinkingBlockKey = `${message.id}:${completedThinkingCount}:${streamPhase || 'idle'}`
+  const hasActiveToolCalls = (activeToolCalls?.length || 0) > 0
+
+  useEffect(() => {
+    if (!shouldCaptureFollowUpSnapshot({
+      isStreaming,
+      streamPhase,
+      content: displayContent,
+      isSearching: message.researchStatus?.isSearching || false,
+      activeToolCallCount: activeToolCalls?.length || 0,
+      existingSnapshot: followUpSnapshot,
+    })) {
+      return
+    }
+
+    setFollowUpSnapshot({
+      contentLength: displayContent.length,
+      completedBlockCount: completedBlocks.length,
+    })
+  }, [
+    activeToolCalls?.length,
+    completedBlocks.length,
+    displayContent,
+    followUpSnapshot,
+    isStreaming,
+    message.researchStatus?.isSearching,
+    streamPhase,
+  ])
+
+  const timeline = useMemo(
+    () => splitMessageTimeline(rawDisplayContent, completedBlocks, followUpSnapshot),
+    [completedBlocks, followUpSnapshot, rawDisplayContent]
+  )
+
+  const topProcessedContent = useMemo(
+    () => processMessageContent(timeline.beforeContent),
+    [processMessageContent, timeline.beforeContent]
+  )
+  const bottomProcessedContent = useMemo(
+    () => processMessageContent(timeline.afterContent),
+    [processMessageContent, timeline.afterContent]
+  )
+  const hasTopDisplayContent = topProcessedContent.trim().length > 0
+  const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
+  const visibleToolResults = useMemo(
+    () =>
+      (message.toolResults || []).filter((result) => result.toolCall.name !== 'web_search'),
+    [message.toolResults]
+  )
+  const showUpperThinkingBlock =
+    (!followUpSnapshot &&
+      (hasThinking ||
+        showThinkingSpinner ||
+        completedBlocks.length > 0 ||
+        message.researchStatus?.isSearching ||
+        hasActiveToolCalls)) ||
+    timeline.beforeBlocks.length > 0
+  const hasSplitFollowUpSection =
+    Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
+  const showLowerThinkingBlock =
+    hasSplitFollowUpSection &&
+    (hasThinking ||
+      showThinkingSpinner ||
+      timeline.afterBlocks.length > 0 ||
+      message.researchStatus?.isSearching ||
+      hasActiveToolCalls)
 
   // Handle copy
   const handleCopy = () => {
     if (onCopy) {
-      onCopy(message.content)
+      onCopy(removeToolFollowUpSplitMarker(message.content))
     } else {
-      navigator.clipboard.writeText(message.content)
+      navigator.clipboard.writeText(removeToolFollowUpSplitMarker(message.content))
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -1126,25 +1264,24 @@ function MessageRendererComponent({
 
   return (
     <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
-      {(hasThinking ||
-        showThinkingSpinner ||
-        (message.thinkingBlocks && message.thinkingBlocks.length > 0) ||
-        message.researchStatus?.isSearching ||
-        (activeToolCalls && activeToolCalls.length > 0)) && (
+      {showUpperThinkingBlock && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
-            thinking={message.thinking || ''}
+            messageId={message.id}
+            activeBlockKey={followUpSnapshot ? `${activeThinkingBlockKey}:upper` : activeThinkingBlockKey}
+            thinking={followUpSnapshot ? '' : message.thinking || ''}
             isThinking={
+              !followUpSnapshot &&
               isStreaming &&
-              !message.content &&
+              isReasoningPhase &&
               !message.researchStatus?.isSearching &&
-              (!activeToolCalls || activeToolCalls.length === 0)
+              !hasActiveToolCalls
             }
-            thinkingDuration={message.thinkingDuration}
-            isSearching={message.researchStatus?.isSearching || false}
-            searchQuery={message.researchStatus?.currentSearch}
-            completedBlocks={message.thinkingBlocks || []}
-            activeToolCalls={activeToolCalls}
+            thinkingDuration={followUpSnapshot ? undefined : message.thinkingDuration}
+            isSearching={followUpSnapshot ? false : message.researchStatus?.isSearching || false}
+            searchQuery={followUpSnapshot ? undefined : message.researchStatus?.currentSearch}
+            completedBlocks={timeline.beforeBlocks}
+            activeToolCalls={followUpSnapshot ? [] : activeToolCalls}
           />
         </div>
       )}
@@ -1155,13 +1292,69 @@ function MessageRendererComponent({
       )}
 
       {/* Message content - only show when not streaming or when content has arrived */}
-      {(!isStreaming ||
-        hasContentDuringStreaming ||
-        message.thinkingBlocks?.length ||
-        message.researchStatus) && (
+      {((!isStreaming || hasContentDuringStreaming || completedBlocks.length > 0 || message.researchStatus) &&
+        hasTopDisplayContent) && (
         <div className="markdown-content">
           <LazyMarkdown
-            content={processedContent}
+            content={topProcessedContent}
+            webSources={webSourceMap}
+            isStreaming={isStreaming}
+          />
+        </div>
+      )}
+
+      {visibleToolResults.length > 0 && (
+        <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
+          {visibleToolResults.map((result, index) => {
+            const toolResultIndex = (message.toolResults || []).findIndex(
+              (item) => item.toolCall.id === result.toolCall.id
+            )
+
+            return (
+              <ToolResultDisplay
+                key={`message-tool-${result.toolCall.id || index}`}
+                toolName={result.toolCall.name}
+                result={result.result?.success ? result.result.data : undefined}
+                error={result.result?.success ? undefined : result.result?.error}
+                sessionId={sessionId}
+                messageId={message.id}
+                toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}
+              />
+            )
+          })}
+        </div>
+      )}
+
+      {showLowerThinkingBlock && (
+        <div
+          style={{
+            marginTop: visibleToolResults.length > 0 || hasTopDisplayContent ? '12px' : 0,
+            marginBottom: '8px',
+          }}
+        >
+          <ThinkingBlockComponent
+            messageId={message.id}
+            activeBlockKey={`${activeThinkingBlockKey}:lower`}
+            thinking={message.thinking || ''}
+            isThinking={
+              isStreaming &&
+              isReasoningPhase &&
+              !message.researchStatus?.isSearching &&
+              !hasActiveToolCalls
+            }
+            thinkingDuration={message.thinkingDuration}
+            isSearching={message.researchStatus?.isSearching || false}
+            searchQuery={message.researchStatus?.currentSearch}
+            completedBlocks={timeline.afterBlocks}
+            activeToolCalls={activeToolCalls}
+          />
+        </div>
+      )}
+
+      {hasBottomDisplayContent && (
+        <div className="markdown-content">
+          <LazyMarkdown
+            content={bottomProcessedContent}
             webSources={webSourceMap}
             isStreaming={isStreaming}
           />

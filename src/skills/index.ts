@@ -75,7 +75,7 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
 
   if (isRecord(raw)) {
     for (const [skillId, value] of Object.entries(raw)) {
-      if (skillId === 'web_research') continue
+      if (skillId === 'web_research' || skillId === 'testing') continue
       const generic = normalizeGenericSkillState(value)
       if (generic) {
         normalized[skillId] = generic
@@ -196,7 +196,8 @@ export function buildEnabledSkillsPrompt(skills: SkillsSettings | undefined): st
   if (!skills) return ''
 
   const lines: string[] = []
-  const webResearch = normalizeSkillsSettings(skills).web_research
+  const normalized = normalizeSkillsSettings(skills)
+  const webResearch = normalized.web_research
 
   if (webResearch.enabled) {
     if (webResearch.config.mode === 'structured') {

@@ -3,7 +3,10 @@
  */
 
 import { memo, useMemo } from 'react'
-import { useMessageStreamingState } from '../../../contexts/StreamingContext'
+import {
+  useMessageStreamingState,
+  type StreamingPhase,
+} from '../../../contexts/StreamingContext'
 import { MessageRenderer } from './MessageRenderer'
 import type {
   Message,
@@ -37,6 +40,8 @@ interface StreamingMessageProps {
   sessionId: string
   /** Active tool calls during streaming (for in-message tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
+  /** Ephemeral streaming phase for the active message */
+  streamPhase?: StreamingPhase
   /** Callback when content is copied */
   onCopy?: (content: string) => void
   /** Callback when regenerate is requested */
@@ -72,20 +77,35 @@ function StreamingMessageComponent({
       return message
     }
 
+    const hasStreamingField = <K extends keyof typeof streamingState>(key: K) =>
+      Object.prototype.hasOwnProperty.call(streamingState, key)
+
     // Streaming - merge streaming state with base message
     return {
       ...message,
       content: streamingState.content || message.content,
-      thinking: streamingState.thinking ?? message.thinking,
-      thinkingDuration: streamingState.thinkingDuration ?? message.thinkingDuration,
-      thinkingBlocks: streamingState.thinkingBlocks ?? message.thinkingBlocks,
-      researchStatus: streamingState.researchStatus ?? message.researchStatus,
-      researchPlan: streamingState.researchPlan ?? message.researchPlan,
-      researchProgress: streamingState.researchProgress ?? message.researchProgress,
-      toolResults: streamingState.toolResults ?? message.toolResults,
-      model: streamingState.model ?? message.model,
-      latency: streamingState.latency ?? message.latency,
-      usage: streamingState.usage ?? message.usage,
+      thinking: hasStreamingField('thinking') ? streamingState.thinking : message.thinking,
+      thinkingDuration: hasStreamingField('thinkingDuration')
+        ? streamingState.thinkingDuration
+        : message.thinkingDuration,
+      thinkingBlocks: hasStreamingField('thinkingBlocks')
+        ? streamingState.thinkingBlocks
+        : message.thinkingBlocks,
+      researchStatus: hasStreamingField('researchStatus')
+        ? streamingState.researchStatus
+        : message.researchStatus,
+      researchPlan: hasStreamingField('researchPlan')
+        ? streamingState.researchPlan
+        : message.researchPlan,
+      researchProgress: hasStreamingField('researchProgress')
+        ? streamingState.researchProgress
+        : message.researchProgress,
+      toolResults: hasStreamingField('toolResults')
+        ? streamingState.toolResults
+        : message.toolResults,
+      model: hasStreamingField('model') ? streamingState.model : message.model,
+      latency: hasStreamingField('latency') ? streamingState.latency : message.latency,
+      usage: hasStreamingField('usage') ? streamingState.usage : message.usage,
     }
   }, [message, streamingState])
 
@@ -96,7 +116,9 @@ function StreamingMessageComponent({
     <MessageRenderer
       message={displayMessage}
       isStreaming={isStreaming}
+      sessionId={sessionId}
       activeToolCalls={activeToolCalls}
+      streamPhase={streamingState?.phase}
       onCopy={onCopy}
       onRegenerate={onRegenerate}
     />

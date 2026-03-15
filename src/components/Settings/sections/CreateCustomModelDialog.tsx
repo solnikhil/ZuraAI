@@ -9,6 +9,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 
@@ -305,19 +312,26 @@ export function CreateCustomModelDialog({
               control={(
                 <>
                   <Label htmlFor="custom-model-type" className="sr-only">Model Type</Label>
-                  <select
-                    id="custom-model-type"
+                  <Select
                     value={modelType}
-                    onChange={(e) => setModelType(e.target.value as ConfiguredModel['modelType'])}
-                    className="h-10 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
+                    onValueChange={(value) => setModelType(value as ConfiguredModel['modelType'])}
                   >
-                    <option value="chat">Chat</option>
-                    <option value="reasoning">Reasoning</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                    <option value="embedding">Embedding</option>
-                    <option value="other">Other</option>
-                  </select>
+                    <SelectTrigger
+                      id="custom-model-type"
+                      className="h-10 w-full border-border bg-secondary"
+                      aria-label="Model Type"
+                    >
+                      <SelectValue placeholder="Select model type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="chat">Chat</SelectItem>
+                      <SelectItem value="reasoning">Reasoning</SelectItem>
+                      <SelectItem value="image">Image</SelectItem>
+                      <SelectItem value="video">Video</SelectItem>
+                      <SelectItem value="embedding">Embedding</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </>
               )}
             />

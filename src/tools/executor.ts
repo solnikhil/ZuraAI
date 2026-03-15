@@ -10,7 +10,7 @@ export type { ToolResult, ToolCall, ToolCallResult }
  */
 export async function executeTool(toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
     const startTime = performance.now()
-    const TIMEOUT_MS = 30000 // 30 second timeout
+    const TIMEOUT_MS = 30_000
     
     try {
         if (!window.ipcRenderer) {

@@ -1,8 +1,8 @@
-# Contributing to Zura AI
+# Contributing to ZuraAI
 
-Thanks for contributing to Zura AI.
+Thanks for contributing to ZuraAI.
 
-Zura AI is a Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript. Contributions should stay aligned with the app's security model, desktop architecture, and existing UI patterns.
+ZuraAI is a Windows-first desktop AI assistant built with Electron, React, Vite, and TypeScript. Contributions should stay aligned with the app's security model, desktop architecture, and existing UI patterns.
 
 ## Before you start
 

@@ -162,7 +162,11 @@ function injectTreeCodeFences(markdown: string): string {
 }
 
 // Pure helper: normalizes math delimiters for remark-math (no component state needed)
-function normalizeMathDelimiters(markdown: string): string {
+function normalizeMathDelimiters(
+    markdown: string,
+    options: { enableTreeFences?: boolean } = {}
+): string {
+    const { enableTreeFences = true } = options
     const parts = markdown.split(/```/)
     return parts.map((part, index) => {
         if (index % 2 !== 0) return part
@@ -221,7 +225,7 @@ function normalizeMathDelimiters(markdown: string): string {
             return `${prefix}$$${inner}$$`
         }).join('\n')
 
-        return injectTreeCodeFences(withMathLines)
+        return enableTreeFences ? injectTreeCodeFences(withMathLines) : withMathLines
     }).join('```')
 }
 
@@ -261,7 +265,10 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
     // Memoize the normalized content to avoid re-running expensive math/tree
     // transformations on every render when content hasn't changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const normalizedContent = useMemo(() => normalizeMathDelimiters(content), [content])
+    const normalizedContent = useMemo(
+        () => normalizeMathDelimiters(content, { enableTreeFences: !isStreaming }),
+        [content, isStreaming]
+    )
     const remarkPlugins = [remarkPlugin, remarkMath].filter(Boolean) as (() => void)[]
     const rehypePlugins = [rehypeKatex].filter(Boolean) as (() => void)[]
 

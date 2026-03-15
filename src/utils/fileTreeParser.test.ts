@@ -78,4 +78,29 @@ root
     expect(nodes.map((n) => n.name)).toEqual(['src', 'package.json'])
     expect(nodes[0]!.children?.[0]!.name).toBe('main.tsx')
   })
+
+  it('assigns unique ids to duplicate sibling names in tree text', () => {
+    const input = `
+root/
+├── src/
+├── src/
+└── src/
+`.trim()
+
+    const nodes = parseTreeText(input)
+    const childIds = nodes[0]!.children!.map((node) => node.id)
+
+    expect(new Set(childIds).size).toBe(childIds.length)
+    expect(childIds).toEqual(['src', 'src__2', 'src__3'])
+  })
+
+  it('assigns unique ids to duplicate explicit ids in zura-tree JSON', () => {
+    const input = JSON.stringify([
+      { id: 'duplicate', name: 'src' },
+      { id: 'duplicate', name: 'src-copy' },
+    ])
+
+    const nodes = parseZuraTreeJson(input)
+    expect(nodes.map((node) => node.id)).toEqual(['duplicate', 'duplicate__2'])
+  })
 })

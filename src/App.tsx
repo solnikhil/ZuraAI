@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
+import AboutWindow from './components/AboutWindow'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
 import NotFound404 from './components/ui/demo'
@@ -8,8 +9,9 @@ import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
 import { StreamingProvider } from './contexts/StreamingContext'
 import { QuickSendProvider } from './contexts/QuickSendContext'
 import { ToastProvider, ErrorBoundary } from './components/shared'
+import { loadSettingsModule } from './components/Settings/settingsLoader'
 
-const Settings = lazy(() => import('./components/Settings/Settings'))
+const Settings = lazy(loadSettingsModule)
 
 function SettingsLoadingFallback() {
   return (
@@ -39,6 +41,7 @@ function App() {
               <QuickSendProvider>
                 <Router>
                   <Routes>
+                    <Route path="/about" element={<AboutWindow />} />
                     <Route element={<AppShellLayout />}>
                       <Route path="/" element={<DashboardLayout />} />
                       <Route path="/dashboard" element={<DashboardLayout />} />

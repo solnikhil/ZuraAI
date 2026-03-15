@@ -1,5 +1,5 @@
 /**
- * Shared ErrorBoundary component for Zura AI
+ * Shared ErrorBoundary component for ZuraAI
  * Catches JavaScript errors anywhere in the child component tree
  * and displays a fallback UI instead of crashing the whole app
  *

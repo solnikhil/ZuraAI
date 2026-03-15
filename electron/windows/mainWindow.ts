@@ -44,7 +44,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
     height: options?.height ?? 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'Zura AI - Dashboard',
+    title: 'ZuraAI - Dashboard',
     icon: path.join(process.env.PUBLIC || '', 'icon.png'),
     ...(isWindows
       ? {
@@ -67,7 +67,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       sandbox: false, // Required for preload to use Node.js APIs like fs
       devTools: options?.devTools ?? true,
       spellcheck: false,
-      additionalArguments: ['--process-name=Zura-Dashboard'],
+      additionalArguments: ['--process-name=ZuraAI-Dashboard'],
     },
     autoHideMenuBar: true,
     // Solid background eliminates the visible DWM frame border on Windows.

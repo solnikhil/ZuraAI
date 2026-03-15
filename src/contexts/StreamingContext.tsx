@@ -5,6 +5,8 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
 import type { ThinkingBlock, ToolCallResult } from './ChatHistoryContext'
 
+export type StreamingPhase = 'reasoning' | 'searching' | 'tool' | 'answering'
+
 /**
  * Streaming message state - contains all data for the currently streaming message
  */
@@ -52,6 +54,8 @@ export interface StreamingMessageState {
     cachedInputTokens?: number
     cachedOutputTokens?: number
   }
+  /** Current ephemeral renderer phase for the active response */
+  phase?: StreamingPhase
   /** Whether streaming is currently active */
   isStreaming: boolean
 }
@@ -117,6 +121,7 @@ export function StreamingProvider({ children }: { children: React.ReactNode }) {
       sessionId,
       messageId,
       content: '',
+      phase: 'reasoning',
       isStreaming: true,
     }
     setStreamingState(newState)

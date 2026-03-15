@@ -1,12 +1,21 @@
 import React from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
+import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import PinnedSection from './PinnedSection'
 import FolderSection from './FolderSection'
-import { ChevronDown } from '../../icons'
+import { ChevronDown, Copy, Edit2, Ellipsis, Pin, Trash2 } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -61,6 +70,7 @@ export default function SidebarChatList({
   onKeyDown,
 }: SidebarChatListProps) {
   const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
+  const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const [hasVerticalScrollbar, setHasVerticalScrollbar] = React.useState(false)
@@ -123,18 +133,13 @@ export default function SidebarChatList({
 
   const renderChatRow = (session: ChatSession) => {
     const flatIndex = flatVisibleSessions.findIndex((s) => s.id === session.id)
+    const isDropdownOpen = dropdownOpenId === session.id
 
     return (
       <ChatRowContextMenu
         key={session.id}
         isPinned={session.pinned === true}
         onAction={(action) => onContextAction(action, session.id)}
-        dropdownOpen={dropdownOpenId === session.id}
-        onDropdownOpenChange={(open) => {
-          if (!open) {
-            setDropdownOpenId(null)
-          }
-        }}
       >
         <div
           draggable
@@ -148,7 +153,7 @@ export default function SidebarChatList({
             selectedOverlayStyle={chatSelectedOverlayStyle}
             isFrosted={isFrosted}
             isActive={currentSessionId === session.id}
-            isMenuOpen={dropdownOpenId === session.id}
+            isMenuOpen={isDropdownOpen}
             isFocused={flatIndex === focusIndex}
             isStreaming={streamingSessionId === session.id}
             isRenaming={renamingSessionId === session.id}
@@ -156,14 +161,69 @@ export default function SidebarChatList({
             onRenameStart={onRenameStart}
             onRenameConfirm={onRenameConfirm}
             onRenameCancel={onRenameCancel}
-            onMoreClick={(_e, id) => {
-              setDropdownOpenId(id)
-            }}
-            onContextMenu={(e, id) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setDropdownOpenId(id)
-            }}
+            renderMoreButton={(className) => (
+              <DropdownMenu
+                open={isDropdownOpen}
+                onOpenChange={(open) => {
+                  setDropdownOpenId(open ? session.id : null)
+                }}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                    }}
+                    aria-label="Chat options"
+                    className={className}
+                  >
+                    <Ellipsis size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  side="bottom"
+                  style={
+                    isFrosted
+                      ? {
+                          background:
+                            'linear-gradient(180deg, rgba(22, 24, 30, 0.74) 0%, rgba(14, 16, 22, 0.68) 100%)',
+                          border:
+                            '1px solid color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.2) 28%)',
+                          backdropFilter: 'blur(14px) saturate(120%)',
+                          WebkitBackdropFilter: 'blur(14px) saturate(120%)',
+                        }
+                      : undefined
+                  }
+                >
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => onContextAction('rename', session.id)}>
+                      <Edit2 size={14} />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        onContextAction(session.pinned === true ? 'unpin' : 'pin', session.id)
+                      }
+                    >
+                      <Pin size={14} />
+                      {session.pinned === true ? 'Unpin' : 'Pin'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onContextAction('duplicate', session.id)}>
+                      <Copy size={14} />
+                      Duplicate
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setDeleteConfirmSessionId(session.id)}
+                    variant="destructive"
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           />
         </div>
       </ChatRowContextMenu>
@@ -171,64 +231,81 @@ export default function SidebarChatList({
   }
 
   return (
-    <ScrollArea
-      className="sidebar-chatlist"
-      viewportRef={viewportRef}
-      viewportStyle={{
-        display: 'flex',
-        flexDirection: 'column',
-        paddingLeft: horizontalPadding,
-        paddingRight: horizontalPadding,
-      }}
-    >
-      <div
-        role="listbox"
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-        className="sidebar-chatlist__listbox"
-        style={{ paddingBottom: bottomPadding }}
+    <>
+      <ScrollArea
+        className="sidebar-chatlist"
+        viewportRef={viewportRef}
+        viewportStyle={{
+          display: 'flex',
+          flexDirection: 'column',
+          paddingLeft: horizontalPadding,
+          paddingRight: horizontalPadding,
+        }}
       >
-        {groupedSessions.pinned.length > 0 && (
-          <PinnedSection sessions={groupedSessions.pinned}>
-            {groupedSessions.pinned.map((s) => renderChatRow(s))}
-          </PinnedSection>
-        )}
+        <div
+          role="listbox"
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          className="sidebar-chatlist__listbox"
+          style={{ paddingBottom: bottomPadding }}
+        >
+          {groupedSessions.pinned.length > 0 && (
+            <PinnedSection sessions={groupedSessions.pinned}>
+              {groupedSessions.pinned.map((s) => renderChatRow(s))}
+            </PinnedSection>
+          )}
 
-        {folders.map((folder) => {
-          const folderSessions = groupedSessions.folders.get(folder.id) || []
-          return (
-            <FolderSection
-              key={folder.id}
-              folder={folder}
-              sessionCount={folderSessions.length}
-              onDropSession={onDropSessionToFolder}
-            >
-              {folderSessions.map((s) => renderChatRow(s))}
-            </FolderSection>
-          )
-        })}
+          {folders.map((folder) => {
+            const folderSessions = groupedSessions.folders.get(folder.id) || []
+            return (
+              <FolderSection
+                key={folder.id}
+                folder={folder}
+                sessionCount={folderSessions.length}
+                onDropSession={onDropSessionToFolder}
+              >
+                {folderSessions.map((s) => renderChatRow(s))}
+              </FolderSection>
+            )
+          })}
 
-        <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
-          <CollapsibleTrigger asChild>
-            <div className="sidebar-section-label">
-              <ChevronDown
-                size={10}
-                className={`sidebar-section-label__chevron ${isYourChatsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
-              />
-              <span>Your chats</span>
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="sidebar-section-content" style={{ paddingTop: '2px' }}>
-              {timeGroups.map((group) => (
-                <React.Fragment key={group.label}>
-                  {group.sessions.map((s) => renderChatRow(s))}
-                </React.Fragment>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-    </ScrollArea>
+          <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
+            <CollapsibleTrigger asChild>
+              <div className="sidebar-section-label">
+                <ChevronDown
+                  size={10}
+                  className={`sidebar-section-label__chevron ${isYourChatsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
+                />
+                <span>Your chats</span>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="sidebar-section-content" style={{ paddingTop: '2px' }}>
+                {timeGroups.map((group) => (
+                  <React.Fragment key={group.label}>
+                    {group.sessions.map((s) => renderChatRow(s))}
+                  </React.Fragment>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </ScrollArea>
+
+      <DeleteChatAlertDialog
+        open={deleteConfirmSessionId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteConfirmSessionId(null)
+          }
+        }}
+        onConfirm={() => {
+          if (deleteConfirmSessionId) {
+            onContextAction('delete', deleteConfirmSessionId)
+          }
+          setDeleteConfirmSessionId(null)
+        }}
+      />
+    </>
   )
 }

@@ -80,34 +80,37 @@ export function useIsolatedStreaming(): UseIsolatedStreamingReturn {
     const finalState = completeStreaming()
 
     if (finalState.sessionId && finalState.messageId) {
+      const hasField = <K extends keyof StreamingMessageState>(key: K) =>
+        Object.prototype.hasOwnProperty.call(finalState, key)
+
       // Commit the final content to the session
       const updates: Partial<Message> = {
         content: finalState.content,
       }
 
       // Include optional fields if present
-      if (finalState.thinking !== undefined) {
+      if (hasField('thinking')) {
         updates.thinking = finalState.thinking
       }
-      if (finalState.thinkingDuration !== undefined) {
+      if (hasField('thinkingDuration')) {
         updates.thinkingDuration = finalState.thinkingDuration
       }
-      if (finalState.thinkingBlocks !== undefined) {
+      if (hasField('thinkingBlocks')) {
         updates.thinkingBlocks = finalState.thinkingBlocks
       }
-      if (finalState.researchStatus !== undefined) {
+      if (hasField('researchStatus')) {
         updates.researchStatus = finalState.researchStatus
       }
-      if (finalState.toolResults !== undefined) {
+      if (hasField('toolResults')) {
         updates.toolResults = finalState.toolResults
       }
-      if (finalState.model !== undefined) {
+      if (hasField('model')) {
         updates.model = finalState.model
       }
-      if (finalState.latency !== undefined) {
+      if (hasField('latency')) {
         updates.latency = finalState.latency
       }
-      if (finalState.usage !== undefined) {
+      if (hasField('usage')) {
         updates.usage = finalState.usage
       }
 

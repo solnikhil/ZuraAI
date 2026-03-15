@@ -1,34 +1,33 @@
 // Tool Definitions - JSON Schema format compatible with OpenAI/Gemini function calling
 // SECURITY: Only includes tools that are implemented and enabled.
 
-export interface ToolParameter {
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+export type ToolSchemaType = 'string' | 'number' | 'boolean' | 'object' | 'array'
+
+export interface ToolSchemaProperty {
+  type: ToolSchemaType
   description: string
   enum?: string[]
-  default?: string | number | boolean
-  /** For type: 'array' - schema of array items */
-  items?: {
-    type: 'object'
-    properties: Record<string, { type: string; description: string; enum?: string[] }>
-    required?: string[]
-  }
+  default?: unknown
+  properties?: Record<string, ToolSchemaProperty>
+  required?: string[]
+  items?: ToolSchemaProperty
 }
 
 export interface ToolDefinition {
   name: string
   description: string
-  parameters: {
+  parameters: ToolSchemaProperty & {
     type: 'object'
-    properties: Record<string, ToolParameter>
+    properties: Record<string, ToolSchemaProperty>
     required: string[]
   }
   requiresApproval?: boolean
-  category: 'search' | 'utility' | 'system'
+  category: 'search' | 'utility' | 'system' | 'browser'
 }
 
 /**
- * Active tools in Zura AI
- * web_search is the only main-process IPC tool.
+ * Active tools in ZuraAI
+ * web_search is a main-process IPC tool.
  * research_plan is renderer-only and expands into web_search steps.
  */
 export const toolDefinitions: ToolDefinition[] = [
@@ -49,65 +48,73 @@ Query formulation best practices:
 - For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
       type: 'object',
+      description: 'Arguments for the web search tool.',
       properties: {
         query: {
           type: 'string',
-          description: `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments").`
+          description:
+            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments").`,
         },
         num_results: {
           type: 'number',
-          description: 'Number of results to return (default: 10, max: 20). For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use 15-20 to maximize coverage.',
-          default: 10
+          description:
+            'Number of results to return (default: 10, max: 20). For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use 15-20 to maximize coverage.',
+          default: 10,
         },
         search_depth: {
           type: 'string',
-          description: 'Search depth: "basic" for quick results, "advanced" for specific/detailed information (higher relevance)',
+          description:
+            'Search depth: "basic" for quick results, "advanced" for specific/detailed information (higher relevance)',
           enum: ['basic', 'advanced'],
-          default: 'basic'
+          default: 'basic',
         },
         time_range: {
           type: 'string',
           description: 'Filter by recency. Use for time-sensitive queries (news, recent events, latest data).',
-          enum: ['day', 'week', 'month', 'year']
+          enum: ['day', 'week', 'month', 'year'],
         },
         topic: {
           type: 'string',
-          description: 'Content type: "general" for broad searches, "news" for current events and real-time updates, "finance" for market/financial topics.',
+          description:
+            'Content type: "general" for broad searches, "news" for current events and real-time updates, "finance" for market/financial topics.',
           enum: ['general', 'news', 'finance'],
-          default: 'general'
-        }
+          default: 'general',
+        },
       },
-      required: ['query']
+      required: ['query'],
     },
-    category: 'search'
+    category: 'search',
   },
   {
     name: 'research_plan',
-    description: 'Submit your research plan before executing. Call this FIRST with 2-6 search steps. We will execute each step and return combined results.',
+    description:
+      'Submit your research plan before executing. Call this FIRST with 2-6 search steps. We will execute each step and return combined results.',
     parameters: {
       type: 'object',
+      description: 'Arguments for the research planning tool.',
       properties: {
         topic: {
           type: 'string',
-          description: 'Short topic summary of the research'
+          description: 'Short topic summary of the research',
         },
         steps: {
           type: 'array',
           description: '2-6 search steps to execute in order',
           items: {
             type: 'object',
+            description: 'A single research step.',
             properties: {
               stepNumber: { type: 'number', description: '1-based step index' },
               query: { type: 'string', description: 'Search query for this step' },
-              rationale: { type: 'string', description: 'Optional reason for this search' }
+              rationale: { type: 'string', description: 'Optional reason for this search' },
             },
-            required: ['stepNumber', 'query']
-          }
-        }
+            required: ['stepNumber', 'query'],
+          },
+        },
       },
-      required: ['topic', 'steps']
+      required: ['topic', 'steps'],
     },
-    category: 'search'
+    category: 'search',
   },
 ]
 
@@ -119,5 +126,5 @@ export function getAllToolDefinitions(): ToolDefinition[] {
  * Get tool definition by name
  */
 export function getToolByName(name: string): ToolDefinition | undefined {
-  return getAllToolDefinitions().find(t => t.name === name)
+  return getAllToolDefinitions().find((t) => t.name === name)
 }

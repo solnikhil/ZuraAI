@@ -48,9 +48,19 @@ interface ToolResultDisplayProps {
   toolName: string
   result: unknown
   error?: string
+  sessionId?: string
+  messageId?: string
+  toolResultIndex?: number
 }
 
-export default function ToolResultDisplay({ toolName, result, error }: ToolResultDisplayProps) {
+export default function ToolResultDisplay({
+  toolName,
+  result,
+  error,
+  sessionId: _sessionId,
+  messageId: _messageId,
+  toolResultIndex: _toolResultIndex,
+}: ToolResultDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const displayName = formatToolDisplayName(toolName)

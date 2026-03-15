@@ -363,6 +363,218 @@
     outline-offset: -2px;
 }
 
+.app-titlebar__info-trigger {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border-color: transparent;
+    background: transparent;
+    color: var(--theme-text-secondary);
+}
+
+.app-titlebar__info-trigger:hover {
+    background: var(--theme-surface-hover);
+    border-color: var(--theme-border);
+    color: var(--theme-text-primary);
+}
+
+.app-titlebar__info-trigger-core {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--theme-text-secondary) 18%, transparent);
+    color: var(--theme-text-primary);
+}
+
+.app-titlebar__info-menu {
+    width: 248px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--theme-surface) 96%, black 4%);
+    box-shadow: none;
+}
+
+.app-titlebar__info-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    padding: 7px 8px;
+    border-radius: 8px;
+}
+
+.app-titlebar__info-menu-item--compact {
+    font-size: 0.82rem;
+}
+
+.app-titlebar__info-menu-item-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background: transparent;
+    color: var(--theme-text-secondary);
+}
+
+.app-titlebar__info-menu-item-icon--about {
+    color: var(--theme-text-secondary);
+}
+
+.app-titlebar__info-menu-item-title {
+    min-width: 0;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--theme-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-titlebar__info-menu-item-meta {
+    margin-left: auto;
+    font-size: 0.72rem;
+    color: var(--theme-text-muted);
+    white-space: nowrap;
+}
+
+.app-titlebar__spin {
+    animation: app-titlebar-spin 1s linear infinite;
+}
+
+.app-titlebar__about-page {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+    background: var(--theme-background);
+}
+
+.app-titlebar__about-backdrop {
+    background: color-mix(in srgb, var(--theme-overlay-bg) 32%, transparent);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.app-titlebar__about-window {
+    position: relative;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 82%, rgba(255, 255, 255, 0.08));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--theme-surface) 96%, black 4%) 0%, color-mix(in srgb, var(--theme-background) 92%, black 8%) 100%);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42), 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+.app-titlebar__about-window-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: inherit;
+    background: var(--theme-surface);
+}
+
+.app-titlebar__about-window-shell--standalone {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
+    border-radius: 16px;
+    background: var(--theme-surface);
+}
+
+.app-titlebar__about-window-header {
+    background: var(--theme-surface);
+}
+
+.app-titlebar__about-window-header--standalone {
+    padding-right: 16px;
+}
+
+.app-titlebar__about-window-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.app-titlebar__about-window-copy {
+    min-width: 0;
+}
+
+.app-titlebar__about-window-body {
+    flex: 1;
+    min-height: 0;
+    background: var(--theme-background);
+    overflow: auto;
+}
+
+.app-titlebar__about-window-sections {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.app-titlebar__about-window-section {
+    border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
+    border-radius: 12px;
+    background: var(--theme-surface);
+    overflow: hidden;
+}
+
+.app-titlebar__about-window-section-title {
+    padding: 10px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--theme-border) 82%, transparent);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--theme-text-muted);
+}
+
+.app-titlebar__about-window-section-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-titlebar__about-window-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-top: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
+}
+
+.app-titlebar__about-window-row:first-child {
+    border-top: none;
+}
+
+.app-titlebar__about-window-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--theme-text-muted);
+}
+
+.app-titlebar__about-window-value {
+    min-width: 0;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    font-weight: 500;
+    color: var(--theme-text-primary);
+    word-break: break-word;
+    font-family: inherit;
+}
+
 /* Close button red hover state (icon-btn modifier for frosted mode) */
 
 .app-titlebar__icon-btn--close:hover {
@@ -464,4 +676,41 @@
 .app-titlebar--compact .app-titlebar__tab {
     padding: 4px 10px;
     font-size: 0.72rem;
+}
+
+@keyframes app-titlebar-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 720px) {
+    .app-titlebar__about-page {
+        padding: 12px;
+    }
+
+    .app-titlebar__about-window-sections {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-titlebar__info-menu {
+        width: min(248px, calc(100vw - 16px));
+    }
+
+    .app-titlebar__about-window-row {
+        gap: 4px;
+    }
+
+    .app-titlebar__about-window-footer {
+        gap: 10px;
+    }
+
+    .app-titlebar__about-copy-button,
+    .app-titlebar__about-close-button {
+        width: 100%;
+    }
 }

@@ -1,4 +1,4 @@
-# AGENTS.md — Zura AI Agent Guide
+# AGENTS.md — ZuraAI Agent Guide
 
 This file is the single source of truth for how an automated coding agent should work in this repo.
 
@@ -7,13 +7,13 @@ This file is the single source of truth for how an automated coding agent should
 ---
 
 ## What This Project Is
- Zura AI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
+ ZuraAI is a desktop AI assistant built with **Electron + React + Vite + TypeScript**.
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
-- Tool calling system (restricted; `web_search` and `research_plan` — the latter expands to `web_search` in renderer)
+- Tool calling system (restricted; `web_search` in main process and renderer-side `research_plan`)
 
 ---
 
@@ -32,7 +32,7 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, with a hash-route fallback for unmatched paths.
+- The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
@@ -48,9 +48,9 @@ Core capabilities:
   - `electron/startup/` — deferred startup orchestration and startup metrics
   - `electron/windows/` — main window, tray
   - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
-  - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
-  - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
-  - `electron/updater.ts` — auto-updater (production only)
+- `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
+- `electron/tools/` — main-process tool implementations (IPC registry is restricted)
+- `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
@@ -94,6 +94,7 @@ Core capabilities:
 | - allowlisted IPC only |
 | - exposes safe APIs:   |
 |   ipcRenderer,         |
+|   appInfo,             |
 |   secureStorage,       |
 |   updater, terminal,   |
 |   windowControls       |
@@ -108,9 +109,14 @@ Core capabilities:
   - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and Inspect Element in both development and packaged builds)
   - External links are opened via `shell.openExternal`.
 
+- **About Window** (`electron/windows/aboutWindow.ts`)
+  - Loads `#/about` in its own `BrowserWindow`
+  - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
+  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, and `skipTaskbar: true`
+
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-  - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
+  - In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
 
 - **Renderer route fallback**
   - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
@@ -119,14 +125,15 @@ Core capabilities:
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
   - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
   - `/` is a dashboard alias
+  - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
-- The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\Zura` subfolder when the user picks a custom location.
+- The installer uses the directory the user selects as the **final install path** for app files; it does not force an extra `\ZuraAI` subfolder when the user picks a custom location.
 - The installer applies Windows dark mode APIs (DWM dark title bar, `SetPreferredAppMode(ForceDark)`, `SetWindowTheme("DarkMode_Explorer")`, `SetCtlColors`) for a dark-themed install experience.
 - Personalized install: greets the user by Windows username, shows branded progress messages, and dark-themes the wizard chrome plus visible controls (including progress bar, details listbox, and buttons).
 - Installer assets (`build/icon.ico`, `build/sidebar.bmp`) are generated at build time by `scripts/generate-icons.mjs` and are gitignored.
-- Build output goes to `release/` directory (gitignored). Installer artifact: `Zura-Setup-{version}.exe`.
+- Build output goes to `release/` directory (gitignored). Installer artifact: `ZuraAI-Setup-{version}.exe`.
 
 ### CORS Bypass (Main Process)
 There is currently no active CORS-bypass header injection in `electron/main.ts`.
@@ -157,6 +164,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls`
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
+- `window.appInfo`
+  - invokes: `app-info:get`, `app-info:open-about-window`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
@@ -190,6 +199,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
   - Main tool registry: `electron/tools/index.ts` (restricted)
+- Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
+  - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
+  - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
@@ -204,6 +216,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
+- The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
 - Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
 
 #### Renderer Performance Tracking
@@ -295,7 +308,7 @@ Tool execution is intentionally restricted.
   - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
 
 - Main process side:
-  - Tool IPC: `electron/tools/index.ts` (**currently only `web_search` enabled**)
+  - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
   - Web search: `electron/tools/webSearch.ts`
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
@@ -304,7 +317,9 @@ Tool execution is intentionally restricted.
       - **Docs/site exploration wording + URL** currently follows the URL extract path (future `map`/`crawl` integration can be added separately)
     - Tavily-first routing uses `tavilyApiKey` from secure storage; if extraction/search fails, fallback is duck-duck-scrape web search
 
-**Note:** Only `web_search` is implemented in `electron/tools/`. Previously existing but unused tool files (`datetime`, `clipboard`, `calculator`, `urlFetcher`) have been removed.
+There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
+
+**Note:** The main-process tool registry remains intentionally restricted; tools must be explicitly defined in `src/tools/definitions.ts`, skill-gated in renderer, and registered in `electron/tools/index.ts`.
 
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)

@@ -98,24 +98,27 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const buildFinalStreamingUpdates = useCallback(
     (finalState: StreamingMessageState): Partial<Message> => {
+      const hasField = <K extends keyof StreamingMessageState>(key: K) =>
+        Object.prototype.hasOwnProperty.call(finalState, key)
+
       const updates: Partial<Message> = {
         content: finalState.content,
       }
 
-      if (finalState.thinking !== undefined) updates.thinking = finalState.thinking
-      if (finalState.thinkingDuration !== undefined)
+      if (hasField('thinking')) updates.thinking = finalState.thinking
+      if (hasField('thinkingDuration'))
         updates.thinkingDuration = finalState.thinkingDuration
-      if (finalState.thinkingBlocks !== undefined)
+      if (hasField('thinkingBlocks'))
         updates.thinkingBlocks = finalState.thinkingBlocks
-      if (finalState.researchStatus !== undefined)
+      if (hasField('researchStatus'))
         updates.researchStatus = finalState.researchStatus
-      if (finalState.researchPlan !== undefined) updates.researchPlan = finalState.researchPlan
-      if (finalState.researchProgress !== undefined)
+      if (hasField('researchPlan')) updates.researchPlan = finalState.researchPlan
+      if (hasField('researchProgress'))
         updates.researchProgress = finalState.researchProgress
-      if (finalState.toolResults !== undefined) updates.toolResults = finalState.toolResults
-      if (finalState.model !== undefined) updates.model = finalState.model
-      if (finalState.latency !== undefined) updates.latency = finalState.latency
-      if (finalState.usage !== undefined) updates.usage = finalState.usage
+      if (hasField('toolResults')) updates.toolResults = finalState.toolResults
+      if (hasField('model')) updates.model = finalState.model
+      if (hasField('latency')) updates.latency = finalState.latency
+      if (hasField('usage')) updates.usage = finalState.usage
 
       return updates
     },

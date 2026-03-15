@@ -184,6 +184,10 @@ export function useModelSelector(): UseModelSelectorReturn {
       prevOpenRef.current = false
       return
     }
+    if (!isProviderEnabled('ollama')) {
+      prevOpenRef.current = false
+      return
+    }
     if (prevOpenRef.current) return // Already fetched for this open session
     prevOpenRef.current = true
     const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
@@ -210,7 +214,7 @@ export function useModelSelector(): UseModelSelectorReturn {
       }
     }
     void refresh()
-  }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings])
+  }, [isOpen, settings.ollamaUrl, settings.ollamaModels, updateSettings, isProviderEnabled])
 
   // Get ALL models from providers that are manually enabled and configured
   const allModels = useMemo((): ModelWithProvider[] => {

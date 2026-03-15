@@ -88,7 +88,7 @@ contextBridge.exposeInMainWorld(
         if (toolName !== 'web_search') {
           return Promise.resolve({
             success: false,
-            error: `Tool "${String(toolName)}" is disabled. Only "web_search" is available.`,
+            error: `Tool "${String(toolName)}" is disabled.`,
           })
         }
       }
@@ -125,6 +125,14 @@ contextBridge.exposeInMainWorld(
       ipcRenderer.on('update-downloaded', listener)
       return () => ipcRenderer.off('update-downloaded', listener)
     },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'appInfo',
+  Object.freeze({
+    get: () => ipcRenderer.invoke('app-info:get'),
+    openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
   })
 )
 

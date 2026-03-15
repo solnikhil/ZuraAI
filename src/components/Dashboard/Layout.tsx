@@ -2,10 +2,11 @@ import { useState, useCallback, lazy, Suspense } from 'react'
 import Sidebar from './Sidebar'
 import ChatArea from './ChatArea'
 import { useAppShell } from '../../contexts/AppShellContext'
+import { loadSettingsModule } from '../Settings/settingsLoader'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
-const Settings = lazy(() => import('../Settings').then((m) => ({ default: m.default })))
+const Settings = lazy(loadSettingsModule)
 
 function SettingsLoadingFallback() {
   return (

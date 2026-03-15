@@ -1,7 +1,7 @@
 // OpenRouter/OpenAI Function Calling Adapter
 // Converts tool definitions to OpenAI-compatible format
 
-import { ToolDefinition, getToolByName } from '../definitions'
+import { ToolDefinition, ToolSchemaProperty, getToolByName } from '../definitions'
 import { 
     ToolCall,
     ToolResult,
@@ -25,11 +25,9 @@ export interface OpenAITool {
                 description: string
                 enum?: string[]
                 default?: unknown
-                items?: {
-                    type: string
-                    properties: Record<string, { type: string; description: string; enum?: string[] }>
-                    required: string[]
-                }
+                properties?: Record<string, unknown>
+                required?: string[]
+                items?: unknown
             }>
             required: string[]
         }
@@ -42,26 +40,23 @@ export interface OpenAITool {
 export type OpenAIToolCall = OpenRouterToolCall
 
 /**
- * Convert Zura tool definitions to OpenAI/OpenRouter format
+ * Convert ZuraAI tool definitions to OpenAI/OpenRouter format
  */
-function convertProperty(value: import('../definitions').ToolParameter): Record<string, unknown> {
+function convertProperty(value: ToolSchemaProperty): Record<string, unknown> {
     const base: Record<string, unknown> = {
         type: value.type,
         description: value.description,
         ...(value.enum && { enum: value.enum }),
         ...(value.default !== undefined && { default: value.default })
     }
+    if (value.properties) {
+        base.properties = Object.fromEntries(
+            Object.entries(value.properties).map(([key, property]) => [key, convertProperty(property)])
+        )
+        base.required = value.required || []
+    }
     if (value.type === 'array' && value.items) {
-        base.items = {
-            type: 'object',
-            properties: Object.fromEntries(
-                Object.entries(value.items.properties).map(([k, v]) => [
-                    k,
-                    { type: v.type, description: v.description, ...(v.enum && { enum: v.enum }) }
-                ])
-            ),
-            required: value.items.required || []
-        }
+        base.items = convertProperty(value.items)
     }
     return base
 }

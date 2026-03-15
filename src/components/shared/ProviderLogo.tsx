@@ -1,5 +1,5 @@
 /**
- * Shared ProviderLogo component for Zura AI
+ * Shared ProviderLogo component for ZuraAI
  * Consolidates duplicate ProviderLogo implementations from Settings.tsx and ModelSelector.tsx
  *
  */
