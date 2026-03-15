@@ -3,29 +3,39 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SystemPromptSection } from './SystemPromptSection'
-import { defaultSkillsSettings } from '../../../skills'
 
 describe('SystemPromptSection', () => {
-  it('shows the effective runtime prompt with appended skill instructions', () => {
+  it('does not render the effective runtime prompt preview', () => {
     render(
       <SystemPromptSection
         systemPrompt="Base prompt"
-        skills={defaultSkillsSettings}
         webSearchPrompt="Web prompt"
         titleGenerationPrompt="Title prompt"
         onChange={vi.fn()}
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /show effective prompt/i }))
+    expect(screen.queryByText('Effective Runtime Prompt')).toBeNull()
+    expect(screen.queryByRole('button', { name: /show effective prompt/i })).toBeNull()
+  })
 
-    const effectivePromptPreview = screen.getByLabelText(
-      'Effective runtime prompt preview'
-    ) as HTMLTextAreaElement
+  it('still allows editing the base system prompt', () => {
+    const onChange = vi.fn()
 
-    expect(screen.getByText('Appended Skill Instructions')).toBeInTheDocument()
-    expect(screen.getByText(/Skill instructions are currently being appended/i)).toBeInTheDocument()
-    expect(effectivePromptPreview.value).toContain('Base prompt')
-    expect(effectivePromptPreview.value).toContain('Tavily (`web_research`)')
+    render(
+      <SystemPromptSection
+        systemPrompt="Base prompt"
+        webSearchPrompt="Web prompt"
+        titleGenerationPrompt="Title prompt"
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /show system prompt/i }))
+    fireEvent.change(screen.getByPlaceholderText(/enter your system prompt here/i), {
+      target: { value: 'Updated prompt' },
+    })
+
+    expect(onChange).toHaveBeenCalledWith({ systemPrompt: 'Updated prompt' })
   })
 })

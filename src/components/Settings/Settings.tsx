@@ -283,7 +283,6 @@ export default function Settings({
             {normalizedActiveSection === 'systemprompt' && (
               <SystemPromptSection
                 systemPrompt={pendingSettings.systemPrompt}
-                skills={pendingSettings.skills}
                 webSearchPrompt={pendingSettings.webSearchPrompt}
                 titleGenerationPrompt={pendingSettings.titleGenerationPrompt}
                 onChange={(changes) => handleChange(changes)}
