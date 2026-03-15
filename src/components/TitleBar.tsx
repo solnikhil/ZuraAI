@@ -7,6 +7,7 @@ import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
+import TitleBarInfoMenu from './TitleBarInfoMenu'
 import WindowControlButtons from './WindowControlButtons'
 import './TitleBar.css'
 
@@ -230,6 +231,7 @@ export default function TitleBar() {
             </div>
 
             <div className="app-titlebar__right">
+                <TitleBarInfoMenu />
                 {/* Windows: always render custom window controls since native overlay is disabled */}
                 {!isMacOS && (
                     <WindowControlButtons

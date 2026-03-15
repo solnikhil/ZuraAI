@@ -7,6 +7,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -90,6 +92,8 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuLabel inset>{skill.name}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => setEnabled(skill.id, !enabled)}>
                         {enabled ? 'Disable' : 'Enable'}
                       </DropdownMenuItem>

@@ -18,12 +18,21 @@ import {
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -760,11 +769,11 @@ export function ProviderHubSection({
                     description="Test if API key and proxy URL are correctly configured"
                     control={
                       <div className="space-y-2">
-                        <div className="flex gap-2">
-                          <select
+                       <div className="flex gap-2">
+                          <Select
                             value={connectivityModel}
-                            onChange={(e) => {
-                              setConnectivityModel(e.target.value)
+                            onValueChange={(value) => {
+                              setConnectivityModel(value)
                               setConnectivityStatus('idle')
                               setConnectivityMeta(null)
                               setConnectivityMessage(
@@ -773,14 +782,21 @@ export function ProviderHubSection({
                               setConnectivityDetails('')
                               setShowConnectivityDetails(false)
                             }}
-                            className="h-10 flex-1 rounded-md border border-border bg-secondary px-3 text-sm text-foreground"
                           >
-                            {providerModels.map((model) => (
-                              <option key={model.code} value={model.code}>
-                                {model.code}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger
+                              className="h-10 flex-1 border-border bg-secondary"
+                              aria-label="Connectivity check model"
+                            >
+                              <SelectValue placeholder="Select model" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {providerModels.map((model) => (
+                                <SelectItem key={model.code} value={model.code}>
+                                  {model.code}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Button
                             variant="outline"
                             className="min-w-24"
@@ -1278,6 +1294,8 @@ function ModelGroup({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuLabel inset>{model.displayName}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation()
@@ -1292,7 +1310,7 @@ function ModelGroup({
                       e.stopPropagation()
                       onDeleteModel(model)
                     }}
-                    className="text-red-400 focus:text-red-400"
+                    variant="destructive"
                   >
                     <Trash2 size={14} />
                     Delete

@@ -128,6 +128,14 @@ contextBridge.exposeInMainWorld(
   })
 )
 
+contextBridge.exposeInMainWorld(
+  'appInfo',
+  Object.freeze({
+    get: () => ipcRenderer.invoke('app-info:get'),
+    openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
+  })
+)
+
 // Terminal API - expose spawnCommand for launching terminals
 try {
   preloadLog('About to expose terminal API...')

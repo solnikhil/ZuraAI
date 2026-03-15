@@ -32,7 +32,7 @@ Core capabilities:
 
 ## Key Concepts (Read First)
 - The **renderer is untrusted**. Anything privileged must be implemented in the **main process** and exposed via a **narrow, allowlisted** IPC surface.
-- The app uses a **single BrowserWindow**. Renderer routes live inside that window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, with a hash-route fallback for unmatched paths.
+- The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
@@ -94,6 +94,7 @@ Core capabilities:
 | - allowlisted IPC only |
 | - exposes safe APIs:   |
 |   ipcRenderer,         |
+|   appInfo,             |
 |   secureStorage,       |
 |   updater, terminal,   |
 |   windowControls       |
@@ -108,9 +109,14 @@ Core capabilities:
   - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and Inspect Element in both development and packaged builds)
   - External links are opened via `shell.openExternal`.
 
+- **About Window** (`electron/windows/aboutWindow.ts`)
+  - Loads `#/about` in its own `BrowserWindow`
+  - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
+  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, and `skipTaskbar: true`
+
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-  - In prod, windows load `dist/index.html` with `hash: 'dashboard'`
+  - In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
 
 - **Renderer route fallback**
   - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
@@ -119,6 +125,7 @@ Core capabilities:
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
   - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
   - `/` is a dashboard alias
+  - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
 ### Windows Installer Packaging
 - Windows packaging uses `electron-builder` + NSIS **wizard installer** (`oneClick: false`) with install-directory selection enabled via `allowToChangeInstallationDirectory: true`, plus a repo-local include override at `installer/installer.nsh`.
@@ -157,6 +164,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls`
   - invokes: `window-controls:minimize`, `window-controls:toggle-maximize`, `window-controls:close`, `window-controls:is-maximized`
   - listens for: `window-controls:state`
+- `window.appInfo`
+  - invokes: `app-info:get`, `app-info:open-about-window`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
@@ -207,6 +216,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
+- The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
 - Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
 
 #### Renderer Performance Tracking

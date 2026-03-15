@@ -5,6 +5,7 @@ import { applyThemeToDocument } from './themes/themeUtils'
 import { initializeRendererPerformance } from './utils/rendererPerformance'
 import { injectLazyImageStyles } from './components/shared/LazyImage'
 import { preloadMarkdown } from './utils/markdownPreloader'
+import { preloadSettings } from './components/Settings/settingsLoader'
 import './index.css'
 
 initializeRendererPerformance()
@@ -30,3 +31,9 @@ if (savedSettings) {
 }
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<App />)
+
+// Warm the settings chunk in the background so its styles are ready before the
+// user opens the settings view for the first time.
+window.setTimeout(() => {
+  void preloadSettings()
+}, 0)

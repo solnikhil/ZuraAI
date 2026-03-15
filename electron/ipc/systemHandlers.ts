@@ -1,6 +1,7 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow } from 'electron'
 import { spawn, exec } from 'child_process'
-import { setNativeBlur } from '../windows'
+import os from 'os'
+import { setNativeBlur, showAboutWindow } from '../windows'
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -47,6 +48,19 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
   })
 
   windowStateListenersAttached.add(win)
+}
+
+function getPlatformLabel(platform: NodeJS.Platform): string {
+  switch (platform) {
+    case 'win32':
+      return 'Windows'
+    case 'darwin':
+      return 'macOS'
+    case 'linux':
+      return 'Linux'
+    default:
+      return platform
+  }
 }
 
 /**
@@ -126,6 +140,40 @@ export function registerSystemHandlers(): void {
     if (!win) return false
     ensureWindowStateListeners(win)
     return win.isMaximized()
+  })
+
+  /**
+   * Returns app/runtime metadata for the titlebar about dialog.
+   *
+   * Channel: `app-info:get`
+   * Type: request/response
+   */
+  ipcMain.handle('app-info:get', () => {
+    const systemVersion = typeof process.getSystemVersion === 'function'
+      ? process.getSystemVersion()
+      : os.release()
+
+    return {
+      appName: app.getName(),
+      appVersion: app.getVersion(),
+      channel: app.isPackaged ? 'Installed build' : 'Development build',
+      isPackaged: app.isPackaged,
+      electronVersion: process.versions.electron ?? 'Unknown',
+      chromiumVersion: process.versions.chrome ?? 'Unknown',
+      nodeVersion: process.versions.node ?? 'Unknown',
+      v8Version: process.versions.v8 ?? 'Unknown',
+      osVersion: `${getPlatformLabel(process.platform)} ${systemVersion} (${os.arch()})`,
+    }
+  })
+
+  /**
+   * Opens the dedicated About window.
+   *
+   * Channel: `app-info:open-about-window`
+   * Type: request/response
+   */
+  ipcMain.handle('app-info:open-about-window', () => {
+    showAboutWindow()
   })
 
   /**
@@ -263,4 +311,6 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:toggle-maximize')
   ipcMain.removeHandler('window-controls:close')
   ipcMain.removeHandler('window-controls:is-maximized')
+  ipcMain.removeHandler('app-info:get')
+  ipcMain.removeHandler('app-info:open-about-window')
 }

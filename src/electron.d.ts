@@ -27,6 +27,23 @@ export interface UpdaterAPI {
     onUpdateDownloaded: (callback: () => void) => () => void
 }
 
+export interface AppRuntimeInfo {
+    appName: string
+    appVersion: string
+    channel: string
+    isPackaged: boolean
+    electronVersion: string
+    chromiumVersion: string
+    nodeVersion: string
+    v8Version: string
+    osVersion: string
+}
+
+export interface AppInfoAPI {
+    get: () => Promise<AppRuntimeInfo>
+    openAboutWindow: () => Promise<void>
+}
+
 export interface TerminalAPI {
     spawnCommand: (command: string, args?: string[]) => void
 }
@@ -44,6 +61,7 @@ declare global {
         ipcRenderer: IElectronAPI
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
+        appInfo: AppInfoAPI
         terminal: TerminalAPI
         windowControls: WindowControlsAPI
     }

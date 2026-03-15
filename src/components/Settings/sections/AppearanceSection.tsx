@@ -7,6 +7,13 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
 import { Card } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -227,6 +234,17 @@ export function AppearanceSection({
   )
   const titleProviderModels =
     titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
+  const titleModelOptions = titleProviderModels.map((model) => ({
+    value: model.code,
+    label: model.displayName,
+  }))
+
+  if (
+    settings.titleModel &&
+    !titleModelOptions.some((model) => model.value === settings.titleModel)
+  ) {
+    titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel })
+  }
 
   const handleTitleProviderChange = (provider: TitleProviderKey) => {
     const nextModelsAll = titleProviderModelMap[provider] || []
@@ -420,18 +438,13 @@ export function AppearanceSection({
             <div className="settings-list-row__description">How many recent commands to show</div>
           </div>
           <div className="settings-list-row__control">
-            <select
-              value={maxRecents}
-              onChange={(e) => updateCommandBar({ maxRecents: Number(e.target.value) })}
-              className="setting-input-scira"
+            <SettingsSelect
+              value={String(maxRecents)}
+              onValueChange={(value) => updateCommandBar({ maxRecents: Number(value) })}
+              options={[0, 1, 2, 3].map((count) => ({ value: String(count), label: String(count) }))}
               disabled={!commandBar.showRecents}
               aria-label="Max recent commands in command palette"
-            >
-              <option value={0}>0</option>
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-              <option value={3}>3</option>
-            </select>
+            />
           </div>
         </div>
 
@@ -459,18 +472,15 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
-              value={maxSuggestions}
-              onChange={(e) => updateCommandBar({ maxSuggestions: Number(e.target.value) })}
-              className="setting-input-scira"
+            <SettingsSelect
+              value={String(maxSuggestions)}
+              onValueChange={(value) => updateCommandBar({ maxSuggestions: Number(value) })}
+              options={[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => ({
+                value: String(count),
+                label: String(count),
+              }))}
               aria-label="Max results in command palette"
-            >
-              {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => (
-                <option key={count} value={count}>
-                  {count}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         </div>
 
@@ -501,18 +511,18 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={commandBar.paletteWidth ?? 'default'}
-              onChange={(e) =>
-                updateCommandBar({ paletteWidth: e.target.value as 'narrow' | 'default' | 'wide' })
+              onValueChange={(value) =>
+                updateCommandBar({ paletteWidth: value as 'narrow' | 'default' | 'wide' })
               }
-              className="setting-input-scira"
+              options={[
+                { value: 'narrow', label: 'Narrow (440px)' },
+                { value: 'default', label: 'Default (560px)' },
+                { value: 'wide', label: 'Wide (680px)' },
+              ]}
               aria-label="Command palette width"
-            >
-              <option value="narrow">Narrow (440px)</option>
-              <option value="default">Default (560px)</option>
-              <option value="wide">Wide (680px)</option>
-            </select>
+            />
           </div>
         </div>
 
@@ -524,18 +534,18 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={commandBar.palettePosition ?? 'center'}
-              onChange={(e) =>
-                updateCommandBar({ palettePosition: e.target.value as 'top' | 'center' | 'lower' })
+              onValueChange={(value) =>
+                updateCommandBar({ palettePosition: value as 'top' | 'center' | 'lower' })
               }
-              className="setting-input-scira"
+              options={[
+                { value: 'top', label: 'Top (12%)' },
+                { value: 'center', label: 'Center (20%)' },
+                { value: 'lower', label: 'Lower (30%)' },
+              ]}
               aria-label="Command palette vertical position"
-            >
-              <option value="top">Top (12%)</option>
-              <option value="center">Center (20%)</option>
-              <option value="lower">Lower (30%)</option>
-            </select>
+            />
           </div>
         </div>
       </Card>
@@ -724,18 +734,15 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={titleProvider}
-              onChange={(e) => handleTitleProviderChange(e.target.value as TitleProviderKey)}
-              className="setting-input-scira"
+              onValueChange={(value) => handleTitleProviderChange(value as TitleProviderKey)}
+              options={TITLE_PROVIDER_OPTIONS.map((provider) => ({
+                value: provider.key,
+                label: provider.label,
+              }))}
               aria-label="Title generation provider"
-            >
-              {TITLE_PROVIDER_OPTIONS.map((provider) => (
-                <option key={provider.key} value={provider.key}>
-                  {provider.label}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         </div>
 
@@ -747,22 +754,14 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
-              value={settings.titleModel}
-              onChange={(e) => updateSettings({ titleModel: e.target.value })}
-              className="setting-input-scira"
+            <SettingsSelect
+              value={settings.titleModel || undefined}
+              onValueChange={(value) => updateSettings({ titleModel: value })}
+              options={titleModelOptions}
+              placeholder="No models available"
+              disabled={titleModelOptions.length === 0}
               aria-label="Title generation model"
-            >
-              {titleProviderModels.map((model) => (
-                <option key={model.code} value={model.code}>
-                  {model.displayName}
-                </option>
-              ))}
-              {!titleProviderModels.some((model) => model.code === settings.titleModel) &&
-                settings.titleModel && (
-                  <option value={settings.titleModel}>{settings.titleModel}</option>
-                )}
-            </select>
+            />
           </div>
         </div>
 
@@ -774,19 +773,17 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={settings.titleGenerationDisplayMode || 'instant'}
-              onChange={(e) =>
-                updateSettings({
-                  titleGenerationDisplayMode: e.target.value as 'instant' | 'typewriter',
-                })
+              onValueChange={(value) =>
+                updateSettings({ titleGenerationDisplayMode: value as 'instant' | 'typewriter' })
               }
-              className="setting-input-scira"
+              options={[
+                { value: 'instant', label: 'Instant' },
+                { value: 'typewriter', label: 'Typewriter' },
+              ]}
               aria-label="Sidebar title reveal mode"
-            >
-              <option value="instant">Instant</option>
-              <option value="typewriter">Typewriter</option>
-            </select>
+            />
           </div>
         </div>
       </Card>
@@ -857,21 +854,22 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={getModelSelector().sidebarPosition}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 updateSettings({
                   modelSelector: {
                     ...getModelSelector(),
-                    sidebarPosition: e.target.value as 'left' | 'right',
+                    sidebarPosition: value as 'left' | 'right',
                   },
                 })
               }
-              className="setting-input-scira"
-            >
-              <option value="left">Left</option>
-              <option value="right">Right</option>
-            </select>
+              options={[
+                { value: 'left', label: 'Left' },
+                { value: 'right', label: 'Right' },
+              ]}
+              aria-label="Model selector sidebar position"
+            />
           </div>
         </div>
 
@@ -927,22 +925,23 @@ export function AppearanceSection({
             <div className="settings-list-row__description">Control the overall selector size</div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={getModelSelector().dropdownWidth}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 updateSettings({
                   modelSelector: {
                     ...getModelSelector(),
-                    dropdownWidth: e.target.value as 'compact' | 'default' | 'wide',
+                    dropdownWidth: value as 'compact' | 'default' | 'wide',
                   },
                 })
               }
-              className="setting-input-scira"
-            >
-              <option value="compact">Compact (420px)</option>
-              <option value="default">Default (520px)</option>
-              <option value="wide">Wide (640px)</option>
-            </select>
+              options={[
+                { value: 'compact', label: 'Compact (420px)' },
+                { value: 'default', label: 'Default (520px)' },
+                { value: 'wide', label: 'Wide (640px)' },
+              ]}
+              aria-label="Model selector dropdown width"
+            />
           </div>
         </div>
 
@@ -1001,22 +1000,23 @@ export function AppearanceSection({
               </div>
             </div>
             <div className="settings-list-row__control">
-              <select
+              <SettingsSelect
                 value={getModelSelector().capabilityBadgeDisplay ?? 'both'}
-                onChange={(e) =>
+                onValueChange={(value) =>
                   updateSettings({
                     modelSelector: {
                       ...getModelSelector(),
-                      capabilityBadgeDisplay: e.target.value as 'icon' | 'text' | 'both',
+                      capabilityBadgeDisplay: value as 'icon' | 'text' | 'both',
                     },
                   })
                 }
-                className="setting-input-scira"
-              >
-                <option value="icon">Icon only</option>
-                <option value="text">Text only</option>
-                <option value="both">Icon + text</option>
-              </select>
+                options={[
+                  { value: 'icon', label: 'Icon only' },
+                  { value: 'text', label: 'Text only' },
+                  { value: 'both', label: 'Icon + text' },
+                ]}
+                aria-label="Model capability badge display"
+              />
             </div>
           </div>
         )}
@@ -1119,22 +1119,23 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={getModelSelector().activeIndicatorStyle}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 updateSettings({
                   modelSelector: {
                     ...getModelSelector(),
-                    activeIndicatorStyle: e.target.value as 'dot' | 'checkmark' | 'highlight',
+                    activeIndicatorStyle: value as 'dot' | 'checkmark' | 'highlight',
                   },
                 })
               }
-              className="setting-input-scira"
-            >
-              <option value="dot">Dot</option>
-              <option value="checkmark">Checkmark</option>
-              <option value="highlight">Highlight</option>
-            </select>
+              options={[
+                { value: 'dot', label: 'Dot' },
+                { value: 'checkmark', label: 'Checkmark' },
+                { value: 'highlight', label: 'Highlight' },
+              ]}
+              aria-label="Model active indicator style"
+            />
           </div>
         </div>
 
@@ -1144,21 +1145,22 @@ export function AppearanceSection({
             <div className="settings-list-row__description">What to show when selector opens</div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={getModelSelector().defaultView}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 updateSettings({
                   modelSelector: {
                     ...getModelSelector(),
-                    defaultView: e.target.value as 'favorites' | 'lastUsed',
+                    defaultView: value as 'favorites' | 'lastUsed',
                   },
                 })
               }
-              className="setting-input-scira"
-            >
-              <option value="lastUsed">Last Used Provider</option>
-              <option value="favorites">Favorites</option>
-            </select>
+              options={[
+                { value: 'lastUsed', label: 'Last Used Provider' },
+                { value: 'favorites', label: 'Favorites' },
+              ]}
+              aria-label="Model selector default view"
+            />
           </div>
         </div>
 
@@ -1260,23 +1262,24 @@ export function AppearanceSection({
             </div>
           </div>
           <div className="settings-list-row__control">
-            <select
+            <SettingsSelect
               value={getModelSelector().staggerSpeed}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 updateSettings({
                   modelSelector: {
                     ...getModelSelector(),
-                    staggerSpeed: e.target.value as 'fast' | 'normal' | 'slow',
+                    staggerSpeed: value as 'fast' | 'normal' | 'slow',
                   },
                 })
               }
-              className="setting-input-scira"
+              options={[
+                { value: 'fast', label: 'Fast' },
+                { value: 'normal', label: 'Normal' },
+                { value: 'slow', label: 'Slow' },
+              ]}
               disabled={!getModelSelector().enableAnimations}
-            >
-              <option value="fast">Fast</option>
-              <option value="normal">Normal</option>
-              <option value="slow">Slow</option>
-            </select>
+              aria-label="Model selector stagger animation speed"
+            />
           </div>
         </div>
       </Card>
@@ -1353,6 +1356,48 @@ export function AppearanceSection({
         </div>
       </Card>
     </div>
+  )
+}
+
+interface SettingsSelectProps {
+  value?: string
+  onValueChange: (value: string) => void
+  options: Array<{ value: string; label: string }>
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  ariaLabel?: string
+}
+
+function SettingsSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  disabled,
+  className,
+  ariaLabel,
+}: SettingsSelectProps): React.ReactElement {
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger
+        className={[
+          'setting-input-scira min-w-[140px] justify-between gap-3',
+          disabled ? 'opacity-50' : '',
+          className ?? '',
+        ].join(' ')}
+        aria-label={ariaLabel}
+      >
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
