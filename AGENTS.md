@@ -56,7 +56,8 @@ Core capabilities:
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
-- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync)
+- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync, global context menu via AppContextMenu)
+- `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
 - `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
@@ -106,8 +107,8 @@ Core capabilities:
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
-  - Main window web contents register a native global right-click menu via `electron/windows/contextMenu.ts` (`webContents.on('context-menu')`) with safe defaults (edit actions, copy/select-all, safe external link actions, and Inspect Element in both development and packaged builds)
-  - External links are opened via `shell.openExternal`.
+  - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
+  - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
 - **About Window** (`electron/windows/aboutWindow.ts`)
   - Loads `#/about` in its own `BrowserWindow`
@@ -166,6 +167,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `window-controls:state`
 - `window.appInfo`
   - invokes: `app-info:get`, `app-info:open-about-window`
+- `window.shell`
+  - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed)
+- `window.devTools`
+  - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 

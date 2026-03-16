@@ -13,6 +13,7 @@ import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
+import RenameChatDialog from './RenameChatDialog'
 import PinnedSection from './PinnedSection'
 import FolderSection from './FolderSection'
 import { ChevronDown, Copy, Edit2, Ellipsis, Pin, Trash2 } from '../../icons'
@@ -32,14 +33,10 @@ interface SidebarChatListProps {
   streamingSessionId: string | null
   focusIndex: number
   flatVisibleSessions: ChatSession[]
-  renamingSessionId: string | null
-  searchQuery: string
   bottomPadding?: number
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
-  onRenameStart: (id: string) => void
   onRenameConfirm: (id: string, newTitle: string) => void
-  onRenameCancel: () => void
   onDropSessionToFolder: (sessionId: string, folderId: string) => void
   onKeyDown: (e: React.KeyboardEvent) => void
 }
@@ -59,18 +56,16 @@ export default function SidebarChatList({
   streamingSessionId,
   focusIndex,
   flatVisibleSessions,
-  renamingSessionId,
   bottomPadding = 8,
   onSelectSession,
   onContextAction,
-  onRenameStart,
   onRenameConfirm,
-  onRenameCancel,
   onDropSessionToFolder,
   onKeyDown,
 }: SidebarChatListProps) {
   const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
   const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
+  const [renameSessionId, setRenameSessionId] = React.useState<string | null>(null)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
   const viewportRef = React.useRef<HTMLDivElement | null>(null)
   const [hasVerticalScrollbar, setHasVerticalScrollbar] = React.useState(false)
@@ -135,11 +130,19 @@ export default function SidebarChatList({
     const flatIndex = flatVisibleSessions.findIndex((s) => s.id === session.id)
     const isDropdownOpen = dropdownOpenId === session.id
 
+    const handleContextMenuAction = (action: ChatRowAction, sessionId: string) => {
+      if (action === 'rename') {
+        setRenameSessionId(sessionId)
+        return
+      }
+      onContextAction(action, sessionId)
+    }
+
     return (
       <ChatRowContextMenu
         key={session.id}
         isPinned={session.pinned === true}
-        onAction={(action) => onContextAction(action, session.id)}
+        onAction={(action) => handleContextMenuAction(action, session.id)}
       >
         <div
           draggable
@@ -156,11 +159,7 @@ export default function SidebarChatList({
             isMenuOpen={isDropdownOpen}
             isFocused={flatIndex === focusIndex}
             isStreaming={streamingSessionId === session.id}
-            isRenaming={renamingSessionId === session.id}
             onSelect={onSelectSession}
-            onRenameStart={onRenameStart}
-            onRenameConfirm={onRenameConfirm}
-            onRenameCancel={onRenameCancel}
             renderMoreButton={(className) => (
               <DropdownMenu
                 open={isDropdownOpen}
@@ -196,7 +195,7 @@ export default function SidebarChatList({
                   }
                 >
                   <DropdownMenuGroup>
-                    <DropdownMenuItem onClick={() => onContextAction('rename', session.id)}>
+                    <DropdownMenuItem onClick={() => setRenameSessionId(session.id)}>
                       <Edit2 size={14} />
                       Rename
                     </DropdownMenuItem>
@@ -304,6 +303,22 @@ export default function SidebarChatList({
             onContextAction('delete', deleteConfirmSessionId)
           }
           setDeleteConfirmSessionId(null)
+        }}
+      />
+
+      <RenameChatDialog
+        open={renameSessionId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameSessionId(null)
+          }
+        }}
+        currentTitle={flatVisibleSessions.find((s) => s.id === renameSessionId)?.title || ''}
+        onConfirm={(newTitle) => {
+          if (renameSessionId) {
+            onRenameConfirm(renameSessionId, newTitle)
+          }
+          setRenameSessionId(null)
         }}
       />
     </>

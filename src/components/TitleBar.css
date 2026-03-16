@@ -389,61 +389,6 @@
     color: var(--theme-text-primary);
 }
 
-.app-titlebar__info-menu {
-    width: 248px;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--theme-surface) 96%, black 4%);
-    box-shadow: none;
-}
-
-.app-titlebar__info-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 34px;
-    padding: 7px 8px;
-    border-radius: 8px;
-}
-
-.app-titlebar__info-menu-item--compact {
-    font-size: 0.82rem;
-}
-
-.app-titlebar__info-menu-item-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 6px;
-    flex-shrink: 0;
-    background: transparent;
-    color: var(--theme-text-secondary);
-}
-
-.app-titlebar__info-menu-item-icon--about {
-    color: var(--theme-text-secondary);
-}
-
-.app-titlebar__info-menu-item-title {
-    min-width: 0;
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--theme-text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.app-titlebar__info-menu-item-meta {
-    margin-left: auto;
-    font-size: 0.72rem;
-    color: var(--theme-text-muted);
-    white-space: nowrap;
-}
-
 .app-titlebar__spin {
     animation: app-titlebar-spin 1s linear infinite;
 }
@@ -688,6 +633,14 @@
     }
 }
 
+/* About window footer and buttons */
+.app-titlebar__about-window-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: auto;
+}
+
 @media (max-width: 720px) {
     .app-titlebar__about-page {
         padding: 12px;
@@ -695,10 +648,6 @@
 
     .app-titlebar__about-window-sections {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .app-titlebar__info-menu {
-        width: min(248px, calc(100vw - 16px));
     }
 
     .app-titlebar__about-window-row {

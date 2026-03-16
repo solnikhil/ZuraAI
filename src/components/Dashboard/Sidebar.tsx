@@ -44,7 +44,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
 
   // Sidebar state
   const [focusIndex, setFocusIndex] = useState(-1)
-  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
@@ -164,7 +163,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     (action: ChatRowAction, sessionId: string) => {
       switch (action) {
         case 'rename':
-          setRenamingSessionId(sessionId)
+          // Handled by RenameChatDialog in SidebarChatList
           break
         case 'pin':
           pinSession(sessionId)
@@ -186,14 +185,9 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const handleRenameConfirm = useCallback(
     (id: string, newTitle: string) => {
       updateSessionTitle(id, newTitle)
-      setRenamingSessionId(null)
     },
     [updateSessionTitle]
   )
-
-  const handleRenameCancel = useCallback(() => {
-    setRenamingSessionId(null)
-  }, [])
 
   const handleDropSessionToFolder = useCallback(
     (sessionId: string, folderId: string) => {
@@ -317,14 +311,10 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         streamingSessionId={null}
         focusIndex={focusIndex}
         flatVisibleSessions={flatVisibleSessions}
-        renamingSessionId={renamingSessionId}
-        searchQuery=""
         bottomPadding={userStripPadding}
         onSelectSession={switchSession}
         onContextAction={handleContextAction}
-        onRenameStart={(id) => setRenamingSessionId(id)}
         onRenameConfirm={handleRenameConfirm}
-        onRenameCancel={handleRenameCancel}
         onDropSessionToFolder={handleDropSessionToFolder}
         onKeyDown={handleKeyDown}
       />

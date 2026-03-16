@@ -28,13 +28,12 @@ export interface BuiltInSkill {
 export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'web_research',
-    name: 'Tavily',
+    name: 'Web Research',
     description: 'Allows the agent to browse the web and cite sources.',
-    note: 'Enables web browsing + citations.',
+    note: '',
     usageGuidance: [
-      'Use web_search when current facts or verification are required.',
-      'Cite sources and synthesize results instead of pasting raw snippets.',
-      'Structured mode uses research_plan first, then executes web searches.',
+      'Normal mode: use web_search directly for targeted queries.',
+      'Structured mode: call research_plan first for multi-step research.',
     ],
   },
 ]

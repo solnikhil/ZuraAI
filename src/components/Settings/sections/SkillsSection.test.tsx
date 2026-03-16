@@ -9,16 +9,16 @@ describe('SkillsSection', () => {
     render(<SkillsSection skills={defaultSkillsSettings} onChange={vi.fn()} />)
 
     expect(screen.getByText('Skills')).toBeInTheDocument()
-    expect(screen.getByText('Tavily')).toBeInTheDocument()
+    expect(screen.getByText('Web Research')).toBeInTheDocument()
     expect(screen.getByText('Active')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /more actions for tavily/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /more actions for web research/i })).toBeInTheDocument()
   })
 
   it('toggles disable from 3-dot actions menu', () => {
     const onChange = vi.fn()
     render(<SkillsSection skills={defaultSkillsSettings} onChange={onChange} />)
 
-    const moreActions = screen.getByRole('button', { name: /more actions for tavily/i })
+    const moreActions = screen.getByRole('button', { name: /more actions for web research/i })
     fireEvent.pointerDown(moreActions, { button: 0, ctrlKey: false })
     fireEvent.click(screen.getByRole('menuitem', { name: /disable/i }))
 

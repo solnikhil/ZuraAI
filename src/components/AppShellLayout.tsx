@@ -7,6 +7,7 @@ import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
 import { CommandPalette } from './CommandPalette'
+import AppContextMenu from './AppContextMenu'
 
 /** Window width at or below which the sidebar auto-hides. User can unhide via the titlebar toggle. Matches minWidth in mainWindow. */
 const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
@@ -162,69 +163,71 @@ function AppShellContent() {
     }, [navigate])
 
     return (
-        <div className="app-frame" style={{
-            backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
-            position: 'relative'
-        }}>
-            {/* Glass panel covering full sidebar column (titlebar + content) for frosted mode.
-                A single backdrop-filter layer avoids the Chromium compositing seam that appeared
-                when the titlebar glass strip and this panel each had their own backdrop-filter.
-                During active sidebar resize, we hint the compositor with will-change and
-                simplify the backdrop-filter to avoid expensive per-frame GPU recomposition. */}
-            {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
-                <div style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: `${sidebarWidthPx}px`,
-                    background: `linear-gradient(180deg, rgba(10, 10, 14, 0.46) 0px, rgba(6, 6, 10, 0.33) ${titlebarHeightPx}px, rgba(6, 6, 10, 0.3) 100%)`,
-                    borderRight: 'none',
-                    boxShadow: 'none',
-                    backdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
-                    WebkitBackdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
-                    zIndex: 0,
-                    pointerEvents: 'none',
-                    boxSizing: 'border-box',
-                    willChange: isResizingSidebar ? 'width' : 'auto',
-                    transition: isResizingSidebar ? 'none' : undefined,
-                }} />
-            )}
-            <TitleBar />
-            <CommandPalette />
-            <div className="app-content" style={{
-                backgroundColor: frostedSidebar ? 'transparent' : undefined,
-                borderTop: 'none'
+        <AppContextMenu>
+            <div className="app-frame" style={{
+                backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
+                position: 'relative'
             }}>
-                <Outlet />
-            </div>
-            {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}
-            {isWindows && (
-                <ResizeHandles disabled={isMaximized} />
-            )}
-            {isDev && resizeIndicator && (
-                <div style={{
-                    position: 'fixed',
-                    top: '10px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 2000,
-                    pointerEvents: 'none',
-                    padding: '6px 10px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--theme-border)',
-                    background: 'color-mix(in srgb, var(--theme-surface) 88%, black 12%)',
-                    color: 'var(--theme-text-primary)',
-                    fontSize: '0.78rem',
-                    lineHeight: 1,
-                    fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                    boxShadow: 'var(--theme-shadow-sm)',
-                    letterSpacing: '0.02em'
+                {/* Glass panel covering full sidebar column (titlebar + content) for frosted mode.
+                    A single backdrop-filter layer avoids the Chromium compositing seam that appeared
+                    when the titlebar glass strip and this panel each had their own backdrop-filter.
+                    During active sidebar resize, we hint the compositor with will-change and
+                    simplify the backdrop-filter to avoid expensive per-frame GPU recomposition. */}
+                {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
+                    <div style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${sidebarWidthPx}px`,
+                        background: `linear-gradient(180deg, rgba(10, 10, 14, 0.46) 0px, rgba(6, 6, 10, 0.33) ${titlebarHeightPx}px, rgba(6, 6, 10, 0.3) 100%)`,
+                        borderRight: 'none',
+                        boxShadow: 'none',
+                        backdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
+                        WebkitBackdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
+                        zIndex: 0,
+                        pointerEvents: 'none',
+                        boxSizing: 'border-box',
+                        willChange: isResizingSidebar ? 'width' : 'auto',
+                        transition: isResizingSidebar ? 'none' : undefined,
+                    }} />
+                )}
+                <TitleBar />
+                <CommandPalette />
+                <div className="app-content" style={{
+                    backgroundColor: frostedSidebar ? 'transparent' : undefined,
+                    borderTop: 'none'
                 }}>
-                    {resizeIndicator}
+                    <Outlet />
                 </div>
-            )}
-        </div>
+                {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}
+                {isWindows && (
+                    <ResizeHandles disabled={isMaximized} />
+                )}
+                {isDev && resizeIndicator && (
+                    <div style={{
+                        position: 'fixed',
+                        top: '10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 2000,
+                        pointerEvents: 'none',
+                        padding: '6px 10px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--theme-border)',
+                        background: 'color-mix(in srgb, var(--theme-surface) 88%, black 12%)',
+                        color: 'var(--theme-text-primary)',
+                        fontSize: '0.78rem',
+                        lineHeight: 1,
+                        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                        boxShadow: 'var(--theme-shadow-sm)',
+                        letterSpacing: '0.02em'
+                    }}>
+                        {resizeIndicator}
+                    </div>
+                )}
+            </div>
+        </AppContextMenu>
     )
 }
 

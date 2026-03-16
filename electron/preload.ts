@@ -136,6 +136,20 @@ contextBridge.exposeInMainWorld(
   })
 )
 
+contextBridge.exposeInMainWorld(
+  'shell',
+  Object.freeze({
+    openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'devTools',
+  Object.freeze({
+    inspectElement: (x: number, y: number) => ipcRenderer.invoke('devtools:inspect-element', x, y),
+  })
+)
+
 // Terminal API - expose spawnCommand for launching terminals
 try {
   preloadLog('About to expose terminal API...')
