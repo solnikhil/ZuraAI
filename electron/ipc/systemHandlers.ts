@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow } from 'electron'
+import { app, ipcMain, BrowserWindow, shell } from 'electron'
 import { spawn, exec } from 'child_process'
 import os from 'os'
 import { setNativeBlur, showAboutWindow } from '../windows'
@@ -153,6 +153,10 @@ export function registerSystemHandlers(): void {
       ? process.getSystemVersion()
       : os.release()
 
+    // Get git info from build-time env variables
+    const commitHash = process.env.VITE_GIT_COMMIT_HASH || 'unknown'
+    const commitDate = process.env.VITE_GIT_COMMIT_DATE || 'unknown'
+
     return {
       appName: app.getName(),
       appVersion: app.getVersion(),
@@ -163,6 +167,8 @@ export function registerSystemHandlers(): void {
       nodeVersion: process.versions.node ?? 'Unknown',
       v8Version: process.versions.v8 ?? 'Unknown',
       osVersion: `${getPlatformLabel(process.platform)} ${systemVersion} (${os.arch()})`,
+      commitHash,
+      commitDate,
     }
   })
 
@@ -172,8 +178,50 @@ export function registerSystemHandlers(): void {
    * Channel: `app-info:open-about-window`
    * Type: request/response
    */
-  ipcMain.handle('app-info:open-about-window', () => {
+ipcMain.handle('app-info:open-about-window', () => {
     showAboutWindow()
+  })
+
+  /**
+   * Opens a URL in the default browser.
+   *
+   * Channel: `shell:open-external`
+   * Type: request/response
+   *
+   * Only allows http/https URLs to prevent security issues.
+   */
+  ipcMain.handle('shell:open-external', async (_event, url: unknown) => {
+    if (typeof url !== 'string') return
+
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return
+      }
+      await shell.openExternal(url)
+    } catch {
+      // Invalid URL, ignore
+    }
+  })
+
+  /**
+   * Opens DevTools and inspects the element at the given coordinates.
+   *
+   * Channel: `devtools:inspect-element`
+   * Type: request/response
+   *
+   * Only works in development mode. Coordinates are from the renderer's
+   * perspective (clientX/clientY from the contextmenu event).
+   */
+  ipcMain.handle('devtools:inspect-element', (event, x: unknown, y: unknown) => {
+    if (!app.isPackaged) {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win && !win.isDestroyed()) {
+        const coordX = typeof x === 'number' ? Math.round(x) : 0
+        const coordY = typeof y === 'number' ? Math.round(y) : 0
+        win.webContents.inspectElement(coordX, coordY)
+      }
+    }
   })
 
   /**
@@ -313,4 +361,6 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:is-maximized')
   ipcMain.removeHandler('app-info:get')
   ipcMain.removeHandler('app-info:open-about-window')
+  ipcMain.removeHandler('shell:open-external')
+  ipcMain.removeHandler('devtools:inspect-element')
 }

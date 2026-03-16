@@ -1,7 +1,6 @@
 import { BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
-import { attachMainWindowContextMenu } from './contextMenu'
 
 export function resolveDistPath(dirname: string, envDist = process.env.DIST): string {
   return envDist || path.join(dirname, '../dist')
@@ -91,8 +90,6 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       shell.openExternal(url)
     }
   })
-
-  attachMainWindowContextMenu(mainWindow)
 
   // Show when ready to prevent white flash
   mainWindow.once('ready-to-show', () => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React from 'react'
 import { Ellipsis } from '../../icons'
 import type { ChatSession } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -13,11 +13,7 @@ interface ChatRowProps {
   isMenuOpen: boolean
   isFocused: boolean
   isStreaming: boolean
-  isRenaming: boolean
   onSelect: (id: string) => void
-  onRenameStart: (id: string) => void
-  onRenameConfirm: (id: string, newTitle: string) => void
-  onRenameCancel: () => void
   renderMoreButton?: (className: string) => React.ReactNode
 }
 
@@ -111,52 +107,21 @@ export default function ChatRow({
   isMenuOpen,
   isFocused,
   isStreaming,
-  isRenaming,
   onSelect,
-  onRenameConfirm,
-  onRenameCancel,
   renderMoreButton,
 }: ChatRowProps) {
-  const [renameValue, setRenameValue] = useState(session.title)
-  const renameInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (isRenaming) {
-      setRenameValue(session.title)
-      setTimeout(() => renameInputRef.current?.select(), 0)
-    }
-  }, [isRenaming, session.title])
-
-  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      const trimmed = renameValue.trim()
-      onRenameConfirm(session.id, trimmed || session.title)
-    } else if (e.key === 'Escape') {
-      onRenameCancel()
-    }
-  }
-
-  const handleRenameBlur = () => {
-    const trimmed = renameValue.trim()
-    onRenameConfirm(session.id, trimmed || session.title)
-  }
-
-  // Build class list
   const rowClasses = [
     'sidebar-chat-row',
     isActive && 'sidebar-chat-row--active',
     isFocused && 'sidebar-chat-row--focused',
-    isRenaming && 'sidebar-chat-row--renaming',
   ]
     .filter(Boolean)
     .join(' ')
 
-  // Active row gets overlay styles applied inline (since they vary by selectedOverlayStyle setting)
   const selectedOverlay = isActive
     ? getSelectedOverlayStyles(selectedOverlayStyle, isFrosted)
     : undefined
 
-  // More button visibility class
   const getMoreBtnClass = () => {
     if (isActive) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--always'
     if (isMenuOpen) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--visible'
@@ -165,7 +130,7 @@ export default function ChatRow({
 
   return (
     <div
-      onClick={() => !isRenaming && onSelect(session.id)}
+      onClick={() => onSelect(session.id)}
       className={rowClasses}
       style={
         selectedOverlay
@@ -183,30 +148,17 @@ export default function ChatRow({
     >
       <div className="sidebar-chat-row__content">
         <div className="sidebar-chat-row__title-row">
-          {isRenaming ? (
-            <input
-              ref={renameInputRef}
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={handleRenameKeyDown}
-              onBlur={handleRenameBlur}
-              onClick={(e) => e.stopPropagation()}
-              className="sidebar-chat-row__rename-input"
-            />
-          ) : (
-            <span className="sidebar-chat-row__title">{session.title}</span>
-          )}
+          <span className="sidebar-chat-row__title">{session.title}</span>
 
-          {!isRenaming &&
-            (isStreaming ? (
-              <div className="sidebar-chat-row__streaming-dot" />
-            ) : (
-              renderMoreButton?.(getMoreBtnClass()) ?? (
-                <button aria-label="Chat options" className={getMoreBtnClass()}>
-                  <Ellipsis size={14} />
-                </button>
-              )
-            ))}
+          {isStreaming ? (
+            <div className="sidebar-chat-row__streaming-dot" />
+          ) : (
+            renderMoreButton?.(getMoreBtnClass()) ?? (
+              <button aria-label="Chat options" className={getMoreBtnClass()}>
+                <Ellipsis size={14} />
+              </button>
+            )
+          )}
         </div>
       </div>
 

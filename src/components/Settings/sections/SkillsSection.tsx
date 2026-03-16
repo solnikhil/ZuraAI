@@ -14,6 +14,7 @@ import {
 import {
   BUILT_IN_SKILLS,
   isWebResearchEnabled,
+  getWebResearchMode,
   withWebResearchEnabled,
   type SkillsSettings,
 } from '@/skills'
@@ -25,6 +26,7 @@ export interface SkillsSectionProps {
 
 export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.ReactElement {
   const webResearchEnabled = isWebResearchEnabled(skills)
+  const webResearchMode = getWebResearchMode(skills)
 
   const setEnabled = (_skillId: string, enabled: boolean) => {
     onChange({
@@ -60,14 +62,10 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                   <div className="skills-row__content">
                     <h3 className="skills-row__title">{skill.name}</h3>
                     <div className="skills-row__description">{skill.description}</div>
-                    <div className="skills-row__note">{skill.note}</div>
-                    {enabled && skill.usageGuidance.length > 0 && (
-                      <div className="skills-row__guidance" aria-label={`${skill.name} guidance`}>
-                        {skill.usageGuidance.slice(0, 2).map((item) => (
-                          <div key={item} className="skills-row__guidance-item">
-                            {item}
-                          </div>
-                        ))}
+                    {skill.note && <div className="skills-row__note">{skill.note}</div>}
+                    {enabled && skill.id === 'web_research' && (
+                      <div className="skills-row__mode">
+                        Mode: <span className="skills-row__mode-value">{webResearchMode === 'structured' ? 'Structured' : 'Normal'}</span>
                       </div>
                     )}
                   </div>

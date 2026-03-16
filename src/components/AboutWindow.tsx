@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import type { AppRuntimeInfo } from '../electron'
 import './TitleBar.css'
@@ -30,71 +30,150 @@ export default function AboutWindow() {
     }
   }, [])
 
-  const aboutSections = useMemo(
-    () => [
-      {
-        title: 'Build',
-        items: [
-          { label: 'Version', value: appInfo?.appVersion ?? 'Loading...' },
-          { label: 'Channel', value: appInfo?.channel ?? 'Loading...' },
-          {
-            label: 'Release Track',
-            value: appInfo
-              ? appInfo.isPackaged
-                ? 'Installed desktop build'
-                : 'Development session'
-              : 'Loading...',
-          },
-        ],
-      },
-      {
-        title: 'Runtime',
-        items: [
-          { label: 'Electron', value: appInfo?.electronVersion ?? 'Loading...' },
-          { label: 'Chromium', value: appInfo?.chromiumVersion ?? 'Loading...' },
-          { label: 'Node.js', value: appInfo?.nodeVersion ?? 'Loading...' },
-          { label: 'V8', value: appInfo?.v8Version ?? 'Loading...' },
-          { label: 'OS', value: appInfo?.osVersion ?? 'Loading...' },
-        ],
-      },
-    ],
-    [appInfo]
+  const getRelativeTime = (dateStr: string) => {
+    if (dateStr === 'unknown') return ''
+    try {
+      const date = new Date(dateStr)
+      if (Number.isNaN(date.getTime())) return ''
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      if (diffDays === 0) return '(today)'
+      if (diffDays === 1) return '(1 day ago)'
+      return `(${diffDays} days ago)`
+    } catch {
+      return ''
+    }
+  }
+
+  const InfoRow = ({ 
+    label, 
+    value, 
+    highlight = false 
+  }: { 
+    label: string
+    value: string
+    highlight?: boolean 
+  }) => (
+    <div className={`flex items-center justify-between py-2 px-3 rounded-lg ${highlight ? 'bg-[var(--theme-surface-hover)]' : ''}`}>
+      <span className="text-[0.8rem] text-[var(--theme-text-secondary)] font-medium">{label}</span>
+      <span className="text-[0.85rem] text-[var(--theme-text-primary)] font-mono">{value}</span>
+    </div>
+  )
+
+  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
+    <div className="flex items-center gap-2 mb-3 mt-4">
+      <div className="w-1 h-4 bg-[var(--theme-text-primary)] rounded-full" />
+      <span className="text-[0.75rem] uppercase tracking-wider text-[var(--theme-text-secondary)] font-semibold">
+        {children}
+      </span>
+    </div>
   )
 
   return (
-    <div className="app-titlebar__about-page">
-      <div className="app-titlebar__about-window-shell app-titlebar__about-window-shell--standalone">
-        <div className="app-titlebar__about-window-header app-titlebar__about-window-header--standalone border-b border-[var(--theme-border)] px-5 py-4 text-left">
-          <div className="app-titlebar__about-window-title-row">
-            <div className="app-titlebar__about-window-copy">
-              <div className="text-[1rem] font-semibold text-[var(--theme-text-primary)]">
-                About {appInfo?.appName ?? 'ZuraAI'}
+    <div className="app-titlebar__about-page h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--theme-text-primary)] to-[var(--theme-text-secondary)] mb-4 shadow-lg">
+            <svg
+              className="w-8 h-8 text-[var(--theme-background)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--theme-text-primary)] mb-1">ZuraAI</h1>
+          <p className="text-[0.85rem] text-[var(--theme-text-secondary)]">Your Intelligent Desktop Assistant</p>
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-[var(--theme-surface)] rounded-2xl border border-[var(--theme-border)] overflow-hidden shadow-xl">
+          {appInfo ? (
+            <div className="p-5">
+              {/* App Version Section */}
+              <SectionTitle>Application</SectionTitle>
+              <div className="space-y-1">
+                <InfoRow 
+                  label="Version" 
+                  value={appInfo.appVersion} 
+                  highlight 
+                />
+                <InfoRow 
+                  label="Build Type" 
+                  value={appInfo.isPackaged ? 'Production' : 'Development'} 
+                />
+                <InfoRow 
+                  label="Commit" 
+                  value={appInfo.commitHash.substring(0, 9)} 
+                />
+                <InfoRow 
+                  label="Build Date" 
+                  value={`${appInfo.commitDate} ${getRelativeTime(appInfo.commitDate)}`} 
+                />
               </div>
-              <div className="text-[0.82rem] text-[var(--theme-text-secondary)]">
-                {appInfo ? `Version ${appInfo.appVersion}` : 'Loading app details...'}
+
+              {/* Runtime Section */}
+              <SectionTitle>Runtime Environment</SectionTitle>
+              <div className="space-y-1">
+                <InfoRow label="Electron" value={appInfo.electronVersion} />
+                <InfoRow label="Chromium" value={appInfo.chromiumVersion} />
+                <InfoRow label="Node.js" value={appInfo.nodeVersion} />
+                <InfoRow label="V8 Engine" value={appInfo.v8Version} />
+              </div>
+
+              {/* System Section */}
+              <SectionTitle>System</SectionTitle>
+              <div className="space-y-1">
+                <InfoRow label="Operating System" value={appInfo.osVersion} highlight />
               </div>
             </div>
+          ) : (
+            <div className="p-8 text-center">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[var(--theme-surface-hover)] mb-3">
+                <svg 
+                  className="w-5 h-5 text-[var(--theme-text-secondary)] animate-spin" 
+                  fill="none" 
+                  viewBox="0 0 24 24"
+                >
+                  <circle 
+                    className="opacity-25" 
+                    cx="12" 
+                    cy="12" 
+                    r="10" 
+                    stroke="currentColor" 
+                    strokeWidth="4"
+                  />
+                  <path 
+                    className="opacity-75" 
+                    fill="currentColor" 
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              </div>
+              <p className="text-[0.9rem] text-[var(--theme-text-secondary)]">Loading app details...</p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="px-5 py-3 bg-[var(--theme-surface-hover)] border-t border-[var(--theme-border)]">
+            <p className="text-[0.75rem] text-[var(--theme-text-secondary)] text-center">
+              Built with ❤️ using React, Electron & TypeScript
+            </p>
           </div>
         </div>
 
-        <div className="app-titlebar__about-window-body px-5 py-4">
-          <div className="app-titlebar__about-window-sections">
-            {aboutSections.map((section) => (
-              <section key={section.title} className="app-titlebar__about-window-section">
-                <div className="app-titlebar__about-window-section-title">{section.title}</div>
-                <div className="app-titlebar__about-window-section-list">
-                  {section.items.map((item) => (
-                    <div key={item.label} className="app-titlebar__about-window-row">
-                      <span className="app-titlebar__about-window-label">{item.label}</span>
-                      <span className="app-titlebar__about-window-value">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-
+        {/* Copyright */}
+        <p className="text-[0.7rem] text-[var(--theme-text-secondary)] text-center mt-6 opacity-60">
+          © 2026 ZuraAI. All rights reserved.
+        </p>
       </div>
     </div>
   )

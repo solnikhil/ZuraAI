@@ -4,6 +4,20 @@ import electron from 'vite-plugin-electron'
 import renderer from 'vite-plugin-electron-renderer'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { execSync } from 'child_process'
+
+// Get git commit info at build time
+const getGitInfo = () => {
+    try {
+        const commitHash = execSync('git rev-parse HEAD').toString().trim()
+        const commitDate = execSync('git log -1 --format=%ci').toString().trim()
+        return { commitHash, commitDate }
+    } catch {
+        return { commitHash: 'unknown', commitDate: 'unknown' }
+    }
+}
+
+const gitInfo = getGitInfo()
 
 export default defineConfig({
     plugins: [
@@ -19,6 +33,10 @@ export default defineConfig({
                             external: ['playwright', 'playwright-core'],
                         },
                     },
+                    define: {
+                        'process.env.VITE_GIT_COMMIT_HASH': JSON.stringify(gitInfo.commitHash),
+                        'process.env.VITE_GIT_COMMIT_DATE': JSON.stringify(gitInfo.commitDate),
+                    },
                 },
             },
             {
@@ -30,6 +48,10 @@ export default defineConfig({
         ]),
         renderer(),
     ],
+    define: {
+        'import.meta.env.VITE_GIT_COMMIT_HASH': JSON.stringify(gitInfo.commitHash),
+        'import.meta.env.VITE_GIT_COMMIT_DATE': JSON.stringify(gitInfo.commitDate),
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),

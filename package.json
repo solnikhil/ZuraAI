@@ -1,7 +1,7 @@
 {
   "name": "zura",
-  "version": "0.0.2",
-  "description": "ZuraAI - Desktop AI Assistant",
+  "version": "0.0.25",
+  "description": "ZuraAI",
   "author": "Nikhil",
   "license": "MIT",
   "main": "dist-electron/main.js",

@@ -28,12 +28,10 @@ export function createAboutWindow(): BrowserWindow {
   const parentWindow = getMainWindow() ?? undefined
 
   aboutWindow = new BrowserWindow({
-    width: 560,
-    height: 420,
-    minWidth: 560,
-    minHeight: 420,
-    maxWidth: 560,
-    maxHeight: 420,
+    width: 520,
+    height: 580,
+    minWidth: 520,
+    minHeight: 580,
     title: 'About ZuraAI',
     icon: path.join(process.env.PUBLIC || '', 'icon.png'),
     parent: parentWindow,

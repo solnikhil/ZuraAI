@@ -37,6 +37,8 @@ export interface AppRuntimeInfo {
     nodeVersion: string
     v8Version: string
     osVersion: string
+    commitHash: string
+    commitDate: string
 }
 
 export interface AppInfoAPI {
@@ -56,6 +58,14 @@ export interface WindowControlsAPI {
     onWindowState: (callback: (state: { isMaximized: boolean }) => void) => () => void
 }
 
+export interface ShellAPI {
+    openExternal: (url: string) => Promise<void>
+}
+
+export interface DevToolsAPI {
+    inspectElement: (x: number, y: number) => Promise<void>
+}
+
 declare global {
     interface Window {
         ipcRenderer: IElectronAPI
@@ -64,5 +74,7 @@ declare global {
         appInfo: AppInfoAPI
         terminal: TerminalAPI
         windowControls: WindowControlsAPI
+        shell: ShellAPI
+        devTools: DevToolsAPI
     }
 }

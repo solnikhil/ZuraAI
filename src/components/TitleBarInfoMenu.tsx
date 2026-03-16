@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
 import type { AppRuntimeInfo } from '../electron'
-import { CheckCircle, Info, Loader2, ShieldCheck } from './icons'
+import { Info } from './icons'
 import { useToast } from './shared/Toast'
 
 type UpdateState = 'idle' | 'checking' | 'upToDate' | 'available' | 'downloaded' | 'error'
@@ -117,58 +118,50 @@ export default function TitleBarInfoMenu() {
   }, [showToast])
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="app-titlebar__icon-btn app-titlebar__info-trigger no-drag"
-            aria-label="Open app info menu"
-            title="App info"
-          >
-            <span className="app-titlebar__info-trigger-core">
-              <Info size={14} />
-            </span>
-          </button>
-        </DropdownMenuTrigger>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="app-titlebar__icon-btn app-titlebar__info-trigger no-drag"
+          aria-label="Open app info menu"
+          title="App info"
+        >
+          <span className="app-titlebar__info-trigger-core">
+            <Info size={14} />
+          </span>
+        </button>
+      </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" sideOffset={8} className="app-titlebar__info-menu p-1.5">
+      <DropdownMenuContent
+        align="end"
+        sideOffset={6}
+        className="w-44 rounded-lg border border-border/80 bg-popover p-1 shadow-md"
+      >
+        <DropdownMenuGroup>
           <DropdownMenuItem
-            className="app-titlebar__info-menu-item app-titlebar__info-menu-item--compact"
+            className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
             disabled={updateState === 'checking'}
             onSelect={() => {
               void handleCheckForUpdates()
             }}
           >
-            <span className="app-titlebar__info-menu-item-icon app-titlebar__info-menu-item-icon--compact">
-              {updateState === 'checking' ? (
-                <Loader2 size={14} className="app-titlebar__spin" />
-              ) : updateState === 'downloaded' ? (
-                <CheckCircle size={14} />
-              ) : (
-                <ShieldCheck size={14} />
-              )}
-            </span>
-
-            <span className="app-titlebar__info-menu-item-title">
-              {updateState === 'downloaded' ? 'Install Update' : 'Check for Updates...'}
+            <span className="truncate">
+              {updateState === 'downloaded' ? 'Install Update' : 'Check for Updates'}
             </span>
           </DropdownMenuItem>
+        </DropdownMenuGroup>
 
-          <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="-mx-1 my-1" />
 
+        <DropdownMenuGroup>
           <DropdownMenuItem
-            className="app-titlebar__info-menu-item app-titlebar__info-menu-item--compact"
+            className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
             onSelect={handleOpenAbout}
           >
-            <span className="app-titlebar__info-menu-item-icon app-titlebar__info-menu-item-icon--compact app-titlebar__info-menu-item-icon--about">
-              <Info size={14} />
-            </span>
-
-            <span className="app-titlebar__info-menu-item-title">About ZuraAI</span>
+            <span className="truncate">About ZuraAI</span>
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
