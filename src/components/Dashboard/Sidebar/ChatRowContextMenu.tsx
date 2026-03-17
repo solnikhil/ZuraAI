@@ -55,21 +55,21 @@ export default function ChatRowContextMenu({
           }
         >
           <ContextMenuGroup>
-            <ContextMenuItem onClick={() => handleAction('rename')}>
+            <ContextMenuItem onSelect={() => handleAction('rename')}>
               <Edit2 size={14} />
               Rename
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => handleAction(isPinned ? 'unpin' : 'pin')}>
+            <ContextMenuItem onSelect={() => handleAction(isPinned ? 'unpin' : 'pin')}>
               <Pin size={14} />
               {isPinned ? 'Unpin' : 'Pin'}
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => handleAction('duplicate')}>
+            <ContextMenuItem onSelect={() => handleAction('duplicate')}>
               <Copy size={14} />
               Duplicate
             </ContextMenuItem>
           </ContextMenuGroup>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={() => handleAction('delete')} variant="destructive">
+          <ContextMenuItem onSelect={() => handleAction('delete')} variant="destructive">
             <Trash2 size={14} />
             Delete
           </ContextMenuItem>

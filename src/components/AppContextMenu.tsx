@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
   ContextMenu,
@@ -19,6 +19,7 @@ interface ContextInfo {
   linkText: string
   mouseX: number
   mouseY: number
+  targetElement: HTMLElement | null
 }
 
 function isElementEditable(element: HTMLElement): boolean {
@@ -52,6 +53,18 @@ function findAncestorLink(element: HTMLElement): { hasLink: boolean; linkUrl: st
   return { hasLink: false, linkUrl: '', linkText: '' }
 }
 
+function dispatchKeyboardShortcut(key: string, ctrlKey = true, shiftKey = false): void {
+  const target = document.activeElement || document.body
+  const keyboardEvent = new KeyboardEvent('keydown', {
+    key,
+    ctrlKey,
+    shiftKey,
+    bubbles: true,
+    cancelable: true,
+  })
+  target.dispatchEvent(keyboardEvent)
+}
+
 function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): ContextInfo {
   const selection = window.getSelection()
   const selectionText = selection?.toString().trim() || ''
@@ -68,6 +81,7 @@ function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): Co
     linkText: linkInfo.linkText,
     mouseX,
     mouseY,
+    targetElement: target,
   }
 }
 
@@ -118,14 +132,17 @@ const defaultContextInfo: ContextInfo = {
   linkText: '',
   mouseX: 0,
   mouseY: 0,
+  targetElement: null,
 }
 
 export default function AppContextMenu({ children }: { children: React.ReactNode }) {
   const [contextInfo, setContextInfo] = useState<ContextInfo>(defaultContextInfo)
+  const targetElementRef = useRef<HTMLElement | null>(null)
   const isDev = import.meta.env.DEV
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const info = getContextInfo(event.target as HTMLElement, event.clientX, event.clientY)
+    targetElementRef.current = info.targetElement
     flushSync(() => {
       setContextInfo(info)
     })
@@ -145,34 +162,36 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   }, [contextInfo.selectionText])
 
   const handlePaste = useCallback(async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement
-      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        const start = activeElement.selectionStart || 0
-        const end = activeElement.selectionEnd || 0
-        const value = activeElement.value
-        activeElement.value = value.slice(0, start) + text + value.slice(end)
-        activeElement.selectionStart = activeElement.selectionEnd = start + text.length
-        activeElement.dispatchEvent(new Event('input', { bubbles: true }))
-      } else {
-        document.execCommand('paste')
+    const target = targetElementRef.current || (document.activeElement as HTMLElement | null)
+    
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      const inputEl = target as HTMLInputElement | HTMLTextAreaElement
+      try {
+        const text = await navigator.clipboard.readText()
+        const start = inputEl.selectionStart || 0
+        const end = inputEl.selectionEnd || 0
+        const value = inputEl.value
+        inputEl.value = value.slice(0, start) + text + value.slice(end)
+        inputEl.selectionStart = inputEl.selectionEnd = start + text.length
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }))
+      } catch {
+        dispatchKeyboardShortcut('v')
       }
-    } catch {
-      document.execCommand('paste')
+    } else {
+      dispatchKeyboardShortcut('v')
     }
   }, [])
 
   const handleSelectAll = useCallback(() => {
-    document.execCommand('selectAll')
+    dispatchKeyboardShortcut('a')
   }, [])
 
   const handleUndo = useCallback(() => {
-    document.execCommand('undo')
+    dispatchKeyboardShortcut('z')
   }, [])
 
   const handleRedo = useCallback(() => {
-    document.execCommand('redo')
+    dispatchKeyboardShortcut('z', true, true)
   }, [])
 
   const handleOpenLink = useCallback(() => {
@@ -207,11 +226,11 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
       <ContextMenuContent className="w-56">
         {showLinkActions && (
           <>
-            <ContextMenuItem onClick={handleOpenLink}>
+            <ContextMenuItem onSelect={handleOpenLink}>
               <ExternalLink className="w-4 h-4 mr-2" />
               Open Link in Browser
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCopyLink}>
+            <ContextMenuItem onSelect={handleCopyLink}>
               <Link2 className="w-4 h-4 mr-2" />
               Copy Link Address
             </ContextMenuItem>
@@ -221,34 +240,34 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
 
         {showEditActions ? (
           <>
-            <ContextMenuItem onClick={handleUndo}>
+            <ContextMenuItem onSelect={handleUndo}>
               <RotateCcw className="w-4 h-4 mr-2" />
               Undo
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+Z</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleRedo}>
+            <ContextMenuItem onSelect={handleRedo}>
               <RotateCw className="w-4 h-4 mr-2" />
               Redo
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+Y</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleCut} disabled={!showSelectionActions}>
+            <ContextMenuItem onSelect={handleCut} disabled={!showSelectionActions}>
               <Scissors className="w-4 h-4 mr-2" />
               Cut
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+X</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCopy} disabled={!showSelectionActions}>
+            <ContextMenuItem onSelect={handleCopy} disabled={!showSelectionActions}>
               <Copy className="w-4 h-4 mr-2" />
               Copy
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handlePaste}>
+            <ContextMenuItem onSelect={handlePaste}>
               <Clipboard className="w-4 h-4 mr-2" />
               Paste
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+V</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleSelectAll}>
+            <ContextMenuItem onSelect={handleSelectAll}>
               <CheckSquare className="w-4 h-4 mr-2" />
               Select All
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+A</span>
@@ -256,19 +275,19 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
           </>
         ) : showSelectionActions ? (
           <>
-            <ContextMenuItem onClick={handleCopy}>
+            <ContextMenuItem onSelect={handleCopy}>
               <Copy className="w-4 h-4 mr-2" />
               Copy
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleSelectAll}>
+            <ContextMenuItem onSelect={handleSelectAll}>
               <CheckSquare className="w-4 h-4 mr-2" />
               Select All
             </ContextMenuItem>
           </>
         ) : (
-          <ContextMenuItem onClick={handleSelectAll}>
+          <ContextMenuItem onSelect={handleSelectAll}>
             <CheckSquare className="w-4 h-4 mr-2" />
             Select All
           </ContextMenuItem>
@@ -277,7 +296,7 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
         {isDev && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleInspectElement}>
+            <ContextMenuItem onSelect={handleInspectElement}>
               <Code className="w-4 h-4 mr-2" />
               Inspect Element
             </ContextMenuItem>

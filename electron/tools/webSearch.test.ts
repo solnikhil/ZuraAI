@@ -212,6 +212,50 @@ describe('executeWebSearch', () => {
 
             globalThis.fetch = originalFetch
         })
+
+        it('skips malformed extract entries and normalizes object images', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () => Promise.resolve({
+                    results: [
+                        {
+                            url: 'https://foo.com/docs/api',
+                            raw_content: '## API Reference\nUseful endpoint details',
+                            images: [
+                                { url: 'https://foo.com/image.png', description: 'Architecture diagram' },
+                                { url: 'https://foo.com/image.png', alt: 'duplicate' }
+                            ]
+                        },
+                        { raw_content: 'missing url should be skipped' },
+                        null
+                    ],
+                    failed_results: []
+                })
+            })
+            globalThis.fetch = fetchMock as any
+
+            const result = await executeWebSearch({ query: 'https://foo.com/docs/api' })
+
+            expect(result.success).toBe(true)
+            expect(result.data?.results).toHaveLength(1)
+            expect(result.data?.images).toEqual([
+                {
+                    url: 'https://foo.com/image.png',
+                    description: 'Architecture diagram',
+                    sourceUrl: 'https://foo.com/docs/api'
+                }
+            ])
+            expect(result.data?.results?.[0]).toMatchObject({
+                url: 'https://foo.com/docs/api',
+                source: 'foo.com',
+                displayed_link: 'foo.com › docs › api'
+            })
+
+            globalThis.fetch = originalFetch
+        })
     })
 
     describe('Tavily fallback chain', () => {
@@ -233,6 +277,31 @@ describe('executeWebSearch', () => {
             expect(result.success).toBe(true)
             expect(result.data?.source).toBe('tavily')
             expect(duckDuckScrapeSearch).not.toHaveBeenCalled()
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('ignores malformed Tavily search results and image payloads', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            globalThis.fetch = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [
+                            { title: 'Valid', url: 'https://valid.com/path', content: 'Summary' },
+                            { title: 'Missing url' },
+                            'bad-result'
+                        ],
+                        images: ['https://valid.com/image.png', { description: 'missing url' }]
+                    })
+            })
+
+            const result = await executeWebSearch({ query: 'test' })
+            expect(result.success).toBe(true)
+            expect(result.data?.results).toHaveLength(1)
+            expect(result.data?.images).toEqual([{ url: 'https://valid.com/image.png', sourceUrl: undefined }])
 
             globalThis.fetch = originalFetch
         })

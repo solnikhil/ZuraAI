@@ -5,17 +5,44 @@ import { generatePerplexityCompletion } from './perplexity'
 import { generateOpenRouterCompletion } from './openrouter'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
+import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
 
 type TitleProvider = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
 
-interface ModelLike {
-  code: string
-  enabled?: boolean
-}
+type TitleGenerationSettings = Partial<
+  Pick<
+    SettingsConfig,
+    | 'titleModelProvider'
+    | 'modelProvider'
+    | 'titleModel'
+    | 'aiModel'
+    | 'titleGenerationPrompt'
+    | 'openRouterApiKey'
+    | 'perplexityApiKey'
+    | 'groqApiKey'
+    | 'alibabaApiKey'
+    | 'ollamaUrl'
+    | 'configuredModels'
+    | 'ollamaModels'
+    | 'perplexityModels'
+    | 'groqModels'
+    | 'alibabaModels'
+  >
+>
 
 const TITLE_PROVIDERS: TitleProvider[] = ['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba']
+const PROVIDER_MODEL_KEYS = {
+  openrouter: 'configuredModels',
+  ollama: 'ollamaModels',
+  perplexity: 'perplexityModels',
+  groq: 'groqModels',
+  alibaba: 'alibabaModels',
+} as const
 
 const TITLE_FALLBACK_MODEL = 'google/gemini-2.0-flash-exp:free'
+
+const isTitleProvider = (value: unknown): value is TitleProvider =>
+  typeof value === 'string' && TITLE_PROVIDERS.includes(value as TitleProvider)
 
 const enforceThreeWords = (title: string): string => {
   const words = title.trim().split(/\s+/).filter((word) => word.length > 0)
@@ -29,34 +56,32 @@ const sanitizeTitle = (title: string): string => {
   return title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
 }
 
-const resolveTitleProvider = (settings: any): TitleProvider => {
-  if (TITLE_PROVIDERS.includes(settings?.titleModelProvider)) {
+const resolveTitleProvider = (settings: TitleGenerationSettings): TitleProvider => {
+  if (isTitleProvider(settings.titleModelProvider)) {
     return settings.titleModelProvider
   }
-  if (TITLE_PROVIDERS.includes(settings?.modelProvider)) {
+  if (isTitleProvider(settings.modelProvider)) {
     return settings.modelProvider
   }
   return 'openrouter'
 }
 
-const getProviderModels = (settings: any, provider: TitleProvider): ModelLike[] => {
-  const rawModels =
-    provider === 'openrouter' ? settings?.configuredModels
-      : provider === 'perplexity' ? settings?.perplexityModels
-        : provider === 'groq' ? settings?.groqModels
-          : provider === 'alibaba' ? settings?.alibabaModels
-            : settings?.ollamaModels
+const getProviderModels = (
+  settings: TitleGenerationSettings,
+  provider: TitleProvider,
+): ConfiguredModel[] => {
+  const rawModels = settings[PROVIDER_MODEL_KEYS[provider]]
 
   if (!Array.isArray(rawModels)) return []
 
-  return rawModels.filter((model): model is ModelLike => {
+  return rawModels.filter((model): model is ConfiguredModel => {
     return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
   })
 }
 
-const resolveTitleModel = (settings: any, provider: TitleProvider): string => {
-  const requestedTitleModel = typeof settings?.titleModel === 'string' ? settings.titleModel : ''
-  const aiModel = typeof settings?.aiModel === 'string' ? settings.aiModel : ''
+const resolveTitleModel = (settings: TitleGenerationSettings, provider: TitleProvider): string => {
+  const requestedTitleModel = typeof settings.titleModel === 'string' ? settings.titleModel : ''
+  const aiModel = typeof settings.aiModel === 'string' ? settings.aiModel : ''
   const providerModels = getProviderModels(settings, provider)
   const enabledProviderModels = providerModels.filter((model) => model.enabled !== false)
   const candidateModels = enabledProviderModels.length > 0 ? enabledProviderModels : providerModels
@@ -84,10 +109,12 @@ const resolveTitleModel = (settings: any, provider: TitleProvider): string => {
   return TITLE_FALLBACK_MODEL
 }
 
-const buildTitlePrompt = (userMessage: string, settings: any): string => {
-  const promptTemplate = typeof settings?.titleGenerationPrompt === 'string' && settings.titleGenerationPrompt.trim().length > 0
-    ? settings.titleGenerationPrompt
-    : defaultTitleGenerationPrompt
+const buildTitlePrompt = (userMessage: string, settings: TitleGenerationSettings): string => {
+  const promptTemplate =
+    typeof settings.titleGenerationPrompt === 'string' &&
+    settings.titleGenerationPrompt.trim().length > 0
+      ? settings.titleGenerationPrompt
+      : defaultTitleGenerationPrompt
 
   const clippedUserMessage = userMessage.slice(0, 200).replace(/\s+/g, ' ').trim()
   if (/\{\{\s*userMessage\s*\}\}/i.test(promptTemplate)) {
@@ -97,67 +124,82 @@ const buildTitlePrompt = (userMessage: string, settings: any): string => {
   return `${promptTemplate}\n\nUser message: "${clippedUserMessage}"`
 }
 
+const stripOpenRouterPrefix = (modelId: string): string =>
+  modelId.startsWith('openrouter/') ? modelId.replace('openrouter/', '') : modelId
+
+async function generateTitleWithProvider(
+  provider: TitleProvider,
+  model: string,
+  prompt: string,
+  settings: TitleGenerationSettings,
+): Promise<string> {
+  if (provider === 'groq') {
+    if (!settings.groqApiKey) throw new Error('Groq API key missing for title generation.')
+    const result = await generateGroqCompletion(
+      settings.groqApiKey,
+      model,
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3 },
+    )
+    return result.choices?.[0]?.message?.content || ''
+  }
+
+  if (provider === 'perplexity') {
+    if (!settings.perplexityApiKey) throw new Error('Perplexity API key missing for title generation.')
+    const result = await generatePerplexityCompletion(
+      settings.perplexityApiKey,
+      model,
+      [{ role: 'user', content: prompt }],
+    )
+    return result.choices?.[0]?.message?.content || ''
+  }
+
+  if (provider === 'ollama') {
+    if (!settings.ollamaUrl) throw new Error('Ollama URL missing for title generation.')
+    const result = await generateOllamaCompletion(
+      settings.ollamaUrl,
+      model,
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3 },
+    )
+    return result.message?.content || ''
+  }
+
+  if (provider === 'alibaba') {
+    if (!settings.alibabaApiKey) throw new Error('Alibaba API key missing for title generation.')
+    const result = await generateAlibabaCompletion(
+      settings.alibabaApiKey,
+      model,
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3, max_tokens: 20 },
+    )
+    return result.choices?.[0]?.message?.content || ''
+  }
+
+  const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
+  if (!openRouterKey) throw new Error('OpenRouter API key missing for title generation.')
+  const result = await generateOpenRouterCompletion(
+    openRouterKey,
+    stripOpenRouterPrefix(model),
+    [{ role: 'user', content: prompt }],
+    { max_tokens: 20 },
+  )
+  return result.choices?.[0]?.message?.content || ''
+}
+
 /**
  * Generates a short title for a chat session from the first user message.
  */
 export const generateChatTitle = async (
   userMessage: string,
-  settings: any,
+  settings: TitleGenerationSettings,
 ): Promise<string> => {
   const prompt = buildTitlePrompt(userMessage, settings)
   const titleProvider = resolveTitleProvider(settings)
   const titleModel = resolveTitleModel(settings, titleProvider)
 
   try {
-    let title = ''
-
-    if (titleProvider === 'groq') {
-      if (!settings?.groqApiKey) throw new Error('Groq API key missing for title generation.')
-      const result = await generateGroqCompletion(
-        settings.groqApiKey,
-        titleModel,
-        [{ role: 'user', content: prompt }],
-        { temperature: 0.3 },
-      )
-      title = result.choices?.[0]?.message?.content || ''
-    } else if (titleProvider === 'perplexity') {
-      if (!settings?.perplexityApiKey) throw new Error('Perplexity API key missing for title generation.')
-      const result = await generatePerplexityCompletion(
-        settings.perplexityApiKey,
-        titleModel,
-        [{ role: 'user', content: prompt }],
-      )
-      title = result.choices?.[0]?.message?.content || ''
-    } else if (titleProvider === 'ollama') {
-      if (!settings?.ollamaUrl) throw new Error('Ollama URL missing for title generation.')
-      const result = await generateOllamaCompletion(
-        settings.ollamaUrl,
-        titleModel,
-        [{ role: 'user', content: prompt }],
-        { temperature: 0.3 },
-      )
-      title = result.message?.content || ''
-    } else if (titleProvider === 'alibaba') {
-      if (!settings?.alibabaApiKey) throw new Error('Alibaba API key missing for title generation.')
-      const result = await generateAlibabaCompletion(
-        settings.alibabaApiKey,
-        titleModel,
-        [{ role: 'user', content: prompt }],
-        { temperature: 0.3, max_tokens: 20 },
-      )
-      title = result.choices?.[0]?.message?.content || ''
-    } else {
-      const openRouterKey = getOpenRouterApiKey(settings?.openRouterApiKey)
-      if (!openRouterKey) throw new Error('OpenRouter API key missing for title generation.')
-      const modelId = titleModel.startsWith('openrouter/') ? titleModel.replace('openrouter/', '') : titleModel
-      const result = await generateOpenRouterCompletion(
-        openRouterKey,
-        modelId,
-        [{ role: 'user', content: prompt }],
-        { max_tokens: 20 },
-      )
-      title = result.choices?.[0]?.message?.content || ''
-    }
+    const title = await generateTitleWithProvider(titleProvider, titleModel, prompt, settings)
 
     const cleaned = sanitizeTitle(title)
     if (!cleaned) throw new Error('Empty title from primary provider')
@@ -176,7 +218,7 @@ export const generateChatTitle = async (
       errorMessage.includes('403') ||
       errorMessage.toLowerCase().includes('rate')
 
-    const openRouterKey = getOpenRouterApiKey(settings?.openRouterApiKey)
+    const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
     if (openRouterKey && !isRateLimitOrAuthError) {
       try {
         const fallbackResult = await generateOpenRouterCompletion(

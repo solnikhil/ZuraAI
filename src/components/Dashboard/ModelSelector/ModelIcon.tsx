@@ -31,7 +31,7 @@ export function ModelIcon({ model, icon, color, size = 24 }: ModelIconProps): Re
   if (!imgError) {
     return (
       <img
-        src={`/provider-logos/${model.provider}.png`}
+        src={`./provider-logos/${model.provider}.png`}
         alt={model.displayName}
         onError={() => setImgError(true)}
         style={{
