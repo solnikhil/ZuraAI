@@ -84,7 +84,6 @@ export function InputArea({
 }: InputAreaProps) {
   const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
-  const [isFocused, setIsFocused] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 52,
@@ -94,11 +93,7 @@ export function InputArea({
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
-  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
-  const standardTransition = {
-    duration: motionDuration(animationsEnabled, motionDurations.normal),
-    ease: motionEasing.standard,
-  }
+const webResearchEnabled = settings.skills?.web_research?.enabled !== false
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -271,23 +266,10 @@ export function InputArea({
         onMouseMove={handleMouseMoveActivity}
       >
         <div className="relative w-full mx-auto">
-          <motion.div
+          <div
             role="textbox"
             tabIndex={0}
             aria-label="Chat input container"
-            initial={false}
-            animate={{
-              boxShadow: quickActionsOpen
-                ? 'none'
-                : frostedPrompt
-                  ? isFocused
-                    ? '0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)'
-                    : '0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)'
-                  : isFocused
-                    ? '0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)'
-                    : '0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)',
-            }}
-            transition={standardTransition}
             className={cn(
               'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
               frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
@@ -301,7 +283,7 @@ export function InputArea({
               }
             }}
           >
-            <AnimatePresence initial={false}>
+<AnimatePresence initial={false}>
               {isDragging && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -334,12 +316,10 @@ export function InputArea({
                     'transition-colors duration-200'
                   )}
                   onFocus={() => {
-                    setIsFocused(true)
                     onFocusChange?.(true)
                     onActivity?.()
                   }}
                   onBlur={() => {
-                    setIsFocused(false)
                     onFocusChange?.(false)
                   }}
                   onKeyDown={handleKeyDown}
@@ -501,7 +481,7 @@ export function InputArea({
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </TooltipProvider>

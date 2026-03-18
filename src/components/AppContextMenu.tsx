@@ -53,16 +53,13 @@ function findAncestorLink(element: HTMLElement): { hasLink: boolean; linkUrl: st
   return { hasLink: false, linkUrl: '', linkText: '' }
 }
 
-function dispatchKeyboardShortcut(key: string, ctrlKey = true, shiftKey = false): void {
-  const target = document.activeElement || document.body
-  const keyboardEvent = new KeyboardEvent('keydown', {
-    key,
-    ctrlKey,
-    shiftKey,
-    bubbles: true,
-    cancelable: true,
-  })
-  target.dispatchEvent(keyboardEvent)
+function isInputOrTextarea(el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement {
+  return el !== null && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
+}
+
+function getNativeValueSetter(element: HTMLInputElement | HTMLTextAreaElement) {
+  const proto = element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+  return Object.getOwnPropertyDescriptor(proto, 'value')?.set
 }
 
 function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): ContextInfo {
@@ -155,43 +152,70 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   }, [contextInfo.selectionText])
 
   const handleCut = useCallback(() => {
-    if (contextInfo.selectionText) {
-      void copyTextToClipboard(contextInfo.selectionText)
+    if (!contextInfo.selectionText) return
+    
+    void copyTextToClipboard(contextInfo.selectionText)
+    
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
       document.execCommand('cut')
     }
   }, [contextInfo.selectionText])
 
   const handlePaste = useCallback(async () => {
-    const target = targetElementRef.current || (document.activeElement as HTMLElement | null)
+    const target = targetElementRef.current
+    if (!isInputOrTextarea(target)) return
     
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-      const inputEl = target as HTMLInputElement | HTMLTextAreaElement
-      try {
-        const text = await navigator.clipboard.readText()
-        const start = inputEl.selectionStart || 0
-        const end = inputEl.selectionEnd || 0
-        const value = inputEl.value
-        inputEl.value = value.slice(0, start) + text + value.slice(end)
-        inputEl.selectionStart = inputEl.selectionEnd = start + text.length
-        inputEl.dispatchEvent(new Event('input', { bubbles: true }))
-      } catch {
-        dispatchKeyboardShortcut('v')
+    target.focus()
+    
+    try {
+      const text = await navigator.clipboard.readText()
+      const start = target.selectionStart || 0
+      const end = target.selectionEnd || 0
+      const currentValue = target.value
+      const newValue = currentValue.slice(0, start) + text + currentValue.slice(end)
+      
+      const nativeValueSetter = getNativeValueSetter(target)
+      if (nativeValueSetter) {
+        nativeValueSetter.call(target, newValue)
+      } else {
+        target.value = newValue
       }
-    } else {
-      dispatchKeyboardShortcut('v')
+      
+      target.dispatchEvent(new Event('input', { bubbles: true }))
+      target.selectionStart = target.selectionEnd = start + text.length
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[AppContextMenu] Clipboard paste failed:', error)
+      }
     }
   }, [])
 
   const handleSelectAll = useCallback(() => {
-    dispatchKeyboardShortcut('a')
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+      target.select()
+    } else {
+      document.execCommand('selectAll')
+    }
   }, [])
 
   const handleUndo = useCallback(() => {
-    dispatchKeyboardShortcut('z')
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+    }
+    document.execCommand('undo')
   }, [])
 
   const handleRedo = useCallback(() => {
-    dispatchKeyboardShortcut('z', true, true)
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+    }
+    document.execCommand('redo')
   }, [])
 
   const handleOpenLink = useCallback(() => {
