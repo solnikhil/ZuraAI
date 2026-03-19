@@ -1,6 +1,6 @@
 # MCP Task-Wise Master Plan
 
-Status: PLANNING
+Status: IN PROGRESS (Phase 1 foundation underway)
 Scope: full MCP rollout across all phases, with concrete tasks mapped to this repo
 
 This is the master implementation plan for MCP in ZuraAI.
@@ -39,25 +39,28 @@ These rules should hold for every phase:
 
 ## Current State Snapshot
 
-Before MCP work starts, the app already has:
+The repo now has these MCP foundations in place alongside the existing tool system:
 
 - restricted tool system with built-in `web_search` in main process
 - renderer-side `research_plan`
 - existing preload hardening in `electron/preload.ts`
 - settings split across renderer storage and secure storage
+- shared MCP contracts and naming helpers in `src/mcp/types.ts`
+- versioned MCP server metadata storage in `electron/mcp/mcpStorage.ts`
+- shared MCP transport base primitives in `electron/mcp/transports/base.ts`
 - provider tool orchestration in:
   - `src/hooks/useToolCalling.ts`
   - `src/tools/toolManager.ts`
   - `src/tools/executor.ts`
 
-Current gaps that MCP must address:
+Main gaps that MCP still needs to address:
 
-- no MCP lifecycle manager
-- no MCP storage model
-- no MCP preload bridge
-- no dynamic runtime tool registry
-- no approval flow for external tools
-- no generic result UI for non-search tools
+- no concrete `stdio` transport yet
+- no MCP connection/manager runtime yet
+- no MCP preload bridge or renderer subscription surface yet
+- no dynamic runtime tool registry yet
+- no approval flow for external tools yet
+- no generic result UI for non-search tools yet
 
 ---
 
@@ -134,22 +137,22 @@ Goal: build the runtime host in Electron main with no model-visible MCP tool cal
 ### Tasks
 
 #### 1. Types and contracts
-- [ ] Create shared MCP types for server config, runtime state, tool manifest, and approval request payloads.
-- [ ] Define namespaced tool identity format and reverse lookup metadata.
-- [ ] Define normalized transport interface that all transports must satisfy.
+- [x] Create shared MCP types for server config, runtime state, tool manifest, and approval request payloads.
+- [x] Define namespaced tool identity format and reverse lookup metadata.
+- [x] Define normalized transport interface that all transports must satisfy.
 
 #### 2. Storage and secrets
-- [ ] Create `electron/mcp/mcpStorage.ts`.
-- [ ] Persist non-secret server metadata under `app.getPath('userData')`.
-- [ ] Resolve secret references from secure storage at connection time.
-- [ ] Add config validation on read and write.
-- [ ] Add migration/version field so config can evolve safely.
+- [x] Create `electron/mcp/mcpStorage.ts`.
+- [x] Persist non-secret server metadata under `app.getPath('userData')`.
+- [x] Resolve secret references from secure storage at connection time.
+- [x] Add config validation on read and write.
+- [x] Add migration/version field so config can evolve safely.
 
 #### 3. Transport foundation
-- [ ] Create `electron/mcp/transports/base.ts`.
-- [ ] Implement message send/receive abstraction.
-- [ ] Implement connection lifecycle hooks.
-- [ ] Implement timeout and error reporting hooks.
+- [x] Create `electron/mcp/transports/base.ts`.
+- [x] Implement message send/receive abstraction.
+- [x] Implement connection lifecycle hooks.
+- [x] Implement timeout and error reporting hooks.
 
 #### 4. Stdio transport
 - [ ] Create `electron/mcp/transports/stdio.ts`.
@@ -553,8 +556,8 @@ These should be revisited in every phase, not treated as one-off work.
 
 ### Testing
 
-- [ ] Add unit tests for type normalization and config validation.
-- [ ] Add unit tests for transport message handling.
+- [x] Add unit tests for type normalization and config validation.
+- [x] Add unit tests for transport message handling.
 - [ ] Add integration tests with a mock `stdio` MCP server.
 - [ ] Add integration tests for SSE/WebSocket when enabled.
 - [ ] Add UI tests for settings and approval flows.

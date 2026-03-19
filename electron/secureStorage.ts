@@ -15,6 +15,7 @@ interface SecureData {
   groqApiKey?: string
   tavilyApiKey?: string
   alibabaApiKey?: string
+  [key: string]: string | undefined
 }
 
 let cachedData: SecureData | null = null
@@ -110,12 +111,12 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
   }
 }
 
-export async function getSecureValueAsync(key: keyof SecureData): Promise<string> {
+export async function getSecureValueAsync(key: string): Promise<string> {
   const data = await readSecureDataAsync()
   return data[key] || ''
 }
 
-export async function setSecureValueAsync(key: keyof SecureData, value: string): Promise<boolean> {
+export async function setSecureValueAsync(key: string, value: string): Promise<boolean> {
   const data = await readSecureDataAsync()
   if (value && value.trim()) {
     data[key] = value.trim()
