@@ -88,10 +88,33 @@ export interface McpServerConnectionInfo {
   serverVersion?: string
 }
 
+export interface McpInitializeResult {
+  protocolVersion: string
+  capabilities?: {
+    tools?: unknown
+    resources?: unknown
+    prompts?: unknown
+    [key: string]: unknown
+  }
+  serverInfo?: {
+    name?: string
+    version?: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export interface McpListToolsResult {
+  tools?: McpToolManifest[]
+  [key: string]: unknown
+}
+
 export interface McpServerRuntimeState {
   serverId: string
   status: McpServerStatus
   error?: string
+  lastConnectionError?: string | null
+  lastConnectionTime?: string | null
   tools: McpToolManifest[]
   capabilities: McpServerCapabilities
   connectionInfo?: McpServerConnectionInfo

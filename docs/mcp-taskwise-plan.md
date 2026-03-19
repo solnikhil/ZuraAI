@@ -48,6 +48,9 @@ The repo now has these MCP foundations in place alongside the existing tool syst
 - shared MCP contracts and naming helpers in `src/mcp/types.ts`
 - versioned MCP server metadata storage in `electron/mcp/mcpStorage.ts`
 - shared MCP transport base primitives in `electron/mcp/transports/base.ts`
+- managed stdio MCP transport in `electron/mcp/transports/stdio.ts`
+- strict, feature-gated remote transport placeholders in `electron/mcp/transports/sse.ts` and `electron/mcp/transports/websocket.ts`
+- MCP connection handshake and tool discovery runtime in `electron/mcp/mcpConnection.ts`
 - provider tool orchestration in:
   - `src/hooks/useToolCalling.ts`
   - `src/tools/toolManager.ts`
@@ -55,12 +58,12 @@ The repo now has these MCP foundations in place alongside the existing tool syst
 
 Main gaps that MCP still needs to address:
 
-- no concrete `stdio` transport yet
-- no MCP connection/manager runtime yet
+- no MCP manager/runtime registry yet
 - no MCP preload bridge or renderer subscription surface yet
 - no dynamic runtime tool registry yet
 - no approval flow for external tools yet
 - no generic result UI for non-search tools yet
+- remote transports are still placeholder-only and remain feature-gated
 
 ---
 
@@ -155,25 +158,25 @@ Goal: build the runtime host in Electron main with no model-visible MCP tool cal
 - [x] Implement timeout and error reporting hooks.
 
 #### 4. Stdio transport
-- [ ] Create `electron/mcp/transports/stdio.ts`.
-- [ ] Use managed process spawning, not `spawn-terminal-command`.
-- [ ] Pass explicit command and args arrays only.
-- [ ] Capture stdout/stderr separately for diagnostics.
-- [ ] Handle process exit and startup timeout cleanly.
+- [x] Create `electron/mcp/transports/stdio.ts`.
+- [x] Use managed process spawning, not `spawn-terminal-command`.
+- [x] Pass explicit command and args arrays only.
+- [x] Capture stdout/stderr separately for diagnostics.
+- [x] Handle process exit and startup timeout cleanly.
 
 #### 5. Optional early remote transports
-- [ ] Create `electron/mcp/transports/sse.ts` behind feature-gated usage.
-- [ ] Create `electron/mcp/transports/websocket.ts` behind feature-gated usage.
-- [ ] Add strict URL validation for remote transports.
-- [ ] Add reconnect policy placeholders without auto-enabling aggressive retries.
+- [x] Create `electron/mcp/transports/sse.ts` behind feature-gated usage.
+- [x] Create `electron/mcp/transports/websocket.ts` behind feature-gated usage.
+- [x] Add strict URL validation for remote transports.
+- [x] Add reconnect policy placeholders without auto-enabling aggressive retries.
 
 #### 6. Connection layer
-- [ ] Create `electron/mcp/mcpConnection.ts`.
-- [ ] Implement initialize handshake.
-- [ ] Implement server capability capture.
-- [ ] Implement `tools/list` discovery.
-- [ ] Cache tool manifests in runtime state.
-- [ ] Store last connection error and last success timestamp.
+- [x] Create `electron/mcp/mcpConnection.ts`.
+- [x] Implement initialize handshake.
+- [x] Implement server capability capture.
+- [x] Implement `tools/list` discovery.
+- [x] Cache tool manifests in runtime state.
+- [x] Store last connection error and last success timestamp.
 
 #### 7. Manager layer
 - [ ] Create `electron/mcp/mcpManager.ts`.
@@ -558,16 +561,16 @@ These should be revisited in every phase, not treated as one-off work.
 
 - [x] Add unit tests for type normalization and config validation.
 - [x] Add unit tests for transport message handling.
-- [ ] Add integration tests with a mock `stdio` MCP server.
+- [x] Add integration tests with a mock `stdio` MCP server.
 - [ ] Add integration tests for SSE/WebSocket when enabled.
 - [ ] Add UI tests for settings and approval flows.
 - [ ] Run `npm test` after each meaningful phase.
 
 ### Documentation
 
-- [ ] Keep `AGENTS.md` architecture current.
-- [ ] Keep `docs/mcp-phase-1-plan.md` aligned with actual Phase 1 scope.
-- [ ] Keep `docs/mcp-taskwise-plan.md` updated as tasks are completed or reprioritized.
+- [x] Keep `AGENTS.md` architecture current.
+- [x] Keep `docs/mcp-phase-1-plan.md` aligned with actual Phase 1 scope.
+- [x] Keep `docs/mcp-taskwise-plan.md` updated as tasks are completed or reprioritized.
 
 ### Security review
 

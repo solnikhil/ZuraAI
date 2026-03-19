@@ -68,27 +68,31 @@ These decisions are either already reflected in code or should be treated as the
   - timeout/error normalization via `McpTransportError`
 - `electron/mcp/transports/base.test.ts` covers message parsing, lifecycle behavior, timeout wrapping, and remote disconnect handling.
 
+### Concrete transport work
+
+- `electron/mcp/transports/stdio.ts` now provides:
+  - direct managed process spawning from Electron main
+  - explicit command + args execution without shell passthrough
+  - separate stdout/stderr diagnostic capture
+  - child-process exit handling and startup/shutdown timeout handling
+- `electron/mcp/transports/sse.ts` and `electron/mcp/transports/websocket.ts` now exist as strict, feature-gated remote transport stubs.
+- `electron/mcp/transports/remote.test.ts` and `electron/mcp/transports/stdio.test.ts` cover URL validation, feature gating, stdio diagnostics, and unexpected process exit handling.
+
+### Connection layer
+
+- `electron/mcp/mcpConnection.ts` now provides:
+  - transport creation from resolved server config
+  - MCP `initialize` handshake orchestration
+  - capability capture and server info capture
+  - `tools/list` discovery with runtime caching
+  - runtime state updates with last success timestamp and last connection error tracking
+- `electron/mcp/mcpConnection.test.ts` covers initialize + tool discovery success paths, timeout failure handling, and transport factory wiring.
+
 ---
 
 ## Remaining Phase 1 Work
 
-### 1. Concrete transport implementation
-
-- add `electron/mcp/transports/stdio.ts`
-- spawn managed child processes directly from main process
-- keep command and args explicit; no shell passthrough
-- capture stdout and stderr separately for diagnostics
-- enforce startup timeout and clean exit handling
-
-### 2. Connection layer
-
-- add `electron/mcp/mcpConnection.ts`
-- implement `initialize` handshake
-- capture server capabilities and connection info
-- implement `tools/list` discovery and cache tool manifests
-- store last success time and last connection error
-
-### 3. Manager layer
+### 1. Manager layer
 
 - add `electron/mcp/mcpManager.ts`
 - load configured servers from storage
@@ -96,14 +100,14 @@ These decisions are either already reflected in code or should be treated as the
 - track runtime state centrally
 - aggregate tools only from connected/eligible servers
 
-### 4. IPC and preload surface
+### 2. IPC and preload surface
 
 - add `electron/mcp/index.ts` for main-process registration
 - expose narrow MCP actions for server CRUD, connect/disconnect, status, and list-tools
 - add a dedicated `window.mcp` bridge in `electron/preload.ts`
 - add matching typings in `src/electron.d.ts`
 
-### 5. App lifecycle integration
+### 3. App lifecycle integration
 
 - register MCP handlers in `electron/main.ts`
 - initialize the manager during app startup
@@ -133,8 +137,14 @@ Those belong to later phases in `docs/mcp-taskwise-plan.md`.
 - `electron/mcp/mcpStorage.test.ts`
 - `electron/mcp/transports/base.ts`
 - `electron/mcp/transports/base.test.ts`
-- upcoming: `electron/mcp/transports/stdio.ts`
-- upcoming: `electron/mcp/mcpConnection.ts`
+- `electron/mcp/transports/stdio.ts`
+- `electron/mcp/transports/stdio.test.ts`
+- `electron/mcp/transports/sse.ts`
+- `electron/mcp/transports/websocket.ts`
+- `electron/mcp/transports/remote.ts`
+- `electron/mcp/transports/remote.test.ts`
+- `electron/mcp/mcpConnection.ts`
+- `electron/mcp/mcpConnection.test.ts`
 - upcoming: `electron/mcp/mcpManager.ts`
 - upcoming: `electron/mcp/index.ts`
 - upcoming: `electron/preload.ts`

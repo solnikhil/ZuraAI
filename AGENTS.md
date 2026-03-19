@@ -48,6 +48,7 @@ Core capabilities:
   - `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
+- `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpStorage.ts` — MCP server metadata persistence + secret resolution helpers
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
@@ -192,7 +193,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 
-#### MCP Transport Foundation
+#### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
 - Non-secret MCP server configs persist through `electron/mcp/mcpStorage.ts` into `mcp-servers.json` under `app.getPath('userData')`.
 - Secret-backed MCP env vars, headers, and tokens stay in `electron/secureStorage.ts` and are resolved lazily at connection time.
@@ -203,8 +204,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - transport lifecycle state transitions (`idle`, `connecting`, `connected`, `disconnecting`, `disconnected`, `error`)
   - subscriber hooks for message, error, close, and state-change events
   - normalized timeout/error wrapping via `McpTransportError` and `BaseMcpTransport.withTimeout(...)`
-- Concrete MCP transports are expected to extend `BaseMcpTransport` so connection lifecycle behavior, last-error tracking, send guarding, and incoming-message parsing stay consistent across `stdio`, `sse`, and `websocket` implementations.
-- The MCP runtime currently stops at shared contracts/storage/transport primitives; there is not yet a connection manager, preload bridge, or model-visible MCP tool execution path.
+- `electron/mcp/transports/stdio.ts` provides managed child-process spawning, explicit command/args execution, stdout/stderr diagnostics, and clean process-exit handling for local MCP servers.
+- `electron/mcp/transports/sse.ts` and `electron/mcp/transports/websocket.ts` currently exist as strict URL-validated, feature-gated placeholders with conservative reconnect-policy scaffolding; they are not production-enabled yet.
+- `electron/mcp/mcpConnection.ts` sits above transports and now handles the MCP `initialize` handshake, capability capture, `tools/list` discovery, runtime tool caching, and last-success/last-error connection metadata.
+- There is still no MCP manager, preload bridge, or model-visible MCP tool execution path.
 
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
