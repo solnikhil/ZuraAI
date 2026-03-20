@@ -894,8 +894,9 @@ export function ProviderHubSection({
               <p className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <Lock size={13} />
                 <span>
-                  Your key and proxy URL will be encrypted using
-                  <span className="ml-1 text-cyan-300">AES-GCM</span> encryption algorithm
+                  Stored securely via Electron safeStorage using your OS keychain (Keychain on macOS,
+                  DPAPI on Windows, Secret Service on Linux). Fallback to local file storage if
+                  unavailable.
                 </span>
               </p>
             </div>

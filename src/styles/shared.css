@@ -100,7 +100,6 @@
 .theme-composer-surface {
     background: color-mix(in srgb, var(--theme-surface) 92%, var(--theme-background) 8%);
     border: 1px solid color-mix(in srgb, var(--theme-border) 90%, transparent);
-    box-shadow: var(--theme-shadow-md);
 }
 
 .theme-menu-surface {
