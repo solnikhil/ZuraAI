@@ -996,7 +996,6 @@ export function ProviderHubSection({
           >
             <SearchApiSection
               apis={SEARCH_APIS}
-              selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
@@ -1336,85 +1335,90 @@ function ModelGroup({
 
 function SearchApiSection({
   apis,
-  selectedApi,
   tavilyApiKey,
   onCardClick,
   onTavilyDisable,
 }: {
   apis: SearchApiDefinition[]
-  selectedApi: SearchApiKey
   tavilyApiKey: string
   onCardClick: (api: SearchApiDefinition) => void
   onTavilyDisable: () => void
-}): React.ReactElement {
+}): React.ReactElement | null {
+  if (apis.length === 0) {
+    return null
+  }
+
   return (
-    <div className="mt-3 first:mt-0">
-      <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
-        <span>Search APIs</span>
-        <span className="rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
-          {apis.length}
-        </span>
-      </div>
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        }}
-      >
-        {apis.map((api) => {
-          const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
-          return (
-            <div
-              key={api.key}
-              onClick={() => onCardClick(api)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
+    <div className="flex flex-col gap-px overflow-hidden rounded-lg border border-white/10">
+      {apis.map((api) => {
+        const enabled = Boolean(api.apiKeyField && (tavilyApiKey || '').trim())
+        return (
+          <div
+            key={api.key}
+            onClick={() => onCardClick(api)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onCardClick(api)
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            className="flex items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/[0.04]"
+            style={{ background: CATALOG_CARD_BACKGROUND }}
+          >
+            <div className="flex shrink-0 items-center justify-center">
+              <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-sm font-semibold text-foreground">
+                  {api.name}
+                </span>
+                {api.key === 'tavily' && (
+                  <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
+                    Recommended
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {api.description}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  background: enabled ? 'rgba(74, 222, 128, 0.10)' : 'rgba(250, 204, 21, 0.10)',
+                  color: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)',
+                }}
+              >
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: enabled ? 'rgb(74, 222, 128)' : 'rgb(250, 204, 21)' }}
+                />
+                {enabled ? 'Key set' : 'No key'}
+              </span>
+            </div>
+
+            <Switch
+              className="provider-hub-toggle"
+              checked={enabled}
+              onCheckedChange={(checked) => {
+                if (!checked) {
+                  if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
+                } else {
                   onCardClick(api)
                 }
               }}
-              role="button"
-              tabIndex={0}
-              className="w-full rounded-xl border border-white/15 p-4 text-left transition hover:border-white/30"
-              style={{
-                background: CATALOG_CARD_BACKGROUND,
-                boxShadow: selectedApi === api.key ? 'inset 0 0 0 1px var(--theme-accent)' : 'none',
-              }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-                  <span className="truncate text-[15px] font-semibold text-foreground">
-                    {api.name}
-                  </span>
-                  {api.key === 'tavily' && (
-                    <span className="shrink-0 rounded bg-[var(--theme-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-accent)]">
-                      Recommended
-                    </span>
-                  )}
-                </div>
-                <Switch
-                  className="provider-hub-toggle"
-                  checked={enabled}
-                  onCheckedChange={(checked) => {
-                    if (!checked) {
-                      if (api.apiKeyField === 'tavilyApiKey') onTavilyDisable()
-                    } else {
-                      onCardClick(api)
-                    }
-                  }}
-                  aria-label={`Toggle ${api.name}`}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-              <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">
-                {api.shortDescription || api.description}
-              </p>
-              <div className="mt-4 border-t border-border pt-2" />
-            </div>
-          )
-        })}
-      </div>
+              aria-label={`Toggle ${api.name}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )
+      })}
     </div>
   )
 }
