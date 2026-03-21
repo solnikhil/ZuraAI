@@ -85,6 +85,60 @@ export function validateMcpRemoteUrl(
   return parsed
 }
 
+export function buildMcpReconnectDelay(policy: McpReconnectPolicy, attempt: number): number {
+  const normalizedAttempt = Math.max(0, attempt)
+  const exponentialDelay = policy.initialDelayMs * Math.max(1, policy.backoffMultiplier) ** normalizedAttempt
+  return Math.min(policy.maxDelayMs, Math.max(policy.initialDelayMs, Math.round(exponentialDelay)))
+}
+
+export async function waitForMcpReconnectDelay(delayMs: number): Promise<void> {
+  if (!Number.isFinite(delayMs) || delayMs <= 0) {
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, delayMs)
+  })
+}
+
+export function redactMcpHeaders(headers: Record<string, string> | undefined): Record<string, string> {
+  if (!headers) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [key, isSensitiveHeaderName(key) ? maskSecret(value) : value])
+  )
+}
+
+export function summarizeMcpRemoteTarget(url: URL, headers?: Record<string, string>): Record<string, unknown> {
+  return {
+    url: url.toString(),
+    headers: redactMcpHeaders(headers),
+  }
+}
+
+export function isRetryableHttpStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+function isSensitiveHeaderName(headerName: string): boolean {
+  return /authorization|token|secret|cookie|key/i.test(headerName)
+}
+
+function maskSecret(value: string): string {
+  if (!value) {
+    return '[redacted]'
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length <= 8) {
+    return '[redacted]'
+  }
+
+  return `${trimmed.slice(0, 4)}...[redacted]...${trimmed.slice(-2)}`
+}
+
 function normalizePositiveInteger(value: unknown, fallback: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return fallback

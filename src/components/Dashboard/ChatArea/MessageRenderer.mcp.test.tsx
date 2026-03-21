@@ -1,0 +1,103 @@
+import { render, screen } from '@testing-library/react'
+import '@testing-library/jest-dom'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../../contexts/SettingsContext', () => ({
+  useSettings: () => ({
+    settings: {
+      aiModel: 'test-model',
+      chatBubbleStyle: 'solid',
+    },
+  }),
+}))
+
+vi.mock('../../LazyMarkdown', () => ({
+  default: ({ content }: { content: string }) => <div data-testid="markdown">{content}</div>,
+}))
+
+vi.mock('../../ThinkingBlock', () => ({
+  default: () => null,
+}))
+
+vi.mock('../../ResponseInfo', () => ({
+  default: () => null,
+}))
+
+vi.mock('../../../tools/ui/ToolResultDisplay', () => ({
+  default: ({ toolName }: { toolName: string }) => <div data-testid="tool-result">{toolName}</div>,
+}))
+
+vi.mock('./attachmentUtils', () => ({
+  formatFileSize: () => '1 KB',
+}))
+
+import { MessageRenderer } from './MessageRenderer'
+
+describe('MessageRenderer MCP summary', () => {
+  it('shows local MCP execution metrics above generic tool results', () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-mcp-1',
+          role: 'assistant',
+          content: 'Done.',
+          timestamp: 1,
+          toolResults: [
+            {
+              toolCall: {
+                id: 'tool-1',
+                name: 'mcp__filesystem__read_file',
+                arguments: { path: '/tmp/demo.txt' },
+              },
+              result: {
+                success: true,
+                data: { text: 'hello' },
+                metadata: {
+                  origin: 'mcp',
+                  serverId: 'filesystem',
+                  serverName: 'Filesystem',
+                  namespacedToolName: 'mcp__filesystem__read_file',
+                  originalToolName: 'read_file',
+                  trusted: true,
+                  approvalState: 'approved',
+                  durationMs: 42,
+                  outcome: 'success',
+                },
+              },
+            },
+            {
+              toolCall: {
+                id: 'tool-2',
+                name: 'mcp__github__create_issue',
+                arguments: { title: 'Needs review' },
+              },
+              result: {
+                success: false,
+                error: 'Approval rejected by user',
+                metadata: {
+                  origin: 'mcp',
+                  serverId: 'github',
+                  serverName: 'GitHub',
+                  namespacedToolName: 'mcp__github__create_issue',
+                  originalToolName: 'create_issue',
+                  trusted: true,
+                  approvalState: 'rejected',
+                  durationMs: 3,
+                  outcome: 'rejected',
+                },
+              },
+            },
+          ],
+        }}
+        isStreaming={false}
+        sessionId="session-1"
+      />
+    )
+
+    expect(screen.getByText('2 MCP runs')).toBeInTheDocument()
+    expect(screen.getByText('1 succeeded')).toBeInTheDocument()
+    expect(screen.getByText('1 failed')).toBeInTheDocument()
+    expect(screen.getByText('1 rejected')).toBeInTheDocument()
+    expect(screen.getByText('Approvals: 1 approved • 1 rejected')).toBeInTheDocument()
+  })
+})

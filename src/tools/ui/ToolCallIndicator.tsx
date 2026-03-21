@@ -1,27 +1,9 @@
 import React from 'react'
-import { Search, Loader2, Globe } from '../../components/icons'
+import { Search, Loader2, Globe, Wrench } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromArgs } from './webToolDisplay'
+import { getToolArgumentSummary, getToolPresentation } from './toolPresentation'
 
 import './ToolCallIndicator.css'
-
-// Simple tool name formatter (replaces underscores with spaces)
-function formatToolDisplayName(name: string): string {
-  const mcpMatch = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
-  if (mcpMatch) {
-    const [, serverSlug, toolSlug] = mcpMatch
-    return `${humanizeSlug(toolSlug)} (${humanizeSlug(serverSlug)} MCP)`
-  }
-
-  return name.replace(/_/g, ' ')
-}
-
-function humanizeSlug(value: string): string {
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
 
 const toolIcons: Record<string, React.ReactNode> = {
   web_search: <Search size={16} />,
@@ -43,6 +25,8 @@ export default function ToolCallIndicator({
   arguments: args,
 }: ToolCallIndicatorProps) {
   const webToolMode = toolName === 'web_search' ? inferWebToolModeFromArgs(args) : null
+  const toolPresentation = getToolPresentation(toolName)
+  const argumentSummary = getToolArgumentSummary(args)
   const icon =
     toolName === 'web_search' ? (
       webToolMode === 'extract' ? (
@@ -51,12 +35,12 @@ export default function ToolCallIndicator({
         <Search size={16} />
       )
     ) : (
-      toolIcons[toolName] || <Search size={16} />
+      toolIcons[toolName] || <Wrench size={16} />
     )
   const displayName =
     toolName === 'web_search'
       ? getWebToolLabel(webToolMode || 'search')
-      : toolDisplayNames[toolName] || formatToolDisplayName(toolName)
+      : toolDisplayNames[toolName] || toolPresentation.combinedLabel
 
   const getStatusMessage = () => {
     switch (status) {
@@ -67,19 +51,21 @@ export default function ToolCallIndicator({
         if (toolName === 'web_search') {
           return `Tool: ${displayName}`
         }
-        return `Using ${displayName}...`
+        return argumentSummary
+          ? `Running ${displayName}: ${argumentSummary}`
+          : `Running ${displayName}...`
       case 'complete':
         return `${displayName} complete`
       case 'error':
         return `${displayName} failed`
       default:
-        return `Will use ${displayName}`
+        return `Preparing ${displayName}`
     }
   }
 
   return (
     <div
-      className={`tool-indicator tool-indicator-${status}${toolName === 'web_search' && webToolMode === 'extract' ? ' tool-indicator-web-extract' : ''}`}
+      className={`tool-indicator tool-indicator-${status}${toolName === 'web_search' && webToolMode === 'extract' ? ' tool-indicator-web-extract' : ''}${toolPresentation.isMcp ? ' tool-indicator-mcp' : ''}`}
     >
       <div className="tool-indicator-icon">
         {status === 'executing' ? <Loader2 size={16} className="tool-spinner" /> : icon}

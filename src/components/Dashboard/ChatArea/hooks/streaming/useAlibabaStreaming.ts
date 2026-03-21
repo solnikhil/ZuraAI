@@ -30,6 +30,7 @@ import {
   processInitialToolResults,
   buildThinkingBlocksFromResults,
   mergeSavedToolResults,
+  publishStreamingToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
@@ -174,6 +175,13 @@ export function useAlibabaStreaming({
       const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
       localThinkingBlocks = processed.updatedThinkingBlocks
       savedToolResults = processed.savedToolResults
+      publishStreamingToolResults(
+        updateStreaming as (updates: Record<string, unknown>) => void,
+        updateStreamingMessage,
+        sessionId,
+        messageId,
+        savedToolResults
+      )
 
       if (processed.hasSearchCalls) {
         updateStreaming({
@@ -273,6 +281,13 @@ export function useAlibabaStreaming({
             localThinkingBlocks = buildThinkingBlocksFromResults(nextToolResult.toolResults || [], localThinkingBlocks)
             updateStreaming({ phase: 'searching', thinkingBlocks: localThinkingBlocks })
             savedToolResults = mergeSavedToolResults(savedToolResults, nextToolResult.toolResults || [])
+            publishStreamingToolResults(
+              updateStreaming as (updates: Record<string, unknown>) => void,
+              updateStreamingMessage,
+              sessionId,
+              messageId,
+              savedToolResults
+            )
             lastAssistantMessage = reconstructedFollowUp
             toolResult = nextToolResult
             researchRound++

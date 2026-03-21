@@ -1,8 +1,15 @@
 import { randomUUID } from 'crypto'
 
 import type {
+  McpExposurePolicy,
   McpNamespacedTool,
+  McpPromptManifest,
+  McpPromptResult,
   McpResolvedServerConfig,
+  McpResourceManifest,
+  McpResourceReadResult,
+  McpRuntimePrompt,
+  McpRuntimeResource,
   McpRuntimeSnapshot,
   McpServerConfig,
   McpServerRuntimeState,
@@ -26,6 +33,10 @@ export interface McpManagedConnection {
   onRuntimeStateChange(handler: (state: McpServerRuntimeState) => void): () => void
   connect(): Promise<McpServerRuntimeState>
   disconnect(): Promise<void>
+  listResources(): Promise<McpResourceManifest[]>
+  readResource(uri: string): Promise<McpResourceReadResult>
+  listPrompts(): Promise<McpPromptManifest[]>
+  getPrompt(name: string, args: Record<string, unknown>): Promise<McpPromptResult>
   callTool(toolName: string, args: Record<string, unknown>): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }>
 }
 
@@ -54,6 +65,8 @@ export class McpManager {
   private readonly connections = new Map<string, McpManagedConnection>()
   private readonly connectionUnsubscribers = new Map<string, () => void>()
   private readonly runtimeStates = new Map<string, McpServerRuntimeState>()
+  private readonly resourceReadCache = new Map<string, McpResourceReadResult>()
+  private readonly promptResultCache = new Map<string, McpPromptResult>()
   private readonly snapshotHandlers = new Set<SnapshotHandler>()
 
   private initialized = false
@@ -123,7 +136,9 @@ export class McpManager {
         return []
       }
 
-      return runtimeState.tools.map((manifest) => ({
+      return runtimeState.tools
+        .filter((manifest) => isToolAllowedForServer(server, manifest.name))
+        .map((manifest) => ({
         ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
         manifest: {
           ...manifest,
@@ -134,11 +149,45 @@ export class McpManager {
     })
   }
 
+  listResources(): McpRuntimeResource[] {
+    return [...this.servers.values()].flatMap((server) => {
+      const runtimeState = this.runtimeStates.get(server.id)
+      if (!isServerContentVisible(server, runtimeState)) {
+        return []
+      }
+
+      return runtimeState.resources.map((manifest) => ({
+        serverId: server.id,
+        serverName: server.name,
+        manifest: cloneResourceManifest(manifest),
+        exposure: getUserVisibleExposure(),
+      }))
+    })
+  }
+
+  listPrompts(): McpRuntimePrompt[] {
+    return [...this.servers.values()].flatMap((server) => {
+      const runtimeState = this.runtimeStates.get(server.id)
+      if (!isServerContentVisible(server, runtimeState)) {
+        return []
+      }
+
+      return runtimeState.prompts.map((manifest) => ({
+        serverId: server.id,
+        serverName: server.name,
+        manifest: clonePromptManifest(manifest),
+        exposure: getUserVisibleExposure(),
+      }))
+    })
+  }
+
   getSnapshot(): McpRuntimeSnapshot {
     return {
       servers: this.listServers(),
       runtimeStates: this.getRuntimeStates(),
       tools: this.listTools(),
+      resources: this.listResources(),
+      prompts: this.listPrompts(),
       pendingApprovals: [],
     }
   }
@@ -304,6 +353,50 @@ export class McpManager {
       }))
   }
 
+  async getServerResources(serverId: string): Promise<McpRuntimeResource[]> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    return this.listResources().filter((resource) => resource.serverId === normalizedServerId)
+  }
+
+  async getServerPrompts(serverId: string): Promise<McpRuntimePrompt[]> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    return this.listPrompts().filter((prompt) => prompt.serverId === normalizedServerId)
+  }
+
+  async readResource(serverId: string, uri: string): Promise<McpResourceReadResult> {
+    const executable = await this.getExecutableResource(serverId, uri)
+    const cacheKey = createResourceCacheKey(executable.server.id, uri)
+    const cached = this.resourceReadCache.get(cacheKey)
+    if (cached) {
+      return cloneReadResourceResult(cached)
+    }
+
+    const result = await executable.connection.readResource(uri)
+    this.resourceReadCache.set(cacheKey, cloneReadResourceResult(result))
+    return cloneReadResourceResult(result)
+  }
+
+  async getPrompt(
+    serverId: string,
+    promptName: string,
+    args: Record<string, unknown>
+  ): Promise<McpPromptResult> {
+    const executable = await this.getExecutablePrompt(serverId, promptName)
+    const cacheKey = createPromptCacheKey(executable.server.id, promptName, args)
+    const cached = this.promptResultCache.get(cacheKey)
+    if (cached) {
+      return clonePromptResult(cached)
+    }
+
+    const result = await executable.connection.getPrompt(promptName, args)
+    this.promptResultCache.set(cacheKey, clonePromptResult(result))
+    return clonePromptResult(result)
+  }
+
   async executeTool(namespacedToolName: string, args: Record<string, unknown>): Promise<{
     server: McpServerConfig
     tool: McpNamespacedTool
@@ -352,6 +445,68 @@ export class McpManager {
     return {
       server,
       tool,
+      connection,
+    }
+  }
+
+  async getExecutableResource(serverId: string, uri: string): Promise<{
+    server: McpServerConfig
+    manifest: McpResourceManifest
+    connection: McpManagedConnection
+  }> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const runtimeState = this.getRuntimeStateForServer(server.id)
+    if (!isServerContentVisible(server, runtimeState)) {
+      throw new Error(`MCP server "${server.name}" resources are not available`)
+    }
+
+    const manifest = runtimeState.resources.find((resource) => resource.uri === uri)
+    if (!manifest) {
+      throw new Error(`Unknown MCP resource for server "${server.name}": ${uri}`)
+    }
+
+    const connection = this.connections.get(server.id)
+    if (!connection) {
+      throw new Error(`No active MCP connection for server "${server.name}"`)
+    }
+
+    return {
+      server,
+      manifest,
+      connection,
+    }
+  }
+
+  async getExecutablePrompt(serverId: string, promptName: string): Promise<{
+    server: McpServerConfig
+    manifest: McpPromptManifest
+    connection: McpManagedConnection
+  }> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const runtimeState = this.getRuntimeStateForServer(server.id)
+    if (!isServerContentVisible(server, runtimeState)) {
+      throw new Error(`MCP server "${server.name}" prompts are not available`)
+    }
+
+    const manifest = runtimeState.prompts.find((prompt) => prompt.name === promptName)
+    if (!manifest) {
+      throw new Error(`Unknown MCP prompt for server "${server.name}": ${promptName}`)
+    }
+
+    const connection = this.connections.get(server.id)
+    if (!connection) {
+      throw new Error(`No active MCP connection for server "${server.name}"`)
+    }
+
+    return {
+      server,
+      manifest,
       connection,
     }
   }
@@ -423,6 +578,7 @@ export class McpManager {
     }
 
     this.connections.delete(serverId)
+    this.clearContentCachesForServer(serverId)
   }
 
   private async handleConnectionRuntimeState(
@@ -456,6 +612,8 @@ export class McpManager {
         inputSchema: { ...tool.inputSchema },
         annotations: tool.annotations ? { ...tool.annotations } : undefined,
       })),
+      lastKnownResources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
+      lastKnownPrompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
       lastConnectionError: runtimeState.lastConnectionError ?? null,
       lastConnectionTime: runtimeState.lastConnectionTime ?? null,
     }
@@ -474,6 +632,23 @@ export class McpManager {
       handler(snapshot)
     }
   }
+
+  private clearContentCachesForServer(serverId: string): void {
+    const resourcePrefix = `${serverId}::resource::`
+    const promptPrefix = `${serverId}::prompt::`
+
+    for (const key of this.resourceReadCache.keys()) {
+      if (key.startsWith(resourcePrefix)) {
+        this.resourceReadCache.delete(key)
+      }
+    }
+
+    for (const key of this.promptResultCache.keys()) {
+      if (key.startsWith(promptPrefix)) {
+        this.promptResultCache.delete(key)
+      }
+    }
+  }
 }
 
 function createInitialRuntimeState(server: McpServerConfig): McpServerRuntimeState {
@@ -484,6 +659,8 @@ function createInitialRuntimeState(server: McpServerConfig): McpServerRuntimeSta
     lastConnectionError: server.lastConnectionError ?? null,
     lastConnectionTime: server.lastConnectionTime ?? null,
     tools: server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
+    resources: server.lastKnownResources ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource)) : [],
+    prompts: server.lastKnownPrompts ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt)) : [],
     capabilities: {
       tools: false,
       resources: false,
@@ -504,6 +681,16 @@ function mergeRuntimeStateWithServer(
     lastConnectionError: runtimeState?.lastConnectionError ?? server.lastConnectionError ?? null,
     lastConnectionTime: runtimeState?.lastConnectionTime ?? server.lastConnectionTime ?? null,
     tools: runtimeState?.tools ? runtimeState.tools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
+    resources: runtimeState?.resources
+      ? runtimeState.resources.map((resource) => cloneResourceManifest(resource))
+      : server.lastKnownResources
+        ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
+        : [],
+    prompts: runtimeState?.prompts
+      ? runtimeState.prompts.map((prompt) => clonePromptManifest(prompt))
+      : server.lastKnownPrompts
+        ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
+        : [],
     capabilities: runtimeState?.capabilities
       ? { ...runtimeState.capabilities }
       : {
@@ -522,12 +709,20 @@ function cloneServer(server: McpServerConfig): McpServerConfig {
     args: server.args ? [...server.args] : [],
     env: server.env ? server.env.map((entry) => ({ ...entry })) : [],
     headers: server.headers ? server.headers.map((entry) => ({ ...entry })) : [],
+    toolAllowlist: server.toolAllowlist ? [...server.toolAllowlist] : [],
+    toolBlocklist: server.toolBlocklist ? [...server.toolBlocklist] : [],
     lastKnownTools: server.lastKnownTools
       ? server.lastKnownTools.map((tool) => ({
           ...tool,
           inputSchema: { ...tool.inputSchema },
           annotations: tool.annotations ? { ...tool.annotations } : undefined,
         }))
+      : [],
+    lastKnownResources: server.lastKnownResources
+      ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
+      : [],
+    lastKnownPrompts: server.lastKnownPrompts
+      ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
       : [],
   }
 }
@@ -540,9 +735,96 @@ function cloneRuntimeState(runtimeState: McpServerRuntimeState): McpServerRuntim
       inputSchema: { ...tool.inputSchema },
       annotations: tool.annotations ? { ...tool.annotations } : undefined,
     })),
+    resources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
+    prompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
     capabilities: { ...runtimeState.capabilities },
     connectionInfo: runtimeState.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,
   }
+}
+
+function cloneResourceManifest(resource: McpResourceManifest): McpResourceManifest {
+  return {
+    ...resource,
+    annotations: resource.annotations ? { ...resource.annotations } : undefined,
+  }
+}
+
+function clonePromptManifest(prompt: McpPromptManifest): McpPromptManifest {
+  return {
+    ...prompt,
+    arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : [],
+  }
+}
+
+function cloneReadResourceResult(result: McpResourceReadResult): McpResourceReadResult {
+  return {
+    contents: result.contents.map((item) => ({ ...item })),
+  }
+}
+
+function clonePromptResult(result: McpPromptResult): McpPromptResult {
+  return {
+    description: result.description,
+    messages: result.messages.map((message) => ({ ...message })),
+  }
+}
+
+function getUserVisibleExposure(): McpExposurePolicy {
+  return {
+    userVisible: true,
+    modelVisible: false,
+    requiresExplicitUserAction: true,
+  }
+}
+
+function isServerContentVisible(
+  server: McpServerConfig,
+  runtimeState: McpServerRuntimeState | undefined
+): runtimeState is McpServerRuntimeState {
+  return Boolean(
+    runtimeState &&
+      runtimeState.status === 'connected' &&
+      server.enabled === true &&
+      server.trustState === 'trusted'
+  )
+}
+
+function isToolAllowedForServer(server: McpServerConfig, toolName: string): boolean {
+  const normalizedToolName = toolName.trim().toLowerCase()
+  const allowlist = new Set((server.toolAllowlist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+  const blocklist = new Set((server.toolBlocklist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+
+  if (blocklist.has(normalizedToolName)) {
+    return false
+  }
+
+  return allowlist.size === 0 || allowlist.has(normalizedToolName)
+}
+
+function createResourceCacheKey(serverId: string, uri: string): string {
+  return `${serverId}::resource::${uri}`
+}
+
+function createPromptCacheKey(serverId: string, promptName: string, args: Record<string, unknown>): string {
+  return `${serverId}::prompt::${promptName}::${stableStringify(args)}`
+}
+
+function stableStringify(value: unknown): string {
+  if (value == null || typeof value !== 'object') {
+    return JSON.stringify(value)
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right)
+  )
+
+  return `{${entries
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+    .join(',')}}`
 }
 
 function normalizeServerId(serverId: string): string {

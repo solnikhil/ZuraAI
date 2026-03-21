@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_MCP_RECONNECT_POLICY,
+  buildMcpReconnectDelay,
   normalizeMcpReconnectPolicy,
+  redactMcpHeaders,
   validateMcpRemoteUrl,
 } from './remote'
 import { SseMcpTransport } from './sse'
@@ -40,6 +42,32 @@ describe('remote MCP transport helpers', () => {
       initialDelayMs: 500,
       maxDelayMs: 30000,
       backoffMultiplier: 2,
+    })
+
+    expect(buildMcpReconnectDelay({
+      enabled: true,
+      maxAttempts: 3,
+      initialDelayMs: 500,
+      maxDelayMs: 2000,
+      backoffMultiplier: 2,
+    }, 0)).toBe(500)
+
+    expect(buildMcpReconnectDelay({
+      enabled: true,
+      maxAttempts: 3,
+      initialDelayMs: 500,
+      maxDelayMs: 2000,
+      backoffMultiplier: 2,
+    }, 3)).toBe(2000)
+  })
+
+  it('redacts sensitive headers before diagnostics are surfaced', () => {
+    expect(redactMcpHeaders({
+      Authorization: 'Bearer super-secret-token',
+      'X-Trace-Id': 'trace-123',
+    })).toEqual({
+      Authorization: 'Bear...[redacted]...en',
+      'X-Trace-Id': 'trace-123',
     })
   })
 

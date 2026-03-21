@@ -39,6 +39,8 @@ export interface McpDraftServer {
   reconnectAttempts: string
   reconnectDelayMs: string
   requireApproval: boolean
+  toolAllowlistText: string
+  toolBlocklistText: string
   createdAt?: string
   updatedAt?: string
 }
@@ -71,6 +73,8 @@ export interface McpServerInputPayload {
   reconnectAttempts?: number
   reconnectDelayMs?: number
   requireApproval: boolean
+  toolAllowlist?: string[]
+  toolBlocklist?: string[]
   createdAt?: string
   updatedAt?: string
 }
@@ -101,6 +105,8 @@ interface ComparableServer {
   reconnectAttempts?: number
   reconnectDelayMs?: number
   requireApproval: boolean
+  toolAllowlist: string[]
+  toolBlocklist: string[]
 }
 
 const AUTHORIZATION_HEADER_NAME = 'Authorization'
@@ -127,6 +133,8 @@ export function createEmptyMcpDraftServer(): McpDraftServer {
     reconnectAttempts: '',
     reconnectDelayMs: '',
     requireApproval: true,
+    toolAllowlistText: '',
+    toolBlocklistText: '',
     createdAt: now,
     updatedAt: now,
   }
@@ -172,6 +180,8 @@ export function mcpServerToDraftServer(server: McpServerConfig): McpDraftServer 
     reconnectAttempts: toNumberInput(server.reconnectAttempts),
     reconnectDelayMs: toNumberInput(server.reconnectDelayMs),
     requireApproval: server.requireApproval,
+    toolAllowlistText: (server.toolAllowlist ?? []).join('\n'),
+    toolBlocklistText: (server.toolBlocklist ?? []).join('\n'),
     createdAt: server.createdAt,
     updatedAt: server.updatedAt,
   }
@@ -208,6 +218,8 @@ export function draftServerToInputPayload(draft: McpDraftServer): McpServerInput
     reconnectAttempts: normalizeOptionalInteger(draft.reconnectAttempts),
     reconnectDelayMs: normalizeOptionalInteger(draft.reconnectDelayMs),
     requireApproval: draft.requireApproval,
+    toolAllowlist: parseListText(draft.toolAllowlistText),
+    toolBlocklist: parseListText(draft.toolBlocklistText),
     createdAt: draft.createdAt,
     updatedAt: draft.updatedAt,
   }
@@ -262,6 +274,7 @@ export function validateDraftServer(draft: McpDraftServer): string[] {
   validateNumericField('Tool timeout', draft.toolTimeoutMs, errors)
   validateNumericField('Reconnect attempts', draft.reconnectAttempts, errors)
   validateNumericField('Reconnect delay', draft.reconnectDelayMs, errors)
+  validateToolPolicy(draft.toolAllowlistText, draft.toolBlocklistText, errors)
 
   return dedupeStrings(errors)
 }
@@ -409,6 +422,8 @@ function toComparableServerFromDraft(draft: McpDraftServer): ComparableServer {
     reconnectAttempts: payload.reconnectAttempts,
     reconnectDelayMs: payload.reconnectDelayMs,
     requireApproval: payload.requireApproval,
+    toolAllowlist: payload.toolAllowlist ?? [],
+    toolBlocklist: payload.toolBlocklist ?? [],
   })
 }
 
@@ -431,6 +446,8 @@ function toComparableServerFromLive(server: McpServerConfig): ComparableServer {
     reconnectAttempts: server.reconnectAttempts,
     reconnectDelayMs: server.reconnectDelayMs,
     requireApproval: server.requireApproval,
+    toolAllowlist: server.toolAllowlist ?? [],
+    toolBlocklist: server.toolBlocklist ?? [],
   })
 }
 
@@ -447,6 +464,8 @@ function normalizeComparableServer(server: ComparableServer): ComparableServer {
     toolTimeoutMs: normalizeOptionalNumber(server.toolTimeoutMs),
     reconnectAttempts: normalizeOptionalNumber(server.reconnectAttempts),
     reconnectDelayMs: normalizeOptionalNumber(server.reconnectDelayMs),
+    toolAllowlist: [...server.toolAllowlist].map((entry) => entry.trim()).filter(Boolean).sort(),
+    toolBlocklist: [...server.toolBlocklist].map((entry) => entry.trim()).filter(Boolean).sort(),
   }
 }
 
@@ -588,6 +607,21 @@ function stripBearerPrefix(value: string): string {
 
 function dedupeStrings(values: string[]): string[] {
   return [...new Set(values)]
+}
+
+function parseListText(value: string | undefined): string[] {
+  return [...new Set((value ?? '').split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean))]
+}
+
+function validateToolPolicy(allowlistText: string | undefined, blocklistText: string | undefined, errors: string[]): void {
+  const allowlist = new Set(parseListText(allowlistText).map((entry) => entry.toLowerCase()))
+  const blocklist = new Set(parseListText(blocklistText).map((entry) => entry.toLowerCase()))
+
+  for (const toolName of allowlist) {
+    if (blocklist.has(toolName)) {
+      errors.push(`Tool policy conflict: "${toolName}" appears in both the allowlist and blocklist.`)
+    }
+  }
 }
 
 function createDraftId(): string {

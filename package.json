@@ -23,6 +23,7 @@
     "generate-icons": "node scripts/generate-icons.mjs",
     "build": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder",
     "build:dir": "node scripts/generate-icons.mjs && tsc && vite build && electron-builder --dir",
+    "verify:mcp-release": "node scripts/verify-mcp-release.mjs",
     "preview": "vite preview",
     "test": "vitest --run",
     "test:watch": "vitest",
@@ -66,7 +67,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.4.1"
+    "tailwind-merge": "^3.4.1",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -77,6 +79,7 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/ui": "^4.0.18",
     "electron": "^40.4.1",

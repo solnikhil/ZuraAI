@@ -103,6 +103,53 @@ describe('McpConnection', () => {
     await connection.disconnect()
   })
 
+  it('discovers resources and prompts and can fetch them on demand', async () => {
+    const transport = createMockTransport()
+    const connection = new McpConnection({
+      server: createResolvedServerConfig({
+        command: process.execPath,
+        args: [MOCK_STDIO_SERVER_PATH],
+      }),
+      transport,
+    })
+
+    const runtimeState = await connection.connect()
+
+    expect(runtimeState.resources).toEqual([
+      {
+        uri: 'file:///tmp/demo.txt',
+        title: 'Demo File',
+      },
+    ])
+    expect(runtimeState.prompts).toEqual([
+      {
+        name: 'summarize_demo',
+        title: 'Summarize Demo',
+      },
+    ])
+
+    await expect(connection.readResource('file:///tmp/demo.txt')).resolves.toEqual({
+      contents: [
+        {
+          uri: 'file:///tmp/demo.txt',
+          text: 'Resource contents for file:///tmp/demo.txt',
+        },
+      ],
+    })
+
+    await expect(connection.getPrompt('summarize_demo', { topic: 'demo' })).resolves.toEqual({
+      description: 'Prompt preview',
+      messages: [
+        {
+          role: 'user',
+          content: 'Prompt summarize_demo for {"topic":"demo"}',
+        },
+      ],
+    })
+
+    await connection.disconnect()
+  })
+
   it('creates transport instances from resolved server config', () => {
     const transport = createMcpTransportForServer(
       createResolvedServerConfig({
@@ -179,7 +226,7 @@ function createMockTransport(): McpTransport {
             id: message.id,
             result: {
               protocolVersion: '2025-06-18',
-              capabilities: { tools: {} },
+              capabilities: { tools: {}, resources: {}, prompts: {} },
               serverInfo: { name: 'Mock MCP Server', version: '1.0.0' },
             },
           })
@@ -203,6 +250,82 @@ function createMockTransport(): McpTransport {
                     },
                     required: ['path'],
                   },
+                },
+              ],
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'resources/list') {
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              resources: [
+                {
+                  uri: 'file:///tmp/demo.txt',
+                  title: 'Demo File',
+                },
+              ],
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'resources/read') {
+        const uri = (message.params as { uri?: string })?.uri ?? ''
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              contents: [
+                {
+                  uri,
+                  text: `Resource contents for ${uri}`,
+                },
+              ],
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'prompts/list') {
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              prompts: [
+                {
+                  name: 'summarize_demo',
+                  title: 'Summarize Demo',
+                },
+              ],
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'prompts/get') {
+        const name = (message.params as { name?: string })?.name ?? ''
+        const args = (message.params as { arguments?: Record<string, unknown> })?.arguments ?? {}
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              description: 'Prompt preview',
+              messages: [
+                {
+                  role: 'user',
+                  content: `Prompt ${name} for ${JSON.stringify(args)}`,
                 },
               ],
             },

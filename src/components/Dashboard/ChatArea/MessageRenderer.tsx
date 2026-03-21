@@ -19,6 +19,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CornerDownLeft,
+  Wrench,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
+  AlertTriangle,
 } from '../../icons'
 // Separator import removed (no longer used after streaming)
 import LazyMarkdown from '../../LazyMarkdown'
@@ -26,6 +31,7 @@ import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import ToolResultDisplay from '../../../tools/ui/ToolResultDisplay'
+import { summarizeMcpToolResults } from '../../../tools/ui/mcpMetrics'
 import type {
   Message,
   ThinkingBlock,
@@ -777,9 +783,13 @@ function areMessagePropsEqual(
     if (
       prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
       prevToolResults[i].toolCall.name !== nextToolResults[i].toolCall.name ||
+      JSON.stringify(prevToolResults[i].toolCall.arguments) !==
+        JSON.stringify(nextToolResults[i].toolCall.arguments) ||
       prevToolResults[i].result.success !== nextToolResults[i].result.success ||
       prevToolResults[i].result.error !== nextToolResults[i].result.error ||
       prevToolResults[i].result.executionTime !== nextToolResults[i].result.executionTime ||
+      JSON.stringify(prevToolResults[i].result.metadata) !==
+        JSON.stringify(nextToolResults[i].result.metadata) ||
       prevToolResults[i].result.data !== nextToolResults[i].result.data
     ) {
       return false
@@ -1064,6 +1074,10 @@ function MessageRendererComponent({
       (message.toolResults || []).filter((result) => result.toolCall.name !== 'web_search'),
     [message.toolResults]
   )
+  const mcpMetrics = useMemo(
+    () => summarizeMcpToolResults(message.toolResults || []),
+    [message.toolResults]
+  )
   const showUpperThinkingBlock =
     (!followUpSnapshot &&
       (hasThinking ||
@@ -1305,6 +1319,38 @@ function MessageRendererComponent({
 
       {visibleToolResults.length > 0 && (
         <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
+          {mcpMetrics.totalExecutions > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px',
+                marginBottom: '10px',
+              }}
+            >
+              <McpMetricChip icon={<Wrench size={12} />} label={`${mcpMetrics.totalExecutions} MCP run${mcpMetrics.totalExecutions === 1 ? '' : 's'}`} />
+              <McpMetricChip icon={<CheckCircle size={12} />} label={`${mcpMetrics.successCount} succeeded`} tone="success" />
+              {mcpMetrics.failedCount > 0 && (
+                <McpMetricChip icon={<XCircle size={12} />} label={`${mcpMetrics.failedCount} failed`} tone="error" />
+              )}
+              {(mcpMetrics.rejectedCount > 0 || mcpMetrics.timedOutCount > 0 || mcpMetrics.cancelledCount > 0) && (
+                <McpMetricChip
+                  icon={<AlertTriangle size={12} />}
+                  label={buildMcpFailureSummary(mcpMetrics)}
+                  tone="warning"
+                />
+              )}
+              {(mcpMetrics.approvalApprovedCount > 0 ||
+                mcpMetrics.approvalRejectedCount > 0 ||
+                mcpMetrics.approvalTimedOutCount > 0 ||
+                mcpMetrics.approvalCancelledCount > 0) && (
+                <McpMetricChip
+                  icon={<ShieldCheck size={12} />}
+                  label={buildMcpApprovalSummary(mcpMetrics)}
+                />
+              )}
+            </div>
+          )}
           {visibleToolResults.map((result, index) => {
             const toolResultIndex = (message.toolResults || []).findIndex(
               (item) => item.toolCall.id === result.toolCall.id
@@ -1317,6 +1363,8 @@ function MessageRendererComponent({
                 result={result.result?.success ? result.result.data : undefined}
                 error={result.result?.success ? undefined : result.result?.error}
                 metadata={result.result?.metadata}
+                toolArguments={result.toolCall.arguments}
+                executionTime={result.result?.executionTime}
                 sessionId={sessionId}
                 messageId={message.id}
                 toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}
@@ -1582,6 +1630,78 @@ function MessageRendererComponent({
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function buildMcpFailureSummary(metrics: ReturnType<typeof summarizeMcpToolResults>): string {
+  const parts: string[] = []
+  if (metrics.rejectedCount > 0) parts.push(`${metrics.rejectedCount} rejected`)
+  if (metrics.timedOutCount > 0) parts.push(`${metrics.timedOutCount} timed out`)
+  if (metrics.cancelledCount > 0) parts.push(`${metrics.cancelledCount} cancelled`)
+  return parts.join(' • ')
+}
+
+function buildMcpApprovalSummary(metrics: ReturnType<typeof summarizeMcpToolResults>): string {
+  const parts: string[] = []
+  if (metrics.approvalApprovedCount > 0) parts.push(`${metrics.approvalApprovedCount} approved`)
+  if (metrics.approvalRejectedCount > 0) parts.push(`${metrics.approvalRejectedCount} rejected`)
+  if (metrics.approvalTimedOutCount > 0) parts.push(`${metrics.approvalTimedOutCount} timed out`)
+  if (metrics.approvalCancelledCount > 0) parts.push(`${metrics.approvalCancelledCount} cancelled`)
+  return `Approvals: ${parts.join(' • ')}`
+}
+
+function McpMetricChip({
+  icon,
+  label,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  tone?: 'neutral' | 'success' | 'warning' | 'error'
+}) {
+  const tones: Record<typeof tone, { bg: string; border: string; color: string }> = {
+    neutral: {
+      bg: 'var(--theme-surface-subtle)',
+      border: 'var(--theme-border-subtle)',
+      color: 'var(--theme-text-secondary)',
+    },
+    success: {
+      bg: 'var(--theme-success-bg)',
+      border: 'color-mix(in srgb, var(--theme-success) 24%, var(--theme-border))',
+      color: 'var(--theme-success)',
+    },
+    warning: {
+      bg: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 16%, transparent)',
+      border: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 26%, var(--theme-border))',
+      color: 'var(--theme-warning, #f59e0b)',
+    },
+    error: {
+      bg: 'var(--theme-error-bg)',
+      border: 'color-mix(in srgb, var(--theme-error) 24%, var(--theme-border))',
+      color: 'var(--theme-error)',
+    },
+  }
+
+  const toneStyle = tones[tone]
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 10px',
+        borderRadius: '999px',
+        background: toneStyle.bg,
+        border: `1px solid ${toneStyle.border}`,
+        color: toneStyle.color,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+      }}
+    >
+      {icon}
+      <span>{label}</span>
     </div>
   )
 }

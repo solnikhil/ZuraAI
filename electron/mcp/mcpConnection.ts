@@ -2,14 +2,21 @@ import type {
   McpInitializeResult,
   McpJsonRpcId,
   McpJsonRpcMessage,
+  McpListPromptsResult,
+  McpListResourcesResult,
   McpListToolsResult,
+  McpPromptManifest,
+  McpPromptResult,
   McpResolvedServerConfig,
+  McpResourceManifest,
+  McpResourceReadResult,
   McpServerCapabilities,
   McpServerRuntimeState,
   McpToolManifest,
 } from '../../src/mcp/types'
 
 import type { McpTransport } from './transports/base'
+import { buildMcpReconnectDelay, waitForMcpReconnectDelay } from './transports/remote'
 import { SseMcpTransport } from './transports/sse'
 import { StdioMcpTransport } from './transports/stdio'
 import { WebSocketMcpTransport } from './transports/websocket'
@@ -60,6 +67,8 @@ export class McpConnection {
   private runtimeState: McpServerRuntimeState
   private lastConnectionError: string | null
   private lastSuccessTimestamp: string | null
+  private manualDisconnect = false
+  private reconnectInFlight = false
 
   constructor(options: McpConnectionOptions) {
     this.server = options.server
@@ -83,6 +92,8 @@ export class McpConnection {
       lastConnectionError: this.lastConnectionError,
       lastConnectionTime: this.lastSuccessTimestamp,
       tools: options.server.lastKnownTools ? [...options.server.lastKnownTools] : [],
+      resources: options.server.lastKnownResources ? [...options.server.lastKnownResources] : [],
+      prompts: options.server.lastKnownPrompts ? [...options.server.lastKnownPrompts] : [],
       capabilities: {
         tools: false,
         resources: false,
@@ -105,6 +116,11 @@ export class McpConnection {
     })
     this.transport.onClose(() => {
       this.rejectAllPendingRequests(new Error(`MCP connection closed for server "${this.server.name}"`))
+      if (!this.manualDisconnect && this.shouldAttemptReconnect()) {
+        void this.attemptReconnect()
+        return
+      }
+
       if (this.runtimeState.status !== 'error') {
         this.updateRuntimeState({
           status: 'disconnected',
@@ -157,50 +173,14 @@ export class McpConnection {
   }
 
   async connect(): Promise<McpServerRuntimeState> {
+    this.manualDisconnect = false
     this.updateRuntimeState({
       status: 'connecting',
       error: undefined,
     })
 
     try {
-      await this.transport.connect()
-
-      const initializeResult = parseInitializeResult(
-        await this.request('initialize', {
-          protocolVersion: this.protocolVersion,
-          capabilities: {},
-          clientInfo: this.clientInfo,
-        }, this.initializeTimeoutMs)
-      )
-
-      const capabilities = parseServerCapabilities(initializeResult.capabilities)
-      const connectionInfo = {
-        protocolVersion: initializeResult.protocolVersion,
-        serverName: nonEmptyString(initializeResult.serverInfo?.name),
-        serverVersion: nonEmptyString(initializeResult.serverInfo?.version),
-      }
-
-      await this.transport.send({
-        jsonrpc: '2.0',
-        method: 'notifications/initialized',
-      })
-
-      const tools = capabilities.tools ? await this.listTools() : []
-      const successTimestamp = new Date().toISOString()
-      this.lastConnectionError = null
-      this.lastSuccessTimestamp = successTimestamp
-
-      this.updateRuntimeState({
-        status: 'connected',
-        error: undefined,
-        lastConnectionError: null,
-        lastConnectionTime: successTimestamp,
-        capabilities,
-        connectionInfo,
-        tools,
-      })
-
-      return this.getRuntimeState()
+      return await this.openAndInitialize()
     } catch (error) {
       const message = toErrorMessage(error)
       this.lastConnectionError = message
@@ -219,6 +199,7 @@ export class McpConnection {
   }
 
   async disconnect(): Promise<void> {
+    this.manualDisconnect = true
     this.rejectAllPendingRequests(new Error(`MCP connection closed for server "${this.server.name}"`))
     await this.transport.disconnect()
     this.updateRuntimeState({
@@ -232,6 +213,49 @@ export class McpConnection {
     const tools = result.tools ?? []
     this.updateRuntimeState({ tools })
     return [...tools]
+  }
+
+  async listResources(): Promise<McpResourceManifest[]> {
+    const result = parseListResourcesResult(
+      await this.request('resources/list', undefined, this.requestTimeoutMs)
+    )
+    const resources = result.resources ?? []
+    this.updateRuntimeState({ resources })
+    return [...resources]
+  }
+
+  async readResource(uri: string): Promise<McpResourceReadResult> {
+    return parseReadResourceResult(
+      await this.request(
+        'resources/read',
+        {
+          uri,
+        },
+        this.requestTimeoutMs
+      )
+    )
+  }
+
+  async listPrompts(): Promise<McpPromptManifest[]> {
+    const result = parseListPromptsResult(
+      await this.request('prompts/list', undefined, this.requestTimeoutMs)
+    )
+    const prompts = result.prompts ?? []
+    this.updateRuntimeState({ prompts })
+    return [...prompts]
+  }
+
+  async getPrompt(name: string, args: Record<string, unknown>): Promise<McpPromptResult> {
+    return parseGetPromptResult(
+      await this.request(
+        'prompts/get',
+        {
+          name,
+          arguments: args,
+        },
+        this.requestTimeoutMs
+      )
+    )
   }
 
   async callTool(toolName: string, args: Record<string, unknown>): Promise<McpNormalizedToolCallResult> {
@@ -332,6 +356,8 @@ export class McpConnection {
       ...this.runtimeState,
       ...partial,
       tools: partial.tools ? [...partial.tools] : [...this.runtimeState.tools],
+      resources: partial.resources ? [...partial.resources] : [...this.runtimeState.resources],
+      prompts: partial.prompts ? [...partial.prompts] : [...this.runtimeState.prompts],
       capabilities: partial.capabilities
         ? { ...partial.capabilities }
         : { ...this.runtimeState.capabilities },
@@ -346,6 +372,170 @@ export class McpConnection {
     for (const handler of this.runtimeStateHandlers) {
       handler(this.getRuntimeState())
     }
+  }
+
+  private async openAndInitialize(): Promise<McpServerRuntimeState> {
+    await this.transport.connect()
+
+    const initializeResult = parseInitializeResult(
+      await this.request(
+        'initialize',
+        {
+          protocolVersion: this.protocolVersion,
+          capabilities: {},
+          clientInfo: this.clientInfo,
+        },
+        this.initializeTimeoutMs
+      )
+    )
+
+    const capabilities = parseServerCapabilities(initializeResult.capabilities)
+    const connectionInfo = {
+      protocolVersion: initializeResult.protocolVersion,
+      serverName: nonEmptyString(initializeResult.serverInfo?.name),
+      serverVersion: nonEmptyString(initializeResult.serverInfo?.version),
+    }
+
+    await this.transport.send({
+      jsonrpc: '2.0',
+      method: 'notifications/initialized',
+    })
+
+    const tools = capabilities.tools ? await this.listTools() : []
+    const resources = capabilities.resources ? await this.listResources() : []
+    const prompts = capabilities.prompts ? await this.listPrompts() : []
+    const successTimestamp = new Date().toISOString()
+    this.lastConnectionError = null
+    this.lastSuccessTimestamp = successTimestamp
+
+    this.updateRuntimeState({
+      status: 'connected',
+      error: undefined,
+      lastConnectionError: null,
+      lastConnectionTime: successTimestamp,
+      capabilities,
+      connectionInfo,
+      tools,
+      resources,
+      prompts,
+    })
+
+    return this.getRuntimeState()
+  }
+
+  private shouldAttemptReconnect(): boolean {
+    return (
+      this.server.transport !== 'stdio' &&
+      !this.manualDisconnect &&
+      !this.reconnectInFlight &&
+      (this.server.reconnectAttempts ?? 0) > 0
+    )
+  }
+
+  private async attemptReconnect(): Promise<void> {
+    if (this.reconnectInFlight) {
+      return
+    }
+
+    this.reconnectInFlight = true
+    const maxAttempts = Math.max(0, this.server.reconnectAttempts ?? 0)
+    const reconnectPolicy = {
+      enabled: true,
+      maxAttempts,
+      initialDelayMs: Math.max(250, this.server.reconnectDelayMs ?? 1000),
+      maxDelayMs: Math.max(1000, (this.server.reconnectDelayMs ?? 1000) * 8),
+      backoffMultiplier: 2,
+    }
+    let lastError = this.lastConnectionError ?? `MCP connection closed for server "${this.server.name}"`
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      this.updateRuntimeState({
+        status: 'connecting',
+        error: `Connection lost. Reconnecting ${attempt}/${maxAttempts}...`,
+        lastConnectionError: lastError,
+      })
+
+      await waitForMcpReconnectDelay(buildMcpReconnectDelay(reconnectPolicy, attempt - 1))
+
+      try {
+        await this.openAndInitialize()
+        this.reconnectInFlight = false
+        return
+      } catch (error) {
+        lastError = toErrorMessage(error)
+        this.lastConnectionError = lastError
+      }
+    }
+
+    this.reconnectInFlight = false
+    this.updateRuntimeState({
+      status: 'error',
+      error: lastError,
+      lastConnectionError: lastError,
+    })
+  }
+}
+
+function parseListResourcesResult(result: unknown): McpListResourcesResult {
+  if (!isRecord(result)) {
+    throw new Error('MCP resources/list response is invalid')
+  }
+
+  if (result.resources != null && !Array.isArray(result.resources)) {
+    throw new Error('MCP resources/list response is invalid')
+  }
+
+  const resources = Array.isArray(result.resources)
+    ? result.resources.filter(isMcpResourceManifest)
+    : []
+
+  return {
+    ...result,
+    resources,
+  }
+}
+
+function parseReadResourceResult(result: unknown): McpResourceReadResult {
+  if (!isRecord(result)) {
+    throw new Error('MCP resources/read response is invalid')
+  }
+
+  const contents = Array.isArray(result.contents)
+    ? result.contents.filter(isMcpResourceContentItem)
+    : []
+
+  return { contents }
+}
+
+function parseListPromptsResult(result: unknown): McpListPromptsResult {
+  if (!isRecord(result)) {
+    throw new Error('MCP prompts/list response is invalid')
+  }
+
+  if (result.prompts != null && !Array.isArray(result.prompts)) {
+    throw new Error('MCP prompts/list response is invalid')
+  }
+
+  const prompts = Array.isArray(result.prompts)
+    ? result.prompts.filter(isMcpPromptManifest)
+    : []
+
+  return {
+    ...result,
+    prompts,
+  }
+}
+
+function parseGetPromptResult(result: unknown): McpPromptResult {
+  if (!isRecord(result)) {
+    throw new Error('MCP prompts/get response is invalid')
+  }
+
+  const messages = Array.isArray(result.messages) ? result.messages.filter(isMcpPromptMessage) : []
+
+  return {
+    description: nonEmptyString(result.description),
+    messages,
   }
 }
 
@@ -369,7 +559,7 @@ export function createMcpTransportForServer(server: McpResolvedServerConfig): Mc
   }
 
   const reconnectPolicy = {
-    enabled: false,
+    enabled: (server.reconnectAttempts ?? 0) > 0,
     maxAttempts: server.reconnectAttempts ?? 0,
     initialDelayMs: server.reconnectDelayMs ?? 1000,
   }
@@ -464,6 +654,27 @@ function isMcpToolManifest(value: unknown): value is McpToolManifest {
     value.name.trim().length > 0 &&
     isRecord(value.inputSchema)
   )
+}
+
+function isMcpResourceManifest(value: unknown): value is McpResourceManifest {
+  return isRecord(value) && typeof value.uri === 'string' && value.uri.trim().length > 0
+}
+
+function isMcpPromptManifest(value: unknown): value is McpPromptManifest {
+  return isRecord(value) && typeof value.name === 'string' && value.name.trim().length > 0
+}
+
+function isMcpResourceContentItem(value: unknown): value is McpResourceReadResult['contents'][number] {
+  return (
+    isRecord(value) &&
+    typeof value.uri === 'string' &&
+    value.uri.trim().length > 0 &&
+    (typeof value.text === 'string' || typeof value.blob === 'string' || value.text == null || value.blob == null)
+  )
+}
+
+function isMcpPromptMessage(value: unknown): value is McpPromptResult['messages'][number] {
+  return isRecord(value) && typeof value.role === 'string' && Object.prototype.hasOwnProperty.call(value, 'content')
 }
 
 function nonEmptyString(value: unknown): string | undefined {

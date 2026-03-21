@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { withWebResearchEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
+import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 
 export interface InputAreaProps {
   input: string
@@ -85,6 +86,7 @@ export function InputArea({
   const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
+  const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 52,
     maxHeight: 200,
@@ -246,6 +248,17 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
   const showAttachmentRail = attachedFiles.length > 0
   const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
 
+  const insertMcpTextIntoComposer = React.useCallback(
+    (text: string) => {
+      const nextValue = input.trim().length > 0 ? `${input.trim()}\n\n${text}` : text
+      setInput(nextValue)
+      adjustHeight()
+      requestAnimationFrame(() => textareaRef.current?.focus())
+      onActivity?.()
+    },
+    [adjustHeight, input, onActivity, setInput, textareaRef]
+  )
+
   // Throttled mouse-move activity signal (fire at most once per 2s)
   const lastMouseActivityRef = React.useRef(0)
   const handleMouseMoveActivity = React.useCallback(() => {
@@ -383,6 +396,42 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
                         <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                        <span>MCP Library</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={-10}
+                        className="w-[220px] rounded-xl p-1.5"
+                      >
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            setMcpDialogMode('resources')
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                        >
+                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                          <span>Browse resources</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            setMcpDialogMode('prompts')
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                        >
+                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                          <span>Browse prompts</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator className="mx-3 my-1 h-px" />
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
+                        <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
                         <span>Skills</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
@@ -484,6 +533,19 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
           </div>
         </div>
       </div>
+
+      {mcpDialogMode && (
+        <McpLibraryDialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMcpDialogMode(null)
+            }
+          }}
+          initialMode={mcpDialogMode}
+          onInsertText={insertMcpTextIntoComposer}
+        />
+      )}
     </TooltipProvider>
   )
 }

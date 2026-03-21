@@ -400,6 +400,8 @@ export default function ChatArea() {
                               result={result.result.success ? result.result.data : undefined}
                               error={result.result.success ? undefined : result.result.error}
                               metadata={result.result?.metadata}
+                              toolArguments={result.toolCall.arguments}
+                              executionTime={result.result?.executionTime}
                               sessionId={currentSessionId || undefined}
                               messageId={msg.id}
                               toolResultIndex={i}

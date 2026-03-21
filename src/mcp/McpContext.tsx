@@ -3,7 +3,11 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import type {
   McpApprovalRequest,
   McpNamespacedTool,
+  McpPromptResult,
+  McpRuntimePrompt,
+  McpRuntimeResource,
   McpRuntimeSnapshot,
+  McpResourceReadResult,
   McpServerConfig,
   McpServerRuntimeState,
 } from './types'
@@ -23,6 +27,8 @@ interface McpContextValue {
   servers: McpServerConfig[]
   runtimeStates: McpServerRuntimeState[]
   tools: McpNamespacedTool[]
+  resources: McpRuntimeResource[]
+  prompts: McpRuntimePrompt[]
   pendingApprovals: McpApprovalRequest[]
   draftServers: McpDraftServer[]
   hasDraftChanges: boolean
@@ -34,6 +40,14 @@ interface McpContextValue {
   refresh: () => Promise<void>
   connectServer: (serverId: string) => Promise<void>
   disconnectServer: (serverId: string) => Promise<void>
+  listResources: (serverId?: string) => Promise<McpRuntimeResource[]>
+  readResource: (serverId: string, uri: string) => Promise<McpResourceReadResult>
+  listPrompts: (serverId?: string) => Promise<McpRuntimePrompt[]>
+  getPrompt: (
+    serverId: string,
+    promptName: string,
+    args: Record<string, unknown>
+  ) => Promise<McpPromptResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<void>
   getRuntimeState: (serverId: string) => McpServerRuntimeState | undefined
 }
@@ -42,6 +56,8 @@ const emptySnapshot: McpRuntimeSnapshot = {
   servers: [],
   runtimeStates: [],
   tools: [],
+  resources: [],
+  prompts: [],
   pendingApprovals: [],
 }
 
@@ -218,6 +234,41 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
     [refresh]
   )
 
+  const listResources = useCallback(async (serverId?: string) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.listResources(serverId)
+  }, [])
+
+  const readResource = useCallback(async (serverId: string, uri: string) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.readResource(serverId, uri)
+  }, [])
+
+  const listPrompts = useCallback(async (serverId?: string) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    return window.mcp.listPrompts(serverId)
+  }, [])
+
+  const getPrompt = useCallback(
+    async (serverId: string, promptName: string, args: Record<string, unknown>) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      return window.mcp.getPrompt(serverId, promptName, args)
+    },
+    []
+  )
+
   const resolveApproval = useCallback(async (requestId: string, approved: boolean) => {
     if (!window.mcp) {
       throw new Error('MCP bridge is unavailable in this environment.')
@@ -241,6 +292,8 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       servers: snapshot.servers,
       runtimeStates: snapshot.runtimeStates,
       tools: snapshot.tools,
+      resources: snapshot.resources,
+      prompts: snapshot.prompts,
       pendingApprovals: snapshot.pendingApprovals,
       draftServers,
       hasDraftChanges,
@@ -252,6 +305,10 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       refresh,
       connectServer,
       disconnectServer,
+      listResources,
+      readResource,
+      listPrompts,
+      getPrompt,
       resolveApproval,
       getRuntimeState,
     }),
@@ -261,15 +318,21 @@ export function McpProvider({ children }: { children: React.ReactNode }): React.
       discardDraft,
       draftServers,
       error,
+      getPrompt,
       getRuntimeState,
       hasDraftChanges,
       isLoading,
       isRefreshing,
       isSupported,
+      listPrompts,
+      listResources,
+      readResource,
       resolveApproval,
       refresh,
       removeDraftServer,
       saveDraft,
+      snapshot.prompts,
+      snapshot.resources,
       snapshot.runtimeStates,
       snapshot.servers,
       snapshot.tools,

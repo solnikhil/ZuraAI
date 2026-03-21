@@ -170,6 +170,8 @@ class FakeMcpConnection implements McpManagedConnection {
         resources: false,
         prompts: false,
       },
+      resources: [],
+      prompts: [],
       lastConnectionError: null,
       lastConnectionTime: null,
       lastUpdatedAt: new Date().toISOString(),
@@ -202,13 +204,25 @@ class FakeMcpConnection implements McpManagedConnection {
       status: 'connected',
       capabilities: {
         tools: true,
-        resources: false,
-        prompts: false,
+        resources: true,
+        prompts: true,
       },
       tools: [
         {
           name: 'read_file',
           inputSchema: { type: 'object' },
+        },
+      ],
+      resources: [
+        {
+          uri: 'file:///tmp/demo.txt',
+          title: 'Demo File',
+        },
+      ],
+      prompts: [
+        {
+          name: 'summarize_demo',
+          title: 'Summarize Demo',
         },
       ],
       lastConnectionError: null,
@@ -240,6 +254,36 @@ class FakeMcpConnection implements McpManagedConnection {
       ],
       structuredContent: args,
       isError: false,
+    }
+  }
+
+  async listResources() {
+    return this.state.resources
+  }
+
+  async readResource(uri: string) {
+    return {
+      contents: [
+        {
+          uri,
+          text: `resource ${uri}`,
+        },
+      ],
+    }
+  }
+
+  async listPrompts() {
+    return this.state.prompts
+  }
+
+  async getPrompt(name: string, args: Record<string, unknown>) {
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: `${name}:${JSON.stringify(args)}`,
+        },
+      ],
     }
   }
 
@@ -282,6 +326,8 @@ function createServerConfig(overrides: Partial<McpServerConfig> = {}): McpServer
     reconnectDelayMs: 1000,
     requireApproval: true,
     lastKnownTools: [],
+    lastKnownResources: [],
+    lastKnownPrompts: [],
     lastConnectionError: null,
     lastConnectionTime: null,
     createdAt: '2026-03-19T00:00:00.000Z',
@@ -306,6 +352,14 @@ function cloneRuntimeState(runtimeState: McpServerRuntimeState): McpServerRuntim
       ...tool,
       inputSchema: { ...tool.inputSchema },
       annotations: tool.annotations ? { ...tool.annotations } : undefined,
+    })),
+    resources: (runtimeState.resources ?? []).map((resource) => ({
+      ...resource,
+      annotations: resource.annotations ? { ...resource.annotations } : undefined,
+    })),
+    prompts: (runtimeState.prompts ?? []).map((prompt) => ({
+      ...prompt,
+      arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : undefined,
     })),
     capabilities: { ...runtimeState.capabilities },
     connectionInfo: runtimeState.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,

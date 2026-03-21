@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
   buildFinalSynthesisMessages,
   FINAL_SYNTHESIS_PROMPT,
   getThinkingTranscript,
+  publishStreamingToolResults,
 } from './streamingUtils'
 
 describe('streamingUtils final synthesis helpers', () => {
@@ -50,5 +51,48 @@ describe('streamingUtils final synthesis helpers', () => {
     )
 
     expect(transcript).toBe('Initial reasoning\n\n---\n\nFollow-up reasoning')
+  })
+
+  it('publishes tool results into streaming state as soon as they complete', () => {
+    const updateStreaming = vi.fn()
+    const updateStreamingMessage = vi.fn()
+    const toolResults = [
+      {
+        toolCall: {
+          id: 'tool-1',
+          name: 'mcp__filesystem__read_file',
+          arguments: { path: '/tmp/demo.txt' },
+        },
+        result: {
+          success: true,
+          data: { text: 'demo' },
+          executionTime: 42,
+          metadata: {
+            origin: 'mcp' as const,
+            serverId: 'server-1',
+            serverName: 'Filesystem',
+            namespacedToolName: 'mcp__filesystem__read_file',
+            originalToolName: 'read_file',
+            trusted: true,
+            approvalState: 'approved' as const,
+            durationMs: 42,
+            outcome: 'success' as const,
+          },
+        },
+      },
+    ]
+
+    publishStreamingToolResults(
+      updateStreaming,
+      updateStreamingMessage,
+      'session-1',
+      'message-1',
+      toolResults
+    )
+
+    expect(updateStreaming).toHaveBeenCalledWith({ toolResults })
+    expect(updateStreamingMessage).toHaveBeenCalledWith('session-1', 'message-1', {
+      toolResults,
+    })
   })
 })

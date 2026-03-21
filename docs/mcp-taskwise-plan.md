@@ -108,17 +108,24 @@ Goal: finalize the MCP shape before runtime code expands the architecture.
 
 ### Tasks
 
-- [ ] Confirm initial release scope: tools-first, client-only, no server mode.
-- [ ] Decide whether public MVP is `stdio` only or `stdio` plus remote transports.
-- [ ] Finalize tool naming convention for MCP tools.
-- [ ] Finalize server config schema and versioning strategy.
-- [ ] Finalize secret-storage strategy for env vars, tokens, and headers.
-- [ ] Finalize trust and approval defaults for newly added servers.
-- [ ] Define connection-status model and user-facing error states.
-- [ ] Define how disconnected/error servers affect tool exposure.
-- [ ] Define migration strategy so built-in tools continue to work unchanged.
-- [ ] Decide where the MCP settings section lives in navigation.
-- [ ] Decide whether `resources` and `prompts` are hidden entirely or shown as capability counts in early phases.
+- [x] Confirm initial release scope: tools-first, client-only, no server mode.
+- [x] Decide whether public MVP is `stdio` only or `stdio` plus remote transports.
+- [x] Finalize tool naming convention for MCP tools.
+- [x] Finalize server config schema and versioning strategy.
+- [x] Finalize secret-storage strategy for env vars, tokens, and headers.
+- [x] Finalize trust and approval defaults for newly added servers.
+- [x] Define connection-status model and user-facing error states.
+- [x] Define how disconnected/error servers affect tool exposure.
+- [x] Define migration strategy so built-in tools continue to work unchanged.
+- [x] Decide where the MCP settings section lives in navigation.
+- [x] Decide whether `resources` and `prompts` are hidden entirely or shown as capability counts in early phases.
+
+Implementation notes:
+- The released MCP shape stays client-only and tools-first; there is no MCP server-host mode in the app.
+- The public implementation supports `stdio`, `sse`, and `websocket`, with remote transports guarded by explicit config and diagnostics rather than a separate server mode.
+- MCP tool naming is finalized as `mcp__<server_slug>__<tool_slug>`.
+- New servers default to `enabled: false`, `trustState: 'untrusted'`, and `requireApproval: true`, while disconnected/error servers are removed from model-visible tool exposure.
+- The MCP settings entry lives in Settings, and early capability summaries show tool/resource/prompt counts while keeping resources/prompts user-visible only.
 
 ### Repo touchpoints
 
@@ -332,30 +339,35 @@ Goal: route MCP tool calls through the current chat loop safely.
 ### Tasks
 
 #### 1. Execution routing
-- [ ] Add MCP execution path separate from built-in `execute-tool` IPC usage.
-- [ ] Route namespaced MCP tools through `window.mcp.executeTool(...)` or equivalent dedicated bridge action.
-- [ ] Keep `research_plan` renderer-only and `web_search` main-process built-in.
+- [x] Add MCP execution path separate from built-in `execute-tool` IPC usage.
+- [x] Route namespaced MCP tools through `window.mcp.executeTool(...)` or equivalent dedicated bridge action.
+- [x] Keep `research_plan` renderer-only and `web_search` main-process built-in.
 
 #### 2. Runtime exposure policy
-- [ ] Expose MCP tools only when the server is enabled.
-- [ ] Expose MCP tools only when the server is connected.
-- [ ] Expose MCP tools only when current provider supports tools.
-- [ ] Expose MCP tools only when trust/approval policy allows them to be surfaced.
+- [x] Expose MCP tools only when the server is enabled.
+- [x] Expose MCP tools only when the server is connected.
+- [x] Expose MCP tools only when current provider supports tools.
+- [x] Expose MCP tools only when trust/approval policy allows them to be surfaced.
 
 #### 3. Main-process tool execution
-- [ ] Implement `tools/call` in `mcpConnection`.
-- [ ] Return normalized result payloads back to renderer.
-- [ ] Add timeout handling and cancellation boundaries.
+- [x] Implement `tools/call` in `mcpConnection`.
+- [x] Return normalized result payloads back to renderer.
+- [x] Add timeout handling and cancellation boundaries.
 
 #### 4. Chat loop integration
-- [ ] Ensure `handleToolCalls` can process MCP results alongside built-in ones.
-- [ ] Ensure follow-up tool result messages remain provider-compatible.
-- [ ] Ensure failures produce model-visible tool errors instead of silent drops.
+- [x] Ensure `handleToolCalls` can process MCP results alongside built-in ones.
+- [x] Ensure follow-up tool result messages remain provider-compatible.
+- [x] Ensure failures produce model-visible tool errors instead of silent drops.
 
 #### 5. Streaming and state updates
-- [ ] Surface active MCP tool call state in chat.
-- [ ] Ensure tool completion updates the current streaming state correctly.
-- [ ] Avoid search-specific assumptions for generic MCP calls.
+- [x] Surface active MCP tool call state in chat.
+- [x] Ensure tool completion updates the current streaming state correctly.
+- [x] Avoid search-specific assumptions for generic MCP calls.
+
+Implementation notes:
+- MCP tool execution now rides the same chat tool loop as built-in tools, but keeps a dedicated renderer-to-main bridge via `window.mcp.executeTool(...)`.
+- Generic MCP tool completions are pushed into active streaming state immediately so the user can see results and audit metadata before the assistant finishes its follow-up answer.
+- Built-in search/research behavior stays split: `web_search` remains a restricted main-process built-in tool and `research_plan` remains renderer-only.
 
 ### Repo touchpoints
 
@@ -381,35 +393,40 @@ Goal: enforce the safety model required for external MCP tools.
 ### Tasks
 
 #### 1. Trust model
-- [ ] Add per-server trust state.
-- [ ] Define defaults for newly added servers: disabled, untrusted, approval required.
-- [ ] Keep untrusted servers from exposing tools to models.
+- [x] Add per-server trust state.
+- [x] Define defaults for newly added servers: disabled, untrusted, approval required.
+- [x] Keep untrusted servers from exposing tools to models.
 
 #### 2. Approval manager
-- [ ] Create `electron/mcp/mcpApprovalManager.ts` if not already present.
-- [ ] Add pending request registry.
-- [ ] Add timeout expiry and auto-reject behavior.
-- [ ] Add renderer resolution path.
+- [x] Create `electron/mcp/mcpApprovalManager.ts` if not already present.
+- [x] Add pending request registry.
+- [x] Add timeout expiry and auto-reject behavior.
+- [x] Add renderer resolution path.
 
 #### 3. Approval UI
-- [ ] Create `src/components/mcp/McpApprovalDialog.tsx`.
-- [ ] Show server name, tool name, arguments, and risk notice.
-- [ ] Add approve/reject actions.
-- [ ] Support one clear pending approval flow at minimum.
+- [x] Create `src/components/mcp/McpApprovalDialog.tsx`.
+- [x] Show server name, tool name, arguments, and risk notice.
+- [x] Add approve/reject actions.
+- [x] Support one clear pending approval flow at minimum.
 
 #### 4. Policy controls
-- [ ] Add server-level approval requirements to config UI.
-- [ ] Optionally add per-server tool allowlist/blocklist scaffolding.
-- [ ] Add execution timeout policy per server.
+- [x] Add server-level approval requirements to config UI.
+- [x] Optionally add per-server tool allowlist/blocklist scaffolding.
+- [x] Add execution timeout policy per server.
 
 #### 5. Failure and recovery guards
-- [ ] Reject stalled requests cleanly.
-- [ ] Handle process crash or remote disconnect during pending approval.
-- [ ] Return structured errors back into the tool pipeline.
+- [x] Reject stalled requests cleanly.
+- [x] Handle process crash or remote disconnect during pending approval.
+- [x] Return structured errors back into the tool pipeline.
 
 #### 6. Auditability
-- [ ] Attach execution metadata to MCP tool results.
-- [ ] Include approval state, server id, duration, and outcome.
+- [x] Attach execution metadata to MCP tool results.
+- [x] Include approval state, server id, duration, and outcome.
+
+Implementation notes:
+- Trusted servers can still require per-call approval, and untrusted servers remain hidden from model-visible tool exposure even if they are configured or connected.
+- Pending approvals are broadcast through the MCP runtime snapshot, resolved through the dedicated renderer bridge, and auto-rejected on timeout, disconnect, server update, remove, or shutdown.
+- MCP execution results carry audit metadata used by chat rendering so users can distinguish approval rejection, timeout, cancellation, and execution failure.
 
 ### Repo touchpoints
 
@@ -433,32 +450,37 @@ Goal: make MCP results readable in chat and measurable in usage reporting.
 ### Tasks
 
 #### 1. Generic result rendering
-- [ ] Add generic tool result card UI for non-search tools.
-- [ ] Show server, tool, status, duration, approval state, and formatted output.
-- [ ] Fall back to readable JSON for arbitrary objects.
-- [ ] Preserve special rendering for `web_search`.
+- [x] Add generic tool result card UI for non-search tools.
+- [x] Show server, tool, status, duration, approval state, and formatted output.
+- [x] Fall back to readable JSON for arbitrary objects.
+- [x] Preserve special rendering for `web_search`.
 
 #### 2. Error UX
-- [ ] Show connection errors clearly.
-- [ ] Show approval rejection distinctly from execution failure.
-- [ ] Show timeout and disconnect errors distinctly.
+- [x] Show connection errors clearly.
+- [x] Show approval rejection distinctly from execution failure.
+- [x] Show timeout and disconnect errors distinctly.
 
 #### 3. Streaming/chat polish
-- [ ] Improve active-tool indicator for MCP tools.
-- [ ] Avoid web-search-specific copy for generic tool runs.
-- [ ] Ensure multi-tool sequences remain understandable.
+- [x] Improve active-tool indicator for MCP tools.
+- [x] Avoid web-search-specific copy for generic tool runs.
+- [x] Ensure multi-tool sequences remain understandable.
 
 #### 4. Usage and analytics
-- [ ] Add basic local metrics for MCP executions.
-- [ ] Count successful vs failed MCP tool calls.
-- [ ] Track approval accept/reject counts.
-- [ ] Consider exporting MCP activity in usage snapshots if consistent with existing privacy model.
+- [x] Add basic local metrics for MCP executions.
+- [x] Count successful vs failed MCP tool calls.
+- [x] Track approval accept/reject counts.
+- [x] Consider exporting MCP activity in usage snapshots if consistent with existing privacy model.
 
 ### Repo touchpoints
 
 - message rendering and tool result UI files
-- usage metrics helpers if extended
-- streaming utilities and tool-state UI
+
+Implementation notes:
+- Non-search tool results now render as generic result cards that surface MCP audit metadata, server identity, approval state, duration, and formatted input/output while leaving `web_search` on its richer search-specific renderer.
+- Active MCP tool execution now uses generic "Running ..." copy and a tool-oriented indicator instead of inheriting web-search phrasing.
+- MCP error cards now classify approval rejection, timeout, cancellation, disconnect, and connection failures separately so the user can tell why a run stopped.
+- Chat rendering now surfaces per-message MCP metrics locally (runs, success/failure counts, approval counts) and shows queued active tool calls when multiple MCP tools are in flight.
+- Broader usage-snapshot export was evaluated and intentionally left local-only for the current privacy model; MCP analytics stay in message-local UI summaries instead of separate telemetry snapshots.
 
 ### Done when
 
@@ -475,28 +497,33 @@ Goal: add non-tool MCP capabilities after tool execution is stable.
 ### Tasks
 
 #### 1. Capability discovery
-- [ ] Extend runtime state to cache resources and prompts in a structured way.
-- [ ] Define whether resources/prompts are user-visible, model-visible, or both.
+- [x] Extend runtime state to cache resources and prompts in a structured way.
+- [x] Define whether resources/prompts are user-visible, model-visible, or both.
 
 #### 2. Resource UX
-- [ ] Add optional resource browser UI.
-- [ ] Add fetch/read flow for selected resources.
-- [ ] Define whether resources become tools, context attachments, or manual user actions.
+- [x] Add optional resource browser UI.
+- [x] Add fetch/read flow for selected resources.
+- [x] Define whether resources become tools, context attachments, or manual user actions.
 
 #### 3. Prompt UX
-- [ ] Add optional prompt browser.
-- [ ] Define how MCP prompts are inserted into chat or agent flows.
-- [ ] Avoid bypassing existing system-prompt controls.
+- [x] Add optional prompt browser.
+- [x] Define how MCP prompts are inserted into chat or agent flows.
+- [x] Avoid bypassing existing system-prompt controls.
 
 #### 4. Safety and exposure rules
-- [ ] Apply trust and approval rules to resource and prompt access too.
-- [ ] Ensure resources/prompts do not widen IPC unsafely.
+- [x] Apply trust and approval rules to resource and prompt access too.
+- [x] Ensure resources/prompts do not widen IPC unsafely.
 
 ### Repo touchpoints
 
 - `electron/mcp/*`
 - `src/mcp/*`
 - chat/input components if prompt insertion is added
+
+Implementation notes:
+- Runtime snapshots now carry structured resource and prompt manifests per server, while heavy read/get results stay on dedicated on-demand IPC calls.
+- Resource and prompt browsing is user-visible only for trusted, connected, enabled servers; nothing in Phase 7 makes them model-callable.
+- Resource reads and prompt expansion flow through the shared MCP library dialog and insert into the composer draft only on explicit user action.
 
 ### Done when
 
@@ -512,32 +539,38 @@ Goal: finish remote readiness and make MCP production-grade.
 ### Tasks
 
 #### 1. SSE hardening
-- [ ] Finalize production SSE implementation.
-- [ ] Add retry/backoff policy.
-- [ ] Add auth header secret resolution and masking.
-- [ ] Add robust request/stream error handling.
+- [x] Finalize production SSE implementation.
+- [x] Add retry/backoff policy.
+- [x] Add auth header secret resolution and masking.
+- [x] Add robust request/stream error handling.
 
 #### 2. WebSocket hardening
-- [ ] Finalize production WebSocket implementation.
-- [ ] Add heartbeat/staleness handling.
-- [ ] Add reconnect/backoff policy.
-- [ ] Add disconnect reason diagnostics.
+- [x] Finalize production WebSocket implementation.
+- [x] Add heartbeat/staleness handling.
+- [x] Add reconnect/backoff policy.
+- [x] Add disconnect reason diagnostics.
 
 #### 3. Packaging and environment checks
-- [ ] Verify Electron packaging includes MCP runtime code cleanly.
-- [ ] Verify no packaging step leaks MCP secrets.
-- [ ] Verify Windows install/update flows do not break server config loading.
+- [x] Verify Electron packaging includes MCP runtime code cleanly.
+- [x] Verify no packaging step leaks MCP secrets.
+- [x] Verify Windows install/update flows do not break server config loading.
 
 #### 4. DX and supportability
-- [ ] Add developer docs for adding test MCP servers.
-- [ ] Add troubleshooting section for local vs remote server failures.
-- [ ] Add example configs for common servers.
+- [x] Add developer docs for adding test MCP servers.
+- [x] Add troubleshooting section for local vs remote server failures.
+- [x] Add example configs for common servers.
 
 #### 5. Release readiness
-- [ ] Run full regression on built-in tools.
-- [ ] Run transport-specific integration tests.
-- [ ] Update `AGENTS.md` architecture one last time for released MCP shape.
-- [ ] Update user-facing docs and release notes.
+- [x] Run full regression on built-in tools.
+- [x] Run transport-specific integration tests.
+- [x] Update `AGENTS.md` architecture one last time for released MCP shape.
+- [x] Update user-facing docs and release notes.
+
+Implementation notes:
+- Remote transports now have real SSE and WebSocket implementations with header masking, timeout handling, backoff on initial connect, and connection diagnostics.
+- `electron/mcp/mcpConnection.ts` now owns reconnect loops for unexpected remote disconnects so the initialize handshake and capability discovery rerun after the transport comes back.
+- Packaging verification now includes a successful `npm run build:dir` check against the unpacked Electron output plus `npm run verify:mcp-release`, which asserts persisted MCP/user data files are not bundled and that Windows uninstall keeps app data intact.
+- Remote integration coverage now exercises end-to-end `McpConnection` flows against mock SSE and WebSocket servers.
 
 ### Repo touchpoints
 
@@ -563,11 +596,11 @@ These should be revisited in every phase, not treated as one-off work.
 - [x] Add unit tests for type normalization and config validation.
 - [x] Add unit tests for transport message handling.
 - [x] Add integration tests with a mock `stdio` MCP server.
-- [ ] Add property tests for MCP manager snapshot aggregation and active-tool filtering.
-- [ ] Add property tests for MCP server config CRUD round-trips and persisted-state invariants.
-- [ ] Add property tests for MCP connection lifecycle invariants and auto-connect eligibility rules.
-- [ ] Add integration tests for SSE/WebSocket when enabled.
-- [ ] Add UI tests for settings and approval flows.
+- [x] Add property tests for MCP manager snapshot aggregation and active-tool filtering.
+- [x] Add property tests for MCP server config CRUD round-trips and persisted-state invariants.
+- [x] Add property tests for MCP connection lifecycle invariants and auto-connect eligibility rules.
+- [x] Add integration tests for SSE/WebSocket when enabled.
+- [x] Add UI tests for settings and approval flows.
 - [x] Run `npm test` after each meaningful phase.
 
 ### Documentation
@@ -580,7 +613,7 @@ These should be revisited in every phase, not treated as one-off work.
 
 - [x] Re-validate preload allowlists after every new MCP IPC channel.
 - [x] Re-check that secrets never flow into renderer persistence.
-- [ ] Re-check that renderer cannot bypass approval or execute arbitrary tools.
+- [x] Re-check that renderer cannot bypass approval or execute arbitrary tools.
 
 ### Migration safety
 

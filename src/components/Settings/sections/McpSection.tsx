@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 import { useMcp } from '@/mcp/McpContext'
 import {
   createDraftConfigValue,
@@ -50,8 +51,10 @@ export function McpSection(): React.ReactElement {
     isRefreshing,
     isSupported,
     pendingApprovals,
+    prompts = [],
     refresh,
     removeDraftServer,
+    resources = [],
     runtimeStates,
     servers,
     tools,
@@ -64,6 +67,8 @@ export function McpSection(): React.ReactElement {
   const [dialogErrors, setDialogErrors] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<McpDraftServer | null>(null)
   const [serverActionState, setServerActionState] = useState<Record<string, 'connecting' | 'disconnecting' | 'idle'>>({})
+  const [libraryMode, setLibraryMode] = useState<'resources' | 'prompts' | null>(null)
+  const [libraryServerId, setLibraryServerId] = useState<string | undefined>(undefined)
 
   const liveServersById = useMemo(
     () => new Map(servers.map((server) => [server.id, server])),
@@ -146,6 +151,8 @@ export function McpSection(): React.ReactElement {
               <Badge variant="secondary">{draftServers.length} configured</Badge>
               <Badge variant="outline">{connectedServerCount} connected</Badge>
               <Badge variant="outline">{tools.length} discovered tools</Badge>
+              <Badge variant="outline">{resources.length} resources</Badge>
+              <Badge variant="outline">{prompts.length} prompts</Badge>
               <Badge variant={hasDraftChanges ? 'default' : 'outline'}>
                 {hasDraftChanges ? 'Unsaved changes' : 'Saved'}
               </Badge>
@@ -163,6 +170,16 @@ export function McpSection(): React.ReactElement {
             <Button type="button" variant="outline" onClick={() => void refresh()} disabled={isRefreshing}>
               {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
               Refresh
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setLibraryServerId(undefined)
+                setLibraryMode('resources')
+              }}
+            >
+              Browse Library
             </Button>
             <Button type="button" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -212,6 +229,8 @@ export function McpSection(): React.ReactElement {
           draftServers.map((server) => {
             const runtimeState = getRuntimeState(server.id)
             const toolCount = runtimeState?.tools.length ?? liveServersById.get(server.id)?.lastKnownTools?.length ?? 0
+            const resourceCount = runtimeState?.resources.length ?? liveServersById.get(server.id)?.lastKnownResources?.length ?? 0
+            const promptCount = runtimeState?.prompts.length ?? liveServersById.get(server.id)?.lastKnownPrompts?.length ?? 0
             const liveServer = liveServersById.get(server.id)
             const isDraftOnly = !liveServer
             const isDirty = !liveServer || !isDraftServerEqualToLiveServer(server, liveServer)
@@ -241,6 +260,17 @@ export function McpSection(): React.ReactElement {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setLibraryServerId(server.id)
+                          setLibraryMode('resources')
+                        }}
+                      >
+                        Browse
+                      </Button>
                       <Button type="button" variant="outline" size="sm" onClick={() => openEditDialog(server)}>
                         <PencilLine className="mr-2 h-4 w-4" />
                         Edit
@@ -255,6 +285,8 @@ export function McpSection(): React.ReactElement {
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={status} />
                     <Badge variant="outline">{toolCount} tools</Badge>
+                    <Badge variant="outline">{resourceCount} resources</Badge>
+                    <Badge variant="outline">{promptCount} prompts</Badge>
                     <Badge variant={server.trustState === 'trusted' ? 'secondary' : 'outline'}>
                       {server.trustState === 'trusted' ? 'Trusted' : 'Untrusted'}
                     </Badge>
@@ -301,6 +333,18 @@ export function McpSection(): React.ReactElement {
           })
         )}
       </div>
+
+      <McpLibraryDialog
+        open={libraryMode !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setLibraryMode(null)
+            setLibraryServerId(undefined)
+          }
+        }}
+        initialMode={libraryMode ?? 'resources'}
+        serverId={libraryServerId}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
@@ -530,6 +574,40 @@ export function McpSection(): React.ReactElement {
                   checked={dialogServer.requireApproval}
                   onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
                 />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="mcp-tool-allowlist">Tool allowlist</FieldLabel>
+                    <FieldDescription>
+                      Optional. One MCP tool name per line. When set, only these tool names are exposed from this server.
+                    </FieldDescription>
+                    <Textarea
+                      id="mcp-tool-allowlist"
+                      value={dialogServer.toolAllowlistText}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, toolAllowlistText: event.target.value })
+                      }
+                      placeholder={['read_file', 'write_file'].join('\n')}
+                      rows={5}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="mcp-tool-blocklist">Tool blocklist</FieldLabel>
+                    <FieldDescription>
+                      Optional. One MCP tool name per line. Blocked tools are hidden even if the server advertises them.
+                    </FieldDescription>
+                    <Textarea
+                      id="mcp-tool-blocklist"
+                      value={dialogServer.toolBlocklistText}
+                      onChange={(event) =>
+                        setDialogServer({ ...dialogServer, toolBlocklistText: event.target.value })
+                      }
+                      placeholder={['delete_file'].join('\n')}
+                      rows={5}
+                    />
+                  </Field>
+                </div>
               </FieldGroup>
             </div>
           )}

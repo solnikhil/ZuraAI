@@ -6,6 +6,7 @@
  */
 
 import { useCallback } from 'react'
+import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOllamaCompletion } from '../../../../../services/ollama'
 import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
 import type { OpenRouterMessage } from '../../../../../tools/types'
@@ -17,7 +18,12 @@ import type {
   ToolCallingHook,
   StreamingSettings,
 } from './types'
-import { appendCompletedThinkingBlock, getStreamingUpdateInterval } from './streamingUtils'
+import {
+  appendCompletedThinkingBlock,
+  getStreamingUpdateInterval,
+  mapToolResultsForStorage,
+  publishStreamingToolResults,
+} from './streamingUtils'
 
 export interface UseOllamaStreamingOptions {
   settings: StreamingSettings
@@ -41,6 +47,7 @@ export function useOllamaStreaming({
   flushThrottledUpdates,
   throttledUpdateStreamingMessage,
 }: UseOllamaStreamingOptions): UseOllamaStreamingReturn {
+  const { updateStreaming } = useStreamingActions()
   const updateInterval = getStreamingUpdateInterval()
 
   const streamOllama = useCallback(
@@ -252,6 +259,17 @@ export function useOllamaStreaming({
           }
         }
 
+        savedToolResults = toolResult?.toolResults
+          ? mapToolResultsForStorage(toolResult.toolResults)
+          : undefined
+        publishStreamingToolResults(
+          updateStreaming as (updates: Record<string, unknown>) => void,
+          updateStreamingMessage,
+          sessionId,
+          messageId,
+          savedToolResults
+        )
+
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
           // Stream follow-up response
           let followUpContent = ''
@@ -354,22 +372,6 @@ export function useOllamaStreaming({
             totalTokens: (finalUsage.totalTokens || 0) + (followUpUsage.totalTokens || 0),
           }
         }
-
-        savedToolResults =
-          toolResult?.toolResults?.map((tr: ToolCallResult) => ({
-            toolCall: {
-              id: tr.toolCall.id,
-              name: tr.toolCall.name,
-              arguments: tr.toolCall.arguments,
-            },
-            result: {
-              success: tr.result?.success ?? false,
-              data: tr.result?.data,
-              error: tr.result?.error,
-              executionTime: tr.result?.executionTime,
-              metadata: tr.result?.metadata,
-            },
-          })) || undefined
       }
 
       const endTime = performance.now()
@@ -402,6 +404,7 @@ export function useOllamaStreaming({
       settings,
       toolCalling,
       updateStreamingMessage,
+      updateStreaming,
       flushThrottledUpdates,
       throttledUpdateStreamingMessage,
       updateInterval,

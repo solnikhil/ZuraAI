@@ -1,7 +1,11 @@
 import type {
     McpApprovalDecision,
     McpNamespacedTool,
+    McpPromptResult,
+    McpRuntimePrompt,
+    McpRuntimeResource,
     McpRuntimeSnapshot,
+    McpResourceReadResult,
     McpServerConfig,
     McpServerRuntimeState,
     McpToolExecutionResult,
@@ -84,6 +88,10 @@ export interface McpAPI {
     disconnectServer: (serverId: string) => Promise<McpServerRuntimeState>
     getState: () => Promise<McpRuntimeSnapshot>
     listTools: (serverId?: string) => Promise<McpNamespacedTool[]>
+    listResources: (serverId?: string) => Promise<McpRuntimeResource[]>
+    readResource: (serverId: string, uri: string) => Promise<McpResourceReadResult>
+    listPrompts: (serverId?: string) => Promise<McpRuntimePrompt[]>
+    getPrompt: (serverId: string, promptName: string, args: Record<string, unknown>) => Promise<McpPromptResult>
     executeTool: (namespacedToolName: string, args: Record<string, unknown>) => Promise<McpToolExecutionResult>
     resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
     onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void

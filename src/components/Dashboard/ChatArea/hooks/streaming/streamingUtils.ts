@@ -246,6 +246,26 @@ export function mergeSavedToolResults(
   return existing ? [...existing, ...mapped] : mapped
 }
 
+/** Push persisted tool results into the active streaming state and message shell. */
+export function publishStreamingToolResults(
+  updateStreaming: (updates: Record<string, unknown>) => void,
+  updateStreamingMessage: UpdateStreamingCallback,
+  sessionId: string,
+  messageId: string,
+  savedToolResults: ToolCallResult[] | undefined
+): void {
+  if (!savedToolResults || savedToolResults.length === 0) {
+    return
+  }
+
+  const updates: Partial<Message> = {
+    toolResults: savedToolResults,
+  }
+
+  updateStreaming(updates as Record<string, unknown>)
+  updateStreamingMessage(sessionId, messageId, updates)
+}
+
 // Search query extraction
 
 /** Extract search query string from the first web_search or research_plan result */

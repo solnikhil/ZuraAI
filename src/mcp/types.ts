@@ -44,6 +44,57 @@ export interface McpToolManifest {
   annotations?: Record<string, unknown>
 }
 
+export interface McpResourceManifest {
+  uri: string
+  name?: string
+  title?: string
+  description?: string
+  mimeType?: string
+  size?: number
+  annotations?: Record<string, unknown>
+}
+
+export interface McpPromptArgument {
+  name: string
+  title?: string
+  description?: string
+  required?: boolean
+}
+
+export interface McpPromptManifest {
+  name: string
+  title?: string
+  description?: string
+  arguments?: McpPromptArgument[]
+}
+
+export interface McpExposurePolicy {
+  userVisible: boolean
+  modelVisible: boolean
+  requiresExplicitUserAction: boolean
+}
+
+export interface McpResourceContentItem {
+  uri: string
+  mimeType?: string
+  text?: string
+  blob?: string
+}
+
+export interface McpResourceReadResult {
+  contents: McpResourceContentItem[]
+}
+
+export interface McpPromptMessage {
+  role: string
+  content: unknown
+}
+
+export interface McpPromptResult {
+  description?: string
+  messages: McpPromptMessage[]
+}
+
 export interface McpServerCapabilities {
   tools: boolean
   resources: boolean
@@ -68,7 +119,11 @@ export interface McpServerConfig {
   reconnectAttempts?: number
   reconnectDelayMs?: number
   requireApproval: boolean
+  toolAllowlist?: string[]
+  toolBlocklist?: string[]
   lastKnownTools?: McpToolManifest[]
+  lastKnownResources?: McpResourceManifest[]
+  lastKnownPrompts?: McpPromptManifest[]
   lastConnectionError?: string | null
   lastConnectionTime?: string | null
   createdAt: string
@@ -119,6 +174,8 @@ export interface McpServerRuntimeState {
   lastConnectionError?: string | null
   lastConnectionTime?: string | null
   tools: McpToolManifest[]
+  resources: McpResourceManifest[]
+  prompts: McpPromptManifest[]
   capabilities: McpServerCapabilities
   connectionInfo?: McpServerConnectionInfo
   lastUpdatedAt?: string
@@ -137,10 +194,26 @@ export interface McpNamespacedTool extends McpNamespacedToolIdentity {
   manifest: McpToolManifest
 }
 
+export interface McpRuntimeResource {
+  serverId: string
+  serverName: string
+  manifest: McpResourceManifest
+  exposure: McpExposurePolicy
+}
+
+export interface McpRuntimePrompt {
+  serverId: string
+  serverName: string
+  manifest: McpPromptManifest
+  exposure: McpExposurePolicy
+}
+
 export interface McpRuntimeSnapshot {
   servers: McpServerConfig[]
   runtimeStates: McpServerRuntimeState[]
   tools: McpNamespacedTool[]
+  resources: McpRuntimeResource[]
+  prompts: McpRuntimePrompt[]
   pendingApprovals: McpApprovalRequest[]
 }
 
@@ -192,6 +265,27 @@ export interface McpToolExecutionResult {
   data?: unknown
   error?: string
   metadata: McpToolExecutionMetadata
+}
+
+export interface McpListResourcesResult {
+  resources?: McpResourceManifest[]
+  [key: string]: unknown
+}
+
+export interface McpReadResourceResult {
+  contents?: McpResourceContentItem[]
+  [key: string]: unknown
+}
+
+export interface McpListPromptsResult {
+  prompts?: McpPromptManifest[]
+  [key: string]: unknown
+}
+
+export interface McpGetPromptResult {
+  description?: string
+  messages?: McpPromptMessage[]
+  [key: string]: unknown
 }
 
 export interface McpJsonRpcErrorObject {

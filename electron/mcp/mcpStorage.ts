@@ -8,7 +8,10 @@ import { getSecureValueAsync } from '../secureStorage'
 import type {
   McpConfigValue,
   McpJsonSchema,
+  McpPromptArgument,
+  McpPromptManifest,
   McpResolvedServerConfig,
+  McpResourceManifest,
   McpServerConfig,
   McpServerStoreFile,
   McpServerTrustState,
@@ -91,6 +94,89 @@ function normalizeToolManifestList(value: unknown): McpToolManifest[] {
   return value
     .map(normalizeToolManifest)
     .filter((tool): tool is McpToolManifest => tool !== null)
+}
+
+function normalizeResourceManifest(value: unknown): McpResourceManifest | null {
+  if (!isRecord(value) || typeof value.uri !== 'string' || !value.uri.trim()) {
+    return null
+  }
+
+  return {
+    uri: value.uri.trim(),
+    name: typeof value.name === 'string' && value.name.trim() ? value.name.trim() : undefined,
+    title: typeof value.title === 'string' && value.title.trim() ? value.title.trim() : undefined,
+    description:
+      typeof value.description === 'string' && value.description.trim()
+        ? value.description.trim()
+        : undefined,
+    mimeType:
+      typeof value.mimeType === 'string' && value.mimeType.trim() ? value.mimeType.trim() : undefined,
+    size:
+      typeof value.size === 'number' && Number.isFinite(value.size) ? Math.max(0, value.size) : undefined,
+    annotations: isRecord(value.annotations) ? { ...value.annotations } : undefined,
+  }
+}
+
+function normalizeResourceManifestList(value: unknown): McpResourceManifest[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map(normalizeResourceManifest)
+    .filter((resource): resource is McpResourceManifest => resource !== null)
+}
+
+function normalizePromptArgument(value: unknown): McpPromptArgument | null {
+  if (!isRecord(value) || typeof value.name !== 'string' || !value.name.trim()) {
+    return null
+  }
+
+  return {
+    name: value.name.trim(),
+    title: typeof value.title === 'string' && value.title.trim() ? value.title.trim() : undefined,
+    description:
+      typeof value.description === 'string' && value.description.trim()
+        ? value.description.trim()
+        : undefined,
+    required: value.required === true,
+  }
+}
+
+function normalizePromptArgumentList(value: unknown): McpPromptArgument[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map(normalizePromptArgument)
+    .filter((argument): argument is McpPromptArgument => argument !== null)
+}
+
+function normalizePromptManifest(value: unknown): McpPromptManifest | null {
+  if (!isRecord(value) || typeof value.name !== 'string' || !value.name.trim()) {
+    return null
+  }
+
+  return {
+    name: value.name.trim(),
+    title: typeof value.title === 'string' && value.title.trim() ? value.title.trim() : undefined,
+    description:
+      typeof value.description === 'string' && value.description.trim()
+        ? value.description.trim()
+        : undefined,
+    arguments: normalizePromptArgumentList(value.arguments),
+  }
+}
+
+function normalizePromptManifestList(value: unknown): McpPromptManifest[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map(normalizePromptManifest)
+    .filter((prompt): prompt is McpPromptManifest => prompt !== null)
 }
 
 function normalizeConfigValue(value: unknown): McpConfigValue | null {
@@ -183,7 +269,11 @@ export function normalizeMcpServerConfig(
         ? Math.max(0, Math.round(raw.reconnectDelayMs))
         : undefined,
     requireApproval: typeof raw.requireApproval === 'boolean' ? raw.requireApproval : true,
+    toolAllowlist: normalizeStringArray(raw.toolAllowlist),
+    toolBlocklist: normalizeStringArray(raw.toolBlocklist),
     lastKnownTools: normalizeToolManifestList(raw.lastKnownTools),
+    lastKnownResources: normalizeResourceManifestList(raw.lastKnownResources),
+    lastKnownPrompts: normalizePromptManifestList(raw.lastKnownPrompts),
     lastConnectionError:
       raw.lastConnectionError == null
         ? null

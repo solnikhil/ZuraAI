@@ -3,7 +3,11 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 import type {
   McpApprovalDecision,
   McpNamespacedTool,
+  McpPromptResult,
+  McpRuntimePrompt,
+  McpRuntimeResource,
   McpRuntimeSnapshot,
+  McpResourceReadResult,
   McpServerConfig,
   McpServerRuntimeState,
   McpToolExecutionResult,
@@ -72,6 +76,10 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:disconnect-server',
   'mcp:get-state',
   'mcp:list-tools',
+  'mcp:list-resources',
+  'mcp:read-resource',
+  'mcp:list-prompts',
+  'mcp:get-prompt',
   'mcp:execute-tool',
   'mcp:resolve-approval',
 ])
@@ -208,6 +216,22 @@ contextBridge.exposeInMainWorld(
     listTools: (serverId?: string) => {
       assertAllowed('invoke', 'mcp:list-tools', MCP_INVOKE_CHANNELS)
       return ipcRenderer.invoke('mcp:list-tools', serverId) as Promise<McpNamespacedTool[]>
+    },
+    listResources: (serverId?: string) => {
+      assertAllowed('invoke', 'mcp:list-resources', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:list-resources', serverId) as Promise<McpRuntimeResource[]>
+    },
+    readResource: (serverId: string, uri: string) => {
+      assertAllowed('invoke', 'mcp:read-resource', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:read-resource', serverId, uri) as Promise<McpResourceReadResult>
+    },
+    listPrompts: (serverId?: string) => {
+      assertAllowed('invoke', 'mcp:list-prompts', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:list-prompts', serverId) as Promise<McpRuntimePrompt[]>
+    },
+    getPrompt: (serverId: string, promptName: string, args: Record<string, unknown>) => {
+      assertAllowed('invoke', 'mcp:get-prompt', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:get-prompt', serverId, promptName, args) as Promise<McpPromptResult>
     },
     executeTool: (namespacedToolName: string, args: Record<string, unknown>) => {
       assertAllowed('invoke', 'mcp:execute-tool', MCP_INVOKE_CHANNELS)

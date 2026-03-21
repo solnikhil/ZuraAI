@@ -31,6 +31,9 @@ jobs:
       - name: Build Windows artifacts
         run: npm run build
 
+      - name: Verify MCP release packaging
+        run: npm run verify:mcp-release
+
       - name: Verify packaged release artifacts
         shell: pwsh
         run: |

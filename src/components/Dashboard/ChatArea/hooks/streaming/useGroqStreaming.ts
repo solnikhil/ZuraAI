@@ -30,6 +30,7 @@ import {
   processInitialToolResults,
   buildThinkingBlocksFromResults,
   mergeSavedToolResults,
+  publishStreamingToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
@@ -198,6 +199,13 @@ export function useGroqStreaming({
         )
         localThinkingBlocks = processed.updatedThinkingBlocks
         savedToolResults = processed.savedToolResults
+        publishStreamingToolResults(
+          updateStreaming as (updates: Record<string, unknown>) => void,
+          updateStreamingMessage,
+          sessionId,
+          messageId,
+          savedToolResults
+        )
 
         if (processed.hasSearchCalls) {
           updateStreaming({
@@ -348,6 +356,13 @@ export function useGroqStreaming({
               savedToolResults = mergeSavedToolResults(
                 savedToolResults,
                 nextToolResult.toolResults || []
+              )
+              publishStreamingToolResults(
+                updateStreaming as (updates: Record<string, unknown>) => void,
+                updateStreamingMessage,
+                sessionId,
+                messageId,
+                savedToolResults
               )
               lastAssistantMessage = reconstructedFollowUp
               toolResult = nextToolResult

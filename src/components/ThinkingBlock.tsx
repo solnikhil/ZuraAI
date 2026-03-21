@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronRight, Loader2, Search, Globe } from './icons'
+import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
@@ -9,6 +9,7 @@ import {
   inferWebToolModeFromArgs,
   inferWebToolModeFromResultData,
 } from '../tools/ui/webToolDisplay'
+import { getToolArgumentSummary, getToolPresentation } from '../tools/ui/toolPresentation'
 import { motionDuration, motionDurations, motionEasing, useMotionPreferences } from '@/lib/motion'
 
 function formatToolDisplayName(
@@ -21,21 +22,7 @@ function formatToolDisplayName(
     return getWebToolLabel(mode)
   }
 
-  const mcpMatch = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
-  if (mcpMatch) {
-    const [, serverSlug, toolSlug] = mcpMatch
-    return `${humanizeSlug(toolSlug)} (${humanizeSlug(serverSlug)} MCP)`
-  }
-
-  return name.replace(/_/g, ' ')
-}
-
-function humanizeSlug(value: string): string {
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
+  return getToolPresentation(name).combinedLabel
 }
 
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
@@ -43,7 +30,21 @@ function getToolCallText(tool: { name: string; arguments?: Record<string, unknow
   if (tool.name === 'web_search' && tool.arguments?.query) {
     return `Using ${displayName}: "${String(tool.arguments.query)}"`
   }
-  return `Using ${displayName}...`
+
+  const argumentSummary = getToolArgumentSummary(tool.arguments)
+  return argumentSummary ? `Running ${displayName}: ${argumentSummary}` : `Running ${displayName}...`
+}
+
+function getToolCallHeaderText(
+  activeToolCalls: Array<{ name: string; arguments?: Record<string, unknown> }>
+): string {
+  const [firstToolCall, ...remainingToolCalls] = activeToolCalls
+  if (!firstToolCall) {
+    return 'Running tool...'
+  }
+
+  const baseText = getToolCallText(firstToolCall)
+  return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
 }
 
 interface ThinkingBlockProps {
@@ -376,6 +377,7 @@ export default function ThinkingBlock({
   completedBlocks = [],
 }: ThinkingBlockProps) {
   const hasActiveToolCalls = activeToolCalls && activeToolCalls.length > 0
+  const extraActiveToolCalls = hasActiveToolCalls ? activeToolCalls.slice(1) : []
   const [isExpanded, setIsExpanded] = useState(isThinking || isSearching || hasActiveToolCalls)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [finalTime, setFinalTime] = useState<number | null>(
@@ -544,10 +546,14 @@ export default function ThinkingBlock({
               {hasActiveToolCalls ? (
                 <span className="thinking-text thinking-tool-calling">
                   <span className="thinking-tool-calling-icon">
-                    <Loader2 size={14} className="tool-call-spinner" />
+                    {activeToolCalls[0]?.name === 'web_search' ? (
+                      <Loader2 size={14} className="tool-call-spinner" />
+                    ) : (
+                      <Wrench size={14} />
+                    )}
                   </span>
                   <AITextLoading
-                    text={getToolCallText(activeToolCalls[0])}
+                    text={getToolCallHeaderText(activeToolCalls)}
                     animationKey="tool-calling"
                   />
                 </span>
@@ -603,6 +609,26 @@ export default function ThinkingBlock({
                   {hasLegacyInlineThinkingWithToolCalls
                     ? renderThinkingWithToolCalls(thinking, completedBlocks)
                     : thinking}
+                </div>
+              </motion.div>
+            )}
+            {isExpanded && extraActiveToolCalls.length > 0 && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{
+                  height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                  opacity: { duration: 0.15, ease: 'easeInOut' },
+                }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className="thinking-content thinking-active-tool-list">
+                  {extraActiveToolCalls.map((toolCall, index) => (
+                    <div key={`${toolCall.name}-${index}`} className="thinking-active-tool-item">
+                      {index + 2}. {getToolCallText(toolCall)}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}

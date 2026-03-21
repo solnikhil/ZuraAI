@@ -308,13 +308,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     // Flush any pending throttled updates before stopping
     flushThrottledUpdates()
 
-    // Commit any pending streaming content to the session
-    if (streamingMessageRef.current) {
-      const finalState = completeStreaming()
-      if (finalState.sessionId && finalState.messageId && finalState.content) {
-        // Commit final content to the session
-        updateStreamingMessage(
-          finalState.sessionId,
+      // Commit any pending streaming content to the session
+      if (streamingMessageRef.current) {
+        const finalState = completeStreaming()
+        if (finalState.sessionId && finalState.messageId) {
+          // Commit final content to the session
+          updateStreamingMessage(
+            finalState.sessionId,
           finalState.messageId,
           buildFinalStreamingUpdates(finalState)
         )
@@ -527,7 +527,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           // The provider hooks call updateStreamingMessage too, but that setState
           // may still be batched/pending when completeStreaming() resets the
           // ephemeral StreamingContext, causing the content to vanish on re-render.
-          if (finalState.sessionId && finalState.messageId && finalState.content) {
+          if (finalState.sessionId && finalState.messageId) {
             updateStreamingMessage(
               finalState.sessionId,
               finalState.messageId,

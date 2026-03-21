@@ -10,6 +10,7 @@ const indexMocks = vi.hoisted(() => ({
   windows: [] as Array<{ isDestroyed: () => boolean; webContents: { send: ReturnType<typeof vi.fn> } }>,
   getAllWindows: vi.fn(() => indexMocks.windows),
   managerInstances: [] as MockMcpManager[],
+  approvalInstances: [] as Array<{ requestApproval: ReturnType<typeof vi.fn>; resolveApproval: ReturnType<typeof vi.fn> }>,
 }))
 
 class MockMcpManager {
@@ -46,9 +47,17 @@ class MockMcpManager {
       lastConnectionTime: null,
     }],
     tools: [{ namespacedName: 'mcp__server__read_file' }],
+    resources: [],
+    prompts: [],
     pendingApprovals: [],
   }))
   readonly listTools = vi.fn(() => [{ namespacedName: 'mcp__server__read_file' }])
+  readonly listResources = vi.fn(() => [])
+  readonly getServerResources = vi.fn(async () => [])
+  readonly readResource = vi.fn(async () => ({ contents: [] }))
+  readonly listPrompts = vi.fn(() => [])
+  readonly getServerPrompts = vi.fn(async () => [])
+  readonly getPrompt = vi.fn(async () => ({ messages: [] }))
   readonly getServerTools = vi.fn(async (serverId: string) => [{ namespacedName: `mcp__${serverId}__read_file` }])
   readonly getExecutableTool = vi.fn(async (namespacedToolName: string) => ({
     server: { id: 'server-1', name: 'Server', trustState: 'trusted', transport: 'stdio', requireApproval: false },
@@ -127,6 +136,13 @@ vi.mock('./mcpApprovalManager', () => ({
     }))
     readonly rejectRequestsForServer = vi.fn()
     readonly dispose = vi.fn()
+
+    constructor() {
+      indexMocks.approvalInstances.push({
+        requestApproval: this.requestApproval,
+        resolveApproval: this.resolveApproval,
+      })
+    }
   },
 }))
 
@@ -137,6 +153,7 @@ describe('electron MCP handler registration', () => {
     indexMocks.removeHandler.mockClear()
     indexMocks.getAllWindows.mockClear()
     indexMocks.managerInstances.length = 0
+    indexMocks.approvalInstances.length = 0
     indexMocks.windows = [
       {
         isDestroyed: () => false,
@@ -161,6 +178,10 @@ describe('electron MCP handler registration', () => {
         'mcp:disconnect-server',
         'mcp:get-state',
         'mcp:list-tools',
+        'mcp:list-resources',
+        'mcp:read-resource',
+        'mcp:list-prompts',
+        'mcp:get-prompt',
         'mcp:execute-tool',
         'mcp:resolve-approval',
       ])
@@ -209,6 +230,8 @@ describe('electron MCP handler registration', () => {
     expect(manager.getUnsubscribeMock()).toHaveBeenCalledTimes(1)
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-servers')
     expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-tools')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-resources')
+    expect(indexMocks.removeHandler).toHaveBeenCalledWith('mcp:list-prompts')
 
     await mcpIndex.shutdownMcpManager()
     expect(manager.dispose).toHaveBeenCalledTimes(1)
@@ -221,6 +244,47 @@ describe('electron MCP handler registration', () => {
 
     await expect(invokeHandler('mcp:connect-server', {}, '   ')).rejects.toThrow('Invalid MCP server id')
     await expect(invokeHandler('mcp:disconnect-server', {}, '')).rejects.toThrow('Invalid MCP server id')
+  })
+
+  it('does not let the renderer execute arbitrary MCP tool names or bypass approval', async () => {
+    const mcpIndex = await import('./index')
+
+    mcpIndex.registerMcpHandlers()
+
+    const manager = getManagerInstance()
+    const approvals = indexMocks.approvalInstances[0]
+    manager.getExecutableTool.mockResolvedValueOnce({
+      server: {
+        id: 'server-1',
+        name: 'Server',
+        trustState: 'trusted',
+        transport: 'stdio',
+        requireApproval: true,
+      },
+      tool: {
+        namespacedName: 'mcp__server__read_file',
+        toolName: 'read_file',
+      },
+      connection: {},
+    })
+    approvals.requestApproval.mockResolvedValueOnce({
+      requestId: 'approval-1',
+      approved: false,
+      resolvedAt: Date.now(),
+      outcome: 'rejected',
+    })
+
+    await expect(invokeHandler('mcp:execute-tool', {}, 'mcp__server__read_file', { path: 'demo.txt' })).resolves.toEqual(
+      expect.objectContaining({ success: false, error: expect.stringContaining('Approval rejected') })
+    )
+    expect(manager.executeTool).not.toHaveBeenCalled()
+
+    manager.getExecutableTool.mockRejectedValueOnce(new Error('Unknown or unavailable MCP tool: mcp__server__shell_exec'))
+    await expect(
+      invokeHandler('mcp:execute-tool', {}, 'mcp__server__shell_exec', { command: 'rm -rf /' })
+    ).resolves.toEqual(
+      expect.objectContaining({ success: false, error: 'Unknown or unavailable MCP tool: mcp__server__shell_exec' })
+    )
   })
 })
 

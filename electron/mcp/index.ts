@@ -140,6 +140,41 @@ export function registerMcpHandlers(): void {
     return manager.listTools()
   })
 
+  ipcMain.handle('mcp:list-resources', async (_event, serverId?: string) => {
+    await manager.initialize()
+    if (typeof serverId === 'string' && serverId.trim()) {
+      return manager.getServerResources(serverId)
+    }
+
+    return manager.listResources()
+  })
+
+  ipcMain.handle('mcp:read-resource', async (_event, serverId: string, uri: string) => {
+    await manager.initialize()
+    return manager.readResource(assertMcpServerId(serverId), assertMcpUri(uri))
+  })
+
+  ipcMain.handle('mcp:list-prompts', async (_event, serverId?: string) => {
+    await manager.initialize()
+    if (typeof serverId === 'string' && serverId.trim()) {
+      return manager.getServerPrompts(serverId)
+    }
+
+    return manager.listPrompts()
+  })
+
+  ipcMain.handle(
+    'mcp:get-prompt',
+    async (_event, serverId: string, promptName: string, args: unknown) => {
+      await manager.initialize()
+      return manager.getPrompt(
+        assertMcpServerId(serverId),
+        assertMcpPromptName(promptName),
+        assertArgumentsRecord(args)
+      )
+    }
+  )
+
   ipcMain.handle('mcp:execute-tool', async (_event, namespacedToolName: string, args: unknown) => {
     await manager.initialize()
     const normalizedToolName = assertMcpToolName(namespacedToolName)
@@ -166,6 +201,10 @@ export function unregisterMcpHandlers(): void {
   ipcMain.removeHandler('mcp:disconnect-server')
   ipcMain.removeHandler('mcp:get-state')
   ipcMain.removeHandler('mcp:list-tools')
+  ipcMain.removeHandler('mcp:list-resources')
+  ipcMain.removeHandler('mcp:read-resource')
+  ipcMain.removeHandler('mcp:list-prompts')
+  ipcMain.removeHandler('mcp:get-prompt')
   ipcMain.removeHandler('mcp:execute-tool')
   ipcMain.removeHandler('mcp:resolve-approval')
 }
@@ -200,6 +239,22 @@ function assertMcpToolName(namespacedToolName: string): string {
   }
 
   return namespacedToolName.trim()
+}
+
+function assertMcpUri(uri: string): string {
+  if (typeof uri !== 'string' || !uri.trim()) {
+    throw new Error('Invalid MCP resource uri')
+  }
+
+  return uri.trim()
+}
+
+function assertMcpPromptName(promptName: string): string {
+  if (typeof promptName !== 'string' || !promptName.trim()) {
+    throw new Error('Invalid MCP prompt name')
+  }
+
+  return promptName.trim()
 }
 
 function assertArgumentsRecord(args: unknown): Record<string, unknown> {

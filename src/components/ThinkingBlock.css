@@ -362,3 +362,13 @@
     font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
     font-size: 0.9em;
 }
+
+.thinking-active-tool-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.thinking-active-tool-item {
+    color: rgba(255, 255, 255, 0.62);
+}

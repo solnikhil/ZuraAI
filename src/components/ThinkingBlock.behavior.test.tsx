@@ -129,4 +129,51 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.getByText('Thought for <1s')).toBeInTheDocument()
     expect(container.querySelector('.thinking-block.completed.expanded')).not.toBeNull()
   })
+
+  it('shows generic MCP tool activity copy for non-search tool calls', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-2"
+        activeBlockKey="message-2:0:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Running Read File on Filesystem: /tmp/demo.txt')
+    ).toBeInTheDocument()
+  })
+
+  it('shows additional active MCP tool calls when multiple tools are running', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3"
+        activeBlockKey="message-3:0:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+          {
+            name: 'mcp__github__create_issue',
+            arguments: { title: 'Follow-up task' },
+          },
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Running Read File on Filesystem: /tmp/demo.txt (+1 more)')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('2. Running Create Issue on Github: Follow-up task')
+    ).toBeInTheDocument()
+  })
 })
