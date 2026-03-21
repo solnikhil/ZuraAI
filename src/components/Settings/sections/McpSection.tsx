@@ -9,14 +9,12 @@ import {
   Plus,
   RefreshCcw,
   Server,
-  ShieldCheck,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -36,7 +34,6 @@ import {
   type McpDraftConfigValue,
   type McpDraftServer,
 } from '@/mcp/draft'
-import type { McpServerStatus } from '@/mcp/types'
 
 export function McpSection(): React.ReactElement {
   const {
@@ -50,11 +47,8 @@ export function McpSection(): React.ReactElement {
     isLoading,
     isRefreshing,
     isSupported,
-    pendingApprovals,
-    prompts = [],
     refresh,
     removeDraftServer,
-    resources = [],
     runtimeStates,
     servers,
     tools,
@@ -136,44 +130,39 @@ export function McpSection(): React.ReactElement {
   }
 
   return (
-    <div className="settings-section-layout settings-section-layout--wide">
+    <div className="settings-section-layout">
       <div className="page-header">
         <h2 className="page-title">MCP Servers</h2>
         <div className="page-subtitle">
-          Configure Model Context Protocol servers, keep secrets in main-process storage, and control which connected servers are trusted enough to expose tools into chat.
+          Configure Model Context Protocol servers. Connected and trusted servers can expose tools to the chat.
         </div>
       </div>
 
-      <Card className="settings-section-card border-border/70 bg-card/70 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{draftServers.length} configured</Badge>
-              <Badge variant="outline">{connectedServerCount} connected</Badge>
-              <Badge variant="outline">{tools.length} discovered tools</Badge>
-              <Badge variant="outline">{resources.length} resources</Badge>
-              <Badge variant="outline">{prompts.length} prompts</Badge>
-              <Badge variant={hasDraftChanges ? 'default' : 'outline'}>
-                {hasDraftChanges ? 'Unsaved changes' : 'Saved'}
-              </Badge>
-              {pendingApprovals.length > 0 && (
-                <Badge variant="destructive">{pendingApprovals.length} approvals pending</Badge>
-              )}
-            </div>
-
-            <div className="max-w-3xl text-sm text-muted-foreground">
-              Stdio servers can launch local processes. Remote profiles keep URLs, headers, and auth tokens ready for later transport hardening. Secret values never go into renderer `localStorage`.
-            </div>
+      <Card className="settings-section-card p-0">
+        <div className="mcp-header-row">
+          <div className="mcp-stats">
+            <span className="mcp-stat">
+              <span className="mcp-stat-value">{draftServers.length}</span>
+              <span className="mcp-stat-label">configured</span>
+            </span>
+            <span className="mcp-stat">
+              <span className="mcp-stat-value">{connectedServerCount}</span>
+              <span className="mcp-stat-label">connected</span>
+            </span>
+            <span className="mcp-stat">
+              <span className="mcp-stat-value">{tools.length}</span>
+              <span className="mcp-stat-label">tools</span>
+            </span>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => void refresh()} disabled={isRefreshing}>
+          <div className="mcp-header-actions">
+            <Button type="button" variant="outline" size="sm" onClick={() => void refresh()} disabled={isRefreshing}>
               {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
               Refresh
             </Button>
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => {
                 setLibraryServerId(undefined)
                 setLibraryMode('resources')
@@ -181,144 +170,101 @@ export function McpSection(): React.ReactElement {
             >
               Browse Library
             </Button>
-            <Button type="button" onClick={openCreateDialog}>
+            <Button type="button" size="sm" onClick={openCreateDialog}>
               <Plus className="mr-2 h-4 w-4" />
               Add Server
             </Button>
           </div>
         </div>
-      </Card>
 
-      {!isSupported && (
-        <Card className="settings-section-card border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
-          MCP configuration is only available through the Electron preload bridge.
-        </Card>
-      )}
+        {!isSupported && (
+          <div className="mcp-warning-row">
+            <TriangleAlert className="mcp-warning-icon" />
+            <span>MCP configuration is only available through the Electron preload bridge.</span>
+          </div>
+        )}
 
-      {error && (
-        <Card className="settings-section-card border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-          {error}
-        </Card>
-      )}
+        {error && (
+          <div className="mcp-error-row">
+            <span>{error}</span>
+          </div>
+        )}
 
-      {hasDraftChanges && (
-        <Card className="settings-section-card border-sky-500/20 bg-sky-500/8 p-4 text-sm text-sky-100">
-          MCP changes join the standard Settings save bar. Connect and disconnect actions are paused until you save or discard this draft.
-        </Card>
-      )}
+        {hasDraftChanges && (
+          <div className="mcp-info-row">
+            <span>MCP changes are pending. Save or discard to enable connect/disconnect actions.</span>
+          </div>
+        )}
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {isLoading ? (
-          <Card className="settings-section-card border-border/70 bg-card/70 p-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-3">
+        <div className="mcp-server-list">
+          {isLoading ? (
+            <div className="mcp-loading-row">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading MCP servers...
+              <span>Loading MCP servers...</span>
             </div>
-          </Card>
-        ) : draftServers.length === 0 ? (
-          <Card className="settings-section-card border-dashed border-border/70 bg-card/60 p-6 text-sm text-muted-foreground">
-            <div className="flex items-start gap-3">
-              <Server className="mt-0.5 h-4 w-4 text-muted-foreground" />
-              <div className="space-y-2">
-                <div className="font-medium text-foreground">No MCP servers configured yet.</div>
-                <div>Add a stdio or remote profile to discover tools and monitor connection state from Settings.</div>
+          ) : draftServers.length === 0 ? (
+            <div className="mcp-empty-row">
+              <Server className="mcp-empty-icon" />
+              <div className="mcp-empty-content">
+                <div className="mcp-empty-title">No MCP servers configured</div>
+                <div className="mcp-empty-desc">Add a stdio or remote server to discover tools and resources.</div>
               </div>
             </div>
-          </Card>
-        ) : (
-          draftServers.map((server) => {
-            const runtimeState = getRuntimeState(server.id)
-            const toolCount = runtimeState?.tools.length ?? liveServersById.get(server.id)?.lastKnownTools?.length ?? 0
-            const resourceCount = runtimeState?.resources.length ?? liveServersById.get(server.id)?.lastKnownResources?.length ?? 0
-            const promptCount = runtimeState?.prompts.length ?? liveServersById.get(server.id)?.lastKnownPrompts?.length ?? 0
-            const liveServer = liveServersById.get(server.id)
-            const isDraftOnly = !liveServer
-            const isDirty = !liveServer || !isDraftServerEqualToLiveServer(server, liveServer)
-            const isBusy = serverActionState[server.id] && serverActionState[server.id] !== 'idle'
-            const status = runtimeState?.status ?? 'disconnected'
+          ) : (
+            draftServers.map((server) => {
+              const runtimeState = getRuntimeState(server.id)
+              const toolCount = runtimeState?.tools.length ?? liveServersById.get(server.id)?.lastKnownTools?.length ?? 0
+              const resourceCount = runtimeState?.resources.length ?? liveServersById.get(server.id)?.lastKnownResources?.length ?? 0
+              const promptCount = runtimeState?.prompts.length ?? liveServersById.get(server.id)?.lastKnownPrompts?.length ?? 0
+              const liveServer = liveServersById.get(server.id)
+              const isDraftOnly = !liveServer
+              const isDirty = !liveServer || !isDraftServerEqualToLiveServer(server, liveServer)
+              const isBusy = serverActionState[server.id] && serverActionState[server.id] !== 'idle'
+              const status = runtimeState?.status ?? 'disconnected'
 
-            return (
-              <Card key={server.id} className="settings-section-card border-border/70 bg-card/70 p-5">
-                <div className="flex h-full flex-col gap-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-foreground">{server.name || 'Untitled MCP Server'}</h3>
-                        <Badge variant="outline">{formatTransportLabel(server.transport)}</Badge>
-                        <Badge variant={server.enabled ? 'secondary' : 'outline'}>
-                          {server.enabled ? 'Enabled' : 'Disabled'}
-                        </Badge>
-                        {isDraftOnly && <Badge variant="default">New</Badge>}
-                        {isDirty && !isDraftOnly && <Badge variant="default">Edited</Badge>}
-                      </div>
-
-                      <div className="text-sm text-muted-foreground">
-                        {server.transport === 'stdio'
-                          ? server.command || 'No command configured yet.'
-                          : server.url || 'No remote URL configured yet.'}
-                      </div>
+              return (
+                <div key={server.id} className="mcp-server-row">
+                  <div className="mcp-server-main">
+                    <div className="mcp-server-icon">
+                      {server.transport === 'stdio' ? <HardDrive size={18} /> : <Cloud size={18} />}
                     </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setLibraryServerId(server.id)
-                          setLibraryMode('resources')
-                        }}
-                      >
-                        Browse
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => openEditDialog(server)}>
-                        <PencilLine className="mr-2 h-4 w-4" />
-                        Edit
-                      </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={() => setDeleteTarget(server)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </Button>
+                    <div className="mcp-server-content">
+                      <div className="mcp-server-title-row">
+                        <h3 className="mcp-server-title">{server.name || 'Untitled Server'}</h3>
+                        <div className="mcp-server-badges">
+                          <span className={`mcp-status-badge mcp-status-badge--${status}`}>
+                            {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Error' : 'Disconnected'}
+                          </span>
+                          {server.trustState === 'trusted' && (
+                            <span className="mcp-trust-badge">Trusted</span>
+                          )}
+                          {!server.enabled && (
+                            <span className="mcp-disabled-badge">Disabled</span>
+                          )}
+                          {isDraftOnly && <span className="mcp-new-badge">New</span>}
+                          {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
+                        </div>
+                      </div>
+                      <div className="mcp-server-meta">
+                        <span className="mcp-transport-label">{formatTransportLabel(server.transport)}</span>
+                        <span className="mcp-server-path">
+                          {server.transport === 'stdio' ? server.command || 'No command' : server.url || 'No URL'}
+                        </span>
+                      </div>
+                      <div className="mcp-server-stats">
+                        <span>{toolCount} tools</span>
+                        <span>{resourceCount} resources</span>
+                        <span>{promptCount} prompts</span>
+                      </div>
+                      {runtimeState?.error && (
+                        <div className="mcp-server-error">{runtimeState.error}</div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status={status} />
-                    <Badge variant="outline">{toolCount} tools</Badge>
-                    <Badge variant="outline">{resourceCount} resources</Badge>
-                    <Badge variant="outline">{promptCount} prompts</Badge>
-                    <Badge variant={server.trustState === 'trusted' ? 'secondary' : 'outline'}>
-                      {server.trustState === 'trusted' ? 'Trusted' : 'Untrusted'}
-                    </Badge>
-                    {server.autoConnect && <Badge variant="outline">Auto-connect</Badge>}
-                    {server.requireApproval && (
-                      <Badge variant="outline">
-                        <ShieldCheck className="mr-1 h-3 w-3" />
-                        Approval required
-                      </Badge>
-                    )}
-                    {server.authToken && <Badge variant="outline">Auth token configured</Badge>}
-                    {server.headers.length > 0 && <Badge variant="outline">{server.headers.length} headers</Badge>}
-                    {server.env.length > 0 && <Badge variant="outline">{server.env.length} env vars</Badge>}
-                  </div>
-
-                  {runtimeState?.error && (
-                    <div className="rounded-xl border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                      {runtimeState.error}
-                    </div>
-                  )}
-
-                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-1">
-                    <div className="text-xs text-muted-foreground">
-                      {status === 'connected'
-                        ? `Connected${runtimeState?.lastConnectionTime ? ` ${formatRelativeTimestamp(runtimeState.lastConnectionTime)}` : ''}`
-                        : runtimeState?.lastConnectionError
-                          ? `Last error: ${runtimeState.lastConnectionError}`
-                          : 'Not connected yet.'}
-                    </div>
-
+                  <div className="mcp-server-actions">
                     <Button
                       type="button"
+                      variant="outline"
                       size="sm"
                       onClick={() => void handleConnectToggle(server)}
                       disabled={isBusy || hasDraftChanges || isDraftOnly || !server.enabled || !isSupported}
@@ -326,13 +272,31 @@ export function McpSection(): React.ReactElement {
                       {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cable className="mr-2 h-4 w-4" />}
                       {status === 'connected' ? 'Disconnect' : 'Connect'}
                     </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(server)}
+                    >
+                      <PencilLine className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mcp-delete-btn"
+                      onClick={() => setDeleteTarget(server)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
                   </div>
                 </div>
-              </Card>
-            )
-          })
-        )}
-      </div>
+              )
+            })
+          )}
+        </div>
+      </Card>
 
       <McpLibraryDialog
         open={libraryMode !== null}
@@ -347,44 +311,43 @@ export function McpSection(): React.ReactElement {
       />
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{dialogServer && liveServersById.has(dialogServer.id) ? 'Edit MCP Server' : 'Add MCP Server'}</DialogTitle>
             <DialogDescription>
-              Configure transport details, headers, environment variables, and secure secrets. Secret values are stored in Electron main-process secure storage on save.
+              Configure transport, headers, environment variables, and secrets. Secrets are stored in main-process secure storage.
             </DialogDescription>
           </DialogHeader>
 
           {dialogServer && (
-            <div className="space-y-6">
+            <div className="mcp-dialog-body">
               {dialogErrors.length > 0 && (
-                <div className="rounded-xl border border-destructive/25 bg-destructive/10 p-3 text-sm text-destructive">
-                  <div className="mb-2 flex items-center gap-2 font-medium">
+                <div className="mcp-dialog-errors">
+                  <div className="mcp-dialog-errors-header">
                     <TriangleAlert className="h-4 w-4" />
-                    Fix these fields before continuing
+                    <span>Fix these fields before continuing</span>
                   </div>
-                  <ul className="space-y-1 pl-5">
+                  <ul>
                     {dialogErrors.map((message) => (
-                      <li key={message} className="list-disc">{message}</li>
+                      <li key={message}>{message}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
               <FieldGroup>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="mcp-server-name">Server name</FieldLabel>
+                <div className="mcp-dialog-row">
+                  <Field className="mcp-dialog-field">
+                    <FieldLabel>Server name</FieldLabel>
                     <Input
-                      id="mcp-server-name"
                       value={dialogServer.name}
                       onChange={(event) => setDialogServer({ ...dialogServer, name: event.target.value })}
                       placeholder="Filesystem"
                     />
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="mcp-server-transport">Transport</FieldLabel>
+                  <Field className="mcp-dialog-field">
+                    <FieldLabel>Transport</FieldLabel>
                     <Select
                       value={dialogServer.transport}
                       onValueChange={(value) =>
@@ -394,7 +357,7 @@ export function McpSection(): React.ReactElement {
                         })
                       }
                     >
-                      <SelectTrigger id="mcp-server-transport">
+                      <SelectTrigger>
                         <SelectValue placeholder="Select transport" />
                       </SelectTrigger>
                       <SelectContent>
@@ -406,23 +369,23 @@ export function McpSection(): React.ReactElement {
                   </Field>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="mcp-dialog-row">
                   <ToggleField
                     label="Enabled"
-                    description="Disabled servers stay in storage but their tools are excluded from active runtime exposure."
+                    description="Disabled servers stay in storage but tools are hidden."
                     checked={dialogServer.enabled}
                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, enabled: checked })}
                   />
                   <ToggleField
                     label="Auto-connect"
-                    description="Attempt a connection during startup once the server is enabled and saved."
+                    description="Connect automatically during startup."
                     checked={dialogServer.autoConnect}
                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, autoConnect: checked })}
                   />
                 </div>
 
                 <Field>
-                  <FieldLabel htmlFor="mcp-server-trust-state">Trust level</FieldLabel>
+                  <FieldLabel>Trust level</FieldLabel>
                   <Select
                     value={dialogServer.trustState}
                     onValueChange={(value) =>
@@ -432,7 +395,7 @@ export function McpSection(): React.ReactElement {
                       })
                     }
                   >
-                    <SelectTrigger id="mcp-server-trust-state">
+                    <SelectTrigger>
                       <SelectValue placeholder="Select trust level" />
                     </SelectTrigger>
                     <SelectContent>
@@ -441,7 +404,7 @@ export function McpSection(): React.ReactElement {
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Untrusted servers can stay configured and even connected, but their tools stay hidden from models until you explicitly trust them.
+                    Untrusted servers stay connected but hide tools from models.
                   </FieldDescription>
                 </Field>
               </FieldGroup>
@@ -450,15 +413,14 @@ export function McpSection(): React.ReactElement {
 
               {dialogServer.transport === 'stdio' ? (
                 <FieldGroup>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <div className="mcp-dialog-section-header">
                     <HardDrive className="h-4 w-4" />
-                    Local stdio process
+                    <span>Local stdio process</span>
                   </div>
 
                   <Field>
-                    <FieldLabel htmlFor="mcp-server-command">Command</FieldLabel>
+                    <FieldLabel>Command</FieldLabel>
                     <Input
-                      id="mcp-server-command"
                       value={dialogServer.command}
                       onChange={(event) => setDialogServer({ ...dialogServer, command: event.target.value })}
                       placeholder="npx"
@@ -466,21 +428,19 @@ export function McpSection(): React.ReactElement {
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="mcp-server-args">Arguments</FieldLabel>
+                    <FieldLabel>Arguments</FieldLabel>
                     <Textarea
-                      id="mcp-server-args"
                       value={dialogServer.argsText}
                       onChange={(event) => setDialogServer({ ...dialogServer, argsText: event.target.value })}
                       placeholder={'-y\n@modelcontextprotocol/server-filesystem\nC:\\Projects'}
-                      className="min-h-28"
+                      className="min-h-24"
                     />
-                    <FieldDescription>Use one argument per line so quoting stays explicit.</FieldDescription>
+                    <FieldDescription>One argument per line.</FieldDescription>
                   </Field>
 
                   <Field>
-                    <FieldLabel htmlFor="mcp-server-cwd">Working directory</FieldLabel>
+                    <FieldLabel>Working directory</FieldLabel>
                     <Input
-                      id="mcp-server-cwd"
                       value={dialogServer.cwd}
                       onChange={(event) => setDialogServer({ ...dialogServer, cwd: event.target.value })}
                       placeholder="C:\\Projects"
@@ -489,15 +449,14 @@ export function McpSection(): React.ReactElement {
                 </FieldGroup>
               ) : (
                 <FieldGroup>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                  <div className="mcp-dialog-section-header">
                     <Cloud className="h-4 w-4" />
-                    Remote endpoint profile
+                    <span>Remote endpoint</span>
                   </div>
 
                   <Field>
-                    <FieldLabel htmlFor="mcp-server-url">URL</FieldLabel>
+                    <FieldLabel>URL</FieldLabel>
                     <Input
-                      id="mcp-server-url"
                       value={dialogServer.url}
                       onChange={(event) => setDialogServer({ ...dialogServer, url: event.target.value })}
                       placeholder={dialogServer.transport === 'sse' ? 'https://example.com/mcp' : 'wss://example.com/mcp'}
@@ -511,7 +470,7 @@ export function McpSection(): React.ReactElement {
 
                   <ConfigValueEditor
                     title="Headers"
-                    description="Send additional request headers. Use secret rows for API tokens or session identifiers."
+                    description="Additional request headers."
                     entries={dialogServer.headers}
                     kind="header"
                     onChange={(nextEntries) => setDialogServer({ ...dialogServer, headers: nextEntries })}
@@ -523,7 +482,7 @@ export function McpSection(): React.ReactElement {
 
               <ConfigValueEditor
                 title="Environment variables"
-                description="Environment variables are available to local stdio servers when Electron launches the process."
+                description="Environment variables for local stdio servers."
                 entries={dialogServer.env}
                 kind="env"
                 onChange={(nextEntries) => setDialogServer({ ...dialogServer, env: nextEntries })}
@@ -532,35 +491,31 @@ export function McpSection(): React.ReactElement {
               <Separator />
 
               <FieldGroup>
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div className="mcp-dialog-section-header">
                   <KeyRound className="h-4 w-4" />
-                  Connection timing and approvals
+                  <span>Connection settings</span>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mcp-dialog-row mcp-dialog-row--4">
                   <NumberInputField
-                    id="mcp-startup-timeout"
                     label="Startup timeout (ms)"
                     value={dialogServer.startupTimeoutMs}
                     onChange={(value) => setDialogServer({ ...dialogServer, startupTimeoutMs: value })}
                     placeholder="10000"
                   />
                   <NumberInputField
-                    id="mcp-tool-timeout"
                     label="Tool timeout (ms)"
                     value={dialogServer.toolTimeoutMs}
                     onChange={(value) => setDialogServer({ ...dialogServer, toolTimeoutMs: value })}
-                    placeholder="10000"
+                    placeholder="30000"
                   />
                   <NumberInputField
-                    id="mcp-reconnect-attempts"
                     label="Reconnect attempts"
                     value={dialogServer.reconnectAttempts}
                     onChange={(value) => setDialogServer({ ...dialogServer, reconnectAttempts: value })}
-                    placeholder="0"
+                    placeholder="3"
                   />
                   <NumberInputField
-                    id="mcp-reconnect-delay"
                     label="Reconnect delay (ms)"
                     value={dialogServer.reconnectDelayMs}
                     onChange={(value) => setDialogServer({ ...dialogServer, reconnectDelayMs: value })}
@@ -570,41 +525,35 @@ export function McpSection(): React.ReactElement {
 
                 <ToggleField
                   label="Require approval"
-                  description="Trusted servers can expose tools to models, but each tool call pauses for approval here unless you turn this off for the server."
+                  description="Each tool call requires approval before execution."
                   checked={dialogServer.requireApproval}
                   onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
                 />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="mcp-tool-allowlist">Tool allowlist</FieldLabel>
-                    <FieldDescription>
-                      Optional. One MCP tool name per line. When set, only these tool names are exposed from this server.
-                    </FieldDescription>
+                <div className="mcp-dialog-row">
+                  <Field className="mcp-dialog-field">
+                    <FieldLabel>Tool allowlist</FieldLabel>
+                    <FieldDescription>One tool name per line. Only these tools are exposed.</FieldDescription>
                     <Textarea
-                      id="mcp-tool-allowlist"
                       value={dialogServer.toolAllowlistText}
                       onChange={(event) =>
                         setDialogServer({ ...dialogServer, toolAllowlistText: event.target.value })
                       }
                       placeholder={['read_file', 'write_file'].join('\n')}
-                      rows={5}
+                      rows={3}
                     />
                   </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="mcp-tool-blocklist">Tool blocklist</FieldLabel>
-                    <FieldDescription>
-                      Optional. One MCP tool name per line. Blocked tools are hidden even if the server advertises them.
-                    </FieldDescription>
+                  <Field className="mcp-dialog-field">
+                    <FieldLabel>Tool blocklist</FieldLabel>
+                    <FieldDescription>One tool name per line. These tools are hidden.</FieldDescription>
                     <Textarea
-                      id="mcp-tool-blocklist"
                       value={dialogServer.toolBlocklistText}
                       onChange={(event) =>
                         setDialogServer({ ...dialogServer, toolBlocklistText: event.target.value })
                       }
                       placeholder={['delete_file'].join('\n')}
-                      rows={5}
+                      rows={3}
                     />
                   </Field>
                 </div>
@@ -614,7 +563,7 @@ export function McpSection(): React.ReactElement {
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button type="button" onClick={saveDialogServer}>Apply Draft</Button>
+            <Button type="button" onClick={saveDialogServer}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -624,7 +573,7 @@ export function McpSection(): React.ReactElement {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete MCP server</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove {deleteTarget?.name || 'this server'} from the current draft. Save changes to delete it from disk and clear any stored secrets tied to that profile.
+              Remove {deleteTarget?.name || 'this server'} from the draft. Save changes to delete it from storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -638,7 +587,7 @@ export function McpSection(): React.ReactElement {
                 setDeleteTarget(null)
               }}
             >
-              Delete server
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -654,20 +603,17 @@ function ToggleField(props: {
   onCheckedChange: (checked: boolean) => void
 }): React.ReactElement {
   return (
-    <Card className="border-border/70 bg-background/60 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-foreground">{props.label}</div>
-          <div className="text-sm text-muted-foreground">{props.description}</div>
-        </div>
-        <Switch checked={props.checked} onCheckedChange={props.onCheckedChange} aria-label={props.label} />
+    <div className="mcp-toggle-card">
+      <div className="mcp-toggle-content">
+        <div className="mcp-toggle-label">{props.label}</div>
+        <div className="mcp-toggle-desc">{props.description}</div>
       </div>
-    </Card>
+      <Switch checked={props.checked} onCheckedChange={props.onCheckedChange} aria-label={props.label} />
+    </div>
   )
 }
 
 function NumberInputField(props: {
-  id: string
   label: string
   value: string
   onChange: (value: string) => void
@@ -675,9 +621,8 @@ function NumberInputField(props: {
 }): React.ReactElement {
   return (
     <Field>
-      <FieldLabel htmlFor={props.id}>{props.label}</FieldLabel>
+      <FieldLabel>{props.label}</FieldLabel>
       <Input
-        id={props.id}
         inputMode="numeric"
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
@@ -694,72 +639,69 @@ function SecretTokenEditor(props: {
   const entry = props.value ?? createDraftConfigValue('token', { name: 'Authorization' })
 
   return (
-    <Card className="border-border/70 bg-background/60 p-4">
-      <div className="space-y-4">
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-foreground">Auth token</div>
-          <div className="text-sm text-muted-foreground">
-            Store a bearer token separately from generic headers. Secret tokens stay masked in the renderer and are written to main-process secure storage on save.
-          </div>
+    <div className="mcp-secret-editor">
+      <div className="mcp-secret-header">
+        <div className="mcp-secret-title">Auth token</div>
+        <div className="mcp-secret-desc">
+          Bearer token stored separately from headers. Secrets stay masked in renderer.
         </div>
+      </div>
 
-        <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
-          <Select
-            value={entry.valueSource}
-            onValueChange={(value) =>
+      <div className="mcp-secret-row">
+        <Select
+          value={entry.valueSource}
+          onValueChange={(value) =>
+            props.onChange({
+              ...entry,
+              valueSource: value as McpDraftConfigValue['valueSource'],
+              clearSecret: value === 'plaintext' ? false : entry.clearSecret,
+            })
+          }
+        >
+          <SelectTrigger className="mcp-secret-type">
+            <SelectValue placeholder="Value type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="plaintext">Plaintext</SelectItem>
+            <SelectItem value="secret">Secret</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="mcp-secret-input-wrap">
+          <Input
+            type={entry.valueSource === 'secret' ? 'password' : 'text'}
+            value={entry.valueSource === 'secret' ? entry.secretValue : entry.value}
+            onChange={(event) =>
               props.onChange({
                 ...entry,
-                valueSource: value as McpDraftConfigValue['valueSource'],
-                clearSecret: value === 'plaintext' ? false : entry.clearSecret,
+                value: entry.valueSource === 'plaintext' ? event.target.value : '',
+                secretValue: entry.valueSource === 'secret' ? event.target.value : '',
+                clearSecret: false,
               })
             }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Value type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="plaintext">Plaintext</SelectItem>
-              <SelectItem value="secret">Secret</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="space-y-2">
-            <Input
-              type={entry.valueSource === 'secret' ? 'password' : 'text'}
-              value={entry.valueSource === 'secret' ? entry.secretValue : entry.value}
-              onChange={(event) =>
-                props.onChange({
-                  ...entry,
-                  value: entry.valueSource === 'plaintext' ? event.target.value : '',
-                  secretValue: entry.valueSource === 'secret' ? event.target.value : '',
-                  clearSecret: false,
-                })
-              }
-              placeholder={entry.valueSource === 'secret' && entry.secretStored ? 'Stored securely - type to replace' : 'Bearer token'}
-            />
-
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {entry.valueSource === 'secret' && entry.secretStored && !entry.clearSecret && (
-                <Badge variant="secondary">Stored securely</Badge>
-              )}
-              {entry.valueSource === 'secret' && entry.secretStored && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => props.onChange({ ...entry, clearSecret: !entry.clearSecret, secretValue: '' })}
-                >
-                  {entry.clearSecret ? 'Keep stored token' : 'Clear stored token'}
-                </Button>
-              )}
-              <Button type="button" variant="ghost" size="sm" onClick={() => props.onChange(null)}>
-                Remove token
+            placeholder={entry.valueSource === 'secret' && entry.secretStored ? 'Stored - type to replace' : 'Bearer token'}
+          />
+          <div className="mcp-secret-meta">
+            {entry.valueSource === 'secret' && entry.secretStored && !entry.clearSecret && (
+              <span className="mcp-stored-badge">Stored</span>
+            )}
+            {entry.valueSource === 'secret' && entry.secretStored && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => props.onChange({ ...entry, clearSecret: !entry.clearSecret, secretValue: '' })}
+              >
+                {entry.clearSecret ? 'Keep' : 'Clear'}
               </Button>
-            </div>
+            )}
+            <Button type="button" variant="ghost" size="sm" onClick={() => props.onChange(null)}>
+              Remove
+            </Button>
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 
@@ -773,40 +715,36 @@ function ConfigValueEditor(props: {
   const addEntry = () => props.onChange([...props.entries, createDraftConfigValue(props.kind)])
 
   return (
-    <Card className="border-border/70 bg-background/60 p-4">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="text-sm font-medium text-foreground">{props.title}</div>
-            <div className="text-sm text-muted-foreground">{props.description}</div>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={addEntry}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add {props.kind === 'env' ? 'variable' : 'header'}
-          </Button>
-        </div>
-
-        {props.entries.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/70 px-4 py-5 text-sm text-muted-foreground">
-            No {props.kind === 'env' ? 'environment variables' : 'additional headers'} yet.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {props.entries.map((entry) => (
-              <ConfigValueRow
-                key={entry.id}
-                entry={entry}
-                kind={props.kind}
-                onChange={(nextEntry) =>
-                  props.onChange(props.entries.map((currentEntry) => (currentEntry.id === nextEntry.id ? nextEntry : currentEntry)))
-                }
-                onRemove={() => props.onChange(props.entries.filter((currentEntry) => currentEntry.id !== entry.id))}
-              />
-            ))}
-          </div>
-        )}
+    <div className="mcp-config-editor">
+      <div className="mcp-config-header">
+        <div className="mcp-config-title">{props.title}</div>
+        <div className="mcp-config-desc">{props.description}</div>
       </div>
-    </Card>
+      <Button type="button" variant="outline" size="sm" onClick={addEntry}>
+        <Plus className="mr-2 h-4 w-4" />
+        Add {props.kind === 'env' ? 'variable' : 'header'}
+      </Button>
+
+      {props.entries.length === 0 ? (
+        <div className="mcp-config-empty">
+          No {props.kind === 'env' ? 'environment variables' : 'headers'} yet.
+        </div>
+      ) : (
+        <div className="mcp-config-entries">
+          {props.entries.map((entry) => (
+            <ConfigValueRow
+              key={entry.id}
+              entry={entry}
+              kind={props.kind}
+              onChange={(nextEntry) =>
+                props.onChange(props.entries.map((currentEntry) => (currentEntry.id === nextEntry.id ? nextEntry : currentEntry)))
+              }
+              onRemove={() => props.onChange(props.entries.filter((currentEntry) => currentEntry.id !== entry.id))}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -820,97 +758,55 @@ function ConfigValueRow(props: {
   const value = props.entry.valueSource === 'secret' ? props.entry.secretValue : props.entry.value
 
   return (
-    <div className="rounded-xl border border-border/70 bg-card/40 p-4">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_170px_minmax(0,1fr)_auto] xl:items-start">
-        <Input
-          value={props.entry.name}
-          onChange={(event) => props.onChange({ ...props.entry, name: event.target.value })}
-          placeholder={namePlaceholder}
-          aria-label={`${props.kind} name`}
-        />
+    <div className="mcp-config-row">
+      <Input
+        value={props.entry.name}
+        onChange={(event) => props.onChange({ ...props.entry, name: event.target.value })}
+        placeholder={namePlaceholder}
+        className="mcp-config-name"
+      />
 
-        <Select
-          value={props.entry.valueSource}
-          onValueChange={(valueSource) =>
-            props.onChange({
-              ...props.entry,
-              valueSource: valueSource as McpDraftConfigValue['valueSource'],
-              clearSecret: false,
-              value: valueSource === 'plaintext' ? props.entry.value : '',
-              secretValue: valueSource === 'secret' ? props.entry.secretValue : '',
-            })
-          }
-        >
-          <SelectTrigger aria-label={`${props.kind} value type`}>
-            <SelectValue placeholder="Value type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="plaintext">Plaintext</SelectItem>
-            <SelectItem value="secret">Secret</SelectItem>
-          </SelectContent>
-        </Select>
+      <Select
+        value={props.entry.valueSource}
+        onValueChange={(valueSource) =>
+          props.onChange({
+            ...props.entry,
+            valueSource: valueSource as McpDraftConfigValue['valueSource'],
+            clearSecret: false,
+            value: valueSource === 'plaintext' ? props.entry.value : '',
+            secretValue: valueSource === 'secret' ? props.entry.secretValue : '',
+          })
+        }
+      >
+        <SelectTrigger className="mcp-config-type">
+          <SelectValue placeholder="Type" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="plaintext">Plaintext</SelectItem>
+          <SelectItem value="secret">Secret</SelectItem>
+        </SelectContent>
+      </Select>
 
-        <div className="space-y-2">
-          <Input
-            type={props.entry.valueSource === 'secret' ? 'password' : 'text'}
-            value={value}
-            onChange={(event) =>
-              props.onChange({
-                ...props.entry,
-                value: props.entry.valueSource === 'plaintext' ? event.target.value : '',
-                secretValue: props.entry.valueSource === 'secret' ? event.target.value : '',
-                clearSecret: false,
-              })
-            }
-            placeholder={props.entry.valueSource === 'secret' && props.entry.secretStored ? 'Stored securely - type to replace' : 'Value'}
-            aria-label={`${props.kind} value`}
-          />
+      <Input
+        type={props.entry.valueSource === 'secret' ? 'password' : 'text'}
+        value={value}
+        onChange={(event) =>
+          props.onChange({
+            ...props.entry,
+            value: props.entry.valueSource === 'plaintext' ? event.target.value : '',
+            secretValue: props.entry.valueSource === 'secret' ? event.target.value : '',
+            clearSecret: false,
+          })
+        }
+        placeholder={props.entry.valueSource === 'secret' && props.entry.secretStored ? 'Stored - type to replace' : 'Value'}
+        className="mcp-config-value"
+      />
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            {props.entry.valueSource === 'secret' && props.entry.secretStored && !props.entry.clearSecret && (
-              <Badge variant="secondary">Stored securely</Badge>
-            )}
-            {props.entry.valueSource === 'secret' && props.entry.secretStored && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => props.onChange({ ...props.entry, clearSecret: !props.entry.clearSecret, secretValue: '' })}
-              >
-                {props.entry.clearSecret ? 'Keep stored secret' : 'Clear stored secret'}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <Button type="button" variant="outline" size="sm" onClick={props.onRemove}>
-          <Trash2 className="mr-2 h-4 w-4" />
-          Remove
-        </Button>
-      </div>
+      <Button type="button" variant="ghost" size="sm" onClick={props.onRemove}>
+        <Trash2 size={14} />
+      </Button>
     </div>
   )
-}
-
-function StatusBadge({ status }: { status: McpServerStatus }): React.ReactElement {
-  if (status === 'connected') {
-    return <Badge variant="secondary">Connected</Badge>
-  }
-
-  if (status === 'connecting') {
-    return (
-      <Badge variant="outline">
-        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-        Connecting
-      </Badge>
-    )
-  }
-
-  if (status === 'error') {
-    return <Badge variant="destructive">Error</Badge>
-  }
-
-  return <Badge variant="outline">Disconnected</Badge>
 }
 
 function cloneDraftServer(server: McpDraftServer): McpDraftServer {
@@ -920,29 +816,6 @@ function cloneDraftServer(server: McpDraftServer): McpDraftServer {
     headers: server.headers.map((entry) => ({ ...entry })),
     authToken: server.authToken ? { ...server.authToken } : null,
   }
-}
-
-function formatRelativeTimestamp(timestamp: string): string {
-  const diffMs = Date.now() - new Date(timestamp).getTime()
-  if (!Number.isFinite(diffMs) || diffMs < 0) {
-    return ''
-  }
-
-  const diffMinutes = Math.floor(diffMs / 60000)
-  if (diffMinutes < 1) {
-    return 'just now'
-  }
-  if (diffMinutes < 60) {
-    return `${diffMinutes}m ago`
-  }
-
-  const diffHours = Math.floor(diffMinutes / 60)
-  if (diffHours < 24) {
-    return `${diffHours}h ago`
-  }
-
-  const diffDays = Math.floor(diffHours / 24)
-  return `${diffDays}d ago`
 }
 
 function toErrorMessage(error: unknown): string {

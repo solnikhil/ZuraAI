@@ -105,4 +105,24 @@ describe('McpLibraryDialog', () => {
 
     expect(onInsertText).toHaveBeenCalledWith(expect.stringContaining('Prompt body'))
   })
+
+  it('resets preview state when the dialog is reopened', async () => {
+    const { rerender } = render(
+      <McpLibraryDialog open={true} onOpenChange={vi.fn()} onInsertText={vi.fn()} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /demo file/i }))
+
+    await waitFor(() => {
+      expect(readResource).toHaveBeenCalledWith('server-1', 'file:///tmp/demo.txt')
+    })
+
+    expect(screen.getByRole('button', { name: /insert into composer/i })).toBeInTheDocument()
+
+    rerender(<McpLibraryDialog open={false} onOpenChange={vi.fn()} onInsertText={vi.fn()} />)
+    rerender(<McpLibraryDialog open={true} onOpenChange={vi.fn()} onInsertText={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: /insert into composer/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Select a resource to preview its contents.')).toBeInTheDocument()
+  })
 })

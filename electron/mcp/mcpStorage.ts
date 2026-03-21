@@ -23,6 +23,7 @@ export const MCP_SERVER_STORE_VERSION = 1
 
 let cachedStore: McpServerStoreFile | null = null
 let cacheTimestamp = 0
+let cachedStoreFilePath: string | null = null
 const CACHE_TTL_MS = 1000
 
 let pendingWrite: Promise<void> = Promise.resolve()
@@ -322,15 +323,20 @@ function migrateMcpStore(store: McpServerStoreFile): McpServerStoreFile {
 }
 
 async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
-  if (cachedStore && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
+  const filePath = getMcpStoreFilePath()
+  if (
+    cachedStore &&
+    cachedStoreFilePath === filePath &&
+    Date.now() - cacheTimestamp < CACHE_TTL_MS
+  ) {
     return cachedStore
   }
 
-  const filePath = getMcpStoreFilePath()
   try {
     if (!fsSync.existsSync(filePath)) {
       const emptyStore = getDefaultStore()
       cachedStore = emptyStore
+      cachedStoreFilePath = filePath
       cacheTimestamp = Date.now()
       return emptyStore
     }
@@ -339,14 +345,31 @@ async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
     const parsed = normalizeMcpStore(JSON.parse(file))
     const migrated = migrateMcpStore(parsed)
     cachedStore = migrated
+    cachedStoreFilePath = filePath
     cacheTimestamp = Date.now()
     return migrated
   } catch (error) {
+    await quarantineCorruptMcpStore(filePath)
     console.error('[MCP Storage] Failed to read MCP server config:', error)
     const emptyStore = getDefaultStore()
     cachedStore = emptyStore
+    cachedStoreFilePath = filePath
     cacheTimestamp = Date.now()
     return emptyStore
+  }
+}
+
+async function quarantineCorruptMcpStore(filePath: string): Promise<void> {
+  try {
+    if (!fsSync.existsSync(filePath)) {
+      return
+    }
+
+    const quarantinePath = `${filePath}.corrupt-${Date.now()}`
+    await fs.rename(filePath, quarantinePath)
+    console.warn(`[MCP Storage] Quarantined unreadable MCP store to ${quarantinePath}`)
+  } catch (quarantineError) {
+    console.error('[MCP Storage] Failed to quarantine unreadable MCP store:', quarantineError)
   }
 }
 
@@ -362,6 +385,7 @@ async function writeMcpStoreInternal(store: McpServerStoreFile): Promise<void> {
 
     await fs.writeFile(filePath, JSON.stringify(normalized, null, 2), 'utf-8')
     cachedStore = normalized
+    cachedStoreFilePath = filePath
     cacheTimestamp = Date.now()
   }
 

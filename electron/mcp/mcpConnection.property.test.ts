@@ -48,6 +48,22 @@ describe('McpConnection property checks', () => {
     await waitForTick(350)
     expect(remoteTransport.connectCalls).toBeGreaterThan(1)
   })
+
+  it('does not reconnect after a manual disconnect during reconnect backoff', async () => {
+    const remoteTransport = new DeterministicTransport()
+    const remoteConnection = new McpConnection({
+      server: createResolvedServerConfig('sse', 2, 60),
+      transport: remoteTransport,
+    })
+
+    await remoteConnection.connect()
+    remoteTransport.emitClose()
+    await remoteConnection.disconnect()
+    await waitForTick(150)
+
+    expect(remoteTransport.connectCalls).toBe(1)
+    expect(remoteConnection.getRuntimeState().status).toBe('disconnected')
+  })
 })
 
 class DeterministicTransport implements McpTransport {
@@ -140,7 +156,8 @@ class DeterministicTransport implements McpTransport {
 
 function createResolvedServerConfig(
   transport: McpResolvedServerConfig['transport'],
-  reconnectAttempts: number
+  reconnectAttempts: number,
+  reconnectDelayMs = 1
 ): McpResolvedServerConfig {
   return {
     id: `server-${transport}`,
@@ -156,7 +173,7 @@ function createResolvedServerConfig(
     startupTimeoutMs: 100,
     toolTimeoutMs: 100,
     reconnectAttempts,
-    reconnectDelayMs: 1,
+    reconnectDelayMs,
     requireApproval: false,
     toolAllowlist: [],
     toolBlocklist: [],

@@ -85,6 +85,24 @@ export function validateMcpRemoteUrl(
   return parsed
 }
 
+export function resolveValidatedMcpRemoteUrl(
+  rawUrl: string,
+  baseUrl: URL,
+  transportType: Extract<McpTransportType, 'sse' | 'websocket'>,
+  allowedProtocols: readonly string[],
+  options: { requireSameOrigin?: boolean } = {}
+): URL {
+  const resolved = validateMcpRemoteUrl(new URL(rawUrl, baseUrl).toString(), transportType, allowedProtocols)
+
+  if (options.requireSameOrigin !== false && resolved.origin !== baseUrl.origin) {
+    throw new Error(
+      `MCP ${transportType} transport URL must remain on the original origin (${baseUrl.origin})`
+    )
+  }
+
+  return resolved
+}
+
 export function buildMcpReconnectDelay(policy: McpReconnectPolicy, attempt: number): number {
   const normalizedAttempt = Math.max(0, attempt)
   const exponentialDelay = policy.initialDelayMs * Math.max(1, policy.backoffMultiplier) ** normalizedAttempt

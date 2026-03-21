@@ -125,7 +125,7 @@ export class McpManager {
   }
 
   listTools(): McpNamespacedTool[] {
-    return [...this.servers.values()].flatMap((server) => {
+    return ensureUniqueNamespacedTools([...this.servers.values()].flatMap((server) => {
       const runtimeState = this.runtimeStates.get(server.id)
       if (
         !runtimeState ||
@@ -139,14 +139,14 @@ export class McpManager {
       return runtimeState.tools
         .filter((manifest) => isToolAllowedForServer(server, manifest.name))
         .map((manifest) => ({
-        ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
-        manifest: {
-          ...manifest,
-          inputSchema: { ...manifest.inputSchema },
-          annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
-        },
-      }))
-    })
+          ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
+          manifest: {
+            ...manifest,
+            inputSchema: { ...manifest.inputSchema },
+            annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
+          },
+        }))
+    }))
   }
 
   listResources(): McpRuntimeResource[] {
@@ -841,4 +841,33 @@ function getOptionalTrimmedString(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function ensureUniqueNamespacedTools(tools: McpNamespacedTool[]): McpNamespacedTool[] {
+  const counts = new Map<string, number>()
+
+  return tools.map((tool) => {
+    const duplicateCount = counts.get(tool.namespacedName) ?? 0
+    counts.set(tool.namespacedName, duplicateCount + 1)
+
+    if (duplicateCount === 0) {
+      return tool
+    }
+
+    const suffix = toCollisionSafeSlug(tool.serverId)
+    return {
+      ...tool,
+      serverSlug: `${tool.serverSlug}_${suffix}`,
+      namespacedName: `mcp__${tool.serverSlug}_${suffix}__${tool.toolSlug}`,
+    }
+  })
+}
+
+function toCollisionSafeSlug(serverId: string): string {
+  return serverId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 12) || 'server'
 }

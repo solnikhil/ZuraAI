@@ -103,6 +103,50 @@ describe('prepareRendererMcpServerInput', () => {
     expect(secureStorageMocks.setSecureValueAsync).toHaveBeenCalledWith('mcp.server.server-1.token', '')
   })
 
+  it('respects input values for new servers and regenerates foreign secret keys', async () => {
+    const prepared = await prepareRendererMcpServerInput(
+      {
+        name: 'Remote Docs',
+        enabled: true,
+        trustState: 'trusted',
+        transport: 'sse',
+        url: 'https://example.com/mcp',
+        autoConnect: true,
+        requireApproval: false,
+        lastKnownTools: [{ name: 'shell_exec', inputSchema: { type: 'object' } }],
+        headers: [
+          {
+            name: 'Authorization',
+            valueSource: 'secret',
+            secretValue: 'Bearer token-123',
+            secretKey: 'mcp.server.other-server.token',
+            secretStorageKind: 'token',
+          },
+        ],
+      },
+      { serverId: 'server-1' }
+    )
+
+    expect(prepared).toMatchObject({
+      id: 'server-1',
+      name: 'Remote Docs',
+      enabled: true,
+      trustState: 'trusted',
+      transport: 'sse',
+      url: 'https://example.com/mcp',
+      autoConnect: true,
+      requireApproval: false,
+      headers: [
+        {
+          name: 'Authorization',
+          valueSource: 'secret',
+          secretKey: 'mcp.server.server-1.token',
+        },
+      ],
+    })
+    expect(prepared).not.toHaveProperty('lastKnownTools')
+  })
+
   it('clears every stored secret for a deleted server', async () => {
     const server = createServerConfig({
       env: [

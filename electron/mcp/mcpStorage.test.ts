@@ -109,6 +109,19 @@ describe('mcpStorage', () => {
     expect(getMcpStoreFilePath()).toBe(path.join(userDataPath, 'mcp-servers.json'))
   })
 
+  it('quarantines a corrupt MCP store file before returning an empty store', async () => {
+    const storePath = getMcpStoreFilePath()
+    await fs.mkdir(path.dirname(storePath), { recursive: true })
+    await fs.writeFile(storePath, '{ this is not valid json', 'utf-8')
+
+    const loaded = await loadMcpServerStore()
+    const directoryEntries = await fs.readdir(path.dirname(storePath))
+
+    expect(loaded).toEqual({ version: MCP_SERVER_STORE_VERSION, servers: [] })
+    expect(directoryEntries.some((entry) => entry.startsWith('mcp-servers.json.corrupt-'))).toBe(true)
+    expect(directoryEntries.includes('mcp-servers.json')).toBe(false)
+  })
+
   it('resolves secret-backed env vars and headers from secure storage', async () => {
     secureValues.set('mcp.server.server-1.env.API_KEY', 'env-secret')
     secureValues.set('mcp.server.server-1.header.Authorization', 'Bearer secret-token')

@@ -76,6 +76,34 @@ describe('McpManager property checks', () => {
     expect(connections.has('disabled-auto')).toBe(false)
     expect(connections.has('manual')).toBe(false)
   })
+
+  it('makes colliding namespaced tool identities deterministic and unique', async () => {
+    const servers = [
+      createServer({ id: 'server-a', name: 'Filesystem', enabled: true, trustState: 'trusted' }),
+      createServer({ id: 'server-b', name: 'Filesystem', enabled: true, trustState: 'trusted' }),
+    ]
+
+    const manager = new McpManager({
+      loadServers: async () => servers,
+      saveServers: async () => undefined,
+      resolveServerSecrets: async (server) => createResolved(server),
+      connectionFactory: (server) => new PolicyAwareConnection(server.id),
+    })
+
+    await manager.initialize({ autoConnect: false })
+    await Promise.all(servers.map((server) => manager.connectServer(server.id)))
+
+    const names = manager
+      .listTools()
+      .filter((tool) => tool.toolName === 'read_file')
+      .map((tool) => tool.namespacedName)
+      .sort()
+
+    expect(names).toEqual([
+      'mcp__filesystem__read_file',
+      'mcp__filesystem_server_b__read_file',
+    ])
+  })
 })
 
 class PolicyAwareConnection implements McpManagedConnection {

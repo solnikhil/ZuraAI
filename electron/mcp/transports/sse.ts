@@ -9,6 +9,7 @@ import {
   isExperimentalRemoteTransportEnabled,
   isRetryableHttpStatus,
   normalizeMcpReconnectPolicy,
+  resolveValidatedMcpRemoteUrl,
   summarizeMcpRemoteTarget,
   validateMcpRemoteUrl,
   waitForMcpReconnectDelay,
@@ -249,7 +250,20 @@ export class SseMcpTransport extends BaseMcpTransport {
     }
 
     if (eventType === 'endpoint') {
-      this.messageEndpoint = new URL(payload, this.url)
+      try {
+        this.messageEndpoint = resolveValidatedMcpRemoteUrl(payload, this.url, 'sse', ['http:', 'https:'], {
+          requireSameOrigin: true,
+        })
+      } catch (error) {
+        this.markDisconnectedFromRemote(
+          this.createError('receive', 'MCP SSE endpoint event was invalid', error, {
+            details: {
+              streamUrl: this.url.toString(),
+              endpoint: payload,
+            },
+          })
+        )
+      }
       return
     }
 

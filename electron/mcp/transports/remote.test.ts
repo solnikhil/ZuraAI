@@ -7,6 +7,7 @@ import {
   buildMcpReconnectDelay,
   normalizeMcpReconnectPolicy,
   redactMcpHeaders,
+  resolveValidatedMcpRemoteUrl,
   validateMcpRemoteUrl,
 } from './remote'
 import { SseMcpTransport } from './sse'
@@ -25,6 +26,18 @@ describe('remote MCP transport helpers', () => {
     expect(() => validateMcpRemoteUrl('wss://user:pass@example.com', 'websocket', ['ws:', 'wss:'])).toThrow(
       'must not embed credentials'
     )
+  })
+
+  it('keeps SSE endpoint overrides on the original origin', () => {
+    const baseUrl = new URL('https://example.com/mcp')
+
+    expect(
+      resolveValidatedMcpRemoteUrl('/mcp/messages', baseUrl, 'sse', ['http:', 'https:']).href
+    ).toBe('https://example.com/mcp/messages')
+
+    expect(() =>
+      resolveValidatedMcpRemoteUrl('https://evil.example/mcp', baseUrl, 'sse', ['http:', 'https:'])
+    ).toThrow('must remain on the original origin')
   })
 
   it('keeps reconnect placeholders conservative by default', () => {

@@ -48,6 +48,10 @@ Use this to validate prompt/resource discovery without touching the local filesy
 
 ## Remote transport examples
 
+- Remote `sse` and `websocket` transports are still feature-gated in the app build.
+- Enable them explicitly with `ZURA_ENABLE_EXPERIMENTAL_MCP_REMOTE_TRANSPORTS=true` before testing remote servers.
+- SSE servers may advertise a separate POST endpoint, but ZuraAI only accepts same-origin endpoint overrides.
+
 ### SSE server
 
 - Transport: `sse`

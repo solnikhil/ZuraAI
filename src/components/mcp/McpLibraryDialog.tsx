@@ -42,9 +42,20 @@ export function McpLibraryDialog({
   useEffect(() => {
     if (open) {
       setMode(initialMode)
+      setSelectedResourceKey(null)
+      setSelectedPromptKey(null)
+      setResourcePreview(null)
+      setPromptPreview(null)
+      setPromptArgs({})
+      setLoadingKey(null)
       setError(null)
     }
-  }, [initialMode, open])
+  }, [initialMode, open, serverId])
+
+  useEffect(() => {
+    setLoadingKey(null)
+    setError(null)
+  }, [mode])
 
   const visibleResources = useMemo(
     () => resources.filter((resource) => !serverId || resource.serverId === serverId),

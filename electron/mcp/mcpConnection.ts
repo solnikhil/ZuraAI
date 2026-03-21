@@ -457,6 +457,11 @@ export class McpConnection {
 
       await waitForMcpReconnectDelay(buildMcpReconnectDelay(reconnectPolicy, attempt - 1))
 
+      if (this.manualDisconnect || this.transport.getState() === 'connected') {
+        this.reconnectInFlight = false
+        return
+      }
+
       try {
         await this.openAndInitialize()
         this.reconnectInFlight = false

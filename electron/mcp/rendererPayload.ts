@@ -38,10 +38,25 @@ export async function prepareRendererMcpServerInput(
   )
 
   return {
-    ...input,
     id: options.serverId,
+    name: getOptionalTrimmedString(input.name),
+    enabled: normalizeBoolean(input.enabled, options.existingServer?.enabled ?? false),
+    trustState: normalizeTrustState(input.trustState, options.existingServer?.trustState ?? 'untrusted'),
+    transport: normalizeTransport(input.transport, options.existingServer?.transport),
+    command: getOptionalTrimmedString(input.command),
+    args: normalizeStringArray(input.args),
+    cwd: getOptionalTrimmedString(input.cwd),
+    url: getOptionalTrimmedString(input.url),
     env: env.values,
     headers: headers.values,
+    autoConnect: normalizeBoolean(input.autoConnect, options.existingServer?.autoConnect ?? false),
+    startupTimeoutMs: normalizeOptionalInteger(input.startupTimeoutMs),
+    toolTimeoutMs: normalizeOptionalInteger(input.toolTimeoutMs),
+    reconnectAttempts: normalizeOptionalInteger(input.reconnectAttempts),
+    reconnectDelayMs: normalizeOptionalInteger(input.reconnectDelayMs),
+    requireApproval: normalizeBoolean(input.requireApproval, options.existingServer?.requireApproval ?? true),
+    toolAllowlist: normalizeStringArray(input.toolAllowlist),
+    toolBlocklist: normalizeStringArray(input.toolBlocklist),
   }
 }
 
@@ -120,17 +135,24 @@ async function prepareConfigValue(
   }
 
   const storageKind = normalizeSecretStorageKind(rawValue.secretStorageKind, options.kind)
-  const existingSecretKey =
+  const expectedSecretKey = buildMcpSecretStorageKey(
+    options.serverId,
+    storageKind,
+    storageKind === 'token' ? undefined : name
+  )
+  const rendererProvidedSecretKey =
     typeof rawValue.secretKey === 'string' && rawValue.secretKey.trim()
       ? rawValue.secretKey.trim()
-      : options.existingValue?.secretKey?.trim()
+      : undefined
+  const existingSecretKey = options.existingValue?.secretKey?.trim()
+  const reusableExistingSecretKey =
+    existingSecretKey && isSafeSecretKeyForServer(existingSecretKey, options.serverId)
+      ? existingSecretKey
+      : undefined
   const secretKey =
-    existingSecretKey ??
-    buildMcpSecretStorageKey(
-      options.serverId,
-      storageKind,
-      storageKind === 'token' ? undefined : name
-    )
+    rendererProvidedSecretKey === expectedSecretKey
+      ? rendererProvidedSecretKey
+      : reusableExistingSecretKey ?? expectedSecretKey
 
   const clearSecret = rawValue.clearSecret === true
   const secretValue = typeof rawValue.secretValue === 'string' ? rawValue.secretValue.trim() : ''
@@ -143,7 +165,7 @@ async function prepareConfigValue(
     await setSecureValueAsync(secretKey, secretValue)
   }
 
-  const canReuseStoredSecret = !clearSecret && Boolean(existingSecretKey)
+  const canReuseStoredSecret = !clearSecret && Boolean(reusableExistingSecretKey)
   if (!secretValue && !canReuseStoredSecret) {
     return null
   }
@@ -190,6 +212,59 @@ function normalizeSecretStorageKind(
   }
 
   return fallback
+}
+
+function normalizeTransport(
+  value: unknown,
+  fallback: McpServerConfig['transport'] | undefined
+): McpServerConfig['transport'] {
+  if (value === 'stdio' || value === 'sse' || value === 'websocket') {
+    return value
+  }
+
+  return fallback ?? 'stdio'
+}
+
+function normalizeTrustState(
+  value: unknown,
+  fallback: McpServerConfig['trustState']
+): McpServerConfig['trustState'] {
+  if (value === 'trusted' || value === 'untrusted') {
+    return value
+  }
+
+  return fallback
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function normalizeOptionalInteger(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined
+  }
+
+  return Math.max(0, Math.round(value))
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+function getOptionalTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function isSafeSecretKeyForServer(secretKey: string, serverId: string): boolean {
+  return secretKey.startsWith(`mcp.server.${serverId}.`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

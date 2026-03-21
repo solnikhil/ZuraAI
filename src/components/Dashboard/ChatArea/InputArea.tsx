@@ -250,7 +250,15 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
 
   const insertMcpTextIntoComposer = React.useCallback(
     (text: string) => {
-      const nextValue = input.trim().length > 0 ? `${input.trim()}\n\n${text}` : text
+      const hasMeaningfulInput = input.trim().length > 0
+      const separator = !hasMeaningfulInput
+        ? ''
+        : input.endsWith('\n\n')
+          ? ''
+          : input.endsWith('\n')
+            ? '\n'
+            : '\n\n'
+      const nextValue = hasMeaningfulInput ? `${input}${separator}${text}` : text
       setInput(nextValue)
       adjustHeight()
       requestAnimationFrame(() => textareaRef.current?.focus())

@@ -8,6 +8,41 @@ const DEFAULT_STARTUP_TIMEOUT_MS = 10000
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 2000
 const DEFAULT_DIAGNOSTIC_BUFFER_SIZE = 8192
 
+const IS_WINDOWS = process.platform === 'win32'
+
+const WINDOWS_SHELL_SCRIPT_EXTENSIONS = ['.cmd', '.bat']
+const WINDOWS_PACKAGE_MANAGERS = new Set(['npx', 'npm', 'yarn', 'pnpm', 'bun', 'bunx'])
+
+interface ResolvedSpawnCommand {
+  command: string
+  useShell: boolean
+}
+
+function resolveWindowsSpawnCommand(command: string): ResolvedSpawnCommand {
+  if (!IS_WINDOWS) {
+    return { command, useShell: false }
+  }
+
+  const basename = command.includes('/') || command.includes('\\')
+    ? command.split(/[/\\]/).pop()?.toLowerCase() ?? ''
+    : command.toLowerCase()
+
+  if (WINDOWS_SHELL_SCRIPT_EXTENSIONS.some(ext => basename.endsWith(ext))) {
+    return { command, useShell: true }
+  }
+
+  const baseNameWithoutExt = WINDOWS_SHELL_SCRIPT_EXTENSIONS.reduce(
+    (name, ext) => (name.endsWith(ext) ? name.slice(0, -ext.length) : name),
+    basename
+  )
+
+  if (WINDOWS_PACKAGE_MANAGERS.has(baseNameWithoutExt)) {
+    return { command, useShell: true }
+  }
+
+  return { command, useShell: false }
+}
+
 export interface StdioMcpTransportOptions {
   command: string
   args?: string[]
@@ -23,6 +58,7 @@ export interface StdioMcpTransportDiagnostics {
   command: string
   args: string[]
   cwd?: string
+  useShell: boolean
   stdout: string
   stderr: string
   stdoutRemainder: string
@@ -32,6 +68,7 @@ export interface StdioMcpTransportDiagnostics {
 
 export class StdioMcpTransport extends BaseMcpTransport {
   private readonly command: string
+  private readonly useShell: boolean
   private readonly args: string[]
   private readonly cwd?: string
   private readonly env?: Record<string, string>
@@ -50,7 +87,11 @@ export class StdioMcpTransport extends BaseMcpTransport {
   constructor(options: StdioMcpTransportOptions) {
     super('stdio')
 
-    this.command = normalizeCommand(options.command)
+    const normalizedCommand = normalizeCommand(options.command)
+    const resolved = resolveWindowsSpawnCommand(normalizedCommand)
+
+    this.command = resolved.command
+    this.useShell = resolved.useShell
     this.args = normalizeArgs(options.args)
     this.cwd = typeof options.cwd === 'string' && options.cwd.trim() ? options.cwd.trim() : undefined
     this.env = normalizeEnv(options.env)
@@ -68,6 +109,7 @@ export class StdioMcpTransport extends BaseMcpTransport {
       command: this.command,
       args: [...this.args],
       cwd: this.cwd,
+      useShell: this.useShell,
       stdout: this.stdoutDiagnostics,
       stderr: this.stderrDiagnostics,
       stdoutRemainder: this.stdoutRemainder,
@@ -85,7 +127,7 @@ export class StdioMcpTransport extends BaseMcpTransport {
     const child = spawn(this.command, this.args, {
       cwd: this.cwd,
       env: this.env ? { ...process.env, ...this.env } : process.env,
-      shell: false,
+      shell: this.useShell,
       stdio: 'pipe',
       windowsHide: true,
     })
@@ -290,6 +332,7 @@ function diagnosticsToRecord(diagnostics: StdioMcpTransportDiagnostics): Record<
     command: diagnostics.command,
     args: diagnostics.args,
     cwd: diagnostics.cwd,
+    useShell: diagnostics.useShell,
     stdout: diagnostics.stdout,
     stderr: diagnostics.stderr,
     stdoutRemainder: diagnostics.stdoutRemainder,
