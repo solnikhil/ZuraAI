@@ -23,6 +23,7 @@ function Probe(): React.ReactElement {
       <div data-testid="sidebar-width">{sidebarWidth}</div>
       <button onClick={() => setActiveSettingsSection('models')}>set-models</button>
       <button onClick={() => setActiveSettingsSection('preferences')}>set-preferences</button>
+      <button onClick={() => setActiveSettingsSection('servers')}>set-servers</button>
       <button onClick={() => setActiveSettingsSection('providers')}>set-providers</button>
       <button onClick={() => setSidebarWidth(999)}>set-sidebar-width</button>
     </div>
@@ -74,6 +75,17 @@ describe('AppShellContext providers section normalization', () => {
 
     fireEvent.click(screen.getByText('set-providers'))
     expect(screen.getByTestId('section').textContent).toBe('providers')
+  })
+
+  it('normalizes runtime section updates to mcp', () => {
+    render(
+      <AppShellProvider>
+        <Probe />
+      </AppShellProvider>
+    )
+
+    fireEvent.click(screen.getByText('set-servers'))
+    expect(screen.getByTestId('section').textContent).toBe('mcp')
   })
 
   it('clamps stored sidebar width to max bound', () => {

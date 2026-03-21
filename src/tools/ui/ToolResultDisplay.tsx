@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ToolExecutionMetadata } from '../types'
 import {
   ChevronDown,
   ChevronUp,
@@ -13,7 +14,21 @@ import './ToolResultDisplay.css'
 
 // Present tool names in a human-readable form.
 function formatToolDisplayName(name: string): string {
+  const mcpMatch = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
+  if (mcpMatch) {
+    const [, serverSlug, toolSlug] = mcpMatch
+    return `${humanizeSlug(toolSlug)} (${humanizeSlug(serverSlug)} MCP)`
+  }
+
   return name.replace(/_/g, ' ')
+}
+
+function humanizeSlug(value: string): string {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 interface SearchResult {
@@ -48,6 +63,7 @@ interface ToolResultDisplayProps {
   toolName: string
   result: unknown
   error?: string
+  metadata?: ToolExecutionMetadata
   sessionId?: string
   messageId?: string
   toolResultIndex?: number
@@ -57,6 +73,7 @@ export default function ToolResultDisplay({
   toolName,
   result,
   error,
+  metadata,
   sessionId: _sessionId,
   messageId: _messageId,
   toolResultIndex: _toolResultIndex,
@@ -73,6 +90,7 @@ export default function ToolResultDisplay({
           <span>Tool Error: {displayName}</span>
         </div>
         <div className="tool-result-error-message">{error}</div>
+        {metadata?.origin === 'mcp' && <div className="tool-result-error-message">{formatMcpAuditLine(metadata)}</div>}
       </div>
     )
   }
@@ -183,7 +201,23 @@ export default function ToolResultDisplay({
         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </div>
 
+      {metadata?.origin === 'mcp' && <div className="tool-result-error-message">{formatMcpAuditLine(metadata)}</div>}
+
       {isExpanded && <pre className="tool-result-json">{JSON.stringify(result, null, 2)}</pre>}
     </div>
   )
+}
+
+function formatMcpAuditLine(metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }>): string {
+  const approvalText = metadata.approvalState === 'not-required'
+    ? 'No approval required'
+    : metadata.approvalState === 'approved'
+      ? 'Approved'
+      : metadata.approvalState === 'rejected'
+        ? 'Rejected'
+        : metadata.approvalState === 'timed_out'
+          ? 'Approval timed out'
+          : 'Approval cancelled'
+
+  return `${metadata.serverName} MCP • ${approvalText} • ${metadata.durationMs}ms • ${metadata.outcome}`
 }

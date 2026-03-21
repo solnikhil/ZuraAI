@@ -31,6 +31,12 @@ export interface McpConnectionOptions {
   clientInfo?: McpConnectionClientInfo
 }
 
+export interface McpNormalizedToolCallResult {
+  content: unknown[]
+  structuredContent?: unknown
+  isError: boolean
+}
+
 type RuntimeStateHandler = (state: McpServerRuntimeState) => void
 
 interface PendingRequest {
@@ -228,6 +234,19 @@ export class McpConnection {
     return [...tools]
   }
 
+  async callTool(toolName: string, args: Record<string, unknown>): Promise<McpNormalizedToolCallResult> {
+    return parseToolCallResult(
+      await this.request(
+        'tools/call',
+        {
+          name: toolName,
+          arguments: args,
+        },
+        this.requestTimeoutMs
+      )
+    )
+  }
+
   async request(method: string, params?: unknown, timeoutMs = this.requestTimeoutMs): Promise<unknown> {
     if (!this.transport.isConnected()) {
       throw new Error(`MCP server "${this.server.name}" is not connected`)
@@ -417,6 +436,20 @@ function parseServerCapabilities(capabilities: McpInitializeResult['capabilities
     tools: isRecord(capabilities?.tools),
     resources: isRecord(capabilities?.resources),
     prompts: isRecord(capabilities?.prompts),
+  }
+}
+
+function parseToolCallResult(result: unknown): McpNormalizedToolCallResult {
+  if (!isRecord(result)) {
+    throw new Error('MCP tools/call response is invalid')
+  }
+
+  return {
+    content: Array.isArray(result.content) ? [...result.content] : [],
+    structuredContent: Object.prototype.hasOwnProperty.call(result, 'structuredContent')
+      ? result.structuredContent
+      : undefined,
+    isError: result.isError === true,
   }
 }
 

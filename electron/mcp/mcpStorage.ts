@@ -11,6 +11,7 @@ import type {
   McpResolvedServerConfig,
   McpServerConfig,
   McpServerStoreFile,
+  McpServerTrustState,
   McpToolManifest,
   McpTransportType,
 } from '../../src/mcp/types'
@@ -44,6 +45,10 @@ function normalizeTimestamp(value: unknown, fallback: string): string {
 
 function normalizeTransport(value: unknown): McpTransportType {
   return value === 'sse' || value === 'websocket' ? value : 'stdio'
+}
+
+function normalizeTrustState(value: unknown): McpServerTrustState {
+  return value === 'trusted' ? 'trusted' : 'untrusted'
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -152,6 +157,7 @@ export function normalizeMcpServerConfig(
     id,
     name,
     enabled: typeof raw.enabled === 'boolean' ? raw.enabled : false,
+    trustState: normalizeTrustState(raw.trustState),
     transport: normalizeTransport(raw.transport),
     command: typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : undefined,
     args: normalizeStringArray(raw.args),

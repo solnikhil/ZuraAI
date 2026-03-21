@@ -340,6 +340,7 @@ export function useOpenRouterStreaming({
         const researchPlanCallbacks = createResearchPlanCallbacks(
           updateStreaming as (u: Record<string, unknown>) => void,
           throttledUpdateStreamingMessage,
+          updateStreamingMessage,
           sessionId,
           messageId
         )

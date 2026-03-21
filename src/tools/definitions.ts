@@ -1,6 +1,8 @@
 // Tool Definitions - JSON Schema format compatible with OpenAI/Gemini function calling
 // SECURITY: Only includes tools that are implemented and enabled.
 
+import type { ToolDescriptor } from './types'
+
 export type ToolSchemaType = 'string' | 'number' | 'boolean' | 'object' | 'array'
 
 export interface ToolSchemaProperty {
@@ -13,24 +15,14 @@ export interface ToolSchemaProperty {
   items?: ToolSchemaProperty
 }
 
-export interface ToolDefinition {
-  name: string
-  description: string
-  parameters: ToolSchemaProperty & {
-    type: 'object'
-    properties: Record<string, ToolSchemaProperty>
-    required: string[]
-  }
-  requiresApproval?: boolean
-  category: 'search' | 'utility' | 'system' | 'browser'
-}
+export type ToolDefinition = ToolDescriptor
 
 /**
  * Active tools in ZuraAI
  * web_search is a main-process IPC tool.
  * research_plan is renderer-only and expands into web_search steps.
  */
-export const toolDefinitions: ToolDefinition[] = [
+export const builtInToolDefinitions: ToolDefinition[] = [
   {
     name: 'web_search',
     description: `Search the internet for real-time information. Returns text results and images.
@@ -84,6 +76,7 @@ Query formulation best practices:
       required: ['query'],
     },
     category: 'search',
+    origin: 'builtin-main',
   },
   {
     name: 'research_plan',
@@ -115,16 +108,26 @@ Query formulation best practices:
       required: ['topic', 'steps'],
     },
     category: 'search',
+    origin: 'builtin-renderer',
   },
 ]
 
-export function getAllToolDefinitions(): ToolDefinition[] {
-  return toolDefinitions
+export const toolDefinitions = builtInToolDefinitions
+
+export function getBuiltinToolDefinitions(): ToolDefinition[] {
+  return builtInToolDefinitions
+}
+
+export function getAllToolDefinitions(runtimeTools: ToolDescriptor[] = []): ToolDescriptor[] {
+  return [...builtInToolDefinitions, ...runtimeTools]
 }
 
 /**
  * Get tool definition by name
  */
-export function getToolByName(name: string): ToolDefinition | undefined {
-  return getAllToolDefinitions().find((t) => t.name === name)
+export function getToolByName(
+  name: string,
+  runtimeTools: ToolDescriptor[] = []
+): ToolDescriptor | undefined {
+  return getAllToolDefinitions(runtimeTools).find((t) => t.name === name)
 }

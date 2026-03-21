@@ -2,6 +2,8 @@ export type McpTransportType = 'stdio' | 'sse' | 'websocket'
 
 export type McpServerStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
+export type McpServerTrustState = 'untrusted' | 'trusted'
+
 export type McpConfigValueSource = 'plaintext' | 'secret'
 
 export type McpJsonRpcId = string | number
@@ -52,6 +54,7 @@ export interface McpServerConfig {
   id: string
   name: string
   enabled: boolean
+  trustState: McpServerTrustState
   transport: McpTransportType
   command?: string
   args?: string[]
@@ -134,6 +137,13 @@ export interface McpNamespacedTool extends McpNamespacedToolIdentity {
   manifest: McpToolManifest
 }
 
+export interface McpRuntimeSnapshot {
+  servers: McpServerConfig[]
+  runtimeStates: McpServerRuntimeState[]
+  tools: McpNamespacedTool[]
+  pendingApprovals: McpApprovalRequest[]
+}
+
 export interface McpToolLookupRecord {
   namespacedName: string
   serverId: string
@@ -152,10 +162,36 @@ export interface McpApprovalRequest {
   expiresAt: number
 }
 
+export type McpApprovalOutcome = 'approved' | 'rejected' | 'timed_out' | 'cancelled'
+
 export interface McpApprovalDecision {
   requestId: string
   approved: boolean
   resolvedAt: number
+  outcome: McpApprovalOutcome
+}
+
+export type McpToolApprovalState = 'not-required' | McpApprovalOutcome
+
+export type McpToolExecutionOutcome = 'success' | 'error' | 'rejected' | 'timed_out' | 'cancelled'
+
+export interface McpToolExecutionMetadata {
+  origin: 'mcp'
+  serverId: string
+  serverName: string
+  namespacedToolName: string
+  originalToolName: string
+  trusted: boolean
+  approvalState: McpToolApprovalState
+  durationMs: number
+  outcome: McpToolExecutionOutcome
+}
+
+export interface McpToolExecutionResult {
+  success: boolean
+  data?: unknown
+  error?: string
+  metadata: McpToolExecutionMetadata
 }
 
 export interface McpJsonRpcErrorObject {

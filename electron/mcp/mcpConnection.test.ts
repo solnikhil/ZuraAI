@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { describe, expect, it } from 'vitest'
 
 import type { McpResolvedServerConfig } from '../../src/mcp/types'
+import type { McpTransport } from './transports/base'
 import { McpConnection, createMcpTransportForServer } from './mcpConnection'
 
 const MOCK_STDIO_SERVER_PATH = fileURLToPath(new URL('./testUtils/mockStdioServer.cjs', import.meta.url))
@@ -73,6 +74,35 @@ describe('McpConnection', () => {
     expect(connection.getLastConnectionError()).toContain('MCP request timed out: initialize')
   })
 
+  it('executes tools/call and normalizes the result payload', async () => {
+    const transport = createMockTransport()
+    const connection = new McpConnection({
+      server: createResolvedServerConfig({
+        command: process.execPath,
+        args: [MOCK_STDIO_SERVER_PATH],
+      }),
+      transport,
+    })
+
+    await connection.connect()
+
+    await expect(connection.callTool('read_file', { path: '/tmp/demo.txt' })).resolves.toEqual({
+      content: [
+        {
+          type: 'text',
+          text: 'Mock file contents for /tmp/demo.txt',
+        },
+      ],
+      structuredContent: {
+        path: '/tmp/demo.txt',
+        size: 32,
+      },
+      isError: false,
+    })
+
+    await connection.disconnect()
+  })
+
   it('creates transport instances from resolved server config', () => {
     const transport = createMcpTransportForServer(
       createResolvedServerConfig({
@@ -92,6 +122,7 @@ function createResolvedServerConfig(
     id: 'server-1',
     name: 'Mock Server',
     enabled: true,
+    trustState: 'trusted',
     transport: 'stdio',
     command: process.execPath,
     args: [MOCK_STDIO_SERVER_PATH],
@@ -111,5 +142,118 @@ function createResolvedServerConfig(
     createdAt: '2026-03-19T00:00:00.000Z',
     updatedAt: '2026-03-19T00:00:00.000Z',
     ...overrides,
+  }
+}
+
+function createMockTransport(): McpTransport {
+  let connected = false
+  let messageHandler: ((message: any) => void) | undefined
+  let stateHandler: ((state: any) => void) | undefined
+
+  return {
+    type: 'stdio',
+    async connect() {
+      connected = true
+      stateHandler?.('connecting')
+      stateHandler?.('connected')
+    },
+    async disconnect() {
+      connected = false
+      stateHandler?.('disconnected')
+    },
+    isConnected() {
+      return connected
+    },
+    getState() {
+      return connected ? 'connected' : 'disconnected'
+    },
+    async send(message) {
+      if (!('id' in message) || !('method' in message)) {
+        return
+      }
+
+      if (message.method === 'initialize') {
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              protocolVersion: '2025-06-18',
+              capabilities: { tools: {} },
+              serverInfo: { name: 'Mock MCP Server', version: '1.0.0' },
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'tools/list') {
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              tools: [
+                {
+                  name: 'read_file',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      path: { type: 'string' },
+                    },
+                    required: ['path'],
+                  },
+                },
+              ],
+            },
+          })
+        })
+        return
+      }
+
+      if (message.method === 'tools/call') {
+        const path = (message.params as { arguments?: { path?: string } })?.arguments?.path ?? ''
+        queueMicrotask(() => {
+          messageHandler?.({
+            jsonrpc: '2.0',
+            id: message.id,
+            result: {
+              content: [
+                {
+                  type: 'text',
+                  text: `Mock file contents for ${path}`,
+                },
+              ],
+              structuredContent: {
+                path,
+                size: 32,
+              },
+              isError: false,
+            },
+          })
+        })
+      }
+    },
+    onMessage(handler) {
+      messageHandler = handler
+      return () => {
+        messageHandler = undefined
+      }
+    },
+    onError() {
+      return () => undefined
+    },
+    onClose() {
+      return () => undefined
+    },
+    onStateChange(handler) {
+      stateHandler = handler
+      return () => {
+        stateHandler = undefined
+      }
+    },
+    getLastError() {
+      return null
+    },
   }
 }

@@ -21,7 +21,14 @@ import {
 } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
 import { executeResearchPlanTool } from './researchPlanHandler'
-import { ToolCall, ToolCallResult, OpenRouterResponse, OpenRouterToolResultMessage } from './types'
+import {
+  ToolCall,
+  ToolCallResult,
+  OpenRouterResponse,
+  OpenRouterToolResultMessage,
+  ToolDescriptor,
+  isMcpToolDescriptor,
+} from './types'
 
 // Type for provider API responses
 type ProviderResponse = OpenRouterResponse
@@ -33,15 +40,15 @@ type FormattedToolResults = OpenRouterToolResultMessage[]
  * Validate that all required parameters are present in tool arguments
  * Returns an error message if validation fails, null if valid
  */
-function validateRequiredParameters(toolCall: ToolCall): string | null {
-  const toolDef = getToolByName(toolCall.name)
+function validateRequiredParameters(toolCall: ToolCall, availableTools: ToolDescriptor[]): string | null {
+  const toolDef = getToolByName(toolCall.name, availableTools)
 
   // Check if tool exists
   if (!toolDef) {
-    const availableTools = getAllToolDefinitions()
+    const availableToolNames = availableTools
       .map((t) => t.name)
       .join(', ')
-    return `Unknown tool "${toolCall.name}". Available tools: ${availableTools}`
+    return `Unknown tool "${toolCall.name}". Available tools: ${availableToolNames}`
   }
 
   const requiredParams = toolDef.parameters.required || []
@@ -65,8 +72,8 @@ function validateRequiredParameters(toolCall: ToolCall): string | null {
 /**
  * Coerce tool arguments to correct types based on tool definition schema
  */
-function coerceToolArguments(toolCall: ToolCall): ToolCall {
-  const toolDef = getToolByName(toolCall.name)
+function coerceToolArguments(toolCall: ToolCall, availableTools: ToolDescriptor[]): ToolCall {
+  const toolDef = getToolByName(toolCall.name, availableTools)
   if (!toolDef) return toolCall
 
   const coercedArgs: Record<string, unknown> = {}
@@ -119,6 +126,7 @@ export interface ToolManagerConfig {
   provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
   model: string
   enabledTools?: string[] // If not provided, all tools enabled
+  availableTools?: ToolDescriptor[]
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
   /** Called during research_plan execution for step-by-step progress (currentStep, totalSteps, query) */
@@ -138,7 +146,7 @@ export function getToolsForProvider(config: ToolManagerConfig) {
   }
 
   // Filter tools if specific ones are enabled
-  let tools = getAllToolDefinitions()
+  let tools = config.availableTools ?? getAllToolDefinitions()
   if (config.enabledTools && config.enabledTools.length > 0) {
     tools = tools.filter((t) => config.enabledTools!.includes(t.name))
   }
@@ -230,13 +238,15 @@ export async function processToolCalls(
     return { toolCalls: [], results: [], formattedResults: [] }
   }
 
+  const availableTools = config.availableTools ?? getAllToolDefinitions()
+
   // Phase 1: Validate, coerce, and separate valid from invalid tool calls
   const validCalls: ToolCall[] = []
   const errorResults: ToolCallResult[] = []
 
   for (const toolCall of toolCalls) {
-    const coercedToolCall = coerceToolArguments(toolCall)
-    const validationError = validateRequiredParameters(coercedToolCall)
+    const coercedToolCall = coerceToolArguments(toolCall, availableTools)
+    const validationError = validateRequiredParameters(coercedToolCall, availableTools)
 
     if (validationError) {
       console.warn(`Tool validation failed for ${coercedToolCall.name}:`, validationError)
@@ -330,13 +340,24 @@ export function buildMessagesWithToolResults(
 /**
  * Get a summary of available tools for the system prompt
  */
-export function getToolsSummaryForPrompt(enabledTools?: string[]): string {
-  let tools = getAllToolDefinitions()
+export function getToolsSummaryForPrompt(
+  enabledTools?: string[],
+  availableTools: ToolDescriptor[] = getAllToolDefinitions()
+): string {
+  let tools = availableTools
   if (enabledTools && enabledTools.length > 0) {
     tools = tools.filter((t) => enabledTools.includes(t.name))
   }
 
-  const toolsList = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n')
+  const toolsList = tools
+    .map((tool) => {
+      if (isMcpToolDescriptor(tool)) {
+        return `- ${tool.name} [MCP ${tool.mcp.serverName}/${tool.mcp.originalToolName}]: ${tool.description}`
+      }
+
+      return `- ${tool.name}: ${tool.description}`
+    })
+    .join('\n')
 
   return `You have access to the following tools:
 

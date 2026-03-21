@@ -34,4 +34,49 @@ describe('convertToOpenRouterFormat', () => {
     expect(formatted[0]?.content).toContain('combinedResults')
     expect(formatted[0]?.content).toContain('Result A')
   })
+
+  it('preserves dynamic MCP JSON Schema fields during conversion', () => {
+    const converted = convertToOpenRouterFormat([
+      {
+        name: 'mcp__docs__search_reference',
+        description: 'Search a documentation index',
+        origin: 'mcp',
+        category: 'mcp',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query' },
+            limit: { type: 'integer', description: 'Result cap', default: 5 },
+          },
+          required: ['query'],
+          additionalProperties: false,
+          oneOf: [
+            {
+              properties: {
+                query: { type: 'string' },
+              },
+            },
+          ],
+        },
+        mcp: {
+          namespacedName: 'mcp__docs__search_reference',
+          serverId: 'server-1',
+          originalToolName: 'search_reference',
+          serverName: 'Docs',
+        },
+      },
+    ])[0]
+
+    expect(converted.function.parameters.additionalProperties).toBe(false)
+    expect(converted.function.parameters.oneOf).toEqual([
+      {
+        properties: {
+          query: { type: 'string' },
+        },
+      },
+    ])
+    expect(converted.function.parameters.properties.limit).toEqual(
+      expect.objectContaining({ type: 'integer', default: 5 })
+    )
+  })
 })

@@ -69,6 +69,7 @@ describe('mcpStorage', () => {
     expect(store.servers[0]).toMatchObject({
       id: 'server-1',
       name: 'Filesystem',
+      trustState: 'untrusted',
       transport: 'websocket',
       args: ['node', 'server.js'],
       requireApproval: true,
@@ -116,6 +117,7 @@ describe('mcpStorage', () => {
       id: 'server-1',
       name: 'Remote API',
       enabled: true,
+      trustState: 'trusted',
       transport: 'sse',
       url: 'https://example.com/mcp',
       env: [

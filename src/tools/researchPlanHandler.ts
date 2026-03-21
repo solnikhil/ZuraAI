@@ -81,7 +81,10 @@ export async function executeResearchPlanTool(
       toolCall,
       result: {
         success: false,
-        error: 'Invalid research_plan: topic and steps (array of {stepNumber, query}) are required.'
+        error: 'Invalid research_plan: topic and steps (array of {stepNumber, query}) are required.',
+        metadata: {
+          origin: 'builtin-renderer',
+        }
       }
     }
   }
@@ -112,9 +115,12 @@ export async function executeResearchPlanTool(
 
   return {
     toolCall,
-    result: {
-      success: true,
-      data: { combinedResults }
+      result: {
+        success: true,
+        data: { combinedResults },
+        metadata: {
+          origin: 'builtin-renderer',
+        }
+      }
     }
-  }
 }

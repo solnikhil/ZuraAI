@@ -21,7 +21,7 @@
 
 export * from './openrouter'
 
-import { ToolDefinition } from '../definitions'
+import type { ToolDescriptor } from '../types'
 import { convertToOpenRouterFormat, OpenAITool } from './openrouter'
 
 export type ProviderToolFormat = OpenAITool[]
@@ -30,7 +30,7 @@ export type ProviderToolFormat = OpenAITool[]
  * Convert tools to the format required by a specific provider
  */
 export function convertToolsForProvider(
-  tools: ToolDefinition[],
+  tools: ToolDescriptor[],
   provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
 ): ProviderToolFormat | null {
   switch (provider) {

@@ -11,6 +11,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react'
+import type { ToolExecutionMetadata } from '../tools/types'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
@@ -29,6 +30,7 @@ export interface ToolCallResult {
     data?: unknown
     error?: string
     executionTime?: number
+    metadata?: ToolExecutionMetadata
   }
 }
 

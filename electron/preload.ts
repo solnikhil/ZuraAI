@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 
+import type {
+  McpApprovalDecision,
+  McpNamespacedTool,
+  McpRuntimeSnapshot,
+  McpServerConfig,
+  McpServerRuntimeState,
+  McpToolExecutionResult,
+} from '../src/mcp/types'
+
 const preloadLog = (message: string) => {
   console.log(`[PRELOAD] ${message}`)
 }
@@ -53,6 +62,21 @@ const INVOKE_CHANNELS = new Set<string>([
 ])
 
 const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded'])
+
+const MCP_INVOKE_CHANNELS = new Set<string>([
+  'mcp:list-servers',
+  'mcp:add-server',
+  'mcp:update-server',
+  'mcp:remove-server',
+  'mcp:connect-server',
+  'mcp:disconnect-server',
+  'mcp:get-state',
+  'mcp:list-tools',
+  'mcp:execute-tool',
+  'mcp:resolve-approval',
+])
+
+const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
 
 function assertAllowed(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -147,6 +171,63 @@ contextBridge.exposeInMainWorld(
   'devTools',
   Object.freeze({
     inspectElement: (x: number, y: number) => ipcRenderer.invoke('devtools:inspect-element', x, y),
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'mcp',
+  Object.freeze({
+    listServers: () => {
+      assertAllowed('invoke', 'mcp:list-servers', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:list-servers') as Promise<McpServerConfig[]>
+    },
+    addServer: (serverConfig: unknown) => {
+      assertAllowed('invoke', 'mcp:add-server', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:add-server', serverConfig) as Promise<McpServerConfig>
+    },
+    updateServer: (serverId: string, updates: unknown) => {
+      assertAllowed('invoke', 'mcp:update-server', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:update-server', serverId, updates) as Promise<McpServerConfig>
+    },
+    removeServer: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:remove-server', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:remove-server', serverId) as Promise<boolean>
+    },
+    connectServer: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:connect-server', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:connect-server', serverId) as Promise<McpServerRuntimeState>
+    },
+    disconnectServer: (serverId: string) => {
+      assertAllowed('invoke', 'mcp:disconnect-server', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:disconnect-server', serverId) as Promise<McpServerRuntimeState>
+    },
+    getState: () => {
+      assertAllowed('invoke', 'mcp:get-state', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:get-state') as Promise<McpRuntimeSnapshot>
+    },
+    listTools: (serverId?: string) => {
+      assertAllowed('invoke', 'mcp:list-tools', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:list-tools', serverId) as Promise<McpNamespacedTool[]>
+    },
+    executeTool: (namespacedToolName: string, args: Record<string, unknown>) => {
+      assertAllowed('invoke', 'mcp:execute-tool', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:execute-tool', namespacedToolName, args) as Promise<McpToolExecutionResult>
+    },
+    resolveApproval: (requestId: string, approved: boolean) => {
+      assertAllowed('invoke', 'mcp:resolve-approval', MCP_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('mcp:resolve-approval', requestId, approved) as Promise<McpApprovalDecision>
+    },
+    onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => {
+      assertAllowed('on', 'mcp:state-changed', MCP_ON_CHANNELS)
+      const listener = (_event: IpcRendererEvent, snapshot: McpRuntimeSnapshot) => {
+        callback(snapshot)
+      }
+      ipcRenderer.on('mcp:state-changed', listener)
+      return () => {
+        assertAllowed('off', 'mcp:state-changed', MCP_ON_CHANNELS)
+        ipcRenderer.removeListener('mcp:state-changed', listener)
+      }
+    },
   })
 )
 

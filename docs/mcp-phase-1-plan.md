@@ -1,6 +1,6 @@
 # MCP Phase 1 Plan
 
-Status: IN PROGRESS
+Status: COMPLETE
 Scope: main-process MCP host foundation only; no renderer settings UI and no model-visible MCP tool execution yet
 
 This document is the Phase 1 deep dive for MCP in ZuraAI.
@@ -88,31 +88,40 @@ These decisions are either already reflected in code or should be treated as the
   - runtime state updates with last success timestamp and last connection error tracking
 - `electron/mcp/mcpConnection.test.ts` covers initialize + tool discovery success paths, timeout failure handling, and transport factory wiring.
 
+### Manager, IPC, and preload bridge
+
+- `electron/mcp/mcpManager.ts` now provides:
+  - configured server registration from persisted storage
+  - connect/disconnect lifecycle orchestration per server
+  - runtime state subscriptions and snapshot aggregation
+  - active-tool aggregation that excludes disconnected/error servers
+- `electron/mcp/index.ts` now provides:
+  - MCP IPC handler registration for list/add/update/remove/connect/disconnect/status/list-tools actions
+  - renderer snapshot broadcasting over `mcp:state-changed`
+- `electron/preload.ts` now exposes a dedicated `window.mcp` bridge with narrow MCP invoke/on allowlists.
+- `src/electron.d.ts` now types the `window.mcp` renderer contract.
+
+### App startup integration
+
+- `electron/main.ts` now registers MCP handlers during startup, initializes the MCP manager during `app.whenReady()`, auto-connects servers where `enabled === true` and `autoConnect === true`, and performs safe MCP shutdown before quit completes.
+
+### Verification status for this checkpoint
+
+- Every Phase 1 task in `docs/mcp-taskwise-plan.md` is now marked complete through startup integration.
+- Cross-phase checklist items already exercised in this phase are also marked complete there, including full `npm test`, preload allowlist review, secret-flow review, and migration-safety checks for built-in tools.
+- Property-based testing is not implemented for MCP yet, but dedicated follow-up tasks are now listed in the master plan so that invariants around manager aggregation, CRUD persistence, and lifecycle transitions are tracked explicitly.
+
 ---
 
-## Remaining Phase 1 Work
+## Phase 1 Outcome
 
-### 1. Manager layer
+Phase 1 now lands the full main-process MCP host foundation:
 
-- add `electron/mcp/mcpManager.ts`
-- load configured servers from storage
-- connect/disconnect individual servers safely
-- track runtime state centrally
-- aggregate tools only from connected/eligible servers
-
-### 2. IPC and preload surface
-
-- add `electron/mcp/index.ts` for main-process registration
-- expose narrow MCP actions for server CRUD, connect/disconnect, status, and list-tools
-- add a dedicated `window.mcp` bridge in `electron/preload.ts`
-- add matching typings in `src/electron.d.ts`
-
-### 3. App lifecycle integration
-
-- register MCP handlers in `electron/main.ts`
-- initialize the manager during app startup
-- decide and document auto-connect behavior for enabled servers
-- disconnect safely during app shutdown
+- transports exist for local stdio plus feature-gated remote placeholders
+- connection orchestration and tool discovery work from Electron main
+- a manager tracks persisted servers, runtime state, and active connected tools
+- renderer can observe MCP state through a narrow preload bridge
+- chat still cannot execute MCP tools until later phases
 
 ---
 
@@ -145,10 +154,11 @@ Those belong to later phases in `docs/mcp-taskwise-plan.md`.
 - `electron/mcp/transports/remote.test.ts`
 - `electron/mcp/mcpConnection.ts`
 - `electron/mcp/mcpConnection.test.ts`
-- upcoming: `electron/mcp/mcpManager.ts`
-- upcoming: `electron/mcp/index.ts`
-- upcoming: `electron/preload.ts`
-- upcoming: `src/electron.d.ts`
+- `electron/mcp/mcpManager.ts`
+- `electron/mcp/mcpManager.test.ts`
+- `electron/mcp/index.ts`
+- `electron/preload.ts`
+- `src/electron.d.ts`
 
 ---
 
@@ -167,8 +177,7 @@ Phase 1 is done when all of the following are true:
 
 ## Suggested Next Implementation Order
 
-1. Finish `stdio` transport.
-2. Build `mcpConnection` on top of the shared transport base.
-3. Add `mcpManager` and runtime aggregation.
-4. Add the dedicated `window.mcp` preload bridge and typings.
-5. Wire startup integration in `electron/main.ts`.
+1. Build the Phase 2 MCP settings section on top of `window.mcp`.
+2. Add manual server CRUD/connect flows in renderer and validate secret-handling UX.
+3. Refactor tool exposure so built-in and MCP tools can coexist safely.
+4. Only then route MCP tool execution into the chat loop.

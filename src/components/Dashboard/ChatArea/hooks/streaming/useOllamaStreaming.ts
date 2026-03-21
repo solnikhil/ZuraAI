@@ -367,6 +367,7 @@ export function useOllamaStreaming({
               data: tr.result?.data,
               error: tr.result?.error,
               executionTime: tr.result?.executionTime,
+              metadata: tr.result?.metadata,
             },
           })) || undefined
       }

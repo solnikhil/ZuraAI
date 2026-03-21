@@ -1,7 +1,8 @@
 // OpenRouter/OpenAI Function Calling Adapter
 // Converts tool definitions to OpenAI-compatible format
 
-import { ToolDefinition, ToolSchemaProperty, getToolByName } from '../definitions'
+import { getToolByName } from '../definitions'
+import type { ToolDescriptor } from '../types'
 import { 
     ToolCall,
     ToolResult,
@@ -20,16 +21,9 @@ export interface OpenAITool {
         description: string
         parameters: {
             type: 'object'
-            properties: Record<string, {
-                type: string
-                description: string
-                enum?: string[]
-                default?: unknown
-                properties?: Record<string, unknown>
-                required?: string[]
-                items?: unknown
-            }>
-            required: string[]
+            properties: Record<string, unknown>
+            required?: string[]
+            [key: string]: unknown
         }
     }
 }
@@ -42,41 +36,27 @@ export type OpenAIToolCall = OpenRouterToolCall
 /**
  * Convert ZuraAI tool definitions to OpenAI/OpenRouter format
  */
-function convertProperty(value: ToolSchemaProperty): Record<string, unknown> {
-    const base: Record<string, unknown> = {
-        type: value.type,
-        description: value.description,
-        ...(value.enum && { enum: value.enum }),
-        ...(value.default !== undefined && { default: value.default })
+function cloneJsonSchema(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(cloneJsonSchema)
     }
-    if (value.properties) {
-        base.properties = Object.fromEntries(
-            Object.entries(value.properties).map(([key, property]) => [key, convertProperty(property)])
-        )
-        base.required = value.required || []
+
+    if (!value || typeof value !== 'object') {
+        return value
     }
-    if (value.type === 'array' && value.items) {
-        base.items = convertProperty(value.items)
-    }
-    return base
+
+    return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [key, cloneJsonSchema(nestedValue)])
+    )
 }
 
-export function convertToOpenRouterFormat(tools: ToolDefinition[]): OpenAITool[] {
+export function convertToOpenRouterFormat(tools: ToolDescriptor[]): OpenAITool[] {
     return tools.map(tool => ({
         type: 'function',
         function: {
             name: tool.name,
             description: tool.description,
-            parameters: {
-                type: 'object',
-                properties: Object.fromEntries(
-                    Object.entries(tool.parameters.properties).map(([key, value]) => [
-                        key,
-                        convertProperty(value)
-                    ])
-                ) as OpenAITool['function']['parameters']['properties'],
-                required: tool.parameters.required
-            }
+            parameters: cloneJsonSchema(tool.parameters) as OpenAITool['function']['parameters']
         }
     }))
 }

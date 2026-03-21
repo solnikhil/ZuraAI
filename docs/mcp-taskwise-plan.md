@@ -51,6 +51,9 @@ The repo now has these MCP foundations in place alongside the existing tool syst
 - managed stdio MCP transport in `electron/mcp/transports/stdio.ts`
 - strict, feature-gated remote transport placeholders in `electron/mcp/transports/sse.ts` and `electron/mcp/transports/websocket.ts`
 - MCP connection handshake and tool discovery runtime in `electron/mcp/mcpConnection.ts`
+- MCP server registry/aggregation runtime in `electron/mcp/mcpManager.ts`
+- MCP main-process handler registration and renderer state broadcasts in `electron/mcp/index.ts`
+- dedicated renderer bridge for MCP in `window.mcp`
 - provider tool orchestration in:
   - `src/hooks/useToolCalling.ts`
   - `src/tools/toolManager.ts`
@@ -58,8 +61,6 @@ The repo now has these MCP foundations in place alongside the existing tool syst
 
 Main gaps that MCP still needs to address:
 
-- no MCP manager/runtime registry yet
-- no MCP preload bridge or renderer subscription surface yet
 - no dynamic runtime tool registry yet
 - no approval flow for external tools yet
 - no generic result UI for non-search tools yet
@@ -179,29 +180,29 @@ Goal: build the runtime host in Electron main with no model-visible MCP tool cal
 - [x] Store last connection error and last success timestamp.
 
 #### 7. Manager layer
-- [ ] Create `electron/mcp/mcpManager.ts`.
-- [ ] Register all configured servers.
-- [ ] Add connect/disconnect methods.
-- [ ] Add runtime state subscription/broadcast support.
-- [ ] Aggregate tools from connected servers.
-- [ ] Keep disconnected/error servers from polluting active tool lists.
+- [x] Create `electron/mcp/mcpManager.ts`.
+- [x] Register all configured servers.
+- [x] Add connect/disconnect methods.
+- [x] Add runtime state subscription/broadcast support.
+- [x] Aggregate tools from connected servers.
+- [x] Keep disconnected/error servers from polluting active tool lists.
 
 #### 8. Main-process IPC surface
-- [ ] Create `electron/mcp/index.ts`.
-- [ ] Register MCP IPC handlers.
-- [ ] Expose list/add/update/remove/connect/disconnect/status/list-tools actions.
-- [ ] Broadcast runtime state changes to renderer windows.
+- [x] Create `electron/mcp/index.ts`.
+- [x] Register MCP IPC handlers.
+- [x] Expose list/add/update/remove/connect/disconnect/status/list-tools actions.
+- [x] Broadcast runtime state changes to renderer windows.
 
 #### 9. Preload surface
-- [ ] Add dedicated `window.mcp` bridge in `electron/preload.ts`.
-- [ ] Add narrow allowlists for MCP invoke/on channels.
-- [ ] Add `src/electron.d.ts` typings for `window.mcp`.
+- [x] Add dedicated `window.mcp` bridge in `electron/preload.ts`.
+- [x] Add narrow allowlists for MCP invoke/on channels.
+- [x] Add `src/electron.d.ts` typings for `window.mcp`.
 
 #### 10. App startup integration
-- [ ] Register MCP handlers in `electron/main.ts`.
-- [ ] Initialize manager during app ready.
-- [ ] Decide whether enabled servers auto-connect on startup.
-- [ ] Add safe shutdown/disconnect handling on app exit.
+- [x] Register MCP handlers in `electron/main.ts`.
+- [x] Initialize manager during app ready.
+- [x] Decide whether enabled servers auto-connect on startup.
+- [x] Add safe shutdown/disconnect handling on app exit.
 
 ### Repo touchpoints
 
@@ -226,39 +227,39 @@ Goal: make MCP configurable through the app in a way that respects the current s
 ### Tasks
 
 #### 1. Settings section plumbing
-- [ ] Add a new settings section id, recommended: `mcp`.
-- [ ] Update settings navigation metadata and keywords.
-- [ ] Render a dedicated MCP section in `src/components/Settings/Settings.tsx`.
+- [x] Add a new settings section id, recommended: `mcp`.
+- [x] Update settings navigation metadata and keywords.
+- [x] Render a dedicated MCP section in `src/components/Settings/Settings.tsx`.
 
 #### 2. Renderer state integration
-- [ ] Create `src/mcp/McpContext.tsx`.
-- [ ] Subscribe to MCP runtime state changes from `window.mcp`.
-- [ ] Expose servers, states, tools, and pending approvals to the renderer.
+- [x] Create `src/mcp/McpContext.tsx`.
+- [x] Subscribe to MCP runtime state changes from `window.mcp`.
+- [x] Expose servers, states, tools, and pending approvals to the renderer.
 
 #### 3. Server management UI
-- [ ] Create `src/components/Settings/sections/McpSection.tsx`.
-- [ ] Create add/edit dialog for servers.
-- [ ] Create per-server card/list item UI.
-- [ ] Show transport type, enabled state, connection state, and discovered tool count.
-- [ ] Add connect/disconnect actions.
+- [x] Create `src/components/Settings/sections/McpSection.tsx`.
+- [x] Create add/edit dialog for servers.
+- [x] Create per-server card/list item UI.
+- [x] Show transport type, enabled state, connection state, and discovered tool count.
+- [x] Add connect/disconnect actions.
 
 #### 4. Config forms
-- [ ] Add common fields: name, enabled, auto-connect, timeout settings.
-- [ ] Add stdio fields: command, args, cwd.
-- [ ] Add remote fields: URL, headers, token references.
-- [ ] Add env var editor with secret/plaintext distinction.
-- [ ] Validate inputs before saving.
+- [x] Add common fields: name, enabled, auto-connect, timeout settings.
+- [x] Add stdio fields: command, args, cwd.
+- [x] Add remote fields: URL, headers, token references.
+- [x] Add env var editor with secret/plaintext distinction.
+- [x] Validate inputs before saving.
 
 #### 5. Secret handling UX
-- [ ] Reuse secure-storage save flow patterns from provider keys where possible.
-- [ ] Ensure secret values are not persisted into renderer `localStorage`.
-- [ ] Display masked secret state in forms.
-- [ ] Support updating or clearing stored MCP secrets.
+- [x] Reuse secure-storage save flow patterns from provider keys where possible.
+- [x] Ensure secret values are not persisted into renderer `localStorage`.
+- [x] Display masked secret state in forms.
+- [x] Support updating or clearing stored MCP secrets.
 
 #### 6. Persistence behavior
-- [ ] Ensure save/discard behavior matches existing Settings save bar expectations.
-- [ ] Ensure server edits survive app restart.
-- [ ] Ensure runtime state refreshes after save/connect/disconnect.
+- [x] Ensure save/discard behavior matches existing Settings save bar expectations.
+- [x] Ensure server edits survive app restart.
+- [x] Ensure runtime state refreshes after save/connect/disconnect.
 
 ### Repo touchpoints
 
@@ -283,28 +284,28 @@ Goal: let the tool system represent runtime MCP tools alongside built-in tools w
 ### Tasks
 
 #### 1. Tool model refactor
-- [ ] Introduce a tool descriptor shape that supports dynamic JSON Schema inputs.
-- [ ] Keep compatibility for built-in `web_search` and renderer-side `research_plan`.
-- [ ] Add `origin` metadata, for example: `builtin-main`, `builtin-renderer`, `mcp`.
-- [ ] Add reverse lookup metadata for namespaced MCP tools.
+- [x] Introduce a tool descriptor shape that supports dynamic JSON Schema inputs.
+- [x] Keep compatibility for built-in `web_search` and renderer-side `research_plan`.
+- [x] Add `origin` metadata, for example: `builtin-main`, `builtin-renderer`, `mcp`.
+- [x] Add reverse lookup metadata for namespaced MCP tools.
 
 #### 2. Registry split
-- [ ] Keep static built-in tool definitions separate from runtime MCP tools.
-- [ ] Create renderer-side MCP tool registry adapter.
-- [ ] Merge built-in and MCP tools at request time, not through one hardcoded array.
+- [x] Keep static built-in tool definitions separate from runtime MCP tools.
+- [x] Create renderer-side MCP tool registry adapter.
+- [x] Merge built-in and MCP tools at request time, not through one hardcoded array.
 
 #### 3. Provider adapter compatibility
-- [ ] Verify OpenRouter/Groq/Ollama/Alibaba adapters accept generic JSON Schema tool definitions.
-- [ ] Keep Perplexity excluded from external tool exposure.
-- [ ] Verify tool descriptions and parameter schemas survive provider conversion.
+- [x] Verify OpenRouter/Groq/Ollama/Alibaba adapters accept generic JSON Schema tool definitions.
+- [x] Keep Perplexity excluded from external tool exposure.
+- [x] Verify tool descriptions and parameter schemas survive provider conversion.
 
 #### 4. Prompt/tool summary updates
-- [ ] Update any tool-summary prompt helpers to include MCP tools only when connected and eligible.
-- [ ] Keep skills prompt logic and built-in skill behavior intact.
+- [x] Update any tool-summary prompt helpers to include MCP tools only when connected and eligible.
+- [x] Keep skills prompt logic and built-in skill behavior intact.
 
 #### 5. Tool parsing and formatting
-- [ ] Ensure MCP namespaced tool calls parse back into `{ serverId, originalToolName }`.
-- [ ] Keep tool result formatting backward compatible.
+- [x] Ensure MCP namespaced tool calls parse back into `{ serverId, originalToolName }`.
+- [x] Keep tool result formatting backward compatible.
 
 ### Repo touchpoints
 
@@ -562,9 +563,12 @@ These should be revisited in every phase, not treated as one-off work.
 - [x] Add unit tests for type normalization and config validation.
 - [x] Add unit tests for transport message handling.
 - [x] Add integration tests with a mock `stdio` MCP server.
+- [ ] Add property tests for MCP manager snapshot aggregation and active-tool filtering.
+- [ ] Add property tests for MCP server config CRUD round-trips and persisted-state invariants.
+- [ ] Add property tests for MCP connection lifecycle invariants and auto-connect eligibility rules.
 - [ ] Add integration tests for SSE/WebSocket when enabled.
 - [ ] Add UI tests for settings and approval flows.
-- [ ] Run `npm test` after each meaningful phase.
+- [x] Run `npm test` after each meaningful phase.
 
 ### Documentation
 
@@ -574,15 +578,15 @@ These should be revisited in every phase, not treated as one-off work.
 
 ### Security review
 
-- [ ] Re-validate preload allowlists after every new MCP IPC channel.
-- [ ] Re-check that secrets never flow into renderer persistence.
+- [x] Re-validate preload allowlists after every new MCP IPC channel.
+- [x] Re-check that secrets never flow into renderer persistence.
 - [ ] Re-check that renderer cannot bypass approval or execute arbitrary tools.
 
 ### Migration safety
 
-- [ ] Keep built-in `web_search` working at every intermediate step.
-- [ ] Keep renderer-side `research_plan` working at every intermediate step.
-- [ ] Keep provider tool support rules unchanged unless deliberately updated.
+- [x] Keep built-in `web_search` working at every intermediate step.
+- [x] Keep renderer-side `research_plan` working at every intermediate step.
+- [x] Keep provider tool support rules unchanged unless deliberately updated.
 
 ---
 

@@ -232,6 +232,7 @@ export function mapToolResultsForStorage(toolResults: ToolCallResult[]): ToolCal
       data: tr.result?.data,
       error: tr.result?.error,
       executionTime: tr.result?.executionTime,
+      metadata: tr.result?.metadata,
     },
   }))
 }
@@ -280,11 +281,16 @@ export function hasSearchResults(toolResults: ToolCallResult[] | undefined): boo
 export function createResearchPlanCallbacks(
   updateStreaming: (updates: Record<string, unknown>) => void,
   throttledUpdateStreamingMessage: UpdateStreamingCallback,
+  updateStreamingMessage: UpdateStreamingCallback,
   sessionId: string,
   messageId: string
 ) {
   return {
     onToolStart: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => {
+      const nextPhase =
+        toolCall?.name === 'web_search' || toolCall?.name === 'research_plan' ? 'searching' : 'tool'
+      updateStreaming({ phase: nextPhase })
+
       if (toolCall?.name === 'research_plan') {
         const args = toolCall.arguments as {
           topic?: string
@@ -296,12 +302,23 @@ export function createResearchPlanCallbacks(
           throttledUpdateStreamingMessage(sessionId, messageId, {
             researchPlan: plan,
           } as Partial<Message>)
+          updateStreamingMessage(sessionId, messageId, {
+            researchPlan: plan,
+          } as Partial<Message>)
         }
+      }
+    },
+    onToolComplete: (toolResult: ToolCallResult) => {
+      if (toolResult.toolCall.name !== 'web_search' && toolResult.toolCall.name !== 'research_plan') {
+        updateStreaming({ phase: 'tool' })
       }
     },
     onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
       updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
       throttledUpdateStreamingMessage(sessionId, messageId, {
+        researchProgress: { currentStep, totalSteps, currentQuery: query },
+      } as Partial<Message>)
+      updateStreamingMessage(sessionId, messageId, {
         researchProgress: { currentStep, totalSteps, currentQuery: query },
       } as Partial<Message>)
     },

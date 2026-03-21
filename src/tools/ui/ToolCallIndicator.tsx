@@ -6,7 +6,21 @@ import './ToolCallIndicator.css'
 
 // Simple tool name formatter (replaces underscores with spaces)
 function formatToolDisplayName(name: string): string {
+  const mcpMatch = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
+  if (mcpMatch) {
+    const [, serverSlug, toolSlug] = mcpMatch
+    return `${humanizeSlug(toolSlug)} (${humanizeSlug(serverSlug)} MCP)`
+  }
+
   return name.replace(/_/g, ' ')
+}
+
+function humanizeSlug(value: string): string {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 const toolIcons: Record<string, React.ReactNode> = {

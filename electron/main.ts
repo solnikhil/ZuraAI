@@ -4,6 +4,12 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 
 import { createMainWindow, getMainWindow, createTray, destroyTray } from './windows'
 import { registerAllHandlers } from './ipc'
+import {
+  initializeMcpManager,
+  registerMcpHandlers,
+  shutdownMcpManager,
+  unregisterMcpHandlers,
+} from './mcp'
 import { registerToolHandlers } from './tools'
 import { initializeAutoUpdater, registerUpdaterHandlers, cleanupAutoUpdater } from './updater'
 import { deferredInitializer } from './startup/deferredInit'
@@ -22,6 +28,8 @@ app.commandLine.appendSwitch('wm-window-animations-disabled')
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
+let isAwaitingMcpShutdown = false
+let hasCompletedMcpShutdown = false
 
 // Add process identifier for Task Manager (visible in "Command line" column)
 app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
@@ -43,8 +51,32 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  unregisterMcpHandlers()
   cleanupAutoUpdater()
   destroyTray()
+})
+
+app.on('before-quit', (event) => {
+  if (hasCompletedMcpShutdown) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (isAwaitingMcpShutdown) {
+    return
+  }
+
+  isAwaitingMcpShutdown = true
+  void shutdownMcpManager()
+    .catch((error) => {
+      console.error('[MAIN] Failed to shut down MCP manager cleanly:', error)
+    })
+    .finally(() => {
+      hasCompletedMcpShutdown = true
+      isAwaitingMcpShutdown = false
+      app.quit()
+    })
 })
 
 app.whenReady().then(async () => {
@@ -70,8 +102,16 @@ app.whenReady().then(async () => {
 
   // Register every preload-exposed IPC surface before the window is created.
   registerAllHandlers()
+  registerMcpHandlers()
   registerToolHandlers()
   registerUpdaterHandlers()
+  await initializeMcpManager({
+    autoConnect: true,
+    clientInfo: {
+      name: APP_NAME,
+      version: app.getVersion(),
+    },
+  })
   deferredInitializer.markIPCReady()
 
   // Defer auto-updater initialization (only in production)

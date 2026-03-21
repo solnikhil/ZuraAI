@@ -20,7 +20,22 @@ function formatToolDisplayName(
     const mode = inferWebToolModeFromResultData(toolOutputData) || inferWebToolModeFromArgs(args)
     return getWebToolLabel(mode)
   }
+
+  const mcpMatch = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
+  if (mcpMatch) {
+    const [, serverSlug, toolSlug] = mcpMatch
+    return `${humanizeSlug(toolSlug)} (${humanizeSlug(serverSlug)} MCP)`
+  }
+
   return name.replace(/_/g, ' ')
+}
+
+function humanizeSlug(value: string): string {
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {

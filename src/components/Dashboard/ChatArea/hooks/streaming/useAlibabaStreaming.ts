@@ -154,7 +154,13 @@ export function useAlibabaStreaming({
     if (canUseTools && hasToolCallsFlag && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc?.id).length > 0) {
       const reconstructedMessage = reconstructToolCallMessage(accumulatedContent, toolCallsAccumulator)
       const responseWithFallback = buildResponseWithFallback(reconstructedMessage, optimizedHistory)
-      const researchPlanCallbacks = createResearchPlanCallbacks(updateStreaming as (u: Record<string, unknown>) => void, throttledUpdateStreamingMessage, sessionId, messageId)
+      const researchPlanCallbacks = createResearchPlanCallbacks(
+        updateStreaming as (u: Record<string, unknown>) => void,
+        throttledUpdateStreamingMessage,
+        updateStreamingMessage,
+        sessionId,
+        messageId
+      )
 
       let toolResult
       try {

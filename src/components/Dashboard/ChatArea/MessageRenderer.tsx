@@ -1316,6 +1316,7 @@ function MessageRendererComponent({
                 toolName={result.toolCall.name}
                 result={result.result?.success ? result.result.data : undefined}
                 error={result.result?.success ? undefined : result.result?.error}
+                metadata={result.result?.metadata}
                 sessionId={sessionId}
                 messageId={message.id}
                 toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}

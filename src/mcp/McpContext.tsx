@@ -1,0 +1,303 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+
+import type {
+  McpApprovalRequest,
+  McpNamespacedTool,
+  McpRuntimeSnapshot,
+  McpServerConfig,
+  McpServerRuntimeState,
+} from './types'
+import {
+  createEmptyMcpDraftServer,
+  draftServerToInputPayload,
+  isDraftServerEqualToLiveServer,
+  mcpServerToDraftServer,
+  type McpDraftServer,
+} from './draft'
+
+interface McpContextValue {
+  isSupported: boolean
+  isLoading: boolean
+  isRefreshing: boolean
+  error: string | null
+  servers: McpServerConfig[]
+  runtimeStates: McpServerRuntimeState[]
+  tools: McpNamespacedTool[]
+  pendingApprovals: McpApprovalRequest[]
+  draftServers: McpDraftServer[]
+  hasDraftChanges: boolean
+  createDraftServer: () => McpDraftServer
+  upsertDraftServer: (server: McpDraftServer) => void
+  removeDraftServer: (serverId: string) => void
+  discardDraft: () => void
+  saveDraft: () => Promise<void>
+  refresh: () => Promise<void>
+  connectServer: (serverId: string) => Promise<void>
+  disconnectServer: (serverId: string) => Promise<void>
+  resolveApproval: (requestId: string, approved: boolean) => Promise<void>
+  getRuntimeState: (serverId: string) => McpServerRuntimeState | undefined
+}
+
+const emptySnapshot: McpRuntimeSnapshot = {
+  servers: [],
+  runtimeStates: [],
+  tools: [],
+  pendingApprovals: [],
+}
+
+const McpContext = createContext<McpContextValue | undefined>(undefined)
+
+export function McpProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const [snapshot, setSnapshot] = useState<McpRuntimeSnapshot>(emptySnapshot)
+  const [draftServers, setDraftServers] = useState<McpDraftServer[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const isSupported = typeof window !== 'undefined' && Boolean(window.mcp)
+
+  const syncDraftFromSnapshot = useCallback((nextSnapshot: McpRuntimeSnapshot) => {
+    setDraftServers(nextSnapshot.servers.map((server) => mcpServerToDraftServer(server)))
+  }, [])
+
+  const hasDraftChanges = useMemo(() => {
+    const liveServersById = new Map(snapshot.servers.map((server) => [server.id, server]))
+
+    if (draftServers.length !== snapshot.servers.length) {
+      return true
+    }
+
+    for (const draftServer of draftServers) {
+      const liveServer = liveServersById.get(draftServer.id)
+      if (!liveServer || !isDraftServerEqualToLiveServer(draftServer, liveServer)) {
+        return true
+      }
+    }
+
+    return false
+  }, [draftServers, snapshot.servers])
+
+  const hasDraftChangesRef = useRef(hasDraftChanges)
+  useEffect(() => {
+    hasDraftChangesRef.current = hasDraftChanges
+  }, [hasDraftChanges])
+
+  const applySnapshot = useCallback(
+    (nextSnapshot: McpRuntimeSnapshot) => {
+      setSnapshot(nextSnapshot)
+      setError(null)
+      if (!hasDraftChangesRef.current) {
+        syncDraftFromSnapshot(nextSnapshot)
+      }
+    },
+    [syncDraftFromSnapshot]
+  )
+
+  const refresh = useCallback(async () => {
+    if (!window.mcp) {
+      setIsLoading(false)
+      setIsRefreshing(false)
+      setSnapshot(emptySnapshot)
+      setDraftServers([])
+      setError('MCP bridge is unavailable in this environment.')
+      return
+    }
+
+    setIsRefreshing(true)
+    try {
+      const nextSnapshot = await window.mcp.getState()
+      applySnapshot(nextSnapshot)
+    } catch (refreshError) {
+      setError(toErrorMessage(refreshError))
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [applySnapshot])
+
+  useEffect(() => {
+    if (!window.mcp) {
+      setIsLoading(false)
+      setError('MCP bridge is unavailable in this environment.')
+      return
+    }
+
+    let isMounted = true
+    const unsubscribe = window.mcp.onStateChange((nextSnapshot) => {
+      if (isMounted) {
+        applySnapshot(nextSnapshot)
+      }
+    })
+
+    void refresh()
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [applySnapshot, refresh])
+
+  const upsertDraftServer = useCallback((server: McpDraftServer) => {
+    setDraftServers((currentDraftServers) => {
+      const nextDraftServers = [...currentDraftServers]
+      const existingIndex = nextDraftServers.findIndex((entry) => entry.id === server.id)
+      if (existingIndex >= 0) {
+        nextDraftServers[existingIndex] = server
+        return nextDraftServers
+      }
+
+      nextDraftServers.push(server)
+      return nextDraftServers
+    })
+  }, [])
+
+  const removeDraftServer = useCallback((serverId: string) => {
+    setDraftServers((currentDraftServers) => currentDraftServers.filter((server) => server.id !== serverId))
+  }, [])
+
+  const discardDraft = useCallback(() => {
+    syncDraftFromSnapshot(snapshot)
+    setError(null)
+  }, [snapshot, syncDraftFromSnapshot])
+
+  const saveDraft = useCallback(async () => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    const liveServersById = new Map(snapshot.servers.map((server) => [server.id, server]))
+    const draftServerIds = new Set(draftServers.map((server) => server.id))
+
+    for (const liveServer of snapshot.servers) {
+      if (!draftServerIds.has(liveServer.id)) {
+        await window.mcp.removeServer(liveServer.id)
+      }
+    }
+
+    for (const draftServer of draftServers) {
+      const liveServer = liveServersById.get(draftServer.id)
+      const payload = draftServerToInputPayload(draftServer)
+
+      if (!liveServer) {
+        await window.mcp.addServer(payload)
+        continue
+      }
+
+      if (!isDraftServerEqualToLiveServer(draftServer, liveServer)) {
+        await window.mcp.updateServer(draftServer.id, payload)
+      }
+    }
+
+    const nextSnapshot = await window.mcp.getState()
+    setSnapshot(nextSnapshot)
+    syncDraftFromSnapshot(nextSnapshot)
+    setError(null)
+    setIsLoading(false)
+  }, [draftServers, snapshot.servers, syncDraftFromSnapshot])
+
+  const connectServer = useCallback(
+    async (serverId: string) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      await window.mcp.connectServer(serverId)
+      await refresh()
+    },
+    [refresh]
+  )
+
+  const disconnectServer = useCallback(
+    async (serverId: string) => {
+      if (!window.mcp) {
+        throw new Error('MCP bridge is unavailable in this environment.')
+      }
+
+      await window.mcp.disconnectServer(serverId)
+      await refresh()
+    },
+    [refresh]
+  )
+
+  const resolveApproval = useCallback(async (requestId: string, approved: boolean) => {
+    if (!window.mcp) {
+      throw new Error('MCP bridge is unavailable in this environment.')
+    }
+
+    await window.mcp.resolveApproval(requestId, approved)
+    await refresh()
+  }, [refresh])
+
+  const getRuntimeState = useCallback(
+    (serverId: string) => snapshot.runtimeStates.find((state) => state.serverId === serverId),
+    [snapshot.runtimeStates]
+  )
+
+  const value = useMemo<McpContextValue>(
+    () => ({
+      isSupported,
+      isLoading,
+      isRefreshing,
+      error,
+      servers: snapshot.servers,
+      runtimeStates: snapshot.runtimeStates,
+      tools: snapshot.tools,
+      pendingApprovals: snapshot.pendingApprovals,
+      draftServers,
+      hasDraftChanges,
+      createDraftServer: createEmptyMcpDraftServer,
+      upsertDraftServer,
+      removeDraftServer,
+      discardDraft,
+      saveDraft,
+      refresh,
+      connectServer,
+      disconnectServer,
+      resolveApproval,
+      getRuntimeState,
+    }),
+    [
+      connectServer,
+      disconnectServer,
+      discardDraft,
+      draftServers,
+      error,
+      getRuntimeState,
+      hasDraftChanges,
+      isLoading,
+      isRefreshing,
+      isSupported,
+      resolveApproval,
+      refresh,
+      removeDraftServer,
+      saveDraft,
+      snapshot.runtimeStates,
+      snapshot.servers,
+      snapshot.tools,
+      snapshot.pendingApprovals,
+      upsertDraftServer,
+    ]
+  )
+
+  return <McpContext.Provider value={value}>{children}</McpContext.Provider>
+}
+
+export function useMcp(): McpContextValue {
+  const context = useContext(McpContext)
+  if (!context) {
+    throw new Error('useMcp must be used within an McpProvider')
+  }
+
+  return context
+}
+
+export function useOptionalMcp(): McpContextValue | undefined {
+  return useContext(McpContext)
+}
+
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}

@@ -222,14 +222,15 @@ export default function ChatArea() {
               {toolState.toolResults
                 .map((result, i) =>
                   result.toolCall.name === 'web_search' ? null : (
-                    <ToolResultDisplay
-                      key={i}
-                      toolName={result.toolCall.name}
-                      result={result.result?.success ? result.result.data : undefined}
-                      error={result.result?.success ? undefined : result.result?.error}
-                      sessionId={currentSessionId || undefined}
-                      messageId={msg.id}
-                      toolResultIndex={i}
+                      <ToolResultDisplay
+                        key={i}
+                        toolName={result.toolCall.name}
+                        result={result.result?.success ? result.result.data : undefined}
+                        error={result.result?.success ? undefined : result.result?.error}
+                        metadata={result.result?.metadata}
+                        sessionId={currentSessionId || undefined}
+                        messageId={msg.id}
+                        toolResultIndex={i}
                     />
                   )
                 )}
@@ -398,6 +399,7 @@ export default function ChatArea() {
                               toolName={result.toolCall.name}
                               result={result.result.success ? result.result.data : undefined}
                               error={result.result.success ? undefined : result.result.error}
+                              metadata={result.result?.metadata}
                               sessionId={currentSessionId || undefined}
                               messageId={msg.id}
                               toolResultIndex={i}

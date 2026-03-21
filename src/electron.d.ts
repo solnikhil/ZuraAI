@@ -1,3 +1,12 @@
+import type {
+    McpApprovalDecision,
+    McpNamespacedTool,
+    McpRuntimeSnapshot,
+    McpServerConfig,
+    McpServerRuntimeState,
+    McpToolExecutionResult,
+} from './mcp/types'
+
 export interface IElectronAPI {
     on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
     off: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
@@ -66,6 +75,20 @@ export interface DevToolsAPI {
     inspectElement: (x: number, y: number) => Promise<void>
 }
 
+export interface McpAPI {
+    listServers: () => Promise<McpServerConfig[]>
+    addServer: (serverConfig: unknown) => Promise<McpServerConfig>
+    updateServer: (serverId: string, updates: unknown) => Promise<McpServerConfig>
+    removeServer: (serverId: string) => Promise<boolean>
+    connectServer: (serverId: string) => Promise<McpServerRuntimeState>
+    disconnectServer: (serverId: string) => Promise<McpServerRuntimeState>
+    getState: () => Promise<McpRuntimeSnapshot>
+    listTools: (serverId?: string) => Promise<McpNamespacedTool[]>
+    executeTool: (namespacedToolName: string, args: Record<string, unknown>) => Promise<McpToolExecutionResult>
+    resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
+    onStateChange: (callback: (snapshot: McpRuntimeSnapshot) => void) => () => void
+}
+
 declare global {
     interface Window {
         ipcRenderer: IElectronAPI
@@ -76,5 +99,6 @@ declare global {
         windowControls: WindowControlsAPI
         shell: ShellAPI
         devTools: DevToolsAPI
+        mcp: McpAPI
     }
 }
