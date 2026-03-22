@@ -80,32 +80,34 @@ export default function DashboardLayout() {
           flex: 1,
           position: 'relative',
           overflow: 'hidden',
-          backgroundColor: 'var(--theme-background)', // Always solid to contrast with frosted sidebar
+          backgroundColor: 'var(--theme-sidebar-solid)',
           zIndex: 1,
           contain: 'strict', // Isolate from sidebar resize reflow — content is absolutely positioned inside
         }}
       >
-        {view === 'settings' ? (
-          <div
-            className="theme-section-enter"
-            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-          >
-            <Suspense fallback={<SettingsLoadingFallback />}>
-              <Settings
-                activeSection={activeSettingsSection}
-                onUnsavedChange={handleUnsavedChange}
-                showWarning={showUnsavedWarning}
-              />
-            </Suspense>
-          </div>
-        ) : (
-          <div
-            className="theme-section-enter"
-            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-          >
-            <ChatArea />
-          </div>
-        )}
+        <div className="dashboard-main-canvas">
+          {view === 'settings' ? (
+            <div
+              className="theme-section-enter"
+              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+            >
+              <Suspense fallback={<SettingsLoadingFallback />}>
+                <Settings
+                  activeSection={activeSettingsSection}
+                  onUnsavedChange={handleUnsavedChange}
+                  showWarning={showUnsavedWarning}
+                />
+              </Suspense>
+            </div>
+          ) : (
+            <div
+              className="theme-section-enter"
+              style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+            >
+              <ChatArea />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

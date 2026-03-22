@@ -171,6 +171,25 @@ html.frosted-mode body {
     contain: layout style;
 }
 
+.dashboard-main-canvas {
+    --dashboard-canvas-radius: 16px;
+    --dashboard-canvas-radius-subtle: 9px;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: var(--theme-background);
+    border-top-left-radius: var(--dashboard-canvas-radius);
+    border-bottom-left-radius: var(--dashboard-canvas-radius-subtle);
+    background-clip: padding-box;
+}
+
+@supports (corner-top-left-shape: superellipse(0.75)) {
+    .dashboard-main-canvas {
+        corner-top-left-shape: superellipse(0.75);
+        corner-bottom-left-shape: superellipse(0.75);
+    }
+}
+
 .zura-frosted-prompt {
     position: relative;
     background: linear-gradient(180deg, rgba(36, 36, 42, 0.55) 0%, rgba(24, 24, 28, 0.62) 100%);
