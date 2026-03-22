@@ -30,7 +30,8 @@ describe('McpSection', () => {
     expect(screen.getByText('Filesystem')).toBeTruthy()
     expect(screen.getByText('Connected')).toBeTruthy()
     expect(screen.getByText('2', { selector: '.mcp-server-stat-active' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Disconnect' }).hasAttribute('disabled')).toBe(false)
+
+    expect(screen.getByRole('button', { name: 'Open actions for Filesystem' })).toBeTruthy()
   })
 
   it('opens the add dialog and applies a valid draft server', () => {

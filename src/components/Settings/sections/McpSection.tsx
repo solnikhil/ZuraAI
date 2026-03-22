@@ -5,6 +5,7 @@ import {
   HardDrive,
   KeyRound,
   Loader2,
+  MoreHorizontal,
   PencilLine,
   Plus,
   RefreshCcw,
@@ -19,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -30,7 +32,6 @@ import McpToolsDialog from '@/components/mcp/McpToolsDialog'
 import { useMcp } from '@/mcp/McpContext'
 import {
   createDraftConfigValue,
-  formatTransportLabel,
   isDraftServerEqualToLiveServer,
   validateDraftServer,
   type McpDraftConfigValue,
@@ -267,81 +268,95 @@ export function McpSection(): React.ReactElement {
                     </div>
                     <div className="mcp-server-content">
                       <div className="mcp-server-title-row">
-                        <h3 className="mcp-server-title">{server.name || 'Untitled Server'}</h3>
-                        <div className="mcp-server-badges">
-                          <span className={`mcp-status-badge mcp-status-badge--${status}`}>
-                            {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Error' : 'Disconnected'}
-                          </span>
-                          {server.trustState === 'trusted' && (
-                            <span className="mcp-trust-badge">Trusted</span>
-                          )}
-                          {!server.enabled && (
-                            <span className="mcp-disabled-badge">Disabled</span>
-                          )}
-                          {isDraftOnly && <span className="mcp-new-badge">New</span>}
-                          {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
+                        <div className="mcp-server-title-group">
+                          <h3 className="mcp-server-title">{server.name || 'Untitled Server'}</h3>
+                          <div className="mcp-server-badges">
+                            <span className={`mcp-status-badge mcp-status-badge--${status}`}>
+                              {status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Error' : 'Disconnected'}
+                            </span>
+                            {server.trustState === 'trusted' && (
+                              <span className="mcp-trust-badge">Trusted</span>
+                            )}
+                            {!server.enabled && (
+                              <span className="mcp-disabled-badge">Disabled</span>
+                            )}
+                            {isDraftOnly && <span className="mcp-new-badge">New</span>}
+                            {isDirty && !isDraftOnly && <span className="mcp-edited-badge">Edited</span>}
+                          </div>
                         </div>
-                      </div>
-                      <div className="mcp-server-meta">
-                        <span className="mcp-transport-label">{formatTransportLabel(server.transport)}</span>
-                        <span className="mcp-server-path">
-                          {server.transport === 'stdio' ? server.command || 'No command' : server.url || 'No URL'}
-                        </span>
-                      </div>
-                      <div className="mcp-server-stats">
-                        <span>
-                          <span className="mcp-server-stat-active">{activeToolCount}</span>
-                          <span className="mcp-server-stat-total"> / {toolCount} tools</span>
-                        </span>
-                        <span>{resourceCount} resources</span>
-                        <span>{promptCount} prompts</span>
+                        <div className="mcp-server-controls">
+                          <div className="mcp-server-stats">
+                            <span className="mcp-server-stat">
+                              <span className="mcp-server-stat-label">Tools</span>
+                              <span className="mcp-server-stat-active">{activeToolCount}</span>
+                              <span className="mcp-server-stat-total"> / {toolCount} tools</span>
+                            </span>
+                            <span className="mcp-server-stat">
+                              <span className="mcp-server-stat-label">Resources</span>
+                              <span className="mcp-server-stat-value">{resourceCount}</span>
+                            </span>
+                            <span className="mcp-server-stat">
+                              <span className="mcp-server-stat-label">Prompts</span>
+                              <span className="mcp-server-stat-value">{promptCount}</span>
+                            </span>
+                          </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="mcp-server-menu-trigger"
+                              aria-label={`Open actions for ${server.name || 'Untitled Server'}`}
+                            >
+                              <MoreHorizontal size={16} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            sideOffset={8}
+                            className="mcp-server-menu-content w-48 rounded-lg border border-border/80 bg-popover p-1 shadow-md"
+                          >
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              disabled={!canManageTools}
+                              onSelect={() => openToolsDialog(server)}
+                            >
+                              <Wrench className="h-4 w-4" />
+                              Manage Tools
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              disabled={isBusy || hasDraftChanges || isDraftOnly || !server.enabled || !isSupported}
+                              onSelect={() => {
+                                void handleConnectToggle(server)
+                              }}
+                            >
+                              {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cable className="h-4 w-4" />}
+                              {status === 'connected' ? 'Disconnect' : 'Connect'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onSelect={() => openEditDialog(server)}
+                            >
+                              <PencilLine className="h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              variant="destructive"
+                              onSelect={() => setDeleteTarget(server)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        </div>
                       </div>
                       {runtimeState?.error && (
                         <div className="mcp-server-error">{runtimeState.error}</div>
                       )}
                     </div>
-                  </div>
-                  <div className="mcp-server-actions">
-                    {canManageTools && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mcp-manage-tools-btn"
-                        onClick={() => openToolsDialog(server)}
-                      >
-                        <Wrench className="mr-2 h-4 w-4" />
-                        Manage Tools
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleConnectToggle(server)}
-                      disabled={isBusy || hasDraftChanges || isDraftOnly || !server.enabled || !isSupported}
-                    >
-                      {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cable className="mr-2 h-4 w-4" />}
-                      {status === 'connected' ? 'Disconnect' : 'Connect'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(server)}
-                    >
-                      <PencilLine className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mcp-delete-btn"
-                      onClick={() => setDeleteTarget(server)}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
                   </div>
                 </div>
               )
