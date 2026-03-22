@@ -203,7 +203,6 @@
 
 .sidebar-container.frosted .sidebar-header__btn:hover {
   background: color-mix(in srgb, var(--theme-surface-hover) 72%, transparent);
-  border-color: color-mix(in srgb, var(--theme-border) 68%, transparent);
 }
 
 .sidebar-header__btn:focus-visible {
@@ -347,7 +346,6 @@
 
 .sidebar-chat-row:hover {
   background: var(--theme-surface-hover);
-  border-color: color-mix(in srgb, var(--theme-border) 30%, transparent);
 }
 
 /* Active row highlight comes from selected overlay styles only. */
@@ -550,7 +548,6 @@
 
 .sidebar-footer__btn:hover {
   background: var(--theme-surface-hover);
-  border-color: var(--theme-border-hover);
 }
 
 .sidebar-footer__btn:focus-visible {
@@ -608,7 +605,6 @@
 
 .sidebar-container.frosted .sidebar-footer__btn:hover {
   background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .sidebar-container.frosted .sidebar-footer__icon-wrap {
@@ -650,7 +646,6 @@
 
 .sidebar-nav-item:hover {
   background: color-mix(in srgb, var(--theme-surface-hover) 82%, transparent);
-  border-color: color-mix(in srgb, var(--theme-border) 52%, transparent);
 }
 
 .sidebar-nav-item.active {

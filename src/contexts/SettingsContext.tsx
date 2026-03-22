@@ -299,9 +299,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) {
       parsed.titleModelProvider = defaultSettings.titleModelProvider
     }
-    if (!parsed.titleModel) parsed.titleModel = defaultSettings.titleModel
+    // titleModel can be empty (resolved dynamically at runtime)
+    if (parsed.titleModel === undefined || parsed.titleModel === null) {
+      parsed.titleModel = defaultSettings.titleModel
+    }
+    // Migrate deprecated gemini-* prefix to empty (will be resolved dynamically)
     if (parsed.titleModel?.startsWith('gemini-')) {
-      parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+      parsed.titleModel = ''
+    }
+    if (parsed.titleModel === 'google/gemini-2.0-flash-exp:free') {
+      parsed.titleModel = ''
     }
     if (typeof parsed.titleGenerationPrompt !== 'string') {
       parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt

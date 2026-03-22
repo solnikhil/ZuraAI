@@ -52,6 +52,7 @@ import {
   splitMessageTimeline,
   type FollowUpTimelineSnapshot,
 } from './messageTimeline'
+import { shouldHideGenericToolResultCard } from './toolResultVisibility'
 import {
   Dialog,
   DialogContent,
@@ -1070,40 +1071,22 @@ function MessageRendererComponent({
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
   const visibleToolResults = useMemo(
-    () => {
-      return (message.toolResults || []).filter((result) => {
-        if (result.toolCall.name === 'web_search') {
-          return false
-        }
-
-        const metadata = result.result?.metadata
-        if (metadata?.origin === 'mcp') {
-          return false
-        }
-
-        return !/^mcp__/.test(result.toolCall.name)
-      })
-    },
+    () => (message.toolResults || []).filter((result) => !shouldHideGenericToolResultCard(result)),
     [message.toolResults]
   )
   const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
-  const showUpperThinkingBlock =
-    (!followUpSnapshot &&
-      (hasThinking ||
-        showThinkingSpinner ||
-        completedBlocks.length > 0 ||
-        message.researchStatus?.isSearching ||
-        hasActiveToolCalls)) ||
-    timeline.beforeBlocks.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
+  const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
+  const hasActiveThinkingState =
+    hasThinking || showThinkingSpinner || Boolean(message.researchStatus?.isSearching) || hasActiveToolCalls
+  const showUpperThinkingBlock =
+    timeline.beforeBlocks.length > 0 ||
+    (activeTimelineOwner === 'upper' && hasActiveThinkingState)
   const showLowerThinkingBlock =
-    hasSplitFollowUpSection &&
-    (hasThinking ||
-      showThinkingSpinner ||
-      timeline.afterBlocks.length > 0 ||
-      message.researchStatus?.isSearching ||
-      hasActiveToolCalls)
+    timeline.afterBlocks.length > 0 ||
+    hasBottomDisplayContent ||
+    (activeTimelineOwner === 'lower' && hasActiveThinkingState)
 
   // Handle copy
   const handleCopy = () => {
@@ -1291,20 +1274,30 @@ function MessageRendererComponent({
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
             messageId={message.id}
-            activeBlockKey={followUpSnapshot ? `${activeThinkingBlockKey}:upper` : activeThinkingBlockKey}
-            thinking={followUpSnapshot ? '' : message.thinking || ''}
+            activeBlockKey={
+              activeTimelineOwner === 'upper'
+                ? activeThinkingBlockKey
+                : `${activeThinkingBlockKey}:upper`
+            }
+            thinking={activeTimelineOwner === 'upper' ? message.thinking || '' : ''}
             isThinking={
-              !followUpSnapshot &&
+              activeTimelineOwner === 'upper' &&
               isStreaming &&
               isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               !hasActiveToolCalls
             }
-            thinkingDuration={followUpSnapshot ? undefined : message.thinkingDuration}
-            isSearching={followUpSnapshot ? false : message.researchStatus?.isSearching || false}
-            searchQuery={followUpSnapshot ? undefined : message.researchStatus?.currentSearch}
+            thinkingDuration={
+              activeTimelineOwner === 'upper' ? message.thinkingDuration : undefined
+            }
+            isSearching={
+              activeTimelineOwner === 'upper' ? message.researchStatus?.isSearching || false : false
+            }
+            searchQuery={
+              activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearch : undefined
+            }
             completedBlocks={timeline.beforeBlocks}
-            activeToolCalls={followUpSnapshot ? [] : activeToolCalls}
+            activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
           />
         </div>
       )}
@@ -1360,19 +1353,30 @@ function MessageRendererComponent({
         >
           <ThinkingBlockComponent
             messageId={message.id}
-            activeBlockKey={`${activeThinkingBlockKey}:lower`}
-            thinking={message.thinking || ''}
+            activeBlockKey={
+              activeTimelineOwner === 'lower'
+                ? activeThinkingBlockKey
+                : `${activeThinkingBlockKey}:lower`
+            }
+            thinking={activeTimelineOwner === 'lower' ? message.thinking || '' : ''}
             isThinking={
+              activeTimelineOwner === 'lower' &&
               isStreaming &&
               isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               !hasActiveToolCalls
             }
-            thinkingDuration={message.thinkingDuration}
-            isSearching={message.researchStatus?.isSearching || false}
-            searchQuery={message.researchStatus?.currentSearch}
+            thinkingDuration={
+              activeTimelineOwner === 'lower' ? message.thinkingDuration : undefined
+            }
+            isSearching={
+              activeTimelineOwner === 'lower' ? message.researchStatus?.isSearching || false : false
+            }
+            searchQuery={
+              activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearch : undefined
+            }
             completedBlocks={timeline.afterBlocks}
-            activeToolCalls={activeToolCalls}
+            activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
           />
         </div>
       )}

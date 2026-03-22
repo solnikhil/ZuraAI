@@ -130,4 +130,97 @@ describe('MessageRenderer MCP timeline', () => {
     expect(screen.getByText('mcp__github__create_issue')).toBeInTheDocument()
     expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
   })
+
+  it('does not render generic tool result cards while the assistant is still streaming', () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-mcp-streaming',
+          role: 'assistant',
+          content: 'Working...',
+          timestamp: 1,
+          toolResults: [
+            {
+              toolCall: {
+                id: 'tool-1',
+                name: 'mcp__seqthnk__sequentialthinking',
+                arguments: { thought: 'plan this' },
+              },
+              result: {
+                success: true,
+                data: { nextThoughtNeeded: true },
+                metadata: {
+                  origin: 'mcp',
+                  serverId: 'seqthnk',
+                  serverName: 'seqthnk',
+                  namespacedToolName: 'mcp__seqthnk__sequentialthinking',
+                  originalToolName: 'sequentialthinking',
+                  trusted: true,
+                  approvalState: 'approved',
+                  durationMs: 42,
+                  outcome: 'success',
+                },
+              },
+            },
+          ],
+        }}
+        isStreaming={true}
+        sessionId="session-1"
+      />
+    )
+
+    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
+  })
+
+  it('skips duplicate MCP result cards even when persisted metadata omits the explicit origin flag', () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-mcp-legacy-shape',
+          role: 'assistant',
+          content: 'Done.',
+          timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'tool',
+              toolName: 'mcp__seqthnk__sequentialthinking',
+              timestamp: 1,
+              toolInput: { thought: 'plan this' },
+              toolOutput: {
+                success: true,
+                data: { nextThoughtNeeded: true },
+              },
+            },
+          ],
+          toolResults: [
+            {
+              toolCall: {
+                id: 'tool-1',
+                name: 'sequentialthinking',
+                arguments: { thought: 'plan this' },
+              },
+              result: {
+                success: true,
+                data: { nextThoughtNeeded: true },
+                metadata: {
+                  serverId: 'seqthnk',
+                  serverName: 'seqthnk',
+                  namespacedToolName: 'mcp__seqthnk__sequentialthinking',
+                  originalToolName: 'sequentialthinking',
+                  trusted: true,
+                  approvalState: 'approved',
+                  durationMs: 42,
+                  outcome: 'success',
+                },
+              },
+            },
+          ],
+        }}
+        isStreaming={false}
+        sessionId="session-1"
+      />
+    )
+
+    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
+  })
 })

@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { TOOL_FOLLOW_UP_SPLIT_MARKER } from './messageTimeline'
@@ -19,15 +19,24 @@ vi.mock('../../LazyMarkdown', () => ({
 vi.mock('../../ThinkingBlock', () => ({
   default: ({
     thinking,
+    isThinking,
+    isSearching,
+    activeToolCalls,
     completedBlocks,
   }: {
     thinking?: string
+    isThinking?: boolean
+    isSearching?: boolean
+    activeToolCalls?: Array<{ name: string }>
     completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
   }) => (
     <div data-testid="thinking-block">
       {completedBlocks?.map((block, index) => (
         <span key={index}>{block.content || block.query || block.toolName}</span>
       ))}
+      {isThinking ? <span>Connecting</span> : null}
+      {isSearching ? <span>Searching</span> : null}
+      {activeToolCalls?.length ? <span>Tool Active</span> : null}
       {thinking ? <span>{thinking}</span> : null}
     </div>
   ),
@@ -98,14 +107,13 @@ describe('MessageRenderer follow-up timeline', () => {
     await waitFor(() => {
       const sequence = Array.from(
         container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
-      ).map((node) => node.textContent)
+      ).map((node) => node.textContent || '')
 
-      expect(sequence).toEqual([
-        'Initial reasoning',
-        'Initial response.',
-        'Follow-up reasoning',
-        'Follow-up response.',
-      ])
+      expect(sequence).toHaveLength(4)
+      expect(sequence[0]).toContain('Initial reasoning')
+      expect(sequence[1]).toBe('Initial response.')
+      expect(sequence[2]).toContain('Follow-up reasoning')
+      expect(sequence[3]).toBe('Follow-up response.')
     })
   })
 
@@ -167,5 +175,42 @@ describe('MessageRenderer follow-up timeline', () => {
         'Follow-up response.',
       ])
     })
+  })
+
+  it('renders only one active connecting state when a persisted split marker is already present', async () => {
+    const { container } = render(
+      <MessageRenderer
+        message={{
+          id: 'message-3',
+          role: 'assistant',
+          content: `Initial response.${TOOL_FOLLOW_UP_SPLIT_MARKER}Follow-up response.`,
+          timestamp: 1,
+          thinking: 'Follow-up reasoning',
+          thinkingBlocks: [
+            {
+              type: 'thinking',
+              content: 'Initial reasoning',
+              duration: 1000,
+              timestamp: 1,
+            },
+            {
+              type: 'thinking',
+              content: 'Earlier follow-up reasoning',
+              duration: 800,
+              timestamp: 2,
+            },
+          ],
+        }}
+        isStreaming={true}
+        streamPhase="reasoning"
+      />
+    )
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-testid="thinking-block"]')).toHaveLength(2)
+    })
+
+    expect(container).toHaveTextContent('Initial reasoning')
+    expect(screen.getAllByText('Connecting')).toHaveLength(1)
   })
 })

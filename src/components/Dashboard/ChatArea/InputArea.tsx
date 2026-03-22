@@ -146,6 +146,9 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
         onSend()
         setInput('')
         adjustHeight(true)
+        if (attachedFiles.length > 0) {
+          onFilesChange([])
+        }
       }
     }
   }
@@ -350,7 +353,6 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                     adjustHeight()
                     onActivity?.()
                   }}
-                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -518,6 +520,11 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                           e.stopPropagation()
                           if (canSend) {
                             onSend()
+                            setInput('')
+                            adjustHeight(true)
+                            if (attachedFiles.length > 0) {
+                              onFilesChange([])
+                            }
                           }
                         }}
                         disabled={!canSend}

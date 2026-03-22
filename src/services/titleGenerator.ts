@@ -39,8 +39,6 @@ const PROVIDER_MODEL_KEYS = {
   alibaba: 'alibabaModels',
 } as const
 
-const TITLE_FALLBACK_MODEL = 'google/gemini-2.0-flash-exp:free'
-
 const isTitleProvider = (value: unknown): value is TitleProvider =>
   typeof value === 'string' && TITLE_PROVIDERS.includes(value as TitleProvider)
 
@@ -79,7 +77,20 @@ const getProviderModels = (
   })
 }
 
-const resolveTitleModel = (settings: TitleGenerationSettings, provider: TitleProvider): string => {
+const getFirstAvailableModel = (
+  settings: TitleGenerationSettings,
+  provider: TitleProvider,
+): string | null => {
+  const providerModels = getProviderModels(settings, provider)
+  const enabledModels = providerModels.filter((model) => model.enabled !== false)
+  const candidateModels = enabledModels.length > 0 ? enabledModels : providerModels
+  return candidateModels[0]?.code || null
+}
+
+const resolveTitleModel = (
+  settings: TitleGenerationSettings,
+  provider: TitleProvider,
+): { model: string; fromFallback: boolean } => {
   const requestedTitleModel = typeof settings.titleModel === 'string' ? settings.titleModel : ''
   const aiModel = typeof settings.aiModel === 'string' ? settings.aiModel : ''
   const providerModels = getProviderModels(settings, provider)
@@ -87,26 +98,23 @@ const resolveTitleModel = (settings: TitleGenerationSettings, provider: TitlePro
   const candidateModels = enabledProviderModels.length > 0 ? enabledProviderModels : providerModels
 
   if (requestedTitleModel && candidateModels.some((model) => model.code === requestedTitleModel)) {
-    return requestedTitleModel
+    return { model: requestedTitleModel, fromFallback: false }
   }
 
   if (aiModel && candidateModels.some((model) => model.code === aiModel)) {
-    return aiModel
+    return { model: aiModel, fromFallback: false }
   }
 
   if (candidateModels.length > 0) {
-    return candidateModels[0].code
+    return { model: candidateModels[0].code, fromFallback: false }
   }
 
-  if (requestedTitleModel) {
-    return requestedTitleModel
+  const firstAvailable = getFirstAvailableModel(settings, provider)
+  if (firstAvailable) {
+    return { model: firstAvailable, fromFallback: true }
   }
 
-  if (aiModel) {
-    return aiModel
-  }
-
-  return TITLE_FALLBACK_MODEL
+  return { model: '', fromFallback: true }
 }
 
 const buildTitlePrompt = (userMessage: string, settings: TitleGenerationSettings): string => {
@@ -145,11 +153,13 @@ async function generateTitleWithProvider(
   }
 
   if (provider === 'perplexity') {
-    if (!settings.perplexityApiKey) throw new Error('Perplexity API key missing for title generation.')
+    if (!settings.perplexityApiKey)
+      throw new Error('Perplexity API key missing for title generation.')
     const result = await generatePerplexityCompletion(
       settings.perplexityApiKey,
       model,
       [{ role: 'user', content: prompt }],
+      { temperature: 0.3, max_tokens: 20 },
     )
     return result.choices?.[0]?.message?.content || ''
   }
@@ -182,21 +192,41 @@ async function generateTitleWithProvider(
     openRouterKey,
     stripOpenRouterPrefix(model),
     [{ role: 'user', content: prompt }],
-    { max_tokens: 20 },
+    { temperature: 0.3, max_tokens: 20 },
   )
   return result.choices?.[0]?.message?.content || ''
 }
 
-/**
- * Generates a short title for a chat session from the first user message.
- */
+function hasApiKeyForProvider(settings: TitleGenerationSettings, provider: TitleProvider): boolean {
+  switch (provider) {
+    case 'groq':
+      return !!settings.groqApiKey
+    case 'perplexity':
+      return !!settings.perplexityApiKey
+    case 'ollama':
+      return !!settings.ollamaUrl
+    case 'alibaba':
+      return !!settings.alibabaApiKey
+    case 'openrouter':
+      return !!getOpenRouterApiKey(settings.openRouterApiKey)
+    default:
+      return false
+  }
+}
+
 export const generateChatTitle = async (
   userMessage: string,
   settings: TitleGenerationSettings,
 ): Promise<string> => {
   const prompt = buildTitlePrompt(userMessage, settings)
   const titleProvider = resolveTitleProvider(settings)
-  const titleModel = resolveTitleModel(settings, titleProvider)
+  const { model: titleModel, fromFallback } = resolveTitleModel(settings, titleProvider)
+
+  if (!titleModel) {
+    console.warn('No title model available for provider', titleProvider)
+    const words = userMessage.trim().split(/\s+/).slice(0, 3)
+    return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
+  }
 
   try {
     const title = await generateTitleWithProvider(titleProvider, titleModel, prompt, settings)
@@ -218,22 +248,42 @@ export const generateChatTitle = async (
       errorMessage.includes('403') ||
       errorMessage.toLowerCase().includes('rate')
 
-    const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
-    if (openRouterKey && !isRateLimitOrAuthError) {
-      try {
-        const fallbackResult = await generateOpenRouterCompletion(
-          openRouterKey,
-          TITLE_FALLBACK_MODEL,
-          [{ role: 'user', content: prompt }],
-          { max_tokens: 20 },
-        )
-
-        const fallbackTitle = fallbackResult.choices?.[0]?.message?.content || ''
-        if (fallbackTitle) {
-          return enforceThreeWords(sanitizeTitle(fallbackTitle))
+    if (!fromFallback && getFirstAvailableModel(settings, titleProvider)) {
+      const fallbackModel = getFirstAvailableModel(settings, titleProvider)
+      if (fallbackModel && fallbackModel !== titleModel && !isRateLimitOrAuthError) {
+        try {
+          const fallbackTitle = await generateTitleWithProvider(
+            titleProvider,
+            fallbackModel,
+            prompt,
+            settings,
+          )
+          const cleaned = sanitizeTitle(fallbackTitle)
+          if (cleaned) {
+            return enforceThreeWords(cleaned)
+          }
+        } catch (fallbackError) {
+          console.error('Fallback model title generation failed:', fallbackError)
         }
-      } catch (fallbackError) {
-        console.error('Fallback title generation failed:', fallbackError)
+      }
+    }
+
+    const configuredProviders: TitleProvider[] = TITLE_PROVIDERS.filter(
+      (p) => p !== titleProvider && hasApiKeyForProvider(settings, p) && getFirstAvailableModel(settings, p),
+    )
+
+    for (const altProvider of configuredProviders) {
+      try {
+        const altModel = getFirstAvailableModel(settings, altProvider)
+        if (!altModel) continue
+
+        const altTitle = await generateTitleWithProvider(altProvider, altModel, prompt, settings)
+        const cleaned = sanitizeTitle(altTitle)
+        if (cleaned) {
+          return enforceThreeWords(cleaned)
+        }
+      } catch (altError) {
+        console.error(`Alternative provider ${altProvider} title generation failed:`, altError)
       }
     }
 
