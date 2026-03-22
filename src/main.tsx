@@ -20,9 +20,28 @@ preloadMarkdown()
 const savedSettings = localStorage.getItem('zura-settings')
 if (savedSettings) {
   try {
-    const parsed = JSON.parse(savedSettings) as { activeTheme?: string; softenedContrast?: boolean }
+    const parsed = JSON.parse(savedSettings) as {
+      activeTheme?: string
+      themeAccent?: string
+      themeBackground?: string
+      themeForeground?: string
+      themeContrast?: number
+      softenedContrast?: boolean
+    }
     const theme = parsed.activeTheme ? getThemeById(parsed.activeTheme) : getDefaultTheme()
-    applyThemeToDocument(theme || getDefaultTheme(), { softenedContrast: parsed.softenedContrast })
+    
+    // Migrate softenedContrast to themeContrast if needed
+    let contrast = parsed.themeContrast
+    if (contrast === undefined && parsed.softenedContrast === true) {
+      contrast = 85
+    }
+    
+    applyThemeToDocument(theme || getDefaultTheme(), {
+      customAccent: parsed.themeAccent,
+      customBackground: parsed.themeBackground,
+      customForeground: parsed.themeForeground,
+      contrast: contrast !== undefined && contrast < 100 ? contrast : undefined,
+    })
   } catch {
     applyThemeToDocument(getDefaultTheme())
   }

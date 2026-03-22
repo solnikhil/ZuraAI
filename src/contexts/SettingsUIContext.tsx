@@ -67,6 +67,10 @@ export interface SettingsUI {
   // Theme settings
   theme: 'light' | 'dark' | 'system'
   activeTheme: string // Theme ID for the new theme system
+  themeAccent?: string // Custom accent color override
+  themeBackground?: string // Custom background color override
+  themeForeground?: string // Custom foreground color override
+  themeContrast: number // Contrast slider (0-100, 100 = full contrast, lower = softer)
 
   // Title bar personalization
   titleBarDensity: 'comfortable' | 'compact'
@@ -103,8 +107,8 @@ export interface SettingsUI {
     timeout: number
   }
 
-  // Softened contrast (reduce harshness of text and surfaces)
-  softenedContrast: boolean
+  // Softened contrast (deprecated - migrated to themeContrast)
+  softenedContrast?: boolean
 
   // Chat bubble style
   chatBubbleStyle?: ChatBubbleStyle
@@ -122,6 +126,7 @@ export interface SettingsUI {
 export const defaultSettingsUI: SettingsUI = {
   theme: 'dark',
   activeTheme: 'zuraai',
+  themeContrast: 100,
   titleBarDensity: 'compact',
   titleBarShowAppName: true,
   titleBarShowChatTitle: true,
@@ -144,7 +149,6 @@ export const defaultSettingsUI: SettingsUI = {
     enabled: false,
     timeout: 120,
   },
-  softenedContrast: false,
   chatBubbleStyle: 'solid',
   chatSelectedOverlayStyle: 'linear',
   modelSelector: {
@@ -255,8 +259,18 @@ export function SettingsUIProvider({
   // Apply theme to document
   useLayoutEffect(() => {
     const theme = getThemeById(settingsUI.activeTheme) || getDefaultTheme()
-    applyThemeToDocument(theme, { softenedContrast: settingsUI.softenedContrast })
-  }, [settingsUI.activeTheme, settingsUI.softenedContrast])
+    const customAccent = settingsUI.themeAccent
+    const customBackground = settingsUI.themeBackground
+    const customForeground = settingsUI.themeForeground
+    const contrast = settingsUI.themeContrast
+    
+    applyThemeToDocument(theme, {
+      customAccent,
+      customBackground,
+      customForeground,
+      contrast: contrast < 100 ? contrast : undefined,
+    })
+  }, [settingsUI.activeTheme, settingsUI.themeAccent, settingsUI.themeBackground, settingsUI.themeForeground, settingsUI.themeContrast])
 
   // Notify parent of changes
   useEffect(() => {

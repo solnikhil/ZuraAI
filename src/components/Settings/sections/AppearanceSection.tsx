@@ -31,6 +31,26 @@ function clampNumber(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function isValidHexColor(color: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(color)
+}
+
+function normalizeHexColor(color: string): string {
+  if (!color) return ''
+  const trimmed = color.trim()
+  if (isValidHexColor(trimmed)) return trimmed
+  if (/^[0-9A-Fa-f]{6}$/.test(trimmed)) return `#${trimmed}`
+  if (/^#[0-9A-Fa-f]{3}$/.test(trimmed)) {
+    const [, r, g, b] = trimmed
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  if (/^[0-9A-Fa-f]{3}$/.test(trimmed)) {
+    const [r, g, b] = trimmed
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  return trimmed
+}
+
 const chatBubblePresets = [
   {
     id: 'solid',
@@ -190,6 +210,9 @@ export function AppearanceSection({
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
   const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
+  const [accentInput, setAccentInput] = useState('')
+  const [backgroundInput, setBackgroundInput] = useState('')
+  const [foregroundInput, setForegroundInput] = useState('')
 
   // Consume the initialCommandPaletteTab param (no longer needed for tab switching but keep the callback)
   useEffect(() => {
@@ -282,10 +305,91 @@ export function AppearanceSection({
     return getThemesByCategory(selectedThemeCategory)
   }, [selectedThemeCategory])
 
+  const currentTheme = getThemeById(settings.activeTheme) || getDefaultTheme()
+  const currentContrast = settings.themeContrast ?? 100
+  const themeAccentColor = settings.themeAccent ?? currentTheme.baseColors.accent
+  const themeBackgroundColor = settings.themeBackground ?? currentTheme.baseColors.background
+  const themeForegroundColor = settings.themeForeground ?? currentTheme.baseColors.foreground
+
+  useEffect(() => {
+    setAccentInput(themeAccentColor)
+    setBackgroundInput(themeBackgroundColor)
+    setForegroundInput(themeForegroundColor)
+  }, [themeAccentColor, themeBackgroundColor, themeForegroundColor])
+
   useLayoutEffect(() => {
     const theme = getThemeById(settings.activeTheme) || getDefaultTheme()
-    applyThemeToDocument(theme)
-  }, [settings.activeTheme])
+    applyThemeToDocument(theme, {
+      customAccent: settings.themeAccent,
+      customBackground: settings.themeBackground,
+      customForeground: settings.themeForeground,
+      contrast: currentContrast < 100 ? currentContrast : undefined,
+    })
+  }, [settings.activeTheme, settings.themeAccent, settings.themeBackground, settings.themeForeground, currentContrast])
+
+  const allThemes = useMemo(() => getThemesByCategory('all'), [])
+  const hasCustomThemeOverrides =
+    settings.themeAccent !== undefined ||
+    settings.themeBackground !== undefined ||
+    settings.themeForeground !== undefined ||
+    currentContrast !== 100
+
+  const handleThemePresetChange = (themeId: string) => {
+    const selectedTheme = getThemeById(themeId)
+    if (selectedTheme) {
+      updateSettings({
+        activeTheme: themeId,
+        theme: selectedTheme.isDark ? 'dark' : 'light',
+        themeAccent: undefined,
+        themeBackground: undefined,
+        themeForeground: undefined,
+        themeContrast: 100,
+      })
+    }
+  }
+
+  const commitThemeColor = (
+    key: 'themeAccent' | 'themeBackground' | 'themeForeground',
+    value: string,
+    fallback: string
+  ) => {
+    const normalized = normalizeHexColor(value)
+    if (!normalized) {
+      updateSettings({ [key]: undefined } as Partial<Settings>)
+      return fallback
+    }
+
+    if (!isValidHexColor(normalized)) {
+      return fallback
+    }
+
+    updateSettings({ [key]: normalized } as Partial<Settings>)
+    return normalized
+  }
+
+  const handleColorInputKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    commit: () => void
+  ) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur()
+      commit()
+    }
+  }
+
+  const resetThemeCustomization = () => {
+    updateSettings({
+      themeAccent: undefined,
+      themeBackground: undefined,
+      themeForeground: undefined,
+      themeContrast: 100,
+    })
+  }
+
+  const handleContrastChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = clampNumber(Number(e.target.value), 0, 100)
+    updateSettings({ themeContrast: value })
+  }
 
   return (
     <div
@@ -297,104 +401,329 @@ export function AppearanceSection({
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      <h3 className="appearance-group-heading">Themes</h3>
+      <h3 className="appearance-group-heading">Theme</h3>
       <Card className="settings-section-card">
-        <p style={{ margin: '0 0 14px', color: 'var(--theme-text-muted)', fontSize: '0.85rem' }}>
-          Pick the look and feel for dashboard and settings.
-        </p>
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Preset</h3>
+            <div className="settings-list-row__description">Choose a base theme preset</div>
+          </div>
+          <div className="settings-list-row__control">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <SettingsSelect
+                value={settings.activeTheme}
+                onValueChange={handleThemePresetChange}
+                options={allThemes.map((theme) => ({ value: theme.id, label: theme.name }))}
+                aria-label="Theme preset"
+              />
+              {hasCustomThemeOverrides && (
+                <button
+                  type="button"
+                  onClick={resetThemeCustomization}
+                  style={{
+                    border: '1px solid var(--theme-border)',
+                    background: 'var(--theme-surface-subtle)',
+                    color: 'var(--theme-text-secondary)',
+                    borderRadius: 8,
+                    padding: '7px 10px',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          {themeCategories.map((category) => {
-            const isActive = selectedThemeCategory === category.id
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedThemeCategory(category.id)}
-                style={{
-                  border: isActive
-                    ? '1px solid var(--theme-border-hover)'
-                    : '1px solid var(--theme-border)',
-                  background: isActive
-                    ? 'var(--theme-surface-active)'
-                    : 'var(--theme-surface-subtle)',
-                  color: 'var(--theme-text-primary)',
-                  borderRadius: 999,
-                  padding: '6px 12px',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {category.name}
-              </button>
-            )
-          })}
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Accent</h3>
+            <div className="settings-list-row__description">
+              Primary accent color for highlights and buttons
+            </div>
+          </div>
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="color"
+              value={themeAccentColor}
+              onChange={(event) => updateSettings({ themeAccent: event.target.value })}
+              style={{
+                width: 32,
+                height: 32,
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: 'transparent',
+              }}
+              aria-label="Accent color"
+            />
+            <input
+              type="text"
+              value={accentInput}
+              onChange={(event) => setAccentInput(normalizeHexColor(event.target.value))}
+              onBlur={() => setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))}
+              onKeyDown={(event) =>
+                handleColorInputKeyDown(event, () =>
+                  setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))
+                )
+              }
+              placeholder={currentTheme.baseColors.accent}
+              style={{
+                width: 90,
+                padding: '6px 8px',
+                fontSize: '0.82rem',
+                background: 'var(--theme-surface)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                color: 'var(--theme-text-primary)',
+                fontFamily: 'monospace',
+              }}
+              aria-label="Accent color hex value"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Background</h3>
+            <div className="settings-list-row__description">
+              Base background color for the interface
+            </div>
+          </div>
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="color"
+              value={themeBackgroundColor}
+              onChange={(event) => updateSettings({ themeBackground: event.target.value })}
+              style={{
+                width: 32,
+                height: 32,
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: 'transparent',
+              }}
+              aria-label="Background color"
+            />
+            <input
+              type="text"
+              value={backgroundInput}
+              onChange={(event) => setBackgroundInput(normalizeHexColor(event.target.value))}
+              onBlur={() =>
+                setBackgroundInput(
+                  commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
+                )
+              }
+              onKeyDown={(event) =>
+                handleColorInputKeyDown(event, () =>
+                  setBackgroundInput(
+                    commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
+                  )
+                )
+              }
+              placeholder={currentTheme.baseColors.background}
+              style={{
+                width: 90,
+                padding: '6px 8px',
+                fontSize: '0.82rem',
+                background: 'var(--theme-surface)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                color: 'var(--theme-text-primary)',
+                fontFamily: 'monospace',
+              }}
+              aria-label="Background color hex value"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Foreground</h3>
+            <div className="settings-list-row__description">
+              Primary text and foreground element color
+            </div>
+          </div>
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="color"
+              value={themeForegroundColor}
+              onChange={(event) => updateSettings({ themeForeground: event.target.value })}
+              style={{
+                width: 32,
+                height: 32,
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                cursor: 'pointer',
+                background: 'transparent',
+              }}
+              aria-label="Foreground color"
+            />
+            <input
+              type="text"
+              value={foregroundInput}
+              onChange={(event) => setForegroundInput(normalizeHexColor(event.target.value))}
+              onBlur={() =>
+                setForegroundInput(
+                  commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
+                )
+              }
+              onKeyDown={(event) =>
+                handleColorInputKeyDown(event, () =>
+                  setForegroundInput(
+                    commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
+                  )
+                )
+              }
+              placeholder={currentTheme.baseColors.foreground}
+              style={{
+                width: 90,
+                padding: '6px 8px',
+                fontSize: '0.82rem',
+                background: 'var(--theme-surface)',
+                border: '1px solid var(--theme-border)',
+                borderRadius: 6,
+                color: 'var(--theme-text-primary)',
+                fontFamily: 'monospace',
+              }}
+              aria-label="Foreground color hex value"
+            />
+          </div>
+        </div>
+
+        <div className="settings-list-row">
+          <div className="settings-list-row__meta">
+            <h3 className="settings-list-row__label">Contrast</h3>
+            <div className="settings-list-row__description">
+              Adjust theme contrast (lower = softer, higher = sharper)
+            </div>
+          </div>
+          <div className="settings-list-row__control" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={currentContrast}
+              onChange={handleContrastChange}
+              style={{ minWidth: 120 }}
+              aria-label="Contrast slider"
+            />
+            <span
+              style={{
+                fontSize: '0.82rem',
+                color: 'var(--theme-text-muted)',
+                minWidth: 36,
+                textAlign: 'right',
+              }}
+            >
+              {currentContrast}%
+            </span>
+          </div>
         </div>
 
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12,
+            marginTop: 16,
+            paddingTop: 16,
+            borderTop: '1px solid var(--theme-border-subtle)',
           }}
         >
-          {filteredThemes.map((theme) => {
-            const isActive = settings.activeTheme === theme.id
-            return (
-              <button
-                key={theme.id}
-                onClick={() =>
-                  updateSettings({ activeTheme: theme.id, theme: theme.isDark ? 'dark' : 'light' })
-                }
-                style={{
-                  textAlign: 'left',
-                  padding: 14,
-                  borderRadius: 12,
-                  border: isActive
-                    ? '1px solid var(--theme-border-hover)'
-                    : '1px solid var(--theme-border)',
-                  background: isActive
-                    ? 'var(--theme-surface-active)'
-                    : 'var(--theme-surface-subtle)',
-                  boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 14,
+            }}
+          >
+            {themeCategories.map((category) => {
+              const isActive = selectedThemeCategory === category.id
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedThemeCategory(category.id)}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(4, 1fr)',
-                    gap: 6,
-                    marginBottom: 12,
-                  }}
-                >
-                  <div
-                    style={{ height: 16, borderRadius: 6, background: theme.colors.background }}
-                  />
-                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.surface }} />
-                  <div style={{ height: 16, borderRadius: 6, background: theme.colors.accent }} />
-                  <div
-                    style={{ height: 16, borderRadius: 6, background: theme.colors.textPrimary }}
-                  />
-                </div>
-                <div
-                  style={{
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
+                    border: isActive
+                      ? '1px solid var(--theme-border-hover)'
+                      : '1px solid var(--theme-border)',
+                    background: isActive
+                      ? 'var(--theme-surface-active)'
+                      : 'var(--theme-surface-subtle)',
                     color: 'var(--theme-text-primary)',
-                    marginBottom: 4,
+                    borderRadius: 999,
+                    padding: '6px 12px',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer',
+                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-border-hover)' : 'none',
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  {theme.name}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--theme-text-muted)' }}>
-                  {theme.description || 'Theme preset'}
-                </div>
-              </button>
-            )
-          })}
+                  {category.name}
+                </button>
+              )
+            })}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 10,
+            }}
+          >
+            {filteredThemes.map((theme) => {
+              const isActive = settings.activeTheme === theme.id
+              return (
+                <button
+                  key={theme.id}
+                  onClick={() => handleThemePresetChange(theme.id)}
+                  style={{
+                    textAlign: 'left',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: isActive
+                      ? '1px solid var(--theme-accent)'
+                      : '1px solid var(--theme-border)',
+                    background: isActive
+                      ? 'color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface))'
+                      : 'var(--theme-surface-subtle)',
+                    boxShadow: isActive ? 'inset 0 0 0 1px var(--theme-accent-muted)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(4, 1fr)',
+                      gap: 4,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
+                      style={{ height: 14, borderRadius: 4, background: theme.baseColors.background }}
+                    />
+                    <div style={{ height: 14, borderRadius: 4, background: theme.baseColors.accent }} />
+                    <div style={{ height: 14, borderRadius: 4, background: theme.baseColors.foreground }} />
+                    <div
+                      style={{ height: 14, borderRadius: 4, background: theme.baseColors.accent, opacity: 0.6 }}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
+                      color: 'var(--theme-text-primary)',
+                    }}
+                  >
+                    {theme.name}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </Card>
 

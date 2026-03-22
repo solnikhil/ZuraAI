@@ -13,6 +13,11 @@
     -webkit-app-region: drag;
 }
 
+.app-titlebar--with-sidebar {
+    background: transparent;
+    border-bottom: none;
+}
+
 
 /* Frosted titlebar - transparent base so the left glass panel shows through */
 
@@ -43,7 +48,7 @@
     top: 0;
     right: 0;
     bottom: 0;
-    background: var(--theme-background);
+    background: var(--theme-sidebar-solid);
     z-index: 0;
     pointer-events: none;
 }

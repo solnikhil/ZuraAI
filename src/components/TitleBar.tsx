@@ -142,6 +142,7 @@ export default function TitleBar() {
             className={[
                 'app-titlebar',
                 density === 'compact' ? 'app-titlebar--compact' : null,
+                hasSidebar ? 'app-titlebar--with-sidebar' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
                 !isMacOS ? 'app-titlebar--custom-controls' : null,
                 frostedSidebar ? 'app-titlebar--frosted' : null,

@@ -333,7 +333,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 frostedSidebar={pendingSettings.frostedSidebar}
                 frostedPrompt={pendingSettings.frostedPrompt}
                 sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize}
-                softenedContrast={pendingSettings.softenedContrast}
                 onChange={(changes) => handleChange(changes)}
               />
             )}

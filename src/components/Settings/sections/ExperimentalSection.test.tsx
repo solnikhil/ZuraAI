@@ -14,7 +14,6 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
     frostedSidebar: false,
     frostedPrompt: false,
     sidebarAutoHideOnResize: true,
-    softenedContrast: false,
     onChange: vi.fn(),
   }
 
@@ -53,24 +52,6 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
 
       const toggle = screen.getByRole('switch', { name: /enable frosted prompt/i })
       expect(toggle).toBeInTheDocument()
-    })
-
-    it('renders Softened contrast toggle with correct label', () => {
-      render(<ExperimentalSection {...defaultProps} />)
-      expect(screen.getByText('Softer contrast')).toBeInTheDocument()
-    })
-
-    it('renders Softened contrast toggle switch with correct aria-label', () => {
-      render(<ExperimentalSection {...defaultProps} />)
-      const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
-      expect(toggle).toBeInTheDocument()
-    })
-
-    it('renders toggle in checked state when softenedContrast is true', () => {
-      const props = { ...defaultProps, softenedContrast: true }
-      render(<ExperimentalSection {...props} />)
-      const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
-      expect(toggle).toHaveAttribute('data-state', 'checked')
     })
 
     it('renders Sidebar auto-hide toggle with correct label', () => {
@@ -162,26 +143,6 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
       fireEvent.click(toggle)
 
       expect(onChange).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('Softened Contrast Toggle', () => {
-    it('calls onChange with { softenedContrast: true } when toggle is clicked from off state', () => {
-      const onChange = vi.fn()
-      const props = { ...defaultProps, softenedContrast: false, onChange }
-      render(<ExperimentalSection {...props} />)
-      const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
-      fireEvent.click(toggle)
-      expect(onChange).toHaveBeenCalledWith({ softenedContrast: true })
-    })
-
-    it('calls onChange with { softenedContrast: false } when toggle is clicked from on state', () => {
-      const onChange = vi.fn()
-      const props = { ...defaultProps, softenedContrast: true, onChange }
-      render(<ExperimentalSection {...props} />)
-      const toggle = screen.getByRole('switch', { name: /enable softened contrast/i })
-      fireEvent.click(toggle)
-      expect(onChange).toHaveBeenCalledWith({ softenedContrast: false })
     })
   })
 })

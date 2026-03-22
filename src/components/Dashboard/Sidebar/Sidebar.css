@@ -94,7 +94,7 @@
 
 .sidebar-container:hover .sidebar-resize-handle::before,
 .sidebar-container--resizing .sidebar-resize-handle::before {
-  background: color-mix(in srgb, var(--theme-border-hover) 62%, transparent);
+  background: transparent;
 }
 
 /* ── Scrollbar (scoped to sidebar) ─────────────────────────── */

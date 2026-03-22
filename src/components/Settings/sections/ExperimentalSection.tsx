@@ -6,12 +6,10 @@ export interface ExperimentalSectionProps {
   frostedSidebar: boolean
   frostedPrompt: boolean
   sidebarAutoHideOnResize: boolean
-  softenedContrast: boolean
   onChange: (changes: {
     frostedSidebar?: boolean
     frostedPrompt?: boolean
     sidebarAutoHideOnResize?: boolean
-    softenedContrast?: boolean
   }) => void
 }
 
@@ -19,7 +17,6 @@ export function ExperimentalSection({
   frostedSidebar,
   frostedPrompt,
   sidebarAutoHideOnResize,
-  softenedContrast,
   onChange,
 }: ExperimentalSectionProps): React.ReactElement {
   const toggles = [
@@ -38,14 +35,6 @@ export function ExperimentalSection({
       checked: frostedPrompt,
       onToggle: (checked: boolean) => onChange({ frostedPrompt: checked }),
       ariaLabel: 'Enable frosted prompt',
-    },
-    {
-      key: 'softenedContrast' as const,
-      label: 'Softer contrast',
-      description: 'Reduce text intensity for a gentler look. Helpful for extended reading sessions.',
-      checked: softenedContrast,
-      onToggle: (checked: boolean) => onChange({ softenedContrast: checked }),
-      ariaLabel: 'Enable softened contrast',
     },
     {
       key: 'sidebarAutoHideOnResize' as const,

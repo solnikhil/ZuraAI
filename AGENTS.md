@@ -261,7 +261,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Skill ON: expose `web_search`
 
 #### Theme + Windows Titlebar Overlay
-- Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
+- Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme with user customization (`themeAccent`, `themeBackground`, `themeForeground`, `themeContrast`).
+- Active theme preset (`activeTheme`) selects a base theme; accent/background/foreground colors can be overridden per-user.
+- Contrast slider (`themeContrast` 0-100) adjusts theme intensity; 100 = full contrast, lower values = softer.
+- Legacy `softenedContrast: boolean` is migrated to `themeContrast: number` (true → 85, false/undefined → 100).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
 - Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
@@ -325,7 +328,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
   - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled`).
   - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
-  - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
+  - `themeContrast` (0-100, default 100): Numeric contrast intensity; lower values produce a softer look.
+  - `themeAccent`, `themeBackground`, `themeForeground`: Optional hex color overrides for theme base colors; when set, they override the preset's base colors.
+  - Legacy `softenedContrast: boolean` is migrated to `themeContrast` (true → 85, false → 100) and removed from persisted state.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
 - Last active chat session: `zura-ui:lastChatSessionId`
