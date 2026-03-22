@@ -26,10 +26,10 @@ import {
   accumulateDeltaToolCalls,
   reconstructToolCallMessage,
   buildResponseWithFallback,
-  createResearchPlanCallbacks,
   processInitialToolResults,
   buildThinkingBlocksFromResults,
   mergeSavedToolResults,
+  publishStreamingToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
@@ -96,14 +96,7 @@ export function useGroqStreaming({
           }
         | null = null
 
-      const hasResearchPlanTool =
-        Array.isArray(groqTools) &&
-        groqTools.some(
-          (tool) => (tool as { function?: { name?: string } })?.function?.name === 'research_plan'
-        )
-      const initialToolChoice = hasResearchPlanTool
-        ? { type: 'function' as const, function: { name: 'research_plan' } }
-        : undefined
+      const initialToolChoice = undefined
 
       // --- Initial stream ---
       for await (const chunk of streamGroqCompletion(
@@ -170,16 +163,10 @@ export function useGroqStreaming({
           reconstructedMessage,
           optimizedHistory
         )
-        const researchPlanCallbacks = createResearchPlanCallbacks(
-          updateStreaming as (u: Record<string, unknown>) => void,
-          throttledUpdateStreamingMessage,
-          sessionId,
-          messageId
-        )
 
         let toolResult
         try {
-          toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
+          toolResult = await handleToolCalls(responseWithFallback)
         } catch (toolError: unknown) {
           console.error('Tool calls processing error:', toolError)
           toolResult = {
@@ -197,6 +184,14 @@ export function useGroqStreaming({
         )
         localThinkingBlocks = processed.updatedThinkingBlocks
         savedToolResults = processed.savedToolResults
+        publishStreamingToolResults(
+          updateStreaming as (updates: Record<string, unknown>) => void,
+          updateStreamingMessage,
+          sessionId,
+          messageId,
+          savedToolResults,
+          localThinkingBlocks
+        )
 
         if (processed.hasSearchCalls) {
           updateStreaming({
@@ -310,10 +305,7 @@ export function useGroqStreaming({
 
               let nextToolResult
               try {
-                nextToolResult = await handleToolCalls(
-                  followUpResponseWithFallback,
-                  researchPlanCallbacks
-                )
+                nextToolResult = await handleToolCalls(followUpResponseWithFallback)
               } catch (e: unknown) {
                 nextToolResult = {
                   hasTools: false,
@@ -327,14 +319,7 @@ export function useGroqStreaming({
                 nextToolResult.toolResults?.filter(
                   (r: ToolCallResult) => r.toolCall.name === 'web_search'
                 ).length || 0
-              const newResearchPlanSteps =
-                nextToolResult.toolResults
-                  ?.filter((r: ToolCallResult) => r.toolCall.name === 'research_plan')
-                  .flatMap(
-                    (r: ToolCallResult) =>
-                      ((r.toolCall.arguments as Record<string, unknown>)?.steps as unknown[]) || []
-                  ).length || 0
-              totalSearchCount += newWebSearches + newResearchPlanSteps
+              totalSearchCount += newWebSearches
 
               localThinkingBlocks = buildThinkingBlocksFromResults(
                 nextToolResult.toolResults || [],
@@ -347,6 +332,14 @@ export function useGroqStreaming({
               savedToolResults = mergeSavedToolResults(
                 savedToolResults,
                 nextToolResult.toolResults || []
+              )
+              publishStreamingToolResults(
+                updateStreaming as (updates: Record<string, unknown>) => void,
+                updateStreamingMessage,
+                sessionId,
+                messageId,
+                savedToolResults,
+                localThinkingBlocks
               )
               lastAssistantMessage = reconstructedFollowUp
               toolResult = nextToolResult

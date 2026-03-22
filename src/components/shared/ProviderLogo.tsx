@@ -121,7 +121,7 @@ export function ProviderLogo({
   if (!imgError) {
     return (
       <img
-        src={`/provider-logos/${normalizedProvider}.png`}
+        src={`./provider-logos/${normalizedProvider}.png`}
         alt={`${provider} logo`}
         onError={() => setImgError(true)}
         className={className}

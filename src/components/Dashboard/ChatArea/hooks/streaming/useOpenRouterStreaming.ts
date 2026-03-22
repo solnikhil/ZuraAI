@@ -28,17 +28,16 @@ import {
   reconstructToolCallMessage,
   buildResponseWithFallback,
   appendCompletedThinkingBlock,
-  createResearchPlanCallbacks,
   processInitialToolResults,
   buildThinkingBlocksFromResults,
   getThinkingTranscript,
   mergeSavedToolResults,
+  publishStreamingToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
   buildFollowUpMessages,
   buildFinalSynthesisMessages,
-  extractResearchPlanData,
   type DeltaToolCall,
 } from './streamingUtils'
 
@@ -110,12 +109,6 @@ function computeInitialToolChoice(
   forceWebSearch: boolean
 ): 'auto' | 'none' | { type: 'function'; function: { name: string } } | undefined {
   if (!openRouterTools) return undefined
-
-  const hasResearchPlan = openRouterTools.some((t) => t?.function?.name === 'research_plan')
-
-  if (hasResearchPlan) {
-    return { type: 'function', function: { name: 'research_plan' } }
-  }
   if (forceWebSearch) {
     return { type: 'function', function: { name: 'web_search' } }
   }
@@ -337,16 +330,10 @@ export function useOpenRouterStreaming({
           openRouterMessages,
           getReasoningTranscript()
         )
-        const researchPlanCallbacks = createResearchPlanCallbacks(
-          updateStreaming as (u: Record<string, unknown>) => void,
-          throttledUpdateStreamingMessage,
-          sessionId,
-          messageId
-        )
 
         let toolResult
         try {
-          toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
+          toolResult = await handleToolCalls(responseWithFallback)
         } catch (toolError: unknown) {
           console.error('[ZuraAI] Tool calls processing error:', toolError)
           toolResult = {
@@ -364,6 +351,14 @@ export function useOpenRouterStreaming({
         )
         localThinkingBlocks = processed.updatedThinkingBlocks
         savedToolResults = processed.savedToolResults
+        publishStreamingToolResults(
+          updateStreaming as (updates: Record<string, unknown>) => void,
+          updateStreamingMessage,
+          sessionId,
+          messageId,
+          savedToolResults,
+          localThinkingBlocks
+        )
 
         if (processed.hasSearchCalls) {
           const researchStatus = {
@@ -572,10 +567,7 @@ export function useOpenRouterStreaming({
 
               let nextToolResult
               try {
-                nextToolResult = await handleToolCalls(
-                  followUpResponseWithFallback,
-                  researchPlanCallbacks
-                )
+                nextToolResult = await handleToolCalls(followUpResponseWithFallback)
               } catch (e: unknown) {
                 console.error(
                   '[ZuraAI] Research loop: handleToolCalls failed:',
@@ -643,6 +635,14 @@ export function useOpenRouterStreaming({
               savedToolResults = mergeSavedToolResults(
                 savedToolResults,
                 nextToolResult.toolResults || []
+              )
+              publishStreamingToolResults(
+                updateStreaming as (updates: Record<string, unknown>) => void,
+                updateStreamingMessage,
+                sessionId,
+                messageId,
+                savedToolResults,
+                localThinkingBlocks
               )
               lastAssistantMessage = reconstructedFollowUp
               toolResult = nextToolResult
@@ -814,14 +814,11 @@ export function useOpenRouterStreaming({
         ? stripStandaloneHorizontalRule(accumulatedContent)
         : accumulatedContent
 
-      const researchPlanData = extractResearchPlanData(savedToolResults)
-
       updateStreamingMessage(sessionId, messageId, {
         content: finalContent,
         thinking: undefined,
         thinkingDuration: undefined,
         ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
-        ...researchPlanData,
         model: `openrouter/${settings.aiModel}`,
         latency: metrics.latency,
         usage: { ...usage, tps, ttft: metrics.ttft },

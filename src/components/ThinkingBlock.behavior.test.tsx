@@ -102,7 +102,7 @@ describe('ThinkingBlock behavior', () => {
     expect(screen.queryByText(/Thinking for 1\d{9}/)).not.toBeInTheDocument()
   })
 
-  it('expands the latest completed thought when no active block remains', async () => {
+  it('keeps completed thoughts collapsed when no active block remains', async () => {
     const { container } = render(
       <ThinkingBlock
         messageId="message-1"
@@ -125,8 +125,93 @@ describe('ThinkingBlock behavior', () => {
       />
     )
 
-    expect(await screen.findByText('Follow-up reasoning')).toBeInTheDocument()
+    expect(await screen.findByText('Thought for <1s')).toBeInTheDocument()
+    expect(screen.queryByText('Follow-up reasoning')).not.toBeInTheDocument()
     expect(screen.getByText('Thought for <1s')).toBeInTheDocument()
-    expect(container.querySelector('.thinking-block.completed.expanded')).not.toBeNull()
+    expect(container.querySelector('.thinking-block.completed.expanded')).toBeNull()
+  })
+
+  it('shows generic MCP tool activity copy for non-search tool calls', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-2"
+        activeBlockKey="message-2:0:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Running Tool: Filesystem - read_file: /tmp/demo.txt')
+    ).toBeInTheDocument()
+  })
+
+  it('shows additional active MCP tool calls when multiple tools are running', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3"
+        activeBlockKey="message-3:0:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'mcp__filesystem__read_file',
+            arguments: { path: '/tmp/demo.txt' },
+          },
+          {
+            name: 'mcp__github__create_issue',
+            arguments: { title: 'Follow-up task' },
+          },
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Running Tool: Filesystem - read_file: /tmp/demo.txt (+1 more)')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('2. Running Tool: Github - create_issue: Follow-up task')
+    ).toBeInTheDocument()
+  })
+
+  it('renders completed MCP tool blocks with the same inline timeline treatment', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-4"
+        activeBlockKey="message-4:0:answering"
+        thinking=""
+        completedBlocks={[
+          {
+            type: 'tool',
+            toolName: 'mcp__filesystem__read_file',
+            timestamp: 1,
+            toolInput: { path: '/tmp/demo.txt' },
+            toolOutput: {
+              success: true,
+              data: { text: 'demo' },
+              executionTime: 42,
+              metadata: {
+                origin: 'mcp',
+                serverId: 'filesystem',
+                serverName: 'Filesystem',
+                namespacedToolName: 'mcp__filesystem__read_file',
+                originalToolName: 'read_file',
+                trusted: true,
+                approvalState: 'approved',
+                durationMs: 42,
+                outcome: 'success',
+              },
+            },
+          },
+        ]}
+      />
+    )
+
+    expect(await screen.findByText('Tool: Filesystem - read_file: /tmp/demo.txt')).toBeInTheDocument()
+    expect(screen.getByText('Completed')).toBeInTheDocument()
   })
 })

@@ -3,9 +3,11 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSettings } from '../../contexts/SettingsContext'
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
+import { useMcp } from '../../mcp/McpContext'
 import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
+import { McpSection } from './sections/McpSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
 import { AppearanceSection } from './sections/AppearanceSection'
@@ -26,6 +28,7 @@ export default function Settings({
   activeSection = 'providers', onUnsavedChange, showWarning = false
 }: SettingsProps): React.ReactElement {
   const { settings, updateSettings } = useSettings()
+  const { discardDraft: discardMcpDraft, hasDraftChanges: hasMcpChanges, saveDraft: saveMcpDraft } = useMcp()
   const { sessions } = useChatHistory()
   const {
     settingsSectionParams,
@@ -114,12 +117,7 @@ export default function Settings({
 
   const handleChange = (changes: Partial<typeof settings>) => setPendingSettings(prev => ({ ...prev, ...changes }))
 
-  const saveChanges = async () => {
-    if (isSaving) return
-
-    setIsSaving(true)
-    setStatusMessage('Saving settings...')
-
+  const savePendingSettings = async (): Promise<{ allSaved: boolean; failedKeys: string[] }> => {
     let allSaved = true
     const failedKeys: string[] = []
     try {
@@ -145,19 +143,57 @@ export default function Settings({
 
     updateSettings(pendingSettings)
 
-    if (!allSaved && failedKeys.length > 0) {
-      console.warn('[Settings] Some API keys may not have been saved')
-      setStatusMessage('Saved with warnings. Some API keys could not be stored securely.')
-    } else {
-      setStatusMessage('Settings saved.')
-    }
+    return { allSaved, failedKeys }
+  }
 
-    setIsSaving(false)
+  const saveChanges = async () => {
+    if (isSaving) return
+
+    setIsSaving(true)
+    setStatusMessage('Saving settings...')
+
+    let allSaved = true
+    let failedKeys: string[] = []
+
+    try {
+      if (hasSettingsChanges) {
+        const settingsResult = await savePendingSettings()
+        allSaved = settingsResult.allSaved
+        failedKeys = settingsResult.failedKeys
+      }
+
+      if (hasMcpChanges) {
+        await saveMcpDraft()
+      }
+
+if (!hasSettingsChanges && !hasMcpChanges) {
+         setStatusMessage('No changes to save.')
+       } else if (!allSaved && failedKeys.length > 0) {
+         console.warn('[Settings] Some API keys may not have been saved')
+         setStatusMessage('Saved. Some API keys could not be stored securely.')
+       } else {
+         setStatusMessage('Settings saved.')
+       }
+    } catch (error) {
+      console.error('[Settings] Failed to save changes:', error)
+      setStatusMessage(
+        error instanceof Error ? `Failed to save changes: ${error.message}` : 'Failed to save changes.'
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const cancelChanges = () => {
     if (isSaving) return
-    setPendingSettings(settings)
+
+    if (hasSettingsChanges) {
+      setPendingSettings(settings)
+    }
+    if (hasMcpChanges) {
+      discardMcpDraft()
+    }
+
     setStatusMessage('Changes discarded.')
   }
 
@@ -176,7 +212,8 @@ export default function Settings({
   }
   const baseChanged = JSON.stringify(withoutOllamaModels(pendingSettings)) !== JSON.stringify(withoutOllamaModels(settings))
   const ollamaEnabledChanged = !ollamaModelsMatchUserIntent(pendingSettings.ollamaModels, settings.ollamaModels)
-  const hasChanges = baseChanged || ollamaEnabledChanged
+  const hasSettingsChanges = baseChanged || ollamaEnabledChanged
+  const hasChanges = hasSettingsChanges || hasMcpChanges
 
   useEffect(() => {
     setPendingSettings((previousDraft) => {
@@ -264,6 +301,8 @@ export default function Settings({
               />
             )}
 
+            {normalizedActiveSection === 'mcp' && <McpSection />}
+
             {normalizedActiveSection === 'skills' && (
               <SkillsSection
                 skills={pendingSettings.skills}
@@ -305,7 +344,7 @@ export default function Settings({
       {hasChanges && (
         <div className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`} role="region" aria-label="Unsaved settings changes">
           <div className="settings-savebar__text">
-            {showWarning ? 'Save or discard changes before leaving this section.' : 'You have unsaved changes.'}
+            {showWarning ? 'Save or discard your changes before leaving.' : 'You have unsaved changes.'}
           </div>
 
           <div className="settings-savebar__actions">
@@ -321,7 +360,7 @@ export default function Settings({
               disabled={isSaving}
               className="settings-savebar__button settings-savebar__button--primary"
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

@@ -25,32 +25,32 @@ export function ExperimentalSection({
   const toggles = [
     {
       key: 'frostedSidebar' as const,
-      label: 'Frosted Sidebar',
-      description: 'Enable a glassmorphism effect on the sidebar with a frosted glass appearance.',
+      label: 'Frosted sidebar',
+      description: 'Show a semi-transparent glass effect on the sidebar.',
       checked: frostedSidebar,
       onToggle: (checked: boolean) => onChange({ frostedSidebar: checked }),
       ariaLabel: 'Enable frosted sidebar',
     },
     {
       key: 'frostedPrompt' as const,
-      label: 'Frosted Prompt',
-      description: 'Add a glassy, softly refracted surface to the chat prompt area.',
+      label: 'Frosted prompt area',
+      description: 'Add a glass-like backdrop to the chat input area.',
       checked: frostedPrompt,
       onToggle: (checked: boolean) => onChange({ frostedPrompt: checked }),
       ariaLabel: 'Enable frosted prompt',
     },
     {
       key: 'softenedContrast' as const,
-      label: 'Softened contrast',
-      description: 'Reduce the harshness of text and surfaces for a gentler, easier-on-the-eyes look.',
+      label: 'Softer contrast',
+      description: 'Reduce text intensity for a gentler look. Helpful for extended reading sessions.',
       checked: softenedContrast,
       onToggle: (checked: boolean) => onChange({ softenedContrast: checked }),
       ariaLabel: 'Enable softened contrast',
     },
     {
       key: 'sidebarAutoHideOnResize' as const,
-      label: 'Sidebar auto-hide on resize',
-      description: 'Hide the sidebar when the window is at or below minimum width (900px). You can unhide it anytime with the eye icon in the title bar.',
+      label: 'Auto-hide sidebar on narrow windows',
+      description: 'Hide the sidebar when the window is narrow. Click the eye icon in the title bar to show it again.',
       checked: sidebarAutoHideOnResize,
       onToggle: (checked: boolean) => onChange({ sidebarAutoHideOnResize: checked }),
       ariaLabel: 'Enable sidebar auto-hide on resize',
@@ -83,8 +83,7 @@ export function ExperimentalSection({
       </Card>
       <Card className="settings-section-card" style={{ marginTop: 16 }}>
         <div className="section-desc">
-          Experimental settings can change behavior between releases. If an interaction feels unstable,
-          disable the related toggle and restart the app.
+          These features are experimental and may change or be removed. If something doesn't work as expected, try disabling it here and restarting the app.
         </div>
       </Card>
     </div>

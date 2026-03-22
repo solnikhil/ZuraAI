@@ -39,6 +39,14 @@ interface ImageResult {
     sourceUrl?: string
 }
 
+interface JsonRecord {
+    [key: string]: unknown
+}
+
+interface TavilyExtractFailure {
+    error?: string
+}
+
 type WebInputIntent =
     | 'query_search'
     | 'url_extract'
@@ -50,6 +58,130 @@ interface ClassifiedWebInput {
     urls: string[]
     queryWithoutUrls: string
     originalQuery: string
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getString(value: unknown): string {
+    return typeof value === 'string' ? value : ''
+}
+
+function compactMap<TInput, TOutput>(
+    items: readonly TInput[],
+    mapper: (item: TInput) => TOutput | null
+): TOutput[] {
+    const mapped: TOutput[] = []
+
+    for (const item of items) {
+        const result = mapper(item)
+        if (result !== null) {
+            mapped.push(result)
+        }
+    }
+
+    return mapped
+}
+
+function parseTavilyExtractResult(result: unknown): SearchResult | null {
+    if (!isRecord(result)) return null
+
+    const url = getString(result.url)
+    if (!url) return null
+
+    const rawContent = getString(result.raw_content)
+
+    return {
+        title: inferTitleFromRawContent(rawContent, url),
+        url,
+        snippet: buildSnippetFromRawContent(rawContent),
+        raw_content: rawContent || undefined,
+        favicon: getString(result.favicon).trim() || getFaviconUrl(url),
+        source: getSourceFromUrl(url),
+        displayed_link: getDisplayedLink(url),
+    }
+}
+
+function parseTavilyImage(image: unknown, sourceUrl?: string): ImageResult | null {
+    if (typeof image === 'string') {
+        return image ? { url: image, sourceUrl } : null
+    }
+
+    if (!isRecord(image)) return null
+
+    const imageUrl = getString(image.url)
+    if (!imageUrl) return null
+
+    const description = getString(image.description) || getString(image.alt) || undefined
+    return {
+        url: imageUrl,
+        description,
+        sourceUrl,
+    }
+}
+
+function extractTavilyImages(results: readonly unknown[]): ImageResult[] {
+    const images: ImageResult[] = []
+    const imageSet = new Set<string>()
+
+    for (const result of results) {
+        if (!isRecord(result)) continue
+
+        const sourceUrl = getString(result.url) || undefined
+        const sourceImages = Array.isArray(result.images) ? result.images : []
+
+        for (const image of sourceImages) {
+            const parsed = parseTavilyImage(image, sourceUrl)
+            if (!parsed || imageSet.has(parsed.url)) continue
+            imageSet.add(parsed.url)
+            images.push(parsed)
+        }
+    }
+
+    return images
+}
+
+function parseTavilySearchResult(result: unknown): SearchResult | null {
+    if (!isRecord(result)) return null
+
+    const url = getString(result.url)
+    if (!url) return null
+
+    return {
+        title: getString(result.title),
+        url,
+        snippet: getString(result.content),
+        favicon: getFaviconUrl(url),
+        source: getSourceFromUrl(url),
+        displayed_link: getDisplayedLink(url),
+        date: getString(result.published_date) || getString(result.date) || undefined
+    }
+}
+
+function parseDuckDuckScrapeResult(result: unknown): SearchResult | null {
+    if (!isRecord(result)) return null
+
+    const url = getString(result.url)
+    if (!url) return null
+
+    return {
+        title: getString(result.title) || url,
+        url,
+        snippet: getString(result.description) || getString(result.rawDescription),
+        favicon: getFaviconUrl(url),
+        source: getSourceFromUrl(url),
+        displayed_link: getDisplayedLink(url)
+    }
+}
+
+function getFailureMessage(failures: readonly unknown[]): string {
+    const [firstFailure] = compactMap(failures, (failure): TavilyExtractFailure | null => {
+        if (!isRecord(failure)) return null
+        return { error: getString(failure.error) || undefined }
+    })
+
+    return firstFailure?.error ? ` ${firstFailure.error}` : ''
 }
 
 function sanitizeUrlToken(token: string): string {
@@ -572,56 +704,21 @@ async function extractWithTavily({
         }
 
         const data = await response.json()
-        const rawResults = Array.isArray(data.results) ? data.results : []
-
-        const results: SearchResult[] = rawResults
-            .map((r: any) => {
-                const url = typeof r?.url === 'string' ? r.url : ''
-                const rawContent = typeof r?.raw_content === 'string' ? r.raw_content : ''
-                return {
-                    title: inferTitleFromRawContent(rawContent, url),
-                    url,
-                    snippet: buildSnippetFromRawContent(rawContent),
-                    raw_content: rawContent || undefined,
-                    favicon: typeof r?.favicon === 'string' && r.favicon.trim()
-                        ? r.favicon
-                        : getFaviconUrl(url),
-                    source: getSourceFromUrl(url),
-                    displayed_link: getDisplayedLink(url),
-                }
-            })
-            .filter((r: SearchResult) => Boolean(r.url))
+        const payload = isRecord(data) ? data : {}
+        const rawResults = Array.isArray(payload.results) ? payload.results : []
+        const results = compactMap(rawResults, parseTavilyExtractResult)
 
         if (results.length === 0) {
-            const failures = Array.isArray(data.failed_results) ? data.failed_results : []
-            const firstFailure = failures[0]?.error ? ` ${String(failures[0].error)}` : ''
+            const failures = Array.isArray(payload.failed_results) ? payload.failed_results : []
+            const firstFailure = getFailureMessage(failures)
             return {
                 success: false,
                 error: `Tavily Extract returned no extractable content.${firstFailure}`
             }
         }
 
-        const images: ImageResult[] = []
-        const imageSet = new Set<string>()
-
-        for (const r of rawResults) {
-            const sourceUrl = typeof r?.url === 'string' ? r.url : undefined
-            const sourceImages = Array.isArray(r?.images) ? r.images : []
-            for (const img of sourceImages) {
-                const imageUrl = typeof img === 'string' ? img : (typeof img?.url === 'string' ? img.url : '')
-                if (!imageUrl || imageSet.has(imageUrl)) continue
-                imageSet.add(imageUrl)
-                images.push({
-                    url: imageUrl,
-                    description: typeof img?.description === 'string'
-                        ? img.description
-                        : (typeof img?.alt === 'string' ? img.alt : undefined),
-                    sourceUrl,
-                })
-            }
-        }
-
-        const failures = Array.isArray(data.failed_results) ? data.failed_results : []
+        const images = extractTavilyImages(rawResults)
+        const failures = Array.isArray(payload.failed_results) ? payload.failed_results : []
         const partialFailureMessage = failures.length > 0
             ? `${failures.length} URL(s) could not be extracted.`
             : undefined
@@ -707,29 +804,12 @@ async function searchWithTavily(
         }
 
         const data = await response.json()
+        const payload = isRecord(data) ? data : {}
+        const rawResults = Array.isArray(payload.results) ? payload.results : []
+        const rawImages = Array.isArray(payload.images) ? payload.images : []
 
-        const results: SearchResult[] = (data.results || []).map((r: any) => {
-            const url = r.url || ''
-            return {
-                title: r.title || '',
-                url,
-                snippet: r.content || '',
-                favicon: getFaviconUrl(url),
-                source: getSourceFromUrl(url),
-                displayed_link: getDisplayedLink(url),
-                date: r.published_date || r.date || undefined
-            }
-        })
-
-        const images: ImageResult[] = (data.images || []).map((img: any) => {
-            if (typeof img === 'string') {
-                return { url: img }
-            }
-            return {
-                url: img.url || img,
-                description: img.description || img.alt || undefined
-            }
-        })
+        const results = compactMap(rawResults, parseTavilySearchResult)
+        const images = compactMap(rawImages, (image) => parseTavilyImage(image))
 
         return {
             success: true,
@@ -781,18 +861,8 @@ async function searchWithDuckDuckScrape(query: string, numResults: number = 10):
         }
     }
 
-    const rawResults = searchResults?.results || []
-    const results: SearchResult[] = rawResults.slice(0, maxResults).map((r: any) => {
-        const url = r.url || ''
-        return {
-            title: r.title || url,
-            url,
-            snippet: r.description || r.rawDescription || '',
-            favicon: getFaviconUrl(url),
-            source: getSourceFromUrl(url),
-            displayed_link: getDisplayedLink(url)
-        }
-    })
+    const rawResults = Array.isArray(searchResults?.results) ? searchResults.results : []
+    const results = compactMap(rawResults.slice(0, maxResults), parseDuckDuckScrapeResult)
 
     const emptyHint =
         'No results found. For better search quality, add a Tavily API key in Settings > Search APIs.'

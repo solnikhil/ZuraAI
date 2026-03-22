@@ -52,12 +52,12 @@ describe('MessageRenderer tool result ordering', () => {
             {
               toolCall: {
                 id: 'tool-1',
-                name: 'research_plan',
-                arguments: { topic: 'test topic', steps: [{ stepNumber: 1, query: 'test query' }] },
+                name: 'local_helper',
+                arguments: { path: '/tmp/demo.txt' },
               },
               result: {
                 success: true,
-                data: { combinedResults: '# Research\n- Result' },
+                data: { text: 'demo' },
               },
             },
           ],

@@ -134,7 +134,7 @@ ZuraAI is built around a narrow desktop security boundary.
 - API keys are stored locally with Electron `safeStorage` when available.
 
 > [!IMPORTANT]
-> The current shipped tool path is intentionally narrow and centered on built-in web research. Future MCP support is tracked separately in `docs/mcp-roadmap.md`.
+> MCP support is documented in `docs/mcp-guide.md` and the implementation checklist in `docs/mcp-taskwise-plan.md`.
 
 For the full architecture and security notes, see `AGENTS.md`.
 
@@ -143,7 +143,8 @@ For the full architecture and security notes, see `AGENTS.md`.
 - `AGENTS.md` - architecture, IPC boundaries, data flow, and agent rules for this repo
 - `CONTRIBUTING.md` - local workflow, quality checks, and commit conventions
 - `CODE_OF_CONDUCT.md` - community expectations
-- `docs/mcp-roadmap.md` - planned MCP implementation phases
+- `docs/mcp-guide.md` - MCP setup, safety model, example configs, and troubleshooting
+- `docs/mcp-taskwise-plan.md` - MCP implementation phases and checklist
 
 ## Contributing
 

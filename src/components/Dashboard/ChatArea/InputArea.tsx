@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { withWebResearchEnabled } from '@/skills'
 import { ComposerAttachments } from './ComposerAttachments'
+import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 
 export interface InputAreaProps {
   input: string
@@ -84,8 +85,8 @@ export function InputArea({
 }: InputAreaProps) {
   const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
-  const [isFocused, setIsFocused] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
+  const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 52,
     maxHeight: 200,
@@ -94,11 +95,7 @@ export function InputArea({
   const { settings, updateSettings } = useSettings()
   const { animationsEnabled } = useMotionPreferences()
   const { frostedPrompt } = settings
-  const webResearchEnabled = settings.skills?.web_research?.enabled !== false
-  const standardTransition = {
-    duration: motionDuration(animationsEnabled, motionDurations.normal),
-    ease: motionEasing.standard,
-  }
+const webResearchEnabled = settings.skills?.web_research?.enabled !== false
   const fastTransition = {
     duration: motionDuration(animationsEnabled, motionDurations.fast),
     ease: motionEasing.standard,
@@ -149,6 +146,9 @@ export function InputArea({
         onSend()
         setInput('')
         adjustHeight(true)
+        if (attachedFiles.length > 0) {
+          onFilesChange([])
+        }
       }
     }
   }
@@ -251,6 +251,25 @@ export function InputArea({
   const showAttachmentRail = attachedFiles.length > 0
   const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
 
+  const insertMcpTextIntoComposer = React.useCallback(
+    (text: string) => {
+      const hasMeaningfulInput = input.trim().length > 0
+      const separator = !hasMeaningfulInput
+        ? ''
+        : input.endsWith('\n\n')
+          ? ''
+          : input.endsWith('\n')
+            ? '\n'
+            : '\n\n'
+      const nextValue = hasMeaningfulInput ? `${input}${separator}${text}` : text
+      setInput(nextValue)
+      adjustHeight()
+      requestAnimationFrame(() => textareaRef.current?.focus())
+      onActivity?.()
+    },
+    [adjustHeight, input, onActivity, setInput, textareaRef]
+  )
+
   // Throttled mouse-move activity signal (fire at most once per 2s)
   const lastMouseActivityRef = React.useRef(0)
   const handleMouseMoveActivity = React.useCallback(() => {
@@ -271,23 +290,10 @@ export function InputArea({
         onMouseMove={handleMouseMoveActivity}
       >
         <div className="relative w-full mx-auto">
-          <motion.div
+          <div
             role="textbox"
             tabIndex={0}
             aria-label="Chat input container"
-            initial={false}
-            animate={{
-              boxShadow: quickActionsOpen
-                ? 'none'
-                : frostedPrompt
-                  ? isFocused
-                    ? '0 0 0 1px rgba(255, 255, 255, 0.1), 0 2px 12px rgba(0, 0, 0, 0.2)'
-                    : '0 0 0 1px rgba(255, 255, 255, 0.05), 0 1px 4px rgba(0, 0, 0, 0.15)'
-                  : isFocused
-                    ? '0 0 0 1px rgba(255, 255, 255, 0.2), 0 4px 24px rgba(0, 0, 0, 0.4)'
-                    : '0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3)',
-            }}
-            transition={standardTransition}
             className={cn(
               'relative flex flex-col rounded-2xl w-full text-left cursor-text overflow-hidden p-1.5',
               frostedPrompt ? 'zura-frosted-prompt' : 'theme-composer-surface',
@@ -301,7 +307,7 @@ export function InputArea({
               }
             }}
           >
-            <AnimatePresence initial={false}>
+<AnimatePresence initial={false}>
               {isDragging && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -334,12 +340,10 @@ export function InputArea({
                     'transition-colors duration-200'
                   )}
                   onFocus={() => {
-                    setIsFocused(true)
                     onFocusChange?.(true)
                     onActivity?.()
                   }}
                   onBlur={() => {
-                    setIsFocused(false)
                     onFocusChange?.(false)
                   }}
                   onKeyDown={handleKeyDown}
@@ -349,7 +353,6 @@ export function InputArea({
                     adjustHeight()
                     onActivity?.()
                   }}
-                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -397,6 +400,42 @@ export function InputArea({
                       </DropdownMenuShortcut>
                     </DropdownMenuItem>
                     </DropdownMenuGroup>
+
+                    <DropdownMenuSeparator className="mx-3 my-1 h-px" />
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="h-9 px-2.5 text-[13px]">
+                        <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                        <span>MCP Library</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent
+                        sideOffset={-10}
+                        className="w-[220px] rounded-xl p-1.5"
+                      >
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            setMcpDialogMode('resources')
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                        >
+                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                          <span>Browse resources</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            setMcpDialogMode('prompts')
+                            setQuickActionsOpen(false)
+                          }}
+                          className="group/menu-item h-9 px-2.5 text-[13px]"
+                        >
+                          <Wrench className="h-4 w-4 text-[var(--theme-text-secondary)]" />
+                          <span>Browse prompts</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
 
                     <DropdownMenuSeparator className="mx-3 my-1 h-px" />
 
@@ -481,6 +520,11 @@ export function InputArea({
                           e.stopPropagation()
                           if (canSend) {
                             onSend()
+                            setInput('')
+                            adjustHeight(true)
+                            if (attachedFiles.length > 0) {
+                              onFilesChange([])
+                            }
                           }
                         }}
                         disabled={!canSend}
@@ -501,9 +545,22 @@ export function InputArea({
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
+
+      {mcpDialogMode && (
+        <McpLibraryDialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMcpDialogMode(null)
+            }
+          }}
+          initialMode={mcpDialogMode}
+          onInsertText={insertMcpTextIntoComposer}
+        />
+      )}
     </TooltipProvider>
   )
 }

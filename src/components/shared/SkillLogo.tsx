@@ -60,7 +60,7 @@ export function SkillLogo({
 
   const assetPath = useMemo(() => {
     const extension = ASSET_EXTENSIONS[attemptIndex]
-    return extension ? `/skills/${assetName}.${extension}` : null
+    return extension ? `./skills/${assetName}.${extension}` : null
   }, [assetName, attemptIndex])
 
   if (assetPath) {

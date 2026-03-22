@@ -30,7 +30,7 @@ export default defineConfig({
                 vite: {
                     build: {
                         rollupOptions: {
-                            external: ['playwright', 'playwright-core'],
+                            external: ['playwright', 'playwright-core', 'bufferutil', 'utf-8-validate'],
                         },
                     },
                     define: {
@@ -94,7 +94,13 @@ export default defineConfig({
                     ],
                     
                     // Charts - only needed in settings/usage
-                    'charts': ['recharts']
+                    'charts': ['recharts'],
+                    
+                    // Mermaid diagrams - heavy library, lazy loaded when needed
+                    'mermaid': ['mermaid'],
+                    
+                    // Virtual list - used for long message lists
+                    'virtualization': ['react-virtuoso']
                 }
             }
         },

@@ -55,8 +55,7 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
       return await baseHandleToolCalls(
         response,
         options?.onToolStart,
-        options?.onToolComplete,
-        options?.onResearchPlanProgress
+        options?.onToolComplete
       )
     } catch (toolError: unknown) {
       const message = toolError instanceof Error ? toolError.message : 'Unknown error'

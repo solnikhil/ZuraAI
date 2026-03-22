@@ -50,10 +50,16 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
   windowStateListenersAttached.add(win)
 }
 
-function getPlatformLabel(platform: NodeJS.Platform): string {
+function getPlatformLabel(platform: NodeJS.Platform, version?: string): string {
+  if (platform === 'win32') {
+    const match = version?.match(/(\d+)\.(\d+)\.(\d+)/)
+    if (match) {
+      const build = parseInt(match[3], 10)
+      if (build >= 22000) return 'Windows 11'
+    }
+    return 'Windows 10'
+  }
   switch (platform) {
-    case 'win32':
-      return 'Windows'
     case 'darwin':
       return 'macOS'
     case 'linux':
@@ -166,7 +172,7 @@ export function registerSystemHandlers(): void {
       chromiumVersion: process.versions.chrome ?? 'Unknown',
       nodeVersion: process.versions.node ?? 'Unknown',
       v8Version: process.versions.v8 ?? 'Unknown',
-      osVersion: `${getPlatformLabel(process.platform)} ${systemVersion} (${os.arch()})`,
+      osVersion: `${getPlatformLabel(process.platform, systemVersion)} ${systemVersion} (${os.arch()})`,
       commitHash,
       commitDate,
     }

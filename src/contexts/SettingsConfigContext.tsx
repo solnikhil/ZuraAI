@@ -392,7 +392,7 @@ export const defaultSettingsConfig: SettingsConfig = {
 
   // Title generation
   titleModelProvider: 'openrouter',
-  titleModel: 'google/gemini-2.0-flash-exp:free',
+  titleModel: '',
   titleGenerationPrompt: defaultTitleGenerationPrompt,
   titleGenerationDisplayMode: 'instant',
 

@@ -1,0 +1,873 @@
+import { randomUUID } from 'crypto'
+
+import type {
+  McpExposurePolicy,
+  McpNamespacedTool,
+  McpPromptManifest,
+  McpPromptResult,
+  McpResolvedServerConfig,
+  McpResourceManifest,
+  McpResourceReadResult,
+  McpRuntimePrompt,
+  McpRuntimeResource,
+  McpRuntimeSnapshot,
+  McpServerConfig,
+  McpServerRuntimeState,
+} from '../../src/mcp/types'
+import { createMcpNamespacedToolIdentity } from '../../src/mcp/types'
+
+import { McpConnection, type McpConnectionOptions } from './mcpConnection'
+import {
+  loadMcpServers,
+  normalizeMcpServerConfig,
+  resolveMcpServerSecrets,
+  saveMcpServers,
+} from './mcpStorage'
+
+type SnapshotHandler = (snapshot: McpRuntimeSnapshot) => void
+
+export interface McpManagedConnection {
+  getRuntimeState(): McpServerRuntimeState
+  getLastConnectionError(): string | null
+  getLastSuccessTimestamp(): string | null
+  onRuntimeStateChange(handler: (state: McpServerRuntimeState) => void): () => void
+  connect(): Promise<McpServerRuntimeState>
+  disconnect(): Promise<void>
+  listResources(): Promise<McpResourceManifest[]>
+  readResource(uri: string): Promise<McpResourceReadResult>
+  listPrompts(): Promise<McpPromptManifest[]>
+  getPrompt(name: string, args: Record<string, unknown>): Promise<McpPromptResult>
+  callTool(toolName: string, args: Record<string, unknown>): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }>
+}
+
+export interface McpManagerDependencies {
+  loadServers?: () => Promise<McpServerConfig[]>
+  saveServers?: (servers: McpServerConfig[]) => Promise<void>
+  resolveServerSecrets?: (server: McpServerConfig) => Promise<McpResolvedServerConfig>
+  connectionFactory?: (
+    resolvedServer: McpResolvedServerConfig,
+    options: Pick<McpConnectionOptions, 'clientInfo'>
+  ) => McpManagedConnection
+}
+
+export interface McpManagerInitializeOptions {
+  autoConnect?: boolean
+  clientInfo?: McpConnectionOptions['clientInfo']
+}
+
+export class McpManager {
+  private readonly loadServers
+  private readonly saveServers
+  private readonly resolveServerSecrets
+  private readonly connectionFactory
+
+  private readonly servers = new Map<string, McpServerConfig>()
+  private readonly connections = new Map<string, McpManagedConnection>()
+  private readonly connectionUnsubscribers = new Map<string, () => void>()
+  private readonly runtimeStates = new Map<string, McpServerRuntimeState>()
+  private readonly resourceReadCache = new Map<string, McpResourceReadResult>()
+  private readonly promptResultCache = new Map<string, McpPromptResult>()
+  private readonly snapshotHandlers = new Set<SnapshotHandler>()
+
+  private initialized = false
+  private initializationPromise: Promise<McpRuntimeSnapshot> | null = null
+  private clientInfo: McpConnectionOptions['clientInfo']
+
+  constructor(dependencies: McpManagerDependencies = {}) {
+    this.loadServers = dependencies.loadServers ?? loadMcpServers
+    this.saveServers = dependencies.saveServers ?? saveMcpServers
+    this.resolveServerSecrets = dependencies.resolveServerSecrets ?? resolveMcpServerSecrets
+    this.connectionFactory =
+      dependencies.connectionFactory ??
+      ((resolvedServer, options) =>
+        new McpConnection({
+          server: resolvedServer,
+          clientInfo: options.clientInfo,
+        }))
+    this.clientInfo = undefined
+  }
+
+  async initialize(options: McpManagerInitializeOptions = {}): Promise<McpRuntimeSnapshot> {
+    if (this.initialized) {
+      return this.getSnapshot()
+    }
+
+    if (this.initializationPromise) {
+      return this.initializationPromise
+    }
+
+    this.initializationPromise = this.doInitialize(options).finally(() => {
+      this.initializationPromise = null
+    })
+
+    return this.initializationPromise
+  }
+
+  async dispose(): Promise<void> {
+    const serverIds = [...this.connections.keys()]
+    await Promise.allSettled(serverIds.map((serverId) => this.disconnectServer(serverId)))
+    this.initialized = false
+  }
+
+  onSnapshotChange(handler: SnapshotHandler): () => void {
+    this.snapshotHandlers.add(handler)
+    return () => {
+      this.snapshotHandlers.delete(handler)
+    }
+  }
+
+  listServers(): McpServerConfig[] {
+    return [...this.servers.values()].map((server) => cloneServer(server))
+  }
+
+  getRuntimeStates(): McpServerRuntimeState[] {
+    return [...this.servers.keys()].map((serverId) => this.getRuntimeStateForServer(serverId))
+  }
+
+  listTools(): McpNamespacedTool[] {
+    return ensureUniqueNamespacedTools([...this.servers.values()].flatMap((server) => {
+      const runtimeState = this.runtimeStates.get(server.id)
+      if (
+        !runtimeState ||
+        runtimeState.status !== 'connected' ||
+        server.enabled !== true ||
+        server.trustState !== 'trusted'
+      ) {
+        return []
+      }
+
+      return runtimeState.tools
+        .filter((manifest) => isToolAllowedForServer(server, manifest.name))
+        .map((manifest) => ({
+          ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
+          manifest: {
+            ...manifest,
+            inputSchema: { ...manifest.inputSchema },
+            annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
+          },
+        }))
+    }))
+  }
+
+  listResources(): McpRuntimeResource[] {
+    return [...this.servers.values()].flatMap((server) => {
+      const runtimeState = this.runtimeStates.get(server.id)
+      if (!isServerContentVisible(server, runtimeState)) {
+        return []
+      }
+
+      return runtimeState.resources.map((manifest) => ({
+        serverId: server.id,
+        serverName: server.name,
+        manifest: cloneResourceManifest(manifest),
+        exposure: getUserVisibleExposure(),
+      }))
+    })
+  }
+
+  listPrompts(): McpRuntimePrompt[] {
+    return [...this.servers.values()].flatMap((server) => {
+      const runtimeState = this.runtimeStates.get(server.id)
+      if (!isServerContentVisible(server, runtimeState)) {
+        return []
+      }
+
+      return runtimeState.prompts.map((manifest) => ({
+        serverId: server.id,
+        serverName: server.name,
+        manifest: clonePromptManifest(manifest),
+        exposure: getUserVisibleExposure(),
+      }))
+    })
+  }
+
+  getSnapshot(): McpRuntimeSnapshot {
+    return {
+      servers: this.listServers(),
+      runtimeStates: this.getRuntimeStates(),
+      tools: this.listTools(),
+      resources: this.listResources(),
+      prompts: this.listPrompts(),
+      pendingApprovals: [],
+    }
+  }
+
+  async addServer(rawServer: unknown): Promise<McpServerConfig> {
+    await this.ensureInitialized()
+
+    const now = new Date().toISOString()
+    const normalized = normalizeMcpServerConfig(
+      {
+        ...(isRecord(rawServer) ? rawServer : {}),
+        id: getOptionalTrimmedString(isRecord(rawServer) ? rawServer.id : undefined) ?? randomUUID(),
+        createdAt: now,
+        updatedAt: now,
+      },
+      this.servers.size,
+      now
+    )
+
+    if (!normalized) {
+      throw new Error('Invalid MCP server config')
+    }
+
+    if (this.servers.has(normalized.id)) {
+      throw new Error(`MCP server already exists: ${normalized.id}`)
+    }
+
+    this.servers.set(normalized.id, normalized)
+    this.runtimeStates.set(normalized.id, createInitialRuntimeState(normalized))
+    await this.persistServers()
+    this.emitSnapshot()
+    return cloneServer(normalized)
+  }
+
+  async updateServer(serverId: string, updates: unknown): Promise<McpServerConfig> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const existingServer = this.getServerOrThrow(normalizedServerId)
+    const isConnected = this.connections.has(normalizedServerId)
+
+    if (isConnected) {
+      await this.disconnectServer(normalizedServerId)
+    }
+
+    const now = new Date().toISOString()
+    const normalized = normalizeMcpServerConfig(
+      {
+        ...existingServer,
+        ...(isRecord(updates) ? updates : {}),
+        id: normalizedServerId,
+        createdAt: existingServer.createdAt,
+        updatedAt: now,
+      },
+      0,
+      now
+    )
+
+    if (!normalized) {
+      throw new Error('Invalid MCP server config')
+    }
+
+    this.servers.set(normalizedServerId, normalized)
+    this.runtimeStates.set(normalizedServerId, mergeRuntimeStateWithServer(normalized, this.runtimeStates.get(normalizedServerId)))
+    await this.persistServers()
+    this.emitSnapshot()
+    return cloneServer(normalized)
+  }
+
+  async removeServer(serverId: string): Promise<boolean> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    if (!this.servers.has(normalizedServerId)) {
+      return false
+    }
+
+    if (this.connections.has(normalizedServerId)) {
+      await this.disconnectServer(normalizedServerId)
+    }
+
+    this.unregisterConnection(normalizedServerId)
+    this.runtimeStates.delete(normalizedServerId)
+    this.servers.delete(normalizedServerId)
+    await this.persistServers()
+    this.emitSnapshot()
+    return true
+  }
+
+  async connectServer(serverId: string): Promise<McpServerRuntimeState> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    let connection = this.connections.get(normalizedServerId)
+
+    if (!connection) {
+      const resolvedServer = await this.resolveServerSecrets(server)
+      connection = this.connectionFactory(resolvedServer, { clientInfo: this.clientInfo })
+      this.registerConnection(normalizedServerId, connection)
+    }
+
+    try {
+      const runtimeState = await connection.connect()
+      await this.syncRuntimeMetadata(normalizedServerId, runtimeState)
+      this.emitSnapshot()
+      return cloneRuntimeState(runtimeState)
+    } catch (error) {
+      const runtimeState = this.runtimeStates.get(normalizedServerId)
+      if (runtimeState) {
+        await this.syncRuntimeMetadata(normalizedServerId, runtimeState)
+        this.emitSnapshot()
+      }
+      throw error
+    }
+  }
+
+  async disconnectServer(serverId: string): Promise<McpServerRuntimeState> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const connection = this.connections.get(normalizedServerId)
+    const server = this.getServerOrThrow(normalizedServerId)
+
+    if (!connection) {
+      const disconnectedState = createInitialRuntimeState(server)
+      this.runtimeStates.set(normalizedServerId, disconnectedState)
+      this.emitSnapshot()
+      return disconnectedState
+    }
+
+    await connection.disconnect()
+    const runtimeState = mergeRuntimeStateWithServer(server, connection.getRuntimeState())
+    this.unregisterConnection(normalizedServerId)
+    this.runtimeStates.set(normalizedServerId, runtimeState)
+    await this.syncRuntimeMetadata(normalizedServerId, runtimeState)
+    this.emitSnapshot()
+    return cloneRuntimeState(runtimeState)
+  }
+
+  async getServerTools(serverId: string): Promise<McpNamespacedTool[]> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const runtimeState = this.getRuntimeStateForServer(normalizedServerId)
+
+    if (
+      runtimeState.status !== 'connected' ||
+      server.enabled !== true ||
+      server.trustState !== 'trusted'
+    ) {
+      return []
+    }
+
+    return runtimeState.tools.map((manifest) => ({
+      ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
+      manifest: {
+        ...manifest,
+        inputSchema: { ...manifest.inputSchema },
+        annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
+      },
+      }))
+  }
+
+  async getServerResources(serverId: string): Promise<McpRuntimeResource[]> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    return this.listResources().filter((resource) => resource.serverId === normalizedServerId)
+  }
+
+  async getServerPrompts(serverId: string): Promise<McpRuntimePrompt[]> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    return this.listPrompts().filter((prompt) => prompt.serverId === normalizedServerId)
+  }
+
+  async readResource(serverId: string, uri: string): Promise<McpResourceReadResult> {
+    const executable = await this.getExecutableResource(serverId, uri)
+    const cacheKey = createResourceCacheKey(executable.server.id, uri)
+    const cached = this.resourceReadCache.get(cacheKey)
+    if (cached) {
+      return cloneReadResourceResult(cached)
+    }
+
+    const result = await executable.connection.readResource(uri)
+    this.resourceReadCache.set(cacheKey, cloneReadResourceResult(result))
+    return cloneReadResourceResult(result)
+  }
+
+  async getPrompt(
+    serverId: string,
+    promptName: string,
+    args: Record<string, unknown>
+  ): Promise<McpPromptResult> {
+    const executable = await this.getExecutablePrompt(serverId, promptName)
+    const cacheKey = createPromptCacheKey(executable.server.id, promptName, args)
+    const cached = this.promptResultCache.get(cacheKey)
+    if (cached) {
+      return clonePromptResult(cached)
+    }
+
+    const result = await executable.connection.getPrompt(promptName, args)
+    this.promptResultCache.set(cacheKey, clonePromptResult(result))
+    return clonePromptResult(result)
+  }
+
+  async executeTool(namespacedToolName: string, args: Record<string, unknown>): Promise<{
+    server: McpServerConfig
+    tool: McpNamespacedTool
+    result: { content: unknown[]; structuredContent?: unknown; isError: boolean }
+  }> {
+    const executable = await this.getExecutableTool(namespacedToolName)
+
+    return {
+      server: executable.server,
+      tool: executable.tool,
+      result: await executable.connection.callTool(executable.tool.toolName, args),
+    }
+  }
+
+  async getExecutableTool(namespacedToolName: string): Promise<{
+    server: McpServerConfig
+    tool: McpNamespacedTool
+    connection: McpManagedConnection
+  }> {
+    await this.ensureInitialized()
+
+    const tool = this.listTools().find((candidate) => candidate.namespacedName === namespacedToolName)
+    if (!tool) {
+      throw new Error(`Unknown or unavailable MCP tool: ${namespacedToolName}`)
+    }
+
+    const server = this.getServerOrThrow(tool.serverId)
+    if (server.enabled !== true) {
+      throw new Error(`MCP server "${server.name}" is disabled`)
+    }
+
+    if (server.trustState !== 'trusted') {
+      throw new Error(`MCP server "${server.name}" is not trusted`)
+    }
+
+    const runtimeState = this.getRuntimeStateForServer(server.id)
+    if (runtimeState.status !== 'connected') {
+      throw new Error(`MCP server "${server.name}" is not connected`)
+    }
+
+    const connection = this.connections.get(server.id)
+    if (!connection) {
+      throw new Error(`No active MCP connection for server "${server.name}"`)
+    }
+
+    return {
+      server,
+      tool,
+      connection,
+    }
+  }
+
+  async getExecutableResource(serverId: string, uri: string): Promise<{
+    server: McpServerConfig
+    manifest: McpResourceManifest
+    connection: McpManagedConnection
+  }> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const runtimeState = this.getRuntimeStateForServer(server.id)
+    if (!isServerContentVisible(server, runtimeState)) {
+      throw new Error(`MCP server "${server.name}" resources are not available`)
+    }
+
+    const manifest = runtimeState.resources.find((resource) => resource.uri === uri)
+    if (!manifest) {
+      throw new Error(`Unknown MCP resource for server "${server.name}": ${uri}`)
+    }
+
+    const connection = this.connections.get(server.id)
+    if (!connection) {
+      throw new Error(`No active MCP connection for server "${server.name}"`)
+    }
+
+    return {
+      server,
+      manifest,
+      connection,
+    }
+  }
+
+  async getExecutablePrompt(serverId: string, promptName: string): Promise<{
+    server: McpServerConfig
+    manifest: McpPromptManifest
+    connection: McpManagedConnection
+  }> {
+    await this.ensureInitialized()
+
+    const normalizedServerId = normalizeServerId(serverId)
+    const server = this.getServerOrThrow(normalizedServerId)
+    const runtimeState = this.getRuntimeStateForServer(server.id)
+    if (!isServerContentVisible(server, runtimeState)) {
+      throw new Error(`MCP server "${server.name}" prompts are not available`)
+    }
+
+    const manifest = runtimeState.prompts.find((prompt) => prompt.name === promptName)
+    if (!manifest) {
+      throw new Error(`Unknown MCP prompt for server "${server.name}": ${promptName}`)
+    }
+
+    const connection = this.connections.get(server.id)
+    if (!connection) {
+      throw new Error(`No active MCP connection for server "${server.name}"`)
+    }
+
+    return {
+      server,
+      manifest,
+      connection,
+    }
+  }
+
+  private async doInitialize(options: McpManagerInitializeOptions): Promise<McpRuntimeSnapshot> {
+    this.clientInfo = options.clientInfo
+    const loadedServers = await this.loadServers()
+
+    this.servers.clear()
+    this.runtimeStates.clear()
+
+    for (const server of loadedServers) {
+      this.servers.set(server.id, cloneServer(server))
+      this.runtimeStates.set(server.id, createInitialRuntimeState(server))
+    }
+
+    this.initialized = true
+    this.emitSnapshot()
+
+    if (options.autoConnect !== false) {
+      const autoConnectServerIds = loadedServers
+        .filter((server) => server.enabled === true && server.autoConnect === true)
+        .map((server) => server.id)
+
+      await Promise.allSettled(autoConnectServerIds.map((serverId) => this.connectServer(serverId)))
+    }
+
+    return this.getSnapshot()
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+  }
+
+  private getServerOrThrow(serverId: string): McpServerConfig {
+    const server = this.servers.get(serverId)
+    if (!server) {
+      throw new Error(`Unknown MCP server: ${serverId}`)
+    }
+
+    return server
+  }
+
+  private getRuntimeStateForServer(serverId: string): McpServerRuntimeState {
+    const server = this.getServerOrThrow(serverId)
+    const runtimeState = this.runtimeStates.get(serverId)
+    return cloneRuntimeState(runtimeState ?? createInitialRuntimeState(server))
+  }
+
+  private registerConnection(serverId: string, connection: McpManagedConnection): void {
+    this.unregisterConnection(serverId)
+    this.connections.set(serverId, connection)
+
+    const unsubscribe = connection.onRuntimeStateChange((runtimeState) => {
+      void this.handleConnectionRuntimeState(serverId, runtimeState)
+    })
+
+    this.connectionUnsubscribers.set(serverId, unsubscribe)
+    this.runtimeStates.set(serverId, mergeRuntimeStateWithServer(this.getServerOrThrow(serverId), connection.getRuntimeState()))
+  }
+
+  private unregisterConnection(serverId: string): void {
+    const unsubscribe = this.connectionUnsubscribers.get(serverId)
+    if (unsubscribe) {
+      unsubscribe()
+      this.connectionUnsubscribers.delete(serverId)
+    }
+
+    this.connections.delete(serverId)
+    this.clearContentCachesForServer(serverId)
+  }
+
+  private async handleConnectionRuntimeState(
+    serverId: string,
+    runtimeState: McpServerRuntimeState
+  ): Promise<void> {
+    const server = this.servers.get(serverId)
+    if (!server) {
+      return
+    }
+
+    const mergedState = mergeRuntimeStateWithServer(server, runtimeState)
+    this.runtimeStates.set(serverId, mergedState)
+    await this.syncRuntimeMetadata(serverId, mergedState)
+    this.emitSnapshot()
+  }
+
+  private async syncRuntimeMetadata(
+    serverId: string,
+    runtimeState: McpServerRuntimeState
+  ): Promise<void> {
+    const server = this.servers.get(serverId)
+    if (!server) {
+      return
+    }
+
+    const nextServer: McpServerConfig = {
+      ...server,
+      lastKnownTools: runtimeState.tools.map((tool) => ({
+        ...tool,
+        inputSchema: { ...tool.inputSchema },
+        annotations: tool.annotations ? { ...tool.annotations } : undefined,
+      })),
+      lastKnownResources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
+      lastKnownPrompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
+      lastConnectionError: runtimeState.lastConnectionError ?? null,
+      lastConnectionTime: runtimeState.lastConnectionTime ?? null,
+    }
+
+    this.servers.set(serverId, nextServer)
+    await this.persistServers()
+  }
+
+  private async persistServers(): Promise<void> {
+    await this.saveServers(this.listServers())
+  }
+
+  private emitSnapshot(): void {
+    const snapshot = this.getSnapshot()
+    for (const handler of this.snapshotHandlers) {
+      handler(snapshot)
+    }
+  }
+
+  private clearContentCachesForServer(serverId: string): void {
+    const resourcePrefix = `${serverId}::resource::`
+    const promptPrefix = `${serverId}::prompt::`
+
+    for (const key of this.resourceReadCache.keys()) {
+      if (key.startsWith(resourcePrefix)) {
+        this.resourceReadCache.delete(key)
+      }
+    }
+
+    for (const key of this.promptResultCache.keys()) {
+      if (key.startsWith(promptPrefix)) {
+        this.promptResultCache.delete(key)
+      }
+    }
+  }
+}
+
+function createInitialRuntimeState(server: McpServerConfig): McpServerRuntimeState {
+  return {
+    serverId: server.id,
+    status: 'disconnected',
+    error: undefined,
+    lastConnectionError: server.lastConnectionError ?? null,
+    lastConnectionTime: server.lastConnectionTime ?? null,
+    tools: server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
+    resources: server.lastKnownResources ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource)) : [],
+    prompts: server.lastKnownPrompts ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt)) : [],
+    capabilities: {
+      tools: false,
+      resources: false,
+      prompts: false,
+    },
+    lastUpdatedAt: new Date().toISOString(),
+  }
+}
+
+function mergeRuntimeStateWithServer(
+  server: McpServerConfig,
+  runtimeState: McpServerRuntimeState | undefined
+): McpServerRuntimeState {
+  return {
+    serverId: server.id,
+    status: runtimeState?.status ?? 'disconnected',
+    error: runtimeState?.error,
+    lastConnectionError: runtimeState?.lastConnectionError ?? server.lastConnectionError ?? null,
+    lastConnectionTime: runtimeState?.lastConnectionTime ?? server.lastConnectionTime ?? null,
+    tools: runtimeState?.tools ? runtimeState.tools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
+    resources: runtimeState?.resources
+      ? runtimeState.resources.map((resource) => cloneResourceManifest(resource))
+      : server.lastKnownResources
+        ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
+        : [],
+    prompts: runtimeState?.prompts
+      ? runtimeState.prompts.map((prompt) => clonePromptManifest(prompt))
+      : server.lastKnownPrompts
+        ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
+        : [],
+    capabilities: runtimeState?.capabilities
+      ? { ...runtimeState.capabilities }
+      : {
+          tools: false,
+          resources: false,
+          prompts: false,
+        },
+    connectionInfo: runtimeState?.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,
+    lastUpdatedAt: new Date().toISOString(),
+  }
+}
+
+function cloneServer(server: McpServerConfig): McpServerConfig {
+  return {
+    ...server,
+    args: server.args ? [...server.args] : [],
+    env: server.env ? server.env.map((entry) => ({ ...entry })) : [],
+    headers: server.headers ? server.headers.map((entry) => ({ ...entry })) : [],
+    toolAllowlist: server.toolAllowlist ? [...server.toolAllowlist] : [],
+    toolBlocklist: server.toolBlocklist ? [...server.toolBlocklist] : [],
+    lastKnownTools: server.lastKnownTools
+      ? server.lastKnownTools.map((tool) => ({
+          ...tool,
+          inputSchema: { ...tool.inputSchema },
+          annotations: tool.annotations ? { ...tool.annotations } : undefined,
+        }))
+      : [],
+    lastKnownResources: server.lastKnownResources
+      ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
+      : [],
+    lastKnownPrompts: server.lastKnownPrompts
+      ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
+      : [],
+  }
+}
+
+function cloneRuntimeState(runtimeState: McpServerRuntimeState): McpServerRuntimeState {
+  return {
+    ...runtimeState,
+    tools: runtimeState.tools.map((tool) => ({
+      ...tool,
+      inputSchema: { ...tool.inputSchema },
+      annotations: tool.annotations ? { ...tool.annotations } : undefined,
+    })),
+    resources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
+    prompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
+    capabilities: { ...runtimeState.capabilities },
+    connectionInfo: runtimeState.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,
+  }
+}
+
+function cloneResourceManifest(resource: McpResourceManifest): McpResourceManifest {
+  return {
+    ...resource,
+    annotations: resource.annotations ? { ...resource.annotations } : undefined,
+  }
+}
+
+function clonePromptManifest(prompt: McpPromptManifest): McpPromptManifest {
+  return {
+    ...prompt,
+    arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : [],
+  }
+}
+
+function cloneReadResourceResult(result: McpResourceReadResult): McpResourceReadResult {
+  return {
+    contents: result.contents.map((item) => ({ ...item })),
+  }
+}
+
+function clonePromptResult(result: McpPromptResult): McpPromptResult {
+  return {
+    description: result.description,
+    messages: result.messages.map((message) => ({ ...message })),
+  }
+}
+
+function getUserVisibleExposure(): McpExposurePolicy {
+  return {
+    userVisible: true,
+    modelVisible: false,
+    requiresExplicitUserAction: true,
+  }
+}
+
+function isServerContentVisible(
+  server: McpServerConfig,
+  runtimeState: McpServerRuntimeState | undefined
+): runtimeState is McpServerRuntimeState {
+  return Boolean(
+    runtimeState &&
+      runtimeState.status === 'connected' &&
+      server.enabled === true &&
+      server.trustState === 'trusted'
+  )
+}
+
+function isToolAllowedForServer(server: McpServerConfig, toolName: string): boolean {
+  const normalizedToolName = toolName.trim().toLowerCase()
+  const allowlist = new Set((server.toolAllowlist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+  const blocklist = new Set((server.toolBlocklist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
+
+  if (blocklist.has(normalizedToolName)) {
+    return false
+  }
+
+  return allowlist.size === 0 || allowlist.has(normalizedToolName)
+}
+
+function createResourceCacheKey(serverId: string, uri: string): string {
+  return `${serverId}::resource::${uri}`
+}
+
+function createPromptCacheKey(serverId: string, promptName: string, args: Record<string, unknown>): string {
+  return `${serverId}::prompt::${promptName}::${stableStringify(args)}`
+}
+
+function stableStringify(value: unknown): string {
+  if (value == null || typeof value !== 'object') {
+    return JSON.stringify(value)
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right)
+  )
+
+  return `{${entries
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
+    .join(',')}}`
+}
+
+function normalizeServerId(serverId: string): string {
+  if (typeof serverId !== 'string' || !serverId.trim()) {
+    throw new Error('Invalid MCP server id')
+  }
+
+  return serverId.trim()
+}
+
+function getOptionalTrimmedString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function ensureUniqueNamespacedTools(tools: McpNamespacedTool[]): McpNamespacedTool[] {
+  const counts = new Map<string, number>()
+
+  return tools.map((tool) => {
+    const duplicateCount = counts.get(tool.namespacedName) ?? 0
+    counts.set(tool.namespacedName, duplicateCount + 1)
+
+    if (duplicateCount === 0) {
+      return tool
+    }
+
+    const suffix = toCollisionSafeSlug(tool.serverId)
+    return {
+      ...tool,
+      serverSlug: `${tool.serverSlug}_${suffix}`,
+      namespacedName: `mcp__${tool.serverSlug}_${suffix}__${tool.toolSlug}`,
+    }
+  })
+}
+
+function toCollisionSafeSlug(serverId: string): string {
+  return serverId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 12) || 'server'
+}

@@ -1,3 +1,55 @@
+import type {
+    McpJsonSchema,
+    McpToolExecutionMetadata,
+    McpToolLookupRecord,
+} from '../mcp/types'
+
+export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
+
+export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp'
+
+export interface BuiltinToolExecutionMetadata {
+    origin: 'builtin-main' | 'builtin-renderer'
+}
+
+export type ToolExecutionMetadata = BuiltinToolExecutionMetadata | McpToolExecutionMetadata
+
+export interface ToolInputSchema extends McpJsonSchema {
+    type: 'object'
+    properties: Record<string, McpJsonSchema>
+    required?: string[]
+}
+
+interface BaseToolDescriptor {
+    name: string
+    description: string
+    parameters: ToolInputSchema
+    category: ToolCategory
+    origin: ToolOrigin
+    requiresApproval?: boolean
+}
+
+export interface BuiltinToolDescriptor extends BaseToolDescriptor {
+    origin: 'builtin-main' | 'builtin-renderer'
+}
+
+export type ToolDescriptor = BuiltinToolDescriptor | McpToolDescriptor
+
+export interface McpToolDescriptor extends BaseToolDescriptor {
+    origin: 'mcp'
+    mcp: McpToolLookupRecord & {
+        serverName: string
+    }
+}
+
+export function isMcpToolDescriptor(tool: ToolDescriptor): tool is McpToolDescriptor {
+    return tool.origin === 'mcp'
+}
+
+export function isMcpNamespacedToolName(toolName: string): boolean {
+    return /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/.test(toolName)
+}
+
 // Tool System Types
 // Centralized type definitions for the tools system
 
@@ -9,6 +61,7 @@ export interface ToolResult {
     data?: unknown
     error?: string
     executionTime?: number
+    metadata?: ToolExecutionMetadata
 }
 
 /**

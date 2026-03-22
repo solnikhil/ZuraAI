@@ -2,11 +2,10 @@
  * useResearchMode - Hook for managing web search mode state and logic
  *
  * Unified web search mode: model decides depth based on the user's question.
- * Structured mode is supported via research_plan (configured elsewhere).
  */
 
 import { useState, useCallback } from 'react'
-import { getWebResearchMode, isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
+import { isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
 
 /**
  * Base system prompt for web search - planning and multi-turn guidance
@@ -220,13 +219,9 @@ export function useResearchMode({
     userMessage: string
   ): ResearchModeConfig => {
     const webResearchEnabled = isWebResearchEnabled(settings.skills)
-    const webResearchMode = getWebResearchMode(settings.skills)
     const enabledTools = settings.enabledTools?.length ? settings.enabledTools : ['web_search']
     const hasWebSearch = enabledTools.includes('web_search')
-    const hasStructuredEntryPoint = enabledTools.includes('research_plan') || hasWebSearch
-    const webSearchEnabledBySettings = webResearchEnabled && (
-      webResearchMode === 'structured' ? hasStructuredEntryPoint : hasWebSearch
-    )
+    const webSearchEnabledBySettings = webResearchEnabled && hasWebSearch
 
     const forceWebSearch =
       ['openrouter', 'groq', 'alibaba', 'ollama'].includes(settings.modelProvider) &&

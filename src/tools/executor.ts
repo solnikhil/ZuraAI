@@ -1,6 +1,6 @@
 // Tool Executor - Executes tools via IPC to main process
 
-import { ToolResult, ToolCall, ToolCallResult } from './types'
+import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
@@ -13,6 +13,38 @@ export async function executeTool(toolName: string, args: Record<string, unknown
     const TIMEOUT_MS = 30_000
     
     try {
+        if (isMcpNamespacedToolName(toolName)) {
+            if (!window.mcp) {
+                return {
+                    success: false,
+                    error: 'MCP bridge is unavailable - MCP tools only work in Electron',
+                    executionTime: Math.round(performance.now() - startTime)
+                }
+            }
+
+            let timeoutId: ReturnType<typeof setTimeout> | undefined
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(
+                    () => reject(new Error(`Tool execution timed out after ${TIMEOUT_MS / 1000} seconds`)),
+                    TIMEOUT_MS
+                )
+            })
+
+            try {
+                const result = await Promise.race([
+                    window.mcp.executeTool(toolName, args),
+                    timeoutPromise
+                ])
+
+                return {
+                    ...result,
+                    executionTime: Math.round(performance.now() - startTime)
+                }
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId)
+            }
+        }
+
         if (!window.ipcRenderer) {
             return {
                 success: false,
@@ -43,7 +75,10 @@ export async function executeTool(toolName: string, args: Record<string, unknown
         
         return {
             ...result,
-            executionTime
+            executionTime,
+            metadata: {
+                origin: 'builtin-main'
+            }
         }
     } catch (error: unknown) {
         const executionTime = Math.round(performance.now() - startTime)

@@ -1,6 +1,7 @@
 export type SettingsSectionId =
   | 'usage'
   | 'providers'
+  | 'mcp'
   | 'skills'
   | 'themes'
   | 'systemprompt'
@@ -28,6 +29,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     title: 'Providers & Models',
     description: 'Configure model providers, API credentials, and search integrations.',
     keywords: ['models', 'openrouter', 'groq', 'perplexity', 'ollama', 'alibaba', 'tavily'],
+  },
+  {
+    id: 'mcp',
+    navLabel: 'MCP',
+    title: 'MCP Servers',
+    description: 'Configure Model Context Protocol servers, secrets, and connection state.',
+    keywords: ['mcp', 'model context protocol', 'server', 'stdio', 'sse', 'websocket', 'tools'],
   },
   {
     id: 'skills',
@@ -69,6 +77,7 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   tools: 'skills',
   models: 'providers',
   preferences: 'providers',
+  servers: 'mcp',
   commandbar: 'themes',
   notifications: 'usage',
 }

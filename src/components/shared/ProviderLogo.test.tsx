@@ -25,7 +25,7 @@ describe('ProviderLogo', () => {
       render(<ProviderLogo provider="minimax" />)
       const img = screen.getByAltText('minimax logo')
       expect(img).toBeInTheDocument()
-      expect(img).toHaveAttribute('src', '/provider-logos/minimax.png')
+      expect(img).toHaveAttribute('src', './provider-logos/minimax.png')
     })
 
     it('should render fallback icon when minimax image fails to load', () => {
@@ -43,7 +43,7 @@ describe('ProviderLogo', () => {
     it('should handle case-insensitive provider names', () => {
       render(<ProviderLogo provider="MiniMax" />)
       const img = screen.getByAltText('MiniMax logo')
-      expect(img).toHaveAttribute('src', '/provider-logos/minimax.png')
+      expect(img).toHaveAttribute('src', './provider-logos/minimax.png')
     })
   })
 
@@ -97,7 +97,7 @@ describe('ProviderLogo', () => {
       render(<ProviderLogo provider={provider} />)
       const img = screen.getByAltText(`${provider} logo`)
       expect(img).toBeInTheDocument()
-      expect(img).toHaveAttribute('src', `/provider-logos/${provider}.png`)
+      expect(img).toHaveAttribute('src', `./provider-logos/${provider}.png`)
     })
   })
 })

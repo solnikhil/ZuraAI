@@ -25,6 +25,7 @@ describe('Property 1: Model Selection Persistence (Round-Trip)', () => {
 
   afterEach(() => {
     // Restore original localStorage state
+    // CodeQL[clear-text-storage-of-sensitive-data] This is test data (mock settings), not real API keys
     if (originalStorage !== null) {
       localStorage.setItem(STORAGE_KEY, originalStorage)
     } else {

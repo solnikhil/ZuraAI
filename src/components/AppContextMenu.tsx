@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import {
   ContextMenu,
@@ -19,6 +19,7 @@ interface ContextInfo {
   linkText: string
   mouseX: number
   mouseY: number
+  targetElement: HTMLElement | null
 }
 
 function isElementEditable(element: HTMLElement): boolean {
@@ -52,6 +53,15 @@ function findAncestorLink(element: HTMLElement): { hasLink: boolean; linkUrl: st
   return { hasLink: false, linkUrl: '', linkText: '' }
 }
 
+function isInputOrTextarea(el: HTMLElement | null): el is HTMLInputElement | HTMLTextAreaElement {
+  return el !== null && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
+}
+
+function getNativeValueSetter(element: HTMLInputElement | HTMLTextAreaElement) {
+  const proto = element.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+  return Object.getOwnPropertyDescriptor(proto, 'value')?.set
+}
+
 function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): ContextInfo {
   const selection = window.getSelection()
   const selectionText = selection?.toString().trim() || ''
@@ -68,6 +78,7 @@ function getContextInfo(target: HTMLElement, mouseX: number, mouseY: number): Co
     linkText: linkInfo.linkText,
     mouseX,
     mouseY,
+    targetElement: target,
   }
 }
 
@@ -118,14 +129,17 @@ const defaultContextInfo: ContextInfo = {
   linkText: '',
   mouseX: 0,
   mouseY: 0,
+  targetElement: null,
 }
 
 export default function AppContextMenu({ children }: { children: React.ReactNode }) {
   const [contextInfo, setContextInfo] = useState<ContextInfo>(defaultContextInfo)
+  const targetElementRef = useRef<HTMLElement | null>(null)
   const isDev = import.meta.env.DEV
 
   const handleContextMenu = useCallback((event: React.MouseEvent) => {
     const info = getContextInfo(event.target as HTMLElement, event.clientX, event.clientY)
+    targetElementRef.current = info.targetElement
     flushSync(() => {
       setContextInfo(info)
     })
@@ -138,40 +152,69 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
   }, [contextInfo.selectionText])
 
   const handleCut = useCallback(() => {
-    if (contextInfo.selectionText) {
-      void copyTextToClipboard(contextInfo.selectionText)
+    if (!contextInfo.selectionText) return
+    
+    void copyTextToClipboard(contextInfo.selectionText)
+    
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
       document.execCommand('cut')
     }
   }, [contextInfo.selectionText])
 
   const handlePaste = useCallback(async () => {
+    const target = targetElementRef.current
+    if (!isInputOrTextarea(target)) return
+    
+    target.focus()
+    
     try {
       const text = await navigator.clipboard.readText()
-      const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement
-      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        const start = activeElement.selectionStart || 0
-        const end = activeElement.selectionEnd || 0
-        const value = activeElement.value
-        activeElement.value = value.slice(0, start) + text + value.slice(end)
-        activeElement.selectionStart = activeElement.selectionEnd = start + text.length
-        activeElement.dispatchEvent(new Event('input', { bubbles: true }))
+      const start = target.selectionStart || 0
+      const end = target.selectionEnd || 0
+      const currentValue = target.value
+      const newValue = currentValue.slice(0, start) + text + currentValue.slice(end)
+      
+      const nativeValueSetter = getNativeValueSetter(target)
+      if (nativeValueSetter) {
+        nativeValueSetter.call(target, newValue)
       } else {
-        document.execCommand('paste')
+        target.value = newValue
       }
-    } catch {
-      document.execCommand('paste')
+      
+      target.dispatchEvent(new Event('input', { bubbles: true }))
+      target.selectionStart = target.selectionEnd = start + text.length
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn('[AppContextMenu] Clipboard paste failed:', error)
+      }
     }
   }, [])
 
   const handleSelectAll = useCallback(() => {
-    document.execCommand('selectAll')
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+      target.select()
+    } else {
+      document.execCommand('selectAll')
+    }
   }, [])
 
   const handleUndo = useCallback(() => {
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+    }
     document.execCommand('undo')
   }, [])
 
   const handleRedo = useCallback(() => {
+    const target = targetElementRef.current
+    if (isInputOrTextarea(target)) {
+      target.focus()
+    }
     document.execCommand('redo')
   }, [])
 
@@ -207,11 +250,11 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
       <ContextMenuContent className="w-56">
         {showLinkActions && (
           <>
-            <ContextMenuItem onClick={handleOpenLink}>
+            <ContextMenuItem onSelect={handleOpenLink}>
               <ExternalLink className="w-4 h-4 mr-2" />
               Open Link in Browser
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCopyLink}>
+            <ContextMenuItem onSelect={handleCopyLink}>
               <Link2 className="w-4 h-4 mr-2" />
               Copy Link Address
             </ContextMenuItem>
@@ -221,34 +264,34 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
 
         {showEditActions ? (
           <>
-            <ContextMenuItem onClick={handleUndo}>
+            <ContextMenuItem onSelect={handleUndo}>
               <RotateCcw className="w-4 h-4 mr-2" />
               Undo
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+Z</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleRedo}>
+            <ContextMenuItem onSelect={handleRedo}>
               <RotateCw className="w-4 h-4 mr-2" />
               Redo
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+Y</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleCut} disabled={!showSelectionActions}>
+            <ContextMenuItem onSelect={handleCut} disabled={!showSelectionActions}>
               <Scissors className="w-4 h-4 mr-2" />
               Cut
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+X</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handleCopy} disabled={!showSelectionActions}>
+            <ContextMenuItem onSelect={handleCopy} disabled={!showSelectionActions}>
               <Copy className="w-4 h-4 mr-2" />
               Copy
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
-            <ContextMenuItem onClick={handlePaste}>
+            <ContextMenuItem onSelect={handlePaste}>
               <Clipboard className="w-4 h-4 mr-2" />
               Paste
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+V</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleSelectAll}>
+            <ContextMenuItem onSelect={handleSelectAll}>
               <CheckSquare className="w-4 h-4 mr-2" />
               Select All
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+A</span>
@@ -256,19 +299,19 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
           </>
         ) : showSelectionActions ? (
           <>
-            <ContextMenuItem onClick={handleCopy}>
+            <ContextMenuItem onSelect={handleCopy}>
               <Copy className="w-4 h-4 mr-2" />
               Copy
               <span className="ml-auto text-xs text-muted-foreground">Ctrl+C</span>
             </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleSelectAll}>
+            <ContextMenuItem onSelect={handleSelectAll}>
               <CheckSquare className="w-4 h-4 mr-2" />
               Select All
             </ContextMenuItem>
           </>
         ) : (
-          <ContextMenuItem onClick={handleSelectAll}>
+          <ContextMenuItem onSelect={handleSelectAll}>
             <CheckSquare className="w-4 h-4 mr-2" />
             Select All
           </ContextMenuItem>
@@ -277,7 +320,7 @@ export default function AppContextMenu({ children }: { children: React.ReactNode
         {isDev && (
           <>
             <ContextMenuSeparator />
-            <ContextMenuItem onClick={handleInspectElement}>
+            <ContextMenuItem onSelect={handleInspectElement}>
               <Code className="w-4 h-4 mr-2" />
               Inspect Element
             </ContextMenuItem>

@@ -26,20 +26,19 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
     it('renders Frosted Sidebar toggle with correct label', () => {
       render(<ExperimentalSection {...defaultProps} />)
 
-      expect(screen.getByText('Frosted Sidebar')).toBeInTheDocument()
+      expect(screen.getByText('Frosted sidebar')).toBeInTheDocument()
     })
 
     it('renders Frosted Prompt toggle with correct label', () => {
       render(<ExperimentalSection {...defaultProps} />)
 
-      expect(screen.getByText('Frosted Prompt')).toBeInTheDocument()
+      expect(screen.getByText('Frosted prompt area')).toBeInTheDocument()
     })
 
     it('renders Frosted Sidebar toggle with description explaining glassmorphism effect', () => {
       render(<ExperimentalSection {...defaultProps} />)
 
-      expect(screen.getByText(/glassmorphism effect/i)).toBeInTheDocument()
-      expect(screen.getByText(/frosted glass appearance/i)).toBeInTheDocument()
+      expect(screen.getByText(/semi-transparent glass effect/i)).toBeInTheDocument()
     })
 
     it('renders Frosted Sidebar toggle switch with correct aria-label', () => {
@@ -58,7 +57,7 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
 
     it('renders Softened contrast toggle with correct label', () => {
       render(<ExperimentalSection {...defaultProps} />)
-      expect(screen.getByText('Softened contrast')).toBeInTheDocument()
+      expect(screen.getByText('Softer contrast')).toBeInTheDocument()
     })
 
     it('renders Softened contrast toggle switch with correct aria-label', () => {
@@ -76,7 +75,7 @@ describe('ExperimentalSection Frosted Sidebar Toggle', () => {
 
     it('renders Sidebar auto-hide toggle with correct label', () => {
       render(<ExperimentalSection {...defaultProps} />)
-      expect(screen.getByText('Sidebar auto-hide on resize')).toBeInTheDocument()
+      expect(screen.getByText('Auto-hide sidebar on narrow windows')).toBeInTheDocument()
     })
 
     it('renders Sidebar auto-hide toggle switch with correct aria-label', () => {

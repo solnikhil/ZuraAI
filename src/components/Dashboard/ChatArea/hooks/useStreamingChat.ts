@@ -16,7 +16,6 @@ import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
-import { getWebResearchMode, isWebResearchEnabled } from '@/skills'
 import {
   buildProviderMessages,
   canAnalyzeImageAttachments,
@@ -308,13 +307,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     // Flush any pending throttled updates before stopping
     flushThrottledUpdates()
 
-    // Commit any pending streaming content to the session
-    if (streamingMessageRef.current) {
-      const finalState = completeStreaming()
-      if (finalState.sessionId && finalState.messageId && finalState.content) {
-        // Commit final content to the session
-        updateStreamingMessage(
-          finalState.sessionId,
+      // Commit any pending streaming content to the session
+      if (streamingMessageRef.current) {
+        const finalState = completeStreaming()
+        if (finalState.sessionId && finalState.messageId) {
+          // Commit final content to the session
+          updateStreamingMessage(
+            finalState.sessionId,
           finalState.messageId,
           buildFinalStreamingUpdates(finalState)
         )
@@ -414,16 +413,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const planFirstInstruction =
-          isWebResearchEnabled(settings.skills) &&
-          getWebResearchMode(settings.skills) === 'structured' &&
-          canUseTools
-            ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
-            : ''
         const effectiveSystemPrompt =
-          getEffectiveSystemPrompt(settings) +
-          planFirstInstruction +
-          getResearchContext(0, researchMaxRounds)
+          getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds)
         const optimizedHistory = buildOptimizedContext(
           conversationHistory,
           outboundUserMessage,
@@ -527,7 +518,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           // The provider hooks call updateStreamingMessage too, but that setState
           // may still be batched/pending when completeStreaming() resets the
           // ephemeral StreamingContext, causing the content to vanish on re-render.
-          if (finalState.sessionId && finalState.messageId && finalState.content) {
+          if (finalState.sessionId && finalState.messageId) {
             updateStreamingMessage(
               finalState.sessionId,
               finalState.messageId,

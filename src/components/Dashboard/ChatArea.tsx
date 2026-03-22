@@ -2,7 +2,7 @@
  * Primary dashboard chat surface.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import GradientText from '../GradientText'
@@ -17,6 +17,7 @@ import { MessageRenderer } from './ChatArea/MessageRenderer'
 import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
 import { InputArea } from './ChatArea/InputArea'
+import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
 
@@ -192,6 +193,11 @@ export default function ChatArea() {
     void navigator.clipboard.writeText(content)
   }, [])
 
+  const visibleLiveToolResults = useMemo(
+    () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
+    [toolState.toolResults]
+  )
+
   const renderMessage = useCallback(
     (index: number, msg: (typeof messages)[0]) => {
       const isLastAssistant = msg.role === 'assistant' && index === messages.length - 1
@@ -217,22 +223,20 @@ export default function ChatArea() {
             />
           )}
 
-          {isLastAssistant && toolState.toolResults.length > 0 && (
+          {isLastAssistant && visibleLiveToolResults.length > 0 && (
             <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-              {toolState.toolResults
-                .map((result, i) =>
-                  result.toolCall.name === 'web_search' ? null : (
-                    <ToolResultDisplay
-                      key={i}
-                      toolName={result.toolCall.name}
-                      result={result.result?.success ? result.result.data : undefined}
-                      error={result.result?.success ? undefined : result.result?.error}
-                      sessionId={currentSessionId || undefined}
-                      messageId={msg.id}
-                      toolResultIndex={i}
-                    />
-                  )
-                )}
+              {visibleLiveToolResults.map((result, i) => (
+                <ToolResultDisplay
+                  key={i}
+                  toolName={result.toolCall.name}
+                  result={result.result?.success ? result.result.data : undefined}
+                  error={result.result?.success ? undefined : result.result?.error}
+                  metadata={result.result?.metadata}
+                  sessionId={currentSessionId || undefined}
+                  messageId={msg.id}
+                  toolResultIndex={i}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -244,7 +248,7 @@ export default function ChatArea() {
       currentSessionId,
       handleCopy,
       regenerateMessage,
-      toolState.toolResults,
+      visibleLiveToolResults,
       toolState.activeToolCalls,
     ]
   )
@@ -388,22 +392,22 @@ export default function ChatArea() {
                     />
                   )}
 
-                  {isLastAssistant && toolState.toolResults.length > 0 && (
+                  {isLastAssistant && visibleLiveToolResults.length > 0 && (
                     <div style={{ marginTop: '8px', marginBottom: '24px' }}>
-                      {toolState.toolResults
-                        .map((result, i) =>
-                          result.toolCall.name === 'web_search' ? null : (
-                            <ToolResultDisplay
-                              key={i}
-                              toolName={result.toolCall.name}
-                              result={result.result.success ? result.result.data : undefined}
-                              error={result.result.success ? undefined : result.result.error}
-                              sessionId={currentSessionId || undefined}
-                              messageId={msg.id}
-                              toolResultIndex={i}
-                            />
-                          )
-                        )}
+                      {visibleLiveToolResults.map((result, i) => (
+                        <ToolResultDisplay
+                          key={i}
+                          toolName={result.toolCall.name}
+                          result={result.result.success ? result.result.data : undefined}
+                          error={result.result.success ? undefined : result.result.error}
+                          metadata={result.result?.metadata}
+                          toolArguments={result.toolCall.arguments}
+                          executionTime={result.result?.executionTime}
+                          sessionId={currentSessionId || undefined}
+                          messageId={msg.id}
+                          toolResultIndex={i}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>

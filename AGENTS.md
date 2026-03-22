@@ -13,7 +13,7 @@ Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
-- Tool calling system (restricted; `web_search` in main process and renderer-side `research_plan`)
+- Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
 ---
 
@@ -35,8 +35,8 @@ Core capabilities:
 - The app uses a **primary BrowserWindow** for the main app plus a dedicated **About window**. Main-app renderer routes live inside the primary window (`#/dashboard`, `#/settings`, `#/chat`) under a shared shell layout, while `#/about` is rendered in the separate utility window.
 - Persistence is split:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
-  - **API keys** live in main-process secure storage and are hydrated into renderer settings at runtime.
-  - **Chat history** and **secure storage** live in the main process under `app.getPath('userData')`.
+  - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
+  - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
 
 ---
 
@@ -46,9 +46,14 @@ Core capabilities:
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
   - `electron/startup/` — deferred startup orchestration and startup metrics
-  - `electron/windows/` — main window, tray
-  - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
+- `electron/windows/` — main window, tray
+- `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
+- `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
+- `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, and connection lifecycle coordination
+- `electron/mcp/index.ts` — MCP IPC registration, singleton manager access, and renderer state broadcasts
+- `electron/mcp/mcpStorage.ts` — MCP server metadata persistence + secret resolution helpers
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
+- `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
 - `electron/updater.ts` — auto-updater (production only)
 
@@ -63,7 +68,9 @@ Core capabilities:
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
 - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
-- `src/tools/` — tool schema + adapters + tool execution coordinator
+- `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
+- `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
+- `src/tools/` — tool schema + adapters + runtime tool registry/execution coordinator
 
 - `dist/` — renderer build output (generated)
 - `dist-electron/` — electron build output (generated)
@@ -171,6 +178,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed)
 - `window.devTools`
   - invokes: `devtools:inspect-element` (development only; opens DevTools element inspector)
+- `window.mcp`
+  - invokes: `mcp:list-servers`, `mcp:add-server`, `mcp:update-server`, `mcp:remove-server`, `mcp:connect-server`, `mcp:disconnect-server`, `mcp:get-state`, `mcp:list-tools`, `mcp:list-resources`, `mcp:read-resource`, `mcp:list-prompts`, `mcp:get-prompt`, `mcp:execute-tool`, `mcp:resolve-approval`
+  - listens for: `mcp:state-changed`
 
 **Important:** IPC handlers may exist in `electron/ipc/*` but are not reachable unless they’re also wired through preload allowlists or a dedicated preload bridge.
 
@@ -185,9 +195,39 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Startup + Shell Initialization
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
+- App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Renderer startup in `src/main.tsx` initializes renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
+
+#### MCP Runtime Foundation
+- Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
+- `src/mcp/McpContext.tsx` hydrates MCP runtime state from `window.mcp`, subscribes to `mcp:state-changed`, exposes on-demand resource/prompt fetch helpers, and keeps the in-memory draft server list that plugs into the standard Settings save/discard bar.
+- `src/components/Settings/sections/McpSection.tsx` renders the MCP settings workflow for add/edit/delete/enable/connect actions, transport-specific forms, trust state, approval policy, optional per-server tool allow/block scaffolding, masked secret indicators, live connection/tool state, and entry points into the MCP library browser.
+- `src/components/mcp/McpLibraryDialog.tsx` is the shared user-facing browser for trusted MCP resources and prompts; it previews resource reads and prompt expansion results, and only inserts content into the chat composer draft on explicit user action.
+- `src/components/mcp/McpApprovalDialog.tsx` renders the pending approval modal for trusted servers that still require per-call approval before MCP execution proceeds.
+- `src/tools/mcpRegistry.ts` converts connected MCP runtime tools into request-time tool descriptors with namespaced reverse-lookup metadata and only surfaces tools from servers that are enabled, connected, and explicitly trusted.
+- Non-secret MCP server configs persist through `electron/mcp/mcpStorage.ts` into `mcp-servers.json` under `app.getPath('userData')`.
+- MCP server configs now persist a per-server `trustState`; new servers default to `enabled: false`, `trustState: 'untrusted'`, and `requireApproval: true`.
+- Server configs can also carry optional `toolAllowlist` / `toolBlocklist` arrays; allowlists restrict exposed MCP tools to named entries, while blocklists hide named tools even if the server advertises them.
+- Secret-backed MCP env vars, headers, and tokens stay in `electron/secureStorage.ts` and are resolved lazily at connection time.
+- Renderer-originated MCP secret edits are funneled through `mcp:add-server` / `mcp:update-server`; main sanitizes those payloads, writes secure values into `electron/secureStorage.ts`, and persists only secret references in `mcp-servers.json`.
+- Shared transport primitives live in `electron/mcp/transports/base.ts`.
+- The base transport layer now standardizes:
+  - JSON-RPC message validation/parsing (`isMcpJsonRpcMessage`, `parseMcpMessage`)
+  - line-delimited stdio-style message framing helpers (`serializeMcpMessageLine`, `splitMcpMessageLines`)
+  - transport lifecycle state transitions (`idle`, `connecting`, `connected`, `disconnecting`, `disconnected`, `error`)
+  - subscriber hooks for message, error, close, and state-change events
+  - normalized timeout/error wrapping via `McpTransportError` and `BaseMcpTransport.withTimeout(...)`
+- `electron/mcp/transports/stdio.ts` provides managed child-process spawning, explicit command/args execution, stdout/stderr diagnostics, and clean process-exit handling for local MCP servers.
+- `electron/mcp/transports/sse.ts` now performs real event-stream connects with strict content-type validation, masked header diagnostics, request timeout handling, same-origin-only server-specified POST endpoint support, and retry/backoff on initial connection attempts. Remote SSE remains gated behind `ZURA_ENABLE_EXPERIMENTAL_MCP_REMOTE_TRANSPORTS=true`.
+- `electron/mcp/transports/websocket.ts` now performs real remote connects with secret-backed header support, close-code diagnostics, heartbeat/pong staleness handling, and retry/backoff on initial connection attempts. Remote WebSocket remains gated behind `ZURA_ENABLE_EXPERIMENTAL_MCP_REMOTE_TRANSPORTS=true`.
+- `electron/mcp/mcpConnection.ts` sits above transports and now handles the MCP `initialize` handshake, capability capture, `tools/list` discovery, `resources/list` discovery, `prompts/list` discovery, `tools/call` execution, `resources/read`, `prompts/get`, runtime metadata caching, remote reconnect loops, and last-success/last-error connection metadata.
+- `electron/mcp/mcpManager.ts` sits above storage + connections and now manages configured server registration, connection lifecycle, trusted-tool exposure, trusted resource/prompt exposure, on-demand resource/prompt reads, runtime-state subscriptions, and active connected-tool aggregation/execution.
+- `electron/mcp/mcpApprovalManager.ts` tracks pending approval requests, auto-rejects expired prompts, and rejects queued requests when a server disconnects, updates, or the app shuts down.
+- `electron/mcp/index.ts` exposes the current MCP runtime to renderer through narrow IPC handlers, executes namespaced MCP tools through the approval manager, serves trusted resource/prompt reads through dedicated on-demand IPC calls, and broadcasts `McpRuntimeSnapshot` updates (including `pendingApprovals`) to all windows.
+- MCP resources and prompts are intentionally **user-visible only** in the current release shape: trusted connected servers can surface them to the renderer, but they are not exposed as model-callable tools and require explicit user action for preview or composer insertion.
 
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
@@ -202,21 +242,23 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
-  - Executor calls main process: `window.ipcRenderer.invoke('execute-tool', toolName, args)`
+  - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
+  - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
   - Main tool registry: `electron/tools/index.ts` (restricted)
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
+  - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
+  - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
+  - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
-- **Normal mode** (`settings.skills.web_research.config.mode = "normal"`): model can call `web_search` directly; model decides depth. No hard cap (safety cap remains in loop guard).
-- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, updates streaming research metadata (`researchPlan`, `researchProgress`), and returns aggregated results for final synthesis.
+- When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
 - Tool schema exposure is skill-gated in renderer:
-  - Skill OFF: expose neither `web_search` nor `research_plan`
-  - Skill ON (normal): expose `web_search`
-  - Skill ON (structured): expose `web_search` + `research_plan`
+  - Skill OFF: expose no built-in web research tools
+  - Skill ON: expose `web_search`
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -273,6 +315,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Renderer (localStorage)**
 - Settings: `zura-settings`
   - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
+  - MCP server drafts are not persisted here; Phase 2 MCP edits live only in renderer memory until the user saves or discards them.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
   - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
   - Title generation settings:
@@ -280,8 +323,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (model used for title generation)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
-  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled`).
+  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
@@ -298,22 +341,30 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Main process (`app.getPath('userData')`)**
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
+- Persisted assistant `thinkingBlocks` may now include completed MCP tool-history entries (`type: 'tool'`) with tool name/arguments/result metadata so the renderer can replay inline MCP call history from stored sessions.
+- MCP server metadata: `mcp-servers.json` (`electron/mcp/mcpStorage.ts`)
+  - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.
+  - Secret-bearing env/header/token entries store secure-storage references, not raw secret values.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
+  - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` definitions)
-  - Skill gating: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which schemas are exposed to the model per request
+  - Built-in tool schemas: `src/tools/definitions.ts` (`web_search` definition)
+  - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
+  - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
-  - Execution: `src/tools/executor.ts` → IPC invoke `execute-tool`
+  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+  - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
+  - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
   - Web search: `electron/tools/webSearch.ts`
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
@@ -324,7 +375,7 @@ Tool execution is intentionally restricted.
 
 There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
 
-**Note:** The main-process tool registry remains intentionally restricted; tools must be explicitly defined in `src/tools/definitions.ts`, skill-gated in renderer, and registered in `electron/tools/index.ts`.
+**Note:** The main-process built-in tool registry remains intentionally restricted; built-in main-process tools must still be explicitly defined in `src/tools/definitions.ts`, skill-gated in renderer, and registered in `electron/tools/index.ts`. MCP tool execution is separate, namespaced, and only available for servers that are enabled, connected, trusted, and allowed by the current approval policy.
 
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)

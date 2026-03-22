@@ -26,10 +26,10 @@ import {
   accumulateDeltaToolCalls,
   reconstructToolCallMessage,
   buildResponseWithFallback,
-  createResearchPlanCallbacks,
   processInitialToolResults,
   buildThinkingBlocksFromResults,
   mergeSavedToolResults,
+  publishStreamingToolResults,
   hasSearchResults,
   stripStandaloneHorizontalRule,
   computeStreamMetrics,
@@ -106,11 +106,7 @@ export function useAlibabaStreaming({
         }
       | null = null
 
-    const hasResearchPlanTool = Array.isArray(alibabaTools)
-      && alibabaTools.some((tool) => (tool as { function?: { name?: string } })?.function?.name === 'research_plan')
-    const initialToolChoice = hasResearchPlanTool
-      ? { type: 'function' as const, function: { name: 'research_plan' } }
-      : undefined
+    const initialToolChoice = undefined
 
     // --- Initial stream ---
     for await (const chunk of streamAlibabaCompletion(
@@ -154,11 +150,10 @@ export function useAlibabaStreaming({
     if (canUseTools && hasToolCallsFlag && finishReason === 'tool_calls' && toolCallsAccumulator.filter(tc => tc?.id).length > 0) {
       const reconstructedMessage = reconstructToolCallMessage(accumulatedContent, toolCallsAccumulator)
       const responseWithFallback = buildResponseWithFallback(reconstructedMessage, optimizedHistory)
-      const researchPlanCallbacks = createResearchPlanCallbacks(updateStreaming as (u: Record<string, unknown>) => void, throttledUpdateStreamingMessage, sessionId, messageId)
 
       let toolResult
       try {
-        toolResult = await handleToolCalls(responseWithFallback, researchPlanCallbacks)
+        toolResult = await handleToolCalls(responseWithFallback)
       } catch (toolError: unknown) {
         console.error('Tool calls processing error:', toolError)
         toolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
@@ -168,6 +163,14 @@ export function useAlibabaStreaming({
       const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
       localThinkingBlocks = processed.updatedThinkingBlocks
       savedToolResults = processed.savedToolResults
+      publishStreamingToolResults(
+        updateStreaming as (updates: Record<string, unknown>) => void,
+        updateStreamingMessage,
+        sessionId,
+        messageId,
+        savedToolResults,
+        localThinkingBlocks
+      )
 
       if (processed.hasSearchCalls) {
         updateStreaming({
@@ -254,19 +257,25 @@ export function useAlibabaStreaming({
 
             let nextToolResult
             try {
-              nextToolResult = await handleToolCalls(followUpResponseWithFallback, researchPlanCallbacks)
+              nextToolResult = await handleToolCalls(followUpResponseWithFallback)
             } catch (e: unknown) {
               nextToolResult = { hasTools: false, toolResults: [], formattedResults: [], needsFollowUp: false }
             }
 
             const newWebSearches = nextToolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'web_search').length || 0
-            const newResearchPlanSteps = nextToolResult.toolResults?.filter((r: ToolCallResult) => r.toolCall.name === 'research_plan')
-              .flatMap((r: ToolCallResult) => (r.toolCall.arguments as Record<string, unknown>)?.steps as unknown[] || []).length || 0
-            totalSearchCount += newWebSearches + newResearchPlanSteps
+            totalSearchCount += newWebSearches
 
             localThinkingBlocks = buildThinkingBlocksFromResults(nextToolResult.toolResults || [], localThinkingBlocks)
             updateStreaming({ phase: 'searching', thinkingBlocks: localThinkingBlocks })
             savedToolResults = mergeSavedToolResults(savedToolResults, nextToolResult.toolResults || [])
+            publishStreamingToolResults(
+              updateStreaming as (updates: Record<string, unknown>) => void,
+              updateStreamingMessage,
+              sessionId,
+              messageId,
+              savedToolResults,
+              localThinkingBlocks
+            )
             lastAssistantMessage = reconstructedFollowUp
             toolResult = nextToolResult
             researchRound++

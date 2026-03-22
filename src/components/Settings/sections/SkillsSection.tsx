@@ -14,7 +14,6 @@ import {
 import {
   BUILT_IN_SKILLS,
   isWebResearchEnabled,
-  getWebResearchMode,
   withWebResearchEnabled,
   type SkillsSettings,
 } from '@/skills'
@@ -26,7 +25,6 @@ export interface SkillsSectionProps {
 
 export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.ReactElement {
   const webResearchEnabled = isWebResearchEnabled(skills)
-  const webResearchMode = getWebResearchMode(skills)
 
   const setEnabled = (_skillId: string, enabled: boolean) => {
     onChange({
@@ -44,7 +42,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
         <div className="page-subtitle">
-          Enable built-in capabilities that shape web research behavior and tool access.
+          Enable built-in capabilities that allow the assistant to search the web and cite sources.
         </div>
       </div>
 
@@ -63,11 +61,6 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
                     <h3 className="skills-row__title">{skill.name}</h3>
                     <div className="skills-row__description">{skill.description}</div>
                     {skill.note && <div className="skills-row__note">{skill.note}</div>}
-                    {enabled && skill.id === 'web_research' && (
-                      <div className="skills-row__mode">
-                        Mode: <span className="skills-row__mode-value">{webResearchMode === 'structured' ? 'Structured' : 'Normal'}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -108,7 +101,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="skills-marketplace-note__inner">
           <Info size={15} className="skills-marketplace-note__icon" />
           <div className="skills-marketplace-note__text">
-            Built-in skills only. Enable a skill here, then use it from chat.
+            Toggle a skill on to make it available during conversations. The assistant will use it automatically when needed.
           </div>
         </div>
       </Card>

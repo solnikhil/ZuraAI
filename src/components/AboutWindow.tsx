@@ -71,27 +71,11 @@ export default function AboutWindow() {
   )
 
   return (
-    <div className="app-titlebar__about-page h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <div className="app-titlebar__about-page h-screen overflow-y-auto flex items-start justify-center p-6 py-10">
+      <div className="w-full max-w-md flex-shrink-0">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--theme-text-primary)] to-[var(--theme-text-secondary)] mb-4 shadow-lg">
-            <svg
-              className="w-8 h-8 text-[var(--theme-background)]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold text-[var(--theme-text-primary)] mb-1">ZuraAI</h1>
-          <p className="text-[0.85rem] text-[var(--theme-text-secondary)]">Your Intelligent Desktop Assistant</p>
+          <h1 className="text-2xl font-bold text-[var(--theme-text-primary)]">ZuraAI</h1>
         </div>
 
         {/* Main Card */}
@@ -162,13 +146,7 @@ export default function AboutWindow() {
             </div>
           )}
 
-          {/* Footer */}
-          <div className="px-5 py-3 bg-[var(--theme-surface-hover)] border-t border-[var(--theme-border)]">
-            <p className="text-[0.75rem] text-[var(--theme-text-secondary)] text-center">
-              Built with ❤️ using React, Electron & TypeScript
-            </p>
           </div>
-        </div>
 
         {/* Copyright */}
         <p className="text-[0.7rem] text-[var(--theme-text-secondary)] text-center mt-6 opacity-60">

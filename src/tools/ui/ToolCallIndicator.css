@@ -24,6 +24,24 @@
     color: var(--theme-success);
 }
 
+.tool-indicator.tool-indicator-mcp {
+    border-radius: 16px;
+}
+
+.tool-indicator-executing.tool-indicator-mcp {
+    background: color-mix(in srgb, var(--theme-accent-muted) 72%, transparent);
+    border-color: color-mix(in srgb, var(--theme-accent) 26%, var(--theme-border));
+    color: var(--theme-accent);
+}
+
+.tool-indicator-complete.tool-indicator-mcp {
+    background: color-mix(in srgb, var(--theme-success-bg) 76%, transparent);
+}
+
+.tool-indicator-error.tool-indicator-mcp {
+    background: color-mix(in srgb, var(--theme-error-bg) 80%, transparent);
+}
+
 .tool-indicator-complete {
     background: var(--theme-success-bg);
     border-color: color-mix(in srgb, var(--theme-success) 28%, var(--theme-border));

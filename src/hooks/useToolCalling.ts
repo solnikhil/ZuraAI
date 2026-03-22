@@ -1,8 +1,9 @@
 // Hook for handling tool calling in chat flows
 // Tools auto-execute without requiring user approval
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSettings } from '../contexts/SettingsContext'
+import { useOptionalMcp } from '../mcp/McpContext'
 import {
     getToolsForProvider,
     processToolCalls,
@@ -11,10 +12,11 @@ import {
 } from '../tools/toolManager'
 import { ToolCall } from '../tools/executor'
 import type { OpenRouterResponse } from '../tools/types'
-import { getAllToolDefinitions } from '../tools/definitions'
+import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure } from '../skills'
+import { createMcpToolRegistry } from '../tools/mcpRegistry'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -42,34 +44,42 @@ const INITIAL_TOOL_STATE: ToolCallState = {
 
 export function useToolCalling() {
     const { settings } = useSettings()
+    const mcp = useOptionalMcp()
     const [toolState, setToolState] = useState<ToolCallState>(INITIAL_TOOL_STATE)
 
+    const runtimeMcpTools = useMemo(
+        () => createMcpToolRegistry({
+            servers: mcp?.servers ?? [],
+            runtimeStates: mcp?.runtimeStates ?? [],
+            tools: mcp?.tools ?? [],
+        }),
+        [mcp?.runtimeStates, mcp?.servers, mcp?.tools]
+    )
+
+    const availableTools = useMemo(
+        () => getAllToolDefinitions(runtimeMcpTools),
+        [runtimeMcpTools]
+    )
+
     const getEnabledToolsForProvider = () => {
-        const allToolNames = getAllToolDefinitions().map((tool) => tool.name)
-        const knownTools = new Set(allToolNames)
+        const builtinToolNames = getBuiltinToolDefinitions().map((tool) => tool.name)
+        const knownBuiltInTools = new Set(builtinToolNames)
+        const runtimeMcpToolNames = runtimeMcpTools.map((tool) => tool.name)
 
         let enabledTools: string[] = settings.enabledTools.length > 0
-            ? settings.enabledTools.filter((tool) => knownTools.has(tool))
-            : allToolNames
+            ? settings.enabledTools.filter((tool) => knownBuiltInTools.has(tool))
+            : builtinToolNames
 
         const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
         if (!webResearchToolExposure.exposeWebSearch) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'web_search' && tool !== 'research_plan')
+            enabledTools = enabledTools.filter((tool) => tool !== 'web_search')
         } else {
             if (!enabledTools.includes('web_search')) {
                 enabledTools.push('web_search')
             }
-
-            if (webResearchToolExposure.exposeResearchPlan) {
-                if (!enabledTools.includes('research_plan')) {
-                    enabledTools.push('research_plan')
-                }
-            } else {
-                enabledTools = enabledTools.filter((tool) => tool !== 'research_plan')
-            }
         }
 
-        return [...new Set(enabledTools)]
+        return [...new Set([...enabledTools, ...runtimeMcpToolNames])]
     }
 
     const canUseToolsNow = (): boolean => {
@@ -86,6 +96,7 @@ export function useToolCalling() {
             provider: settings.modelProvider,
             model: settings.aiModel,
             enabledTools,
+            availableTools,
         })
 
         return Array.isArray(tools) && tools.length > 0
@@ -101,14 +112,14 @@ export function useToolCalling() {
             provider: settings.modelProvider,
             model: settings.aiModel,
             enabledTools,
+            availableTools,
         })
     }
 
     const handleToolCalls = async (
         response: OpenRouterResponse,
         onToolStart?: (toolCall: ToolCall) => void,
-        onToolComplete?: (result: ToolCallResult) => void,
-        onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
+        onToolComplete?: (result: ToolCallResult) => void
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
@@ -132,6 +143,7 @@ export function useToolCalling() {
                 provider: settings.modelProvider,
                 model: settings.aiModel,
                 enabledTools: enabledToolsForProcessing,
+                availableTools,
                 onToolStart: (toolCall) => {
                     setToolState((prev) => ({
                         ...prev,
@@ -142,11 +154,7 @@ export function useToolCalling() {
                 onToolComplete: (result) => {
                     setToolState((prev) => {
                         const isWebSearch = result.toolCall.name === 'web_search'
-                        const isResearchPlan = result.toolCall.name === 'research_plan'
-                        const planSteps = isResearchPlan && Array.isArray(result.toolCall.arguments?.steps)
-                            ? result.toolCall.arguments.steps.length
-                            : 0
-                        const searchDelta = isWebSearch ? 1 : (isResearchPlan ? planSteps : 0)
+                        const searchDelta = isWebSearch ? 1 : 0
 
                         return {
                             ...prev,
@@ -162,7 +170,6 @@ export function useToolCalling() {
                     })
                     onToolComplete?.(result)
                 },
-                onResearchPlanProgress,
             })
 
             setToolState((prev) => ({ ...prev, isProcessingTools: false }))

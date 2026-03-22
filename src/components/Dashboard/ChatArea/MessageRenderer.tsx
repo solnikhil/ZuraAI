@@ -19,6 +19,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CornerDownLeft,
+  Wrench,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
+  AlertTriangle,
 } from '../../icons'
 // Separator import removed (no longer used after streaming)
 import LazyMarkdown from '../../LazyMarkdown'
@@ -26,6 +31,7 @@ import ThinkingBlockComponent from '../../ThinkingBlock'
 import ResponseInfo from '../../ResponseInfo'
 import { useSettings } from '../../../contexts/SettingsContext'
 import ToolResultDisplay from '../../../tools/ui/ToolResultDisplay'
+import { summarizeMcpToolResults } from '../../../tools/ui/mcpMetrics'
 import type {
   Message,
   ThinkingBlock,
@@ -46,6 +52,7 @@ import {
   splitMessageTimeline,
   type FollowUpTimelineSnapshot,
 } from './messageTimeline'
+import { shouldHideGenericToolResultCard } from './toolResultVisibility'
 import {
   Dialog,
   DialogContent,
@@ -777,9 +784,13 @@ function areMessagePropsEqual(
     if (
       prevToolResults[i].toolCall.id !== nextToolResults[i].toolCall.id ||
       prevToolResults[i].toolCall.name !== nextToolResults[i].toolCall.name ||
+      JSON.stringify(prevToolResults[i].toolCall.arguments) !==
+        JSON.stringify(nextToolResults[i].toolCall.arguments) ||
       prevToolResults[i].result.success !== nextToolResults[i].result.success ||
       prevToolResults[i].result.error !== nextToolResults[i].result.error ||
       prevToolResults[i].result.executionTime !== nextToolResults[i].result.executionTime ||
+      JSON.stringify(prevToolResults[i].result.metadata) !==
+        JSON.stringify(nextToolResults[i].result.metadata) ||
       prevToolResults[i].result.data !== nextToolResults[i].result.data
     ) {
       return false
@@ -1060,27 +1071,22 @@ function MessageRendererComponent({
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
   const visibleToolResults = useMemo(
-    () =>
-      (message.toolResults || []).filter((result) => result.toolCall.name !== 'web_search'),
+    () => (message.toolResults || []).filter((result) => !shouldHideGenericToolResultCard(result)),
     [message.toolResults]
   )
-  const showUpperThinkingBlock =
-    (!followUpSnapshot &&
-      (hasThinking ||
-        showThinkingSpinner ||
-        completedBlocks.length > 0 ||
-        message.researchStatus?.isSearching ||
-        hasActiveToolCalls)) ||
-    timeline.beforeBlocks.length > 0
+  const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
   const hasSplitFollowUpSection =
     Boolean(followUpSnapshot) || timeline.afterBlocks.length > 0 || hasBottomDisplayContent
+  const activeTimelineOwner = hasSplitFollowUpSection ? 'lower' : 'upper'
+  const hasActiveThinkingState =
+    hasThinking || showThinkingSpinner || Boolean(message.researchStatus?.isSearching) || hasActiveToolCalls
+  const showUpperThinkingBlock =
+    timeline.beforeBlocks.length > 0 ||
+    (activeTimelineOwner === 'upper' && hasActiveThinkingState)
   const showLowerThinkingBlock =
-    hasSplitFollowUpSection &&
-    (hasThinking ||
-      showThinkingSpinner ||
-      timeline.afterBlocks.length > 0 ||
-      message.researchStatus?.isSearching ||
-      hasActiveToolCalls)
+    timeline.afterBlocks.length > 0 ||
+    hasBottomDisplayContent ||
+    (activeTimelineOwner === 'lower' && hasActiveThinkingState)
 
   // Handle copy
   const handleCopy = () => {
@@ -1268,20 +1274,30 @@ function MessageRendererComponent({
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent
             messageId={message.id}
-            activeBlockKey={followUpSnapshot ? `${activeThinkingBlockKey}:upper` : activeThinkingBlockKey}
-            thinking={followUpSnapshot ? '' : message.thinking || ''}
+            activeBlockKey={
+              activeTimelineOwner === 'upper'
+                ? activeThinkingBlockKey
+                : `${activeThinkingBlockKey}:upper`
+            }
+            thinking={activeTimelineOwner === 'upper' ? message.thinking || '' : ''}
             isThinking={
-              !followUpSnapshot &&
+              activeTimelineOwner === 'upper' &&
               isStreaming &&
               isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               !hasActiveToolCalls
             }
-            thinkingDuration={followUpSnapshot ? undefined : message.thinkingDuration}
-            isSearching={followUpSnapshot ? false : message.researchStatus?.isSearching || false}
-            searchQuery={followUpSnapshot ? undefined : message.researchStatus?.currentSearch}
+            thinkingDuration={
+              activeTimelineOwner === 'upper' ? message.thinkingDuration : undefined
+            }
+            isSearching={
+              activeTimelineOwner === 'upper' ? message.researchStatus?.isSearching || false : false
+            }
+            searchQuery={
+              activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearch : undefined
+            }
             completedBlocks={timeline.beforeBlocks}
-            activeToolCalls={followUpSnapshot ? [] : activeToolCalls}
+            activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
           />
         </div>
       )}
@@ -1303,7 +1319,7 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {visibleToolResults.length > 0 && (
+      {showVisibleToolResults && (
         <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
           {visibleToolResults.map((result, index) => {
             const toolResultIndex = (message.toolResults || []).findIndex(
@@ -1316,6 +1332,9 @@ function MessageRendererComponent({
                 toolName={result.toolCall.name}
                 result={result.result?.success ? result.result.data : undefined}
                 error={result.result?.success ? undefined : result.result?.error}
+                metadata={result.result?.metadata}
+                toolArguments={result.toolCall.arguments}
+                executionTime={result.result?.executionTime}
                 sessionId={sessionId}
                 messageId={message.id}
                 toolResultIndex={toolResultIndex >= 0 ? toolResultIndex : index}
@@ -1328,25 +1347,36 @@ function MessageRendererComponent({
       {showLowerThinkingBlock && (
         <div
           style={{
-            marginTop: visibleToolResults.length > 0 || hasTopDisplayContent ? '12px' : 0,
+            marginTop: showVisibleToolResults || hasTopDisplayContent ? '12px' : 0,
             marginBottom: '8px',
           }}
         >
           <ThinkingBlockComponent
             messageId={message.id}
-            activeBlockKey={`${activeThinkingBlockKey}:lower`}
-            thinking={message.thinking || ''}
+            activeBlockKey={
+              activeTimelineOwner === 'lower'
+                ? activeThinkingBlockKey
+                : `${activeThinkingBlockKey}:lower`
+            }
+            thinking={activeTimelineOwner === 'lower' ? message.thinking || '' : ''}
             isThinking={
+              activeTimelineOwner === 'lower' &&
               isStreaming &&
               isReasoningPhase &&
               !message.researchStatus?.isSearching &&
               !hasActiveToolCalls
             }
-            thinkingDuration={message.thinkingDuration}
-            isSearching={message.researchStatus?.isSearching || false}
-            searchQuery={message.researchStatus?.currentSearch}
+            thinkingDuration={
+              activeTimelineOwner === 'lower' ? message.thinkingDuration : undefined
+            }
+            isSearching={
+              activeTimelineOwner === 'lower' ? message.researchStatus?.isSearching || false : false
+            }
+            searchQuery={
+              activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearch : undefined
+            }
             completedBlocks={timeline.afterBlocks}
-            activeToolCalls={activeToolCalls}
+            activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
           />
         </div>
       )}
@@ -1584,6 +1614,87 @@ function MessageRendererComponent({
     </div>
   )
 }
+
+function buildMcpFailureSummary(metrics: ReturnType<typeof summarizeMcpToolResults>): string {
+  const parts: string[] = []
+  if (metrics.rejectedCount > 0) parts.push(`${metrics.rejectedCount} rejected`)
+  if (metrics.timedOutCount > 0) parts.push(`${metrics.timedOutCount} timed out`)
+  if (metrics.cancelledCount > 0) parts.push(`${metrics.cancelledCount} cancelled`)
+  return parts.join(' • ')
+}
+
+function buildMcpApprovalSummary(metrics: ReturnType<typeof summarizeMcpToolResults>): string {
+  const parts: string[] = []
+  if (metrics.approvalApprovedCount > 0) parts.push(`${metrics.approvalApprovedCount} approved`)
+  if (metrics.approvalRejectedCount > 0) parts.push(`${metrics.approvalRejectedCount} rejected`)
+  if (metrics.approvalTimedOutCount > 0) parts.push(`${metrics.approvalTimedOutCount} timed out`)
+  if (metrics.approvalCancelledCount > 0) parts.push(`${metrics.approvalCancelledCount} cancelled`)
+  return `Approvals: ${parts.join(' • ')}`
+}
+
+function McpMetricChip({
+  icon,
+  label,
+  tone = 'neutral',
+}: {
+  icon: React.ReactNode
+  label: string
+  tone?: 'neutral' | 'success' | 'warning' | 'error'
+}) {
+  const tones: Record<typeof tone, { bg: string; border: string; color: string }> = {
+    neutral: {
+      bg: 'var(--theme-surface-subtle)',
+      border: 'var(--theme-border-subtle)',
+      color: 'var(--theme-text-secondary)',
+    },
+    success: {
+      bg: 'var(--theme-success-bg)',
+      border: 'color-mix(in srgb, var(--theme-success) 24%, var(--theme-border))',
+      color: 'var(--theme-success)',
+    },
+    warning: {
+      bg: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 16%, transparent)',
+      border: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 26%, var(--theme-border))',
+      color: 'var(--theme-warning, #f59e0b)',
+    },
+    error: {
+      bg: 'var(--theme-error-bg)',
+      border: 'color-mix(in srgb, var(--theme-error) 24%, var(--theme-border))',
+      color: 'var(--theme-error)',
+    },
+  }
+
+  const toneStyle = tones[tone]
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '6px',
+        padding: '6px 10px',
+        borderRadius: '999px',
+        background: toneStyle.bg,
+        border: `1px solid ${toneStyle.border}`,
+        color: toneStyle.color,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </div>
+  )
+}
+
+void buildMcpFailureSummary
+void buildMcpApprovalSummary
+void McpMetricChip
+void Wrench
+void CheckCircle
+void XCircle
+void ShieldCheck
+void AlertTriangle
 
 /**
  * Memoized MessageRenderer component

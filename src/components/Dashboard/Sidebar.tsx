@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { ChartNoAxesCombined, Cloud, Paintbrush, FlaskConical, FileText, Wrench } from '../icons'
+import { Box, ChartNoAxesCombined, Cloud, Paintbrush, FlaskConical, FileText, Wrench } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
@@ -54,6 +54,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
     usage: <ChartNoAxesCombined size={18} />,
     providers: <Cloud size={18} />,
+    mcp: <Box size={18} />,
     skills: <Wrench size={18} />,
     themes: <Paintbrush size={18} />,
     systemprompt: <FileText size={18} />,

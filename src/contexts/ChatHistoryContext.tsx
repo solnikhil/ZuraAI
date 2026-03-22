@@ -11,6 +11,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react'
+import type { ToolExecutionMetadata } from '../tools/types'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
@@ -29,6 +30,7 @@ export interface ToolCallResult {
     data?: unknown
     error?: string
     executionTime?: number
+    metadata?: ToolExecutionMetadata
   }
 }
 
@@ -42,15 +44,23 @@ export interface FileAttachment {
 }
 
 export interface ThinkingBlock {
-  type: 'thinking' | 'searching'
+  type: 'thinking' | 'searching' | 'tool'
   content?: string // For thinking blocks
   query?: string // For searching blocks
   duration?: number // Duration in milliseconds (for thinking)
   timestamp: number // When this block was created
+  /** Tool name for completed tool blocks */
+  toolName?: string
   /** Tool call arguments (for searching blocks - JSON input) */
   toolInput?: Record<string, unknown>
   /** Tool call result (for searching blocks - JSON output) */
-  toolOutput?: { success: boolean; data?: unknown; error?: string; executionTime?: number }
+  toolOutput?: {
+    success: boolean
+    data?: unknown
+    error?: string
+    executionTime?: number
+    metadata?: ToolExecutionMetadata
+  }
 }
 
 export interface ResponseVersion {

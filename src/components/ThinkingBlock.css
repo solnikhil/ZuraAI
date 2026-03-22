@@ -94,6 +94,42 @@
     color: rgba(255, 255, 255, 0.4);
 }
 
+.thinking-tool-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-left: 6px;
+    border: 1px solid transparent;
+}
+
+.thinking-tool-status-success {
+    color: var(--theme-success, #22c55e);
+    background: color-mix(in srgb, var(--theme-success, #22c55e) 14%, transparent);
+    border-color: color-mix(in srgb, var(--theme-success, #22c55e) 28%, transparent);
+}
+
+.thinking-tool-status-warning {
+    color: var(--theme-warning, #f59e0b);
+    background: color-mix(in srgb, var(--theme-warning, #f59e0b) 14%, transparent);
+    border-color: color-mix(in srgb, var(--theme-warning, #f59e0b) 28%, transparent);
+}
+
+.thinking-tool-status-error {
+    color: var(--theme-error, #ef4444);
+    background: color-mix(in srgb, var(--theme-error, #ef4444) 14%, transparent);
+    border-color: color-mix(in srgb, var(--theme-error, #ef4444) 28%, transparent);
+}
+
+.thinking-tool-status-neutral {
+    color: rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
 .thinking-tool-json pre {
     margin: 0;
     padding: 10px 12px;
@@ -127,6 +163,12 @@
 
 .thinking-tool-json pre::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.35);
+}
+
+.thinking-tool-audit-line {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
 }
 
 
@@ -361,4 +403,14 @@
     border-radius: 4px;
     font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
     font-size: 0.9em;
+}
+
+.thinking-active-tool-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.thinking-active-tool-item {
+    color: rgba(255, 255, 255, 0.62);
 }
