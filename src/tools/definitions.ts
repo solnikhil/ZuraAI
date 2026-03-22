@@ -20,7 +20,6 @@ export type ToolDefinition = ToolDescriptor
 /**
  * Active tools in ZuraAI
  * web_search is a main-process IPC tool.
- * research_plan is renderer-only and expands into web_search steps.
  */
 export const builtInToolDefinitions: ToolDefinition[] = [
   {
@@ -77,38 +76,6 @@ Query formulation best practices:
     },
     category: 'search',
     origin: 'builtin-main',
-  },
-  {
-    name: 'research_plan',
-    description:
-      'Submit your research plan before executing. Call this FIRST with 2-6 search steps. We will execute each step and return combined results.',
-    parameters: {
-      type: 'object',
-      description: 'Arguments for the research planning tool.',
-      properties: {
-        topic: {
-          type: 'string',
-          description: 'Short topic summary of the research',
-        },
-        steps: {
-          type: 'array',
-          description: '2-6 search steps to execute in order',
-          items: {
-            type: 'object',
-            description: 'A single research step.',
-            properties: {
-              stepNumber: { type: 'number', description: '1-based step index' },
-              query: { type: 'string', description: 'Search query for this step' },
-              rationale: { type: 'string', description: 'Optional reason for this search' },
-            },
-            required: ['stepNumber', 'query'],
-          },
-        },
-      },
-      required: ['topic', 'steps'],
-    },
-    category: 'search',
-    origin: 'builtin-renderer',
   },
 ]
 

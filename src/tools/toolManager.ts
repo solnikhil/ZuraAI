@@ -20,7 +20,6 @@ import {
   formatToolResultsForOpenRouter,
 } from './adapters/openrouter'
 import { executeToolCalls } from './executor'
-import { executeResearchPlanTool } from './researchPlanHandler'
 import {
   ToolCall,
   ToolCallResult,
@@ -129,8 +128,6 @@ export interface ToolManagerConfig {
   availableTools?: ToolDescriptor[]
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
-  /** Called during research_plan execution for step-by-step progress (currentStep, totalSteps, query) */
-  onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
 }
 
 /**
@@ -269,16 +266,7 @@ export async function processToolCalls(
 
   const executionPromises = validCalls.map(async (coercedToolCall): Promise<ToolCallResult> => {
     try {
-      let result: ToolCallResult[]
-      if (coercedToolCall.name === 'research_plan') {
-        const singleResult = await executeResearchPlanTool(
-          coercedToolCall,
-          config.onResearchPlanProgress
-        )
-        result = [singleResult]
-      } else {
-        result = await executeToolCalls([coercedToolCall])
-      }
+      const result = await executeToolCalls([coercedToolCall])
       config.onToolComplete?.(result[0])
       return result[0]
     } catch (execError: unknown) {

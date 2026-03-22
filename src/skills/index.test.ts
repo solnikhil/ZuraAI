@@ -7,7 +7,7 @@ import {
 } from './index'
 
 describe('skills settings migration', () => {
-  it('migrates legacy web search + structured toggles into web_research skill', () => {
+  it('migrates legacy web search toggles into web_research skill', () => {
     const migrated = migrateSkillsFromLegacySettings({
       skills: undefined,
       webSearchEnabled: true,
@@ -16,7 +16,6 @@ describe('skills settings migration', () => {
     })
 
     expect(migrated.web_research.enabled).toBe(true)
-    expect(migrated.web_research.config.mode).toBe('structured')
   })
 
   it('keeps persisted skills config when available', () => {
@@ -24,7 +23,6 @@ describe('skills settings migration', () => {
       skills: {
         web_research: {
           enabled: false,
-          config: { mode: 'normal' },
         },
       },
       webSearchEnabled: true,
@@ -33,7 +31,6 @@ describe('skills settings migration', () => {
     })
 
     expect(migrated.web_research.enabled).toBe(false)
-    expect(migrated.web_research.config.mode).toBe('normal')
   })
 })
 
@@ -43,7 +40,6 @@ describe('skills tool exposure', () => {
       ...defaultSkillsSettings,
       web_research: {
         enabled: false,
-        config: { mode: 'normal' },
       },
     })
 
@@ -53,18 +49,17 @@ describe('skills tool exposure', () => {
     })
   })
 
-  it('exposes web_search and research_plan in structured mode', () => {
+  it('exposes only web_search when the skill is enabled', () => {
     const exposure = getWebResearchToolExposure({
       ...defaultSkillsSettings,
       web_research: {
         enabled: true,
-        config: { mode: 'structured' },
       },
     })
 
     expect(exposure).toEqual({
       exposeWebSearch: true,
-      exposeResearchPlan: true,
+      exposeResearchPlan: false,
     })
   })
 

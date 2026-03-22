@@ -81,7 +81,6 @@ export interface UsageStats {
   failedWebSearches: number
   webSearchSuccessRate: number
   avgWebSearchExecutionMs: number
-  researchPlansExecuted: number
   topSearchQueries: SearchQueryEntry[]
   activityData: ActivityData[]
 }
@@ -263,15 +262,9 @@ function applyToolResultMetrics(
     failedWebSearches: number
     webSearchExecutionSumMs: number
     webSearchExecutionCount: number
-    researchPlansExecuted: number
   }
 ): void {
   const toolName = toolResult.toolCall.name
-
-  if (toolName === 'research_plan') {
-    accumulators.researchPlansExecuted += 1
-    return
-  }
 
   if (toolName !== 'web_search') return
 
@@ -420,7 +413,6 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     failedWebSearches: 0,
     webSearchExecutionSumMs: 0,
     webSearchExecutionCount: 0,
-    researchPlansExecuted: 0
   }
 
   sessions.forEach((session) => {
@@ -643,7 +635,6 @@ export function computeUsageStats(sessions: ChatSession[], modelCatalog?: UsageM
     failedWebSearches: toolAccumulators.failedWebSearches,
     webSearchSuccessRate,
     avgWebSearchExecutionMs,
-    researchPlansExecuted: toolAccumulators.researchPlansExecuted,
     topSearchQueries,
     activityData
   }

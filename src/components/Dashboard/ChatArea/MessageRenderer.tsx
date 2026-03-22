@@ -1070,14 +1070,23 @@ function MessageRendererComponent({
   const hasTopDisplayContent = topProcessedContent.trim().length > 0
   const hasBottomDisplayContent = bottomProcessedContent.trim().length > 0
   const visibleToolResults = useMemo(
-    () =>
-      (message.toolResults || []).filter((result) => result.toolCall.name !== 'web_search'),
+    () => {
+      return (message.toolResults || []).filter((result) => {
+        if (result.toolCall.name === 'web_search') {
+          return false
+        }
+
+        const metadata = result.result?.metadata
+        if (metadata?.origin === 'mcp') {
+          return false
+        }
+
+        return !/^mcp__/.test(result.toolCall.name)
+      })
+    },
     [message.toolResults]
   )
-  const mcpMetrics = useMemo(
-    () => summarizeMcpToolResults(message.toolResults || []),
-    [message.toolResults]
-  )
+  const showVisibleToolResults = !isStreaming && visibleToolResults.length > 0
   const showUpperThinkingBlock =
     (!followUpSnapshot &&
       (hasThinking ||
@@ -1317,40 +1326,8 @@ function MessageRendererComponent({
         </div>
       )}
 
-      {visibleToolResults.length > 0 && (
+      {showVisibleToolResults && (
         <div style={{ marginTop: '12px', marginBottom: shouldShowActionRow ? '12px' : 0 }}>
-          {mcpMetrics.totalExecutions > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px',
-                marginBottom: '10px',
-              }}
-            >
-              <McpMetricChip icon={<Wrench size={12} />} label={`${mcpMetrics.totalExecutions} MCP run${mcpMetrics.totalExecutions === 1 ? '' : 's'}`} />
-              <McpMetricChip icon={<CheckCircle size={12} />} label={`${mcpMetrics.successCount} succeeded`} tone="success" />
-              {mcpMetrics.failedCount > 0 && (
-                <McpMetricChip icon={<XCircle size={12} />} label={`${mcpMetrics.failedCount} failed`} tone="error" />
-              )}
-              {(mcpMetrics.rejectedCount > 0 || mcpMetrics.timedOutCount > 0 || mcpMetrics.cancelledCount > 0) && (
-                <McpMetricChip
-                  icon={<AlertTriangle size={12} />}
-                  label={buildMcpFailureSummary(mcpMetrics)}
-                  tone="warning"
-                />
-              )}
-              {(mcpMetrics.approvalApprovedCount > 0 ||
-                mcpMetrics.approvalRejectedCount > 0 ||
-                mcpMetrics.approvalTimedOutCount > 0 ||
-                mcpMetrics.approvalCancelledCount > 0) && (
-                <McpMetricChip
-                  icon={<ShieldCheck size={12} />}
-                  label={buildMcpApprovalSummary(mcpMetrics)}
-                />
-              )}
-            </div>
-          )}
           {visibleToolResults.map((result, index) => {
             const toolResultIndex = (message.toolResults || []).findIndex(
               (item) => item.toolCall.id === result.toolCall.id
@@ -1377,7 +1354,7 @@ function MessageRendererComponent({
       {showLowerThinkingBlock && (
         <div
           style={{
-            marginTop: visibleToolResults.length > 0 || hasTopDisplayContent ? '12px' : 0,
+            marginTop: showVisibleToolResults || hasTopDisplayContent ? '12px' : 0,
             marginBottom: '8px',
           }}
         >
@@ -1705,6 +1682,15 @@ function McpMetricChip({
     </div>
   )
 }
+
+void buildMcpFailureSummary
+void buildMcpApprovalSummary
+void McpMetricChip
+void Wrench
+void CheckCircle
+void XCircle
+void ShieldCheck
+void AlertTriangle
 
 /**
  * Memoized MessageRenderer component

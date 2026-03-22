@@ -16,7 +16,6 @@ import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
 import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
-import { getWebResearchMode, isWebResearchEnabled } from '@/skills'
 import {
   buildProviderMessages,
   canAnalyzeImageAttachments,
@@ -414,16 +413,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           startResearchMode(researchMaxRounds, forceWebSearch)
         }
 
-        const planFirstInstruction =
-          isWebResearchEnabled(settings.skills) &&
-          getWebResearchMode(settings.skills) === 'structured' &&
-          canUseTools
-            ? `\n\nBefore searching, call the research_plan tool with your planned steps (2-6 searches). Do not call web_search directly. We will execute your plan and return combined results.\n\n`
-            : ''
         const effectiveSystemPrompt =
-          getEffectiveSystemPrompt(settings) +
-          planFirstInstruction +
-          getResearchContext(0, researchMaxRounds)
+          getEffectiveSystemPrompt(settings) + getResearchContext(0, researchMaxRounds)
         const optimizedHistory = buildOptimizedContext(
           conversationHistory,
           outboundUserMessage,

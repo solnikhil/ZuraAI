@@ -1,17 +1,11 @@
 export type SkillId = 'web_research'
 
-export type WebResearchMode = 'normal' | 'structured'
-
 export interface SkillState {
   enabled: boolean
   config?: Record<string, unknown>
 }
 
-export interface WebResearchSkillState extends SkillState {
-  config: {
-    mode: WebResearchMode
-  }
-}
+export interface WebResearchSkillState extends SkillState {}
 
 export type SkillsSettings = Record<string, SkillState> & {
   web_research: WebResearchSkillState
@@ -29,20 +23,17 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     id: 'web_research',
     name: 'Web Research',
-    description: 'Allows the agent to browse the web and cite sources.',
+    description: 'Search the web for current information and cite sources in responses.',
     note: '',
     usageGuidance: [
-      'Normal mode: use web_search directly for targeted queries.',
-      'Structured mode: call research_plan first for multi-step research.',
+      'Use web_search directly for targeted queries.',
+      'Run follow-up searches only when the first results are incomplete.',
     ],
   },
 ]
 
 const DEFAULT_WEB_RESEARCH_SKILL: WebResearchSkillState = {
   enabled: true,
-  config: {
-    mode: 'normal',
-  },
 }
 
 export const defaultSkillsSettings: SkillsSettings = {
@@ -51,10 +42,6 @@ export const defaultSkillsSettings: SkillsSettings = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function normalizeWebResearchMode(mode: unknown): WebResearchMode {
-  return mode === 'structured' ? 'structured' : 'normal'
 }
 
 function normalizeGenericSkillState(raw: unknown): SkillState | null {
@@ -85,18 +72,11 @@ export function normalizeSkillsSettings(raw: unknown): SkillsSettings {
   const rawWebResearch = isRecord(raw) && isRecord(raw.web_research)
     ? raw.web_research
     : undefined
-  const rawWebResearchConfig = isRecord(rawWebResearch?.config)
-    ? rawWebResearch.config
-    : undefined
-
   normalized.web_research = {
     enabled:
       isRecord(rawWebResearch) && typeof rawWebResearch.enabled === 'boolean'
         ? rawWebResearch.enabled
         : defaultSkillsSettings.web_research.enabled,
-    config: {
-      mode: normalizeWebResearchMode(rawWebResearchConfig?.mode),
-    },
   }
 
   return normalized as SkillsSettings
@@ -112,7 +92,7 @@ interface LegacySkillMigrationInput {
 export function migrateSkillsFromLegacySettings({
   skills,
   webSearchEnabled,
-  structuredResearchEnabled,
+  structuredResearchEnabled: _structuredResearchEnabled,
   deepResearchEnabled,
 }: LegacySkillMigrationInput): SkillsSettings {
   const normalized = normalizeSkillsSettings(skills)
@@ -129,28 +109,16 @@ export function migrateSkillsFromLegacySettings({
           ? deepResearchEnabled
           : normalized.web_research.enabled)
 
-  const structuredFromLegacy =
-    typeof structuredResearchEnabled === 'boolean'
-      ? structuredResearchEnabled
-      : normalized.web_research.config.mode === 'structured'
-
   return {
     ...normalized,
     web_research: {
       enabled: enabledFromLegacy,
-      config: {
-        mode: structuredFromLegacy ? 'structured' : 'normal',
-      },
     },
   }
 }
 
 export function isWebResearchEnabled(skills: SkillsSettings | undefined): boolean {
   return normalizeSkillsSettings(skills).web_research.enabled
-}
-
-export function getWebResearchMode(skills: SkillsSettings | undefined): WebResearchMode {
-  return normalizeSkillsSettings(skills).web_research.config.mode
 }
 
 export function withWebResearchEnabled(skills: SkillsSettings | undefined, enabled: boolean): SkillsSettings {
@@ -164,30 +132,16 @@ export function withWebResearchEnabled(skills: SkillsSettings | undefined, enabl
   }
 }
 
-export function withWebResearchMode(skills: SkillsSettings | undefined, mode: WebResearchMode): SkillsSettings {
-  const normalized = normalizeSkillsSettings(skills)
-  return {
-    ...normalized,
-    web_research: {
-      ...normalized.web_research,
-      config: {
-        mode,
-      },
-    },
-  }
-}
-
 export function getWebResearchToolExposure(skills: SkillsSettings | undefined): {
   exposeWebSearch: boolean
   exposeResearchPlan: boolean
 } {
   const normalized = normalizeSkillsSettings(skills)
   const enabled = normalized.web_research.enabled
-  const mode = normalized.web_research.config.mode
 
   return {
     exposeWebSearch: enabled,
-    exposeResearchPlan: enabled && mode === 'structured',
+    exposeResearchPlan: false,
   }
 }
 
@@ -199,13 +153,8 @@ export function buildEnabledSkillsPrompt(skills: SkillsSettings | undefined): st
   const webResearch = normalized.web_research
 
   if (webResearch.enabled) {
-    if (webResearch.config.mode === 'structured') {
-      lines.push('- Tavily (`web_research`): call `research_plan` first, then synthesize results with citations.')
-      lines.push('- Keep plan steps focused (2-6), and use each step for a distinct angle.')
-    } else {
-      lines.push('- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
-      lines.push('- Use concise, targeted queries and cite relevant sources in the final response.')
-    }
+    lines.push('- Tavily (`web_research`): use `web_search` for current facts, verification, and source-backed answers.')
+    lines.push('- Use concise, targeted queries and cite relevant sources in the final response.')
   }
 
   if (lines.length === 0) {

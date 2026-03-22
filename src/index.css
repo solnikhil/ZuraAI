@@ -583,3 +583,52 @@ li .katex-inline {
     margin: 0;
     padding: 0;
 }
+
+
+/* === Performance: CSS Containment Hints === */
+/* These hints help browsers optimize rendering by isolating components */
+
+/* Message content - isolate layout and paint from siblings */
+.markdown-content {
+    contain: content;
+}
+
+/* Virtual list items - prevent layout thrashing during scroll */
+[data-message-id] {
+    contain: layout style;
+}
+
+/* Code blocks - isolate heavy syntax highlighting */
+.markdown-code-block {
+    contain: content;
+}
+
+/* Mermaid diagrams - isolate expensive rendering */
+.markdown-mermaid-skeleton {
+    contain: strict;
+}
+
+/* Chat input overlay - isolate from scroll */
+.chat-input-overlay {
+    contain: layout style;
+}
+
+/* Thinking blocks - isolate animation and layout */
+.thinking-block {
+    contain: content;
+}
+
+/* Sidebar - prevent layout thrashing during resize */
+.sidebar-panel {
+    contain: layout style;
+}
+
+/* Modal/Dialog overlay - isolate from main content */
+[data-radix-portal] {
+    contain: strict;
+}
+
+/* Scroll containers - prevent paint spillover */
+[data-radix-scroll-area-viewport] {
+    contain: strict;
+}

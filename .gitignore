@@ -75,6 +75,7 @@ $RECYCLE.BIN/
 *.sublime-workspace
 .kiro/
 .claude/
+.agents/
 
 # CLI files
 .opencode/

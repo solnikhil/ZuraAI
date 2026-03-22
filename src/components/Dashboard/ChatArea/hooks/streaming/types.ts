@@ -96,13 +96,9 @@ export type UpdateStreamingCallback = (
  */
 export type FlushCallback = () => void
 
-/**
- * Options for handleToolCalls (research plan UI updates)
- */
 export interface HandleToolCallsOptions {
   onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
   onToolComplete?: (result: ToolCallResult) => void
-  onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
 }
 
 /**

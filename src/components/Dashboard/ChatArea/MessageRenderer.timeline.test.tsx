@@ -22,11 +22,11 @@ vi.mock('../../ThinkingBlock', () => ({
     completedBlocks,
   }: {
     thinking?: string
-    completedBlocks?: Array<{ content?: string; query?: string }>
+    completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
   }) => (
     <div data-testid="thinking-block">
       {completedBlocks?.map((block, index) => (
-        <span key={index}>{block.content || block.query}</span>
+        <span key={index}>{block.content || block.query || block.toolName}</span>
       ))}
       {thinking ? <span>{thinking}</span> : null}
     </div>
@@ -130,17 +130,22 @@ describe('MessageRenderer follow-up timeline', () => {
               duration: 800,
               timestamp: 2,
             },
+            {
+              type: 'tool',
+              toolName: 'mcp__filesystem__read_file',
+              timestamp: 3,
+            },
           ],
           toolResults: [
             {
               toolCall: {
                 id: 'tool-1',
-                name: 'research_plan',
-                arguments: {},
+                name: 'mcp__filesystem__read_file',
+                arguments: { path: '/tmp/demo.txt' },
               },
               result: {
                 success: true,
-                data: { combinedResults: '# Research\n- Result' },
+                data: { text: 'demo' },
               },
             },
           ],
@@ -152,14 +157,13 @@ describe('MessageRenderer follow-up timeline', () => {
 
     await waitFor(() => {
       const sequence = Array.from(
-        container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"],[data-testid="tool-result"]')
+        container.querySelectorAll('[data-testid="thinking-block"],[data-testid="markdown"]')
       ).map((node) => node.textContent)
 
       expect(sequence).toEqual([
         'Initial reasoning',
         'Initial response.',
-        'research_plan',
-        'Follow-up reasoning',
+        'Follow-up reasoningmcp__filesystem__read_file',
         'Follow-up response.',
       ])
     })

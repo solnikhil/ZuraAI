@@ -201,7 +201,7 @@ export function McpSection(): React.ReactElement {
         {!isSupported && (
           <div className="mcp-warning-row">
             <TriangleAlert className="mcp-warning-icon" />
-            <span>MCP configuration is only available through the Electron preload bridge.</span>
+            <span>MCP requires the desktop app. It's not available in web browsers.</span>
           </div>
         )}
 
@@ -213,7 +213,7 @@ export function McpSection(): React.ReactElement {
 
         {hasDraftChanges && (
           <div className="mcp-info-row">
-            <span>MCP changes are pending. Save or discard to enable connect/disconnect actions.</span>
+            <span>You have unsaved changes. Save them to connect or disconnect servers.</span>
           </div>
         )}
 
@@ -221,14 +221,14 @@ export function McpSection(): React.ReactElement {
           {isLoading ? (
             <div className="mcp-loading-row">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading MCP servers...</span>
+              <span>Loading servers...</span>
             </div>
           ) : draftServers.length === 0 ? (
             <div className="mcp-empty-row">
               <Server className="mcp-empty-icon" />
               <div className="mcp-empty-content">
-                <div className="mcp-empty-title">No MCP servers configured</div>
-                <div className="mcp-empty-desc">Add a stdio or remote server to discover tools and resources.</div>
+                <div className="mcp-empty-title">No servers added yet</div>
+                <div className="mcp-empty-desc">Add a local or remote MCP server to extend ZuraAI with custom tools.</div>
               </div>
             </div>
           ) : (
@@ -365,9 +365,9 @@ export function McpSection(): React.ReactElement {
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
         <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{dialogServer && liveServersById.has(dialogServer.id) ? 'Edit MCP Server' : 'Add MCP Server'}</DialogTitle>
+            <DialogTitle>{dialogServer && liveServersById.has(dialogServer.id) ? 'Edit Server' : 'Add Server'}</DialogTitle>
             <DialogDescription>
-              Configure transport, headers, environment variables, and secrets. Secrets are stored in main-process secure storage.
+              Configure how ZuraAI connects to this MCP server. Secrets are stored securely and never saved to config files.
             </DialogDescription>
           </DialogHeader>
 
@@ -421,20 +421,20 @@ export function McpSection(): React.ReactElement {
                   </Field>
                 </div>
 
-                <div className="mcp-dialog-row">
-                  <ToggleField
-                    label="Enabled"
-                    description="Disabled servers stay in storage but tools are hidden."
-                    checked={dialogServer.enabled}
-                    onCheckedChange={(checked) => setDialogServer({ ...dialogServer, enabled: checked })}
-                  />
-                  <ToggleField
-                    label="Auto-connect"
-                    description="Connect automatically during startup."
-                    checked={dialogServer.autoConnect}
-                    onCheckedChange={(checked) => setDialogServer({ ...dialogServer, autoConnect: checked })}
-                  />
-                </div>
+<div className="mcp-dialog-row">
+                    <ToggleField
+                     label="Enable this server"
+                     description="When off, the server won't connect and its tools won't appear in chat."
+                     checked={dialogServer.enabled}
+                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, enabled: checked })}
+                   />
+                   <ToggleField
+                     label="Connect on startup"
+                     description="Automatically connect when ZuraAI launches."
+                     checked={dialogServer.autoConnect}
+                     onCheckedChange={(checked) => setDialogServer({ ...dialogServer, autoConnect: checked })}
+                   />
+                 </div>
 
                 <Field>
                   <FieldLabel>Trust level</FieldLabel>
@@ -456,7 +456,7 @@ export function McpSection(): React.ReactElement {
                     </SelectContent>
                   </Select>
                   <FieldDescription>
-                    Untrusted servers stay connected but hide tools from models.
+                    Untrusted servers can connect but their tools stay hidden from the model until approved.
                   </FieldDescription>
                 </Field>
               </FieldGroup>
@@ -534,7 +534,7 @@ export function McpSection(): React.ReactElement {
 
               <ConfigValueEditor
                 title="Environment variables"
-                description="Environment variables for local stdio servers."
+                description="Pass environment variables to the local server process (like API keys or config paths)."
                 entries={dialogServer.env}
                 kind="env"
                 onChange={(nextEntries) => setDialogServer({ ...dialogServer, env: nextEntries })}
@@ -575,12 +575,12 @@ export function McpSection(): React.ReactElement {
                   />
                 </div>
 
-                <ToggleField
-                  label="Require approval"
-                  description="Each tool call requires approval before execution."
-                  checked={dialogServer.requireApproval}
-                  onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
-                />
+<ToggleField
+                   label="Ask before running tools"
+                   description="Show a confirmation dialog each time this server wants to run a tool."
+                   checked={dialogServer.requireApproval}
+                   onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
+                 />
               </FieldGroup>
             </div>
           )}
@@ -595,9 +595,9 @@ export function McpSection(): React.ReactElement {
       <AlertDialog open={deleteTarget != null} onOpenChange={(open) => (!open ? setDeleteTarget(null) : undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete MCP server</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{deleteTarget?.name || 'thisserver'}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove {deleteTarget?.name || 'this server'} from the draft. Save changes to delete it from storage.
+              This removes the server from your configuration. Any active connections will be closed. Save your changes to apply the deletion.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -611,7 +611,7 @@ export function McpSection(): React.ReactElement {
                 setDeleteTarget(null)
               }}
             >
-              Delete
+              Delete server
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

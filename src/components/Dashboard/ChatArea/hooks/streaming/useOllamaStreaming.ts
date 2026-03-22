@@ -20,6 +20,7 @@ import type {
 } from './types'
 import {
   appendCompletedThinkingBlock,
+  buildThinkingBlocksFromResults,
   getStreamingUpdateInterval,
   mapToolResultsForStorage,
   publishStreamingToolResults,
@@ -259,6 +260,10 @@ export function useOllamaStreaming({
           }
         }
 
+        localThinkingBlocks = buildThinkingBlocksFromResults(
+          toolResult.toolResults || [],
+          localThinkingBlocks
+        )
         savedToolResults = toolResult?.toolResults
           ? mapToolResultsForStorage(toolResult.toolResults)
           : undefined
@@ -267,7 +272,8 @@ export function useOllamaStreaming({
           updateStreamingMessage,
           sessionId,
           messageId,
-          savedToolResults
+          savedToolResults,
+          localThinkingBlocks
         )
 
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {

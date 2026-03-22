@@ -16,7 +16,17 @@ vi.mock('../../LazyMarkdown', () => ({
 }))
 
 vi.mock('../../ThinkingBlock', () => ({
-  default: () => null,
+  default: ({
+    completedBlocks,
+  }: {
+    completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
+  }) => (
+    <div data-testid="thinking-block">
+      {completedBlocks?.map((block, index) => (
+        <span key={index}>{block.content || block.query || block.toolName}</span>
+      ))}
+    </div>
+  ),
 }))
 
 vi.mock('../../ResponseInfo', () => ({
@@ -33,8 +43,8 @@ vi.mock('./attachmentUtils', () => ({
 
 import { MessageRenderer } from './MessageRenderer'
 
-describe('MessageRenderer MCP summary', () => {
-  it('shows local MCP execution metrics above generic tool results', () => {
+describe('MessageRenderer MCP timeline', () => {
+  it('renders MCP tool history inline and skips duplicate MCP result cards', () => {
     render(
       <MessageRenderer
         message={{
@@ -42,6 +52,28 @@ describe('MessageRenderer MCP summary', () => {
           role: 'assistant',
           content: 'Done.',
           timestamp: 1,
+          thinkingBlocks: [
+            {
+              type: 'tool',
+              toolName: 'mcp__filesystem__read_file',
+              timestamp: 1,
+              toolInput: { path: '/tmp/demo.txt' },
+              toolOutput: {
+                success: true,
+                data: { text: 'hello' },
+              },
+            },
+            {
+              type: 'tool',
+              toolName: 'mcp__github__create_issue',
+              timestamp: 2,
+              toolInput: { title: 'Needs review' },
+              toolOutput: {
+                success: false,
+                error: 'Approval rejected by user',
+              },
+            },
+          ],
           toolResults: [
             {
               toolCall: {
@@ -94,10 +126,8 @@ describe('MessageRenderer MCP summary', () => {
       />
     )
 
-    expect(screen.getByText('2 MCP runs')).toBeInTheDocument()
-    expect(screen.getByText('1 succeeded')).toBeInTheDocument()
-    expect(screen.getByText('1 failed')).toBeInTheDocument()
-    expect(screen.getByText('1 rejected')).toBeInTheDocument()
-    expect(screen.getByText('Approvals: 1 approved • 1 rejected')).toBeInTheDocument()
+    expect(screen.getByText('mcp__filesystem__read_file')).toBeInTheDocument()
+    expect(screen.getByText('mcp__github__create_issue')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
   })
 })

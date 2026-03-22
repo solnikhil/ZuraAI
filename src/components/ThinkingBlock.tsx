@@ -4,6 +4,7 @@ import { ChevronRight, Loader2, Search, Globe, Wrench } from './icons'
 import './ThinkingBlock.css'
 import { ThinkingBlock as ThinkingBlockType } from '../contexts/ChatHistoryContext'
 import AITextLoading from './AITextLoading'
+import type { ToolExecutionMetadata } from '../tools/types'
 import {
   getWebToolLabel,
   inferWebToolModeFromArgs,
@@ -25,8 +26,41 @@ function formatToolDisplayName(
   return getToolPresentation(name).combinedLabel
 }
 
+function parseMcpToolName(name: string): { serverId: string; toolId: string } | null {
+  const match = /^mcp__([a-z0-9_]+)__([a-z0-9_]+)$/i.exec(name)
+  if (!match) {
+    return null
+  }
+
+  const [, serverId, toolId] = match
+  return { serverId, toolId }
+}
+
+function formatMcpToolLabel(
+  name: string,
+  metadata?: ToolExecutionMetadata
+): string | null {
+  const parsed = parseMcpToolName(name)
+  if (!parsed && metadata?.origin !== 'mcp') {
+    return null
+  }
+
+  const fallbackPresentation = getToolPresentation(name)
+  const serverLabel =
+    metadata?.origin === 'mcp'
+      ? metadata.serverName
+      : fallbackPresentation.serverLabel || parsed?.serverId || 'MCP'
+  const toolLabel =
+    metadata?.origin === 'mcp'
+      ? metadata.originalToolName
+      : parsed?.toolId || fallbackPresentation.toolLabel
+
+  return `Tool: ${serverLabel} - ${toolLabel}`
+}
+
 function getToolCallText(tool: { name: string; arguments?: Record<string, unknown> }): string {
-  const displayName = formatToolDisplayName(tool.name, tool.arguments)
+  const mcpLabel = formatMcpToolLabel(tool.name)
+  const displayName = mcpLabel || formatToolDisplayName(tool.name, tool.arguments)
   if (tool.name === 'web_search' && tool.arguments?.query) {
     return `Using ${displayName}: "${String(tool.arguments.query)}"`
   }
@@ -45,6 +79,89 @@ function getToolCallHeaderText(
 
   const baseText = getToolCallText(firstToolCall)
   return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
+}
+
+function getCompletedToolBlockText(block: ThinkingBlockType): string {
+  const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
+  const mcpLabel = formatMcpToolLabel(toolName, block.toolOutput?.metadata)
+  const displayName =
+    mcpLabel || formatToolDisplayName(toolName, block.toolInput, block.toolOutput?.data)
+
+  if (toolName === 'web_search') {
+    return `${displayName}${block.query ? `: "${block.query}"` : ''}`
+  }
+
+  const argumentSummary = getToolArgumentSummary(block.toolInput)
+  return argumentSummary ? `${displayName}: ${argumentSummary}` : displayName
+}
+
+function getCompletedToolStatus(
+  block: ThinkingBlockType
+): { label: string; tone: 'neutral' | 'success' | 'warning' | 'error' } | null {
+  const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
+  const toolOutput = block.toolOutput
+  const metadata = toolOutput?.metadata
+
+  if (!toolOutput && toolName === 'web_search') {
+    return null
+  }
+
+  if (toolName === 'web_search' && toolOutput?.success) {
+    return null
+  }
+
+  if (metadata?.origin === 'mcp') {
+    if (metadata.approvalState === 'rejected' || metadata.outcome === 'rejected') {
+      return { label: 'Rejected', tone: 'warning' }
+    }
+    if (metadata.approvalState === 'timed_out' || metadata.outcome === 'timed_out') {
+      return { label: 'Timed Out', tone: 'warning' }
+    }
+    if (metadata.approvalState === 'cancelled' || metadata.outcome === 'cancelled') {
+      return { label: 'Cancelled', tone: 'warning' }
+    }
+  }
+
+  if (toolOutput?.success) {
+    return { label: 'Completed', tone: 'success' }
+  }
+
+  if (toolOutput?.error) {
+    return { label: 'Failed', tone: 'error' }
+  }
+
+  return toolName === 'web_search' ? null : { label: 'Completed', tone: 'success' }
+}
+
+function formatToolAuditLine(block: ThinkingBlockType): string | null {
+  const metadata = block.toolOutput?.metadata
+  if (metadata?.origin !== 'mcp') {
+    return null
+  }
+
+  const approvalLabel =
+    metadata.approvalState === 'not-required'
+      ? 'No approval required'
+      : metadata.approvalState === 'approved'
+        ? 'Approved'
+        : metadata.approvalState === 'rejected'
+          ? 'Rejected'
+          : metadata.approvalState === 'timed_out'
+            ? 'Approval timed out'
+            : 'Approval cancelled'
+
+  const outcomeLabel =
+    metadata.outcome === 'success'
+      ? 'Success'
+      : metadata.outcome === 'rejected'
+        ? 'Rejected'
+        : metadata.outcome === 'timed_out'
+          ? 'Timed out'
+          : metadata.outcome === 'cancelled'
+            ? 'Cancelled'
+            : 'Error'
+
+  return `${metadata.serverName} MCP | ${approvalLabel} | ${metadata.durationMs}ms | ${outcomeLabel}`
 }
 
 interface ThinkingBlockProps {
@@ -239,14 +356,19 @@ function CompletedBlock({
     setIsExpanded(shouldExpand)
   }, [block.timestamp, shouldExpand])
 
-  if (block.type === 'searching') {
+  if (block.type === 'searching' || block.type === 'tool') {
     const hasDetails =
       (block.toolInput && Object.keys(block.toolInput).length > 0) ||
       (block.toolOutput && (block.toolOutput.data !== undefined || block.toolOutput.error))
+    const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
     const mode =
-      inferWebToolModeFromResultData(block.toolOutput?.data) ||
-      inferWebToolModeFromArgs(block.toolInput)
-    const displayName = formatToolDisplayName('web_search', block.toolInput, block.toolOutput?.data)
+      toolName === 'web_search'
+        ? inferWebToolModeFromResultData(block.toolOutput?.data) ||
+          inferWebToolModeFromArgs(block.toolInput)
+        : 'search'
+    const status = getCompletedToolStatus(block)
+    const auditLine = formatToolAuditLine(block)
+
     return (
       <div className={`thinking-block completed thinking-tool-call ${isExpanded ? 'expanded' : ''}`}>
         <div
@@ -255,12 +377,20 @@ function CompletedBlock({
         >
           <div className="thinking-label">
             <span className="thinking-tool-calling-icon">
-              {mode === 'extract' ? <Globe size={14} /> : <Search size={14} />}
+              {toolName === 'web_search' ? (
+                mode === 'extract' ? <Globe size={14} /> : <Search size={14} />
+              ) : (
+                <Wrench size={14} />
+              )}
             </span>
             <span className="thinking-text">
-              {displayName}
-              {block.query ? `: "${block.query}"` : ''}
+              {getCompletedToolBlockText(block)}
             </span>
+            {status && (
+              <span className={`thinking-tool-status thinking-tool-status-${status.tone}`}>
+                {status.label}
+              </span>
+            )}
             {hasDetails && (
               <ChevronRight
                 size={14}
@@ -316,6 +446,7 @@ function CompletedBlock({
                             )
                           : '{}'}
                     </pre>
+                    {auditLine && <div className="thinking-tool-audit-line">{auditLine}</div>}
                   </div>
                 )}
               </div>
@@ -518,10 +649,6 @@ export default function ThinkingBlock({
   const blocksToRender = hasLegacyInlineThinkingWithToolCalls
     ? completedBlocks.filter((b) => b.type !== 'searching')
     : completedBlocks
-  const latestCompletedThinkingIndex = blocksToRender.reduce(
-    (latestIndex, block, index) => (block.type === 'thinking' ? index : latestIndex),
-    -1
-  )
   const searchingMode = inferWebToolModeFromArgs(searchQuery ? { query: searchQuery } : undefined)
   const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
 
@@ -532,7 +659,7 @@ export default function ThinkingBlock({
         <CompletedBlock
           key={`completed-${index}-${block.timestamp}`}
           block={block}
-          defaultExpanded={!showActiveBlock && index === latestCompletedThinkingIndex}
+          defaultExpanded={false}
         />
       ))}
 

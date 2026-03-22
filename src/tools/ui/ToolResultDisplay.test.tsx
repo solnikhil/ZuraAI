@@ -29,17 +29,19 @@ describe('ToolResultDisplay', () => {
     expect(screen.getByText('Read File')).toBeInTheDocument()
     expect(screen.getByText('Filesystem MCP')).toBeInTheDocument()
     expect(screen.getByText('Completed')).toBeInTheDocument()
-    expect(screen.getByText(/Hello from MCP/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Read File'))
 
+    expect(screen.getByText('Hello from MCP')).toBeInTheDocument()
+    expect(screen.getByText('Details')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Details'))
+
     expect(screen.getAllByText('Approved').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Trusted').length).toBeGreaterThan(0)
-    expect(screen.getByText('Server ID')).toBeInTheDocument()
-    expect(screen.getByText('filesystem')).toBeInTheDocument()
+    expect(screen.getByText('Server')).toBeInTheDocument()
+    expect(screen.getByText('Filesystem')).toBeInTheDocument()
     expect(screen.getByText('Input')).toBeInTheDocument()
-    expect(screen.getByText('Output')).toBeInTheDocument()
-    expect(screen.getByText(/\/tmp\/demo\.txt/)).toBeInTheDocument()
   })
 
   it('distinguishes approval rejection from execution failure', () => {
@@ -64,6 +66,7 @@ describe('ToolResultDisplay', () => {
 
     expect(screen.getAllByText('Rejected').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText('Create Issue'))
+    fireEvent.click(screen.getByText('Details'))
     expect(
       screen.getByText('The tool run was blocked by the current approval policy.')
     ).toBeInTheDocument()
@@ -91,8 +94,44 @@ describe('ToolResultDisplay', () => {
 
     expect(screen.getByText('Disconnected')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Read File'))
+    fireEvent.click(screen.getByText('Details'))
     expect(
       screen.getByText('The MCP server disconnected before the tool could finish.')
     ).toBeInTheDocument()
+  })
+
+  it('renders structured output as list items when available', () => {
+    render(
+      <ToolResultDisplay
+        toolName="mcp__filesystem__list_directory"
+        result={{
+          files: [
+            { name: 'readme.md', description: 'Documentation file' },
+            { name: 'package.json', description: 'NPM configuration' },
+          ],
+        }}
+        metadata={{
+          origin: 'mcp',
+          serverId: 'filesystem',
+          serverName: 'Filesystem',
+          namespacedToolName: 'mcp__filesystem__list_directory',
+          originalToolName: 'list_directory',
+          trusted: true,
+          approvalState: 'approved',
+          durationMs: 15,
+          outcome: 'success',
+        }}
+      />
+    )
+
+    expect(screen.getByText('List Directory')).toBeInTheDocument()
+    expect(screen.getByText('Completed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('List Directory'))
+
+    expect(screen.getByText('readme.md')).toBeInTheDocument()
+    expect(screen.getByText('Documentation file')).toBeInTheDocument()
+    expect(screen.getByText('package.json')).toBeInTheDocument()
+    expect(screen.getByText('NPM configuration')).toBeInTheDocument()
   })
 })

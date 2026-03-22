@@ -42,7 +42,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
       <div className="page-header">
         <h2 className="page-title">Skills</h2>
         <div className="page-subtitle">
-          Enable built-in capabilities that shape web research behavior and tool access.
+          Enable built-in capabilities that allow the assistant to search the web and cite sources.
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export function SkillsSection({ skills, onChange }: SkillsSectionProps): React.R
         <div className="skills-marketplace-note__inner">
           <Info size={15} className="skills-marketplace-note__icon" />
           <div className="skills-marketplace-note__text">
-            Built-in skills only. Enable a skill here, then use it from chat.
+            Toggle a skill on to make it available during conversations. The assistant will use it automatically when needed.
           </div>
         </div>
       </Card>

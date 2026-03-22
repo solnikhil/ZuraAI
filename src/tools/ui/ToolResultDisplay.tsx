@@ -11,13 +11,10 @@ import {
   Wrench,
   CheckCircle,
   XCircle,
-  Clock,
-  ShieldCheck,
 } from '../../components/icons'
 import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
 import {
   getToolPresentation,
-  getToolValuePreview,
   stringifyToolValue,
 } from './toolPresentation'
 
@@ -191,14 +188,13 @@ export default function ToolResultDisplay({
   }
 
   const status = getGenericToolStatus(mcpMetadata, error)
-  const previewSource = error || result
-  const previewText = getToolValuePreview(previewSource)
   const resultBody = stringifyToolValue(result)
   const detailBody = error || resultBody
-  const detailLabel = error ? 'Error Details' : 'Output'
+  const outputItems = extractResultItems(result)
+  const hasStructuredOutput = outputItems.length > 0
 
   return (
-    <div className={`tool-result tool-result-generic tool-result-status-${status.tone}`}>
+    <div className={`tool-result tool-result-mcp tool-result-mcp-status-${status.tone}`}>
       <div
         className="tool-result-header tool-result-clickable"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -222,89 +218,44 @@ export default function ToolResultDisplay({
                 ? `${mcpMetadata.serverName} MCP`
                 : toolPresentation.isMcp && toolPresentation.serverLabel
                   ? `${toolPresentation.serverLabel} MCP`
-                  : 'Tool result'}
+                  : 'Tool'}
             </span>
           </div>
         </div>
         <div className="tool-result-badge-row">
-          <span className={`tool-result-status-badge tool-result-status-badge-${status.tone}`}>
+          <span className={`tool-result-mcp-status tool-result-mcp-status-${status.tone}`}>
             {status.label}
           </span>
-            {mcpMetadata && (
-              <span className="tool-result-inline-meta">
-                <ShieldCheck size={12} />
-                {formatApprovalLabel(mcpMetadata.approvalState)}
-            </span>
-          )}
-          {durationMs !== undefined && (
-            <span className="tool-result-inline-meta">
-              <Clock size={12} />
-              {durationMs}ms
-            </span>
-          )}
           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </div>
       </div>
 
-      {!isExpanded && previewText && <div className="tool-result-preview">{previewText}</div>}
-
       {isExpanded && (
         <div className="tool-result-body">
-          <div className="tool-result-meta-grid">
-            <div className="tool-result-meta-item">
-              <span className="tool-result-meta-label">Status</span>
-              <span className="tool-result-meta-value">{status.label}</span>
+          {hasStructuredOutput ? (
+            <div className="mcp-result-list">
+              {outputItems.slice(0, 10).map((item, i) => (
+                <div key={i} className="mcp-result-item">
+                  {item.key && <div className="mcp-result-item-key">{item.key}</div>}
+                  <div className="mcp-result-item-value">{item.value}</div>
+                </div>
+              ))}
+              {outputItems.length > 10 && (
+                <div className="mcp-result-item" style={{ fontStyle: 'italic', color: 'var(--theme-text-muted)' }}>
+                  +{outputItems.length - 10} more items
+                </div>
+              )}
             </div>
-            {mcpMetadata && (
-              <>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Server</span>
-                  <span className="tool-result-meta-value">{mcpMetadata.serverName}</span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Approval</span>
-                  <span className="tool-result-meta-value">
-                    {formatApprovalLabel(mcpMetadata.approvalState)}
-                  </span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Trusted</span>
-                  <span className="tool-result-meta-value">
-                    {mcpMetadata.trusted ? 'Trusted' : 'Untrusted'}
-                  </span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Outcome</span>
-                  <span className="tool-result-meta-value">{formatOutcomeLabel(mcpMetadata.outcome)}</span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Server ID</span>
-                  <span className="tool-result-meta-value">{mcpMetadata.serverId}</span>
-                </div>
-              </>
-            )}
-            {durationMs !== undefined && (
-              <div className="tool-result-meta-item">
-                <span className="tool-result-meta-label">Duration</span>
-                <span className="tool-result-meta-value">{durationMs}ms</span>
-              </div>
-            )}
-          </div>
-
-          {mcpMetadata && <div className="tool-result-audit-line">{formatMcpAuditLine(mcpMetadata)}</div>}
-          {status.description && <div className="tool-result-audit-line">{status.description}</div>}
-
-          {toolArguments && Object.keys(toolArguments).length > 0 && (
-            <div className="tool-result-section">
-              <div className="tool-result-section-label">Input</div>
-              <pre className="tool-result-json">{stringifyToolValue(toolArguments)}</pre>
-            </div>
+          ) : (
+            <pre className="tool-result-json">{detailBody}</pre>
           )}
 
-          <div className="tool-result-section">
-            <div className="tool-result-section-label">{detailLabel}</div>
-            <pre className="tool-result-json">{detailBody}</pre>
-          </div>
+          <McpDetailsSection
+            metadata={mcpMetadata}
+            toolArguments={toolArguments}
+            status={status}
+            durationMs={durationMs}
+          />
         </div>
       )}
     </div>
@@ -431,4 +382,149 @@ function formatOutcomeLabel(
 
 function formatMcpAuditLine(metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }>): string {
   return `${metadata.serverName} MCP • ${formatApprovalLabel(metadata.approvalState)} • ${metadata.durationMs}ms • ${formatOutcomeLabel(metadata.outcome)}`
+}
+
+interface ResultItem {
+  key: string | null
+  value: string
+}
+
+function extractResultItems(result: unknown): ResultItem[] {
+  if (!result || typeof result !== 'object') {
+    return []
+  }
+
+  const record = result as Record<string, unknown>
+  const items: ResultItem[] = []
+
+  const arrayFields = ['results', 'items', 'data', 'files', 'content', 'entries', 'resources', 'tools', 'prompts']
+  for (const field of arrayFields) {
+    if (Array.isArray(record[field])) {
+      const arr = record[field] as unknown[]
+      for (const item of arr) {
+        if (typeof item === 'string') {
+          if (item.trim()) {
+            items.push({ key: null, value: item.trim() })
+          }
+        } else if (item && typeof item === 'object') {
+          const obj = item as Record<string, unknown>
+          const title = obj.title || obj.name || obj.label || obj.id || obj.path || obj.key
+          const desc = obj.description || obj.content || obj.value || obj.text || obj.snippet || obj.message
+          if (typeof title === 'string' && title.trim()) {
+            items.push({ key: title.trim(), value: typeof desc === 'string' ? desc.trim() : stringifyToolValue(obj) })
+          } else if (typeof desc === 'string' && desc.trim()) {
+            items.push({ key: null, value: desc.trim() })
+          } else {
+            items.push({ key: null, value: stringifyToolValue(item) })
+          }
+        }
+      }
+      if (items.length > 0) return items
+    }
+  }
+
+  if (record.content && typeof record.content === 'object' && !Array.isArray(record.content)) {
+    const content = record.content as Record<string, unknown>
+    for (const [key, value] of Object.entries(content)) {
+      if (value !== null && value !== undefined) {
+        items.push({ key, value: typeof value === 'string' ? value : stringifyToolValue(value) })
+      }
+    }
+    if (items.length > 0) return items
+  }
+
+  const primitiveKeys = ['content', 'text', 'message', 'output', 'result', 'value', 'response']
+  for (const key of primitiveKeys) {
+    if (typeof record[key] === 'string') {
+      const val = (record[key] as string).trim()
+      if (val) {
+        return [{ key: null, value: val }]
+      }
+    }
+  }
+
+  const entries = Object.entries(record)
+  if (entries.length <= 8 && entries.some(([k]) => !k.startsWith('_') && k !== 'type')) {
+    for (const [key, value] of entries) {
+      if (key.startsWith('_') || key === 'type') continue
+      if (value !== null && value !== undefined) {
+        items.push({ key, value: typeof value === 'string' ? value : stringifyToolValue(value) })
+      }
+    }
+    if (items.length > 0) return items
+  }
+
+  return []
+}
+
+function McpDetailsSection({
+  metadata,
+  toolArguments,
+  status,
+  durationMs,
+}: {
+  metadata: Extract<ToolExecutionMetadata, { origin: 'mcp' }> | null
+  toolArguments?: Record<string, unknown>
+  status: { label: string; tone: string; description?: string }
+  durationMs?: number
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <>
+      <button
+        className="mcp-details-toggle"
+        onClick={(e) => {
+          e.stopPropagation()
+          setIsExpanded(!isExpanded)
+        }}
+      >
+        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        Details
+      </button>
+
+      {isExpanded && (
+        <div className="mcp-details-content">
+          <div className="tool-result-meta-grid" style={{ marginTop: 0 }}>
+            <div className="tool-result-meta-item">
+              <span className="tool-result-meta-label">Status</span>
+              <span className="tool-result-meta-value">{status.label}</span>
+            </div>
+            {metadata && (
+              <>
+                <div className="tool-result-meta-item">
+                  <span className="tool-result-meta-label">Server</span>
+                  <span className="tool-result-meta-value">{metadata.serverName}</span>
+                </div>
+                <div className="tool-result-meta-item">
+                  <span className="tool-result-meta-label">Approval</span>
+                  <span className="tool-result-meta-value">{formatApprovalLabel(metadata.approvalState)}</span>
+                </div>
+                <div className="tool-result-meta-item">
+                  <span className="tool-result-meta-label">Trusted</span>
+                  <span className="tool-result-meta-value">{metadata.trusted ? 'Trusted' : 'Untrusted'}</span>
+                </div>
+                {durationMs !== undefined && (
+                  <div className="tool-result-meta-item">
+                    <span className="tool-result-meta-label">Duration</span>
+                    <span className="tool-result-meta-value">{durationMs}ms</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {metadata && <div className="tool-result-audit-line">{formatMcpAuditLine(metadata)}</div>}
+          {status.description && <div className="tool-result-audit-line">{status.description}</div>}
+
+          {toolArguments && Object.keys(toolArguments).length > 0 && (
+            <div className="tool-result-section">
+              <div className="tool-result-section-label">Input</div>
+              <pre className="tool-result-json">{stringifyToolValue(toolArguments)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
 }

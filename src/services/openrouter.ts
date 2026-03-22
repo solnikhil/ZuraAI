@@ -297,7 +297,7 @@ const SYNTHESIS_SYSTEM = `You are a research synthesizer. Given a user question 
 
 /**
  * Stream the synthesis of research results into a final answer.
- * Used by structured research mode (step-by-step research).
+ * Used when a research-heavy response needs a final synthesis pass.
  */
 export async function* streamResearchSynthesis(
     apiKey: string,

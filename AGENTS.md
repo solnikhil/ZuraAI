@@ -13,7 +13,7 @@ Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
 - Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
-- Tool calling system (restricted; `web_search` in main process and renderer-side `research_plan`)
+- Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
 ---
 
@@ -248,18 +248,17 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
+  - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
   - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
   - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
-- **Normal mode** (`settings.skills.web_research.config.mode = "normal"`): model can call `web_search` directly; model decides depth. No hard cap (safety cap remains in loop guard).
-- **Structured mode** (`mode = "structured"`): model is guided to call `research_plan` first for 2–6 steps; renderer (`src/tools/researchPlanHandler.ts`) expands steps into multiple `web_search` calls, updates streaming research metadata (`researchPlan`, `researchProgress`), and returns aggregated results for final synthesis.
+- When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
 - Tool schema exposure is skill-gated in renderer:
-  - Skill OFF: expose neither `web_search` nor `research_plan`
-  - Skill ON (normal): expose `web_search`
-  - Skill ON (structured): expose `web_search` + `research_plan`
+  - Skill OFF: expose no built-in web research tools
+  - Skill ON: expose `web_search`
 
 #### Theme + Windows Titlebar Overlay
 - Startup theme apply: `src/main.tsx` reads `localStorage['zura-settings']` and applies theme (including `softenedContrast` when set).
@@ -324,8 +323,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
     - `titleModel` (model used for title generation)
     - `titleGenerationPrompt` (prompt template for generating titles; supports `{{userMessage}}` token)
     - `titleGenerationDisplayMode` (`instant` or `typewriter` sidebar reveal)
-  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled` + `config.mode`).
-  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research` and no longer used by runtime logic.
+  - Skills map: `skills` (built-in IDs keyed by `skillId`, currently `web_research` with `enabled`).
+  - Legacy `webSearchEnabled` / `structuredResearchEnabled` are migrated into `skills.web_research.enabled`; `structuredResearchEnabled` is retained only as a migration input and is not used by runtime logic.
   - `softenedContrast` (Experimental): When true, reduces theme contrast for a gentler look.
 - Chat history fallback (non-Electron): `zura-chat-history`
 - Secure-key migration flag: `zura-api-keys-migrated`
@@ -342,6 +341,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 **Main process (`app.getPath('userData')`)**
 - Chat history: `chat-history.json` (`electron/chatStore.ts`)
+- Persisted assistant `thinkingBlocks` may now include completed MCP tool-history entries (`type: 'tool'`) with tool name/arguments/result metadata so the renderer can replay inline MCP call history from stored sessions.
 - MCP server metadata: `mcp-servers.json` (`electron/mcp/mcpStorage.ts`)
   - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.
   - Secret-bearing env/header/token entries store secure-storage references, not raw secret values.
@@ -355,11 +355,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Built-in tool schemas: `src/tools/definitions.ts` (`web_search`, `research_plan` definitions)
+  - Built-in tool schemas: `src/tools/definitions.ts` (`web_search` definition)
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
-  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search`, keeps `research_plan` renderer-side, and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+  - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:

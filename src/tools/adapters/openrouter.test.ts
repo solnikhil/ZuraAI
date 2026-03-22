@@ -4,34 +4,31 @@ import { getToolByName } from '../definitions'
 import { convertToOpenRouterFormat, formatToolResultsForOpenRouter } from './openrouter'
 
 describe('convertToOpenRouterFormat', () => {
-  it('preserves nested research plan schemas', () => {
-    const researchTool = getToolByName('research_plan')
-    expect(researchTool).toBeDefined()
+  it('preserves web search schemas during conversion', () => {
+    const searchTool = getToolByName('web_search')
+    expect(searchTool).toBeDefined()
 
-    const converted = convertToOpenRouterFormat([researchTool!])[0]
-    const steps = converted.function.parameters.properties.steps as {
-      items?: { properties?: Record<string, unknown> }
-    }
+    const converted = convertToOpenRouterFormat([searchTool!])[0]
 
-    expect(steps.items?.properties).toBeDefined()
-    expect(steps.items?.properties?.query).toBeDefined()
-    expect(steps.items?.properties?.stepNumber).toBeDefined()
+    expect(converted.function.parameters.properties.query).toBeDefined()
+    expect(converted.function.parameters.properties.search_depth).toBeDefined()
+    expect(converted.function.parameters.properties.topic).toBeDefined()
   })
 
   it('formats tool results as JSON payloads', () => {
     const formatted = formatToolResultsForOpenRouter(
-      [{ id: 'tool-1', name: 'research_plan' }],
+      [{ id: 'tool-1', name: 'web_search' }],
       [
         {
           success: true,
           data: {
-            combinedResults: '# Research\n- Result A',
+            results: [{ title: 'Result A', url: 'https://example.com', snippet: 'Snippet' }],
           },
         },
       ]
     )
 
-    expect(formatted[0]?.content).toContain('combinedResults')
+    expect(formatted[0]?.content).toContain('results')
     expect(formatted[0]?.content).toContain('Result A')
   })
 

@@ -134,47 +134,48 @@ export function buildResponseWithFallback(
 
 // Thinking blocks
 
-/** Build thinking blocks from web_search and research_plan tool results (returns a new array) */
+/** Build persisted inline timeline blocks from completed tool results. */
 export function buildThinkingBlocksFromResults(
   toolResults: ToolCallResult[],
   existingBlocks: ThinkingBlock[]
 ): ThinkingBlock[] {
   const blocks = [...existingBlocks]
   for (const tr of toolResults) {
+    const args = tr.toolCall.arguments
+    const normalizedArgs = typeof args === 'object' ? args : { query: args }
+
     if (tr.toolCall.name === 'web_search') {
-      const args = tr.toolCall.arguments
       const q = typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
       blocks.push({
         type: 'searching',
+        toolName: tr.toolCall.name,
         query: String(q || ''),
         timestamp: Date.now(),
-        toolInput: typeof args === 'object' ? args : { query: args },
+        toolInput: normalizedArgs,
         toolOutput: {
           success: tr.result?.success ?? false,
           data: tr.result?.data,
           error: tr.result?.error,
           executionTime: tr.result?.executionTime,
+          metadata: tr.result?.metadata,
         },
       })
-    } else if (
-      tr.toolCall.name === 'research_plan' &&
-      Array.isArray(tr.toolCall.arguments?.steps)
-    ) {
-      for (const step of tr.toolCall.arguments.steps) {
-        blocks.push({
-          type: 'searching',
-          query: String(step?.query || ''),
-          timestamp: Date.now(),
-          toolInput: { query: step?.query },
-          toolOutput: {
-            success: tr.result?.success ?? false,
-            data: tr.result?.data,
-            error: tr.result?.error,
-            executionTime: tr.result?.executionTime,
-          },
-        })
-      }
+      continue
     }
+
+    blocks.push({
+      type: 'tool',
+      toolName: tr.toolCall.name,
+      timestamp: Date.now(),
+      toolInput: normalizedArgs,
+      toolOutput: {
+        success: tr.result?.success ?? false,
+        data: tr.result?.data,
+        error: tr.result?.error,
+        executionTime: tr.result?.executionTime,
+        metadata: tr.result?.metadata,
+      },
+    })
   }
   return blocks
 }
@@ -252,7 +253,8 @@ export function publishStreamingToolResults(
   updateStreamingMessage: UpdateStreamingCallback,
   sessionId: string,
   messageId: string,
-  savedToolResults: ToolCallResult[] | undefined
+  savedToolResults: ToolCallResult[] | undefined,
+  _thinkingBlocks?: ThinkingBlock[]
 ): void {
   if (!savedToolResults || savedToolResults.length === 0) {
     return
@@ -268,102 +270,17 @@ export function publishStreamingToolResults(
 
 // Search query extraction
 
-/** Extract search query string from the first web_search or research_plan result */
-export function extractSearchQuery(
-  webSearchCalls: ToolCallResult[],
-  researchPlanCalls: ToolCallResult[]
-): string {
-  const firstSearch = webSearchCalls[0] || researchPlanCalls[0]
+/** Extract search query string from the first web_search result. */
+export function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
+  const firstSearch = webSearchCalls[0]
   if (!firstSearch) return ''
-  if (firstSearch.toolCall.name === 'research_plan') {
-    return (
-      (
-        (firstSearch.toolCall.arguments as Record<string, unknown>)?.steps as
-          | Array<{ query?: string }>
-          | undefined
-      )?.[0]?.query ?? ''
-    )
-  }
   const args = firstSearch.toolCall.arguments
   return String(typeof args === 'object' ? (args as Record<string, unknown>)?.query : args) || ''
 }
 
-/** Check if tool results contain web search or research plan calls */
+/** Check if tool results contain web search calls. */
 export function hasSearchResults(toolResults: ToolCallResult[] | undefined): boolean {
-  return (toolResults || []).some(
-    (r) => r?.toolCall?.name === 'web_search' || r?.toolCall?.name === 'research_plan'
-  )
-}
-
-// Research plan callbacks
-
-/** Create the research plan callbacks passed to handleToolCalls */
-export function createResearchPlanCallbacks(
-  updateStreaming: (updates: Record<string, unknown>) => void,
-  throttledUpdateStreamingMessage: UpdateStreamingCallback,
-  updateStreamingMessage: UpdateStreamingCallback,
-  sessionId: string,
-  messageId: string
-) {
-  return {
-    onToolStart: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => {
-      const nextPhase =
-        toolCall?.name === 'web_search' || toolCall?.name === 'research_plan' ? 'searching' : 'tool'
-      updateStreaming({ phase: nextPhase })
-
-      if (toolCall?.name === 'research_plan') {
-        const args = toolCall.arguments as {
-          topic?: string
-          steps?: Array<{ stepNumber: number; query: string; rationale?: string }>
-        }
-        if (args?.topic && Array.isArray(args?.steps)) {
-          const plan = { topic: args.topic, steps: args.steps }
-          updateStreaming({ researchPlan: plan })
-          throttledUpdateStreamingMessage(sessionId, messageId, {
-            researchPlan: plan,
-          } as Partial<Message>)
-          updateStreamingMessage(sessionId, messageId, {
-            researchPlan: plan,
-          } as Partial<Message>)
-        }
-      }
-    },
-    onToolComplete: (toolResult: ToolCallResult) => {
-      if (toolResult.toolCall.name !== 'web_search' && toolResult.toolCall.name !== 'research_plan') {
-        updateStreaming({ phase: 'tool' })
-      }
-    },
-    onResearchPlanProgress: (currentStep: number, totalSteps: number, query?: string) => {
-      updateStreaming({ researchProgress: { currentStep, totalSteps, currentQuery: query } })
-      throttledUpdateStreamingMessage(sessionId, messageId, {
-        researchProgress: { currentStep, totalSteps, currentQuery: query },
-      } as Partial<Message>)
-      updateStreamingMessage(sessionId, messageId, {
-        researchProgress: { currentStep, totalSteps, currentQuery: query },
-      } as Partial<Message>)
-    },
-  }
-}
-
-// Research plan persistence
-
-/** Extract research plan data from saved tool results for final message update */
-export function extractResearchPlanData(
-  savedToolResults: ToolCallResult[] | undefined
-): Record<string, unknown> {
-  const researchPlanResult = (savedToolResults || []).find(
-    (r) => r?.toolCall?.name === 'research_plan'
-  )
-  const rpArgs = researchPlanResult?.toolCall?.arguments as
-    | { topic?: string; steps?: Array<{ stepNumber: number; query: string; rationale?: string }> }
-    | undefined
-  if (rpArgs?.topic && Array.isArray(rpArgs?.steps)) {
-    return {
-      researchPlan: { topic: rpArgs.topic, steps: rpArgs.steps },
-      researchProgress: { currentStep: rpArgs.steps.length, totalSteps: rpArgs.steps.length },
-    }
-  }
-  return {}
+  return (toolResults || []).some((r) => r?.toolCall?.name === 'web_search')
 }
 
 // Initial tool result processing
@@ -384,10 +301,9 @@ export function processInitialToolResults(
   searchQuery: string
 } {
   const webSearchCalls = toolResults.filter((tr) => tr.toolCall.name === 'web_search')
-  const researchPlanCalls = toolResults.filter((tr) => tr.toolCall.name === 'research_plan')
-  const hasSearchCalls = webSearchCalls.length > 0 || researchPlanCalls.length > 0
-  const searchQuery = hasSearchCalls ? extractSearchQuery(webSearchCalls, researchPlanCalls) : ''
-  const updatedThinkingBlocks = hasSearchCalls
+  const hasSearchCalls = webSearchCalls.length > 0
+  const searchQuery = hasSearchCalls ? extractSearchQuery(webSearchCalls) : ''
+  const updatedThinkingBlocks = toolResults.length > 0
     ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
     : localThinkingBlocks
   const savedToolResults = mapToolResultsForStorage(toolResults)

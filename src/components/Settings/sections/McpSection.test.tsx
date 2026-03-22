@@ -72,10 +72,11 @@ describe('McpSection', () => {
     render(<McpSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /add server/i }))
-    fireEvent.change(screen.getByLabelText('Server name'), { target: { value: 'Filesystem' } })
-    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'npx' } })
-    fireEvent.change(screen.getByLabelText('Arguments'), { target: { value: '@modelcontextprotocol/server-filesystem' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Apply Draft' }))
+    fireEvent.change(screen.getByPlaceholderText('Filesystem'), { target: { value: 'Filesystem' } })
+    fireEvent.change(screen.getByPlaceholderText('npx'), { target: { value: 'npx' } })
+    const argsTextarea = screen.getByPlaceholderText(/-y/) 
+    fireEvent.change(argsTextarea, { target: { value: '@modelcontextprotocol/server-filesystem' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(upsertDraftServer).toHaveBeenCalledWith(
       expect.objectContaining({

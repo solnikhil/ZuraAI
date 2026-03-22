@@ -72,18 +72,10 @@ export function useToolCalling() {
 
         const webResearchToolExposure = getWebResearchToolExposure(settings.skills)
         if (!webResearchToolExposure.exposeWebSearch) {
-            enabledTools = enabledTools.filter((tool) => tool !== 'web_search' && tool !== 'research_plan')
+            enabledTools = enabledTools.filter((tool) => tool !== 'web_search')
         } else {
             if (!enabledTools.includes('web_search')) {
                 enabledTools.push('web_search')
-            }
-
-            if (webResearchToolExposure.exposeResearchPlan) {
-                if (!enabledTools.includes('research_plan')) {
-                    enabledTools.push('research_plan')
-                }
-            } else {
-                enabledTools = enabledTools.filter((tool) => tool !== 'research_plan')
             }
         }
 
@@ -127,8 +119,7 @@ export function useToolCalling() {
     const handleToolCalls = async (
         response: OpenRouterResponse,
         onToolStart?: (toolCall: ToolCall) => void,
-        onToolComplete?: (result: ToolCallResult) => void,
-        onResearchPlanProgress?: (currentStep: number, totalSteps: number, query?: string) => void
+        onToolComplete?: (result: ToolCallResult) => void
     ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
@@ -163,11 +154,7 @@ export function useToolCalling() {
                 onToolComplete: (result) => {
                     setToolState((prev) => {
                         const isWebSearch = result.toolCall.name === 'web_search'
-                        const isResearchPlan = result.toolCall.name === 'research_plan'
-                        const planSteps = isResearchPlan && Array.isArray(result.toolCall.arguments?.steps)
-                            ? result.toolCall.arguments.steps.length
-                            : 0
-                        const searchDelta = isWebSearch ? 1 : (isResearchPlan ? planSteps : 0)
+                        const searchDelta = isWebSearch ? 1 : 0
 
                         return {
                             ...prev,
@@ -183,7 +170,6 @@ export function useToolCalling() {
                     })
                     onToolComplete?.(result)
                 },
-                onResearchPlanProgress,
             })
 
             setToolState((prev) => ({ ...prev, isProcessingTools: false }))

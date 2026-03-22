@@ -77,7 +77,7 @@ export async function executeTool(toolName: string, args: Record<string, unknown
             ...result,
             executionTime,
             metadata: {
-                origin: toolName === 'research_plan' ? 'builtin-renderer' : 'builtin-main'
+                origin: 'builtin-main'
             }
         }
     } catch (error: unknown) {

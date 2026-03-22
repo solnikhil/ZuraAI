@@ -166,14 +166,14 @@ export default function Settings({
         await saveMcpDraft()
       }
 
-      if (!hasSettingsChanges && !hasMcpChanges) {
-        setStatusMessage('Nothing to save.')
-      } else if (!allSaved && failedKeys.length > 0) {
-        console.warn('[Settings] Some API keys may not have been saved')
-        setStatusMessage('Saved with warnings. Some API keys could not be stored securely.')
-      } else {
-        setStatusMessage('Settings saved.')
-      }
+if (!hasSettingsChanges && !hasMcpChanges) {
+         setStatusMessage('No changes to save.')
+       } else if (!allSaved && failedKeys.length > 0) {
+         console.warn('[Settings] Some API keys may not have been saved')
+         setStatusMessage('Saved. Some API keys could not be stored securely.')
+       } else {
+         setStatusMessage('Settings saved.')
+       }
     } catch (error) {
       console.error('[Settings] Failed to save changes:', error)
       setStatusMessage(
@@ -344,7 +344,7 @@ export default function Settings({
       {hasChanges && (
         <div className={`settings-savebar ${showWarning ? 'settings-savebar--warning' : ''}`} role="region" aria-label="Unsaved settings changes">
           <div className="settings-savebar__text">
-            {showWarning ? 'Save or discard changes before leaving this section.' : 'You have unsaved changes.'}
+            {showWarning ? 'Save or discard your changes before leaving.' : 'You have unsaved changes.'}
           </div>
 
           <div className="settings-savebar__actions">
@@ -360,7 +360,7 @@ export default function Settings({
               disabled={isSaving}
               className="settings-savebar__button settings-savebar__button--primary"
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

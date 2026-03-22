@@ -10,7 +10,6 @@ const mockSettings = {
     skills: {
       web_research: {
         enabled: true,
-        config: { mode: 'normal' },
       },
     },
     frostedPrompt: false,
