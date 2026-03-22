@@ -132,6 +132,10 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
       const uiKeys: (keyof SettingsUI)[] = [
         'theme',
         'activeTheme',
+        'themeAccent',
+        'themeBackground',
+        'themeForeground',
+        'themeContrast',
         'titleBarDensity',
         'titleBarShowAppName',
         'titleBarShowChatTitle',
@@ -140,7 +144,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         'frostedSidebar',
         'frostedPrompt',
         'sidebarAutoHideOnResize',
-        'softenedContrast',
         'chatBubbleStyle',
         'chatSelectedOverlayStyle',
         'modelSelector',
@@ -407,9 +410,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     } else {
       parsed.promptAutoHide = { ...defaultSettings.promptAutoHide, ...parsed.promptAutoHide }
     }
-    // Initialize softenedContrast if missing
-    if (parsed.softenedContrast === undefined)
-      parsed.softenedContrast = defaultSettings.softenedContrast
+    // Migrate softenedContrast (deprecated boolean) to themeContrast (0-100)
+    // If user had softenedContrast: true, migrate to themeContrast: 85 (softer)
+    // Otherwise default to 100 (full contrast)
+    if (parsed.themeContrast === undefined) {
+      if (parsed.softenedContrast === true) {
+        parsed.themeContrast = 85
+      } else {
+        parsed.themeContrast = 100
+      }
+    }
+    // Remove deprecated softenedContrast from persisted state
+    delete (parsed as Record<string, unknown>).softenedContrast
     // Remove deprecated notification settings from persisted payloads
     delete (parsed as Record<string, unknown>).notificationsEnabled
     delete (parsed as Record<string, unknown>).nativeNotificationsEnabled
@@ -454,6 +466,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     () => ({
       theme: combinedSettings.theme,
       activeTheme: combinedSettings.activeTheme,
+      themeAccent: combinedSettings.themeAccent,
+      themeBackground: combinedSettings.themeBackground,
+      themeForeground: combinedSettings.themeForeground,
+      themeContrast: combinedSettings.themeContrast,
       titleBarDensity: combinedSettings.titleBarDensity,
       titleBarShowAppName: combinedSettings.titleBarShowAppName,
       titleBarShowChatTitle: combinedSettings.titleBarShowChatTitle,
@@ -463,7 +479,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       frostedPrompt: combinedSettings.frostedPrompt,
       sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
       promptAutoHide: combinedSettings.promptAutoHide,
-      softenedContrast: combinedSettings.softenedContrast,
       chatBubbleStyle: combinedSettings.chatBubbleStyle,
       chatSelectedOverlayStyle: combinedSettings.chatSelectedOverlayStyle,
       modelSelector: combinedSettings.modelSelector,

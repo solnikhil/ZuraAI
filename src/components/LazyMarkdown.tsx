@@ -21,6 +21,14 @@ interface LazyMarkdownProps {
     isStreaming?: boolean
 }
 
+export function findMatchingWebSource(
+    href: string,
+    webSources?: Map<string, WebSource>
+): WebSource | undefined {
+    if (!href || !webSources) return undefined
+    return webSources.get(href) || webSources.get(href.replace(/\/+$/, ''))
+}
+
 /** Skeleton placeholder shown while markdown plugins are loading */
 function MarkdownSkeleton({ className }: { className?: string }) {
     const lineWidths = ['85%', '70%', '60%', '90%']
@@ -590,16 +598,23 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 td: ({ node: _node, ...props }: ExtraProps & React.TdHTMLAttributes<HTMLTableCellElement>) => <td {...props} />,
                 a: ({ href, children, ...props }: React.ClassAttributes<HTMLAnchorElement> & React.AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) => {
                     if (!href) return <span {...props}>{children}</span>
-                    let source = webSources?.get(href) || webSources?.get(href.replace(/\/+$/, ''))
-                    if (!source) {
-                        try {
-                            const hostname = new URL(href, 'https://x').hostname
-                            source = { title: hostname || 'Link', url: href }
-                        } catch {
-                            source = { title: 'Link', url: href }
-                        }
+
+                    const source = findMatchingWebSource(href, webSources)
+                    if (source) {
+                        return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
                     }
-                    return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
+
+                    return (
+                        <a
+                            {...props}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="markdown-link"
+                        >
+                            {children}
+                        </a>
+                    )
                 },
                 ul: ({ node: _node, ...props }: ExtraProps & React.HTMLAttributes<HTMLUListElement>) => <ul {...props} />,
                 ol: ({ node: _node, ...props }: ExtraProps & React.OlHTMLAttributes<HTMLOListElement>) => <ol {...props} />,

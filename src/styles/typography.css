@@ -329,7 +329,23 @@
     font-weight: normal;
 }
 
-/* Links - all rendered via WebSourceCitation (blur/highlight style) */
+/* Standard markdown links. Web-search citations keep their dedicated component styling. */
+.markdown-body a.markdown-link,
+.markdown-content a.markdown-link,
+.markdown-typography a.markdown-link {
+    color: var(--theme-accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1.25px;
+    text-underline-offset: 0.16em;
+    transition: color 120ms ease, text-decoration-color 120ms ease;
+}
+
+.markdown-body a.markdown-link:hover,
+.markdown-content a.markdown-link:hover,
+.markdown-typography a.markdown-link:hover {
+    color: color-mix(in srgb, var(--theme-accent) 82%, white);
+    text-decoration-color: currentColor;
+}
 
 /* Lead text */
 .markdown-body .lead,
