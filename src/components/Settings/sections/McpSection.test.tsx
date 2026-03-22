@@ -29,7 +29,7 @@ describe('McpSection', () => {
     expect(screen.getByRole('heading', { name: 'MCP Servers' })).toBeTruthy()
     expect(screen.getByText('Filesystem')).toBeTruthy()
     expect(screen.getByText('Connected')).toBeTruthy()
-    expect(screen.getByText('2 tools')).toBeTruthy()
+    expect(screen.getByText('2', { selector: '.mcp-server-stat-active' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Disconnect' }).hasAttribute('disabled')).toBe(false)
   })
 
@@ -54,6 +54,8 @@ describe('McpSection', () => {
       reconnectAttempts: '',
       reconnectDelayMs: '',
       requireApproval: true,
+      toolBlocklistText: '',
+      toolAllowlistText: '',
     }))
 
     mockUseMcp.mockReturnValue(
@@ -105,6 +107,8 @@ function createMcpContextValue(overrides: Record<string, unknown> = {}) {
     reconnectAttempts: '',
     reconnectDelayMs: '',
     requireApproval: true,
+    toolBlocklistText: '',
+    toolAllowlistText: '',
   }
 
   return {

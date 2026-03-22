@@ -11,6 +11,7 @@ import {
   Server,
   Trash2,
   TriangleAlert,
+  Wrench,
 } from 'lucide-react'
 
 import { useToast } from '@/components/shared'
@@ -25,6 +26,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
+import McpToolsDialog from '@/components/mcp/McpToolsDialog'
 import { useMcp } from '@/mcp/McpContext'
 import {
   createDraftConfigValue,
@@ -63,6 +65,7 @@ export function McpSection(): React.ReactElement {
   const [serverActionState, setServerActionState] = useState<Record<string, 'connecting' | 'disconnecting' | 'idle'>>({})
   const [libraryMode, setLibraryMode] = useState<'resources' | 'prompts' | null>(null)
   const [libraryServerId, setLibraryServerId] = useState<string | undefined>(undefined)
+  const [toolsDialogServer, setToolsDialogServer] = useState<McpDraftServer | null>(null)
 
   const liveServersById = useMemo(
     () => new Map(servers.map((server) => [server.id, server])),
@@ -127,6 +130,24 @@ export function McpSection(): React.ReactElement {
     } finally {
       setServerActionState((current) => ({ ...current, [server.id]: 'idle' }))
     }
+  }
+
+  const handleSaveToolChanges = (serverId: string, blockedTools: string[]) => {
+    const server = draftServers.find((s) => s.id === serverId)
+    if (!server) return
+
+    upsertDraftServer({
+      ...server,
+      toolBlocklistText: blockedTools.join('\n'),
+    })
+  }
+
+  const openToolsDialog = (server: McpDraftServer) => {
+    setToolsDialogServer(server)
+  }
+
+  const closeToolsDialog = () => {
+    setToolsDialogServer(null)
   }
 
   return (
@@ -222,6 +243,22 @@ export function McpSection(): React.ReactElement {
               const isBusy = serverActionState[server.id] && serverActionState[server.id] !== 'idle'
               const status = runtimeState?.status ?? 'disconnected'
 
+              const discoveredTools = runtimeState?.tools ?? liveServer?.lastKnownTools ?? []
+              const blockedToolsSet = new Set(
+                (server.toolBlocklistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+              const allowedToolsSet = new Set(
+                (server.toolAllowlistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+              const hasAllowlist = allowedToolsSet.size > 0
+
+              const activeToolCount = discoveredTools.filter((tool) => {
+                const nameLower = tool.name.toLowerCase()
+                if (blockedToolsSet.has(nameLower)) return false
+                if (hasAllowlist && !allowedToolsSet.has(nameLower)) return false
+                return true
+              }).length
+
+              const canManageTools = status === 'connected' && discoveredTools.length > 0 && !hasDraftChanges && !isDraftOnly
+
               return (
                 <div key={server.id} className="mcp-server-row">
                   <div className="mcp-server-main">
@@ -252,7 +289,10 @@ export function McpSection(): React.ReactElement {
                         </span>
                       </div>
                       <div className="mcp-server-stats">
-                        <span>{toolCount} tools</span>
+                        <span>
+                          <span className="mcp-server-stat-active">{activeToolCount}</span>
+                          <span className="mcp-server-stat-total"> / {toolCount} tools</span>
+                        </span>
                         <span>{resourceCount} resources</span>
                         <span>{promptCount} prompts</span>
                       </div>
@@ -262,6 +302,18 @@ export function McpSection(): React.ReactElement {
                     </div>
                   </div>
                   <div className="mcp-server-actions">
+                    {canManageTools && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mcp-manage-tools-btn"
+                        onClick={() => openToolsDialog(server)}
+                      >
+                        <Wrench className="mr-2 h-4 w-4" />
+                        Manage Tools
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="outline"
@@ -529,34 +581,6 @@ export function McpSection(): React.ReactElement {
                   checked={dialogServer.requireApproval}
                   onCheckedChange={(checked) => setDialogServer({ ...dialogServer, requireApproval: checked })}
                 />
-
-                <div className="mcp-dialog-row">
-                  <Field className="mcp-dialog-field">
-                    <FieldLabel>Tool allowlist</FieldLabel>
-                    <FieldDescription>One tool name per line. Only these tools are exposed.</FieldDescription>
-                    <Textarea
-                      value={dialogServer.toolAllowlistText}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, toolAllowlistText: event.target.value })
-                      }
-                      placeholder={['read_file', 'write_file'].join('\n')}
-                      rows={3}
-                    />
-                  </Field>
-
-                  <Field className="mcp-dialog-field">
-                    <FieldLabel>Tool blocklist</FieldLabel>
-                    <FieldDescription>One tool name per line. These tools are hidden.</FieldDescription>
-                    <Textarea
-                      value={dialogServer.toolBlocklistText}
-                      onChange={(event) =>
-                        setDialogServer({ ...dialogServer, toolBlocklistText: event.target.value })
-                      }
-                      placeholder={['delete_file'].join('\n')}
-                      rows={3}
-                    />
-                  </Field>
-                </div>
               </FieldGroup>
             </div>
           )}
@@ -592,6 +616,30 @@ export function McpSection(): React.ReactElement {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {toolsDialogServer && (() => {
+        const runtimeState = getRuntimeState(toolsDialogServer.id)
+        const discoveredTools = runtimeState?.tools ?? liveServersById.get(toolsDialogServer.id)?.lastKnownTools ?? []
+        const blockedToolsSet = new Set(
+          (toolsDialogServer.toolBlocklistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+        const allowedToolsSet = new Set(
+          (toolsDialogServer.toolAllowlistText ?? '').split('\n').map(s => s.trim().toLowerCase()).filter(Boolean))
+
+        return (
+          <McpToolsDialog
+            open={true}
+            onOpenChange={(open) => { if (!open) closeToolsDialog()}}
+            serverName={toolsDialogServer.name || 'Untitled Server'}
+            discoveredTools={discoveredTools}
+            blockedTools={blockedToolsSet}
+            allowedTools={allowedToolsSet}
+            onSave={(blocked) => {
+              handleSaveToolChanges(toolsDialogServer.id, blocked)
+              closeToolsDialog()
+            }}
+          />
+        )
+      })()}
     </div>
   )
 }
