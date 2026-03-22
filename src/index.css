@@ -172,8 +172,8 @@ html.frosted-mode body {
 }
 
 .dashboard-main-canvas {
-    --dashboard-canvas-radius: 16px;
-    --dashboard-canvas-radius-subtle: 9px;
+    --dashboard-canvas-radius: 13px;
+    --dashboard-canvas-radius-subtle: 7px;
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -181,12 +181,13 @@ html.frosted-mode body {
     border-top-left-radius: var(--dashboard-canvas-radius);
     border-bottom-left-radius: var(--dashboard-canvas-radius-subtle);
     background-clip: padding-box;
+    clip-path: inset(0 round var(--dashboard-canvas-radius) 0 0 var(--dashboard-canvas-radius-subtle));
 }
 
 @supports (corner-top-left-shape: superellipse(0.75)) {
     .dashboard-main-canvas {
-        corner-top-left-shape: superellipse(0.75);
-        corner-bottom-left-shape: superellipse(0.75);
+        corner-top-left-shape: superellipse(0.84);
+        corner-bottom-left-shape: superellipse(0.78);
     }
 }
 
