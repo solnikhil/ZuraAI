@@ -313,7 +313,7 @@ export function McpSection(): React.ReactElement {
                           <DropdownMenuContent
                             align="end"
                             sideOffset={8}
-                            className="mcp-server-menu-content w-48 rounded-lg border border-border/80 bg-popover p-1 shadow-md"
+                            className="mcp-server-menu-content w-48 rounded-lg border border-border/80 bg-popover p-1"
                           >
                             <DropdownMenuItem
                               className="cursor-pointer"
