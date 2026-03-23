@@ -22,7 +22,6 @@ import {
   getThemeById,
   getDefaultTheme,
   getThemesByCategory,
-  themeCategories,
 } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
 
@@ -209,7 +208,6 @@ export function AppearanceSection({
   const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
-  const [selectedThemeCategory, setSelectedThemeCategory] = useState('all')
   const [accentInput, setAccentInput] = useState('')
   const [backgroundInput, setBackgroundInput] = useState('')
   const [foregroundInput, setForegroundInput] = useState('')
@@ -300,10 +298,6 @@ export function AppearanceSection({
       },
     })
   }
-
-  const filteredThemes = useMemo(() => {
-    return getThemesByCategory(selectedThemeCategory)
-  }, [selectedThemeCategory])
 
   const currentTheme = getThemeById(settings.activeTheme) || getDefaultTheme()
   const currentContrast = settings.themeContrast ?? 100
@@ -402,15 +396,17 @@ export function AppearanceSection({
       </div>
 
       <h3 className="appearance-group-heading">Theme</h3>
-      <Card className="settings-section-card settings-section-card--theme">
+      <Card className="settings-list-card">
         <div className="theme-customization-panel">
           <div className="settings-list-row">
             <div className="settings-list-row__meta">
               <h3 className="settings-list-row__label">Preset</h3>
-              <div className="settings-list-row__description">Choose a base theme preset</div>
+              <div className="settings-list-row__description">
+                Choose a base theme preset, then fine-tune colors below if needed
+              </div>
             </div>
             <div className="settings-list-row__control">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="theme-control-group">
                 <SettingsSelect
                   value={settings.activeTheme}
                   onValueChange={handleThemePresetChange}
@@ -421,16 +417,7 @@ export function AppearanceSection({
                   <button
                     type="button"
                     onClick={resetThemeCustomization}
-                    style={{
-                      border: '1px solid var(--theme-border)',
-                      background: 'var(--theme-surface-subtle)',
-                      color: 'var(--theme-text-secondary)',
-                      borderRadius: 8,
-                      padding: '7px 10px',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
+                    className="theme-reset-button"
                   >
                     Reset
                   </button>
@@ -439,26 +426,20 @@ export function AppearanceSection({
             </div>
           </div>
 
-          <div className="theme-color-row">
-            <div className="theme-color-row__meta">
-              <h3 className="theme-color-row__label">Accent</h3>
-              <div className="theme-color-row__description">
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Accent</h3>
+              <div className="settings-list-row__description">
                 Primary accent color for highlights and buttons
               </div>
             </div>
-            <div className="theme-color-row__control">
+            <div className="settings-list-row__control">
+              <div className="theme-control-group">
               <input
                 type="color"
                 value={themeAccentColor}
                 onChange={(event) => updateSettings({ themeAccent: event.target.value })}
-                style={{
-                  width: 32,
-                  height: 32,
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: 'transparent',
-                }}
+                className="theme-color-picker"
                 aria-label="Accent color"
               />
               <input
@@ -472,41 +453,27 @@ export function AppearanceSection({
                   )
                 }
                 placeholder={currentTheme.baseColors.accent}
-                style={{
-                  width: 90,
-                  padding: '6px 8px',
-                  fontSize: '0.82rem',
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  color: 'var(--theme-text-primary)',
-                  fontFamily: 'monospace',
-                }}
+                className="theme-color-input"
                 aria-label="Accent color hex value"
               />
+              </div>
             </div>
           </div>
 
-          <div className="theme-color-row">
-            <div className="theme-color-row__meta">
-              <h3 className="theme-color-row__label">Background</h3>
-              <div className="theme-color-row__description">
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Background</h3>
+              <div className="settings-list-row__description">
                 Base background color for the interface
               </div>
             </div>
-            <div className="theme-color-row__control">
+            <div className="settings-list-row__control">
+              <div className="theme-control-group">
               <input
                 type="color"
                 value={themeBackgroundColor}
                 onChange={(event) => updateSettings({ themeBackground: event.target.value })}
-                style={{
-                  width: 32,
-                  height: 32,
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: 'transparent',
-                }}
+                className="theme-color-picker"
                 aria-label="Background color"
               />
               <input
@@ -526,41 +493,27 @@ export function AppearanceSection({
                   )
                 }
                 placeholder={currentTheme.baseColors.background}
-                style={{
-                  width: 90,
-                  padding: '6px 8px',
-                  fontSize: '0.82rem',
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  color: 'var(--theme-text-primary)',
-                  fontFamily: 'monospace',
-                }}
+                className="theme-color-input"
                 aria-label="Background color hex value"
               />
+              </div>
             </div>
           </div>
 
-          <div className="theme-color-row">
-            <div className="theme-color-row__meta">
-              <h3 className="theme-color-row__label">Foreground</h3>
-              <div className="theme-color-row__description">
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Foreground</h3>
+              <div className="settings-list-row__description">
                 Primary text and foreground element color
               </div>
             </div>
-            <div className="theme-color-row__control">
+            <div className="settings-list-row__control">
+              <div className="theme-control-group">
               <input
                 type="color"
                 value={themeForegroundColor}
                 onChange={(event) => updateSettings({ themeForeground: event.target.value })}
-                style={{
-                  width: 32,
-                  height: 32,
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: 'transparent',
-                }}
+                className="theme-color-picker"
                 aria-label="Foreground color"
               />
               <input
@@ -580,88 +533,35 @@ export function AppearanceSection({
                   )
                 }
                 placeholder={currentTheme.baseColors.foreground}
-                style={{
-                  width: 90,
-                  padding: '6px 8px',
-                  fontSize: '0.82rem',
-                  background: 'var(--theme-surface)',
-                  border: '1px solid var(--theme-border)',
-                  borderRadius: 6,
-                  color: 'var(--theme-text-primary)',
-                  fontFamily: 'monospace',
-                }}
+                className="theme-color-input"
                 aria-label="Foreground color hex value"
               />
+              </div>
             </div>
           </div>
 
-          <div className="theme-color-row">
-            <div className="theme-color-row__meta">
-              <h3 className="theme-color-row__label">Contrast</h3>
-              <div className="theme-color-row__description">
+          <div className="settings-list-row">
+            <div className="settings-list-row__meta">
+              <h3 className="settings-list-row__label">Contrast</h3>
+              <div className="settings-list-row__description">
                 Adjust theme contrast (lower = softer, higher = sharper)
               </div>
             </div>
-            <div className="theme-color-row__control" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="settings-list-row__control">
+              <div className="theme-contrast-control">
               <input
                 type="range"
                 min={0}
                 max={100}
                 value={currentContrast}
                 onChange={handleContrastChange}
-                style={{ minWidth: 120 }}
+                className="theme-contrast-slider"
                 aria-label="Contrast slider"
               />
-              <span
-                style={{
-                  fontSize: '0.82rem',
-                  color: 'var(--theme-text-muted)',
-                  minWidth: 36,
-                  textAlign: 'right',
-                }}
-              >
-                {currentContrast}%
-              </span>
+              <span className="theme-contrast-value">{currentContrast}%</span>
+              </div>
             </div>
           </div>
-        </div>
-      </Card>
-
-      <Card className="settings-section-card settings-section-card--theme-gallery">
-        <div className="theme-filter-bar">
-          {themeCategories.map((category) => {
-            const isActive = selectedThemeCategory === category.id
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedThemeCategory(category.id)}
-                className={`theme-filter-btn ${isActive ? 'is-active' : ''}`}
-              >
-                {category.name}
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="theme-preset-grid">
-          {filteredThemes.map((theme) => {
-            const isActive = settings.activeTheme === theme.id
-            return (
-              <button
-                key={theme.id}
-                onClick={() => handleThemePresetChange(theme.id)}
-                className={`theme-preset-card ${isActive ? 'is-active' : ''}`}
-              >
-                <div className="theme-preset-swatches">
-                  <div className="theme-preset-swatch" style={{ background: theme.baseColors.background }} />
-                  <div className="theme-preset-swatch" style={{ background: theme.baseColors.accent }} />
-                  <div className="theme-preset-swatch" style={{ background: theme.baseColors.foreground }} />
-                  <div className="theme-preset-swatch" style={{ background: theme.baseColors.accent, opacity: 0.6 }} />
-                </div>
-                <div className="theme-preset-name">{theme.name}</div>
-              </button>
-            )
-          })}
         </div>
       </Card>
 

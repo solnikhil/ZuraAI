@@ -59,6 +59,7 @@ export interface Theme {
   id: string
   name: string
   shortName?: string
+  vibe?: string
   description?: string
   category: 'classic' | 'colorful' | 'minimal' | 'ai' | 'terminal' | 'creative'
   isDark: boolean

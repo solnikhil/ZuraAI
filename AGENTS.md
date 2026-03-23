@@ -37,6 +37,7 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+- UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 
 ---
 
