@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<string>(['set-native-blur', 'spawn-terminal-command'])
+const SEND_CHANNELS = new Set<string>(['set-native-blur'])
 
 const INVOKE_CHANNELS = new Set<string>([
   // Chat store
@@ -254,19 +254,3 @@ contextBridge.exposeInMainWorld(
     },
   })
 )
-
-// Terminal API - expose spawnCommand for launching terminals
-try {
-  preloadLog('About to expose terminal API...')
-  contextBridge.exposeInMainWorld('terminal', {
-    spawnCommand: (command: string, args?: string[]) => {
-      preloadLog(`terminal.spawnCommand called: ${command} ${JSON.stringify(args)}`)
-      ipcRenderer.send('spawn-terminal-command', command, args ?? [])
-      preloadLog('IPC send completed')
-    },
-  })
-  preloadLog('terminal API exposed successfully')
-} catch (error: any) {
-  preloadLog(`Failed to expose terminal API: ${error.message}`)
-  console.error('[PRELOAD] Failed to expose terminal API:', error.message, error.stack)
-}

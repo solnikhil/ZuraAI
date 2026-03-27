@@ -105,7 +105,7 @@ Core capabilities:
 |   ipcRenderer,         |
 |   appInfo,             |
 |   secureStorage,       |
-|   updater, terminal,   |
+|   updater,             |
 |   windowControls       |
 +------------------------+
 ```
@@ -113,7 +113,7 @@ Core capabilities:
 ### Windows & Routing
 - **Main Window** (`electron/windows/mainWindow.ts`)
   - Loads `#/dashboard` (HashRouter)
-  - `nodeIntegration: false`, `contextIsolation: true`
+  - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
   - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
@@ -121,7 +121,7 @@ Core capabilities:
 - **About Window** (`electron/windows/aboutWindow.ts`)
   - Loads `#/about` in its own `BrowserWindow`
   - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
-  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, and `skipTaskbar: true`
+  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
@@ -159,7 +159,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
   - `set-native-blur`
-  - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
@@ -196,9 +195,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Startup + Shell Initialization
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Renderer startup in `src/main.tsx` initializes renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
+- Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 
@@ -355,6 +355,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Encryption: `safeStorage` when available; otherwise plaintext fallback
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
+  - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)

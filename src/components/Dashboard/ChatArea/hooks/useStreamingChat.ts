@@ -634,12 +634,27 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     async (message: any, instruction: string) => {
       if (!currentSessionId || isLoading) return
 
+      let effectiveSettings = settings
+
       // Handle switch_model instruction
       if (instruction === 'switch_model') {
         const models = getModelOptions()
-        const currentModelIndex = models.findIndex((m) => m.id === settings.aiModel)
-        const nextModel = models[(currentModelIndex + 1) % models.length]
-        updateSettings({ aiModel: nextModel.id })
+        if (models.length === 0) {
+          showToast('No enabled models are available to switch to.', 'warning')
+          return
+        }
+
+        const currentModelIndex = models.findIndex(
+          (m) => m.id === settings.aiModel && m.provider === settings.modelProvider
+        )
+        const nextIndex = currentModelIndex >= 0 ? (currentModelIndex + 1) % models.length : 0
+        const nextModel = models[nextIndex]
+        updateSettings({ aiModel: nextModel.id, modelProvider: nextModel.provider })
+        effectiveSettings = {
+          ...settings,
+          aiModel: nextModel.id,
+          modelProvider: nextModel.provider,
+        }
       }
 
       const versions = message.responseVersions || []
@@ -680,7 +695,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           }))
         )
 
-        if (hasImageAttachments(userMessage.files as AttachedFile[] | undefined) && !canAnalyzeImageAttachments(settings)) {
+        if (
+          hasImageAttachments(userMessage.files as AttachedFile[] | undefined) &&
+          !canAnalyzeImageAttachments(effectiveSettings)
+        ) {
           showToast(
             'This response was generated from an image prompt. Switch back to a vision-capable model to regenerate it.',
             'warning'
@@ -689,7 +707,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           return
         }
 
-        let systemPrompt = getEffectiveSystemPrompt(settings)
+        let systemPrompt = getEffectiveSystemPrompt(effectiveSettings)
         let userContent = userMessage.content
 
         if (instruction === 'concise') {
@@ -706,7 +724,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         const streamingMessageId = addMessageToSession(currentSessionId, {
           role: 'assistant',
           content: '',
-          model: `${settings.modelProvider}/${settings.aiModel}`,
+          model: `${effectiveSettings.modelProvider}/${effectiveSettings.aiModel}`,
           responseVersions: versions,
           currentVersionIndex: versions.length,
         })
@@ -725,16 +743,16 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             conversationHistory,
             outboundUserMessage,
             systemPrompt,
-            settings.aiModel
+            effectiveSettings.aiModel
           ) as ConversationMessage[],
-          settings.modelProvider
+          effectiveSettings.modelProvider
         )
 
         try {
-          if (settings.modelProvider === 'ollama') {
+          if (effectiveSettings.modelProvider === 'ollama') {
             for await (const chunk of streamOllamaCompletion(
-              settings.ollamaUrl,
-              settings.aiModel,
+              effectiveSettings.ollamaUrl,
+              effectiveSettings.aiModel,
               apiMessages,
               { think: true, signal: abortControllerRef.current?.signal }
             )) {
@@ -747,10 +765,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                 thinking: accumulatedReasoning || undefined,
               })
             }
-          } else if (settings.modelProvider === 'perplexity') {
+          } else if (effectiveSettings.modelProvider === 'perplexity') {
             for await (const chunk of streamPerplexityCompletion(
-              settings.perplexityApiKey,
-              settings.aiModel,
+              effectiveSettings.perplexityApiKey,
+              effectiveSettings.aiModel,
               apiMessages,
               { signal: abortControllerRef.current?.signal }
             )) {
@@ -760,10 +778,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                 content: accumulatedContent,
               })
             }
-          } else if (settings.modelProvider === 'groq') {
+          } else if (effectiveSettings.modelProvider === 'groq') {
             for await (const chunk of streamGroqCompletion(
-              settings.groqApiKey,
-              settings.aiModel,
+              effectiveSettings.groqApiKey,
+              effectiveSettings.aiModel,
               apiMessages,
               { signal: abortControllerRef.current?.signal }
             )) {
@@ -773,10 +791,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                 content: accumulatedContent,
               })
             }
-          } else if (settings.modelProvider === 'alibaba') {
+          } else if (effectiveSettings.modelProvider === 'alibaba') {
             for await (const chunk of streamAlibabaCompletion(
-              settings.alibabaApiKey,
-              settings.aiModel,
+              effectiveSettings.alibabaApiKey,
+              effectiveSettings.aiModel,
               apiMessages,
               { signal: abortControllerRef.current?.signal }
             )) {
@@ -788,10 +806,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             }
           } else {
             for await (const chunk of streamOpenRouterCompletion(
-              getOpenRouterApiKey(settings.openRouterApiKey),
-              settings.aiModel,
+              getOpenRouterApiKey(effectiveSettings.openRouterApiKey),
+              effectiveSettings.aiModel,
               apiMessages,
-              { temperature: settings.temperature, signal: abortControllerRef.current?.signal }
+              { temperature: effectiveSettings.temperature, signal: abortControllerRef.current?.signal }
             )) {
               const delta = chunk.choices?.[0]?.delta?.content || ''
               const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
@@ -852,34 +870,63 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   /**
    * Get available models for switching
    */
-  const getModelOptions = (): Array<{ id: string; displayName: string }> => {
-    const allModels: Array<{ id: string; displayName: string }> = []
+  const getModelOptions = (): Array<{
+    id: string
+    provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+    displayName: string
+  }> => {
+    const providerEnabled = settings.providerEnabled || {}
+    const models: Array<{
+      id: string
+      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+      displayName: string
+    }> = []
 
-    if (settings.configuredModels) {
-      settings.configuredModels.forEach((m) =>
-        allModels.push({ id: m.code, displayName: m.displayName })
-      )
-    }
-    if (settings.ollamaModels) {
-      settings.ollamaModels.forEach((m) =>
-        allModels.push({ id: m.code, displayName: m.displayName })
-      )
-    }
-    if (settings.perplexityModels) {
-      settings.perplexityModels.forEach((m) =>
-        allModels.push({ id: `perplexity/${m.code}`, displayName: m.displayName })
-      )
-    }
-    if (settings.groqModels) {
-      settings.groqModels.forEach((m) => allModels.push({ id: m.code, displayName: m.displayName }))
-    }
-    if (settings.alibabaModels) {
-      settings.alibabaModels.forEach((m) =>
-        allModels.push({ id: m.code, displayName: m.displayName })
-      )
+    const isProviderEnabled = (
+      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+    ): boolean => {
+      if (providerEnabled[provider] === false) return false
+
+      switch (provider) {
+        case 'openrouter':
+          return Boolean(settings.openRouterApiKey?.trim())
+        case 'ollama':
+          return Boolean(settings.ollamaUrl?.trim())
+        case 'perplexity':
+          return Boolean(settings.perplexityApiKey?.trim())
+        case 'groq':
+          return Boolean(settings.groqApiKey?.trim())
+        case 'alibaba':
+          return Boolean(settings.alibabaApiKey?.trim())
+      }
     }
 
-    return allModels
+    const pushModels = (
+      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba',
+      entries: typeof settings.configuredModels | undefined
+    ) => {
+      if (!isProviderEnabled(provider) || !entries) {
+        return
+      }
+
+      entries
+        .filter((model) => model.enabled !== false)
+        .forEach((model) => {
+          models.push({
+            id: model.code,
+            provider,
+            displayName: model.displayName,
+          })
+        })
+    }
+
+    pushModels('openrouter', settings.configuredModels)
+    pushModels('ollama', settings.ollamaModels)
+    pushModels('perplexity', settings.perplexityModels)
+    pushModels('groq', settings.groqModels)
+    pushModels('alibaba', settings.alibabaModels)
+
+    return models
   }
 
   return {

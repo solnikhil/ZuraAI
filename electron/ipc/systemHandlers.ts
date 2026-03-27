@@ -1,5 +1,4 @@
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
-import { spawn, exec } from 'child_process'
 import os from 'os'
 import { setNativeBlur, showAboutWindow } from '../windows'
 
@@ -290,64 +289,6 @@ ipcMain.handle('app-info:open-about-window', () => {
     win.setBounds(clampedBounds)
   })
 
-  /**
-   * Opens a platform-native terminal window and runs a command in it.
-   *
-   * Channel: `spawn-terminal-command`
-   * Type: fire-and-forget event
-   *
-   * This is meant for user-initiated workflows where the command should be
-   * visible in its own terminal rather than streamed back through IPC. The
-   * implementation is platform-specific because terminal launching differs
-   * significantly between Windows, macOS, and Linux desktop environments.
-   */
-  ipcMain.on('spawn-terminal-command', (_event, command, args) => {
-    console.log('[SYSTEM] Spawning terminal command:', {
-      command,
-      args,
-      platform: process.platform,
-    })
-
-    if (process.platform === 'win32') {
-      // Windows: open a new `cmd.exe` session and keep it open with `/K` so the
-      // user can inspect output after the command finishes.
-      const argsStr = args && args.length > 0 ? args.map((a: string) => `\"${a}\"`).join(' ') : ''
-      const fullCommand = `\"${command}\" ${argsStr}`
-
-      // `start` launches a new terminal window detached from the Electron app.
-      const cmd = `start cmd /K \"${fullCommand}\"`
-
-      console.log('[SYSTEM] Executing Windows command:', cmd)
-      exec(cmd, (error) => {
-        if (error) {
-          console.error('[SYSTEM] Failed to spawn terminal:', error.message)
-        }
-      })
-    } else if (process.platform === 'darwin') {
-      // macOS: ask Terminal.app to run the command in a new session. The
-      // trailing read keeps the window open long enough for the user to inspect
-      // the result.
-      const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
-      const script = `tell app \"Terminal\" to do script \"${fullCommand}; read -n1\"`
-      exec(`osascript -e '${script}'`, (error, _stdout, _stderr) => {
-        if (error) console.error('[SYSTEM] macOS exec error:', error.message)
-        else console.log('[SYSTEM] macOS terminal opened')
-      })
-    } else {
-      // Linux: prefer `xterm` and run through `bash -c` so we can append a
-      // pause prompt before the terminal closes.
-      const fullCommand = args && args.length > 0 ? `${command} ${args.join(' ')}` : command
-      const child = spawn(
-        'xterm',
-        ['-e', 'bash', '-c', `${fullCommand}; echo \"Press Enter to close...\"; read`],
-        {
-          detached: true,
-          stdio: 'ignore',
-        }
-      )
-      child.unref()
-    }
-  })
 }
 
 /**
@@ -359,7 +300,6 @@ ipcMain.handle('app-info:open-about-window', () => {
  */
 export function unregisterSystemHandlers(): void {
   ipcMain.removeAllListeners('set-native-blur')
-  ipcMain.removeAllListeners('spawn-terminal-command')
   ipcMain.removeHandler('window-resize')
   ipcMain.removeHandler('window-controls:minimize')
   ipcMain.removeHandler('window-controls:toggle-maximize')

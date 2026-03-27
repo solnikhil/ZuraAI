@@ -64,12 +64,12 @@ describe('SettingsContext Provider Integration', () => {
       expect(parsed.modelProvider).toBe('openrouter')
     })
 
-    it('migration maps titleModel gemini-* to OpenRouter default', () => {
+    it('migration maps titleModel gemini-* to dynamic resolution', () => {
       const parsed = { titleModel: 'gemini-2.5-flash' }
       if (parsed.titleModel?.startsWith('gemini-')) {
-        parsed.titleModel = 'google/gemini-2.0-flash-exp:free'
+        parsed.titleModel = ''
       }
-      expect(parsed.titleModel).toBe('google/gemini-2.0-flash-exp:free')
+      expect(parsed.titleModel).toBe('')
     })
   })
 
@@ -85,9 +85,9 @@ describe('SettingsContext Provider Integration', () => {
       expect(validProviders).toContain(defaultSettingsConfig.modelProvider)
     })
 
-    it('default titleModel uses OpenRouter model', async () => {
+    it('default titleModel resolves dynamically', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
-      expect(defaultSettingsConfig.titleModel).toBe('google/gemini-2.0-flash-exp:free')
+      expect(defaultSettingsConfig.titleModel).toBe('')
     })
 
     it('default title generation provider is openrouter', async () => {

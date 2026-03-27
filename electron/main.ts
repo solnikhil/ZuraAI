@@ -1,4 +1,4 @@
-import { app, globalShortcut } from 'electron'
+import { app, globalShortcut, session } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
@@ -30,6 +30,16 @@ const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
+
+function registerSessionSecurityHandlers(): void {
+  const defaultSession = session.defaultSession
+
+  defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false)
+  })
+
+  defaultSession.setPermissionCheckHandler(() => false)
+}
 
 // Add process identifier for Task Manager (visible in "Command line" column)
 app.commandLine.appendSwitch('process-name', 'ZuraAI-Main')
@@ -105,6 +115,7 @@ app.whenReady().then(async () => {
   registerMcpHandlers()
   registerToolHandlers()
   registerUpdaterHandlers()
+  registerSessionSecurityHandlers()
   await initializeMcpManager({
     autoConnect: true,
     clientInfo: {

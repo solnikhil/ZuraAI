@@ -17,6 +17,8 @@ const ALLOWED_SECURE_STORAGE_KEYS = new Set([
   'alibabaApiKey',
 ])
 
+const ALLOWED_SECURE_STORAGE_KEY_LIST = [...ALLOWED_SECURE_STORAGE_KEYS] as const
+
 type SecureStorageKey =
   | 'openRouterApiKey'
   | 'perplexityApiKey'
@@ -58,7 +60,11 @@ export function registerSecureStorageHandlers(): void {
    * individual requests are still resolving.
    */
   ipcMain.handle('secure-storage:get-all', async () => {
-    return secureStorage.getAllSecureValuesAsync()
+    const entries = await Promise.all(
+      ALLOWED_SECURE_STORAGE_KEY_LIST.map(async (key) => [key, await secureStorage.getSecureValueAsync(key)] as const)
+    )
+
+    return Object.fromEntries(entries)
   })
 }
 
