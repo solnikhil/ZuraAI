@@ -135,7 +135,7 @@ export default function TitleBarInfoMenu() {
       <DropdownMenuContent
         align="end"
         sideOffset={6}
-        className="w-44 rounded-lg border border-border/80 bg-popover p-1 shadow-md"
+        className="w-44 rounded-lg border border-border/80 bg-popover p-1"
       >
         <DropdownMenuGroup>
           <DropdownMenuItem

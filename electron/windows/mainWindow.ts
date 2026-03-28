@@ -63,7 +63,7 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // Required for preload to use Node.js APIs like fs
+      sandbox: true,
       devTools: options?.devTools ?? true,
       spellcheck: false,
       additionalArguments: ['--process-name=ZuraAI-Dashboard'],

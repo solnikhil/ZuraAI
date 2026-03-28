@@ -649,8 +649,14 @@
 }
 
 .sidebar-nav-item.active {
-  background: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-surface-active));
-  border-color: color-mix(in srgb, var(--theme-accent) 36%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 18%, var(--theme-surface-hover));
+  border-color: color-mix(in srgb, var(--theme-accent) 42%, var(--theme-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  color: var(--theme-text-primary);
+}
+
+.sidebar-container.frosted .sidebar-nav-item.active {
+  background: color-mix(in srgb, var(--theme-accent) 16%, rgba(255, 255, 255, 0.08));
 }
 
 .sidebar-nav-item--settings {

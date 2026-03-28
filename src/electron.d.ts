@@ -59,10 +59,6 @@ export interface AppInfoAPI {
     openAboutWindow: () => Promise<void>
 }
 
-export interface TerminalAPI {
-    spawnCommand: (command: string, args?: string[]) => void
-}
-
 export interface WindowControlsAPI {
     minimize: () => Promise<void>
     toggleMaximize: () => Promise<void>
@@ -103,7 +99,6 @@ declare global {
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
         appInfo: AppInfoAPI
-        terminal: TerminalAPI
         windowControls: WindowControlsAPI
         shell: ShellAPI
         devTools: DevToolsAPI

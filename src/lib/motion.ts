@@ -1,4 +1,4 @@
-import { useReducedMotion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 
 export const motionDurations = {
   micro: 0.12,
@@ -29,8 +29,37 @@ export const motionSpring = {
   },
 } as const
 
+function getPrefersReducedMotion() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
 export function useMotionPreferences() {
-  const reducedMotion = useReducedMotion()
+  const [reducedMotion, setReducedMotion] = useState(getPrefersReducedMotion)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const handleChange = () => {
+      setReducedMotion(mediaQuery.matches)
+    }
+
+    handleChange()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+
+    mediaQuery.addListener(handleChange)
+    return () => mediaQuery.removeListener(handleChange)
+  }, [])
 
   return {
     reducedMotion,

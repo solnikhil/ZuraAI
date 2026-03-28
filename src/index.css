@@ -195,7 +195,7 @@ html.frosted-mode body {
     position: relative;
     background: linear-gradient(180deg, rgba(36, 36, 42, 0.55) 0%, rgba(24, 24, 28, 0.62) 100%);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(28px) saturate(150%);
     -webkit-backdrop-filter: blur(28px) saturate(150%);
     isolation: isolate;
@@ -333,11 +333,13 @@ html.frosted-mode body {
 }
 
 .animate-in {
-    animation: zura-enter var(--motion-duration-fast) var(--motion-ease-standard) both;
+    animation: zura-enter 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: opacity, transform;
 }
 
 .animate-out {
-    animation: zura-exit var(--motion-duration-micro) var(--motion-ease-exit) both;
+    animation: zura-exit 140ms cubic-bezier(0.4, 0, 1, 1) both;
+    will-change: opacity, transform;
 }
 
 .fade-in-0 {
@@ -408,6 +410,92 @@ html.frosted-mode body {
     .animate-in,
     .animate-out {
         animation: none;
+    }
+}
+
+[data-slot='dropdown-menu-content'],
+[data-slot='dropdown-menu-sub-content'],
+[data-slot='context-menu-content'],
+[data-slot='context-menu-sub-content'],
+[data-slot='select-content'],
+[data-slot='popover-content'] {
+    --zura-enter-opacity: 0;
+    --zura-exit-opacity: 0;
+    --zura-enter-scale: 0.96;
+    --zura-exit-scale: 0.96;
+    --zura-enter-translate-x: 0;
+    --zura-enter-translate-y: 0;
+    --zura-exit-translate-x: 0;
+    --zura-exit-translate-y: 0;
+    will-change: opacity, transform;
+}
+
+[data-slot='dropdown-menu-content'][data-side='bottom'],
+[data-slot='dropdown-menu-sub-content'][data-side='bottom'],
+[data-slot='context-menu-content'][data-side='bottom'],
+[data-slot='context-menu-sub-content'][data-side='bottom'],
+[data-slot='select-content'][data-side='bottom'],
+[data-slot='popover-content'][data-side='bottom'] {
+    --zura-enter-translate-y: -0.4rem;
+    --zura-exit-translate-y: -0.2rem;
+}
+
+[data-slot='dropdown-menu-content'][data-side='top'],
+[data-slot='dropdown-menu-sub-content'][data-side='top'],
+[data-slot='context-menu-content'][data-side='top'],
+[data-slot='context-menu-sub-content'][data-side='top'],
+[data-slot='select-content'][data-side='top'],
+[data-slot='popover-content'][data-side='top'] {
+    --zura-enter-translate-y: 0.4rem;
+    --zura-exit-translate-y: 0.2rem;
+}
+
+[data-slot='dropdown-menu-content'][data-side='left'],
+[data-slot='dropdown-menu-sub-content'][data-side='left'],
+[data-slot='context-menu-content'][data-side='left'],
+[data-slot='context-menu-sub-content'][data-side='left'],
+[data-slot='select-content'][data-side='left'],
+[data-slot='popover-content'][data-side='left'] {
+    --zura-enter-translate-x: 0.4rem;
+    --zura-exit-translate-x: 0.2rem;
+}
+
+[data-slot='dropdown-menu-content'][data-side='right'],
+[data-slot='dropdown-menu-sub-content'][data-side='right'],
+[data-slot='context-menu-content'][data-side='right'],
+[data-slot='context-menu-sub-content'][data-side='right'],
+[data-slot='select-content'][data-side='right'],
+[data-slot='popover-content'][data-side='right'] {
+    --zura-enter-translate-x: -0.4rem;
+    --zura-exit-translate-x: -0.2rem;
+}
+
+[data-slot='dropdown-menu-content'][data-state='open'],
+[data-slot='dropdown-menu-sub-content'][data-state='open'],
+[data-slot='context-menu-content'][data-state='open'],
+[data-slot='context-menu-sub-content'][data-state='open'],
+[data-slot='select-content'][data-state='open'],
+[data-slot='popover-content'][data-state='open'] {
+    animation: zura-enter 190ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+[data-slot='dropdown-menu-content'][data-state='closed'],
+[data-slot='dropdown-menu-sub-content'][data-state='closed'],
+[data-slot='context-menu-content'][data-state='closed'],
+[data-slot='context-menu-sub-content'][data-state='closed'],
+[data-slot='select-content'][data-state='closed'],
+[data-slot='popover-content'][data-state='closed'] {
+    animation: zura-exit 140ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-slot='dropdown-menu-content'],
+    [data-slot='dropdown-menu-sub-content'],
+    [data-slot='context-menu-content'],
+    [data-slot='context-menu-sub-content'],
+    [data-slot='select-content'],
+    [data-slot='popover-content'] {
+        animation: none !important;
     }
 }
 

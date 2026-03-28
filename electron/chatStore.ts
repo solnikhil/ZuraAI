@@ -6,6 +6,7 @@ import { app } from 'electron'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
+import { writeFileAtomic } from './utils/atomicFile'
 
 export interface Message {
   id: string
@@ -127,11 +128,7 @@ async function writeStoreAsync(data: ChatHistoryData): Promise<void> {
   const doWrite = async () => {
     const filePath = getStorePath()
     try {
-      const dir = path.dirname(filePath)
-      if (!fsSync.existsSync(dir)) {
-        await fs.mkdir(dir, { recursive: true })
-      }
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+      await writeFileAtomic(filePath, JSON.stringify(data, null, 2))
       // Only update cache if no newer write has been queued
       if (myVersion === writeVersion) {
         cachedData = data

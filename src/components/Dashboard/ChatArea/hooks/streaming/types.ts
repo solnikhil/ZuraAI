@@ -4,6 +4,7 @@
  */
 
 import type {
+  FileAttachment,
   Message,
   ThinkingBlock,
   ToolCallResult,
@@ -27,6 +28,8 @@ export interface StreamingResult {
   thinkingBlocks?: ThinkingBlock[]
   /** Tool results from function calls */
   toolResults?: ToolCallResult[] | null
+  /** Generated files returned by the provider */
+  files?: FileAttachment[]
   /** Token usage statistics */
   usage?: {
     inputTokens: number
@@ -133,6 +136,7 @@ export interface StreamingSettings {
   // Provider-specific API keys
   ollamaUrl?: string
   openRouterApiKey?: string
+  configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
   perplexityApiKey?: string
   groqApiKey?: string
   alibabaApiKey?: string

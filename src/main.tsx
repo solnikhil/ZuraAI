@@ -1,3 +1,4 @@
+import './polyfills'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { getDefaultTheme, getThemeById } from './themes/themeRegistry'

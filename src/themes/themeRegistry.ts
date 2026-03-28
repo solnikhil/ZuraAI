@@ -42,6 +42,7 @@ function alpha(hex: string, opacity: number): string {
 function createTheme(
   id: string,
   name: string,
+  vibe: string,
   description: string,
   category: Theme['category'],
   accent: string,
@@ -52,6 +53,7 @@ function createTheme(
     id,
     name,
     shortName: name,
+    vibe,
     description,
     category,
     isDark: true,
@@ -153,8 +155,9 @@ export function derivePaletteFromBase(
 export const themes: Record<string, Theme> = {
   zuraai: createTheme(
     'zuraai',
-    'Dark',
-    'Default dark theme',
+    'Obsidian Core',
+    'Stealth minimal',
+    'Default graphite-black workspace with sharp white contrast',
     'classic',
     '#ffffff',
     '#181818',
@@ -162,8 +165,9 @@ export const themes: Record<string, Theme> = {
   ),
   sentry: createTheme(
     'sentry',
-    'Sentry',
-    'Purple accent on soft dark',
+    'Ultraviolet Pulse',
+    'Electric nightlife',
+    'Dusty violet glow over a muted charcoal base',
     'ai',
     '#7055f6',
     '#2d2935',
@@ -171,8 +175,9 @@ export const themes: Record<string, Theme> = {
   ),
   ayu: createTheme(
     'ayu',
-    'Ayu',
-    'Warm golden accent on deep dark',
+    'Amber Circuit',
+    'Warm operator desk',
+    'Burnished amber accents on a deep ink backdrop',
     'colorful',
     '#e6b450',
     '#0b0e14',
@@ -180,8 +185,9 @@ export const themes: Record<string, Theme> = {
   ),
   codex: createTheme(
     'codex',
-    'Codex',
-    'Blue accent on near-black',
+    'Blue Static',
+    'Clean midnight focus',
+    'Controlled cobalt signal on a tight near-black canvas',
     'minimal',
     '#0169cc',
     '#111111',
@@ -189,8 +195,9 @@ export const themes: Record<string, Theme> = {
   ),
   gruvbox: createTheme(
     'gruvbox',
-    'Gruvbox',
-    'Teal accent on retro warm dark',
+    'Furnace Terminal',
+    'Retro industrial',
+    'Weathered teal against a warm terminal-grade dark',
     'terminal',
     '#458588',
     '#282828',
@@ -198,12 +205,73 @@ export const themes: Record<string, Theme> = {
   ),
   'vscode-plus': createTheme(
     'vscode-plus',
-    'VS Code',
-    'Classic VS Code blue on neutral dark',
+    'Night Shift',
+    'Studio neutral',
+    'Balanced editor blues with a familiar tungsten-dark shell',
     'classic',
     '#007acc',
     '#1e1e1e',
     '#d4d4d4'
+  ),
+  graphite: createTheme(
+    'graphite',
+    'Graphite Luxe',
+    'Executive stealth',
+    'Smoked graphite neutrals with a cool steel highlight',
+    'minimal',
+    '#8fa3b8',
+    '#14171c',
+    '#eef2f6'
+  ),
+  emberfall: createTheme(
+    'emberfall',
+    'Emberfall',
+    'After-hours cockpit',
+    'Molten copper energy layered over volcanic dark surfaces',
+    'creative',
+    '#ff7a45',
+    '#160f0d',
+    '#f8ede8'
+  ),
+  deepsea: createTheme(
+    'deepsea',
+    'Deep Sea Signal',
+    'Submerged tech',
+    'Cold cyan-green markers cutting through a deep ocean black',
+    'creative',
+    '#22c7a9',
+    '#081317',
+    '#d7f5ef'
+  ),
+  noir: createTheme(
+    'noir',
+    'Noir Alloy',
+    'Luxury machine',
+    'Gunmetal darkness with restrained champagne-metal warmth',
+    'classic',
+    '#c7a86d',
+    '#111213',
+    '#f0e7d7'
+  ),
+  phantom: createTheme(
+    'phantom',
+    'Phantom Bloom',
+    'Dark editorial',
+    'Magenta-plum atmosphere with polished ink-heavy shadows',
+    'ai',
+    '#d946ef',
+    '#120d16',
+    '#f3defa'
+  ),
+  slatewave: createTheme(
+    'slatewave',
+    'Slatewave',
+    'Calm pro UI',
+    'Slate neutrals anchored by a crisp glacier-blue accent',
+    'minimal',
+    '#58a6ff',
+    '#0f1722',
+    '#e6edf5'
   ),
 }
 

@@ -6,6 +6,7 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { app } from 'electron'
+import { writeFileAtomic } from './utils/atomicFile'
 
 const STORAGE_FILE = path.join(app.getPath('userData'), 'secure-storage.json')
 
@@ -31,6 +32,16 @@ function isEncryptionAvailable(): boolean {
   }
 }
 
+function isLikelyLegacyPlaintextSecret(value: string): boolean {
+  return (
+    value.startsWith('sk-') ||
+    value.startsWith('pplx-') ||
+    value.startsWith('tvly-') ||
+    value.startsWith('dashscope-') ||
+    value.length < 100
+  )
+}
+
 async function readSecureDataAsync(): Promise<SecureData> {
   if (cachedData && Date.now() - cacheTimestamp < CACHE_TTL) {
     return cachedData
@@ -45,28 +56,30 @@ async function readSecureDataAsync(): Promise<SecureData> {
     const parsed = JSON.parse(data)
     const encryptionAvailable = isEncryptionAvailable()
 
+    if (!encryptionAvailable) {
+      console.error('Secure storage unavailable: OS-backed encryption is required.')
+      return {}
+    }
+
     const decrypted: SecureData = {}
+    let migratedLegacyPlaintext = false
     for (const [key, value] of Object.entries(parsed)) {
       if (typeof value === 'string' && value) {
         try {
-          if (encryptionAvailable) {
-            decrypted[key as keyof SecureData] = safeStorage.decryptString(
-              Buffer.from(value, 'base64')
-            )
-          } else {
-            decrypted[key as keyof SecureData] = value
-          }
+          decrypted[key as keyof SecureData] = safeStorage.decryptString(Buffer.from(value, 'base64'))
         } catch {
-          if (
-            value.startsWith('sk-') ||
-            value.startsWith('pplx-') ||
-            value.startsWith('tvly-') ||
-            value.startsWith('dashscope-') ||
-            value.length < 100
-          ) {
+          if (isLikelyLegacyPlaintextSecret(value)) {
             decrypted[key as keyof SecureData] = value
+            migratedLegacyPlaintext = true
           }
         }
+      }
+    }
+
+    if (migratedLegacyPlaintext) {
+      const migrated = await writeSecureDataAsync(decrypted)
+      if (!migrated) {
+        console.error('Failed to migrate legacy plaintext secure storage entries.')
       }
     }
 
@@ -80,29 +93,20 @@ async function readSecureDataAsync(): Promise<SecureData> {
 
 async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
   try {
-    const dir = path.dirname(STORAGE_FILE)
-    if (!fsSync.existsSync(dir)) {
-      await fs.mkdir(dir, { recursive: true })
+    if (!isEncryptionAvailable()) {
+      console.error('Secure storage unavailable: refusing to persist secrets without encryption.')
+      return false
     }
 
-    const encryptionAvailable = isEncryptionAvailable()
     const toWrite: Record<string, string> = {}
 
     for (const [key, value] of Object.entries(data)) {
       if (value && typeof value === 'string') {
-        if (encryptionAvailable) {
-          try {
-            toWrite[key] = safeStorage.encryptString(value).toString('base64')
-          } catch {
-            toWrite[key] = value
-          }
-        } else {
-          toWrite[key] = value
-        }
+        toWrite[key] = safeStorage.encryptString(value).toString('base64')
       }
     }
 
-    await fs.writeFile(STORAGE_FILE, JSON.stringify(toWrite, null, 2), 'utf-8')
+    await writeFileAtomic(STORAGE_FILE, JSON.stringify(toWrite, null, 2))
     cachedData = data
     cacheTimestamp = Date.now()
     return true

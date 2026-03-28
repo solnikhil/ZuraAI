@@ -56,7 +56,7 @@ describe('generateChatTitle', () => {
       'or-key',
       'meta-llama/llama-3.3',
       [{ role: 'user', content: 'Make a title for Please draft a launch plan' }],
-      { max_tokens: 20 },
+      { temperature: 0.3, max_tokens: 20 },
     )
   })
 
@@ -85,11 +85,8 @@ describe('generateChatTitle', () => {
     )
   })
 
-  it('falls back to the default OpenRouter title model after a non-auth provider failure', async () => {
+  it('falls back to a clipped user-message title after a non-auth provider failure without another configured provider', async () => {
     vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('Temporary upstream failure'))
-    vi.mocked(generateOpenRouterCompletion).mockResolvedValue({
-      choices: [{ message: { content: 'Fallback summary title' } }],
-    } as never)
 
     const result = await generateChatTitle('Summarize this research session', {
       titleModelProvider: 'groq',
@@ -99,13 +96,8 @@ describe('generateChatTitle', () => {
       openRouterApiKey: 'or-key',
     })
 
-    expect(result).toBe('Fallback summary title')
-    expect(generateOpenRouterCompletion).toHaveBeenCalledWith(
-      'or-key',
-      'google/gemini-2.0-flash-exp:free',
-      [{ role: 'user', content: expect.stringContaining('Summarize this research session') }],
-      { max_tokens: 20 },
-    )
+    expect(result).toBe('Summarize this research...')
+    expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
   })
 
   it('falls back to a clipped user-message title after auth failures', async () => {

@@ -37,6 +37,7 @@ Core capabilities:
   - **Sanitized non-secret settings + UI state** live in renderer `localStorage`.
   - **API keys and MCP secrets** live in main-process secure storage and are hydrated/resolved at runtime.
   - **Chat history, MCP server metadata, and secure storage** live in the main process under `app.getPath('userData')`.
+- UI styling guardrail: keep settings cards, chat composer containers, and dropdown/menu surfaces flat. Do **not** reintroduce outer drop shadows on those surfaces unless the user explicitly asks for them.
 
 ---
 
@@ -104,7 +105,7 @@ Core capabilities:
 |   ipcRenderer,         |
 |   appInfo,             |
 |   secureStorage,       |
-|   updater, terminal,   |
+|   updater,             |
 |   windowControls       |
 +------------------------+
 ```
@@ -112,7 +113,7 @@ Core capabilities:
 ### Windows & Routing
 - **Main Window** (`electron/windows/mainWindow.ts`)
   - Loads `#/dashboard` (HashRouter)
-  - `nodeIntegration: false`, `contextIsolation: true`
+  - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
   - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
   - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
@@ -120,7 +121,7 @@ Core capabilities:
 - **About Window** (`electron/windows/aboutWindow.ts`)
   - Loads `#/about` in its own `BrowserWindow`
   - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
-  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, and `skipTaskbar: true`
+  - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
 - **Dev vs prod loading**
   - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
@@ -158,7 +159,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 **Allowlisted channels (as implemented today):**
 - `SEND_CHANNELS`:
   - `set-native-blur`
-  - `spawn-terminal-command`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
@@ -195,9 +195,10 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Startup + Shell Initialization
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
+- Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Renderer startup in `src/main.tsx` initializes renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
+- Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 
@@ -233,7 +234,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
   - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
-  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`
+  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
@@ -251,6 +252,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
   - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
   - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
+  - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
@@ -351,9 +353,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.
   - Secret-bearing env/header/token entries store secure-storage references, not raw secret values.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
-  - Encryption: `safeStorage` when available; otherwise plaintext fallback
+  - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
+  - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
+  - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
 - No dedicated performance metrics file is persisted by the app.
 
 ### Tool System (Function Calling)

@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import { MotionConfig } from 'framer-motion'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AboutWindow from './components/AboutWindow'
 import DashboardLayout from './components/Dashboard/Layout'
@@ -36,38 +37,40 @@ function SettingsLoadingFallback() {
 function App() {
   return (
     <ErrorBoundary>
-      <ToastProvider>
-        <SettingsProvider>
-          <McpProvider>
-            <ChatHistoryProvider>
-              <StreamingProvider>
-                <QuickSendProvider>
-                  <Router>
-                    <Routes>
-                      <Route path="/about" element={<AboutWindow />} />
-                      <Route element={<AppShellLayout />}>
-                        <Route path="/" element={<DashboardLayout />} />
-                        <Route path="/dashboard" element={<DashboardLayout />} />
-                        <Route
-                          path="/settings"
-                          element={
-                            <Suspense fallback={<SettingsLoadingFallback />}>
-                              <Settings />
-                            </Suspense>
-                          }
-                        />
-                        <Route path="/chat" element={<DashboardLayout />} />
-                      </Route>
-                      <Route path="*" element={<NotFound404 />} />
-                    </Routes>
-                  </Router>
-                  <McpApprovalDialog />
-                </QuickSendProvider>
-              </StreamingProvider>
-            </ChatHistoryProvider>
-          </McpProvider>
-        </SettingsProvider>
-      </ToastProvider>
+      <MotionConfig reducedMotion="user">
+        <ToastProvider>
+          <SettingsProvider>
+            <McpProvider>
+              <ChatHistoryProvider>
+                <StreamingProvider>
+                  <QuickSendProvider>
+                    <Router>
+                      <Routes>
+                        <Route path="/about" element={<AboutWindow />} />
+                        <Route element={<AppShellLayout />}>
+                          <Route path="/" element={<DashboardLayout />} />
+                          <Route path="/dashboard" element={<DashboardLayout />} />
+                          <Route
+                            path="/settings"
+                            element={
+                              <Suspense fallback={<SettingsLoadingFallback />}>
+                                <Settings />
+                              </Suspense>
+                            }
+                          />
+                          <Route path="/chat" element={<DashboardLayout />} />
+                        </Route>
+                        <Route path="*" element={<NotFound404 />} />
+                      </Routes>
+                    </Router>
+                    <McpApprovalDialog />
+                  </QuickSendProvider>
+                </StreamingProvider>
+              </ChatHistoryProvider>
+            </McpProvider>
+          </SettingsProvider>
+        </ToastProvider>
+      </MotionConfig>
     </ErrorBoundary>
   )
 }

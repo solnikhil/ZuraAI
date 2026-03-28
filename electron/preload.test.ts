@@ -109,8 +109,14 @@ describe('preload MCP bridge', () => {
 
   it('keeps MCP tools blocked from the generic execute-tool bridge', async () => {
     const ipcRenderer = getExposedBridge<{
+      send: (channel: string, ...args: unknown[]) => void
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
     }>('ipcRenderer')
+
+    expect(() => ipcRenderer.send('spawn-terminal-command', 'whoami')).toThrow(
+      'Blocked IPC send channel: spawn-terminal-command'
+    )
+    expect(preloadMocks.send).not.toHaveBeenCalled()
 
     await expect(ipcRenderer.invoke('execute-tool', 'mcp__server__read_file', { path: 'demo.txt' })).resolves.toEqual({
       success: false,
@@ -124,6 +130,10 @@ describe('preload MCP bridge', () => {
       data: { ok: true },
     })
     expect(preloadMocks.invoke).toHaveBeenCalledWith('execute-tool', 'web_search', { query: 'mcp' })
+  })
+
+  it('does not expose the deprecated terminal bridge', () => {
+    expect(preloadMocks.exposed.has('terminal')).toBe(false)
   })
 })
 

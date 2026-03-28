@@ -106,6 +106,8 @@ export function mapOpenRouterModelToConfiguredModel(apiModel: OpenRouterModel): 
     displayName: apiModel.name,
     description: apiModel.description,
     maxContext: apiModel.context_length || apiModel.top_provider?.context_length,
+    inputModalities,
+    outputModalities,
     modelType,
     supportsToolCall,
     supportsVision,

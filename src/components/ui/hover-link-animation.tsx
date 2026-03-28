@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { motion, type ValueAnimationTransition } from 'motion/react'
+import { motion, type ValueAnimationTransition } from 'framer-motion'
 
 import { cn } from '@/lib/utils'
 

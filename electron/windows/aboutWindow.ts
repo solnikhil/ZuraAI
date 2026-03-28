@@ -48,7 +48,7 @@ export function createAboutWindow(): BrowserWindow {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false,
+      sandbox: true,
       devTools: !app.isPackaged,
       spellcheck: false,
       additionalArguments: ['--process-name=ZuraAI-About'],

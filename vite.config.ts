@@ -60,49 +60,47 @@ export default defineConfig({
     build: {
         rollupOptions: {
             output: {
-                // Enhanced code splitting configuration for bundle optimization
-                // Requirements: 2.1, 2.4
-                manualChunks: {
-                    // Core React vendor chunk - loaded first, cached long-term
-                    'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-                    
-                    // Markdown rendering dependencies - separate chunk for lazy loading
-                    'markdown': [
-                        'react-markdown',
-                        'remark-gfm',
-                        'remark-math',
-                        'rehype-katex',
-                        'react-syntax-highlighter'
-                    ],
-                    
-                    // UI animation library - separate for tree-shaking
-                    'ui-motion': ['framer-motion'],
-                    
-                    // Radix UI primitives - grouped for efficient caching
-                    'radix': [
-                        '@radix-ui/react-checkbox',
-                        '@radix-ui/react-collapsible',
-                        '@radix-ui/react-dialog',
-                        '@radix-ui/react-label',
-                        '@radix-ui/react-popover',
-                        '@radix-ui/react-progress',
-                        '@radix-ui/react-scroll-area',
-                        '@radix-ui/react-separator',
-                        '@radix-ui/react-slot',
-                        '@radix-ui/react-switch',
-                        '@radix-ui/react-tooltip'
-                    ],
-                    
-                    // Charts - only needed in settings/usage
-                    'charts': ['recharts'],
-                    
-                    // Mermaid diagrams - heavy library, lazy loaded when needed
-                    'mermaid': ['mermaid'],
-                    
-                    // Virtual list - used for long message lists
-                    'virtualization': ['react-virtuoso']
-                }
-            }
+                // Enhanced code splitting configuration for bundle optimization.
+                manualChunks(id) {
+                    if (id.includes('node_modules/react-virtuoso')) return 'virtualization'
+                    if (id.includes('node_modules/mermaid')) return 'mermaid'
+                    if (id.includes('node_modules/recharts')) return 'charts'
+                    if (id.includes('node_modules/framer-motion')) return 'ui-motion'
+                    if (
+                        id.includes('node_modules/react-markdown') ||
+                        id.includes('node_modules/remark-gfm') ||
+                        id.includes('node_modules/remark-math') ||
+                        id.includes('node_modules/rehype-katex') ||
+                        id.includes('node_modules/react-syntax-highlighter')
+                    ) {
+                        return 'markdown'
+                    }
+                    if (
+                        id.includes('node_modules/@radix-ui/react-checkbox') ||
+                        id.includes('node_modules/@radix-ui/react-collapsible') ||
+                        id.includes('node_modules/@radix-ui/react-dialog') ||
+                        id.includes('node_modules/@radix-ui/react-label') ||
+                        id.includes('node_modules/@radix-ui/react-popover') ||
+                        id.includes('node_modules/@radix-ui/react-progress') ||
+                        id.includes('node_modules/@radix-ui/react-scroll-area') ||
+                        id.includes('node_modules/@radix-ui/react-separator') ||
+                        id.includes('node_modules/@radix-ui/react-slot') ||
+                        id.includes('node_modules/@radix-ui/react-switch') ||
+                        id.includes('node_modules/@radix-ui/react-tooltip')
+                    ) {
+                        return 'radix'
+                    }
+                    if (
+                        id.includes('node_modules/react/') ||
+                        id.includes('node_modules/react-dom/') ||
+                        id.includes('node_modules/react-router-dom/')
+                    ) {
+                        return 'react-vendor'
+                    }
+
+                    return undefined
+                },
+            },
         },
         // Chunk size warning threshold (in KB)
         chunkSizeWarningLimit: 500,

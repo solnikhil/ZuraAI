@@ -2017,7 +2017,7 @@
     border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--theme-border) 86%, transparent);
     background: var(--settings-panel-container-bg);
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+    box-shadow: none;
     padding: 0 !important;
     gap: 0 !important;
     overflow: hidden;
@@ -2031,7 +2031,7 @@
     border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
     background: var(--settings-panel-container-bg);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.15);
+    box-shadow: none;
 }
 
 .stat-card,
@@ -2045,11 +2045,20 @@
 }
 
 .provider-hub-base-card {
+    /* The shared `Card` component applies `shadow-sm`, and `.settings-section-card`
+       adds an explicit `box-shadow`. For the Providers panel we want a flat surface. */
+    box-shadow: none !important;
+    /* Prevent child backgrounds (e.g. `.skills-row:hover`) from bleeding outside the
+       card's rounded corners. */
+    overflow: hidden;
+    /* Ensure radius alignment between Tailwind's `rounded-xl` and `.settings-section-card` */
+    border-radius: 14px !important;
     transition: none;
 }
 
 .provider-hub-base-card:hover {
     transform: none;
+    box-shadow: none !important;
     border-color: color-mix(in srgb, var(--theme-border) 84%, transparent);
 }
 .provider-hub-header {
@@ -2585,44 +2594,65 @@
     font-size: 0.92rem;
 }
 
-.theme-color-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 16px;
-    border-top: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
-}
-
-.theme-color-row:first-of-type {
-    border-top: none;
-}
-
-.theme-color-row__meta {
-    min-width: 0;
-    flex: 1;
-}
-
-.theme-color-row__label {
-    margin: 0;
-    font-size: 0.92rem;
-    font-weight: 560;
-    color: var(--theme-text-primary);
-    line-height: 1.35;
-}
-
-.theme-color-row__description {
-    margin-top: 3px;
-    font-size: 0.82rem;
-    color: var(--theme-text-muted);
-    line-height: 1.4;
-}
-
-.theme-color-row__control {
-    flex-shrink: 0;
+.theme-control-group {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+}
+
+.theme-reset-button {
+    border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
+    background: var(--theme-surface-subtle);
+    color: var(--theme-text-secondary);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.theme-reset-button:hover {
+    border-color: var(--theme-border-hover);
+    background: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+}
+
+.theme-color-picker {
+    width: 32px;
+    height: 32px;
+    border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
+    border-radius: 8px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+}
+
+.theme-color-input {
+    width: 90px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+    background: var(--theme-surface);
+    border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
+    border-radius: 8px;
+    color: var(--theme-text-primary);
+    font-family: monospace;
+}
+
+.theme-contrast-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.theme-contrast-slider {
+    min-width: 120px;
+}
+
+.theme-contrast-value {
+    font-size: 0.82rem;
+    color: var(--theme-text-muted);
+    min-width: 36px;
+    text-align: right;
 }
 
 .theme-section-divider {
@@ -2718,11 +2748,6 @@
     font-size: 0.85rem;
     font-weight: 500;
     color: var(--theme-text-primary);
-}
-
-/* Style section cards with varied spacing */
-.settings-section-card--theme {
-    padding: 18px;
 }
 
 .settings-section-card--theme-gallery {

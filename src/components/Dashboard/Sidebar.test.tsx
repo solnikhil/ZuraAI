@@ -358,4 +358,20 @@ describe('Sidebar Glassmorphism Styles', () => {
       expect(sidebar).toHaveStyle({ background: 'transparent' })
     })
   })
+
+  describe('Settings Navigation', () => {
+    it('marks the active settings section in the left sidebar', () => {
+      const { container } = render(
+        <Sidebar
+          {...defaultProps}
+          view="settings"
+          activeSettingsSection="themes"
+        />
+      )
+
+      const activeItem = screen.getByRole('button', { name: 'Appearance' })
+      expect(activeItem).toHaveClass('active')
+      expect(container.querySelectorAll('.sidebar-nav-item.active')).toHaveLength(1)
+    })
+  })
 })

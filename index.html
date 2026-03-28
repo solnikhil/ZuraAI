@@ -5,6 +5,10 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/icon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; img-src 'self' data: blob: https:; connect-src 'self' http: https: ws: wss:; media-src 'self' blob: data:; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'"
+  />
   <title>Zura</title>
   
   <!-- Preconnect to font origins for faster DNS/TLS handshake -->
@@ -29,33 +33,6 @@
 
 <body>
   <div id="root"></div>
-  <!-- Polyfills for modern APIs not available in Electron 25's Chromium 114 -->
-  <!-- Must be inline and before any module scripts to ensure they run first -->
-  <script>
-    // Polyfill for Promise.withResolvers (added in ES2024 / Node 22)
-    if (typeof Promise.withResolvers === 'undefined') {
-      Promise.withResolvers = function() {
-        var resolve, reject;
-        var promise = new Promise(function(res, rej) {
-          resolve = res;
-          reject = rej;
-        });
-        return { promise: promise, resolve: resolve, reject: reject };
-      };
-    }
-    
-    // Polyfill for URL.parse (added in Node 22.1.0)
-    // Returns a URL object if valid, null if invalid (unlike new URL which throws)
-    if (typeof URL.parse === 'undefined') {
-      URL.parse = function(url, base) {
-        try {
-          return new URL(url, base);
-        } catch (e) {
-          return null;
-        }
-      };
-    }
-  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

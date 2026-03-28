@@ -9,6 +9,7 @@ import type { WebSource } from './Dashboard/ChatArea/WebSourceCitation'
 import MarkdownFileTree from './MarkdownFileTree'
 import type { ExtraProps } from 'react-markdown'
 import { getPreloadedMarkdown, waitForMarkdownPreload } from '../utils/markdownPreloader'
+import { normalizeSafeHttpUrl } from '../utils/urlSafety'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 // Lazy load react-markdown component (plugins are handled by markdownPreloader)
@@ -599,15 +600,18 @@ const MarkdownContent = React.memo(function MarkdownContent({ content, webSource
                 a: ({ href, children, ...props }: React.ClassAttributes<HTMLAnchorElement> & React.AnchorHTMLAttributes<HTMLAnchorElement> & ExtraProps) => {
                     if (!href) return <span {...props}>{children}</span>
 
-                    const source = findMatchingWebSource(href, webSources)
+                    const safeHref = normalizeSafeHttpUrl(href)
+                    if (!safeHref) return <span {...props}>{children}</span>
+
+                    const source = findMatchingWebSource(safeHref, webSources)
                     if (source) {
-                        return <WebSourceCitation href={href} source={source}>{children}</WebSourceCitation>
+                        return <WebSourceCitation href={safeHref} source={source}>{children}</WebSourceCitation>
                     }
 
                     return (
                         <a
                             {...props}
-                            href={href}
+                            href={safeHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="markdown-link"
