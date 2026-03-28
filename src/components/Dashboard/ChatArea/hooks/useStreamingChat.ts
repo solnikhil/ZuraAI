@@ -115,6 +115,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (hasField('researchProgress'))
         updates.researchProgress = finalState.researchProgress
       if (hasField('toolResults')) updates.toolResults = finalState.toolResults
+      if (hasField('files')) updates.files = finalState.files
       if (hasField('model')) updates.model = finalState.model
       if (hasField('latency')) updates.latency = finalState.latency
       if (hasField('usage')) updates.usage = finalState.usage
@@ -234,6 +235,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       webSearchPrompt: settings.webSearchPrompt,
       ollamaUrl: settings.ollamaUrl,
       openRouterApiKey: settings.openRouterApiKey,
+      configuredModels: settings.configuredModels,
       perplexityApiKey: settings.perplexityApiKey,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
@@ -738,6 +740,18 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           files: userMessage.files as AttachedFile[] | undefined,
         }
 
+        const openRouterModel =
+          effectiveSettings.modelProvider === 'openrouter'
+            ? effectiveSettings.configuredModels?.find((model) => model.code === effectiveSettings.aiModel)
+            : undefined
+        const openRouterModalities =
+          openRouterModel?.supportsImageGeneration
+            ? openRouterModel.outputModalities?.filter(
+                (modality): modality is 'text' | 'image' =>
+                  modality === 'text' || modality === 'image'
+              ) || ['image', 'text']
+            : undefined
+
         const apiMessages = buildProviderMessages(
           buildOptimizedContext(
             conversationHistory,
@@ -809,7 +823,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
               getOpenRouterApiKey(effectiveSettings.openRouterApiKey),
               effectiveSettings.aiModel,
               apiMessages,
-              { temperature: effectiveSettings.temperature, signal: abortControllerRef.current?.signal }
+              {
+                temperature: effectiveSettings.temperature,
+                modalities: openRouterModalities,
+                signal: abortControllerRef.current?.signal,
+              }
             )) {
               const delta = chunk.choices?.[0]?.delta?.content || ''
               const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''

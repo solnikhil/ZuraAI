@@ -11,7 +11,11 @@ import { TOOL_FOLLOW_UP_SPLIT_MARKER } from '../../messageTimeline'
 import { useStreamingActions } from '../../../../../contexts/StreamingContext'
 import { streamOpenRouterCompletion } from '../../../../../services/openrouter'
 import { getOpenRouterApiKey } from '../../../../../utils/openRouterKey'
-import type { ThinkingBlock, ToolCallResult } from '../../../../../contexts/ChatHistoryContext'
+import type {
+  FileAttachment,
+  ThinkingBlock,
+  ToolCallResult,
+} from '../../../../../contexts/ChatHistoryContext'
 import type {
   StreamingResult,
   OpenRouterStreamingOptions,
@@ -40,6 +44,7 @@ import {
   buildFinalSynthesisMessages,
   type DeltaToolCall,
 } from './streamingUtils'
+import type { ConfiguredModel } from '../../../../../contexts/SettingsConfigContext'
 
 export interface UseOpenRouterStreamingOptions {
   settings: StreamingSettings
@@ -66,6 +71,73 @@ function extractReasoningTokens(usage: Record<string, unknown>): number {
 
 function hasVisibleToolResults(toolResults: ToolCallResult[] | undefined): boolean {
   return (toolResults || []).some((result) => result.toolCall.name !== 'web_search')
+}
+
+function getCurrentOpenRouterModel(
+  settings: StreamingSettings
+): ConfiguredModel | undefined {
+  return settings.modelProvider === 'openrouter'
+    ? settings.configuredModels?.find((model) => model.code === settings.aiModel)
+    : undefined
+}
+
+function getOpenRouterModalities(
+  model: ConfiguredModel | undefined
+): Array<'text' | 'image'> | undefined {
+  if (!model?.supportsImageGeneration) return undefined
+
+  const outputModalities = model.outputModalities?.filter(
+    (modality): modality is 'text' | 'image' => modality === 'text' || modality === 'image'
+  )
+
+  if (outputModalities && outputModalities.length > 0) {
+    return outputModalities.includes('text')
+      ? outputModalities
+      : ['image']
+  }
+
+  return ['image', 'text']
+}
+
+function inferMimeTypeFromDataUrl(dataUrl: string): string {
+  const match = dataUrl.match(/^data:([^;,]+)[;,]/i)
+  return match?.[1] || 'image/png'
+}
+
+function mapOpenRouterImagesToFiles(
+  images: Array<{ image_url?: { url?: string } }> | undefined,
+  prefix: string
+): FileAttachment[] {
+  return (images || [])
+    .map((image) => image.image_url?.url?.trim() || '')
+    .filter((url) => url.startsWith('data:image/'))
+    .map((url, index) => {
+      const mimeType = inferMimeTypeFromDataUrl(url)
+      const extension = mimeType.split('/')[1] || 'png'
+      return {
+        id: `${prefix}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+        name: `openrouter-image-${index + 1}.${extension}`,
+        type: 'image',
+        size: url.length,
+        data: url,
+        mimeType,
+      } satisfies FileAttachment
+    })
+}
+
+function mergeGeneratedFiles(existing: FileAttachment[], incoming: FileAttachment[]): FileAttachment[] {
+  if (incoming.length === 0) return existing
+
+  const merged = [...existing]
+  const seen = new Set(existing.map((file) => file.data))
+
+  for (const file of incoming) {
+    if (seen.has(file.data)) continue
+    seen.add(file.data)
+    merged.push(file)
+  }
+
+  return merged
 }
 
 /** Parse OpenRouter usage into our standard format (includes cached token support) */
@@ -145,8 +217,11 @@ export function useOpenRouterStreaming({
       const { canUseTools, getToolsForRequest, handleToolCalls, getResearchContext } = toolCalling
       const tools = canUseTools ? getToolsForRequest() : null
       const openRouterTools = tools && Array.isArray(tools) && tools.length > 0 ? tools : undefined
+      const currentModel = getCurrentOpenRouterModel(settings)
+      const modalities = getOpenRouterModalities(currentModel)
 
       let accumulatedContent = ''
+      let generatedFiles: FileAttachment[] = []
       let lastUpdateTime = Date.now()
       let finalUsage: Record<string, unknown> = {}
       let totalThinkingTokens = 0
@@ -202,12 +277,20 @@ export function useOpenRouterStreaming({
         openRouterMessages,
         {
           temperature: settings.temperature,
+          modalities,
           tools: openRouterTools,
           toolChoice: initialToolChoice,
           signal,
         }
       )) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
+        const deltaFiles = mapOpenRouterImagesToFiles(
+          chunk.choices?.[0]?.delta?.images,
+          `${messageId}-stream`
+        )
+        if (deltaFiles.length > 0) {
+          generatedFiles = mergeGeneratedFiles(generatedFiles, deltaFiles)
+        }
         if (!firstTokenTime && delta) firstTokenTime = performance.now()
 
         // Reasoning (simple format)
@@ -219,11 +302,13 @@ export function useOpenRouterStreaming({
             phase: 'reasoning',
             thinking: activeThinking,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
             thinking: activeThinking,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
         }
 
@@ -240,11 +325,13 @@ export function useOpenRouterStreaming({
             phase: 'reasoning',
             thinking: activeThinking,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             content: accumulatedContent,
             thinking: activeThinking,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
         }
 
@@ -304,12 +391,14 @@ export function useOpenRouterStreaming({
         thinking: undefined,
         thinkingDuration: undefined,
         thinkingBlocks: localThinkingBlocks,
+        files: generatedFiles,
       })
       updateStreamingMessage(sessionId, messageId, {
         content: accumulatedContent,
         thinking: undefined,
         thinkingDuration: undefined,
         thinkingBlocks: localThinkingBlocks,
+        files: generatedFiles,
       })
 
       let usage = parseOpenRouterUsage(finalUsage as Record<string, number>, totalThinkingTokens)
@@ -371,14 +460,17 @@ export function useOpenRouterStreaming({
             phase: 'searching',
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
           throttledUpdateStreamingMessage(sessionId, messageId, {
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
           updateStreamingMessage(sessionId, messageId, {
             researchStatus,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
           })
         }
 
@@ -479,6 +571,13 @@ export function useOpenRouterStreaming({
                 )
               }
               const delta = chunk.choices?.[0]?.delta?.content || ''
+              const deltaFiles = mapOpenRouterImagesToFiles(
+                chunk.choices?.[0]?.delta?.images,
+                `${messageId}-followup-${researchRound}`
+              )
+              if (deltaFiles.length > 0) {
+                generatedFiles = mergeGeneratedFiles(generatedFiles, deltaFiles)
+              }
               followUpContent += delta
 
               // Reasoning in follow-up rounds
@@ -491,11 +590,13 @@ export function useOpenRouterStreaming({
                   researchStatus: loopResearchStatus,
                   thinking: followUpReasoning,
                   thinkingBlocks: localThinkingBlocks,
+                  files: generatedFiles,
                 })
                 throttledUpdateStreamingMessage(sessionId, messageId, {
                   content: accumulatedContent + followUpContent,
                   thinking: followUpReasoning,
                   thinkingBlocks: localThinkingBlocks,
+                  files: generatedFiles,
                 })
               }
               if (delta && followUpReasoning) {
@@ -532,6 +633,7 @@ export function useOpenRouterStreaming({
                   content: accumulatedContent + followUpContent,
                   thinking: followUpReasoning || undefined,
                   thinkingBlocks: localThinkingBlocks,
+                  files: generatedFiles,
                 })
                 lastUpdateTime = now
               }
@@ -545,6 +647,7 @@ export function useOpenRouterStreaming({
               thinking: undefined,
               thinkingDuration: undefined,
               thinkingBlocks: localThinkingBlocks,
+              files: generatedFiles,
             }
             updateStreaming({ phase: 'answering', ...contentUpdate })
             throttledUpdateStreamingMessage(sessionId, messageId, contentUpdate)
@@ -724,6 +827,13 @@ export function useOpenRouterStreaming({
           )) {
             const delta = chunk.choices?.[0]?.delta?.content || ''
             const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
+            const deltaFiles = mapOpenRouterImagesToFiles(
+              chunk.choices?.[0]?.delta?.images,
+              `${messageId}-synthesis`
+            )
+            if (deltaFiles.length > 0) {
+              generatedFiles = mergeGeneratedFiles(generatedFiles, deltaFiles)
+            }
 
             if (reasoningDelta) {
               if (!synthesisThinkingStartTime) synthesisThinkingStartTime = performance.now()
@@ -732,6 +842,7 @@ export function useOpenRouterStreaming({
                 phase: 'reasoning',
                 thinking: synthesisReasoning,
                 thinkingBlocks: localThinkingBlocks,
+                files: generatedFiles,
                 researchStatus: {
                   currentRound: pendingFinalSynthesis.researchRound,
                   maxRounds: researchMaxRounds,
@@ -770,6 +881,7 @@ export function useOpenRouterStreaming({
                 content: accumulatedContent + synthesisContent,
                 thinking: synthesisReasoning || undefined,
                 thinkingBlocks: localThinkingBlocks,
+                files: generatedFiles,
                 researchStatus: {
                   currentRound: pendingFinalSynthesis.researchRound,
                   maxRounds: researchMaxRounds,
@@ -789,6 +901,7 @@ export function useOpenRouterStreaming({
             thinking: undefined,
             thinkingDuration: undefined,
             thinkingBlocks: localThinkingBlocks,
+            files: generatedFiles,
             researchStatus: {
               currentRound: pendingFinalSynthesis.researchRound,
               maxRounds: researchMaxRounds,
@@ -819,6 +932,7 @@ export function useOpenRouterStreaming({
         thinking: undefined,
         thinkingDuration: undefined,
         ...(localThinkingBlocks.length > 0 ? { thinkingBlocks: localThinkingBlocks } : {}),
+        ...(generatedFiles.length > 0 ? { files: generatedFiles } : {}),
         model: `openrouter/${settings.aiModel}`,
         latency: metrics.latency,
         usage: { ...usage, tps, ttft: metrics.ttft },
@@ -830,6 +944,7 @@ export function useOpenRouterStreaming({
         content: finalContent,
         model: `openrouter/${settings.aiModel}`,
         thinkingBlocks: localThinkingBlocks.length > 0 ? localThinkingBlocks : undefined,
+        files: generatedFiles.length > 0 ? generatedFiles : undefined,
         toolResults: savedToolResults,
         usage: { ...usage, tps, ttft: metrics.ttft },
         latency: metrics.latency,

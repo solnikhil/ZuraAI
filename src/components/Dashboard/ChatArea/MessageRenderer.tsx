@@ -548,7 +548,11 @@ function UserMessageBubble({
             gridTemplateColumns: 'repeat(auto-fit, minmax(180px, max-content))',
             gap: '8px',
             maxWidth: '70%',
-            width: '100%',
+            width: 'fit-content',
+            minWidth: 0,
+            alignSelf: 'flex-end',
+            justifyContent: 'end',
+            justifyItems: 'end',
           }}
         >
           {message.files.map((file: FileAttachment) =>
@@ -580,27 +584,6 @@ function UserMessageBubble({
                       'color-mix(in srgb, var(--theme-background) 84%, black 16%)',
                   }}
                 />
-                <div
-                  style={{
-                    padding: '10px 8px 2px',
-                    fontSize: '0.75rem',
-                    color: 'var(--theme-text-secondary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {file.name}
-                </div>
-                <div
-                  style={{
-                    padding: '0 8px 6px',
-                    fontSize: '0.72rem',
-                    color: 'var(--theme-text-muted)',
-                  }}
-                >
-                  {formatFileSize(file.size)}
-                </div>
               </div>
             ) : (
               <div
@@ -653,6 +636,54 @@ function UserMessageBubble({
           {message.content}
         </div>
       )}
+    </div>
+  )
+}
+
+function RenderImageFiles({ files }: { files: FileAttachment[] }) {
+  const imageFiles = files.filter((file) => file.type === 'image')
+  if (imageFiles.length === 0) return null
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, max-content))',
+        gap: '8px',
+        maxWidth: '70%',
+        width: '100%',
+        marginBottom: '12px',
+      }}
+    >
+      {imageFiles.map((file) => (
+        <div
+          key={file.id}
+          style={{
+            background: 'color-mix(in srgb, var(--theme-surface) 88%, transparent)',
+            border: '1px solid var(--theme-border)',
+            borderRadius: '16px',
+            padding: '8px',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            boxShadow: 'var(--theme-shadow-sm)',
+          }}
+        >
+          <img
+            src={file.data}
+            alt={file.name}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '300px',
+              borderRadius: '12px',
+              objectFit: 'cover',
+              display: 'block',
+              width: '100%',
+              height: 'auto',
+              background: 'color-mix(in srgb, var(--theme-background) 84%, black 16%)',
+            }}
+          />
+        </div>
+      ))}
     </div>
   )
 }
@@ -1270,6 +1301,8 @@ function MessageRendererComponent({
 
   return (
     <div style={{ marginBottom: '24px' }} tabIndex={0} onKeyDown={handleKeyDown} ref={messageRef}>
+      {message.files && message.files.length > 0 && <RenderImageFiles files={message.files} />}
+
       {showUpperThinkingBlock && (
         <div style={{ marginBottom: '8px' }}>
           <ThinkingBlockComponent

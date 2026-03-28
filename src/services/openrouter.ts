@@ -35,6 +35,12 @@ export interface OpenRouterStreamChunk {
         delta?: {
             content?: string
             role?: string
+            images?: Array<{
+                type?: string
+                image_url?: {
+                    url?: string
+                }
+            }>
             reasoning?: string
             reasoning_details?: Array<{
                 id: string | null
@@ -76,6 +82,12 @@ export interface OpenRouterResponse {
         message: {
             role: string
             content: string
+            images?: Array<{
+                type?: string
+                image_url?: {
+                    url?: string
+                }
+            }>
             reasoning?: string
             reasoning_details?: Array<{
                 id: string | null
@@ -112,6 +124,11 @@ interface OpenRouterRequestBody {
     model: string
     messages: ChatMessage[]
     stream?: boolean
+    modalities?: Array<'text' | 'image'>
+    image_config?: {
+        aspect_ratio?: string
+        image_size?: string
+    }
     temperature?: number
     max_tokens?: number
     tools?: ToolDefinition[]
@@ -142,6 +159,11 @@ export async function* streamOpenRouterCompletion(
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
         onChunk?: (chunk: OpenRouterStreamChunk) => void
+        modalities?: Array<'text' | 'image'>
+        imageConfig?: {
+            aspect_ratio?: string
+            image_size?: string
+        }
         reasoning?: {
             max_tokens?: number
             effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
@@ -163,6 +185,12 @@ export async function* streamOpenRouterCompletion(
 
     if (options?.temperature !== undefined) {
         requestBody.temperature = options.temperature
+    }
+    if (options?.modalities?.length) {
+        requestBody.modalities = options.modalities
+    }
+    if (options?.imageConfig) {
+        requestBody.image_config = options.imageConfig
     }
     if (options?.maxTokens !== undefined) {
         requestBody.max_tokens = options.maxTokens

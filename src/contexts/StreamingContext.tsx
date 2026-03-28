@@ -3,7 +3,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react'
-import type { ThinkingBlock, ToolCallResult } from './ChatHistoryContext'
+import type { FileAttachment, ThinkingBlock, ToolCallResult } from './ChatHistoryContext'
 
 export type StreamingPhase = 'reasoning' | 'searching' | 'tool' | 'answering'
 
@@ -32,6 +32,8 @@ export interface StreamingMessageState {
   }
   /** Tool results from function calls */
   toolResults?: ToolCallResult[]
+  /** Generated files returned while streaming */
+  files?: FileAttachment[]
   /** Structured research plan (step-by-step mode) */
   researchPlan?: {
     topic: string

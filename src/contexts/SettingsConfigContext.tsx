@@ -42,6 +42,8 @@ export interface ConfiguredModel {
   description?: string
   maxContext?: number
   extendedParameters?: string[]
+  inputModalities?: string[]
+  outputModalities?: string[]
   modelType?: 'chat' | 'reasoning' | 'image' | 'video' | 'embedding' | 'other'
   supportsToolCall?: boolean
   supportsVision?: boolean
