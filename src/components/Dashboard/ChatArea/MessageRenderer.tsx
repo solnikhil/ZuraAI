@@ -46,6 +46,7 @@ import {
 import { formatFileSize } from './attachmentUtils'
 import { Button } from '@/components/ui/button'
 import type { StreamingPhase } from '../../../contexts/StreamingContext'
+import { normalizeSafeHttpUrl } from '../../../utils/urlSafety'
 import {
   removeToolFollowUpSplitMarker,
   shouldCaptureFollowUpSnapshot,
@@ -207,8 +208,8 @@ function convertUrlsInText(text: string): string {
   let result = text.replace(
     /(^|\s)\[(\d+)\]\s+(https?:\/\/[^\s\)\]\[`]+)/gm,
     (_match, prefix, num, url) => {
-      const cleanUrl = url.replace(/[.,;:!?]+$/, '')
-      return `${prefix}[[${num}]](${cleanUrl})`
+      const cleanUrl = normalizeSafeHttpUrl(url.replace(/[.,;:!?]+$/, ''))
+      return cleanUrl ? `${prefix}[[${num}]](${cleanUrl})` : `${prefix}[${num}] ${url}`
     }
   )
 
@@ -220,8 +221,8 @@ function convertUrlsInText(text: string): string {
     const refMatch = line.match(/^(\s*)\[(\d+)\]\s+(https?:\/\/.+)$/)
     if (refMatch) {
       const [, indent, num, url] = refMatch
-      const cleanUrl = url.trim().replace(/[.,;:!?]+$/, '')
-      return `${indent}[[${num}]](${cleanUrl})`
+      const cleanUrl = normalizeSafeHttpUrl(url.trim().replace(/[.,;:!?]+$/, ''))
+      return cleanUrl ? `${indent}[[${num}]](${cleanUrl})` : line
     }
 
     // Pattern 3: Plain URLs (exclude backticks from URL chars)
@@ -238,8 +239,8 @@ function convertUrlsInText(text: string): string {
       if (beforeUrl.endsWith('](') || afterUrl.startsWith(')')) {
         lineResult += match[0]
       } else {
-        const cleanUrl = match[0].replace(/[.,;:!?]+$/, '')
-        lineResult += `<${cleanUrl}>`
+        const cleanUrl = normalizeSafeHttpUrl(match[0].replace(/[.,;:!?]+$/, ''))
+        lineResult += cleanUrl ? `<${cleanUrl}>` : match[0]
       }
       lastIndex = match.index + match[0].length
     }
@@ -282,7 +283,12 @@ function convertNumericCitationsToMarkdownLinks(
           return match
         }
 
-        return refNumbers.map((n) => `[[${n}]](${orderedSourceUrls[n - 1]})`).join(', ')
+        const safeLinks = refNumbers.map((n) => normalizeSafeHttpUrl(orderedSourceUrls[n - 1] || ''))
+        if (safeLinks.some((link) => !link)) {
+          return match
+        }
+
+        return safeLinks.map((link, index) => `[[${refNumbers[index]}]](${link})`).join(', ')
       })
     })
     .join('')

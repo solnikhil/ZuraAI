@@ -234,7 +234,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
   - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
-  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`
+  - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
 - Provider streaming entry points:
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
@@ -353,7 +353,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Stores versioned non-secret server config, last-known tools, last-known resources, last-known prompts, and last connection metadata.
   - Secret-bearing env/header/token entries store secure-storage references, not raw secret values.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
-  - Encryption: `safeStorage` when available; otherwise plaintext fallback
+  - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
+  - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
   - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
   - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
