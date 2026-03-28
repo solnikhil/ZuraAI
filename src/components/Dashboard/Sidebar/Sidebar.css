@@ -164,7 +164,7 @@
 
 .sidebar-header {
   --sidebar-header-action-color: var(--theme-text-secondary);
-  padding: 8px 8px 6px;
+  padding: 8px 8px 4px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -311,6 +311,11 @@
 .sidebar-chatlist {
   flex: 1;
   min-width: 0;
+  background: var(--theme-sidebar-solid);
+}
+
+.sidebar-container.frosted .sidebar-chatlist {
+  background: transparent;
 }
 
 .sidebar-chatlist__viewport {
@@ -325,6 +330,7 @@
   flex-direction: column;
   gap: var(--sidebar-item-gap);
   outline: none;
+  padding-top: 2px;
 }
 
 /* ── Chat row ──────────────────────────────────────────────── */
@@ -333,6 +339,7 @@
   display: flex;
   align-items: center;
   padding: 7px 6px;
+  margin-right: 6px;
   cursor: pointer;
   border-radius: 10px;
   height: var(--sidebar-row-height);

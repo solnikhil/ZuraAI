@@ -87,6 +87,14 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     return flat
   }, [groupedSessions, folders])
 
+  const sessionIndexMap = useMemo(() => {
+    const indexMap = new Map<string, number>()
+    flatVisibleSessions.forEach((session, index) => {
+      indexMap.set(session.id, index)
+    })
+    return indexMap
+  }, [flatVisibleSessions])
+
   // Clamp focus index when list changes
   useEffect(() => {
     if (focusIndex >= flatVisibleSessions.length) {
@@ -312,6 +320,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         streamingSessionId={null}
         focusIndex={focusIndex}
         flatVisibleSessions={flatVisibleSessions}
+        sessionIndexMap={sessionIndexMap}
         bottomPadding={userStripPadding}
         onSelectSession={switchSession}
         onContextAction={handleContextAction}

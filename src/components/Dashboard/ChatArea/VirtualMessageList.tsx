@@ -159,6 +159,24 @@ export function VirtualMessageList({
   // viewportHeight is tracked via state + resize listener above so it stays current.
   const preRenderBuffer = Math.min(Math.max(Math.round(viewportHeight * 1.25), 480), 1200)
 
+  const renderItemContent = useCallback(
+    (index: number, message: Message) => (
+      <div
+        key={message.id}
+        data-message-id={message.id}
+        style={{
+          width: '100%',
+          maxWidth: 'min(860px, 100%)',
+          margin: '0 auto',
+          padding: '0 20px',
+        }}
+      >
+        {renderMessage(index, message)}
+      </div>
+    ),
+    [renderMessage]
+  )
+
   // Don't render virtuoso for empty lists
   if (messages.length === 0) {
     return null
@@ -177,20 +195,7 @@ export function VirtualMessageList({
       <Virtuoso
         ref={virtuosoRef}
         data={messages}
-        itemContent={(index, message) => (
-          <div
-            key={message.id}
-            data-message-id={message.id}
-            style={{
-              width: '100%',
-              maxWidth: 'min(860px, 100%)',
-              margin: '0 auto',
-              padding: '0 20px',
-            }}
-          >
-            {renderMessage(index, message)}
-          </div>
-        )}
+        itemContent={renderItemContent}
         followOutput={followOutput}
         increaseViewportBy={{ top: preRenderBuffer, bottom: preRenderBuffer }}
         scrollSeekConfiguration={{

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { useNavigate } from 'react-router-dom'
 import { Search } from '../icons'
@@ -115,6 +115,7 @@ export default function CommandPalette() {
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const deferredQuery = useDeferredValue(query)
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [history, setHistory] = useState<CommandBarHistoryEntry[]>(() => loadCommandBarHistory())
 
@@ -161,19 +162,19 @@ export default function CommandPalette() {
 
   const baseSuggestions = useMemo(() => {
     return getCommandBarSuggestions(
-      query,
+      deferredQuery,
       {
         hasCurrentSession: Boolean(currentSession),
       },
       commandBar.maxSuggestions
     )
-  }, [commandBar.maxSuggestions, currentSession, query])
+  }, [commandBar.maxSuggestions, currentSession, deferredQuery])
 
   const recentSuggestions = useMemo<CommandBarSuggestion[]>(() => {
     if (!commandBar.showRecents) return []
     if (history.length === 0) return []
 
-    const normalized = query.trim().toLowerCase()
+    const normalized = deferredQuery.trim().toLowerCase()
     const filtered = normalized
       ? history.filter(
           (entry) =>
@@ -189,18 +190,18 @@ export default function CommandPalette() {
       action: entry.action,
       score: 1000,
     }))
-  }, [commandBar.maxRecents, commandBar.showRecents, history, query])
+  }, [commandBar.maxRecents, commandBar.showRecents, deferredQuery, history])
 
   // When query is empty, show recent + commands (deduped).
   // When query is non-empty, show only baseSuggestions (no separate recents).
   const suggestions = useMemo(() => {
-    if (query.trim().length > 0) return baseSuggestions
+    if (deferredQuery.trim().length > 0) return baseSuggestions
 
     const recentIds = new Set(recentSuggestions.map((s) => s.id))
     return baseSuggestions.filter((s) => !recentIds.has(s.id))
-  }, [baseSuggestions, query, recentSuggestions])
+  }, [baseSuggestions, deferredQuery, recentSuggestions])
 
-  const displayedRecents = query.trim().length > 0 ? [] : recentSuggestions
+  const displayedRecents = deferredQuery.trim().length > 0 ? [] : recentSuggestions
   const totalItems = displayedRecents.length + suggestions.length
 
   /* ── live region for result count ── */

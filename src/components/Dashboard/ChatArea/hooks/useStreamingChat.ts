@@ -240,7 +240,20 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
     }),
-    [settings]
+    [
+      settings.aiModel,
+      settings.modelProvider,
+      settings.temperature,
+      settings.maxTokens,
+      settings.streamResponses,
+      settings.webSearchPrompt,
+      settings.ollamaUrl,
+      settings.openRouterApiKey,
+      settings.configuredModels,
+      settings.perplexityApiKey,
+      settings.groqApiKey,
+      settings.alibabaApiKey,
+    ]
   )
 
   const {

@@ -1,22 +1,11 @@
 import React from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Virtuoso } from 'react-virtuoso'
 import ChatRow from './ChatRow'
 import type { ChatRowAction } from './ChatRow'
 import ChatRowContextMenu from './ChatRowContextMenu'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import RenameChatDialog from './RenameChatDialog'
-import PinnedSection from './PinnedSection'
-import FolderSection from './FolderSection'
-import { ChevronDown, Copy, Edit2, Ellipsis, Pin, Trash2 } from '../../icons'
+import { ChevronDown, FolderOpen, Pin } from '../../icons'
 import type { GroupedSessions } from './utils/groupSessions'
 import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
@@ -33,6 +22,7 @@ interface SidebarChatListProps {
   streamingSessionId: string | null
   focusIndex: number
   flatVisibleSessions: ChatSession[]
+  sessionIndexMap: Map<string, number>
   bottomPadding?: number
   onSelectSession: (id: string) => void
   onContextAction: (action: ChatRowAction, sessionId: string) => void
@@ -47,6 +37,11 @@ interface TimeGroupBucket {
   sessions: ChatSession[]
 }
 
+type SidebarListItem =
+  | { type: 'section'; key: string; label: string; icon?: 'pin' | 'folder'; count?: number; folder?: Folder }
+  | { type: 'row'; key: string; session: ChatSession; indented?: boolean }
+  | { type: 'folder-empty'; key: string; folderId: string }
+
 export default function SidebarChatList({
   groupedSessions,
   folders,
@@ -56,6 +51,7 @@ export default function SidebarChatList({
   streamingSessionId,
   focusIndex,
   flatVisibleSessions,
+  sessionIndexMap,
   bottomPadding = 8,
   onSelectSession,
   onContextAction,
@@ -63,56 +59,24 @@ export default function SidebarChatList({
   onDropSessionToFolder,
   onKeyDown,
 }: SidebarChatListProps) {
-  const [dropdownOpenId, setDropdownOpenId] = React.useState<string | null>(null)
   const [deleteConfirmSessionId, setDeleteConfirmSessionId] = React.useState<string | null>(null)
   const [renameSessionId, setRenameSessionId] = React.useState<string | null>(null)
+  const [isPinnedOpen, setIsPinnedOpen] = React.useState(true)
   const [isYourChatsOpen, setIsYourChatsOpen] = React.useState(true)
-  const viewportRef = React.useRef<HTMLDivElement | null>(null)
-  const [hasVerticalScrollbar, setHasVerticalScrollbar] = React.useState(false)
-
-  const updateScrollbarState = React.useCallback(() => {
-    const viewport = viewportRef.current
-    if (!viewport) return
-
-    const shouldShowVerticalScrollbar = viewport.scrollHeight > viewport.clientHeight + 1
-    setHasVerticalScrollbar((prev) =>
-      prev === shouldShowVerticalScrollbar ? prev : shouldShowVerticalScrollbar
-    )
-  }, [])
+  const [openFolderIds, setOpenFolderIds] = React.useState(() => new Set<string>())
+  const [dragOverFolderId, setDragOverFolderId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    updateScrollbarState()
-
-    const viewport = viewportRef.current
-    if (!viewport) return
-
-    const onScroll = () => updateScrollbarState()
-    const onResize = () => updateScrollbarState()
-
-    viewport.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onResize)
-
-    let resizeObserver: ResizeObserver | null = null
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        updateScrollbarState()
+    setOpenFolderIds((prev) => {
+      const next = new Set<string>()
+      folders.forEach((folder) => {
+        if (prev.size === 0 || prev.has(folder.id)) {
+          next.add(folder.id)
+        }
       })
-
-      resizeObserver.observe(viewport)
-      const viewportContent = viewport.firstElementChild
-      if (viewportContent instanceof HTMLElement) {
-        resizeObserver.observe(viewportContent)
-      }
-    }
-
-    return () => {
-      viewport.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
-      resizeObserver?.disconnect()
-    }
-  }, [updateScrollbarState])
-
-  const horizontalPadding = `${CHAT_LIST_BASE_HORIZONTAL_PADDING + (hasVerticalScrollbar ? CHAT_LIST_SCROLLBAR_GUTTER : 0)}px`
+      return next
+    })
+  }, [folders])
 
   // Build time-group buckets (only include non-empty ones)
   const timeGroups: TimeGroupBucket[] = React.useMemo(() => {
@@ -126,9 +90,71 @@ export default function SidebarChatList({
     return buckets.filter((b) => b.sessions.length > 0)
   }, [groupedSessions])
 
-  const renderChatRow = (session: ChatSession) => {
-    const flatIndex = flatVisibleSessions.findIndex((s) => s.id === session.id)
-    const isDropdownOpen = dropdownOpenId === session.id
+  const toggleFolderOpen = React.useCallback((folderId: string) => {
+    setOpenFolderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderId)) {
+        next.delete(folderId)
+      } else {
+        next.add(folderId)
+      }
+      return next
+    })
+  }, [])
+
+  const sidebarItems = React.useMemo<SidebarListItem[]>(() => {
+    const items: SidebarListItem[] = []
+
+    if (groupedSessions.pinned.length > 0) {
+      items.push({ type: 'section', key: 'pinned', label: 'Pinned', icon: 'pin' })
+      if (isPinnedOpen) {
+        groupedSessions.pinned.forEach((session) => {
+          items.push({ type: 'row', key: `pinned:${session.id}`, session })
+        })
+      }
+    }
+
+    folders.forEach((folder) => {
+      const folderSessions = groupedSessions.folders.get(folder.id) || []
+      items.push({
+        type: 'section',
+        key: `folder:${folder.id}`,
+        label: folder.name,
+        icon: 'folder',
+        count: folderSessions.length,
+        folder,
+      })
+
+      if (openFolderIds.has(folder.id)) {
+        folderSessions.forEach((session) => {
+          items.push({
+            type: 'row',
+            key: `folder:${folder.id}:${session.id}`,
+            session,
+            indented: true,
+          })
+        })
+
+        if (folderSessions.length === 0) {
+          items.push({ type: 'folder-empty', key: `folder-empty:${folder.id}`, folderId: folder.id })
+        }
+      }
+    })
+
+    items.push({ type: 'section', key: 'your-chats', label: 'Your chats' })
+    if (isYourChatsOpen) {
+      timeGroups.forEach((group) => {
+        group.sessions.forEach((session) => {
+          items.push({ type: 'row', key: `${group.label}:${session.id}`, session })
+        })
+      })
+    }
+
+    return items
+  }, [folders, groupedSessions.folders, groupedSessions.pinned, isPinnedOpen, isYourChatsOpen, openFolderIds, timeGroups])
+
+  const renderChatRow = React.useCallback((session: ChatSession, indented = false) => {
+    const flatIndex = sessionIndexMap.get(session.id) ?? -1
 
     const handleContextMenuAction = (action: ChatRowAction, sessionId: string) => {
       if (action === 'rename') {
@@ -150,146 +176,146 @@ export default function SidebarChatList({
             e.dataTransfer.setData('text/plain', session.id)
             e.dataTransfer.effectAllowed = 'move'
           }}
+          style={{
+            paddingLeft: indented ? 8 : 0,
+            paddingRight: 6,
+          }}
         >
           <ChatRow
             session={session}
             selectedOverlayStyle={chatSelectedOverlayStyle}
             isFrosted={isFrosted}
             isActive={currentSessionId === session.id}
-            isMenuOpen={isDropdownOpen}
             isFocused={flatIndex === focusIndex}
             isStreaming={streamingSessionId === session.id}
             onSelect={onSelectSession}
-            renderMoreButton={(className) => (
-              <DropdownMenu
-                open={isDropdownOpen}
-                onOpenChange={(open) => {
-                  setDropdownOpenId(open ? session.id : null)
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                    }}
-                    aria-label="Chat options"
-                    className={className}
-                  >
-                    <Ellipsis size={14} />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  side="bottom"
-                  style={
-                    isFrosted
-                      ? {
-                          background:
-                            'linear-gradient(180deg, rgba(22, 24, 30, 0.74) 0%, rgba(14, 16, 22, 0.68) 100%)',
-                          border:
-                            '1px solid color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.2) 28%)',
-                          backdropFilter: 'blur(14px) saturate(120%)',
-                          WebkitBackdropFilter: 'blur(14px) saturate(120%)',
-                        }
-                      : undefined
-                  }
-                >
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem onClick={() => setRenameSessionId(session.id)}>
-                      <Edit2 size={14} />
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        onContextAction(session.pinned === true ? 'unpin' : 'pin', session.id)
-                      }
-                    >
-                      <Pin size={14} />
-                      {session.pinned === true ? 'Unpin' : 'Pin'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onContextAction('duplicate', session.id)}>
-                      <Copy size={14} />
-                      Duplicate
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => setDeleteConfirmSessionId(session.id)}
-                    variant="destructive"
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
           />
         </div>
       </ChatRowContextMenu>
     )
-  }
+  }, [
+    chatSelectedOverlayStyle,
+    currentSessionId,
+    focusIndex,
+    isFrosted,
+    onContextAction,
+    onSelectSession,
+    sessionIndexMap,
+    streamingSessionId,
+  ])
+
+  const renderSectionHeader = React.useCallback(
+    (item: Extract<SidebarListItem, { type: 'section' }>) => {
+      if (item.folder) {
+        const isOpen = openFolderIds.has(item.folder.id)
+        const isDragOver = dragOverFolderId === item.folder.id
+        return (
+          <div
+            onDragOver={(event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              setDragOverFolderId(item.folder!.id)
+            }}
+            onDragLeave={() => {
+              setDragOverFolderId((prev) => (prev === item.folder!.id ? null : prev))
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDragOverFolderId((prev) => (prev === item.folder!.id ? null : prev))
+              const sessionId = event.dataTransfer.getData('text/plain')
+              if (sessionId) {
+                onDropSessionToFolder(sessionId, item.folder!.id)
+              }
+            }}
+            className={`sidebar-folder-dropzone ${isDragOver ? 'sidebar-folder-dropzone--over' : ''}`}
+          >
+            <div
+              className="sidebar-section-label"
+              onClick={() => toggleFolderOpen(item.folder!.id)}
+              role="button"
+              aria-expanded={isOpen}
+            >
+              <ChevronDown
+                size={10}
+                className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
+              />
+              <FolderOpen size={12} className="sidebar-section-label__icon" />
+              <span className="sidebar-section-label__name">{item.label}</span>
+              <span className="sidebar-section-label__count">{item.count}</span>
+            </div>
+          </div>
+        )
+      }
+
+      const isOpen = item.key === 'pinned' ? isPinnedOpen : isYourChatsOpen
+      const toggleOpen =
+        item.key === 'pinned'
+          ? () => setIsPinnedOpen((prev) => !prev)
+          : () => setIsYourChatsOpen((prev) => !prev)
+
+      return (
+        <div className="sidebar-section-label" onClick={toggleOpen} role="button" aria-expanded={isOpen}>
+          <ChevronDown
+            size={10}
+            className={`sidebar-section-label__chevron ${isOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
+          />
+          {item.icon === 'pin' && <Pin size={11} className="sidebar-section-label__icon" />}
+          <span>{item.label}</span>
+        </div>
+      )
+    },
+    [dragOverFolderId, isPinnedOpen, isYourChatsOpen, onDropSessionToFolder, openFolderIds, toggleFolderOpen]
+  )
+
+  const renderItem = React.useCallback(
+    (_index: number, item: SidebarListItem) => {
+      if (item.type === 'section') {
+        return renderSectionHeader(item)
+      }
+
+      if (item.type === 'folder-empty') {
+        return <div className="sidebar-folder-empty">Drop chats here</div>
+      }
+
+      return renderChatRow(item.session, item.indented)
+    },
+    [renderChatRow, renderSectionHeader]
+  )
 
   return (
     <>
-      <ScrollArea
-        className="sidebar-chatlist"
-        viewportRef={viewportRef}
-        viewportStyle={{
-          display: 'flex',
-          flexDirection: 'column',
-          paddingLeft: horizontalPadding,
-          paddingRight: horizontalPadding,
-        }}
-      >
-        <div
-          role="listbox"
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          className="sidebar-chatlist__listbox"
-          style={{ paddingBottom: bottomPadding }}
-        >
-          {groupedSessions.pinned.length > 0 && (
-            <PinnedSection sessions={groupedSessions.pinned}>
-              {groupedSessions.pinned.map((s) => renderChatRow(s))}
-            </PinnedSection>
-          )}
-
-          {folders.map((folder) => {
-            const folderSessions = groupedSessions.folders.get(folder.id) || []
-            return (
-              <FolderSection
-                key={folder.id}
-                folder={folder}
-                sessionCount={folderSessions.length}
-                onDropSession={onDropSessionToFolder}
-              >
-                {folderSessions.map((s) => renderChatRow(s))}
-              </FolderSection>
-            )
-          })}
-
-          <Collapsible open={isYourChatsOpen} onOpenChange={setIsYourChatsOpen}>
-            <CollapsibleTrigger asChild>
-              <div className="sidebar-section-label">
-                <ChevronDown
-                  size={10}
-                  className={`sidebar-section-label__chevron ${isYourChatsOpen ? 'sidebar-section-label__chevron--open' : 'sidebar-section-label__chevron--closed'}`}
-                />
-                <span>Your chats</span>
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="sidebar-section-content" style={{ paddingTop: '2px' }}>
-                {timeGroups.map((group) => (
-                  <React.Fragment key={group.label}>
-                    {group.sessions.map((s) => renderChatRow(s))}
-                  </React.Fragment>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      </ScrollArea>
+      <div className="sidebar-chatlist">
+        <Virtuoso
+          data={sidebarItems}
+          itemContent={renderItem}
+          components={{
+            List: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+              function SidebarChatListbox(props, ref) {
+                return (
+                  <div
+                    {...props}
+                    ref={ref}
+                    role="listbox"
+                    tabIndex={0}
+                    onKeyDown={onKeyDown}
+                    className="sidebar-chatlist__listbox"
+                    style={{
+                      ...(props.style || {}),
+                      paddingTop: 2,
+                      paddingBottom: bottomPadding,
+                    }}
+                  />
+                )
+              }
+            ),
+          }}
+          style={{
+            height: '100%',
+            paddingLeft: CHAT_LIST_BASE_HORIZONTAL_PADDING,
+            paddingRight: CHAT_LIST_BASE_HORIZONTAL_PADDING + CHAT_LIST_SCROLLBAR_GUTTER,
+          }}
+        />
+      </div>
 
       <DeleteChatAlertDialog
         open={deleteConfirmSessionId !== null}
