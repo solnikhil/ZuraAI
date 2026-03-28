@@ -25,22 +25,24 @@ import {
 } from '../attachmentUtils'
 
 import {
-  useOllamaStreaming,
-  usePerplexityStreaming,
-  useGroqStreaming,
-  useOpenRouterStreaming,
   useAlibabaStreaming,
+  useFireworksStreaming,
+  useGroqStreaming,
+  useOllamaStreaming,
+  useOpenRouterStreaming,
+  usePerplexityStreaming,
   useStreamingToolCalls,
   useResearchMode,
   type StreamingSettings,
   type ToolCallingHook,
 } from './streaming'
 
-import { streamOllamaCompletion } from '../../../../services/ollama'
-import { streamPerplexityCompletion } from '../../../../services/perplexity'
-import { streamGroqCompletion } from '../../../../services/groq'
 import { streamAlibabaCompletion } from '../../../../services/alibaba'
+import { streamFireworksCompletion } from '../../../../services/fireworks'
+import { streamGroqCompletion } from '../../../../services/groq'
+import { streamOllamaCompletion } from '../../../../services/ollama'
 import { streamOpenRouterCompletion } from '../../../../services/openrouter'
+import { streamPerplexityCompletion } from '../../../../services/perplexity'
 
 export interface UseStreamingChatOptions {
   onMessageSent?: () => void
@@ -318,6 +320,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     throttledUpdateStreamingMessage,
   })
 
+  const { streamFireworks } = useFireworksStreaming({
+    settings: streamingSettings,
+    toolCalling,
+    updateStreamingMessage,
+    flushThrottledUpdates,
+    throttledUpdateStreamingMessage,
+  })
+
   const stopStreaming = useCallback(() => {
     // Flush any pending throttled updates before stopping
     flushThrottledUpdates()
@@ -455,14 +465,25 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Validate API key before sending
         const isOpenRouter =
           settings.modelProvider === 'openrouter' ||
-          !['ollama', 'perplexity', 'groq', 'alibaba'].includes(settings.modelProvider)
+          !['alibaba', 'fireworks', 'groq', 'ollama', 'perplexity'].includes(settings.modelProvider)
         const isAlibaba = settings.modelProvider === 'alibaba'
+        const isFireworks = settings.modelProvider === 'fireworks'
         if (isAlibaba && !settings.alibabaApiKey?.trim()) {
           deleteMessageFromSession(targetSessionId!, streamingMessageId)
           streamingMessageRef.current = null
           setIsLoading(false)
           showToast(
             'Alibaba API key is required. Add it in Settings > Providers and save.',
+            'error'
+          )
+          return
+        }
+        if (isFireworks && !settings.fireworksApiKey?.trim()) {
+          deleteMessageFromSession(targetSessionId!, streamingMessageId)
+          streamingMessageRef.current = null
+          setIsLoading(false)
+          showToast(
+            'Fireworks API key is required. Add it in Settings > Providers and save.',
             'error'
           )
           return
@@ -507,6 +528,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           })
         } else if (settings.modelProvider === 'alibaba') {
           await streamAlibaba({
+            sessionId: targetSessionId!,
+            messageId: streamingMessageId,
+            messages: providerMessages,
+            startTime,
+            researchMaxRounds,
+            signal: abortControllerRef.current?.signal,
+          })
+        } else if (settings.modelProvider === 'fireworks') {
+          await streamFireworks({
             sessionId: targetSessionId!,
             messageId: streamingMessageId,
             messages: providerMessages,

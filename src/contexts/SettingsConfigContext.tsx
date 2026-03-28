@@ -53,7 +53,7 @@ export interface ConfiguredModel {
   supportsVideoRecognition?: boolean
 }
 
-type ProviderKey = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+type ProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
 /**
@@ -66,10 +66,11 @@ export interface SettingsConfig {
   groqApiKey: string
   tavilyApiKey: string
   alibabaApiKey: string
+  fireworksApiKey: string
 
   // Model settings
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   ollamaUrl: string
@@ -77,6 +78,7 @@ export interface SettingsConfig {
   perplexityModels: ConfiguredModel[]
   groqModels: ConfiguredModel[]
   alibabaModels: ConfiguredModel[]
+  fireworksModels: ConfiguredModel[]
 
   // AI parameters
   temperature: number
@@ -96,7 +98,7 @@ export interface SettingsConfig {
   structuredResearchEnabled?: boolean
 
   // Title generation
-  titleModelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  titleModelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
   titleModel: string
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
@@ -126,16 +128,18 @@ export const defaultSettingsConfig: SettingsConfig = {
   groqApiKey: '',
   tavilyApiKey: '',
   alibabaApiKey: '',
+  fireworksApiKey: '',
 
   // Model settings
   aiModel: '',
   modelProvider: 'openrouter',
   providerEnabled: {
-    openrouter: true,
-    ollama: true,
-    perplexity: true,
-    groq: true,
     alibaba: true,
+    fireworks: true,
+    groq: true,
+    ollama: true,
+    openrouter: true,
+    perplexity: true,
   },
   configuredModels: [],
   ollamaUrl: 'http://localhost:11434',
@@ -379,6 +383,121 @@ export const defaultSettingsConfig: SettingsConfig = {
     { code: 'qwen-plus-us', displayName: 'Qwen Plus US', enabled: false, maxContext: 128000 },
     { code: 'qwen-flash-us', displayName: 'Qwen Flash US', enabled: false, maxContext: 128000 },
   ],
+  fireworksModels: [
+    // Tier 1: Essential Flagship Models
+    {
+      code: 'accounts/fireworks/models/deepseek-v3p2',
+      displayName: 'DeepSeek V3.2',
+      enabled: true,
+      maxContext: 163840,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: false,
+      modelType: 'chat',
+      description: 'Best price-to-performance, MoE architecture, efficient reasoning',
+    },
+    {
+      code: 'accounts/fireworks/models/kimi-k2p5',
+      displayName: 'Kimi K2.5',
+      enabled: true,
+      maxContext: 262144,
+      supportsToolCall: true,
+      supportsVision: true,
+      supportsDeepThinking: true,
+      modelType: 'chat',
+      description: '1T params, unified vision+text, thinking/non-thinking modes, agentic SOTA',
+    },
+    {
+      code: 'accounts/fireworks/models/deepseek-r1',
+      displayName: 'DeepSeek R1',
+      enabled: true,
+      maxContext: 163840,
+      supportsToolCall: false,
+      supportsVision: false,
+      supportsDeepThinking: true,
+      modelType: 'reasoning',
+      description: '671B MoE, 97.3% MATH-500, advanced reasoning & chain-of-thought',
+    },
+    {
+      code: 'accounts/fireworks/models/llama-v3p1-405b-instruct',
+      displayName: 'Llama 3.1 405B',
+      enabled: true,
+      maxContext: 131072,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: false,
+      modelType: 'chat',
+      description: 'Meta flagship, 410B params, multilingual, strong generalist',
+    },
+    // Tier 2: Efficient & Balanced
+    {
+      code: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+      displayName: 'Llama 3.1 8B',
+      enabled: true,
+      maxContext: 131072,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: false,
+      modelType: 'chat',
+      description: 'Fast inference, low cost, great for quick tasks & RAG',
+    },
+    {
+      code: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+      displayName: 'Llama 3.1 70B',
+      enabled: true,
+      maxContext: 131072,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: false,
+      modelType: 'chat',
+      description: 'Balanced performance/cost for production workloads',
+    },
+    // Tier 3: Specialized & Advanced
+    {
+      code: 'accounts/fireworks/models/glm-5',
+      displayName: 'GLM-5',
+      enabled: true,
+      maxContext: 202752,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: true,
+      modelType: 'chat',
+      description: '744B MoE (40B active), Z.ai flagship, advanced coding, long-horizon agents',
+    },
+    {
+      code: 'accounts/fireworks/models/qwen3-235b-a22b',
+      displayName: 'Qwen3 235B',
+      enabled: true,
+      maxContext: 131072,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: true,
+      modelType: 'chat',
+      description: '235B MoE (22B active), multilingual, coding, dual-mode reasoning',
+    },
+    {
+      code: 'accounts/fireworks/models/glm-4p7',
+      displayName: 'GLM-4.7',
+      enabled: true,
+      maxContext: 202752,
+      supportsToolCall: true,
+      supportsVision: false,
+      supportsDeepThinking: true,
+      modelType: 'chat',
+      description: 'Cost-effective alternative to GLM-5, strong coding & reasoning',
+    },
+    {
+      code: 'accounts/fireworks/models/nvidia-nemotron-3-super-120b-a12b-fp8',
+      displayName: 'NVIDIA Nemotron 3',
+      enabled: true,
+      maxContext: 262144,
+      supportsToolCall: false,
+      supportsVision: false,
+      supportsDeepThinking: false,
+      modelType: 'chat',
+      description: '120B hybrid MoE, 7 languages, fast generation with MTP',
+    },
+  ],
 
   // AI parameters
   temperature: 0.7,
@@ -479,11 +598,12 @@ export function SettingsConfigProvider({
       try {
         // Migrate existing keys from localStorage if needed
         await migrateApiKeysFromLocalStorage({
+          alibabaApiKey: settingsConfig.alibabaApiKey,
+          fireworksApiKey: settingsConfig.fireworksApiKey,
+          groqApiKey: settingsConfig.groqApiKey,
           openRouterApiKey: settingsConfig.openRouterApiKey,
           perplexityApiKey: settingsConfig.perplexityApiKey,
-          groqApiKey: settingsConfig.groqApiKey,
           tavilyApiKey: settingsConfig.tavilyApiKey,
-          alibabaApiKey: settingsConfig.alibabaApiKey,
         })
 
         // Load from secure storage (single IPC roundtrip via getAll)
@@ -491,21 +611,23 @@ export function SettingsConfigProvider({
 
         // Check if we got any keys
         const hasSecureKeys =
+          secureKeys.alibabaApiKey ||
+          secureKeys.fireworksApiKey ||
+          secureKeys.groqApiKey ||
           secureKeys.openRouterApiKey ||
           secureKeys.perplexityApiKey ||
-          secureKeys.groqApiKey ||
-          secureKeys.tavilyApiKey ||
-          secureKeys.alibabaApiKey
+          secureKeys.tavilyApiKey
 
         if (hasSecureKeys) {
           // Update settings with secure keys - prefer secure storage values
           setSettingsConfig((prev) => ({
             ...prev,
+            alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
+            fireworksApiKey: secureKeys.fireworksApiKey || prev.fireworksApiKey,
+            groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
             openRouterApiKey: secureKeys.openRouterApiKey || prev.openRouterApiKey,
             perplexityApiKey: secureKeys.perplexityApiKey || prev.perplexityApiKey,
-            groqApiKey: secureKeys.groqApiKey || prev.groqApiKey,
             tavilyApiKey: secureKeys.tavilyApiKey || prev.tavilyApiKey,
-            alibabaApiKey: secureKeys.alibabaApiKey || prev.alibabaApiKey,
           }))
         }
       } catch (error) {

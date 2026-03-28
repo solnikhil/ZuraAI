@@ -1,13 +1,14 @@
-import { generateGroqCompletion } from './groq'
 import { generateAlibabaCompletion } from './alibaba'
+import { generateFireworksCompletion } from './fireworks'
+import { generateGroqCompletion } from './groq'
 import { generateOllamaCompletion } from './ollama'
-import { generatePerplexityCompletion } from './perplexity'
 import { generateOpenRouterCompletion } from './openrouter'
+import { generatePerplexityCompletion } from './perplexity'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
 
-type TitleProvider = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+type TitleProvider = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
 
 type TitleGenerationSettings = Partial<
   Pick<
@@ -17,26 +18,29 @@ type TitleGenerationSettings = Partial<
     | 'titleModel'
     | 'aiModel'
     | 'titleGenerationPrompt'
+    | 'alibabaApiKey'
+    | 'fireworksApiKey'
+    | 'groqApiKey'
+    | 'ollamaUrl'
     | 'openRouterApiKey'
     | 'perplexityApiKey'
-    | 'groqApiKey'
-    | 'alibabaApiKey'
-    | 'ollamaUrl'
     | 'configuredModels'
     | 'ollamaModels'
     | 'perplexityModels'
     | 'groqModels'
     | 'alibabaModels'
+    | 'fireworksModels'
   >
 >
 
-const TITLE_PROVIDERS: TitleProvider[] = ['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba']
+const TITLE_PROVIDERS: TitleProvider[] = ['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity']
 const PROVIDER_MODEL_KEYS = {
-  openrouter: 'configuredModels',
-  ollama: 'ollamaModels',
-  perplexity: 'perplexityModels',
-  groq: 'groqModels',
   alibaba: 'alibabaModels',
+  fireworks: 'fireworksModels',
+  groq: 'groqModels',
+  ollama: 'ollamaModels',
+  openrouter: 'configuredModels',
+  perplexity: 'perplexityModels',
 } as const
 
 const isTitleProvider = (value: unknown): value is TitleProvider =>
@@ -186,6 +190,17 @@ async function generateTitleWithProvider(
     return result.choices?.[0]?.message?.content || ''
   }
 
+  if (provider === 'fireworks') {
+    if (!settings.fireworksApiKey) throw new Error('Fireworks API key missing for title generation.')
+    const result = await generateFireworksCompletion(
+      settings.fireworksApiKey,
+      model,
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3, max_tokens: 20 },
+    )
+    return result.choices?.[0]?.message?.content || ''
+  }
+
   const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
   if (!openRouterKey) throw new Error('OpenRouter API key missing for title generation.')
   const result = await generateOpenRouterCompletion(
@@ -199,16 +214,18 @@ async function generateTitleWithProvider(
 
 function hasApiKeyForProvider(settings: TitleGenerationSettings, provider: TitleProvider): boolean {
   switch (provider) {
-    case 'groq':
-      return !!settings.groqApiKey
-    case 'perplexity':
-      return !!settings.perplexityApiKey
-    case 'ollama':
-      return !!settings.ollamaUrl
     case 'alibaba':
       return !!settings.alibabaApiKey
+    case 'fireworks':
+      return !!settings.fireworksApiKey
+    case 'groq':
+      return !!settings.groqApiKey
+    case 'ollama':
+      return !!settings.ollamaUrl
     case 'openrouter':
       return !!getOpenRouterApiKey(settings.openRouterApiKey)
+    case 'perplexity':
+      return !!settings.perplexityApiKey
     default:
       return false
   }

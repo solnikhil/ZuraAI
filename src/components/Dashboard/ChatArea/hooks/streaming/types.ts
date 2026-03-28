@@ -134,10 +134,11 @@ export interface StreamingSettings {
   /** Web search prompt appended when Web Search is enabled */
   webSearchPrompt?: string
   // Provider-specific API keys
+  alibabaApiKey?: string
+  fireworksApiKey?: string
+  groqApiKey?: string
   ollamaUrl?: string
   openRouterApiKey?: string
-  configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
   perplexityApiKey?: string
-  groqApiKey?: string
-  alibabaApiKey?: string
+  configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

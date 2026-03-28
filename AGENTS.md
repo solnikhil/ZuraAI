@@ -11,7 +11,7 @@ This file is the single source of truth for how an automated coding agent should
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
+- Multi-provider AI calls (Alibaba Cloud, Fireworks AI, Groq, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
@@ -239,6 +239,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
   - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
+  - `src/services/fireworks.ts` (`streamFireworksCompletion`) - OpenAI-compatible API at `https://api.fireworks.ai/inference/v1/chat/completions`
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
 - Tool calling:
@@ -281,8 +282,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`) now support optional `enabled?: boolean`.
-- Provider-level toggles are persisted in `settings.providerEnabled` (`openrouter`, `ollama`, `perplexity`, `groq`, `alibaba`) and are independent from whether API keys/endpoints are filled.
+- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) now support optional `enabled?: boolean`.
+- Provider-level toggles are persisted in `settings.providerEnabled` (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
 
 #### Command Palette Quick-Send

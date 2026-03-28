@@ -16,6 +16,7 @@ interface SecureData {
   groqApiKey?: string
   tavilyApiKey?: string
   alibabaApiKey?: string
+  fireworksApiKey?: string
   [key: string]: string | undefined
 }
 
@@ -38,6 +39,7 @@ function isLikelyLegacyPlaintextSecret(value: string): boolean {
     value.startsWith('pplx-') ||
     value.startsWith('tvly-') ||
     value.startsWith('dashscope-') ||
+    value.startsWith('fw-') ||
     value.length < 100
   )
 }

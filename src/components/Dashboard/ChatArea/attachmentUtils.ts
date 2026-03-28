@@ -5,7 +5,7 @@
 import { getCapabilitiesFromModel } from '@/utils/modelUtils'
 import type { ChatMessage, MessageContent } from '@/services/types'
 
-export type AttachmentProvider = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+export type AttachmentProvider = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
 
 export interface AttachedFile {
   id: string
@@ -35,11 +35,12 @@ interface ModelLike {
 interface AttachmentSettingsLike {
   aiModel: string
   modelProvider: AttachmentProvider
+  alibabaModels?: ModelLike[]
   configuredModels?: ModelLike[]
+  fireworksModels?: ModelLike[]
+  groqModels?: ModelLike[]
   ollamaModels?: ModelLike[]
   perplexityModels?: ModelLike[]
-  groqModels?: ModelLike[]
-  alibabaModels?: ModelLike[]
 }
 
 export type ComposerMessage = ChatMessage & {
@@ -70,15 +71,18 @@ function readFileAsDataUrl(file: File) {
 
 function getModelsForProvider(settings: AttachmentSettingsLike, provider: AttachmentProvider) {
   switch (provider) {
-    case 'ollama':
-      return settings.ollamaModels || []
-    case 'perplexity':
-      return settings.perplexityModels || []
-    case 'groq':
-      return settings.groqModels || []
     case 'alibaba':
       return settings.alibabaModels || []
+    case 'fireworks':
+      return settings.fireworksModels || []
+    case 'groq':
+      return settings.groqModels || []
+    case 'ollama':
+      return settings.ollamaModels || []
     case 'openrouter':
+      return settings.configuredModels || []
+    case 'perplexity':
+      return settings.perplexityModels || []
     default:
       return settings.configuredModels || []
   }

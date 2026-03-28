@@ -189,14 +189,15 @@ export interface AppearanceSectionProps {
   onParamsConsumed?: () => void
 }
 
-type TitleProviderKey = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+type TitleProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
 
 const TITLE_PROVIDER_OPTIONS: Array<{ key: TitleProviderKey; label: string }> = [
-  { key: 'openrouter', label: 'OpenRouter' },
-  { key: 'groq', label: 'Groq' },
   { key: 'alibaba', label: 'Alibaba Cloud' },
-  { key: 'perplexity', label: 'Perplexity' },
+  { key: 'fireworks', label: 'Fireworks AI' },
+  { key: 'groq', label: 'Groq' },
   { key: 'ollama', label: 'Ollama' },
+  { key: 'openrouter', label: 'OpenRouter' },
+  { key: 'perplexity', label: 'Perplexity' },
 ]
 
 export function AppearanceSection({
@@ -234,18 +235,20 @@ export function AppearanceSection({
 
   const titleProviderModelMap = useMemo(
     () => ({
+      alibaba: settings.alibabaModels || [],
+      fireworks: settings.fireworksModels || [],
+      groq: settings.groqModels || [],
+      ollama: settings.ollamaModels || [],
       openrouter: settings.configuredModels || [],
       perplexity: settings.perplexityModels || [],
-      groq: settings.groqModels || [],
-      alibaba: settings.alibabaModels || [],
-      ollama: settings.ollamaModels || [],
     }),
     [
+      settings.alibabaModels,
+      settings.fireworksModels,
+      settings.groqModels,
+      settings.ollamaModels,
       settings.configuredModels,
       settings.perplexityModels,
-      settings.groqModels,
-      settings.alibabaModels,
-      settings.ollamaModels,
     ]
   )
 

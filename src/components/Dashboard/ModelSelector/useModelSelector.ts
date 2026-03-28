@@ -88,7 +88,7 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'alibaba'] as const
+  const validProviders = ['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity'] as const
   const providerEnabled = settings.providerEnabled || {}
 
   const isProviderEnabled = useCallback(
@@ -97,27 +97,30 @@ export function useModelSelector(): UseModelSelectorReturn {
       if (!manuallyEnabled) return false
 
       switch (provider) {
+        case 'alibaba':
+          return Boolean(settings.alibabaApiKey?.trim())
+        case 'fireworks':
+          return Boolean(settings.fireworksApiKey?.trim())
+        case 'groq':
+          return Boolean(settings.groqApiKey?.trim())
         case 'ollama':
           return Boolean(settings.ollamaUrl?.trim())
         case 'openrouter':
           return Boolean(settings.openRouterApiKey?.trim())
         case 'perplexity':
           return Boolean(settings.perplexityApiKey?.trim())
-        case 'groq':
-          return Boolean(settings.groqApiKey?.trim())
-        case 'alibaba':
-          return Boolean(settings.alibabaApiKey?.trim())
         default:
           return false
       }
     },
     [
       providerEnabled,
+      settings.alibabaApiKey,
+      settings.fireworksApiKey,
+      settings.groqApiKey,
       settings.ollamaUrl,
       settings.openRouterApiKey,
       settings.perplexityApiKey,
-      settings.groqApiKey,
-      settings.alibabaApiKey,
     ]
   )
 
@@ -132,11 +135,12 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-    ollama: false,
-    perplexity: false,
-    openrouter: false,
-    groq: false,
     alibaba: false,
+    fireworks: false,
+    groq: false,
+    ollama: false,
+    openrouter: false,
+    perplexity: false,
   })
 
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -220,30 +224,35 @@ export function useModelSelector(): UseModelSelectorReturn {
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 
-    if (isProviderEnabled('ollama') && settings.ollamaModels) {
-      settings.ollamaModels
+    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
+      settings.alibabaModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
+        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
     }
-    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
-      settings.perplexityModels
+    if (isProviderEnabled('fireworks') && settings.fireworksModels) {
+      settings.fireworksModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
-    }
-    if (isProviderEnabled('openrouter') && settings.configuredModels) {
-      settings.configuredModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
+        .forEach((m) => models.push({ ...m, provider: 'fireworks' }))
     }
     if (isProviderEnabled('groq') && settings.groqModels) {
       settings.groqModels
         .filter((m) => m.enabled !== false)
         .forEach((m) => models.push({ ...m, provider: 'groq' }))
     }
-    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
-      settings.alibabaModels
+    if (isProviderEnabled('ollama') && settings.ollamaModels) {
+      settings.ollamaModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
+        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
+    }
+    if (isProviderEnabled('openrouter') && settings.configuredModels) {
+      settings.configuredModels
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
+    }
+    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
+      settings.perplexityModels
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
     }
     return models
   }, [settings, isProviderEnabled])
@@ -256,11 +265,12 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Group models by provider
   const groupedModels = useMemo((): GroupedModels => {
     return {
-      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
-      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
-      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
-      groq: filteredModels.filter((m) => m.provider === 'groq'),
       alibaba: filteredModels.filter((m) => m.provider === 'alibaba'),
+      fireworks: filteredModels.filter((m) => m.provider === 'fireworks'),
+      groq: filteredModels.filter((m) => m.provider === 'groq'),
+      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
+      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
+      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
     }
   }, [filteredModels])
 

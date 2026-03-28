@@ -40,6 +40,9 @@ export type {
 export { useAlibabaStreaming } from './useAlibabaStreaming'
 export type { UseAlibabaStreamingOptions, UseAlibabaStreamingReturn } from './useAlibabaStreaming'
 
+export { useFireworksStreaming } from './useFireworksStreaming'
+export type { UseFireworksStreamingOptions, UseFireworksStreamingReturn } from './useFireworksStreaming'
+
 // Tool calling hook for streaming
 export { useStreamingToolCalls } from './useStreamingToolCalls'
 export type {

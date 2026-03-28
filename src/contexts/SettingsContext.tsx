@@ -49,9 +49,9 @@ const defaultSettings: Settings = {
 const SECRET_SETTING_KEYS: Array<
   keyof Pick<
     Settings,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'
+    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey'
   >
-> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey']
+> = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
 
 function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
@@ -233,7 +233,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Initialize new fields if missing
     if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
     // Migrate unknown providers to openrouter
-    if (!['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.modelProvider)) {
+    if (!['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity'].includes(parsed.modelProvider)) {
       parsed.modelProvider = 'openrouter'
     }
     parsed.providerEnabled = {
@@ -281,6 +281,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       ? userAlibaba.filter((m: { code: string }) => !defaultCodes.has(m.code))
       : []
     parsed.alibabaModels = [...mergedAlibaba, ...customModels]
+    // Initialize Fireworks fields if missing
+    if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
+    // Always merge with full default list; preserve user's enabled state
+    const userFireworks = parsed.fireworksModels
+    const mergedFireworks = defaultSettings.fireworksModels.map((d) => {
+      const existing = Array.isArray(userFireworks)
+        ? userFireworks.find((m: { code: string }) => m.code === d.code)
+        : undefined
+      return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
+    })
+    // Append any user-added custom models not in defaults
+    const defaultFireworksCodes = new Set(defaultSettings.fireworksModels.map((d) => d.code))
+    const customFireworksModels = Array.isArray(userFireworks)
+      ? userFireworks.filter((m: { code: string }) => !defaultFireworksCodes.has(m.code))
+      : []
+    parsed.fireworksModels = [...mergedFireworks, ...customFireworksModels]
     // Migrate deprecated Groq model IDs when modelProvider is groq
     const deprecatedGroqModelMap: Record<string, string> = {
       'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',

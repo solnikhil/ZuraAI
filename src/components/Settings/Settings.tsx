@@ -42,17 +42,19 @@ export default function Settings({
   const clearParams = useCallback(() => setSettingsSectionParams(null), [setSettingsSectionParams])
 
   const usageModelCatalog = useMemo(() => ({
+    alibabaModels: (pendingSettings.alibabaModels || []).map((model) => model.code),
+    fireworksModels: (pendingSettings.fireworksModels || []).map((model) => model.code),
+    groqModels: (pendingSettings.groqModels || []).map((model) => model.code),
+    ollamaModels: (pendingSettings.ollamaModels || []).map((model) => model.code),
     openrouterModels: (pendingSettings.configuredModels || []).map((model) => model.code),
     perplexityModels: (pendingSettings.perplexityModels || []).map((model) => model.code),
-    groqModels: (pendingSettings.groqModels || []).map((model) => model.code),
-    alibabaModels: (pendingSettings.alibabaModels || []).map((model) => model.code),
-    ollamaModels: (pendingSettings.ollamaModels || []).map((model) => model.code),
   }), [
+    pendingSettings.alibabaModels,
+    pendingSettings.fireworksModels,
+    pendingSettings.groqModels,
+    pendingSettings.ollamaModels,
     pendingSettings.configuredModels,
     pendingSettings.perplexityModels,
-    pendingSettings.groqModels,
-    pendingSettings.alibabaModels,
-    pendingSettings.ollamaModels,
   ])
 
   const usageStats = useMemo(() => computeUsageStats(sessions, usageModelCatalog), [sessions, usageModelCatalog])
@@ -121,13 +123,14 @@ export default function Settings({
     let allSaved = true
     const failedKeys: string[] = []
     try {
-      type ApiKeyType = 'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'
+      type ApiKeyType = 'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey' | 'tavilyApiKey'
       const keyMappings: Array<{ key: ApiKeyType; current: string; original: string }> = [
+        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
+        { key: 'fireworksApiKey', current: pendingSettings.fireworksApiKey, original: settings.fireworksApiKey },
+        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'openRouterApiKey', current: pendingSettings.openRouterApiKey, original: settings.openRouterApiKey },
         { key: 'perplexityApiKey', current: pendingSettings.perplexityApiKey, original: settings.perplexityApiKey },
-        { key: 'groqApiKey', current: pendingSettings.groqApiKey, original: settings.groqApiKey },
         { key: 'tavilyApiKey', current: pendingSettings.tavilyApiKey, original: settings.tavilyApiKey },
-        { key: 'alibabaApiKey', current: pendingSettings.alibabaApiKey, original: settings.alibabaApiKey },
       ]
       for (const { key, current, original } of keyMappings) {
         if (current !== original) {
@@ -282,20 +285,22 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 initialProvider={settingsSectionParams?.provider}
                 initialManageMode={settingsSectionParams?.manageMode}
                 onParamsConsumed={clearParams}
+                alibabaApiKey={pendingSettings.alibabaApiKey}
+                fireworksApiKey={pendingSettings.fireworksApiKey}
+                groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
-                groqApiKey={pendingSettings.groqApiKey}
-                alibabaApiKey={pendingSettings.alibabaApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 ollamaUrl={pendingSettings.ollamaUrl}
                 aiModel={pendingSettings.aiModel}
                 modelProvider={pendingSettings.modelProvider}
                 providerEnabled={pendingSettings.providerEnabled}
                 configuredModels={pendingSettings.configuredModels}
-                perplexityModels={pendingSettings.perplexityModels}
-                groqModels={pendingSettings.groqModels}
                 alibabaModels={pendingSettings.alibabaModels}
+                fireworksModels={pendingSettings.fireworksModels}
+                groqModels={pendingSettings.groqModels}
                 ollamaModels={pendingSettings.ollamaModels}
+                perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
                 onChange={handleChange}
               />

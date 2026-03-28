@@ -6,7 +6,7 @@ const WEEK_MS = 7 * DAY_MS
 const MONTH_30_MS = 30 * DAY_MS
 const ONE_MILLION = 1_000_000
 
-export type UsageProvider = 'openrouter' | 'perplexity' | 'groq' | 'alibaba' | 'ollama' | 'unknown'
+export type UsageProvider = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity' | 'unknown'
 
 interface ModelUsageEntry {
   name: string
@@ -40,11 +40,12 @@ export interface UsageErrorBreakdown {
 }
 
 export interface UsageModelCatalog {
+  alibabaModels?: string[]
+  fireworksModels?: string[]
+  groqModels?: string[]
+  ollamaModels?: string[]
   openrouterModels?: string[]
   perplexityModels?: string[]
-  groqModels?: string[]
-  alibabaModels?: string[]
-  ollamaModels?: string[]
 }
 
 export interface UsageStats {
@@ -86,11 +87,12 @@ export interface UsageStats {
 }
 
 const PROVIDER_TOKEN_RATES_PER_MILLION: Record<Exclude<UsageProvider, 'unknown'>, { inputUsd: number; outputUsd: number }> = {
+  alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
+  fireworks: { inputUsd: 0.9, outputUsd: 2.7 },
+  groq: { inputUsd: 0.8, outputUsd: 0.8 },
+  ollama: { inputUsd: 0, outputUsd: 0 },
   openrouter: { inputUsd: 1.2, outputUsd: 4.8 },
   perplexity: { inputUsd: 1.0, outputUsd: 1.0 },
-  groq: { inputUsd: 0.8, outputUsd: 0.8 },
-  alibaba: { inputUsd: 0.5, outputUsd: 1.5 },
-  ollama: { inputUsd: 0, outputUsd: 0 },
 }
 
 function getLocalDayKeyFromTimestamp(timestamp: number): string {
@@ -319,11 +321,12 @@ function buildModelProviderMap(catalog?: UsageModelCatalog): Map<string, UsagePr
     })
   }
 
+  register('alibaba', catalog?.alibabaModels)
+  register('fireworks', catalog?.fireworksModels)
+  register('groq', catalog?.groqModels)
+  register('ollama', catalog?.ollamaModels)
   register('openrouter', catalog?.openrouterModels)
   register('perplexity', catalog?.perplexityModels)
-  register('groq', catalog?.groqModels)
-  register('alibaba', catalog?.alibabaModels)
-  register('ollama', catalog?.ollamaModels)
 
   return map
 }
@@ -338,6 +341,7 @@ function inferProvider(model: string | undefined, modelProviderMap: Map<string, 
   const catalogProvider = modelProviderMap.get(normalized)
   if (catalogProvider) return catalogProvider
 
+  if (raw.startsWith('fireworks/') || raw.includes('accounts/fireworks')) return 'fireworks'
   if (raw.startsWith('openrouter/')) return 'openrouter'
   if (normalized.startsWith('sonar')) return 'perplexity'
   if (normalized.startsWith('groq/')) return 'groq'

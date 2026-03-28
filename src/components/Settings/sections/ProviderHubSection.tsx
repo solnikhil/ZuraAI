@@ -50,7 +50,7 @@ import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/mode
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
+type ProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
@@ -60,7 +60,7 @@ interface ProviderDefinition {
   description: string
   apiKeyField?: keyof Pick<
     ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'alibabaApiKey'
+    'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey'
   >
 }
 
@@ -84,6 +84,18 @@ const PROVIDERS: ProviderDefinition[] = [
     apiKeyField: 'alibabaApiKey',
   },
   {
+    key: 'fireworks',
+    name: 'Fireworks AI',
+    description: 'Fast inference for open-source models with 100+ LLMs including DeepSeek, Llama, Qwen, and GLM.',
+    apiKeyField: 'fireworksApiKey',
+  },
+  {
+    key: 'groq',
+    name: 'Groq',
+    description: 'Ultra-low-latency model inference for high-speed chat experiences.',
+    apiKeyField: 'groqApiKey',
+  },
+  {
     key: 'perplexity',
     name: 'Perplexity',
     description: 'Research-focused model provider with search-native reasoning models.',
@@ -97,21 +109,23 @@ const PROVIDERS: ProviderDefinition[] = [
 ]
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
-  openrouter: 'https://openrouter.ai/api/v1',
-  perplexity: 'https://api.perplexity.ai',
+  alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  fireworks: 'https://api.fireworks.ai/inference/v1',
   groq: 'https://api.groq.com/openai/v1',
   ollama: 'http://localhost:11434',
-  alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  perplexity: 'https://api.perplexity.ai',
 }
 
 const CATALOG_BASE_BACKGROUND = '#212121'
 const CATALOG_CARD_BACKGROUND = '#2c2c2c'
 const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
-  openrouter: true,
-  perplexity: true,
+  alibaba: true,
+  fireworks: true,
   groq: true,
   ollama: true,
-  alibaba: true,
+  openrouter: true,
+  perplexity: true,
 }
 
 type SearchApiKey = 'tavily'
@@ -148,40 +162,44 @@ interface ModelBasic {
 }
 
 export interface ProviderHubSectionProps {
+  alibabaApiKey: string
+  fireworksApiKey: string
+  groqApiKey: string
   openRouterApiKey: string
   perplexityApiKey: string
-  groqApiKey: string
-  alibabaApiKey: string
   tavilyApiKey: string
   ollamaUrl: string
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
-  perplexityModels: ModelBasic[]
-  groqModels: ModelBasic[]
   alibabaModels: ModelBasic[]
+  fireworksModels: ModelBasic[]
+  groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
+  perplexityModels: ModelBasic[]
   maxTokens: number
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
   onChange: (
     changes: Partial<{
+      alibabaApiKey: string
+      fireworksApiKey: string
+      groqApiKey: string
       openRouterApiKey: string
       perplexityApiKey: string
-      groqApiKey: string
-      alibabaApiKey: string
       tavilyApiKey: string
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
-      perplexityModels: ConfiguredModel[]
-      groqModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
+      fireworksModels: ConfiguredModel[]
+      groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
+      perplexityModels: ConfiguredModel[]
       maxTokens: number
       aiModel: string
-      modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+      modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
       providerEnabled: ProviderEnabledMap
     }>
   ) => void
