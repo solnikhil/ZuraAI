@@ -64,6 +64,12 @@ describe('ProviderLogo', () => {
       expect(img).toBeInTheDocument()
       expect(img).toHaveAttribute('src', './provider-logos/fireworks.svg')
     })
+
+    it('should render the Fireworks favicon in a square slot', () => {
+      render(<ProviderLogo provider="fireworks" size={16} />)
+      const img = screen.getByAltText('fireworks logo')
+      expect(img).toHaveStyle({ width: '16px', height: '16px' })
+    })
   })
 
   describe('size variants', () => {

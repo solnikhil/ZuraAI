@@ -262,4 +262,11 @@ describe('ProviderHubSection', () => {
     expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
     expect(screen.getByText('DeepSeek V3.2')).toBeInTheDocument()
   })
+
+  it('renders the Fireworks provider row with the compact site icon', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    const img = screen.getByAltText('fireworks logo')
+    expect(img).toHaveStyle({ width: '20px', height: '20px' })
+  })
 })

@@ -90,5 +90,6 @@ describe('ModelSelectorDropdown', () => {
 
     expect(screen.getByRole('button', { name: /fireworks/i })).toBeInTheDocument()
     expect(screen.getByText('DeepSeek V3.2')).toBeInTheDocument()
+    expect(screen.getByAltText('fireworks logo')).toHaveStyle({ width: '16px', height: '16px' })
   })
 })
