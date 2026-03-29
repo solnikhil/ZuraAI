@@ -449,4 +449,90 @@ describe('useProviderStreaming', () => {
     expect(streamCalls.at(-1)?.toolChoice).toBe('none')
     expect(streamResult.content).toBe('Answer after deduped search loop.')
   })
+
+  it('drops partial assistant text from tool-call rounds instead of persisting truncated preludes', async () => {
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* () {
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'text-delta',
+            delta: "I'll search for information about Cursor - I assume you're asking about the AI-powered code editor that's been",
+          }
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_cursor',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"Cursor code editor history"}',
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Cursor is an AI-powered code editor created by Anysphere.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_cursor', 'Cursor code editor history')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_cursor', content: 'search results' }],
+      needsFollowUp: true,
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'tell me about cursor history' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamResult.content).toBe('Cursor is an AI-powered code editor created by Anysphere.')
+    expect(streamResult.content).not.toContain("I'll search for information")
+  })
 })

@@ -193,10 +193,12 @@ export function useProviderStreaming({
           tools?: ReturnType<ToolCallingHook['getToolsForRequest']>
         }
       ) => {
+        const roundStartContent = accumulatedContent
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
+        let strippedToolPrelude = false
 
         for await (const event of client.stream({
           provider,
@@ -251,6 +253,14 @@ export function useProviderStreaming({
               persistProgress()
               break
             case 'tool-call-delta':
+              if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
+                strippedToolPrelude = true
+                accumulatedContent = roundStartContent
+                updateStreamingState({ content: accumulatedContent })
+                updateStreamingMessage(options.sessionId, options.messageId, {
+                  content: accumulatedContent,
+                })
+              }
               accumulateDeltaToolCalls(roundToolCalls, event.delta)
               break
             case 'file-delta':
@@ -277,6 +287,10 @@ export function useProviderStreaming({
         }
 
         flushThrottledUpdates()
+        const hasValidRoundToolCalls = roundToolCalls.some((toolCall) => toolCall?.id)
+        if (roundFinishReason === 'tool_calls' && hasValidRoundToolCalls) {
+          accumulatedContent = roundStartContent
+        }
         const finalRoundContent = providerUsesNativeSearch(provider)
           ? cleanSonarResponse(accumulatedContent, citations)
           : accumulatedContent
