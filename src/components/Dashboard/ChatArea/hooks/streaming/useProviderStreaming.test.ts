@@ -26,6 +26,20 @@ function streamFrom(events: Array<Record<string, unknown>>) {
   }
 }
 
+function buildWebSearchToolResult(id: string, query: string) {
+  return {
+    toolCall: {
+      id,
+      name: 'web_search',
+      arguments: { query },
+    },
+    result: {
+      success: true,
+      data: { results: [{ title: query }] },
+    },
+  }
+}
+
 describe('useProviderStreaming', () => {
   beforeEach(() => {
     mocks.updateStreaming.mockReset()
@@ -247,5 +261,192 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamResult.content).toBe('Answer [[1]](https://example.com/source)')
+  })
+
+  it('forces final synthesis after the practical uncapped search budget is exhausted', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation <= 6) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: `call_${invocation}`,
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: JSON.stringify({ query: `research angle ${invocation}` }),
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Final synthesized answer.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi
+      .fn()
+      .mockImplementation(async (_response, _options) => {
+        const index = handleToolCalls.mock.calls.length
+        const query = `research angle ${index}`
+        const toolResult = buildWebSearchToolResult(`call_${index}`, query)
+        return {
+          hasTools: true,
+          toolResults: [toolResult],
+          formattedResults: [{ role: 'tool', tool_call_id: `call_${index}`, content: query }],
+          needsFollowUp: true,
+        }
+      })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+          modelProvider: 'fireworks',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          fireworksApiKey: 'fw-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'fireworks',
+      model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'research this deeply' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(6)
+    expect(streamCalls).toHaveLength(7)
+    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe('Final synthesized answer.')
+  })
+
+  it('forces final synthesis when the model repeats the same search query', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation <= 2) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: `dup_${invocation}`,
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: JSON.stringify({ query: 'claude cowork architecture' }),
+              },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Answer after deduped search loop.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi
+      .fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('dup_1', 'claude cowork architecture')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'dup_1', content: 'first results' }],
+        needsFollowUp: true,
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('dup_2', 'claude cowork architecture')],
+        formattedResults: [{ role: 'tool', tool_call_id: 'dup_2', content: 'duplicate results' }],
+        needsFollowUp: true,
+      })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'research claude cowork' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(2)
+    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe('Answer after deduped search loop.')
   })
 })

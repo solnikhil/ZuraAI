@@ -409,7 +409,8 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         <span>MCP Library</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
-                        sideOffset={-10}
+                        sideOffset={8}
+                        collisionPadding={12}
                         className="w-[220px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem
@@ -445,7 +446,8 @@ const webResearchEnabled = settings.skills?.web_research?.enabled !== false
                         <span>Skills</span>
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent
-                        sideOffset={-10}
+                        sideOffset={8}
+                        collisionPadding={12}
                         className="w-[220px] rounded-xl p-1.5"
                       >
                         <DropdownMenuItem

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
+  buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   FINAL_SYNTHESIS_PROMPT,
@@ -145,5 +146,22 @@ describe('streamingUtils final synthesis helpers', () => {
         executionTime: 42,
       },
     })
+  })
+
+  it('does not inject a hard stop prompt just because several research rounds have occurred', () => {
+    const messages = buildFollowUpMessages(
+      'Research context',
+      5,
+      5,
+      [{ role: 'user', content: 'Find sources' }],
+      { role: 'assistant', content: '', tool_calls: [] },
+      [{ role: 'tool', content: 'Results', tool_call_id: 'call_1' }]
+    )
+
+    const systemMessages = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => String(message.content))
+
+    expect(systemMessages).toEqual(['Research context'])
   })
 })

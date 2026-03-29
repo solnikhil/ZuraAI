@@ -251,7 +251,7 @@ describe('executeWebSearch', () => {
             expect(result.data?.results?.[0]).toMatchObject({
                 url: 'https://foo.com/docs/api',
                 source: 'foo.com',
-                displayed_link: 'foo.com › docs › api'
+                displayed_link: 'foo.com > docs > api'
             })
 
             globalThis.fetch = originalFetch
@@ -439,3 +439,4 @@ describe('executeWebSearch', () => {
         })
     })
 })
+

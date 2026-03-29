@@ -336,20 +336,14 @@ export function computeStreamMetrics(
 /** Build the follow-up message array for a research loop iteration */
 export function buildFollowUpMessages(
   researchContextMsg: string,
-  researchRound: number,
-  totalSearchCount: number,
+  _researchRound: number,
+  _totalSearchCount: number,
   optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
   lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
 ): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
   const messages: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
-  if (researchRound >= 4) {
-    messages.push({
-      role: 'system',
-      content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n`,
-    })
-  }
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
 }

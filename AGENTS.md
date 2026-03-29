@@ -56,6 +56,7 @@ Core capabilities:
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
+  - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
 - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
@@ -271,6 +272,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
 - When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
+- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` enforces both a practical uncapped-search budget and a repeated-query breaker, then forces a final synthesis pass with tools disabled so research loops cannot spin indefinitely on repeated `web_search` turns.
 - Tool schema exposure is skill-gated in renderer:
   - Skill OFF: expose no built-in web research tools
   - Skill ON: expose `web_search`
@@ -388,6 +390,11 @@ Tool execution is intentionally restricted.
   - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
   - Web search: `electron/tools/webSearch.ts`
+    - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`
+    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries
+    - `electron/tools/web-search/backends/tavily.ts` owns Tavily search/extract transport calls
+    - `electron/tools/web-search/backends/duckduckgo.ts` owns the DuckDuckGo fallback path
+    - `electron/tools/web-search/helpers.ts` normalizes results, images, snippets, sources, and displayed links into the shared web-search result shape
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
       - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
@@ -470,3 +477,4 @@ Update **this file’s “Architecture”** whenever you:
 - Add/enable tools or change tool execution policy
 - Add a new AI provider or change provider/tool support rules
 - Change build outputs/packaging assumptions (`dist/`, `dist-electron/`, installer)
+

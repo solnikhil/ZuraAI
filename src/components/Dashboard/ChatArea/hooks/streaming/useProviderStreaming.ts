@@ -12,8 +12,8 @@ import {
   type ActiveProviderId,
 } from '../../../../../providers'
 import {
-  MAX_RESEARCH_ROUNDS,
   SAFETY_CAP,
+  MAX_RESEARCH_ROUNDS,
   accumulateDeltaToolCalls,
   appendCompletedThinkingBlock,
   buildFinalSynthesisMessages,
@@ -33,6 +33,7 @@ import {
   type DeltaToolCall,
 } from './streamingUtils'
 import { createProviderStreamClient } from './providerStreamClient'
+import { evaluateResearchContinuation } from './researchLoopPolicy'
 import type {
   HandleToolCallsOptions,
   NormalizedUsage,
@@ -107,6 +108,13 @@ function mergeGeneratedFiles(existing: FileAttachment[], incoming: FileAttachmen
   }
 
   return merged
+}
+
+function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): string[] {
+  return (toolResults || [])
+    .filter((result) => result.toolCall.name === 'web_search')
+    .map((result) => String(result.toolCall.arguments?.query || '').trim())
+    .filter(Boolean)
 }
 
 export function useProviderStreaming({
@@ -300,7 +308,6 @@ export function useProviderStreaming({
       }
 
       const initialToolChoice =
-        provider === 'openrouter' &&
         options.forceWebSearch &&
         tools?.some((tool) => tool.function?.name === 'web_search')
           ? { type: 'function' as const, function: { name: 'web_search' } }
@@ -357,6 +364,7 @@ export function useProviderStreaming({
         if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
           let totalSearchCount =
             toolResult.toolResults?.filter((result) => result.toolCall.name === 'web_search').length || 0
+          const searchQueryHistory = extractWebSearchQueries(toolResult.toolResults)
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
           let pendingFinalSynthesis:
@@ -367,6 +375,31 @@ export function useProviderStreaming({
                 researchRound: number
               }
             | null = null
+          const initialLoopDecision = evaluateResearchContinuation({
+            searchCount: totalSearchCount,
+            maxRounds: options.researchMaxRounds,
+            priorQueries: [],
+            nextQueries: searchQueryHistory,
+            safetyCap: SAFETY_CAP,
+            practicalCap: MAX_RESEARCH_ROUNDS,
+          })
+
+          if (
+            initialLoopDecision.shouldForceFinalSynthesis &&
+            toolResult.needsFollowUp &&
+            toolResult.formattedResults.length > 0
+          ) {
+            pendingFinalSynthesis = {
+              lastAssistantMessage: reconstructedMessage,
+              formattedResults: toolResult.formattedResults,
+              totalSearchCount,
+              researchRound,
+            }
+            toolResult = {
+              ...toolResult,
+              needsFollowUp: false,
+            }
+          }
 
           while (toolResult.needsFollowUp && researchRound < SAFETY_CAP) {
             const followUpMessages = buildFollowUpMessages(
@@ -413,6 +446,7 @@ export function useProviderStreaming({
             const newWebSearches =
               nextToolResult.toolResults?.filter((result) => result.toolCall.name === 'web_search')
                 .length || 0
+            const nextSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             totalSearchCount += newWebSearches
 
             localThinkingBlocks = buildThinkingBlocksFromResults(
@@ -435,10 +469,18 @@ export function useProviderStreaming({
             updateStreamingState({ phase: 'searching', thinkingBlocks: localThinkingBlocks })
 
             researchRound += 1
-            const reachedResearchCap = researchRound >= MAX_RESEARCH_ROUNDS
+            const continuationDecision = evaluateResearchContinuation({
+              searchCount: totalSearchCount,
+              maxRounds: options.researchMaxRounds,
+              priorQueries: searchQueryHistory,
+              nextQueries: nextSearchQueries,
+              safetyCap: SAFETY_CAP,
+              practicalCap: MAX_RESEARCH_ROUNDS,
+            })
+            searchQueryHistory.push(...nextSearchQueries)
 
             if (
-              reachedResearchCap &&
+              continuationDecision.shouldForceFinalSynthesis &&
               nextToolResult.needsFollowUp &&
               nextToolResult.formattedResults.length > 0
             ) {
