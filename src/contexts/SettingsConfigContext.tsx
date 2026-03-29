@@ -409,6 +409,17 @@ export const defaultSettingsConfig: SettingsConfig = {
       description: '1T params, unified vision+text, thinking/non-thinking modes, agentic SOTA',
     },
     {
+      code: 'accounts/fireworks/models/kimi-k2p5-turbo',
+      displayName: 'Kimi K2.5 Turbo',
+      enabled: true,
+      maxContext: 262144,
+      supportsToolCall: true,
+      supportsVision: true,
+      supportsDeepThinking: true,
+      modelType: 'chat',
+      description: 'Lower-latency Kimi K2.5 variant tuned for faster production chat and agents',
+    },
+    {
       code: 'accounts/fireworks/models/deepseek-r1',
       displayName: 'DeepSeek R1',
       enabled: true,

@@ -99,5 +99,17 @@ describe('SettingsContext Provider Integration', () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
     })
+
+    it('includes Kimi K2.5 Turbo in default Fireworks models', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.fireworksModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'accounts/fireworks/models/kimi-k2p5-turbo',
+            displayName: 'Kimi K2.5 Turbo',
+          }),
+        ])
+      )
+    })
   })
 })
