@@ -34,6 +34,7 @@ import {
   useProviderStreaming,
   useStreamingToolCalls,
   useResearchMode,
+  type StreamingResult,
   type StreamingSettings,
   type ToolCallingHook,
 } from './streaming'
@@ -51,6 +52,42 @@ export interface UseStreamingChatReturn {
   sendMessage: (content: string, files: AttachedFile[]) => Promise<void>
   regenerateMessage: (message: any, instruction: string) => Promise<void>
   stopStreaming: () => void
+}
+
+export function buildCommittedStreamingUpdates(
+  finalState: StreamingMessageState,
+  streamResult?: StreamingResult
+): Partial<Message> {
+  const hasField = <K extends keyof StreamingMessageState>(key: K) =>
+    Object.prototype.hasOwnProperty.call(finalState, key)
+
+  const updates: Partial<Message> = {
+    content: streamResult?.content ?? finalState.content,
+  }
+
+  if (streamResult?.thinking !== undefined || hasField('thinking')) {
+    updates.thinking = streamResult?.thinking ?? finalState.thinking
+  }
+  if (streamResult?.thinkingDuration !== undefined || hasField('thinkingDuration')) {
+    updates.thinkingDuration = streamResult?.thinkingDuration ?? finalState.thinkingDuration
+  }
+  if (streamResult?.thinkingBlocks !== undefined || hasField('thinkingBlocks')) {
+    updates.thinkingBlocks = streamResult?.thinkingBlocks ?? finalState.thinkingBlocks
+  }
+  if (hasField('researchStatus')) updates.researchStatus = finalState.researchStatus
+  if (hasField('researchPlan')) updates.researchPlan = finalState.researchPlan
+  if (hasField('researchProgress')) updates.researchProgress = finalState.researchProgress
+  if (streamResult?.toolResults !== undefined || hasField('toolResults')) {
+    updates.toolResults =
+      streamResult?.toolResults === null ? undefined : streamResult?.toolResults ?? finalState.toolResults
+  }
+  if (streamResult?.files !== undefined || hasField('files')) updates.files = streamResult?.files ?? finalState.files
+  if (streamResult?.model !== undefined || hasField('model')) updates.model = streamResult?.model ?? finalState.model
+  if (streamResult?.latency !== undefined || hasField('latency')) updates.latency = streamResult?.latency ?? finalState.latency
+  if (streamResult?.usage !== undefined || hasField('usage')) updates.usage = streamResult?.usage ?? finalState.usage
+  if (streamResult?.finishReason !== undefined) updates.finishReason = streamResult.finishReason
+
+  return updates
 }
 
 function hasImageAttachments(files?: AttachedFile[]) {
@@ -235,6 +272,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       perplexityApiKey: settings.perplexityApiKey,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
+      fireworksApiKey: settings.fireworksApiKey,
     }),
     [
       settings.aiModel,
@@ -249,6 +287,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.perplexityApiKey,
       settings.groqApiKey,
       settings.alibabaApiKey,
+      settings.fireworksApiKey,
     ]
   )
 
@@ -426,7 +465,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         startStreaming(targetSessionId!, streamingMessageId)
 
         // Use composed provider-specific streaming hooks
-        await runProviderStream({
+        const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
           sessionId: targetSessionId!,
@@ -443,15 +482,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         // Commit streaming content to the session
         if (streamingMessageRef.current) {
           const finalState = completeStreaming()
-          // Explicitly commit the captured streaming state to ChatHistoryContext.
-          // The provider hooks call updateStreamingMessage too, but that setState
-          // may still be batched/pending when completeStreaming() resets the
-          // ephemeral StreamingContext, causing the content to vanish on re-render.
           if (finalState.sessionId && finalState.messageId) {
             updateStreamingMessage(
               finalState.sessionId,
               finalState.messageId,
-              buildFinalStreamingUpdates(finalState)
+              buildCommittedStreamingUpdates(finalState, streamResult)
             )
           }
           streamingMessageRef.current = null

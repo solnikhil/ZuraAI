@@ -56,6 +56,10 @@ const SECRET_SETTING_KEYS: Array<
 
 const ALL_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: true }).map((provider) => provider.id)
 const ACTIVE_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: false }).map((provider) => provider.id)
+const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
+  'accounts/fireworks/models/kimi-k2p5-turbo': 'accounts/fireworks/routers/kimi-k2p5-turbo',
+  'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
+}
 
 function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
@@ -63,6 +67,25 @@ function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
     delete sanitized[key]
   }
   return sanitized
+}
+
+export function migrateConfiguredModelCode<
+  T extends {
+    code: string
+    displayName?: string
+  },
+>(model: T): T {
+  const mappedCode = LEGACY_FIREWORKS_MODEL_ID_MAP[model.code]
+  if (!mappedCode) return model
+
+  return {
+    ...model,
+    code: mappedCode,
+    displayName:
+      model.displayName === 'Kimi K2.5 Turbo'
+        ? 'Kimi K2.5 Turbo'
+        : model.displayName,
+  }
 }
 
 function parseStoredSettings(raw: string | null): Partial<Settings> {
@@ -287,8 +310,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     parsed.alibabaModels = [...mergedAlibaba, ...customModels]
     // Initialize Fireworks fields if missing
     if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
+    if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
+      parsed.aiModel = LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]
+    }
     // Always merge with full default list; preserve user's enabled state
-    const userFireworks = parsed.fireworksModels
+    const userFireworks = Array.isArray(parsed.fireworksModels)
+      ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
+      : parsed.fireworksModels
     const mergedFireworks = defaultSettings.fireworksModels.map((d) => {
       const existing = Array.isArray(userFireworks)
         ? userFireworks.find((m: { code: string }) => m.code === d.code)

@@ -38,6 +38,16 @@ describe('chatProviderRuntime', () => {
     ).toContain('Groq API key is required')
   })
 
+  it('accepts configured Fireworks credentials through the shared provider registry', () => {
+    expect(
+      getProviderCredentialError({
+        modelProvider: 'fireworks',
+        fireworksApiKey: 'fw-key',
+        openRouterApiKey: '',
+      })
+    ).toBeNull()
+  })
+
   it('only includes active providers in switch-model options', () => {
     const models = getAvailableModelOptions({
       providerEnabled: {
