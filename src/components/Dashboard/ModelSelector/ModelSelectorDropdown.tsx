@@ -40,6 +40,7 @@ const PROVIDERS = [
   { key: 'openrouter', title: 'OpenRouter' },
   { key: 'perplexity', title: 'Perplexity' },
   { key: 'groq', title: 'Groq' },
+  { key: 'fireworks', title: 'Fireworks' },
   { key: 'alibaba', title: 'Alibaba Cloud' },
   { key: 'ollama', title: 'Ollama' },
 ] as const

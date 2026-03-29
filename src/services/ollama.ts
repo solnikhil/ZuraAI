@@ -185,6 +185,7 @@ export const generateOllamaCompletion = async (
         num_ctx?: number // Context window size
         think?: boolean | string
         tools?: any[]
+        signal?: AbortSignal
     }
 ): Promise<OllamaResponse> => {
     const response = await fetch(`${baseUrl}/api/chat`, {
@@ -204,6 +205,7 @@ export const generateOllamaCompletion = async (
                 num_ctx: options?.num_ctx
             }
         }),
+        signal: options?.signal,
     })
 
     if (!response.ok) {

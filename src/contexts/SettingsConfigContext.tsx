@@ -26,6 +26,7 @@ import { defaultSystemPrompt } from '../prompts/defaultSystemPrompt'
 import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
+import type { ProviderId } from '../providers/providerTypes'
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -53,7 +54,7 @@ export interface ConfiguredModel {
   supportsVideoRecognition?: boolean
 }
 
-type ProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
 /**
@@ -70,7 +71,7 @@ export interface SettingsConfig {
 
   // Model settings
   aiModel: string
-  modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+  modelProvider: ProviderId
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   ollamaUrl: string
@@ -98,7 +99,7 @@ export interface SettingsConfig {
   structuredResearchEnabled?: boolean
 
   // Title generation
-  titleModelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+  titleModelProvider: ProviderId
   titleModel: string
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'

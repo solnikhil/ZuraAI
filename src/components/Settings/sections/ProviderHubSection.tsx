@@ -45,12 +45,19 @@ import {
 import { ProviderLogo, SkillLogo } from '@/components/shared'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
+import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
+import {
+  DEFAULT_OLLAMA_URL,
+  getActiveProviderDefinitions,
+  getProviderEndpoint,
+  type ProviderId,
+} from '../../../providers'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+type ProviderKey = ProviderId
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
@@ -64,57 +71,31 @@ interface ProviderDefinition {
   >
 }
 
-const PROVIDERS: ProviderDefinition[] = [
-  {
-    key: 'openrouter',
-    name: 'OpenRouter',
-    description: 'OpenRouter provides access to many frontier models through one API.',
-    apiKeyField: 'openRouterApiKey',
-  },
-  {
-    key: 'groq',
-    name: 'Groq',
-    description: 'Ultra-low-latency model inference for high-speed chat experiences.',
-    apiKeyField: 'groqApiKey',
-  },
-  {
-    key: 'alibaba',
-    name: 'Alibaba Cloud',
-    description: 'Qwen models via DashScope API (Tongyi).',
-    apiKeyField: 'alibabaApiKey',
-  },
-  {
-    key: 'fireworks',
-    name: 'Fireworks AI',
-    description: 'Fast inference for open-source models with 100+ LLMs including DeepSeek, Llama, Qwen, and GLM.',
-    apiKeyField: 'fireworksApiKey',
-  },
-  {
-    key: 'groq',
-    name: 'Groq',
-    description: 'Ultra-low-latency model inference for high-speed chat experiences.',
-    apiKeyField: 'groqApiKey',
-  },
-  {
-    key: 'perplexity',
-    name: 'Perplexity',
-    description: 'Research-focused model provider with search-native reasoning models.',
-    apiKeyField: 'perplexityApiKey',
-  },
-  {
-    key: 'ollama',
-    name: 'Ollama',
-    description: 'Run local models privately on your machine with local networking.',
-  },
-]
+const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
+  key: provider.id as ProviderKey,
+  name: provider.label,
+  description: provider.description,
+  apiKeyField:
+    provider.id === 'openrouter'
+      ? 'openRouterApiKey'
+      : provider.id === 'groq'
+        ? 'groqApiKey'
+        : provider.id === 'alibaba'
+          ? 'alibabaApiKey'
+          : provider.id === 'fireworks'
+            ? 'fireworksApiKey'
+          : provider.id === 'perplexity'
+            ? 'perplexityApiKey'
+            : undefined,
+}))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
-  alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
-  fireworks: 'https://api.fireworks.ai/inference/v1',
-  groq: 'https://api.groq.com/openai/v1',
-  ollama: 'http://localhost:11434',
-  openrouter: 'https://openrouter.ai/api/v1',
-  perplexity: 'https://api.perplexity.ai',
+  alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
+  fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
+  groq: getProviderEndpoint('groq', 'baseUrl') || '',
+  ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
+  openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
+  perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
 }
 
 const CATALOG_BASE_BACKGROUND = '#212121'
@@ -170,7 +151,7 @@ export interface ProviderHubSectionProps {
   tavilyApiKey: string
   ollamaUrl: string
   aiModel: string
-  modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+  modelProvider: ProviderKey
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
   alibabaModels: ModelBasic[]
@@ -199,7 +180,7 @@ export interface ProviderHubSectionProps {
       perplexityModels: ConfiguredModel[]
       maxTokens: number
       aiModel: string
-      modelProvider: 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+      modelProvider: ProviderKey
       providerEnabled: ProviderEnabledMap
     }>
   ) => void
@@ -210,6 +191,7 @@ export function ProviderHubSection({
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
+  fireworksApiKey,
   tavilyApiKey,
   ollamaUrl,
   aiModel,
@@ -219,25 +201,30 @@ export function ProviderHubSection({
   perplexityModels,
   groqModels,
   alibabaModels,
+  fireworksModels,
   ollamaModels,
   initialProvider,
   initialManageMode,
   onParamsConsumed,
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
+  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey =>
+    provider || 'openrouter'
+
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(
     initialProvider ? 'detail' : 'catalog'
   )
   const [providerModelQuery, setProviderModelQuery] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(
-    initialProvider ?? 'openrouter'
+    normalizeVisibleProvider(initialProvider)
   )
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
     model: ConfiguredModel
@@ -277,7 +264,7 @@ export function ProviderHubSection({
   useEffect(() => {
     if (initialProvider != null || initialManageMode != null) {
       if (initialProvider != null) {
-        setSelectedProvider(initialProvider)
+        setSelectedProvider(normalizeVisibleProvider(initialProvider))
         setProviderView('detail')
       }
       if (initialManageMode != null) {
@@ -292,6 +279,7 @@ export function ProviderHubSection({
     perplexity: perplexityModels,
     groq: groqModels,
     alibaba: alibabaModels,
+    fireworks: fireworksModels,
     ollama: ollamaModels,
   }
 
@@ -347,6 +335,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
     if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
+    if (provider.apiKeyField === 'fireworksApiKey') return fireworksApiKey ?? ''
     return ''
   }
 
@@ -357,6 +346,7 @@ export function ProviderHubSection({
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
+      fireworks: providerEnabled?.fireworks !== false,
     }
   }, [
     providerEnabled?.openrouter,
@@ -364,6 +354,7 @@ export function ProviderHubSection({
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
+    providerEnabled?.fireworks,
   ])
 
   const isProviderEnabled = (provider: ProviderDefinition): boolean =>
@@ -375,6 +366,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
+    if (provider.apiKeyField === 'fireworksApiKey') onChange({ fireworksApiKey: value })
   }
 
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
@@ -408,17 +400,32 @@ export function ProviderHubSection({
     onChange(updates)
   }
 
-  const addCustomModel = (model: ConfiguredModel) => {
-    const exists = configuredModels.some((item) => item.code === model.code)
+  const getModelsForProvider = (provider: ProviderKey): ConfiguredModel[] => {
+    return (providerModelMap[provider] as ConfiguredModel[] | undefined) || []
+  }
+
+  const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
+    if (provider === 'openrouter') updates.configuredModels = models
+    if (provider === 'perplexity') updates.perplexityModels = models
+    if (provider === 'groq') updates.groqModels = models
+    if (provider === 'alibaba') updates.alibabaModels = models
+    if (provider === 'fireworks') updates.fireworksModels = models
+    if (provider === 'ollama') updates.ollamaModels = models
+    onChange(updates)
+  }
+
+  const addCustomModel = (model: ConfiguredModel, provider: ProviderKey = selectedProviderDef.key) => {
+    const currentModels = getModelsForProvider(provider)
+    const exists = currentModels.some((item) => item.code === model.code)
     if (exists) {
-      onChange({
-        configuredModels: configuredModels.map((item) =>
-          item.code === model.code ? { ...item, ...model } : item
-        ),
-      })
+      setModelsForProvider(
+        provider,
+        currentModels.map((item) => (item.code === model.code ? { ...item, ...model } : item))
+      )
       return
     }
-    onChange({ configuredModels: [...configuredModels, model] })
+    setModelsForProvider(provider, [...currentModels, model])
   }
 
   const toggleModelEnabled = (provider: ProviderKey, modelCode: string, checked: boolean) => {
@@ -433,6 +440,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
@@ -458,6 +466,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     onChange(updates)
@@ -472,6 +481,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (modelProvider === provider && aiModel === modelCode) {
@@ -596,6 +606,23 @@ export function ProviderHubSection({
         })
         if (!response.ok && response.status !== 400) {
           throw new Error(`Alibaba Cloud check failed (${response.status}).`)
+        }
+      } else if (selectedProviderDef.key === 'fireworks') {
+        const response = await fetch(`${endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${selectedKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: connectivityModel,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        })
+        if (!response.ok && response.status !== 400) {
+          throw new Error(`Fireworks check failed (${response.status}).`)
         }
       } else {
         throw new Error(
@@ -968,11 +995,16 @@ export function ProviderHubSection({
                     className="border-border bg-secondary pl-9"
                   />
                 </div>
-                {selectedProviderDef.key === 'openrouter' && (
+                {(selectedProviderDef.key === 'openrouter' ||
+                  selectedProviderDef.key === 'fireworks') && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setOpenRouterSearchDialogOpen(true)}
+                    onClick={() =>
+                      selectedProviderDef.key === 'openrouter'
+                        ? setOpenRouterSearchDialogOpen(true)
+                        : setFireworksSearchDialogOpen(true)
+                    }
                     className="gap-2"
                   >
                     <Search size={14} />
@@ -1037,7 +1069,7 @@ export function ProviderHubSection({
       <CreateCustomModelDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onCreate={addCustomModel}
+        onCreate={(model) => addCustomModel(model, selectedProviderDef.key)}
       />
 
       <CreateCustomModelDialog
@@ -1089,9 +1121,19 @@ export function ProviderHubSection({
         <OpenRouterModelSearchDialog
           open={openRouterSearchDialogOpen}
           onOpenChange={setOpenRouterSearchDialogOpen}
-          onAddModel={addCustomModel}
+          onAddModel={(model) => addCustomModel(model, 'openrouter')}
           apiKey={openRouterApiKey}
           existingModelCodes={configuredModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'fireworks' && (
+        <FireworksModelSearchDialog
+          open={fireworksSearchDialogOpen}
+          onOpenChange={setFireworksSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'fireworks')}
+          apiKey={fireworksApiKey}
+          existingModelCodes={fireworksModels.map((m) => m.code)}
         />
       )}
     </div>

@@ -15,7 +15,12 @@ import { generateChatTitle } from '../../../../services/titleGenerator'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
-import { getOpenRouterApiKey } from '../../../../utils/openRouterKey'
+import {
+  getAvailableModelOptions,
+  getProviderCredentialError,
+  normalizeActiveProviderId,
+  TITLE_REVEAL_INTERVAL_MS,
+} from '../../../../providers'
 import {
   buildProviderMessages,
   canAnalyzeImageAttachments,
@@ -25,24 +30,13 @@ import {
 } from '../attachmentUtils'
 
 import {
-  useAlibabaStreaming,
-  useFireworksStreaming,
-  useGroqStreaming,
-  useOllamaStreaming,
-  useOpenRouterStreaming,
-  usePerplexityStreaming,
+  formatProviderStreamError,
+  useProviderStreaming,
   useStreamingToolCalls,
   useResearchMode,
   type StreamingSettings,
   type ToolCallingHook,
 } from './streaming'
-
-import { streamAlibabaCompletion } from '../../../../services/alibaba'
-import { streamFireworksCompletion } from '../../../../services/fireworks'
-import { streamGroqCompletion } from '../../../../services/groq'
-import { streamOllamaCompletion } from '../../../../services/ollama'
-import { streamOpenRouterCompletion } from '../../../../services/openrouter'
-import { streamPerplexityCompletion } from '../../../../services/perplexity'
 
 export interface UseStreamingChatOptions {
   onMessageSent?: () => void
@@ -162,7 +156,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         if (visibleLength >= normalizedTitle.length) {
           clearTitleRevealInterval(sessionId)
         }
-      }, 24)
+      }, TITLE_REVEAL_INTERVAL_MS)
 
       titleRevealIntervalRef.current.set(sessionId, intervalId)
     },
@@ -281,46 +275,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   const { calculateResearchConfig } = useResearchMode({ canUseTools })
 
-  const { streamOllama } = useOllamaStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
-  const { streamPerplexity } = usePerplexityStreaming({
-    settings: streamingSettings,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
-  const { streamGroq } = useGroqStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
-  const { streamOpenRouter } = useOpenRouterStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
-  const { streamAlibaba } = useAlibabaStreaming({
-    settings: streamingSettings,
-    toolCalling,
-    updateStreamingMessage,
-    flushThrottledUpdates,
-    throttledUpdateStreamingMessage,
-  })
-
-  const { streamFireworks } = useFireworksStreaming({
+  const { runProviderStream } = useProviderStreaming({
     settings: streamingSettings,
     toolCalling,
     updateStreamingMessage,
@@ -332,13 +287,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     // Flush any pending throttled updates before stopping
     flushThrottledUpdates()
 
-      // Commit any pending streaming content to the session
-      if (streamingMessageRef.current) {
-        const finalState = completeStreaming()
-        if (finalState.sessionId && finalState.messageId) {
-          // Commit final content to the session
-          updateStreamingMessage(
-            finalState.sessionId,
+    // Commit any pending streaming content to the session
+    if (streamingMessageRef.current) {
+      const finalState = completeStreaming()
+      if (finalState.sessionId && finalState.messageId) {
+        // Commit final content to the session
+        updateStreamingMessage(
+          finalState.sessionId,
           finalState.messageId,
           buildFinalStreamingUpdates(finalState)
         )
@@ -450,6 +405,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           optimizedHistory as ConversationMessage[],
           settings.modelProvider
         )
+        const provider = normalizeActiveProviderId(settings.modelProvider)
+
+        const credentialError = getProviderCredentialError(settings, provider)
+        if (credentialError) {
+          setIsLoading(false)
+          showToast(credentialError, 'error')
+          return
+        }
 
         // Create streaming message
         const streamingMessageId = addMessageToSession(targetSessionId!, {
@@ -462,99 +425,20 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
         startStreaming(targetSessionId!, streamingMessageId)
 
-        // Validate API key before sending
-        const isOpenRouter =
-          settings.modelProvider === 'openrouter' ||
-          !['alibaba', 'fireworks', 'groq', 'ollama', 'perplexity'].includes(settings.modelProvider)
-        const isAlibaba = settings.modelProvider === 'alibaba'
-        const isFireworks = settings.modelProvider === 'fireworks'
-        if (isAlibaba && !settings.alibabaApiKey?.trim()) {
-          deleteMessageFromSession(targetSessionId!, streamingMessageId)
-          streamingMessageRef.current = null
-          setIsLoading(false)
-          showToast(
-            'Alibaba API key is required. Add it in Settings > Providers and save.',
-            'error'
-          )
-          return
-        }
-        if (isFireworks && !settings.fireworksApiKey?.trim()) {
-          deleteMessageFromSession(targetSessionId!, streamingMessageId)
-          streamingMessageRef.current = null
-          setIsLoading(false)
-          showToast(
-            'Fireworks API key is required. Add it in Settings > Providers and save.',
-            'error'
-          )
-          return
-        }
-        if (isOpenRouter && !getOpenRouterApiKey(settings.openRouterApiKey)) {
-          deleteMessageFromSession(targetSessionId!, streamingMessageId)
-          streamingMessageRef.current = null
-          setIsLoading(false)
-          showToast(
-            'OpenRouter API key is required. Add it in Settings > Providers and save.',
-            'error'
-          )
-          return
-        }
-
         // Use composed provider-specific streaming hooks
-        if (settings.modelProvider === 'ollama') {
-          await streamOllama({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            researchMaxRounds,
-            signal: abortControllerRef.current?.signal,
-          })
-        } else if (settings.modelProvider === 'perplexity') {
-          await streamPerplexity({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            signal: abortControllerRef.current?.signal,
-          })
-        } else if (settings.modelProvider === 'groq') {
-          await streamGroq({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            researchMaxRounds,
-            signal: abortControllerRef.current?.signal,
-          })
-        } else if (settings.modelProvider === 'alibaba') {
-          await streamAlibaba({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            researchMaxRounds,
-            signal: abortControllerRef.current?.signal,
-          })
-        } else if (settings.modelProvider === 'fireworks') {
-          await streamFireworks({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            researchMaxRounds,
-            signal: abortControllerRef.current?.signal,
-          })
-        } else {
-          await streamOpenRouter({
-            sessionId: targetSessionId!,
-            messageId: streamingMessageId,
-            messages: providerMessages,
-            startTime,
-            researchMaxRounds,
-            forceWebSearch,
-            signal: abortControllerRef.current?.signal,
-          })
-        }
+        await runProviderStream({
+          provider,
+          model: settings.aiModel,
+          sessionId: targetSessionId!,
+          messageId: streamingMessageId,
+          messages: providerMessages,
+          startTime,
+          researchMaxRounds,
+          forceWebSearch,
+          signal: abortControllerRef.current?.signal,
+          enableTools: true,
+          syncToStreamingContext: true,
+        })
 
         // Commit streaming content to the session
         if (streamingMessageRef.current) {
@@ -606,36 +490,13 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         }
 
         setIsLoading(false)
-        let errorMsg = 'An unexpected error occurred.'
-        const msg = error.message || ''
-
-        if (msg.includes('429') || msg.includes('rate limit')) {
-          // Surface the actual error detail from the provider
-          // Error messages now include [status] prefix from retry logic
-          const statusMatch = msg.match(/\[(\d+)\]\s*(.+)/)
-          if (statusMatch) {
-            errorMsg = `Provider error (${statusMatch[1]}): ${statusMatch[2]}`
-          } else if (msg.includes('Provider returned error') || msg.includes('provider:')) {
-            errorMsg =
-              'The upstream model provider returned an error (429). This usually means the model is temporarily overloaded. Try a different model or wait a moment.'
-          } else {
-            errorMsg = 'Rate limit exceeded. Please slow down and try again in a moment.'
-          }
-          showToast(errorMsg, 'warning')
-        } else if (msg.includes('401') || msg.includes('403')) {
-          errorMsg = 'Invalid API key. Please check your API key in Settings.'
-          showToast(errorMsg, 'error')
-        } else if (msg.includes('network') || msg.includes('fetch')) {
-          errorMsg = 'Network error. Please check your internet connection.'
-          showToast(errorMsg, 'error')
-        } else if (msg.includes('API Key') || msg.includes('missing')) {
-          errorMsg =
-            'OpenRouter API key is required. Add it in Settings > Providers and click Save.'
-          showToast(errorMsg, 'error')
-        } else {
-          errorMsg = `Error: ${msg || 'Unknown error'}`
-          showToast(errorMsg, 'error')
-        }
+        const formattedError = formatProviderStreamError(
+          error,
+          normalizeActiveProviderId(settings.modelProvider),
+          settings
+        )
+        const errorMsg = formattedError.message
+        showToast(errorMsg, formattedError.tone)
 
         addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
         clearToolState()
@@ -662,11 +523,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       startStreaming,
       completeStreaming,
       cancelStreaming,
-      streamOllama,
-      streamPerplexity,
-      streamGroq,
-      streamAlibaba,
-      streamOpenRouter,
+      runProviderStream,
       buildFinalStreamingUpdates,
     ]
   )
@@ -683,7 +540,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
       // Handle switch_model instruction
       if (instruction === 'switch_model') {
-        const models = getModelOptions()
+        const models = getAvailableModelOptions(settings)
         if (models.length === 0) {
           showToast('No enabled models are available to switch to.', 'warning')
           return
@@ -752,6 +609,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           return
         }
 
+        const effectiveProvider = normalizeActiveProviderId(effectiveSettings.modelProvider)
+        const credentialError = getProviderCredentialError(effectiveSettings, effectiveProvider)
+        if (credentialError) {
+          showToast(credentialError, 'error')
+          setIsLoading(false)
+          return
+        }
+
         let systemPrompt = getEffectiveSystemPrompt(effectiveSettings)
         let userContent = userMessage.content
 
@@ -773,9 +638,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           responseVersions: versions,
           currentVersionIndex: versions.length,
         })
-
-        let accumulatedContent = ''
-        let accumulatedReasoning = ''
 
         const outboundUserMessage = {
           role: 'user' as const,
@@ -806,86 +668,28 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         )
 
         try {
-          if (effectiveSettings.modelProvider === 'ollama') {
-            for await (const chunk of streamOllamaCompletion(
-              effectiveSettings.ollamaUrl,
-              effectiveSettings.aiModel,
-              apiMessages,
-              { think: true, signal: abortControllerRef.current?.signal }
-            )) {
-              const thinkingDelta = chunk.message?.thinking || ''
-              const delta = chunk.message?.content || ''
-              if (thinkingDelta) accumulatedReasoning += thinkingDelta
-              accumulatedContent += delta
-              updateStreamingMessage(currentSessionId, streamingMessageId, {
-                content: accumulatedContent,
-                thinking: accumulatedReasoning || undefined,
-              })
-            }
-          } else if (effectiveSettings.modelProvider === 'perplexity') {
-            for await (const chunk of streamPerplexityCompletion(
-              effectiveSettings.perplexityApiKey,
-              effectiveSettings.aiModel,
-              apiMessages,
-              { signal: abortControllerRef.current?.signal }
-            )) {
-              const delta = chunk.choices?.[0]?.delta?.content || ''
-              accumulatedContent += delta
-              updateStreamingMessage(currentSessionId, streamingMessageId, {
-                content: accumulatedContent,
-              })
-            }
-          } else if (effectiveSettings.modelProvider === 'groq') {
-            for await (const chunk of streamGroqCompletion(
-              effectiveSettings.groqApiKey,
-              effectiveSettings.aiModel,
-              apiMessages,
-              { signal: abortControllerRef.current?.signal }
-            )) {
-              const delta = chunk.choices?.[0]?.delta?.content || ''
-              accumulatedContent += delta
-              updateStreamingMessage(currentSessionId, streamingMessageId, {
-                content: accumulatedContent,
-              })
-            }
-          } else if (effectiveSettings.modelProvider === 'alibaba') {
-            for await (const chunk of streamAlibabaCompletion(
-              effectiveSettings.alibabaApiKey,
-              effectiveSettings.aiModel,
-              apiMessages,
-              { signal: abortControllerRef.current?.signal }
-            )) {
-              const delta = chunk.choices?.[0]?.delta?.content || ''
-              accumulatedContent += delta
-              updateStreamingMessage(currentSessionId, streamingMessageId, {
-                content: accumulatedContent,
-              })
-            }
-          } else {
-            for await (const chunk of streamOpenRouterCompletion(
-              getOpenRouterApiKey(effectiveSettings.openRouterApiKey),
-              effectiveSettings.aiModel,
-              apiMessages,
-              {
-                temperature: effectiveSettings.temperature,
-                modalities: openRouterModalities,
-                signal: abortControllerRef.current?.signal,
-              }
-            )) {
-              const delta = chunk.choices?.[0]?.delta?.content || ''
-              const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
-              if (reasoningDelta) accumulatedReasoning += reasoningDelta
-              if (delta) accumulatedContent += delta
-              updateStreamingMessage(currentSessionId, streamingMessageId, {
-                content: accumulatedContent,
-                thinking: accumulatedReasoning || undefined,
-              })
-            }
-          }
+          const regenerationResult = await runProviderStream({
+            provider: effectiveProvider,
+            model: effectiveSettings.aiModel,
+            sessionId: currentSessionId,
+            messageId: streamingMessageId,
+            messages: apiMessages,
+            startTime: performance.now(),
+            researchMaxRounds: 0,
+            forceWebSearch: false,
+            signal: abortControllerRef.current?.signal,
+            enableTools: false,
+            syncToStreamingContext: false,
+            modalities: openRouterModalities,
+          })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {
-            content: accumulatedContent,
-            thinking: accumulatedReasoning || undefined,
+            content: regenerationResult.content,
+            thinkingBlocks: regenerationResult.thinkingBlocks,
+            files: regenerationResult.files,
+            usage: regenerationResult.usage,
+            latency: regenerationResult.latency,
+            model: regenerationResult.model,
           })
           setIsLoading(false)
         } catch (streamError: any) {
@@ -902,7 +706,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             responseVersions: message.responseVersions,
             currentVersionIndex: message.currentVersionIndex,
           })
-          showToast(streamError.message || 'Failed to regenerate', 'error')
+          const formattedError = formatProviderStreamError(
+            streamError,
+            effectiveProvider,
+            effectiveSettings
+          )
+          showToast(formattedError.message, formattedError.tone)
           setIsLoading(false)
         }
       } catch (error: any) {
@@ -910,7 +719,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         if (error.name === 'AbortError' || abortControllerRef.current === null) {
           return
         }
-        showToast(error.message || 'Failed to regenerate', 'error')
+        const effectiveProvider = normalizeActiveProviderId(settings.modelProvider)
+        const formattedError = formatProviderStreamError(error, effectiveProvider, settings)
+        showToast(formattedError.message, formattedError.tone)
         setIsLoading(false)
       }
     },
@@ -924,71 +735,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       deleteMessageFromSession,
       clearToolState,
       showToast,
+      options,
       updateSettings,
+      runProviderStream,
     ]
   )
-
-  /**
-   * Get available models for switching
-   */
-  const getModelOptions = (): Array<{
-    id: string
-    provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
-    displayName: string
-  }> => {
-    const providerEnabled = settings.providerEnabled || {}
-    const models: Array<{
-      id: string
-      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
-      displayName: string
-    }> = []
-
-    const isProviderEnabled = (
-      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
-    ): boolean => {
-      if (providerEnabled[provider] === false) return false
-
-      switch (provider) {
-        case 'openrouter':
-          return Boolean(settings.openRouterApiKey?.trim())
-        case 'ollama':
-          return Boolean(settings.ollamaUrl?.trim())
-        case 'perplexity':
-          return Boolean(settings.perplexityApiKey?.trim())
-        case 'groq':
-          return Boolean(settings.groqApiKey?.trim())
-        case 'alibaba':
-          return Boolean(settings.alibabaApiKey?.trim())
-      }
-    }
-
-    const pushModels = (
-      provider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba',
-      entries: typeof settings.configuredModels | undefined
-    ) => {
-      if (!isProviderEnabled(provider) || !entries) {
-        return
-      }
-
-      entries
-        .filter((model) => model.enabled !== false)
-        .forEach((model) => {
-          models.push({
-            id: model.code,
-            provider,
-            displayName: model.displayName,
-          })
-        })
-    }
-
-    pushModels('openrouter', settings.configuredModels)
-    pushModels('ollama', settings.ollamaModels)
-    pushModels('perplexity', settings.perplexityModels)
-    pushModels('groq', settings.groqModels)
-    pushModels('alibaba', settings.alibabaModels)
-
-    return models
-  }
 
   return {
     isLoading,

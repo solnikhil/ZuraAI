@@ -24,6 +24,7 @@ import {
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
+import { getActiveProviderDefinitions, type ActiveProviderId } from '../../../providers'
 
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
@@ -189,15 +190,13 @@ export interface AppearanceSectionProps {
   onParamsConsumed?: () => void
 }
 
-type TitleProviderKey = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+type TitleProviderKey = ActiveProviderId
 
 const TITLE_PROVIDER_OPTIONS: Array<{ key: TitleProviderKey; label: string }> = [
-  { key: 'alibaba', label: 'Alibaba Cloud' },
-  { key: 'fireworks', label: 'Fireworks AI' },
-  { key: 'groq', label: 'Groq' },
-  { key: 'ollama', label: 'Ollama' },
-  { key: 'openrouter', label: 'OpenRouter' },
-  { key: 'perplexity', label: 'Perplexity' },
+  ...getActiveProviderDefinitions().map((provider) => ({
+    key: provider.id as TitleProviderKey,
+    label: provider.label,
+  })),
 ]
 
 export function AppearanceSection({

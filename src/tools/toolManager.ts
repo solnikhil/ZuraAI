@@ -8,12 +8,13 @@
 //
 // DO NOT add 'perplexity' to tool support functions.
 //
-// Providers WITH tool support: openrouter, groq, ollama, alibaba
+// Providers WITH tool support: openrouter, groq, ollama, alibaba, fireworks
 
 // Tool Manager - Coordinates tool execution in chat flow
 
 import { getAllToolDefinitions, getToolByName } from './definitions'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
+import type { ProviderId } from '../providers'
 import {
   parseOpenRouterToolCalls,
   hasToolCalls,
@@ -122,7 +123,7 @@ function coerceToolArguments(toolCall: ToolCall, availableTools: ToolDescriptor[
 export type { ToolCall, ToolCallResult }
 
 export interface ToolManagerConfig {
-  provider: 'openrouter' | 'groq' | 'ollama' | 'perplexity' | 'alibaba'
+  provider: ProviderId
   model: string
   enabledTools?: string[] // If not provided, all tools enabled
   availableTools?: ToolDescriptor[]
@@ -164,6 +165,7 @@ export function parseToolCallsFromResponse(
     case 'groq':
     case 'ollama':
     case 'alibaba':
+    case 'fireworks':
       return parseOpenRouterToolCalls(response as OpenRouterResponse)
     case 'perplexity':
       // EXCLUDED: This provider has native capabilities
@@ -183,6 +185,7 @@ export function responseHasToolCalls(response: ProviderResponse, provider: strin
     case 'groq':
     case 'ollama':
     case 'alibaba':
+    case 'fireworks':
       return hasToolCalls(response as OpenRouterResponse)
     case 'perplexity':
       // EXCLUDED: This provider has native capabilities
@@ -208,6 +211,7 @@ export function formatResultsForProvider(
     case 'groq':
     case 'ollama':
     case 'alibaba':
+    case 'fireworks':
       return formatToolResultsForOpenRouter(toolCalls, toolResults)
     case 'perplexity':
       // EXCLUDED: This provider has native capabilities
@@ -314,6 +318,7 @@ export function buildMessagesWithToolResults(
     case 'groq':
     case 'ollama':
     case 'alibaba':
+    case 'fireworks':
       return [...originalMessages, assistantMessage, ...toolResults] as ProviderMessage[]
 
     case 'perplexity':

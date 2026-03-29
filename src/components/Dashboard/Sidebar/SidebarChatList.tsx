@@ -289,6 +289,17 @@ export default function SidebarChatList({
           data={sidebarItems}
           itemContent={renderItem}
           components={{
+            Scroller: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+              function SidebarChatScroller(props, ref) {
+                return (
+                  <div
+                    {...props}
+                    ref={ref}
+                    className={[props.className, 'sidebar-chatlist__scroller'].filter(Boolean).join(' ')}
+                  />
+                )
+              }
+            ),
             List: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
               function SidebarChatListbox(props, ref) {
                 return (

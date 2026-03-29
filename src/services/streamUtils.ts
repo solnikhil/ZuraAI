@@ -27,23 +27,73 @@ export async function* parseSSEStream<T>(
     let buffer = ''
     const providerName = options?.providerName || 'SSE'
 
-    const parseLine = (line: string): { chunk?: T; done?: true } | null => {
-        if (line.trim() === '') return null
-        if (!line.startsWith('data: ')) return null
+    const parsePayload = (data: string): T | null => {
+        try {
+            const parsed = JSON.parse(data)
+            const chunk = options?.onParsed ? options.onParsed(parsed) : parsed as T
+            return chunk === null ? null : chunk
+        } catch (e) {
+            if (e instanceof Error && options?.onParsed && !(e instanceof SyntaxError)) {
+                throw e
+            }
+            throw e
+        }
+    }
 
-        const data = line.slice(6)
+    const parseEvent = (eventBlock: string): { chunks?: T[]; done?: true } | null => {
+        if (eventBlock.trim() === '') return null
+
+        const dataLines: string[] = []
+        for (const rawLine of eventBlock.split(/\r?\n/)) {
+            if (rawLine === '' || rawLine.startsWith(':')) continue
+
+            const separatorIndex = rawLine.indexOf(':')
+            const field = separatorIndex >= 0 ? rawLine.slice(0, separatorIndex) : rawLine
+            let value = separatorIndex >= 0 ? rawLine.slice(separatorIndex + 1) : ''
+            if (value.startsWith(' ')) {
+                value = value.slice(1)
+            }
+
+            if (field === 'data') {
+                dataLines.push(value)
+            }
+        }
+
+        const data = dataLines.join('\n')
+        if (!data) return null
         if (data.trim() === '[DONE]') {
             return { done: true }
         }
 
         try {
-            const parsed = JSON.parse(data)
-            const chunk = options?.onParsed ? options.onParsed(parsed) : parsed as T
+            const chunk = parsePayload(data)
             if (chunk === null) return null
-            return { chunk }
+            return { chunks: [chunk] }
         } catch (e) {
-            if (e instanceof Error && options?.onParsed && !(e instanceof SyntaxError)) {
-                throw e
+            if (dataLines.length > 1) {
+                const chunks: T[] = []
+                for (const line of dataLines) {
+                    if (line.trim() === '[DONE]') {
+                        return { done: true }
+                    }
+                    try {
+                        const chunk = parsePayload(line)
+                        if (chunk !== null) {
+                            chunks.push(chunk)
+                        }
+                    } catch (lineError) {
+                        if (
+                            lineError instanceof Error &&
+                            options?.onParsed &&
+                            !(lineError instanceof SyntaxError)
+                        ) {
+                            throw lineError
+                        }
+                        console.warn(`Failed to parse ${providerName} chunk:`, line)
+                        return null
+                    }
+                }
+                return chunks.length > 0 ? { chunks } : null
             }
             console.warn(`Failed to parse ${providerName} chunk:`, data)
             return null
@@ -59,32 +109,34 @@ export async function* parseSSEStream<T>(
             }
 
             buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || '' // Keep incomplete line in buffer
+            while (true) {
+                const match = buffer.match(/\r?\n\r?\n/)
+                if (!match || match.index === undefined) break
 
-            for (const line of lines) {
-                const result = parseLine(line)
+                const eventBlock = buffer.slice(0, match.index)
+                buffer = buffer.slice(match.index + match[0].length)
+                const result = parseEvent(eventBlock)
                 if (!result) continue
                 if (result.done) {
                     return
                 }
-                if (result.chunk !== undefined) {
+                for (const chunk of result.chunks || []) {
                     if (options?.onChunk) {
-                        options.onChunk(result.chunk)
+                        options.onChunk(chunk)
                     }
-                    yield result.chunk
+                    yield chunk
                 }
             }
         }
 
-        const finalLine = buffer.trim()
-        if (finalLine) {
-            const result = parseLine(finalLine)
-            if (result?.chunk !== undefined) {
+        const finalEvent = buffer.trim()
+        if (finalEvent) {
+            const result = parseEvent(finalEvent)
+            for (const chunk of result?.chunks || []) {
                 if (options?.onChunk) {
-                    options.onChunk(result.chunk)
+                    options.onChunk(chunk)
                 }
-                yield result.chunk
+                yield chunk
             }
         }
     } finally {
@@ -131,7 +183,7 @@ export async function* parseNDJSONStream<T>(
             }
 
             buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
+            const lines = buffer.split(/\r?\n/)
             buffer = lines.pop() || '' // Keep incomplete line in buffer
 
             for (const line of lines) {

@@ -7,8 +7,15 @@ import { generatePerplexityCompletion } from './perplexity'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
+import {
+  getActiveProviderDefinitions,
+  hasProviderAccess,
+  getProviderModels as getProviderModelsFromRegistry,
+  normalizeProviderId,
+  type ActiveProviderId,
+} from '../providers'
 
-type TitleProvider = 'alibaba' | 'fireworks' | 'groq' | 'ollama' | 'openrouter' | 'perplexity'
+type TitleProvider = ActiveProviderId
 
 type TitleGenerationSettings = Partial<
   Pick<
@@ -33,15 +40,9 @@ type TitleGenerationSettings = Partial<
   >
 >
 
-const TITLE_PROVIDERS: TitleProvider[] = ['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity']
-const PROVIDER_MODEL_KEYS = {
-  alibaba: 'alibabaModels',
-  fireworks: 'fireworksModels',
-  groq: 'groqModels',
-  ollama: 'ollamaModels',
-  openrouter: 'configuredModels',
-  perplexity: 'perplexityModels',
-} as const
+const TITLE_PROVIDERS: TitleProvider[] = getActiveProviderDefinitions().map(
+  (provider) => provider.id as TitleProvider
+)
 
 const isTitleProvider = (value: unknown): value is TitleProvider =>
   typeof value === 'string' && TITLE_PROVIDERS.includes(value as TitleProvider)
@@ -59,11 +60,13 @@ const sanitizeTitle = (title: string): string => {
 }
 
 const resolveTitleProvider = (settings: TitleGenerationSettings): TitleProvider => {
-  if (isTitleProvider(settings.titleModelProvider)) {
-    return settings.titleModelProvider
+  const requestedTitleProvider = normalizeProviderId(settings.titleModelProvider)
+  if (isTitleProvider(requestedTitleProvider)) {
+    return requestedTitleProvider
   }
-  if (isTitleProvider(settings.modelProvider)) {
-    return settings.modelProvider
+  const requestedModelProvider = normalizeProviderId(settings.modelProvider)
+  if (isTitleProvider(requestedModelProvider)) {
+    return requestedModelProvider
   }
   return 'openrouter'
 }
@@ -72,11 +75,7 @@ const getProviderModels = (
   settings: TitleGenerationSettings,
   provider: TitleProvider,
 ): ConfiguredModel[] => {
-  const rawModels = settings[PROVIDER_MODEL_KEYS[provider]]
-
-  if (!Array.isArray(rawModels)) return []
-
-  return rawModels.filter((model): model is ConfiguredModel => {
+  return getProviderModelsFromRegistry(settings, provider).filter((model): model is ConfiguredModel => {
     return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
   })
 }
@@ -169,9 +168,10 @@ async function generateTitleWithProvider(
   }
 
   if (provider === 'ollama') {
-    if (!settings.ollamaUrl) throw new Error('Ollama URL missing for title generation.')
+    const ollamaUrl = settings.ollamaUrl?.trim()
+    if (!ollamaUrl) throw new Error('Ollama URL missing for title generation.')
     const result = await generateOllamaCompletion(
-      settings.ollamaUrl,
+      ollamaUrl,
       model,
       [{ role: 'user', content: prompt }],
       { temperature: 0.3 },
@@ -213,22 +213,7 @@ async function generateTitleWithProvider(
 }
 
 function hasApiKeyForProvider(settings: TitleGenerationSettings, provider: TitleProvider): boolean {
-  switch (provider) {
-    case 'alibaba':
-      return !!settings.alibabaApiKey
-    case 'fireworks':
-      return !!settings.fireworksApiKey
-    case 'groq':
-      return !!settings.groqApiKey
-    case 'ollama':
-      return !!settings.ollamaUrl
-    case 'openrouter':
-      return !!getOpenRouterApiKey(settings.openRouterApiKey)
-    case 'perplexity':
-      return !!settings.perplexityApiKey
-    default:
-      return false
-  }
+  return hasProviderAccess(settings, provider)
 }
 
 export const generateChatTitle = async (
@@ -246,7 +231,12 @@ export const generateChatTitle = async (
   }
 
   try {
-    const title = await generateTitleWithProvider(titleProvider, titleModel, prompt, settings)
+    const title = await generateTitleWithProvider(
+      titleProvider,
+      titleModel,
+      prompt,
+      settings
+    )
 
     const cleaned = sanitizeTitle(title)
     if (!cleaned) throw new Error('Empty title from primary provider')
@@ -286,7 +276,10 @@ export const generateChatTitle = async (
     }
 
     const configuredProviders: TitleProvider[] = TITLE_PROVIDERS.filter(
-      (p) => p !== titleProvider && hasApiKeyForProvider(settings, p) && getFirstAvailableModel(settings, p),
+      (p) =>
+        p !== titleProvider &&
+        hasApiKeyForProvider(settings, p) &&
+        getFirstAvailableModel(settings, p),
     )
 
     for (const altProvider of configuredProviders) {
@@ -294,7 +287,12 @@ export const generateChatTitle = async (
         const altModel = getFirstAvailableModel(settings, altProvider)
         if (!altModel) continue
 
-        const altTitle = await generateTitleWithProvider(altProvider, altModel, prompt, settings)
+        const altTitle = await generateTitleWithProvider(
+          altProvider,
+          altModel,
+          prompt,
+          settings
+        )
         const cleaned = sanitizeTitle(altTitle)
         if (cleaned) {
           return enforceThreeWords(cleaned)

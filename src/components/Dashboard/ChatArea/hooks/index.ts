@@ -11,19 +11,18 @@ export { usePromptAutoHide } from './usePromptAutoHide'
 export type { UsePromptAutoHideOptions, UsePromptAutoHideReturn } from './usePromptAutoHide'
 
 export {
-  useOllamaStreaming,
-  usePerplexityStreaming,
-  useGroqStreaming,
-  useOpenRouterStreaming,
+  createProviderStreamClient,
+  useProviderStreaming,
 } from './streaming'
 
 export type {
   StreamingResult,
-  ProviderStreamingOptions,
-  ToolCallingOptions,
-  OpenRouterStreamingOptions,
+  NormalizedStreamEvent,
+  NormalizedToolCallDelta,
+  NormalizedUsage,
+  ProviderStreamClient,
+  StreamRequest,
   UpdateStreamingCallback,
-  FlushCallback,
   ToolCallingHook,
   StreamingSettings,
 } from './streaming'

@@ -1,13 +1,13 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
+import { getProviderEndpoint, getProviderRetryPolicy } from '../providers'
 
 // OpenRouter API service with streaming support
 
-// Retry configuration for transient errors (429, 502, 503, 529)
-const MAX_RETRIES = 3
-const INITIAL_BACKOFF_MS = 1500
-const BACKOFF_MULTIPLIER = 2
-const RETRYABLE_STATUS_CODES = [429, 502, 503, 529]
+const OPENROUTER_CHAT_COMPLETIONS_URL =
+    getProviderEndpoint('openrouter', 'chatCompletionsUrl') ??
+    'https://openrouter.ai/api/v1/chat/completions'
+const OPENROUTER_RETRY_POLICY = getProviderRetryPolicy('openrouter')
 
 /**
  * Parse retry delay from OpenRouter error response or use exponential backoff.
@@ -23,7 +23,7 @@ function getRetryDelay(attempt: number, errorBody?: string): number {
             }
         } catch { /* ignore parse errors */ }
     }
-    return INITIAL_BACKOFF_MS * Math.pow(BACKOFF_MULTIPLIER, attempt)
+    return OPENROUTER_RETRY_POLICY.initialBackoffMs * Math.pow(OPENROUTER_RETRY_POLICY.backoffMultiplier, attempt)
 }
 
 /** Sleep helper */
@@ -210,14 +210,14 @@ export async function* streamOpenRouterCompletion(
     // Retry loop for the initial HTTP request (before streaming starts)
     let response: Response | null = null
     let lastError: Error | null = null
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt <= OPENROUTER_RETRY_POLICY.maxRetries; attempt++) {
         if (attempt > 0) {
             const delay = getRetryDelay(attempt - 1, lastError?.message)
-            console.log(`[ZuraAI] OpenRouter stream retry ${attempt}/${MAX_RETRIES} after ${delay}ms`)
+            console.log(`[ZuraAI] OpenRouter stream retry ${attempt}/${OPENROUTER_RETRY_POLICY.maxRetries} after ${delay}ms`)
             await sleep(delay)
         }
 
-        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
@@ -235,7 +235,10 @@ export async function* streamOpenRouterCompletion(
         const errorData = parseErrorResponse(errorText)
         const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
 
-        if (RETRYABLE_STATUS_CODES.includes(response.status) && attempt < MAX_RETRIES) {
+        if (
+            OPENROUTER_RETRY_POLICY.retryableStatusCodes.includes(response.status) &&
+            attempt < OPENROUTER_RETRY_POLICY.maxRetries
+        ) {
             console.warn(`[ZuraAI] OpenRouter stream ${response.status} (attempt ${attempt + 1}): ${errorMessage}`)
             lastError = new Error(errorText)
             continue
@@ -284,6 +287,7 @@ export async function generateOpenRouterCompletion(
     options?: {
         temperature?: number
         max_tokens?: number
+        signal?: AbortSignal
     }
 ): Promise<OpenRouterResponse> {
     if (!apiKey) {
@@ -301,7 +305,7 @@ export async function generateOpenRouterCompletion(
         requestBody.max_tokens = options.max_tokens
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${apiKey}`,
@@ -309,7 +313,8 @@ export async function generateOpenRouterCompletion(
             "HTTP-Referer": "https://zuraai.in",
             "X-Title": "ZuraAI"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {

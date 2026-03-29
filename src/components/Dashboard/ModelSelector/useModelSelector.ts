@@ -10,6 +10,12 @@ import {
   listOllamaModels,
   enrichOllamaModelsWithContext,
 } from '../../../services/ollama'
+import {
+  DEFAULT_OLLAMA_URL,
+  getActiveProviderIds,
+  hasProviderAccess,
+  type ActiveProviderId,
+} from '../../../providers'
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
@@ -88,45 +94,18 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = ['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity'] as const
-  const providerEnabled = settings.providerEnabled || {}
+  const validProviders = getActiveProviderIds()
 
   const isProviderEnabled = useCallback(
     (provider: string): boolean => {
-      const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
-      if (!manuallyEnabled) return false
-
-      switch (provider) {
-        case 'alibaba':
-          return Boolean(settings.alibabaApiKey?.trim())
-        case 'fireworks':
-          return Boolean(settings.fireworksApiKey?.trim())
-        case 'groq':
-          return Boolean(settings.groqApiKey?.trim())
-        case 'ollama':
-          return Boolean(settings.ollamaUrl?.trim())
-        case 'openrouter':
-          return Boolean(settings.openRouterApiKey?.trim())
-        case 'perplexity':
-          return Boolean(settings.perplexityApiKey?.trim())
-        default:
-          return false
-      }
+      return hasProviderAccess(settings, provider)
     },
-    [
-      providerEnabled,
-      settings.alibabaApiKey,
-      settings.fireworksApiKey,
-      settings.groqApiKey,
-      settings.ollamaUrl,
-      settings.openRouterApiKey,
-      settings.perplexityApiKey,
-    ]
+    [settings]
   )
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
-      const p = settings.modelProvider
+      const p = settings.modelProvider as ActiveProviderId
       return (validProviders as readonly string[]).includes(p) ? p : 'openrouter'
     }
     return 'openrouter'
@@ -194,7 +173,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
     if (prevOpenRef.current) return // Already fetched for this open session
     prevOpenRef.current = true
-    const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
+    const url = settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
     const existing = (settings.ollamaModels || []).map((m) => [m.code, m.enabled] as const)
     const refresh = async () => {
       try {

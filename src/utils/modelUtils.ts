@@ -19,6 +19,7 @@ import {
   Video,
 } from 'lucide-react'
 import { modelSupportsTools } from '../tools/adapters'
+import type { ProviderId } from '../providers'
 
 /**
  * Model information interface
@@ -26,7 +27,7 @@ import { modelSupportsTools } from '../tools/adapters'
 export interface ModelInfo {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
+  provider: ProviderId
 }
 
 /**
@@ -510,6 +511,7 @@ export function groupModelsByProvider<T extends ModelInfo>(models: T[]): Record<
     openrouter: [],
     groq: [],
     alibaba: [],
+    fireworks: [],
   }
 
   models.forEach((model) => {
@@ -530,6 +532,7 @@ export const PROVIDER_CONFIG = {
   groq: { title: 'Groq', color: '#f97316' },
   ollama: { title: 'Ollama', color: '#339af0' },
   alibaba: { title: 'Alibaba Cloud', color: '#ff6a00' },
+  fireworks: { title: 'Fireworks', color: '#ef4444' },
 } as const
 
 /**
@@ -592,6 +595,10 @@ export function getModelDescription(model: {
 
   if (model.provider === 'ollama') {
     return 'Running locally on your machine'
+  }
+
+  if (model.provider === 'fireworks') {
+    return 'Serverless inference via Fireworks'
   }
 
   // Fallback for any unhandled provider

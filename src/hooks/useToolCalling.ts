@@ -11,7 +11,7 @@ import {
     ToolCallResult,
 } from '../tools/toolManager'
 import { ToolCall } from '../tools/executor'
-import type { OpenRouterResponse } from '../tools/types'
+import type { ToolCallingResponse } from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
@@ -117,7 +117,7 @@ export function useToolCalling() {
     }
 
     const handleToolCalls = async (
-        response: OpenRouterResponse,
+        response: ToolCallingResponse,
         onToolStart?: (toolCall: ToolCall) => void,
         onToolComplete?: (result: ToolCallResult) => void
     ): Promise<{

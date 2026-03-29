@@ -1,6 +1,6 @@
 /**
  * Unit tests for ProviderLogo component
- * Tests MiniMax provider logo rendering and fallback behavior
+ * Tests provider logo rendering and fallback behavior
  *
  */
 
@@ -44,6 +44,25 @@ describe('ProviderLogo', () => {
       render(<ProviderLogo provider="MiniMax" />)
       const img = screen.getByAltText('MiniMax logo')
       expect(img).toHaveAttribute('src', './provider-logos/minimax.png')
+    })
+  })
+
+  describe('Fireworks provider support', () => {
+    it('should recognize fireworks as a known provider', () => {
+      expect(isKnownProvider('fireworks')).toBe(true)
+      expect(isKnownProvider('Fireworks')).toBe(true)
+    })
+
+    it('should return correct color for fireworks provider', () => {
+      const color = getProviderLogoColor('fireworks')
+      expect(color).toBe('#ef4444')
+    })
+
+    it('should render fireworks logo image initially', () => {
+      render(<ProviderLogo provider="fireworks" />)
+      const img = screen.getByAltText('fireworks logo')
+      expect(img).toBeInTheDocument()
+      expect(img).toHaveAttribute('src', './provider-logos/fireworks.svg')
     })
   })
 

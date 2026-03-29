@@ -27,6 +27,7 @@ vi.mock('../utils/openRouterKey', () => ({
 const { generateChatTitle } = await import('./titleGenerator')
 const { generateGroqCompletion } = await import('./groq')
 const { generateOpenRouterCompletion } = await import('./openrouter')
+const { generateOllamaCompletion } = await import('./ollama')
 
 describe('generateChatTitle', () => {
   beforeEach(() => {
@@ -113,5 +114,21 @@ describe('generateChatTitle', () => {
 
     expect(result).toBe('Need a title...')
     expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
+  })
+
+  it('does not treat Ollama as configured for title fallback when no URL is present', async () => {
+    vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('Temporary upstream failure'))
+
+    const result = await generateChatTitle('Summarize this planning thread', {
+      titleModelProvider: 'groq',
+      titleModel: 'groq-primary',
+      groqApiKey: 'groq-key',
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2' }],
+      ollamaUrl: '',
+    })
+
+    expect(result).toBe('Summarize this planning...')
+    expect(generateOllamaCompletion).not.toHaveBeenCalled()
   })
 })

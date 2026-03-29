@@ -12,14 +12,19 @@ import type {
   Message,
 } from '../../../../../contexts/ChatHistoryContext'
 import type { MessageContent } from '../../../../../services/types'
-import type { OpenRouterResponse } from '../../../../../tools/types'
+import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
+import {
+  STREAM_MAX_RESEARCH_ROUNDS,
+  STREAM_RESEARCH_SAFETY_CAP,
+  STREAM_UPDATE_INTERVAL_MS,
+} from '../../../../../providers'
 
 // Constants
 
-export const UPDATE_INTERVAL = 120 // ms – normal update cadence
-export const SAFETY_CAP = 50 // absolute max research rounds
-export const MAX_RESEARCH_ROUNDS = 6 // practical cap before forcing final answer
+export const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
+export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
+export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
   '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned.\n\n'
 
@@ -120,16 +125,16 @@ export function buildResponseWithFallback(
   reconstructedMessage: { role: string; content: string; tool_calls?: unknown[] },
   messages: Array<{ role: string; content?: string | unknown; [key: string]: unknown }>,
   reasoning?: string
-): OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
+): ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
   const lastUserMsg = [...messages].reverse().find((m) => m?.role === 'user')
   const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : undefined
   return {
-    choices: [{ message: reconstructedMessage as OpenRouterResponse['choices'][0]['message'] }],
+    choices: [{ message: reconstructedMessage as ToolCallingResponse['choices'][0]['message'] }],
     _fallbackContext: {
       lastUserMessage: lastUserContent,
       reasoning: reasoning || undefined,
     },
-  } as OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } }
+  } as ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } }
 }
 
 // Thinking blocks

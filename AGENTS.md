@@ -11,7 +11,7 @@ This file is the single source of truth for how an automated coding agent should
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (Alibaba Cloud, Fireworks AI, Groq, Ollama, OpenRouter, Perplexity)
+- Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
@@ -65,9 +65,13 @@ Core capabilities:
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync, global context menu via AppContextMenu)
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
+- `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts` — thin compatibility wrapper over the shared provider registry for dashboard chat provider normalization/tests
+- `src/components/Dashboard/ChatArea/hooks/streaming/providerStreamClient.ts` — normalized provider stream client adapters that convert provider chunks into shared streaming events
+- `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` — shared streaming orchestrator for send/regenerate flows, tool loops, reasoning blocks, and final commits
+- `src/providers/` — provider registry, capabilities/auth metadata, endpoint defaults, retry policy, and shared streaming/title/model constants
 - `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
-- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
+- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers; SSE parsing accepts `data:` with/without spaces, CRLF framing, multi-line payloads, and terminal flushes
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
 - `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
@@ -232,6 +236,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
+- Shared provider metadata: `src/providers/providerRegistry.ts`
+- Shared stream orchestration: `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`
+- Compatibility provider/runtime wrapper: `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
   - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
   - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
@@ -239,9 +246,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
   - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
-  - `src/services/fireworks.ts` (`streamFireworksCompletion`) - OpenAI-compatible API at `https://api.fireworks.ai/inference/v1/chat/completions`
+  - `src/services/fireworks.ts` (`streamFireworksCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
+- Provider services now only own request shaping, transport parsing, and provider-specific chunk normalization. `providerStreamClient.ts` converts those outputs into normalized events (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator.
+- Send and regenerate now use the same normalized provider-stream pipeline. Regeneration no longer maintains a separate direct-stream code path.
+- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
+- Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
+- Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
@@ -278,12 +290,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
 
 #### Response Streaming Cadence
-- Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts` (`120ms`).
+- Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts`, backed by shared provider constants in `src/providers/providerRegistry.ts` (`120ms`).
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) now support optional `enabled?: boolean`.
-- Provider-level toggles are persisted in `settings.providerEnabled` (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
+- Model records in active settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) support optional `enabled?: boolean`.
+- Provider-level toggles are persisted in `settings.providerEnabled` for the active provider surface (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
 
 #### Command Palette Quick-Send
@@ -356,7 +368,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
   - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
   - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
 - No dedicated performance metrics file is persisted by the app.
@@ -391,6 +403,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
+- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog used by Provider Hub
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)

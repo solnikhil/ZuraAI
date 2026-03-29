@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react'
 import { isWebResearchEnabled, type SkillsSettings } from '../../../../../skills'
+import { providerSupportsTools } from '../../../../../providers'
 
 /**
  * Base system prompt for web search - planning and multi-turn guidance
@@ -224,7 +225,7 @@ export function useResearchMode({
     const webSearchEnabledBySettings = webResearchEnabled && hasWebSearch
 
     const forceWebSearch =
-      ['openrouter', 'groq', 'alibaba', 'ollama'].includes(settings.modelProvider) &&
+      providerSupportsTools(settings.modelProvider) &&
       canUseTools &&
       webSearchEnabledBySettings &&
       checkUserRequestsWebSearch(userMessage)

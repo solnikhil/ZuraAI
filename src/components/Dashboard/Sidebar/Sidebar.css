@@ -325,6 +325,10 @@
   padding-right: 14px;
 }
 
+.sidebar-chatlist__scroller {
+  overflow-x: hidden !important;
+}
+
 .sidebar-chatlist__listbox {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,7 @@
  */
 
 import React from 'react'
+import type { ActiveProviderId } from '../../../providers'
 
 /**
  * Model with provider information
@@ -11,7 +12,7 @@ import React from 'react'
 export interface ModelWithProvider {
   code: string
   displayName: string
-  provider: 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
+  provider: ActiveProviderId
   /** Max context length in tokens (from ConfiguredModel or fallback lookup) */
   maxContext?: number
   /** Capability fields from ConfiguredModel (API-derived) */
@@ -36,7 +37,8 @@ export type ModelSelectorCompactMode = 'none' | 'compact' | 'tight'
 /**
  * Provider key type union
  */
-export type ProviderKey = 'ollama' | 'perplexity' | 'openrouter' | 'groq' | 'alibaba'
+export type ProviderKey =
+  ActiveProviderId
 
 /**
  * Provider configuration
@@ -58,6 +60,7 @@ export interface GroupedModels {
   openrouter: ModelWithProvider[]
   groq: ModelWithProvider[]
   alibaba: ModelWithProvider[]
+  fireworks: ModelWithProvider[]
 }
 
 /**

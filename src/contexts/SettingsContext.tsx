@@ -31,6 +31,7 @@ import {
 } from './SettingsConfigContext'
 import { getAllToolDefinitions } from '../tools/definitions'
 import { migrateSkillsFromLegacySettings } from '../skills'
+import { getProviderDefinitions } from '../providers'
 
 // Re-export types for backward compatibility
 export type { TodoItem }
@@ -52,6 +53,9 @@ const SECRET_SETTING_KEYS: Array<
     'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey' | 'fireworksApiKey'
   >
 > = ['openRouterApiKey', 'perplexityApiKey', 'groqApiKey', 'tavilyApiKey', 'alibabaApiKey', 'fireworksApiKey']
+
+const ALL_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: true }).map((provider) => provider.id)
+const ACTIVE_PROVIDER_IDS = getProviderDefinitions({ includeLegacy: false }).map((provider) => provider.id)
 
 function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
@@ -233,7 +237,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Initialize new fields if missing
     if (!parsed.modelProvider) parsed.modelProvider = defaultSettings.modelProvider
     // Migrate unknown providers to openrouter
-    if (!['alibaba', 'fireworks', 'groq', 'ollama', 'openrouter', 'perplexity'].includes(parsed.modelProvider)) {
+    if (!ALL_PROVIDER_IDS.includes(parsed.modelProvider as typeof ALL_PROVIDER_IDS[number])) {
       parsed.modelProvider = 'openrouter'
     }
     parsed.providerEnabled = {
@@ -313,9 +317,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
     // Ensure titleModel exists; migrate gemini-* to OpenRouter model
     if (!parsed.titleModelProvider) parsed.titleModelProvider = defaultSettings.titleModelProvider
-    if (
-      !['openrouter', 'ollama', 'perplexity', 'groq', 'alibaba'].includes(parsed.titleModelProvider)
-    ) {
+    if (!ACTIVE_PROVIDER_IDS.includes(parsed.titleModelProvider as typeof ACTIVE_PROVIDER_IDS[number])) {
       parsed.titleModelProvider = defaultSettings.titleModelProvider
     }
     // titleModel can be empty (resolved dynamically at runtime)
@@ -509,6 +511,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       groqApiKey: combinedSettings.groqApiKey,
       tavilyApiKey: combinedSettings.tavilyApiKey,
       alibabaApiKey: combinedSettings.alibabaApiKey,
+      fireworksApiKey: combinedSettings.fireworksApiKey,
       aiModel: combinedSettings.aiModel,
       modelProvider: combinedSettings.modelProvider,
       providerEnabled: combinedSettings.providerEnabled,
@@ -518,6 +521,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       perplexityModels: combinedSettings.perplexityModels,
       groqModels: combinedSettings.groqModels,
       alibabaModels: combinedSettings.alibabaModels,
+      fireworksModels: combinedSettings.fireworksModels,
       temperature: combinedSettings.temperature,
       maxTokens: combinedSettings.maxTokens,
       systemPrompt: combinedSettings.systemPrompt,

@@ -92,6 +92,8 @@ export interface OpenRouterMessage {
     tool_calls?: OpenRouterToolCall[]
 }
 
+export interface ToolCallingMessage extends OpenRouterMessage {}
+
 /**
  * OpenRouter/OpenAI tool call format
  */
@@ -110,6 +112,13 @@ export interface OpenRouterToolCall {
 export interface OpenRouterResponse {
     choices: Array<{
         message: OpenRouterMessage
+        finish_reason?: string | null
+    }>
+}
+
+export interface ToolCallingResponse {
+    choices: Array<{
+        message: ToolCallingMessage
         finish_reason?: string | null
     }>
 }
