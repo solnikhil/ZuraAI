@@ -26,7 +26,9 @@ export const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
 export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
 export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
-  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned.\n\n'
+  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
+  '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
 
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
@@ -359,6 +361,27 @@ export function buildFinalSynthesisMessages(
 ): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
+}
+
+export function buildRecoverySynthesisMessages(
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
+  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  return [
+    { role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT },
     ...buildFollowUpMessages(
       researchContextMsg,
       researchRound,

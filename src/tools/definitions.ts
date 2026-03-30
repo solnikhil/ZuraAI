@@ -49,8 +49,8 @@ Query formulation best practices:
         num_results: {
           type: 'number',
           description:
-            'Number of results to return (default: 10, max: 20). For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use 15-20 to maximize coverage.',
-          default: 10,
+            'Number of results to return per call (default: 4, max: 4). Keep each search focused and lightweight. If coverage is still incomplete, call web_search again with a new angle rather than requesting a larger batch in one call.',
+          default: 4,
         },
         search_depth: {
           type: 'string',

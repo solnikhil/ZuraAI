@@ -111,6 +111,58 @@ describe('useProviderStreaming', () => {
     expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
   })
 
+  it('pushes fast plain-text responses into the isolated streaming state for non-thinking models', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        { type: 'text-delta', delta: 'Hello' },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const throttledUpdateStreamingMessage = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: false,
+          getToolsForRequest: () => null,
+          handleToolCalls: vi.fn(),
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage,
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'hello' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+    })
+
+    expect(mocks.updateStreaming).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Hello',
+        phase: 'answering',
+      })
+    )
+    expect(throttledUpdateStreamingMessage).not.toHaveBeenCalled()
+  })
+
   it('reuses the same orchestrator for tool calls and follow-up answers', async () => {
     const streamCalls: Array<{ messages: Array<{ role: string }>; toolChoice?: unknown }> = []
     let invocation = 0
@@ -356,7 +408,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.content).toBe('Final synthesized answer.')
   })
 
-  it('forces final synthesis when the model repeats the same search query', async () => {
+  it('forces final synthesis when the model repeats the same search facet with minor rewording', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -374,7 +426,9 @@ describe('useProviderStreaming', () => {
               type: 'function',
               function: {
                 name: 'web_search',
-                arguments: JSON.stringify({ query: 'claude cowork architecture' }),
+                arguments: JSON.stringify({
+                  query: invocation === 1 ? 'cursor pricing plans enterprise' : 'cursor team pricing costs',
+                }),
               },
             }],
           }
@@ -392,13 +446,13 @@ describe('useProviderStreaming', () => {
       .fn()
       .mockResolvedValueOnce({
         hasTools: true,
-        toolResults: [buildWebSearchToolResult('dup_1', 'claude cowork architecture')],
+        toolResults: [buildWebSearchToolResult('dup_1', 'cursor pricing plans enterprise')],
         formattedResults: [{ role: 'tool', tool_call_id: 'dup_1', content: 'first results' }],
         needsFollowUp: true,
       })
       .mockResolvedValueOnce({
         hasTools: true,
-        toolResults: [buildWebSearchToolResult('dup_2', 'claude cowork architecture')],
+        toolResults: [buildWebSearchToolResult('dup_2', 'cursor team pricing costs')],
         formattedResults: [{ role: 'tool', tool_call_id: 'dup_2', content: 'duplicate results' }],
         needsFollowUp: true,
       })
@@ -437,7 +491,7 @@ describe('useProviderStreaming', () => {
       model: 'openai/gpt-4.1',
       sessionId: 'session-1',
       messageId: 'message-1',
-      messages: [{ role: 'user', content: 'research claude cowork' }],
+      messages: [{ role: 'user', content: 'research cursor pricing' }],
       startTime: performance.now() - 25,
       researchMaxRounds: 0,
       syncToStreamingContext: false,
@@ -534,5 +588,185 @@ describe('useProviderStreaming', () => {
 
     expect(streamResult.content).toBe('Cursor is an AI-powered code editor created by Anysphere.')
     expect(streamResult.content).not.toContain("I'll search for information")
+  })
+
+  it('forces a final synthesis pass when the provider ends the research loop without an answer', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"latest ipl result"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield { type: 'finish', finishReason: 'stop' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'RR beat CSK in the latest completed IPL result.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'latest ipl result')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'latest ipl result' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe('RR beat CSK in the latest completed IPL result.')
+  })
+
+  it('retries final synthesis once when a search-only response still ends blank', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"anthropic capybara model"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield { type: 'finish', finishReason: 'stop' }
+          return
+        }
+
+        yield {
+          type: 'text-delta',
+          delta: 'I could not verify any official Anthropic model named Capybara from the search results.',
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'anthropic capybara model')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'tell me about anthropic capybara' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe(
+      'I could not verify any official Anthropic model named Capybara from the search results.'
+    )
   })
 })

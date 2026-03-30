@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { executeWebSearch } from './webSearch'
 
 vi.mock('../secureStorage', () => ({
@@ -14,9 +14,16 @@ const { getSecureValueAsync } = await import('../secureStorage')
 const { search: duckDuckScrapeSearch } = await import('duck-duck-scrape')
 
 describe('executeWebSearch', () => {
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>
+
     beforeEach(() => {
         vi.clearAllMocks()
         vi.mocked(getSecureValueAsync).mockResolvedValue('')
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore()
     })
 
     describe('argument handling', () => {
@@ -43,7 +50,7 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledWith('test', expect.any(Object))
         })
 
-        it('clamps num_results to 1-20', async () => {
+        it('clamps num_results to 1-4', async () => {
             vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
                 results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
                 noResults: false,
@@ -393,6 +400,15 @@ describe('executeWebSearch', () => {
             const result = await executeWebSearch({ query: 'test' })
             expect(result.success).toBe(false)
             expect(result.error).toContain('Network error')
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                '[web_search] request failed',
+                expect.objectContaining({
+                    stage: 'search-with-duckduckgo',
+                    query: 'test',
+                    hasTavilyKey: false,
+                    error: 'Network error'
+                })
+            )
         })
     })
 

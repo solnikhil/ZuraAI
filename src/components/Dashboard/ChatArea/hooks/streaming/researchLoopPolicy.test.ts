@@ -28,6 +28,8 @@ describe('researchLoopPolicy', () => {
 
     expect(prompt).toContain('You have completed 3 of 6 targeted search(es)')
     expect(prompt).toContain('do not keep reformulating similar searches')
+    expect(prompt).toContain('what is already answered by evidence')
+    expect(prompt).toContain('issue exactly one new targeted query for the missing facet')
     expect(prompt).not.toContain('Provide your synthesized answer NOW')
     expect(prompt).not.toContain('Do NOT call web_search again')
   })
@@ -51,6 +53,22 @@ describe('researchLoopPolicy', () => {
     ).toEqual({
       shouldForceFinalSynthesis: true,
       reason: 'duplicate-query',
+    })
+  })
+
+  it('forces final synthesis when the model repeats the same facet on the same topic', () => {
+    expect(
+      evaluateResearchContinuation({
+        searchCount: 2,
+        maxRounds: 0,
+        priorQueries: ['cursor pricing plans enterprise'],
+        nextQueries: ['cursor team pricing costs'],
+        safetyCap: 50,
+        practicalCap: 6,
+      })
+    ).toEqual({
+      shouldForceFinalSynthesis: true,
+      reason: 'duplicate-facet',
     })
   })
 })

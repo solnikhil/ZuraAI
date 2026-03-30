@@ -51,6 +51,8 @@ describe('useResearchMode', () => {
 
     expect(prompt).toContain('You have completed 3 of 6 targeted search(es)')
     expect(prompt).toContain('do not keep reformulating similar searches')
+    expect(prompt).toContain('what is already answered by evidence')
+    expect(prompt).toContain('missing facet')
     expect(prompt).not.toContain('Do not call web_search again')
   })
 })

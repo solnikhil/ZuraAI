@@ -5,7 +5,9 @@ import {
   buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
+  buildRecoverySynthesisMessages,
   FINAL_SYNTHESIS_PROMPT,
+  FINAL_SYNTHESIS_RECOVERY_PROMPT,
   getThinkingTranscript,
   publishStreamingToolResults,
 } from './streamingUtils'
@@ -22,6 +24,21 @@ describe('streamingUtils final synthesis helpers', () => {
     )
 
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_PROMPT })
+    expect(messages.some((message) => message.role === 'tool')).toBe(true)
+    expect(messages.some((message) => message.content === 'research context')).toBe(true)
+  })
+
+  it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {
+    const messages = buildRecoverySynthesisMessages(
+      'research context',
+      6,
+      8,
+      [{ role: 'user', content: 'Why is Silicon Valley famous?' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }]
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT })
     expect(messages.some((message) => message.role === 'tool')).toBe(true)
     expect(messages.some((message) => message.content === 'research context')).toBe(true)
   })

@@ -18,6 +18,7 @@ import {
   appendCompletedThinkingBlock,
   buildFinalSynthesisMessages,
   buildFollowUpMessages,
+  buildRecoverySynthesisMessages,
   buildResponseWithFallback,
   buildThinkingBlocksFromResults,
   computeStreamMetrics,
@@ -126,6 +127,13 @@ export function useProviderStreaming({
 }: UseProviderStreamingOptions): UseProviderStreamingReturn {
   const { updateStreaming } = useStreamingActions()
   const updateInterval = getStreamingUpdateInterval()
+  const shouldLogResearchLoop = import.meta.env.DEV
+
+  const logResearchLoop = (event: string, details?: Record<string, unknown>) => {
+    if (!shouldLogResearchLoop) return
+
+    console.debug('[research-loop]', event, details || {})
+  }
 
   const runProviderStream = useCallback(
     async (options: ProviderStreamingRunOptions): Promise<StreamingResult> => {
@@ -229,10 +237,14 @@ export function useProviderStreaming({
                 updateStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
               }
 
+              const hadAccumulatedContent = accumulatedContent.length > 0
               accumulatedContent += event.delta
               roundContent += event.delta
               if (event.delta) {
-                updateStreamingState({ phase: 'answering' })
+                updateStreamingState({
+                  phase: 'answering',
+                  ...(!hadAccumulatedContent ? { content: accumulatedContent } : {}),
+                })
               }
               persistProgress()
               break
@@ -296,6 +308,7 @@ export function useProviderStreaming({
           : accumulatedContent
 
         updateStreamingState({
+          content: finalRoundContent,
           phase: 'answering',
           thinking: undefined,
           thinkingDuration: undefined,
@@ -349,6 +362,16 @@ export function useProviderStreaming({
           options.toolEventCallbacks
         )
 
+        logResearchLoop('initial-tool-result', {
+          provider,
+          model,
+          sessionId: options.sessionId,
+          searchCount:
+            toolResult.toolResults?.filter((result) => result.toolCall.name === 'web_search').length || 0,
+          needsFollowUp: toolResult.needsFollowUp,
+          toolNames: (toolResult.toolResults || []).map((result) => result.toolCall.name),
+        })
+
         const processed = processInitialToolResults(toolResult.toolResults || [], localThinkingBlocks)
         localThinkingBlocks = processed.updatedThinkingBlocks
         savedToolResults = processed.savedToolResults
@@ -381,6 +404,7 @@ export function useProviderStreaming({
           const searchQueryHistory = extractWebSearchQueries(toolResult.toolResults)
           let lastAssistantMessage = reconstructedMessage
           let researchRound = 1
+          let didRunFinalSynthesis = false
           let pendingFinalSynthesis:
             | {
                 lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] }
@@ -389,6 +413,12 @@ export function useProviderStreaming({
                 researchRound: number
               }
             | null = null
+          let lastSynthesisContext: NonNullable<typeof pendingFinalSynthesis> = {
+            lastAssistantMessage: reconstructedMessage,
+            formattedResults: toolResult.formattedResults,
+            totalSearchCount,
+            researchRound,
+          }
           const initialLoopDecision = evaluateResearchContinuation({
             searchCount: totalSearchCount,
             maxRounds: options.researchMaxRounds,
@@ -396,6 +426,15 @@ export function useProviderStreaming({
             nextQueries: searchQueryHistory,
             safetyCap: SAFETY_CAP,
             practicalCap: MAX_RESEARCH_ROUNDS,
+          })
+
+          logResearchLoop('loop-start', {
+            provider,
+            model,
+            totalSearchCount,
+            researchRound,
+            initialQueries: searchQueryHistory,
+            initialDecision: initialLoopDecision.reason || 'continue',
           })
 
           if (
@@ -409,6 +448,11 @@ export function useProviderStreaming({
               totalSearchCount,
               researchRound,
             }
+            logResearchLoop('final-synthesis-scheduled', {
+              reason: initialLoopDecision.reason || 'unknown',
+              totalSearchCount,
+              researchRound,
+            })
             toolResult = {
               ...toolResult,
               needsFollowUp: false,
@@ -416,6 +460,12 @@ export function useProviderStreaming({
           }
 
           while (toolResult.needsFollowUp && researchRound < SAFETY_CAP) {
+            logResearchLoop('follow-up-round-start', {
+              researchRound,
+              totalSearchCount,
+              priorQueries: searchQueryHistory,
+            })
+
             const followUpMessages = buildFollowUpMessages(
               toolCalling.getResearchContext(totalSearchCount, options.researchMaxRounds),
               researchRound,
@@ -440,6 +490,24 @@ export function useProviderStreaming({
               followUpRound.roundToolCalls.some((toolCall) => toolCall?.function?.name)
 
             if (!hasValidToolCalls) {
+              logResearchLoop('follow-up-round-ended-without-tool-call', {
+                researchRound,
+                totalSearchCount,
+                hasAnswerText: Boolean(followUpRound.roundContent.trim()),
+              })
+              if (!followUpRound.roundContent.trim() && toolResult.formattedResults.length > 0) {
+                pendingFinalSynthesis = {
+                  lastAssistantMessage,
+                  formattedResults: toolResult.formattedResults,
+                  totalSearchCount,
+                  researchRound,
+                }
+                logResearchLoop('final-synthesis-scheduled', {
+                  reason: 'empty-follow-up-answer',
+                  totalSearchCount,
+                  researchRound,
+                })
+              }
               break
             }
 
@@ -462,6 +530,20 @@ export function useProviderStreaming({
                 .length || 0
             const nextSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             totalSearchCount += newWebSearches
+            lastSynthesisContext = {
+              lastAssistantMessage: reconstructedFollowUp,
+              formattedResults: nextToolResult.formattedResults,
+              totalSearchCount,
+              researchRound,
+            }
+
+            logResearchLoop('follow-up-tool-result', {
+              researchRound,
+              newWebSearches,
+              totalSearchCount,
+              nextQueries: nextSearchQueries,
+              needsFollowUp: nextToolResult.needsFollowUp,
+            })
 
             localThinkingBlocks = buildThinkingBlocksFromResults(
               nextToolResult.toolResults || [],
@@ -504,6 +586,11 @@ export function useProviderStreaming({
                 totalSearchCount,
                 researchRound,
               }
+              logResearchLoop('final-synthesis-scheduled', {
+                reason: continuationDecision.reason || 'unknown',
+                totalSearchCount,
+                researchRound,
+              })
               toolResult = {
                 ...nextToolResult,
                 needsFollowUp: false,
@@ -515,6 +602,11 @@ export function useProviderStreaming({
           }
 
           if (pendingFinalSynthesis) {
+            didRunFinalSynthesis = true
+            logResearchLoop('final-synthesis-start', {
+              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
+              researchRound: pendingFinalSynthesis.researchRound,
+            })
             const synthesisMessages = buildFinalSynthesisMessages(
               toolCalling.getResearchContext(
                 pendingFinalSynthesis.totalSearchCount,
@@ -529,6 +621,10 @@ export function useProviderStreaming({
 
             updateStreamingState({ phase: 'reasoning' })
             await runRound(synthesisMessages, { tools: null, toolChoice: 'none' })
+            logResearchLoop('final-synthesis-complete', {
+              totalSearchCount: pendingFinalSynthesis.totalSearchCount,
+              researchRound: pendingFinalSynthesis.researchRound,
+            })
 
             updateStreamingState({
               phase: 'answering',
@@ -541,6 +637,61 @@ export function useProviderStreaming({
             updateStreamingMessage(options.sessionId, options.messageId, {
               researchStatus: {
                 currentRound: pendingFinalSynthesis.researchRound,
+                maxRounds: options.researchMaxRounds,
+                isSearching: false,
+              },
+            })
+          }
+
+          if (
+            hasSearchResults(savedToolResults) &&
+            !accumulatedContent.trim() &&
+            lastSynthesisContext.formattedResults.length > 0
+          ) {
+            logResearchLoop('final-synthesis-recovery', {
+              totalSearchCount: lastSynthesisContext.totalSearchCount,
+              researchRound: lastSynthesisContext.researchRound,
+              afterPriorSynthesis: didRunFinalSynthesis,
+            })
+
+            const recoveryMessages = didRunFinalSynthesis
+              ? buildRecoverySynthesisMessages(
+                  toolCalling.getResearchContext(
+                    lastSynthesisContext.totalSearchCount,
+                    options.researchMaxRounds
+                  ),
+                  lastSynthesisContext.researchRound,
+                  lastSynthesisContext.totalSearchCount,
+                  options.messages,
+                  lastSynthesisContext.lastAssistantMessage,
+                  lastSynthesisContext.formattedResults
+                )
+              : buildFinalSynthesisMessages(
+                  toolCalling.getResearchContext(
+                    lastSynthesisContext.totalSearchCount,
+                    options.researchMaxRounds
+                  ),
+                  lastSynthesisContext.researchRound,
+                  lastSynthesisContext.totalSearchCount,
+                  options.messages,
+                  lastSynthesisContext.lastAssistantMessage,
+                  lastSynthesisContext.formattedResults
+                )
+
+            updateStreamingState({ phase: 'reasoning' })
+            await runRound(recoveryMessages, { tools: null, toolChoice: 'none' })
+
+            updateStreamingState({
+              phase: 'answering',
+              researchStatus: {
+                currentRound: lastSynthesisContext.researchRound,
+                maxRounds: options.researchMaxRounds,
+                isSearching: false,
+              },
+            })
+            updateStreamingMessage(options.sessionId, options.messageId, {
+              researchStatus: {
+                currentRound: lastSynthesisContext.researchRound,
                 maxRounds: options.researchMaxRounds,
                 isSearching: false,
               },

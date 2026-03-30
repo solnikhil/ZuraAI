@@ -13,6 +13,50 @@ import { searchWithDuckDuckGo } from './backends/duckduckgo'
 import { extractWithTavily, searchWithTavily } from './backends/tavily'
 import type { SearchExecutionOptions, WebSearchArgs } from './types'
 
+function truncateForLog(value: string, maxLength: number = 200): string {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength - 3)}...`
+}
+
+function logWebSearchFailure(
+  stage: string,
+  details: {
+    query?: string
+    intent?: string
+    hasTavilyKey?: boolean
+    error: string
+  }
+): void {
+  console.error('[web_search] request failed', {
+    stage,
+    query: details.query ? truncateForLog(details.query) : undefined,
+    intent: details.intent,
+    hasTavilyKey: details.hasTavilyKey,
+    error: details.error,
+  })
+}
+
+function logWebSearchFallback(
+  stage: string,
+  details: {
+    query?: string
+    intent?: string
+    hasTavilyKey?: boolean
+    error: string
+  }
+): void {
+  console.warn('[web_search] backend failed, attempting fallback', {
+    stage,
+    query: details.query ? truncateForLog(details.query) : undefined,
+    intent: details.intent,
+    hasTavilyKey: details.hasTavilyKey,
+    error: details.error,
+  })
+}
+
 function coerceSearchDepth(value: unknown): 'basic' | 'advanced' {
   return value === 'advanced' ? 'advanced' : 'basic'
 }
@@ -48,14 +92,14 @@ function appendMessageToResult(result: ToolResult, message: string): ToolResult 
 function coerceNumResults(value: unknown): number {
   let numResults: number | string = typeof value === 'number' || typeof value === 'string'
     ? value
-    : 10
+    : SEARCH_MAX_RESULTS
   if (typeof numResults === 'string') {
     const parsed = Number(numResults)
-    numResults = Number.isNaN(parsed) ? 10 : parsed
+    numResults = Number.isNaN(parsed) ? SEARCH_MAX_RESULTS : parsed
   }
 
   if (typeof numResults !== 'number' || numResults < 1) {
-    numResults = 10
+    numResults = SEARCH_MAX_RESULTS
   }
 
   const normalizedNumResults = numResults as number
@@ -95,6 +139,10 @@ function normalizeSearchRequest(args: WebSearchArgs): SearchExecutionOptions | T
 export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult> {
   const normalizedRequest = normalizeSearchRequest(args)
   if ('success' in normalizedRequest) {
+    logWebSearchFailure('validation', {
+      query: typeof args?.query === 'string' ? args.query : undefined,
+      error: normalizedRequest.error || 'Validation failed',
+    })
     return normalizedRequest
   }
 
@@ -120,6 +168,13 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         return tavilyExtractResult
       }
 
+      logWebSearchFallback('tavily-extract', {
+        query: normalizedRequest.query,
+        intent: classifiedInput.intent,
+        hasTavilyKey,
+        error: tavilyExtractResult.error || 'Tavily extract failed',
+      })
+
       const fallbackQuery = reformulateQueryIfNeeded(buildFallbackSearchQuery(classifiedInput))
       const tavilySearchFallback = await searchWithTavily(safeTavilyKey, {
         ...normalizedRequest,
@@ -132,6 +187,13 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         )
       }
 
+      logWebSearchFallback('tavily-search-fallback', {
+        query: fallbackQuery,
+        intent: classifiedInput.intent,
+        hasTavilyKey,
+        error: tavilySearchFallback.error || 'Tavily search fallback failed',
+      })
+
       const ddgFallback = await searchWithDuckDuckGo(fallbackQuery, normalizedRequest.numResults)
       if (ddgFallback.success) {
         return appendMessageToResult(
@@ -140,10 +202,24 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         )
       }
 
-      return {
+      logWebSearchFallback('duckduckgo-fallback', {
+        query: fallbackQuery,
+        intent: classifiedInput.intent,
+        hasTavilyKey,
+        error: ddgFallback.error || 'DuckDuckGo fallback failed',
+      })
+
+      const result = {
         success: false,
         error: `Web extraction failed. ${tavilyExtractResult.error} Search fallback also failed. Please check your internet connection and try again.`,
       }
+      logWebSearchFailure('extract-with-tavily-and-fallbacks', {
+        query: normalizedRequest.query,
+        intent: classifiedInput.intent,
+        hasTavilyKey,
+        error: result.error,
+      })
+      return result
     }
 
     const fallbackQuery = reformulateQueryIfNeeded(buildFallbackSearchQuery(classifiedInput))
@@ -155,10 +231,17 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
       )
     }
 
-    return {
+    const result = {
       success: false,
       error: 'This request includes a specific URL. Add a Tavily API key in Settings > Search APIs to enable direct URL extraction.',
     }
+    logWebSearchFailure('extract-without-tavily-key', {
+      query: normalizedRequest.query,
+      intent: classifiedInput.intent,
+      hasTavilyKey,
+      error: result.error,
+    })
+    return result
   }
 
   const searchQuery = reformulateQueryIfNeeded(
@@ -174,16 +257,47 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
       return tavilyResult
     }
 
+    logWebSearchFallback('tavily-search', {
+      query: searchQuery,
+      intent: classifiedInput.intent,
+      hasTavilyKey,
+      error: tavilyResult.error || 'Tavily search failed',
+    })
+
     const fallbackResult = await searchWithDuckDuckGo(searchQuery, normalizedRequest.numResults)
     if (fallbackResult.success) {
       return fallbackResult
     }
 
-    return {
+    logWebSearchFallback('duckduckgo-fallback', {
+      query: searchQuery,
+      intent: classifiedInput.intent,
+      hasTavilyKey,
+      error: fallbackResult.error || 'DuckDuckGo fallback failed',
+    })
+
+    const result = {
       success: false,
       error: `Web search failed. ${tavilyResult.error} Fallback also failed. Please check your internet connection and try again. For best results, add a valid Tavily API key in Settings > Search APIs.`,
     }
+    logWebSearchFailure('search-with-tavily-and-fallback', {
+      query: searchQuery,
+      intent: classifiedInput.intent,
+      hasTavilyKey,
+      error: result.error,
+    })
+    return result
   }
 
-  return searchWithDuckDuckGo(searchQuery, normalizedRequest.numResults)
+  const fallbackResult = await searchWithDuckDuckGo(searchQuery, normalizedRequest.numResults)
+  if (!fallbackResult.success) {
+    logWebSearchFailure('search-with-duckduckgo', {
+      query: searchQuery,
+      intent: classifiedInput.intent,
+      hasTavilyKey,
+      error: fallbackResult.error || 'DuckDuckGo search failed',
+    })
+  }
+
+  return fallbackResult
 }

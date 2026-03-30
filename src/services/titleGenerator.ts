@@ -275,33 +275,6 @@ export const generateChatTitle = async (
       }
     }
 
-    const configuredProviders: TitleProvider[] = TITLE_PROVIDERS.filter(
-      (p) =>
-        p !== titleProvider &&
-        hasApiKeyForProvider(settings, p) &&
-        getFirstAvailableModel(settings, p),
-    )
-
-    for (const altProvider of configuredProviders) {
-      try {
-        const altModel = getFirstAvailableModel(settings, altProvider)
-        if (!altModel) continue
-
-        const altTitle = await generateTitleWithProvider(
-          altProvider,
-          altModel,
-          prompt,
-          settings
-        )
-        const cleaned = sanitizeTitle(altTitle)
-        if (cleaned) {
-          return enforceThreeWords(cleaned)
-        }
-      } catch (altError) {
-        console.error(`Alternative provider ${altProvider} title generation failed:`, altError)
-      }
-    }
-
     const words = userMessage.trim().split(/\s+/).slice(0, 3)
     return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
   }

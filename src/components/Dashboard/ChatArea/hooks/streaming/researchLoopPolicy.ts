@@ -23,11 +23,70 @@ export interface ResearchLoopContinuationOptions {
 
 export interface ResearchLoopDecision {
   shouldForceFinalSynthesis: boolean
-  reason: 'budget' | 'duplicate-query' | null
+  reason: 'budget' | 'duplicate-query' | 'duplicate-facet' | null
 }
 
 const FORCE_WEB_SEARCH_PREFIX =
   'The user has requested a web search. Call web_search at least once before answering.\n\n'
+
+const FOLLOW_UP_DECISION_GUIDANCE =
+  `\n\n*** FOLLOW-UP SEARCH DECISION ***\n` +
+  `After each search, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
+  `If you continue, issue exactly one new targeted query for the missing facet. Change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.\n` +
+  `Do not repeat the same facet with only minor rewording, and do not pre-plan multiple speculative searches before inspecting the current results.`
+
+type ResearchQueryFacet =
+  | 'general'
+  | 'overview'
+  | 'recent'
+  | 'verification'
+  | 'docs'
+  | 'pricing'
+  | 'comparison'
+  | 'examples'
+  | 'implementation'
+
+const FACET_KEYWORDS: Array<{ facet: ResearchQueryFacet; keywords: string[] }> = [
+  { facet: 'comparison', keywords: ['vs', 'versus', 'compare', 'comparison', 'alternative', 'alternatives', 'competitor', 'competitors', 'difference'] },
+  { facet: 'pricing', keywords: ['price', 'pricing', 'cost', 'costs', 'billing', 'plan', 'plans', 'subscription', 'subscriptions', 'enterprise'] },
+  { facet: 'docs', keywords: ['docs', 'documentation', 'api', 'sdk', 'reference', 'spec', 'specification', 'guide', 'manual'] },
+  { facet: 'recent', keywords: ['latest', 'recent', 'today', 'news', 'updates', 'new', 'release', 'released', 'launch', 'launched'] },
+  { facet: 'verification', keywords: ['verify', 'verification', 'confirm', 'confirmed', 'fact', 'facts', 'official', 'source', 'sources', 'accuracy'] },
+  { facet: 'examples', keywords: ['example', 'examples', 'sample', 'samples', 'tutorial', 'walkthrough', 'demo'] },
+  { facet: 'implementation', keywords: ['implementation', 'implement', 'implementation', 'architecture', 'design', 'workflow', 'integration', 'setup', 'install', 'configuration'] },
+  { facet: 'overview', keywords: ['overview', 'summary', 'what', 'list', 'landscape', 'providers', 'options', 'market'] },
+]
+
+const FACET_STOPWORDS = new Set(
+  FACET_KEYWORDS.flatMap(({ keywords }) => keywords).concat([
+    'search',
+    'searches',
+    'find',
+    'looking',
+    'about',
+    'into',
+    'with',
+    'without',
+    'from',
+    'that',
+    'this',
+    'these',
+    'those',
+    'their',
+    'there',
+    'user',
+    'users',
+    'best',
+    'top',
+    'latest',
+    'recent',
+    'current',
+    '2024',
+    '2025',
+    '2026',
+    '2027',
+  ])
+)
 
 export function getEffectiveSearchBudget(
   maxRounds: number,
@@ -66,6 +125,26 @@ function tokenizeResearchQuery(query: string): string[] {
     .filter((token) => token.length > 2)
 }
 
+function inferResearchQueryFacet(query: string): ResearchQueryFacet {
+  const tokens = tokenizeResearchQuery(query)
+
+  for (const { facet, keywords } of FACET_KEYWORDS) {
+    if (keywords.some((keyword) => tokens.includes(keyword))) {
+      return facet
+    }
+  }
+
+  return 'general'
+}
+
+function getResearchCoreTokens(query: string): string[] {
+  return tokenizeResearchQuery(query).filter((token) => {
+    if (FACET_STOPWORDS.has(token)) return false
+    if (/^\d{4}$/.test(token)) return false
+    return true
+  })
+}
+
 function areQueriesNearDuplicate(left: string, right: string): boolean {
   const normalizedLeft = normalizeResearchQuery(left)
   const normalizedRight = normalizeResearchQuery(right)
@@ -94,6 +173,27 @@ function areQueriesNearDuplicate(left: string, right: string): boolean {
 
   const denominator = Math.max(leftTokens.size, rightTokens.size)
   return denominator > 0 && overlap / denominator >= 0.75
+}
+
+function areQueriesFacetDuplicate(left: string, right: string): boolean {
+  const leftFacet = inferResearchQueryFacet(left)
+  const rightFacet = inferResearchQueryFacet(right)
+  if (leftFacet === 'general' || rightFacet === 'general') return false
+  if (leftFacet !== rightFacet) return false
+
+  const leftCoreTokens = new Set(getResearchCoreTokens(left))
+  const rightCoreTokens = new Set(getResearchCoreTokens(right))
+  if (leftCoreTokens.size === 0 || rightCoreTokens.size === 0) return false
+
+  let overlap = 0
+  for (const token of leftCoreTokens) {
+    if (rightCoreTokens.has(token)) {
+      overlap += 1
+    }
+  }
+
+  const smallerSetSize = Math.min(leftCoreTokens.size, rightCoreTokens.size)
+  return smallerSetSize > 0 && overlap / smallerSetSize >= 0.6
 }
 
 export function evaluateResearchContinuation({
@@ -128,6 +228,19 @@ export function evaluateResearchContinuation({
     return {
       shouldForceFinalSynthesis: true,
       reason: 'duplicate-query',
+    }
+  }
+
+  if (
+    priorQueries.length > 0 &&
+    nextQueries.length > 0 &&
+    nextQueries.every((query) =>
+      priorQueries.some((priorQuery) => areQueriesFacetDuplicate(priorQuery, query))
+    )
+  ) {
+    return {
+      shouldForceFinalSynthesis: true,
+      reason: 'duplicate-facet',
     }
   }
 
@@ -167,8 +280,8 @@ export function buildResearchProgressPrompt({
       ? `\n\nYou may use up to ${explicitBudget} search(es) for this request. There is no minimum required count; keep searching only while you still need evidence.`
       : practicalBudget
         ? `\n\nKeep the research loop tight. You may use up to ${practicalBudget} targeted search(es) before you must synthesize a final answer.`
-      : ''
-    return `\n\n${prefix}${basePrompt}${budgetNote}`
+        : ''
+    return `\n\n${prefix}${basePrompt}${FOLLOW_UP_DECISION_GUIDANCE}${budgetNote}`
   }
 
   if (explicitBudget !== null) {
@@ -177,7 +290,7 @@ export function buildResearchProgressPrompt({
       return `${prefix}\n\n*** WEB SEARCH BUDGET REACHED ***\nYou have completed all ${explicitBudget} allowed search(es). Do not call web_search again. Provide your final synthesized answer now using only the evidence already gathered.`
     }
 
-    return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${explicitBudget} allowed search(es). ${remaining} search(es) remain. Continue only if the current results are incomplete, conflicting, or still missing critical evidence for the user's request.`
+    return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${explicitBudget} allowed search(es). ${remaining} search(es) remain. Continue only if the current results are incomplete, conflicting, or still missing critical evidence for the user's request.${FOLLOW_UP_DECISION_GUIDANCE}`
   }
 
   const remainingPractical = Math.max(0, effectiveBudget - searchCount)
@@ -185,5 +298,5 @@ export function buildResearchProgressPrompt({
     ? ` You are close to the practical cap of ${effectiveBudget} searches, so only continue if another targeted search is necessary.`
     : ''
 
-  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search is still needed. Prefer synthesis once you have enough coverage, and do not keep reformulating similar searches without adding new evidence.${practicalWarning}`
+  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search is still needed. Prefer synthesis once you have enough coverage, and do not keep reformulating similar searches without adding new evidence.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
 }

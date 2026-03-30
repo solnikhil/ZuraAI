@@ -22,13 +22,17 @@ URL-FIRST ROUTING:
 
 Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
-For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use num_results=15-20 in your first search. If the first search results seem incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search before synthesizing. Do not answer with an incomplete list.
+For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), keep each call focused and lightweight. The tool returns at most 4 sources per call, so if the first search seems incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search from a new angle before synthesizing. Do not answer with an incomplete list.
 
 EXPLORE-FIRST: For research questions where you need to discover information, start with one broad exploratory search. Do not pre-plan multiple searches from prior knowledge. After the first search returns results, use those results to decide what follow-up searches are still needed.
 
 MULTI-TURN SEARCHES: You can call web_search multiple times. After each search you receive results and get another turn. You may search again or provide your answer. There is no single-tool-call limit. If the first search is insufficient or the topic is ambiguous, call web_search again with a different query.
 
-Decide how many searches you need based on the user's question. Simple questions may need one search; complex or ambiguous research may need several. Search as many times as needed, then provide your answer. If you already know the answer confidently, respond directly without searching.`
+GAP ANALYSIS: After each search, decide what the results already answered, what important gap or conflict remains, and whether another search is necessary. If you continue, issue exactly one new targeted query for the missing facet.
+
+QUERY DIVERSIFICATION: Change the angle when continuing. Useful follow-up facets include overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, and edge cases. Do not repeat the same facet with minor rewording.
+
+Decide how many searches you need based on the user's question. Simple questions may need one search; complex or ambiguous research may need 2-3 total searches from different angles. Search only while you can name the missing evidence you are trying to gather, then provide your answer. If you already know the answer confidently, respond directly without searching.`
 
 export interface ResearchModeState {
   isActive: boolean

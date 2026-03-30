@@ -131,4 +131,25 @@ describe('generateChatTitle', () => {
     expect(result).toBe('Summarize this planning...')
     expect(generateOllamaCompletion).not.toHaveBeenCalled()
   })
+
+  it('does not fall back to another provider when the selected title provider fails', async () => {
+    vi.mocked(generateOpenRouterCompletion).mockResolvedValue({
+      choices: [{ message: { content: '' } }],
+    } as never)
+    vi.mocked(generateGroqCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'Groq Should Not Run' } }],
+    } as never)
+
+    const result = await generateChatTitle('Need a title for this web search session', {
+      titleModelProvider: 'openrouter',
+      titleModel: 'openrouter/meta-llama/llama-3.3',
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      configuredModels: [{ code: 'openrouter/meta-llama/llama-3.3', displayName: 'Llama 3.3' }],
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    })
+
+    expect(result).toBe('Need a title...')
+    expect(generateGroqCompletion).not.toHaveBeenCalled()
+  })
 })
