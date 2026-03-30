@@ -57,8 +57,12 @@ function logWebSearchFallback(
   })
 }
 
-function coerceSearchDepth(value: unknown): 'basic' | 'advanced' {
-  return value === 'advanced' ? 'advanced' : 'basic'
+function coerceSearchDepth(value: unknown): 'ultra-fast' | 'fast' | 'basic' | 'advanced' {
+  if (value === 'ultra-fast' || value === 'fast' || value === 'basic' || value === 'advanced') {
+    return value
+  }
+
+  return 'basic'
 }
 
 function coerceTimeRange(value: unknown): 'day' | 'week' | 'month' | 'year' | undefined {

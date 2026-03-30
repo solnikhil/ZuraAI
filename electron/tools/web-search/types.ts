@@ -1,7 +1,7 @@
 export interface WebSearchArgs {
   query: string
   num_results?: number
-  search_depth?: 'basic' | 'advanced'
+  search_depth?: 'ultra-fast' | 'fast' | 'basic' | 'advanced'
   time_range?: 'day' | 'week' | 'month' | 'year'
   topic?: 'general' | 'news' | 'finance'
   urls?: string[]
@@ -48,7 +48,7 @@ export interface ClassifiedWebInput {
 export interface SearchExecutionOptions {
   query: string
   numResults: number
-  searchDepth: 'basic' | 'advanced'
+  searchDepth: 'ultra-fast' | 'fast' | 'basic' | 'advanced'
   timeRange?: 'day' | 'week' | 'month' | 'year'
   topic?: 'general' | 'news' | 'finance'
 }

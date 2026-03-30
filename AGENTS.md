@@ -206,6 +206,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
+- Search API preferences are persisted in renderer settings; Tavily search speed now uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -337,7 +338,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - MCP server drafts are not persisted here; Phase 2 MCP edits live only in renderer memory until the user saves or discards them.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
-  - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+- Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+  - Search API preference: `tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) controls the default Tavily `search_depth` used when the model omits it.
   - Title generation settings:
     - `titleModelProvider` (provider used for title generation)
     - `titleModel` (model used for title generation)
@@ -384,6 +386,7 @@ Tool execution is intentionally restricted.
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+    - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
@@ -395,6 +398,7 @@ Tool execution is intentionally restricted.
     - `electron/tools/web-search/backends/tavily.ts` owns Tavily search/extract transport calls
     - `electron/tools/web-search/backends/duckduckgo.ts` owns the DuckDuckGo fallback path
     - `electron/tools/web-search/helpers.ts` normalizes results, images, snippets, sources, and displayed links into the shared web-search result shape
+    - Tavily search depth now accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are still normalized to `basic` in main as a defensive fallback.
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
       - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`

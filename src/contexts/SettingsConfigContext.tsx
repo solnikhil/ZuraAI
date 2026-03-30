@@ -56,6 +56,8 @@ export interface ConfiguredModel {
 
 type ProviderKey = ProviderId
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
+export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
+export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 
 /**
  * Configuration-related settings that change infrequently
@@ -66,6 +68,7 @@ export interface SettingsConfig {
   perplexityApiKey: string
   groqApiKey: string
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
   alibabaApiKey: string
   fireworksApiKey: string
 
@@ -128,6 +131,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   perplexityApiKey: '',
   groqApiKey: '',
   tavilyApiKey: '',
+  tavilySearchDepthPreference: 'auto',
   alibabaApiKey: '',
   fireworksApiKey: '',
 

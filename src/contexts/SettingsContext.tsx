@@ -390,6 +390,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Initialize tool settings if missing
     if (parsed.toolsEnabled === undefined) parsed.toolsEnabled = defaultSettings.toolsEnabled
     if (!parsed.tavilyApiKey) parsed.tavilyApiKey = defaultSettings.tavilyApiKey
+    if (
+      parsed.tavilySearchDepthPreference !== 'auto' &&
+      parsed.tavilySearchDepthPreference !== 'ultra-fast' &&
+      parsed.tavilySearchDepthPreference !== 'fast' &&
+      parsed.tavilySearchDepthPreference !== 'basic' &&
+      parsed.tavilySearchDepthPreference !== 'advanced'
+    ) {
+      parsed.tavilySearchDepthPreference = defaultSettings.tavilySearchDepthPreference
+    }
     const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
     if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
       parsed.enabledTools = defaultSettings.enabledTools
@@ -538,6 +547,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       perplexityApiKey: combinedSettings.perplexityApiKey,
       groqApiKey: combinedSettings.groqApiKey,
       tavilyApiKey: combinedSettings.tavilyApiKey,
+      tavilySearchDepthPreference: combinedSettings.tavilySearchDepthPreference,
       alibabaApiKey: combinedSettings.alibabaApiKey,
       fireworksApiKey: combinedSettings.fireworksApiKey,
       aiModel: combinedSettings.aiModel,

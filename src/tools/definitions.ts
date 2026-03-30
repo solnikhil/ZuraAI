@@ -55,9 +55,8 @@ Query formulation best practices:
         search_depth: {
           type: 'string',
           description:
-            'Search depth: "basic" for quick results, "advanced" for specific/detailed information (higher relevance)',
-          enum: ['basic', 'advanced'],
-          default: 'basic',
+            'Tavily search depth. Use "ultra-fast" for the lowest latency, "fast" for a quick balanced search, "basic" for standard coverage, and "advanced" for maximum depth and relevance. If omitted, the app applies the user-selected Search APIs default.',
+          enum: ['ultra-fast', 'fast', 'basic', 'advanced'],
         },
         time_range: {
           type: 'string',

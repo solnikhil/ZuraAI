@@ -25,6 +25,7 @@ import {
   fillMissingUsage,
   getStreamingUpdateInterval,
   getThinkingTranscript,
+  buildFallbackAnswerFromToolResults,
   hasSearchResults,
   mergeSavedToolResults,
   processInitialToolResults,
@@ -717,6 +718,10 @@ export function useProviderStreaming({
       const finalContent = hasSearchResults(savedToolResults)
         ? stripStandaloneHorizontalRule(accumulatedContent)
         : accumulatedContent
+      const guaranteedFinalContent =
+        !finalContent.trim() && hasSearchResults(savedToolResults)
+          ? buildFallbackAnswerFromToolResults(savedToolResults) || finalContent
+          : finalContent
       const finalUsage = {
         ...basicUsage,
         thinkingTokens: usage.thinkingTokens,
@@ -730,7 +735,7 @@ export function useProviderStreaming({
       }
 
       const finalMessageUpdates = {
-        content: finalContent,
+        content: guaranteedFinalContent,
         model: `${provider}/${model}`,
         latency: metrics.latency,
         usage: finalUsage,

@@ -62,15 +62,48 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledTimes(2)
         })
 
-        it('coerces search_depth to basic or advanced', async () => {
-            vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
-                results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
-                noResults: false,
-                vqd: 'x'
-            } as any)
+        it('passes fast search_depth through to Tavily search', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
 
-            await executeWebSearch({ query: 'test', search_depth: 'advanced' as any })
-            expect(duckDuckScrapeSearch).toHaveBeenCalled()
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [{ title: 'T', url: 'https://t.com', content: 'T' }],
+                        images: []
+                    })
+            })
+            globalThis.fetch = fetchMock as any
+
+            await executeWebSearch({ query: 'test', search_depth: 'fast' as any })
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.search_depth).toBe('fast')
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('coerces invalid search_depth values back to basic', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [{ title: 'T', url: 'https://t.com', content: 'T' }],
+                        images: []
+                    })
+            })
+            globalThis.fetch = fetchMock as any
+
+            await executeWebSearch({ query: 'test', search_depth: 'instant' as any })
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.search_depth).toBe('basic')
+
+            globalThis.fetch = originalFetch
         })
     })
 

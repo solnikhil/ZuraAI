@@ -43,7 +43,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
+import type {
+  ConfiguredModel,
+  TavilySearchDepthPreference,
+} from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
@@ -149,6 +152,7 @@ export interface ProviderHubSectionProps {
   openRouterApiKey: string
   perplexityApiKey: string
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
   ollamaUrl: string
   aiModel: string
   modelProvider: ProviderKey
@@ -171,6 +175,7 @@ export interface ProviderHubSectionProps {
       openRouterApiKey: string
       perplexityApiKey: string
       tavilyApiKey: string
+      tavilySearchDepthPreference: TavilySearchDepthPreference
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
@@ -193,6 +198,7 @@ export function ProviderHubSection({
   alibabaApiKey,
   fireworksApiKey,
   tavilyApiKey,
+  tavilySearchDepthPreference,
   ollamaUrl,
   aiModel,
   modelProvider,
@@ -1047,6 +1053,7 @@ export function ProviderHubSection({
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
+              tavilySearchDepthPreference={tavilySearchDepthPreference}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
                 setSearchApiView('detail')
@@ -1061,6 +1068,7 @@ export function ProviderHubSection({
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
+          tavilySearchDepthPreference={tavilySearchDepthPreference}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
@@ -1397,15 +1405,34 @@ function SearchApiSection({
   apis,
   selectedApi,
   tavilyApiKey,
+  tavilySearchDepthPreference,
   onCardClick,
   onTavilyDisable,
 }: {
   apis: SearchApiDefinition[]
   selectedApi: SearchApiKey
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
   onCardClick: (api: SearchApiDefinition) => void
   onTavilyDisable: () => void
 }): React.ReactElement {
+  const getDepthSummary = (preference: TavilySearchDepthPreference): string => {
+    switch (preference) {
+      case 'auto':
+        return 'Auto speed'
+      case 'ultra-fast':
+        return 'Lightning'
+      case 'fast':
+        return 'Fast'
+      case 'basic':
+        return 'Standard'
+      case 'advanced':
+        return 'Thorough'
+      default:
+        return 'Auto speed'
+    }
+  }
+
   return (
     <div className="mt-3 first:mt-0">
       <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -1469,6 +1496,11 @@ function SearchApiSection({
               <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">
                 {api.shortDescription || api.description}
               </p>
+              {api.key === 'tavily' && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Default search speed: {getDepthSummary(tavilySearchDepthPreference)}
+                </div>
+              )}
               <div className="mt-4 border-t border-border pt-2" />
             </div>
           )
@@ -1481,11 +1513,13 @@ function SearchApiSection({
 function SearchApiDetail({
   api,
   tavilyApiKey,
+  tavilySearchDepthPreference,
   onBack,
   onChange,
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
@@ -1558,6 +1592,29 @@ function SearchApiDetail({
                       {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                }
+              />
+              <DetailField
+                label="Search Speed"
+                description="Sets the default Tavily search depth when the model does not specify one. Auto lets the app choose per query."
+                control={
+                  <Select
+                    value={tavilySearchDepthPreference}
+                    onValueChange={(value: TavilySearchDepthPreference) =>
+                      onChange({ tavilySearchDepthPreference: value })
+                    }
+                  >
+                    <SelectTrigger className="border-border bg-secondary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="ultra-fast">Lightning</SelectItem>
+                      <SelectItem value="fast">Fast</SelectItem>
+                      <SelectItem value="basic">Standard</SelectItem>
+                      <SelectItem value="advanced">Thorough</SelectItem>
+                    </SelectContent>
+                  </Select>
                 }
               />
               {api.learnMoreUrl && (

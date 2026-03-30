@@ -291,6 +291,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 openRouterApiKey={pendingSettings.openRouterApiKey}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
+                tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
                 ollamaUrl={pendingSettings.ollamaUrl}
                 aiModel={pendingSettings.aiModel}
                 modelProvider={pendingSettings.modelProvider}

@@ -80,6 +80,11 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.groqApiKey).toBe('')
     })
 
+    it('defaults Tavily search depth preference to auto', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.tavilySearchDepthPreference).toBe('auto')
+    })
+
     it('includes valid modelProvider in defaults', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       const validProviders = ['openrouter', 'ollama', 'perplexity', 'groq']

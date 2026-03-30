@@ -3,6 +3,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProviderHubSection } from './ProviderHubSection'
 
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  value: vi.fn(),
+  writable: true,
+})
+
 describe('ProviderHubSection', () => {
   const baseProps = {
     openRouterApiKey: '',
@@ -11,6 +16,7 @@ describe('ProviderHubSection', () => {
     alibabaApiKey: '',
     fireworksApiKey: '',
     tavilyApiKey: '',
+    tavilySearchDepthPreference: 'auto' as const,
     ollamaUrl: 'http://localhost:11434',
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter' as const,
@@ -268,5 +274,19 @@ describe('ProviderHubSection', () => {
 
     const img = screen.getByAltText('fireworks logo')
     expect(img).toHaveStyle({ width: '20px', height: '20px' })
+  })
+
+  it('updates Tavily search speed preference from Search APIs settings', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByText('AI-optimized search for web_search. Add a key for best results.'))
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Lightning' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ tavilySearchDepthPreference: 'ultra-fast' })
+    )
   })
 })
