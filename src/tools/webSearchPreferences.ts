@@ -26,6 +26,10 @@ export function coerceSearchDepthPreference(value: unknown): TavilySearchDepthPr
     : 'auto'
 }
 
+export function coerceWebSearchIncludeImages(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : true
+}
+
 export function getStoredSearchDepthPreference(): TavilySearchDepthPreference {
   try {
     const raw = localStorage.getItem('zura-settings')
@@ -37,6 +41,20 @@ export function getStoredSearchDepthPreference(): TavilySearchDepthPreference {
     return coerceSearchDepthPreference(parsed.tavilySearchDepthPreference)
   } catch {
     return 'auto'
+  }
+}
+
+export function getStoredWebSearchIncludeImages(): boolean {
+  try {
+    const raw = localStorage.getItem('zura-settings')
+    if (!raw) return true
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!isRecord(parsed)) return true
+
+    return coerceWebSearchIncludeImages(parsed.webSearchIncludeImages)
+  } catch {
+    return true
   }
 }
 
@@ -86,16 +104,16 @@ export function resolveWebSearchArgsForExecution(
 ): Record<string, unknown> {
   if (toolName !== 'web_search') return args
 
+  const resolvedArgs: Record<string, unknown> = { ...args }
   const explicitDepth = args.search_depth
-  if (typeof explicitDepth === 'string' && SEARCH_DEPTH_VALUES.has(explicitDepth as TavilySearchDepth)) {
-    return args
+  if (!(typeof explicitDepth === 'string' && SEARCH_DEPTH_VALUES.has(explicitDepth as TavilySearchDepth))) {
+    const preference = getStoredSearchDepthPreference()
+    resolvedArgs.search_depth = preference === 'auto' ? resolveAutoSearchDepth(args) : preference
   }
 
-  const preference = getStoredSearchDepthPreference()
-  const searchDepth = preference === 'auto' ? resolveAutoSearchDepth(args) : preference
-
-  return {
-    ...args,
-    search_depth: searchDepth,
+  if (typeof args.include_images !== 'boolean') {
+    resolvedArgs.include_images = getStoredWebSearchIncludeImages()
   }
+
+  return resolvedArgs
 }

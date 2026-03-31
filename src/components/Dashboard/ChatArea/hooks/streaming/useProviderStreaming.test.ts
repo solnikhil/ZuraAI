@@ -40,6 +40,14 @@ function buildWebSearchToolResult(id: string, query: string) {
   }
 }
 
+function buildExecutionSummary(...queries: string[]) {
+  return {
+    attemptedWebSearchCount: queries.length,
+    executedWebSearchCount: queries.length,
+    executedWebSearchQueries: queries,
+  }
+}
+
 describe('useProviderStreaming', () => {
   beforeEach(() => {
     mocks.updateStreaming.mockReset()
@@ -210,6 +218,7 @@ describe('useProviderStreaming', () => {
         toolResults: [toolResult],
         formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'Search results' }],
         needsFollowUp: true,
+        executionSummary: buildExecutionSummary('zura'),
       })
 
     const { result } = renderHook(() =>
@@ -268,6 +277,305 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('preserves stripped pre-tool text as a thinking block for non-reasoning models', async () => {
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        { type: 'text-delta', delta: 'Let me check the docs.' },
+        {
+          type: 'tool-call-delta',
+          delta: [{
+            index: 0,
+            id: 'call_prelude',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"kimi k2.5 turbo thinking model"}' },
+          }],
+        },
+        { type: 'finish', finishReason: 'tool_calls' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [
+        buildWebSearchToolResult('call_prelude', 'kimi k2.5 turbo thinking model'),
+      ],
+      formattedResults: [],
+      needsFollowUp: false,
+      executionSummary: buildExecutionSummary('kimi k2.5 turbo thinking model'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-prelude',
+      messages: [{ role: 'user', content: 'is kimi k2.5 turbo thinking?' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamResult.thinkingBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          content: 'Let me check the docs.',
+        }),
+        expect.objectContaining({
+          type: 'searching',
+          query: 'kimi k2.5 turbo thinking model',
+        }),
+      ])
+    )
+    expect(streamResult.thinkingBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'searching',
+          query: 'kimi k2.5 turbo thinking model',
+        }),
+      ])
+    )
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-prelude',
+      expect.objectContaining({
+        content: '',
+        thinkingBlocks: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'thinking',
+            content: 'Let me check the docs.',
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('supports parallel web_search batches until the total executed cap is reached', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai overview"}' },
+              },
+              {
+                index: 1,
+                id: 'call_2',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai pricing"}' },
+              },
+              {
+                index: 2,
+                id: 'call_3',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai docs"}' },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'call_4',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai reviews"}' },
+              },
+              {
+                index: 1,
+                id: 'call_5',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai changelog"}' },
+              },
+              {
+                index: 2,
+                id: 'call_6',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai github"}' },
+              },
+              {
+                index: 3,
+                id: 'call_7',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai release notes"}' },
+              },
+              {
+                index: 4,
+                id: 'call_8',
+                type: 'function',
+                function: { name: 'web_search', arguments: '{"query":"zura ai roadmap"}' },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield { type: 'text-delta', delta: 'Final answer after eight searches.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi
+      .fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [
+          buildWebSearchToolResult('call_1', 'zura ai overview'),
+          buildWebSearchToolResult('call_2', 'zura ai pricing'),
+          buildWebSearchToolResult('call_3', 'zura ai docs'),
+        ],
+        formattedResults: [
+          { role: 'tool', tool_call_id: 'call_1', content: 'overview' },
+          { role: 'tool', tool_call_id: 'call_2', content: 'pricing' },
+          { role: 'tool', tool_call_id: 'call_3', content: 'docs' },
+        ],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary(
+          'zura ai overview',
+          'zura ai pricing',
+          'zura ai docs'
+        ),
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [
+          buildWebSearchToolResult('call_4', 'zura ai reviews'),
+          buildWebSearchToolResult('call_5', 'zura ai changelog'),
+          buildWebSearchToolResult('call_6', 'zura ai github'),
+          buildWebSearchToolResult('call_7', 'zura ai release notes'),
+          buildWebSearchToolResult('call_8', 'zura ai roadmap'),
+        ],
+        formattedResults: [
+          { role: 'tool', tool_call_id: 'call_4', content: 'reviews' },
+          { role: 'tool', tool_call_id: 'call_5', content: 'changelog' },
+          { role: 'tool', tool_call_id: 'call_6', content: 'github' },
+          { role: 'tool', tool_call_id: 'call_7', content: 'release notes' },
+          { role: 'tool', tool_call_id: 'call_8', content: 'roadmap' },
+        ],
+        needsFollowUp: true,
+        executionSummary: buildExecutionSummary(
+          'zura ai reviews',
+          'zura ai changelog',
+          'zura ai github',
+          'zura ai release notes',
+          'zura ai roadmap'
+        ),
+      })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'research zura ai' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 0,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(2)
+    expect(handleToolCalls.mock.calls[0]?.[1]).toMatchObject({
+      executionPolicy: { remainingWebSearchBudget: 8, priorWebSearchQueries: [] },
+    })
+    expect(handleToolCalls.mock.calls[1]?.[1]).toMatchObject({
+      executionPolicy: {
+        remainingWebSearchBudget: 5,
+        priorWebSearchQueries: ['zura ai overview', 'zura ai pricing', 'zura ai docs'],
+      },
+    })
+    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls.at(-1)?.toolChoice).toBe('none')
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      expect.objectContaining({
+        researchStatus: expect.objectContaining({
+          currentSearches: ['zura ai overview', 'zura ai pricing', 'zura ai docs'],
+        }),
+      })
+    )
+    expect(streamResult.content).toBe('Final answer after eight searches.')
+  })
+
   it('applies citation cleanup through the shared native-search path', async () => {
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
@@ -324,7 +632,7 @@ describe('useProviderStreaming', () => {
         streamCalls.push({ toolChoice: request.toolChoice })
         invocation += 1
 
-        if (invocation <= 6) {
+        if (invocation <= 8) {
           yield {
             type: 'tool-call-delta',
             delta: [{
@@ -358,6 +666,7 @@ describe('useProviderStreaming', () => {
           toolResults: [toolResult],
           formattedResults: [{ role: 'tool', tool_call_id: `call_${index}`, content: query }],
           needsFollowUp: true,
+          executionSummary: buildExecutionSummary(query),
         }
       })
 
@@ -402,8 +711,8 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(handleToolCalls).toHaveBeenCalledTimes(6)
-    expect(streamCalls).toHaveLength(7)
+    expect(handleToolCalls).toHaveBeenCalledTimes(8)
+    expect(streamCalls).toHaveLength(9)
     expect(streamCalls.at(-1)?.toolChoice).toBe('none')
     expect(streamResult.content).toBe('Final synthesized answer.')
   })
@@ -449,12 +758,14 @@ describe('useProviderStreaming', () => {
         toolResults: [buildWebSearchToolResult('dup_1', 'cursor pricing plans enterprise')],
         formattedResults: [{ role: 'tool', tool_call_id: 'dup_1', content: 'first results' }],
         needsFollowUp: true,
+        executionSummary: buildExecutionSummary('cursor pricing plans enterprise'),
       })
       .mockResolvedValueOnce({
         hasTools: true,
         toolResults: [buildWebSearchToolResult('dup_2', 'cursor team pricing costs')],
         formattedResults: [{ role: 'tool', tool_call_id: 'dup_2', content: 'duplicate results' }],
         needsFollowUp: true,
+        executionSummary: buildExecutionSummary('cursor team pricing costs'),
       })
 
     const { result } = renderHook(() =>
@@ -543,6 +854,7 @@ describe('useProviderStreaming', () => {
       toolResults: [buildWebSearchToolResult('call_cursor', 'Cursor code editor history')],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_cursor', content: 'search results' }],
       needsFollowUp: true,
+      executionSummary: buildExecutionSummary('Cursor code editor history'),
     })
 
     const { result } = renderHook(() =>
@@ -629,6 +941,7 @@ describe('useProviderStreaming', () => {
       toolResults: [buildWebSearchToolResult('call_1', 'latest ipl result')],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
       needsFollowUp: true,
+      executionSummary: buildExecutionSummary('latest ipl result'),
     })
 
     const { result } = renderHook(() =>
@@ -719,6 +1032,7 @@ describe('useProviderStreaming', () => {
       toolResults: [buildWebSearchToolResult('call_1', 'anthropic capybara model')],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
       needsFollowUp: true,
+      executionSummary: buildExecutionSummary('anthropic capybara model'),
     })
 
     const { result } = renderHook(() =>
@@ -770,7 +1084,96 @@ describe('useProviderStreaming', () => {
     )
   })
 
-  it('falls back to a deterministic search summary when synthesis and recovery both end blank', async () => {
+  it('retries plain-text-only synthesis when no-tools follow-ups still return tool calls', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation <= 3) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: `call_${invocation}`,
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"kimi k2 turbo coding benchmarks"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield {
+          type: 'text-delta',
+          delta: 'Kimi K2 Turbo appears competitive on coding-oriented benchmarks, but the strongest conclusion depends on which benchmark suite and recency window you trust most.',
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'kimi k2 turbo coding benchmarks')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('kimi k2 turbo coding benchmarks'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+          modelProvider: 'fireworks',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          fireworksApiKey: 'fw-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'fireworks',
+      model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'tell me about kimi k2 turbo coding benchmarks' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(4)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamCalls[3]?.toolChoice).toBe('none')
+    expect(streamResult.content).toContain('Kimi K2 Turbo appears competitive')
+    expect(streamResult.finishReason).toBe('stop')
+  })
+
+  it('falls back to a neutral search summary when all synthesis attempts end blank', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -820,6 +1223,7 @@ describe('useProviderStreaming', () => {
       }],
       formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
       needsFollowUp: true,
+      executionSummary: buildExecutionSummary('diddy 50 cent hit allegation'),
     })
 
     const { result } = renderHook(() =>
@@ -863,10 +1267,22 @@ describe('useProviderStreaming', () => {
       enableTools: true,
     })
 
-    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls).toHaveLength(4)
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
-    expect(streamResult.content).toContain('provider did not return a final written synthesis')
-    expect(streamResult.content).toContain('No verified evidence of a murder-for-hire plot')
+    expect(streamCalls[3]?.toolChoice).toBe('none')
+    expect(streamResult.content).toContain(
+      'The provider returned web search results for "diddy 50 cent hit allegation", but no final written synthesis.'
+    )
+    expect(streamResult.finishReason).toBe('stop')
+    expect(streamResult.toolResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          toolCall: expect.objectContaining({
+            name: 'web_search',
+          }),
+        }),
+      ])
+    )
   })
 })

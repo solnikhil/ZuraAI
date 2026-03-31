@@ -10,6 +10,7 @@ import type {
   ToolCallResult,
 } from '../../../../../contexts/ChatHistoryContext'
 import type { ToolCallingResponse } from '../../../../../tools/types'
+import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
 import type { MessageContent, ToolDefinition } from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
 
@@ -157,6 +158,7 @@ export type FlushCallback = () => void
 export interface HandleToolCallsOptions {
   onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
   onToolComplete?: (result: ToolCallResult) => void
+  executionPolicy?: ToolExecutionPolicy
 }
 
 /**
@@ -173,6 +175,7 @@ export interface ToolCallingHook {
     toolResults: ToolCallResult[]
     formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
     needsFollowUp: boolean
+    executionSummary: ToolExecutionSummary
   }>
   getResearchContext: (searchCount: number, maxRounds: number) => string
 }

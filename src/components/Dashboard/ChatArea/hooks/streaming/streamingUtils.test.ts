@@ -165,6 +165,32 @@ describe('streamingUtils final synthesis helpers', () => {
     })
   })
 
+  it('does not append a search timeline block for skipped web_search results', () => {
+    const blocks = buildThinkingBlocksFromResults(
+      [
+        {
+          toolCall: {
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: { query: 'zura ai overview' },
+          },
+          result: {
+            success: false,
+            error: 'Skipped duplicate web_search query in this response.',
+            metadata: {
+              origin: 'builtin-main' as const,
+              executionDisposition: 'skipped' as const,
+              skippedReason: 'duplicate-query' as const,
+            },
+          },
+        },
+      ],
+      []
+    )
+
+    expect(blocks).toEqual([])
+  })
+
   it('does not inject a hard stop prompt just because several research rounds have occurred', () => {
     const messages = buildFollowUpMessages(
       'Research context',

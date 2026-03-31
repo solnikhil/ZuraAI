@@ -399,6 +399,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     ) {
       parsed.tavilySearchDepthPreference = defaultSettings.tavilySearchDepthPreference
     }
+    if (typeof parsed.webSearchIncludeImages !== 'boolean') {
+      parsed.webSearchIncludeImages = defaultSettings.webSearchIncludeImages
+    }
     const availableToolNames = new Set(getAllToolDefinitions().map((tool) => tool.name))
     if (!Array.isArray(parsed.enabledTools) || parsed.enabledTools.length === 0) {
       parsed.enabledTools = defaultSettings.enabledTools
@@ -548,6 +551,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       groqApiKey: combinedSettings.groqApiKey,
       tavilyApiKey: combinedSettings.tavilyApiKey,
       tavilySearchDepthPreference: combinedSettings.tavilySearchDepthPreference,
+      webSearchIncludeImages: combinedSettings.webSearchIncludeImages,
       alibabaApiKey: combinedSettings.alibabaApiKey,
       fireworksApiKey: combinedSettings.fireworksApiKey,
       aiModel: combinedSettings.aiModel,

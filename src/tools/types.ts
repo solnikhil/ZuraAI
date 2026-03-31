@@ -10,9 +10,21 @@ export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp'
 
 export interface BuiltinToolExecutionMetadata {
     origin: 'builtin-main' | 'builtin-renderer'
+    executionDisposition?: 'executed' | 'skipped'
+    skippedReason?: 'budget' | 'duplicate-query' | 'duplicate-facet'
 }
 
 export type ToolExecutionMetadata = BuiltinToolExecutionMetadata | McpToolExecutionMetadata
+
+export function isSkippedBuiltinToolResult(
+    metadata?: ToolExecutionMetadata
+): boolean {
+    return Boolean(
+        metadata &&
+        (metadata.origin === 'builtin-main' || metadata.origin === 'builtin-renderer') &&
+        metadata.executionDisposition === 'skipped'
+    )
+}
 
 export interface ToolInputSchema extends McpJsonSchema {
     type: 'object'
@@ -79,6 +91,17 @@ export interface ToolCall {
 export interface ToolCallResult {
     toolCall: ToolCall
     result: ToolResult
+}
+
+export interface ToolExecutionPolicy {
+    remainingWebSearchBudget?: number
+    priorWebSearchQueries?: string[]
+}
+
+export interface ToolExecutionSummary {
+    attemptedWebSearchCount: number
+    executedWebSearchCount: number
+    executedWebSearchQueries: string[]
 }
 
 // ==================== Provider-specific response types ====================

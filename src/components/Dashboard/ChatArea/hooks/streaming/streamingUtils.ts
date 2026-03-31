@@ -13,6 +13,7 @@ import type {
 } from '../../../../../contexts/ChatHistoryContext'
 import type { MessageContent } from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
+import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
 import {
   STREAM_MAX_RESEARCH_ROUNDS,
@@ -29,6 +30,8 @@ export const FINAL_SYNTHESIS_PROMPT =
   '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
 export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
+export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
+  '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
 
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
@@ -150,8 +153,12 @@ export function buildThinkingBlocksFromResults(
   for (const tr of toolResults) {
     const args = tr.toolCall.arguments
     const normalizedArgs = typeof args === 'object' ? args : { query: args }
+    const wasSkipped = isSkippedBuiltinToolResult(tr.result?.metadata)
 
     if (tr.toolCall.name === 'web_search') {
+      if (wasSkipped) {
+        continue
+      }
       const q = typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
       blocks.push({
         type: 'searching',
@@ -285,9 +292,16 @@ export function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
   return String(typeof args === 'object' ? (args as Record<string, unknown>)?.query : args) || ''
 }
 
+function isExecutedWebSearchResult(result: ToolCallResult): boolean {
+  return (
+    result.toolCall.name === 'web_search' &&
+    !isSkippedBuiltinToolResult(result.result?.metadata)
+  )
+}
+
 /** Check if tool results contain web search calls. */
 export function hasSearchResults(toolResults: ToolCallResult[] | undefined): boolean {
-  return (toolResults || []).some((r) => r?.toolCall?.name === 'web_search')
+  return (toolResults || []).some((r) => isExecutedWebSearchResult(r))
 }
 
 // Initial tool result processing
@@ -308,8 +322,9 @@ export function processInitialToolResults(
   searchQuery: string
 } {
   const webSearchCalls = toolResults.filter((tr) => tr.toolCall.name === 'web_search')
-  const hasSearchCalls = webSearchCalls.length > 0
-  const searchQuery = hasSearchCalls ? extractSearchQuery(webSearchCalls) : ''
+  const executedWebSearchCalls = webSearchCalls.filter((tr) => isExecutedWebSearchResult(tr))
+  const hasSearchCalls = executedWebSearchCalls.length > 0
+  const searchQuery = hasSearchCalls ? extractSearchQuery(executedWebSearchCalls) : ''
   const updatedThinkingBlocks = toolResults.length > 0
     ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
     : localThinkingBlocks
@@ -393,6 +408,27 @@ export function buildRecoverySynthesisMessages(
   ]
 }
 
+export function buildPlainTextOnlySynthesisMessages(
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
+  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  return [
+    { role: 'system', content: FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
+}
+
 // Horizontal rule stripping
 
 /** Strip standalone --- (markdown horizontal rule) from content when web search was used */
@@ -464,11 +500,11 @@ export function buildFallbackAnswerFromToolResults(
       : ''
 
   if (evidenceLines.length === 0) {
-    return `I completed ${webSearchCalls.length} web search(es)${queryLead}, but the provider did not return a final written synthesis. The gathered search results are preserved above.`
+    return `The provider returned web search results${queryLead}, but no final written synthesis. The gathered search results are preserved above.`
   }
 
   return [
-    `I completed ${webSearchCalls.length} web search(es)${queryLead}, but the provider did not return a final written synthesis. Based on the gathered results, here are the strongest visible findings:`,
+    `The provider returned web search results${queryLead}, but no final written synthesis. Strongest visible findings from the gathered results:`,
     ...evidenceLines,
   ].join('\n')
 }

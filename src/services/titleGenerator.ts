@@ -5,6 +5,7 @@ import { generateOllamaCompletion } from './ollama'
 import { generateOpenRouterCompletion } from './openrouter'
 import { generatePerplexityCompletion } from './perplexity'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+import { getTitleEligibleModels } from '../utils/titleGenerationModels'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
 import {
@@ -16,6 +17,10 @@ import {
 } from '../providers'
 
 type TitleProvider = ActiveProviderId
+type TitleGenerationAttempt = {
+  provider: TitleProvider
+  model: string
+}
 
 type TitleGenerationSettings = Partial<
   Pick<
@@ -75,9 +80,11 @@ const getProviderModels = (
   settings: TitleGenerationSettings,
   provider: TitleProvider,
 ): ConfiguredModel[] => {
-  return getProviderModelsFromRegistry(settings, provider).filter((model): model is ConfiguredModel => {
-    return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
-  })
+  return getTitleEligibleModels(
+    getProviderModelsFromRegistry(settings, provider).filter((model): model is ConfiguredModel => {
+      return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
+    })
+  )
 }
 
 const getFirstAvailableModel = (
@@ -90,34 +97,72 @@ const getFirstAvailableModel = (
   return candidateModels[0]?.code || null
 }
 
-const resolveTitleModel = (
+const buildTitleAttempt = (
   settings: TitleGenerationSettings,
   provider: TitleProvider,
-): { model: string; fromFallback: boolean } => {
-  const requestedTitleModel = typeof settings.titleModel === 'string' ? settings.titleModel : ''
-  const aiModel = typeof settings.aiModel === 'string' ? settings.aiModel : ''
+  preferredModel?: string,
+): TitleGenerationAttempt | null => {
+  if (!hasProviderAccess(settings, provider)) {
+    return null
+  }
+
   const providerModels = getProviderModels(settings, provider)
   const enabledProviderModels = providerModels.filter((model) => model.enabled !== false)
   const candidateModels = enabledProviderModels.length > 0 ? enabledProviderModels : providerModels
 
-  if (requestedTitleModel && candidateModels.some((model) => model.code === requestedTitleModel)) {
-    return { model: requestedTitleModel, fromFallback: false }
-  }
-
-  if (aiModel && candidateModels.some((model) => model.code === aiModel)) {
-    return { model: aiModel, fromFallback: false }
+  const normalizedPreferredModel = typeof preferredModel === 'string' ? preferredModel.trim() : ''
+  if (
+    normalizedPreferredModel &&
+    candidateModels.some((model) => model.code === normalizedPreferredModel)
+  ) {
+    return { provider, model: normalizedPreferredModel }
   }
 
   if (candidateModels.length > 0) {
-    return { model: candidateModels[0].code, fromFallback: false }
+    return { provider, model: candidateModels[0].code }
   }
 
   const firstAvailable = getFirstAvailableModel(settings, provider)
   if (firstAvailable) {
-    return { model: firstAvailable, fromFallback: true }
+    return { provider, model: firstAvailable }
   }
 
-  return { model: '', fromFallback: true }
+  return null
+}
+
+const buildTitleGenerationAttempts = (
+  settings: TitleGenerationSettings,
+): TitleGenerationAttempt[] => {
+  const attempts: TitleGenerationAttempt[] = []
+  const seen = new Set<string>()
+  const requestedProvider = resolveTitleProvider(settings)
+  const requestedTitleModel =
+    typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
+  const activeProvider = normalizeProviderId(settings.modelProvider) as TitleProvider
+  const activeModel = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
+
+  const appendAttempt = (attempt: TitleGenerationAttempt | null) => {
+    if (!attempt) return
+    const key = `${attempt.provider}:${attempt.model}`
+    if (seen.has(key)) return
+    seen.add(key)
+    attempts.push(attempt)
+  }
+
+  if (requestedTitleModel) {
+    appendAttempt(buildTitleAttempt(settings, requestedProvider, requestedTitleModel))
+    appendAttempt(buildTitleAttempt(settings, requestedProvider))
+  } else {
+    appendAttempt(buildTitleAttempt(settings, activeProvider, activeModel))
+    appendAttempt(buildTitleAttempt(settings, requestedProvider))
+  }
+
+  if (activeProvider !== requestedProvider) {
+    appendAttempt(buildTitleAttempt(settings, activeProvider, activeModel))
+    appendAttempt(buildTitleAttempt(settings, activeProvider))
+  }
+
+  return attempts
 }
 
 const buildTitlePrompt = (userMessage: string, settings: TitleGenerationSettings): string => {
@@ -212,70 +257,45 @@ async function generateTitleWithProvider(
   return result.choices?.[0]?.message?.content || ''
 }
 
-function hasApiKeyForProvider(settings: TitleGenerationSettings, provider: TitleProvider): boolean {
-  return hasProviderAccess(settings, provider)
-}
-
 export const generateChatTitle = async (
   userMessage: string,
   settings: TitleGenerationSettings,
 ): Promise<string> => {
   const prompt = buildTitlePrompt(userMessage, settings)
-  const titleProvider = resolveTitleProvider(settings)
-  const { model: titleModel, fromFallback } = resolveTitleModel(settings, titleProvider)
-
-  if (!titleModel) {
-    console.warn('No title model available for provider', titleProvider)
+  const attempts = buildTitleGenerationAttempts(settings)
+  const fallbackTitle = (() => {
     const words = userMessage.trim().split(/\s+/).slice(0, 3)
     return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
+  })()
+
+  if (attempts.length === 0) {
+    console.warn('No title generation providers are currently available.')
+    return fallbackTitle
   }
 
-  try {
-    const title = await generateTitleWithProvider(
-      titleProvider,
-      titleModel,
-      prompt,
-      settings
-    )
+  for (const attempt of attempts) {
+    try {
+      const title = await generateTitleWithProvider(
+        attempt.provider,
+        attempt.model,
+        prompt,
+        settings,
+      )
 
-    const cleaned = sanitizeTitle(title)
-    if (!cleaned) throw new Error('Empty title from primary provider')
+      const cleaned = sanitizeTitle(title)
+      if (!cleaned) throw new Error('Empty generated title')
 
-    const constrained = enforceThreeWords(cleaned)
-    if (constrained.length < 2) throw new Error('Generated title too short')
+      const constrained = enforceThreeWords(cleaned)
+      if (constrained.length < 2) throw new Error('Generated title too short')
 
-    return constrained
-  } catch (error) {
-    console.error('Primary title generation failed:', error)
-
-    const errorMessage = error instanceof Error ? error.message : ''
-    const isRateLimitOrAuthError =
-      errorMessage.includes('429') ||
-      errorMessage.includes('401') ||
-      errorMessage.includes('403') ||
-      errorMessage.toLowerCase().includes('rate')
-
-    if (!fromFallback && getFirstAvailableModel(settings, titleProvider)) {
-      const fallbackModel = getFirstAvailableModel(settings, titleProvider)
-      if (fallbackModel && fallbackModel !== titleModel && !isRateLimitOrAuthError) {
-        try {
-          const fallbackTitle = await generateTitleWithProvider(
-            titleProvider,
-            fallbackModel,
-            prompt,
-            settings,
-          )
-          const cleaned = sanitizeTitle(fallbackTitle)
-          if (cleaned) {
-            return enforceThreeWords(cleaned)
-          }
-        } catch (fallbackError) {
-          console.error('Fallback model title generation failed:', fallbackError)
-        }
-      }
+      return constrained
+    } catch (error) {
+      console.warn(
+        `[title-generator] Attempt failed for ${attempt.provider}/${attempt.model}:`,
+        error,
+      )
     }
-
-    const words = userMessage.trim().split(/\s+/).slice(0, 3)
-    return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
   }
+
+  return fallbackTitle
 }

@@ -38,6 +38,7 @@ export async function extractWithTavily({
   query,
   apiKey,
   intent,
+  includeImages,
 }: TavilyExtractArgs): Promise<ToolResult> {
   try {
     const normalizedUrls = [...new Set(
@@ -64,7 +65,7 @@ export async function extractWithTavily({
       urls: normalizedUrls,
       format: 'markdown',
       extract_depth: extractDepth,
-      include_images: true,
+      include_images: includeImages,
       include_favicon: true,
     }
 
@@ -102,7 +103,7 @@ export async function extractWithTavily({
       }
     }
 
-    const images = extractTavilyImages(rawResults)
+    const images = includeImages ? extractTavilyImages(rawResults) : []
     const failures = Array.isArray(payload.failed_results) ? payload.failed_results : []
     const partialFailureMessage = failures.length > 0
       ? `${failures.length} URL(s) could not be extracted.`
@@ -151,7 +152,7 @@ export async function searchWithTavily(
       max_results: options.numResults,
       include_answer: false,
       include_raw_content: false,
-      include_images: true,
+      include_images: options.includeImages,
     }
 
     if (options.searchDepth === 'advanced') {
@@ -186,7 +187,7 @@ export async function searchWithTavily(
     const rawImages = Array.isArray(payload.images) ? payload.images : []
 
     const results = compactMap(rawResults, parseTavilySearchResult)
-    const images = compactMap(rawImages, (image) => parseTavilyImage(image))
+    const images = options.includeImages ? compactMap(rawImages, (image) => parseTavilyImage(image)) : []
 
     return {
       success: true,

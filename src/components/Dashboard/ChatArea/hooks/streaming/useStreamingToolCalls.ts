@@ -7,7 +7,7 @@ import { useToolCalling, type ToolCallState } from '../../../../../hooks/useTool
 import { useResearchMode } from './useResearchMode'
 import { useToast } from '../../../../shared/Toast'
 import type { ToolCallResult } from '../../../../../tools/toolManager'
-import type { OpenRouterResponse } from '../../../../../tools/types'
+import type { OpenRouterResponse, ToolExecutionSummary } from '../../../../../tools/types'
 import type { HandleToolCallsOptions, StreamingSettings } from './types'
 
 export interface ToolCallProcessingResult {
@@ -15,6 +15,7 @@ export interface ToolCallProcessingResult {
   toolResults: ToolCallResult[]
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   needsFollowUp: boolean
+  executionSummary: ToolExecutionSummary
 }
 
 export interface UseStreamingToolCallsOptions {
@@ -55,7 +56,8 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
       return await baseHandleToolCalls(
         response,
         options?.onToolStart,
-        options?.onToolComplete
+        options?.onToolComplete,
+        options?.executionPolicy
       )
     } catch (toolError: unknown) {
       const message = toolError instanceof Error ? toolError.message : 'Unknown error'
@@ -66,6 +68,11 @@ export function useStreamingToolCalls({ settings }: UseStreamingToolCallsOptions
         toolResults: [],
         formattedResults: [],
         needsFollowUp: false,
+        executionSummary: {
+          attemptedWebSearchCount: 0,
+          executedWebSearchCount: 0,
+          executedWebSearchQueries: [],
+        },
       }
     }
   }, [baseHandleToolCalls, showToast])

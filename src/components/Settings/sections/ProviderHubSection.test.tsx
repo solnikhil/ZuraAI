@@ -17,6 +17,7 @@ describe('ProviderHubSection', () => {
     fireworksApiKey: '',
     tavilyApiKey: '',
     tavilySearchDepthPreference: 'auto' as const,
+    webSearchIncludeImages: true,
     ollamaUrl: 'http://localhost:11434',
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter' as const,
@@ -287,6 +288,19 @@ describe('ProviderHubSection', () => {
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ tavilySearchDepthPreference: 'ultra-fast' })
+    )
+  })
+
+  it('updates Tavily image preference from Search APIs settings', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByText('AI-optimized search for web_search. Add a key for best results.'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Include web search images' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ webSearchIncludeImages: false })
     )
   })
 })

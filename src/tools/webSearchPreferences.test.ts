@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   coerceSearchDepthPreference,
+  coerceWebSearchIncludeImages,
   getStoredSearchDepthPreference,
+  getStoredWebSearchIncludeImages,
   resolveAutoSearchDepth,
   resolveWebSearchArgsForExecution,
 } from './webSearchPreferences'
@@ -17,9 +19,19 @@ describe('webSearchPreferences', () => {
     expect(coerceSearchDepthPreference('fast')).toBe('fast')
   })
 
+  it('coerces invalid image preferences to enabled', () => {
+    expect(coerceWebSearchIncludeImages('invalid')).toBe(true)
+    expect(coerceWebSearchIncludeImages(false)).toBe(false)
+  })
+
   it('reads stored search depth preference from localStorage', () => {
     localStorage.setItem('zura-settings', JSON.stringify({ tavilySearchDepthPreference: 'advanced' }))
     expect(getStoredSearchDepthPreference()).toBe('advanced')
+  })
+
+  it('reads stored image preference from localStorage', () => {
+    localStorage.setItem('zura-settings', JSON.stringify({ webSearchIncludeImages: false }))
+    expect(getStoredWebSearchIncludeImages()).toBe(false)
   })
 
   it('uses ultra-fast for latency-sensitive auto queries', () => {
@@ -37,11 +49,15 @@ describe('webSearchPreferences', () => {
   })
 
   it('injects manual stored preference when the model omits search_depth', () => {
-    localStorage.setItem('zura-settings', JSON.stringify({ tavilySearchDepthPreference: 'fast' }))
+    localStorage.setItem(
+      'zura-settings',
+      JSON.stringify({ tavilySearchDepthPreference: 'fast', webSearchIncludeImages: false })
+    )
 
     expect(resolveWebSearchArgsForExecution('web_search', { query: 'pricing docs' })).toEqual({
       query: 'pricing docs',
       search_depth: 'fast',
+      include_images: false,
     })
   })
 
@@ -52,10 +68,12 @@ describe('webSearchPreferences', () => {
       resolveWebSearchArgsForExecution('web_search', {
         query: 'latest ai news',
         search_depth: 'ultra-fast',
+        include_images: false,
       })
     ).toEqual({
       query: 'latest ai news',
       search_depth: 'ultra-fast',
+      include_images: false,
     })
   })
 })

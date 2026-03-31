@@ -75,6 +75,10 @@ function coerceTopic(value: unknown): 'general' | 'news' | 'finance' | undefined
   return undefined
 }
 
+function coerceIncludeImages(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : true
+}
+
 function appendMessageToResult(result: ToolResult, message: string): ToolResult {
   if (!result.success || !result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
     return result
@@ -135,6 +139,7 @@ function normalizeSearchRequest(args: WebSearchArgs): SearchExecutionOptions | T
     query,
     numResults: coerceNumResults(args.num_results),
     searchDepth: coerceSearchDepth(args.search_depth ?? 'basic'),
+    includeImages: coerceIncludeImages(args.include_images),
     timeRange: coerceTimeRange(args.time_range),
     topic: coerceTopic(args.topic),
   }
@@ -166,6 +171,7 @@ export async function executeWebSearch(args: WebSearchArgs): Promise<ToolResult>
         query: extractQuery,
         apiKey: safeTavilyKey,
         intent: classifiedInput.intent,
+        includeImages: normalizedRequest.includeImages,
       })
 
       if (tavilyExtractResult.success) {

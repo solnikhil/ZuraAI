@@ -5,6 +5,7 @@ export interface WebSearchArgs {
   time_range?: 'day' | 'week' | 'month' | 'year'
   topic?: 'general' | 'news' | 'finance'
   urls?: string[]
+  include_images?: boolean
 }
 
 export interface SearchResult {
@@ -49,6 +50,7 @@ export interface SearchExecutionOptions {
   query: string
   numResults: number
   searchDepth: 'ultra-fast' | 'fast' | 'basic' | 'advanced'
+  includeImages: boolean
   timeRange?: 'day' | 'week' | 'month' | 'year'
   topic?: 'general' | 'news' | 'finance'
 }
@@ -58,4 +60,5 @@ export interface TavilyExtractArgs {
   query?: string
   apiKey: string
   intent: WebInputIntent
+  includeImages: boolean
 }

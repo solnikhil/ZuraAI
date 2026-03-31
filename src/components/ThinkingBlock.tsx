@@ -172,6 +172,7 @@ interface ThinkingBlockProps {
   thinkingDuration?: number // in milliseconds
   isSearching?: boolean // Show "Searching" state instead of "Thinking"
   searchQuery?: string // The search query being searched
+  searchQueries?: string[] // Active search queries when a parallel batch is running
   /** Active tool calls during streaming (shows tool calling animation) */
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   // New props for showing completed blocks
@@ -504,6 +505,7 @@ export default function ThinkingBlock({
   thinkingDuration,
   isSearching = false,
   searchQuery,
+  searchQueries,
   activeToolCalls = [],
   completedBlocks = [],
 }: ThinkingBlockProps) {
@@ -649,8 +651,22 @@ export default function ThinkingBlock({
   const blocksToRender = hasLegacyInlineThinkingWithToolCalls
     ? completedBlocks.filter((b) => b.type !== 'searching')
     : completedBlocks
-  const searchingMode = inferWebToolModeFromArgs(searchQuery ? { query: searchQuery } : undefined)
+  const activeSearchQueries = (searchQueries && searchQueries.length > 0)
+    ? searchQueries.filter(Boolean)
+    : searchQuery
+      ? [searchQuery]
+      : []
+  const primarySearchQuery = activeSearchQueries[0]
+  const searchingMode = inferWebToolModeFromArgs(
+    primarySearchQuery ? { query: primarySearchQuery } : undefined
+  )
   const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
+  const searchingText =
+    activeSearchQueries.length > 1
+      ? `${searchingLabel}: "${primarySearchQuery}" (+${activeSearchQueries.length - 1} more)`
+      : primarySearchQuery
+        ? `${searchingLabel}: "${primarySearchQuery}"`
+        : searchingLabel
 
   return (
     <div className="thinking-blocks-container">
@@ -687,7 +703,7 @@ export default function ThinkingBlock({
               ) : isSearching ? (
                 <span className="thinking-text">
                   <AITextLoading
-                    text={`${searchingLabel}${searchQuery ? `: "${searchQuery}"` : ''}`}
+                    text={searchingText}
                     animationKey="searching"
                   />
                 </span>

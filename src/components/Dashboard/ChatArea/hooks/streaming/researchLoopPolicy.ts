@@ -23,7 +23,7 @@ export interface ResearchLoopContinuationOptions {
 
 export interface ResearchLoopDecision {
   shouldForceFinalSynthesis: boolean
-  reason: 'budget' | 'duplicate-query' | 'duplicate-facet' | null
+  reason: 'budget' | 'duplicate-query' | 'duplicate-facet' | 'empty-batch' | null
 }
 
 const FORCE_WEB_SEARCH_PREFIX =
@@ -31,9 +31,9 @@ const FORCE_WEB_SEARCH_PREFIX =
 
 const FOLLOW_UP_DECISION_GUIDANCE =
   `\n\n*** FOLLOW-UP SEARCH DECISION ***\n` +
-  `After each search, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
-  `If you continue, issue exactly one new targeted query for the missing facet. Change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.\n` +
-  `Do not repeat the same facet with only minor rewording, and do not pre-plan multiple speculative searches before inspecting the current results.`
+  `After each search batch, briefly decide what is already answered by evidence, what important gap or conflict remains, and whether another search is actually needed.\n` +
+  `If you continue, issue one or more distinct targeted queries only when the missing facets are independent. Keep the batch minimal, stay within the remaining search budget, and change the angle when needed: overview, recent updates, source verification, official docs/specs, pricing, comparisons, examples, implementation details, or edge cases.\n` +
+  `Do not repeat the same facet with only minor rewording, and do not pre-plan large speculative batches before inspecting the current results.`
 
 type ResearchQueryFacet =
   | 'general'
@@ -196,6 +196,25 @@ function areQueriesFacetDuplicate(left: string, right: string): boolean {
   return smallerSetSize > 0 && overlap / smallerSetSize >= 0.6
 }
 
+export function classifyResearchQueryDuplicate(
+  query: string,
+  priorQueries: string[]
+): 'duplicate-query' | 'duplicate-facet' | null {
+  if (!query.trim() || priorQueries.length === 0) {
+    return null
+  }
+
+  if (priorQueries.some((priorQuery) => areQueriesNearDuplicate(priorQuery, query))) {
+    return 'duplicate-query'
+  }
+
+  if (priorQueries.some((priorQuery) => areQueriesFacetDuplicate(priorQuery, query))) {
+    return 'duplicate-facet'
+  }
+
+  return null
+}
+
 export function evaluateResearchContinuation({
   searchCount,
   maxRounds,
@@ -217,6 +236,13 @@ export function evaluateResearchContinuation({
   const normalizedNextQueries = nextQueries
     .map((query) => normalizeResearchQuery(query))
     .filter(Boolean)
+
+  if (nextQueries.length > 0 && normalizedNextQueries.length === 0) {
+    return {
+      shouldForceFinalSynthesis: true,
+      reason: 'empty-batch',
+    }
+  }
 
   if (
     normalizedPriorQueries.length > 0 &&
@@ -290,7 +316,7 @@ export function buildResearchProgressPrompt({
       return `${prefix}\n\n*** WEB SEARCH BUDGET REACHED ***\nYou have completed all ${explicitBudget} allowed search(es). Do not call web_search again. Provide your final synthesized answer now using only the evidence already gathered.`
     }
 
-    return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${explicitBudget} allowed search(es). ${remaining} search(es) remain. Continue only if the current results are incomplete, conflicting, or still missing critical evidence for the user's request.${FOLLOW_UP_DECISION_GUIDANCE}`
+    return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${explicitBudget} allowed search(es). ${remaining} search(es) remain. Continue only if the current results are incomplete, conflicting, or still missing critical evidence for the user's request. If you continue, keep any next batch tight and focused on independent missing facets.${FOLLOW_UP_DECISION_GUIDANCE}`
   }
 
   const remainingPractical = Math.max(0, effectiveBudget - searchCount)
@@ -298,5 +324,5 @@ export function buildResearchProgressPrompt({
     ? ` You are close to the practical cap of ${effectiveBudget} searches, so only continue if another targeted search is necessary.`
     : ''
 
-  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search is still needed. Prefer synthesis once you have enough coverage, and do not keep reformulating similar searches without adding new evidence.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
+  return `${prefix}\n\n*** WEB SEARCH PROGRESS ***\nYou have completed ${searchCount} of ${effectiveBudget} targeted search(es) in this research loop. Use the returned evidence to decide whether another targeted search batch is still needed. Prefer synthesis once you have enough coverage, and do not keep reformulating similar searches without adding new evidence.${practicalWarning}${FOLLOW_UP_DECISION_GUIDANCE}`
 }

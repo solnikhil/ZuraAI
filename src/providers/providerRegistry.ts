@@ -139,7 +139,7 @@ export const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
 export const DEFAULT_ATTACHMENT_MAX_SIZE_BYTES = 20 * 1024 * 1024
 export const STREAM_UPDATE_INTERVAL_MS = 120
 export const STREAM_RESEARCH_SAFETY_CAP = 50
-export const STREAM_MAX_RESEARCH_ROUNDS = 6
+export const STREAM_MAX_RESEARCH_ROUNDS = 8
 export const TITLE_REVEAL_INTERVAL_MS = 24
 
 const allowAllToolModels = (provider: ProviderId) =>

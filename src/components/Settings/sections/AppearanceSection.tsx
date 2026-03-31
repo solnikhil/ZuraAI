@@ -24,6 +24,7 @@ import {
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
+import { getTitleEligibleModels } from '../../../utils/titleGenerationModels'
 import { getActiveProviderDefinitions, type ActiveProviderId } from '../../../providers'
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -255,8 +256,9 @@ export function AppearanceSection({
   const titleProviderEnabledModels = titleProviderModelsAll.filter(
     (model) => model.enabled !== false
   )
-  const titleProviderModels =
+  const titleProviderModels = getTitleEligibleModels(
     titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
+  )
   const titleModelOptions = titleProviderModels.map((model) => ({
     value: model.code,
     label: model.displayName,
@@ -272,7 +274,9 @@ export function AppearanceSection({
   const handleTitleProviderChange = (provider: TitleProviderKey) => {
     const nextModelsAll = titleProviderModelMap[provider] || []
     const nextEnabled = nextModelsAll.filter((model) => model.enabled !== false)
-    const nextCandidates = nextEnabled.length > 0 ? nextEnabled : nextModelsAll
+    const nextCandidates = getTitleEligibleModels(
+      nextEnabled.length > 0 ? nextEnabled : nextModelsAll
+    )
     const nextTitleModel = nextCandidates.some((model) => model.code === settings.titleModel)
       ? settings.titleModel
       : nextCandidates[0]?.code || settings.titleModel

@@ -28,7 +28,10 @@ import {
   OpenRouterToolResultMessage,
   ToolDescriptor,
   isMcpToolDescriptor,
+  type ToolExecutionPolicy,
+  type ToolExecutionSummary,
 } from './types'
+import { classifyResearchQueryDuplicate } from '../components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy'
 
 // Type for provider API responses
 type ProviderResponse = OpenRouterResponse
@@ -127,8 +130,32 @@ export interface ToolManagerConfig {
   model: string
   enabledTools?: string[] // If not provided, all tools enabled
   availableTools?: ToolDescriptor[]
+  executionPolicy?: ToolExecutionPolicy
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
+}
+
+function getWebSearchQuery(toolCall: ToolCall): string {
+  return String(toolCall.arguments?.query || '').trim()
+}
+
+function createSyntheticToolResult(
+  toolCall: ToolCall,
+  error: string,
+  skippedReason: 'budget' | 'duplicate-query' | 'duplicate-facet'
+): ToolCallResult {
+  return {
+    toolCall,
+    result: {
+      success: false,
+      error,
+      metadata: {
+        origin: 'builtin-main',
+        executionDisposition: 'skipped',
+        skippedReason,
+      },
+    },
+  }
 }
 
 /**
@@ -232,20 +259,31 @@ export async function processToolCalls(
   toolCalls: ToolCall[]
   results: ToolCallResult[]
   formattedResults: FormattedToolResults
+  executionSummary: ToolExecutionSummary
 }> {
   const toolCalls = parseToolCallsFromResponse(response, config.provider)
+  const executionSummary: ToolExecutionSummary = {
+    attemptedWebSearchCount: 0,
+    executedWebSearchCount: 0,
+    executedWebSearchQueries: [],
+  }
 
   if (toolCalls.length === 0) {
-    return { toolCalls: [], results: [], formattedResults: [] }
+    return { toolCalls: [], results: [], formattedResults: [], executionSummary }
   }
 
   const availableTools = config.availableTools ?? getAllToolDefinitions()
 
-  // Phase 1: Validate, coerce, and separate valid from invalid tool calls
-  const validCalls: ToolCall[] = []
-  const errorResults: ToolCallResult[] = []
+  // Phase 1: Validate, apply web search batch policy, and preserve result ordering.
+  const executableCalls: Array<{ index: number; toolCall: ToolCall }> = []
+  const resultsByIndex = new Array<ToolCallResult>(toolCalls.length)
+  let remainingWebSearchBudget = Math.max(
+    0,
+    Math.floor(config.executionPolicy?.remainingWebSearchBudget ?? Number.MAX_SAFE_INTEGER)
+  )
+  const priorWebSearchQueries = [...(config.executionPolicy?.priorWebSearchQueries ?? [])]
 
-  for (const toolCall of toolCalls) {
+  for (const [index, toolCall] of toolCalls.entries()) {
     const coercedToolCall = coerceToolArguments(toolCall, availableTools)
     const validationError = validateRequiredParameters(coercedToolCall, availableTools)
 
@@ -256,42 +294,82 @@ export async function processToolCalls(
         toolCall: coercedToolCall,
         result: { success: false, error: validationError },
       }
-      errorResults.push(errorResult)
+      resultsByIndex[index] = errorResult
       config.onToolComplete?.(errorResult)
-    } else {
-      validCalls.push(coercedToolCall)
+      continue
     }
+
+    if (coercedToolCall.name === 'web_search') {
+      executionSummary.attemptedWebSearchCount += 1
+
+      const query = getWebSearchQuery(coercedToolCall)
+      const duplicateReason = classifyResearchQueryDuplicate(query, priorWebSearchQueries)
+      if (duplicateReason) {
+        const duplicateResult = createSyntheticToolResult(
+          coercedToolCall,
+          duplicateReason === 'duplicate-query'
+            ? 'Skipped duplicate web_search query in this response. Change the angle or synthesize from existing results.'
+            : 'Skipped web_search call because this facet was already searched in this response. Try a different facet or synthesize from existing results.',
+          duplicateReason
+        )
+        config.onToolStart?.(coercedToolCall)
+        resultsByIndex[index] = duplicateResult
+        config.onToolComplete?.(duplicateResult)
+        continue
+      }
+
+      if (remainingWebSearchBudget <= 0) {
+        const budgetResult = createSyntheticToolResult(
+          coercedToolCall,
+          'Skipped web_search call because the per-response search budget has been reached. Synthesize from the evidence already gathered.',
+          'budget'
+        )
+        config.onToolStart?.(coercedToolCall)
+        resultsByIndex[index] = budgetResult
+        config.onToolComplete?.(budgetResult)
+        continue
+      }
+
+      remainingWebSearchBudget -= 1
+      if (query) {
+        priorWebSearchQueries.push(query)
+        executionSummary.executedWebSearchQueries.push(query)
+      }
+      executionSummary.executedWebSearchCount += 1
+    }
+
+    executableCalls.push({ index, toolCall: coercedToolCall })
   }
 
-  // Phase 2: Fire onToolStart for all valid calls, then execute in parallel
-  for (const tc of validCalls) {
-    config.onToolStart?.(tc)
+  // Phase 2: Fire onToolStart for all executable calls, then execute them in parallel.
+  for (const { toolCall: executableToolCall } of executableCalls) {
+    config.onToolStart?.(executableToolCall)
   }
 
-  const executionPromises = validCalls.map(async (coercedToolCall): Promise<ToolCallResult> => {
+  const executionPromises = executableCalls.map(async ({ index, toolCall: executableToolCall }) => {
     try {
-      const result = await executeToolCalls([coercedToolCall])
+      const result = await executeToolCalls([executableToolCall])
+      resultsByIndex[index] = result[0]
       config.onToolComplete?.(result[0])
-      return result[0]
     } catch (execError: unknown) {
       const errorMessage =
-        execError instanceof Error ? execError.message : `Failed to execute ${coercedToolCall.name}`
-      console.error(`Tool execution error for ${coercedToolCall.name}:`, execError)
+        execError instanceof Error ? execError.message : `Failed to execute ${executableToolCall.name}`
+      console.error(`Tool execution error for ${executableToolCall.name}:`, execError)
       const errorResult: ToolCallResult = {
-        toolCall: coercedToolCall,
+        toolCall: executableToolCall,
         result: { success: false, error: errorMessage },
       }
+      resultsByIndex[index] = errorResult
       config.onToolComplete?.(errorResult)
-      return errorResult
     }
   })
 
-  const executionResults = await Promise.all(executionPromises)
-  const results = [...errorResults, ...executionResults]
+  await Promise.all(executionPromises)
+  const results = resultsByIndex.filter((result): result is ToolCallResult => Boolean(result))
 
   const formattedResults = formatResultsForProvider(toolCalls, results, config.provider)
 
-  return { toolCalls, results, formattedResults }
+  return { toolCalls, results, formattedResults, executionSummary }
 }
 
 // Message types for different providers

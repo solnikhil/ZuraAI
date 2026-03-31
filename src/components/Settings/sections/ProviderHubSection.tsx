@@ -153,6 +153,7 @@ export interface ProviderHubSectionProps {
   perplexityApiKey: string
   tavilyApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
+  webSearchIncludeImages: boolean
   ollamaUrl: string
   aiModel: string
   modelProvider: ProviderKey
@@ -176,6 +177,7 @@ export interface ProviderHubSectionProps {
       perplexityApiKey: string
       tavilyApiKey: string
       tavilySearchDepthPreference: TavilySearchDepthPreference
+      webSearchIncludeImages: boolean
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
@@ -199,6 +201,7 @@ export function ProviderHubSection({
   fireworksApiKey,
   tavilyApiKey,
   tavilySearchDepthPreference,
+  webSearchIncludeImages,
   ollamaUrl,
   aiModel,
   modelProvider,
@@ -1069,6 +1072,7 @@ export function ProviderHubSection({
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
           tavilySearchDepthPreference={tavilySearchDepthPreference}
+          webSearchIncludeImages={webSearchIncludeImages}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
@@ -1514,12 +1518,14 @@ function SearchApiDetail({
   api,
   tavilyApiKey,
   tavilySearchDepthPreference,
+  webSearchIncludeImages,
   onBack,
   onChange,
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
+  webSearchIncludeImages: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
@@ -1615,6 +1621,19 @@ function SearchApiDetail({
                       <SelectItem value="advanced">Thorough</SelectItem>
                     </SelectContent>
                   </Select>
+                }
+              />
+              <DetailField
+                label="Result Images"
+                description="Include image results in web_search responses and show the inline image strip in chat."
+                control={
+                  <div className="flex justify-end">
+                    <Switch
+                      checked={webSearchIncludeImages}
+                      onCheckedChange={(checked) => onChange({ webSearchIncludeImages: checked })}
+                      aria-label="Include web search images"
+                    />
+                  </div>
                 }
               />
               {api.learnMoreUrl && (

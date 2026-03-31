@@ -89,6 +89,7 @@ export interface Message {
     currentRound: number
     maxRounds: number
     currentSearch?: string // The search query being executed
+    currentSearches?: string[] // Active search queries when a batch is executing
     isSearching: boolean
   }
   /** Structured research plan (step-by-step mode) */

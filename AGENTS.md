@@ -207,6 +207,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 - Search API preferences are persisted in renderer settings; Tavily search speed now uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process.
+- Search API preferences are persisted in renderer settings; Tavily search speed uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process. The same pre-IPC resolver also applies `settings.webSearchIncludeImages`, so Tavily image fetching and the chat image carousel can be disabled per user without changing the model-facing tool schema.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -267,13 +268,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
   - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
   - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
+  - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still returns no answer, the renderer falls back to a neutral summary built from preserved `web_search` results so the turn does not end as an empty `tool_calls` response.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
 - When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
-- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` enforces both a practical uncapped-search budget and a repeated-query breaker, then forces a final synthesis pass with tools disabled so research loops cannot spin indefinitely on repeated `web_search` turns.
+- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` now supports batched parallel `web_search` fan-out within a single provider turn, while still enforcing a hard per-response cap of 8 executed searches, repeated-query/facet breaking, and a forced final synthesis pass with tools disabled once the loop should stop.
 - Tool schema exposure is skill-gated in renderer:
   - Skill OFF: expose no built-in web research tools
   - Skill ON: expose `web_search`
@@ -387,6 +389,7 @@ Tool execution is intentionally restricted.
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
     - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
+    - `src/tools/toolManager.ts` applies the renderer-side batch execution policy for `web_search`: duplicate/facet-deduping within the current assistant response, remaining-budget enforcement, synthetic skipped tool results for over-budget or duplicate calls, and parallel execution for the executable subset of the batch.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:

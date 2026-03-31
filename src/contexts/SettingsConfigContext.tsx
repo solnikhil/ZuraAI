@@ -69,6 +69,7 @@ export interface SettingsConfig {
   groqApiKey: string
   tavilyApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
+  webSearchIncludeImages: boolean
   alibabaApiKey: string
   fireworksApiKey: string
 
@@ -132,6 +133,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   groqApiKey: '',
   tavilyApiKey: '',
   tavilySearchDepthPreference: 'auto',
+  webSearchIncludeImages: true,
   alibabaApiKey: '',
   fireworksApiKey: '',
 

@@ -292,6 +292,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}
+                webSearchIncludeImages={pendingSettings.webSearchIncludeImages}
                 ollamaUrl={pendingSettings.ollamaUrl}
                 aiModel={pendingSettings.aiModel}
                 modelProvider={pendingSettings.modelProvider}

@@ -73,6 +73,7 @@ export interface MessageRendererProps {
       currentRound: number
       maxRounds: number
       currentSearch?: string
+      currentSearches?: string[]
       isSearching: boolean
     }
     responseVersions?: Array<{
@@ -113,6 +114,14 @@ function areOptionalRecordsEqual(
   if (a === b) return true
   if (!a || !b) return !a && !b
   return JSON.stringify(a) === JSON.stringify(b)
+}
+
+function areStringArraysEqual(left?: string[], right?: string[]): boolean {
+  if (left === right) return true
+  if (!left || !right) return !left && !right
+  if (left.length !== right.length) return false
+
+  return left.every((value, index) => value === right[index])
 }
 
 function areThinkingBlocksEqual(prevBlocks: ThinkingBlock[], nextBlocks: ThinkingBlock[]): boolean {
@@ -780,7 +789,8 @@ function areMessagePropsEqual(
     prevResearch?.isSearching !== nextResearch?.isSearching ||
     prevResearch?.currentRound !== nextResearch?.currentRound ||
     prevResearch?.maxRounds !== nextResearch?.maxRounds ||
-    prevResearch?.currentSearch !== nextResearch?.currentSearch
+    prevResearch?.currentSearch !== nextResearch?.currentSearch ||
+    !areStringArraysEqual(prevResearch?.currentSearches, nextResearch?.currentSearches)
   ) {
     return false
   }
@@ -1021,7 +1031,7 @@ function MessageRendererComponent({
   // Extract all images from web_search tool results
   const { webSearchImages, webImageMode } = useMemo(() => {
     const images: Array<{ url: string; description?: string; mode: 'search' | 'extract' }> = []
-    if (!message.toolResults) {
+    if (settings.webSearchIncludeImages === false || !message.toolResults) {
       return { webSearchImages: images, webImageMode: 'search' as const }
     }
 
@@ -1056,7 +1066,7 @@ function MessageRendererComponent({
       modeSet.size > 1 ? 'mixed' : modeSet.values().next().value || 'search'
 
     return { webSearchImages: images, webImageMode }
-  }, [message.toolResults])
+  }, [message.toolResults, settings.webSearchIncludeImages])
 
   const isUser = message.role === 'user'
   const hasThinking = typeof message.thinking === 'string' && message.thinking.trim().length > 0
@@ -1335,6 +1345,9 @@ function MessageRendererComponent({
             searchQuery={
               activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearch : undefined
             }
+            searchQueries={
+              activeTimelineOwner === 'upper' ? message.researchStatus?.currentSearches : undefined
+            }
             completedBlocks={timeline.beforeBlocks}
             activeToolCalls={activeTimelineOwner === 'upper' ? activeToolCalls : []}
           />
@@ -1413,6 +1426,9 @@ function MessageRendererComponent({
             }
             searchQuery={
               activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearch : undefined
+            }
+            searchQueries={
+              activeTimelineOwner === 'lower' ? message.researchStatus?.currentSearches : undefined
             }
             completedBlocks={timeline.afterBlocks}
             activeToolCalls={activeTimelineOwner === 'lower' ? activeToolCalls : []}
