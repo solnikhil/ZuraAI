@@ -155,4 +155,41 @@ describe('toolManager web search batch policy', () => {
       'mcp__filesystem__read_file',
     ])
   })
+
+  it('rewrites inferred web_search years to a single current year unless the user asked for another year', async () => {
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
+      {
+        toolCall,
+        result: {
+          success: true,
+          data: { results: [{ title: String(toolCall.arguments.query) }] },
+          metadata: { origin: 'builtin-main' as const },
+        },
+      },
+    ])
+
+    const response = buildToolResponse([
+      { id: 'search-1', name: 'web_search', arguments: { query: 'Claude code leak Anthropic 2024 2025' } },
+    ])
+
+    const processed = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      executionPolicy: {
+        remainingWebSearchBudget: 1,
+        priorWebSearchQueries: [],
+        userContextText: 'give me info about the latest claude code leak',
+      },
+    })
+
+    expect(mocks.executeToolCalls).toHaveBeenCalledWith([
+      expect.objectContaining({
+        arguments: expect.objectContaining({
+          query: 'Claude code leak Anthropic 2026',
+        }),
+      }),
+    ])
+    expect(processed.results[0]?.toolCall.arguments.query).toBe('Claude code leak Anthropic 2026')
+    expect(processed.executionSummary.executedWebSearchQueries).toEqual(['Claude code leak Anthropic 2026'])
+  })
 })

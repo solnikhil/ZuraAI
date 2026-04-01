@@ -17,10 +17,6 @@ import {
 } from '../providers'
 
 type TitleProvider = ActiveProviderId
-type TitleGenerationAttempt = {
-  provider: TitleProvider
-  model: string
-}
 
 type TitleGenerationSettings = Partial<
   Pick<
@@ -45,6 +41,28 @@ type TitleGenerationSettings = Partial<
   >
 >
 
+type TitleGenerationAttempt = {
+  provider: TitleProvider
+  model: string
+  priority: number
+}
+
+type TitleGenerationErrorKind =
+  | 'provider-auth'
+  | 'provider-quota'
+  | 'provider-rate-limit'
+  | 'provider-forbidden'
+  | 'model-empty'
+  | 'model-invalid'
+  | 'transient'
+  | 'unknown'
+
+type TitleGenerationFailure = {
+  attempt: TitleGenerationAttempt
+  kind: TitleGenerationErrorKind
+  message: string
+}
+
 const TITLE_PROVIDERS: TitleProvider[] = getActiveProviderDefinitions().map(
   (provider) => provider.id as TitleProvider
 )
@@ -60,112 +78,43 @@ const enforceThreeWords = (title: string): string => {
   return words.join(' ')
 }
 
-const sanitizeTitle = (title: string): string => {
-  return title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
-}
+const sanitizeTitle = (title: string): string =>
+  title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
+
+const stripOpenRouterPrefix = (modelId: string): string =>
+  modelId.startsWith('openrouter/') ? modelId.replace('openrouter/', '') : modelId
 
 const resolveTitleProvider = (settings: TitleGenerationSettings): TitleProvider => {
   const requestedTitleProvider = normalizeProviderId(settings.titleModelProvider)
   if (isTitleProvider(requestedTitleProvider)) {
     return requestedTitleProvider
   }
+
   const requestedModelProvider = normalizeProviderId(settings.modelProvider)
   if (isTitleProvider(requestedModelProvider)) {
     return requestedModelProvider
   }
+
   return 'openrouter'
 }
 
 const getProviderModels = (
   settings: TitleGenerationSettings,
-  provider: TitleProvider,
-): ConfiguredModel[] => {
-  return getTitleEligibleModels(
-    getProviderModelsFromRegistry(settings, provider).filter((model): model is ConfiguredModel => {
-      return Boolean(model && typeof model.code === 'string' && model.code.length > 0)
-    })
+  provider: TitleProvider
+): ConfiguredModel[] =>
+  getTitleEligibleModels(
+    getProviderModelsFromRegistry(settings, provider).filter((model): model is ConfiguredModel =>
+      Boolean(model && typeof model.code === 'string' && model.code.length > 0)
+    )
   )
+
+function buildFallbackTitle(userMessage: string): string {
+  const words = userMessage.trim().split(/\s+/).filter(Boolean).slice(0, 3)
+  if (words.length === 0) return 'New Chat'
+  return words.join(' ') + (userMessage.trim().split(/\s+/).filter(Boolean).length > 3 ? '...' : '')
 }
 
-const getFirstAvailableModel = (
-  settings: TitleGenerationSettings,
-  provider: TitleProvider,
-): string | null => {
-  const providerModels = getProviderModels(settings, provider)
-  const enabledModels = providerModels.filter((model) => model.enabled !== false)
-  const candidateModels = enabledModels.length > 0 ? enabledModels : providerModels
-  return candidateModels[0]?.code || null
-}
-
-const buildTitleAttempt = (
-  settings: TitleGenerationSettings,
-  provider: TitleProvider,
-  preferredModel?: string,
-): TitleGenerationAttempt | null => {
-  if (!hasProviderAccess(settings, provider)) {
-    return null
-  }
-
-  const providerModels = getProviderModels(settings, provider)
-  const enabledProviderModels = providerModels.filter((model) => model.enabled !== false)
-  const candidateModels = enabledProviderModels.length > 0 ? enabledProviderModels : providerModels
-
-  const normalizedPreferredModel = typeof preferredModel === 'string' ? preferredModel.trim() : ''
-  if (
-    normalizedPreferredModel &&
-    candidateModels.some((model) => model.code === normalizedPreferredModel)
-  ) {
-    return { provider, model: normalizedPreferredModel }
-  }
-
-  if (candidateModels.length > 0) {
-    return { provider, model: candidateModels[0].code }
-  }
-
-  const firstAvailable = getFirstAvailableModel(settings, provider)
-  if (firstAvailable) {
-    return { provider, model: firstAvailable }
-  }
-
-  return null
-}
-
-const buildTitleGenerationAttempts = (
-  settings: TitleGenerationSettings,
-): TitleGenerationAttempt[] => {
-  const attempts: TitleGenerationAttempt[] = []
-  const seen = new Set<string>()
-  const requestedProvider = resolveTitleProvider(settings)
-  const requestedTitleModel =
-    typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
-  const activeProvider = normalizeProviderId(settings.modelProvider) as TitleProvider
-  const activeModel = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
-
-  const appendAttempt = (attempt: TitleGenerationAttempt | null) => {
-    if (!attempt) return
-    const key = `${attempt.provider}:${attempt.model}`
-    if (seen.has(key)) return
-    seen.add(key)
-    attempts.push(attempt)
-  }
-
-  if (requestedTitleModel) {
-    appendAttempt(buildTitleAttempt(settings, requestedProvider, requestedTitleModel))
-    appendAttempt(buildTitleAttempt(settings, requestedProvider))
-  } else {
-    appendAttempt(buildTitleAttempt(settings, activeProvider, activeModel))
-    appendAttempt(buildTitleAttempt(settings, requestedProvider))
-  }
-
-  if (activeProvider !== requestedProvider) {
-    appendAttempt(buildTitleAttempt(settings, activeProvider, activeModel))
-    appendAttempt(buildTitleAttempt(settings, activeProvider))
-  }
-
-  return attempts
-}
-
-const buildTitlePrompt = (userMessage: string, settings: TitleGenerationSettings): string => {
+function buildTitlePrompt(userMessage: string, settings: TitleGenerationSettings): string {
   const promptTemplate =
     typeof settings.titleGenerationPrompt === 'string' &&
     settings.titleGenerationPrompt.trim().length > 0
@@ -180,14 +129,151 @@ const buildTitlePrompt = (userMessage: string, settings: TitleGenerationSettings
   return `${promptTemplate}\n\nUser message: "${clippedUserMessage}"`
 }
 
-const stripOpenRouterPrefix = (modelId: string): string =>
-  modelId.startsWith('openrouter/') ? modelId.replace('openrouter/', '') : modelId
+function getOrderedProviders(settings: TitleGenerationSettings): TitleProvider[] {
+  const requestedProvider = resolveTitleProvider(settings)
+  const activeProvider = normalizeProviderId(settings.modelProvider) as TitleProvider
+  const ordered: TitleProvider[] = []
+
+  const pushProvider = (provider: TitleProvider) => {
+    if (!ordered.includes(provider)) {
+      ordered.push(provider)
+    }
+  }
+
+  pushProvider(requestedProvider)
+  pushProvider(activeProvider)
+
+  for (const provider of TITLE_PROVIDERS) {
+    pushProvider(provider)
+  }
+
+  return ordered
+}
+
+function getProviderCandidateModels(
+  settings: TitleGenerationSettings,
+  provider: TitleProvider
+): string[] {
+  const providerModels = getProviderModels(settings, provider)
+  const enabledModels = providerModels.filter((model) => model.enabled !== false)
+  const candidateModels = enabledModels.length > 0 ? enabledModels : providerModels
+  return candidateModels.map((model) => model.code.trim()).filter(Boolean)
+}
+
+function buildTitleGenerationAttempts(settings: TitleGenerationSettings): TitleGenerationAttempt[] {
+  const requestedProvider = resolveTitleProvider(settings)
+  const activeProvider = normalizeProviderId(settings.modelProvider) as TitleProvider
+  const requestedTitleModel =
+    typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
+  const activeModel = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
+  const attempts: TitleGenerationAttempt[] = []
+  const seen = new Set<string>()
+
+  const appendAttempt = (provider: TitleProvider, model: string, priority: number) => {
+    const normalizedModel = model.trim()
+    if (!normalizedModel) return
+    if (!hasProviderAccess(settings, provider)) return
+
+    const key = `${provider}:${normalizedModel}`
+    if (seen.has(key)) return
+
+    seen.add(key)
+    attempts.push({ provider, model: normalizedModel, priority })
+  }
+
+  for (const provider of getOrderedProviders(settings)) {
+    const candidateModels = getProviderCandidateModels(settings, provider)
+
+    if (
+      provider === requestedProvider &&
+      requestedTitleModel &&
+      candidateModels.includes(requestedTitleModel)
+    ) {
+      appendAttempt(provider, requestedTitleModel, 0)
+    }
+
+    if (provider === activeProvider && activeModel) {
+      appendAttempt(provider, activeModel, provider === requestedProvider ? 1 : 0)
+    }
+
+    for (const model of candidateModels) {
+      const priority =
+        provider === requestedProvider
+          ? 1
+          : provider === activeProvider
+            ? 2
+            : 3
+      appendAttempt(provider, model, priority)
+    }
+  }
+
+  return attempts.sort((left, right) => left.priority - right.priority)
+}
+
+function classifyTitleGenerationError(error: unknown): { kind: TitleGenerationErrorKind; message: string } {
+  const message = error instanceof Error ? error.message : String(error || 'Unknown title generation error')
+  const normalized = message.toLowerCase()
+
+  if (
+    /\b401\b/.test(normalized) ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('api key missing') ||
+    normalized.includes('api key is missing') ||
+    normalized.includes('missing for title generation')
+  ) {
+    return { kind: 'provider-auth', message }
+  }
+
+  if (
+    /\b403\b/.test(normalized) &&
+    (normalized.includes('limit') || normalized.includes('quota') || normalized.includes('credit'))
+  ) {
+    return { kind: 'provider-quota', message }
+  }
+
+  if (/\b429\b/.test(normalized) || normalized.includes('rate limit')) {
+    return { kind: 'provider-rate-limit', message }
+  }
+
+  if (/\b403\b/.test(normalized) || normalized.includes('forbidden')) {
+    return { kind: 'provider-forbidden', message }
+  }
+
+  if (normalized.includes('empty generated title')) {
+    return { kind: 'model-empty', message }
+  }
+
+  if (normalized.includes('generated title too short') || normalized.includes('model not found')) {
+    return { kind: 'model-invalid', message }
+  }
+
+  if (
+    /\b408\b|\b500\b|\b502\b|\b503\b|\b504\b|\b529\b/.test(normalized) ||
+    normalized.includes('timeout') ||
+    normalized.includes('temporar') ||
+    normalized.includes('upstream') ||
+    normalized.includes('network')
+  ) {
+    return { kind: 'transient', message }
+  }
+
+  return { kind: 'unknown', message }
+}
+
+function shouldSkipProviderAfterFailure(kind: TitleGenerationErrorKind): boolean {
+  return (
+    kind === 'provider-auth' ||
+    kind === 'provider-quota' ||
+    kind === 'provider-rate-limit' ||
+    kind === 'provider-forbidden'
+  )
+}
 
 async function generateTitleWithProvider(
   provider: TitleProvider,
   model: string,
   prompt: string,
-  settings: TitleGenerationSettings,
+  settings: TitleGenerationSettings
 ): Promise<string> {
   if (provider === 'groq') {
     if (!settings.groqApiKey) throw new Error('Groq API key missing for title generation.')
@@ -195,19 +281,20 @@ async function generateTitleWithProvider(
       settings.groqApiKey,
       model,
       [{ role: 'user', content: prompt }],
-      { temperature: 0.3 },
+      { temperature: 0.3 }
     )
     return result.choices?.[0]?.message?.content || ''
   }
 
   if (provider === 'perplexity') {
-    if (!settings.perplexityApiKey)
+    if (!settings.perplexityApiKey) {
       throw new Error('Perplexity API key missing for title generation.')
+    }
     const result = await generatePerplexityCompletion(
       settings.perplexityApiKey,
       model,
       [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 },
+      { temperature: 0.3, max_tokens: 20 }
     )
     return result.choices?.[0]?.message?.content || ''
   }
@@ -219,7 +306,7 @@ async function generateTitleWithProvider(
       ollamaUrl,
       model,
       [{ role: 'user', content: prompt }],
-      { temperature: 0.3 },
+      { temperature: 0.3 }
     )
     return result.message?.content || ''
   }
@@ -230,7 +317,7 @@ async function generateTitleWithProvider(
       settings.alibabaApiKey,
       model,
       [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 },
+      { temperature: 0.3, max_tokens: 20 }
     )
     return result.choices?.[0]?.message?.content || ''
   }
@@ -241,7 +328,7 @@ async function generateTitleWithProvider(
       settings.fireworksApiKey,
       model,
       [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 },
+      { temperature: 0.3, max_tokens: 20 }
     )
     return result.choices?.[0]?.message?.content || ''
   }
@@ -252,50 +339,70 @@ async function generateTitleWithProvider(
     openRouterKey,
     stripOpenRouterPrefix(model),
     [{ role: 'user', content: prompt }],
-    { temperature: 0.3, max_tokens: 20 },
+    { temperature: 0.3, max_tokens: 20 }
   )
   return result.choices?.[0]?.message?.content || ''
 }
 
+function logTitleGenerationFailures(failures: TitleGenerationFailure[], fallbackTitle: string): void {
+  if (failures.length === 0) return
+
+  const summary = failures
+    .map((failure) => `${failure.attempt.provider}/${failure.attempt.model} [${failure.kind}] ${failure.message}`)
+    .join(' | ')
+
+  console.warn(`[title-generator] All attempts failed. Using fallback "${fallbackTitle}". ${summary}`)
+}
+
 export const generateChatTitle = async (
   userMessage: string,
-  settings: TitleGenerationSettings,
+  settings: TitleGenerationSettings
 ): Promise<string> => {
   const prompt = buildTitlePrompt(userMessage, settings)
+  const fallbackTitle = buildFallbackTitle(userMessage)
   const attempts = buildTitleGenerationAttempts(settings)
-  const fallbackTitle = (() => {
-    const words = userMessage.trim().split(/\s+/).slice(0, 3)
-    return words.join(' ') + (userMessage.split(/\s+/).length > 3 ? '...' : '')
-  })()
 
   if (attempts.length === 0) {
     console.warn('No title generation providers are currently available.')
     return fallbackTitle
   }
 
-  for (const attempt of attempts) {
-    try {
-      const title = await generateTitleWithProvider(
-        attempt.provider,
-        attempt.model,
-        prompt,
-        settings,
-      )
+  const blockedProviders = new Set<TitleProvider>()
+  const failures: TitleGenerationFailure[] = []
 
+  for (const attempt of attempts) {
+    if (blockedProviders.has(attempt.provider)) {
+      continue
+    }
+
+    try {
+      const title = await generateTitleWithProvider(attempt.provider, attempt.model, prompt, settings)
       const cleaned = sanitizeTitle(title)
-      if (!cleaned) throw new Error('Empty generated title')
+
+      if (!cleaned) {
+        throw new Error('Empty generated title')
+      }
 
       const constrained = enforceThreeWords(cleaned)
-      if (constrained.length < 2) throw new Error('Generated title too short')
+      if (constrained.length < 2) {
+        throw new Error('Generated title too short')
+      }
 
       return constrained
     } catch (error) {
-      console.warn(
-        `[title-generator] Attempt failed for ${attempt.provider}/${attempt.model}:`,
-        error,
-      )
+      const classified = classifyTitleGenerationError(error)
+      failures.push({
+        attempt,
+        kind: classified.kind,
+        message: classified.message,
+      })
+
+      if (shouldSkipProviderAfterFailure(classified.kind)) {
+        blockedProviders.add(attempt.provider)
+      }
     }
   }
 
+  logTitleGenerationFailures(failures, fallbackTitle)
   return fallbackTitle
 }

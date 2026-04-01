@@ -4,6 +4,7 @@ import {
   coerceWebSearchIncludeImages,
   getStoredSearchDepthPreference,
   getStoredWebSearchIncludeImages,
+  normalizeWebSearchQueryYear,
   resolveAutoSearchDepth,
   resolveWebSearchArgsForExecution,
 } from './webSearchPreferences'
@@ -75,5 +76,17 @@ describe('webSearchPreferences', () => {
       search_depth: 'ultra-fast',
       include_images: false,
     })
+  })
+
+  it('normalizes inferred legacy years to the current year when the user did not specify one', () => {
+    expect(
+      normalizeWebSearchQueryYear('Claude code leak Anthropic 2024 2025', 'give me info about the latest claude code leak', 2026)
+    ).toBe('Claude code leak Anthropic 2026')
+  })
+
+  it('preserves user-specified years in the search query', () => {
+    expect(
+      normalizeWebSearchQueryYear('Claude code leak Anthropic 2024 2025', 'compare the 2024 and 2025 Claude incidents', 2026)
+    ).toBe('Claude code leak Anthropic 2024 2025')
   })
 })

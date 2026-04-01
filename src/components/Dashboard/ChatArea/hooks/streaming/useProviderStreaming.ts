@@ -123,6 +123,27 @@ function extractWebSearchQueries(toolResults: ToolCallResult[] | undefined): str
     .filter(Boolean)
 }
 
+function getUserContextText(
+  messages: ProviderStreamingRunOptions['messages']
+): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role !== 'user') continue
+
+    if (typeof message.content === 'string') {
+      return message.content
+    }
+
+    return message.content
+      .filter((part) => part.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text?.trim() || '')
+      .filter(Boolean)
+      .join(' ')
+  }
+
+  return ''
+}
+
 function buildResearchStatus(
   currentRound: number,
   maxRounds: number,
@@ -436,6 +457,7 @@ export function useProviderStreaming({
       const initialRound = await runRound(options.messages, {
         toolChoice: initialToolChoice,
       })
+      const userContextText = getUserContextText(options.messages)
 
       if (
         toolsAvailable &&
@@ -457,6 +479,7 @@ export function useProviderStreaming({
             executionPolicy: {
               remainingWebSearchBudget: effectiveSearchBudget,
               priorWebSearchQueries: [],
+              userContextText,
             },
           }
         )
@@ -620,6 +643,7 @@ export function useProviderStreaming({
                 executionPolicy: {
                   remainingWebSearchBudget: Math.max(0, effectiveSearchBudget - totalSearchCount),
                   priorWebSearchQueries: [...searchQueryHistory],
+                  userContextText,
                 },
               }
             )

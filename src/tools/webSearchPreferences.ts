@@ -1,6 +1,9 @@
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 
+const EXPLICIT_YEAR_PATTERN = /\b20\d{2}\b/g
+const URL_PATTERN = /https?:\/\//i
+
 const SEARCH_DEPTH_PREFERENCES = new Set<TavilySearchDepthPreference>([
   'auto',
   'ultra-fast',
@@ -98,6 +101,39 @@ export function resolveAutoSearchDepth(args: Record<string, unknown>): TavilySea
   return 'fast'
 }
 
+function extractExplicitYearsFromText(text: string): string[] {
+  return Array.from(new Set(text.match(EXPLICIT_YEAR_PATTERN) ?? []))
+}
+
+export function normalizeWebSearchQueryYear(
+  query: string,
+  userContextText: string = '',
+  currentYear: number = new Date().getFullYear()
+): string {
+  const trimmedQuery = query.trim()
+  if (!trimmedQuery) return query
+  if (URL_PATTERN.test(trimmedQuery)) return query
+
+  const explicitUserYears = extractExplicitYearsFromText(userContextText)
+  if (explicitUserYears.length > 0) {
+    return query
+  }
+
+  const queryYears = trimmedQuery.match(EXPLICIT_YEAR_PATTERN) ?? []
+  if (queryYears.length === 0) {
+    return query
+  }
+
+  const targetYear = String(currentYear)
+  const normalized = trimmedQuery
+    .replace(EXPLICIT_YEAR_PATTERN, targetYear)
+    .replace(new RegExp(`\\b${targetYear}(?:\\s+${targetYear})+\\b`, 'g'), targetYear)
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return normalized
+}
+
 export function resolveWebSearchArgsForExecution(
   toolName: string,
   args: Record<string, unknown>
@@ -113,6 +149,10 @@ export function resolveWebSearchArgsForExecution(
 
   if (typeof args.include_images !== 'boolean') {
     resolvedArgs.include_images = getStoredWebSearchIncludeImages()
+  }
+
+  if (typeof args.query === 'string') {
+    resolvedArgs.query = normalizeWebSearchQueryYear(args.query)
   }
 
   return resolvedArgs

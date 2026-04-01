@@ -11,7 +11,7 @@ URL-FIRST ROUTING:
 - Query + URL (e.g. "summarize pricing https://foo.com/pricing") -> extraction reranked to the query.
 - If there is no URL, use normal web search behavior.
 
-Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). Each search should target a distinct angle: overview, recent news, specifics, or verification.
+Use concise, keyword-focused queries (e.g. "OpenAI GPT-5 release ${new Date().getFullYear()}" not "Can you find when OpenAI will release GPT-5?"). If you need a year and the user did not specify one, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asked for them. Each search should target a distinct angle: overview, recent news, specifics, or verification.
 
 For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), keep each call focused and lightweight. The tool returns at most 4 sources per call, so if the first search seems incomplete (e.g. missing major providers like Groq, Cerebras, OpenRouter, Together), do a follow-up search from a new angle before synthesizing; do NOT answer with an incomplete list.
 

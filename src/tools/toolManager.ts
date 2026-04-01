@@ -32,6 +32,7 @@ import {
   type ToolExecutionSummary,
 } from './types'
 import { classifyResearchQueryDuplicate } from '../components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy'
+import { normalizeWebSearchQueryYear } from './webSearchPreferences'
 
 // Type for provider API responses
 type ProviderResponse = OpenRouterResponse
@@ -137,6 +138,25 @@ export interface ToolManagerConfig {
 
 function getWebSearchQuery(toolCall: ToolCall): string {
   return String(toolCall.arguments?.query || '').trim()
+}
+
+function normalizeWebSearchToolCall(toolCall: ToolCall, userContextText?: string): ToolCall {
+  if (toolCall.name !== 'web_search' || typeof toolCall.arguments?.query !== 'string') {
+    return toolCall
+  }
+
+  const normalizedQuery = normalizeWebSearchQueryYear(toolCall.arguments.query, userContextText)
+  if (normalizedQuery === toolCall.arguments.query) {
+    return toolCall
+  }
+
+  return {
+    ...toolCall,
+    arguments: {
+      ...toolCall.arguments,
+      query: normalizedQuery,
+    },
+  }
 }
 
 function createSyntheticToolResult(
@@ -282,9 +302,13 @@ export async function processToolCalls(
     Math.floor(config.executionPolicy?.remainingWebSearchBudget ?? Number.MAX_SAFE_INTEGER)
   )
   const priorWebSearchQueries = [...(config.executionPolicy?.priorWebSearchQueries ?? [])]
+  const userContextText = config.executionPolicy?.userContextText
 
   for (const [index, toolCall] of toolCalls.entries()) {
-    const coercedToolCall = coerceToolArguments(toolCall, availableTools)
+    const coercedToolCall = normalizeWebSearchToolCall(
+      coerceToolArguments(toolCall, availableTools),
+      userContextText
+    )
     const validationError = validateRequiredParameters(coercedToolCall, availableTools)
 
     if (validationError) {

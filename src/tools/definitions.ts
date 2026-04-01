@@ -35,6 +35,7 @@ URL-aware behavior:
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
 - Use keyword-focused phrasing: "OpenAI GPT-5 release date ${new Date().getFullYear()}" not "Can you tell me when OpenAI will release GPT-5?"
+- If you need a year and the user did not specify one, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asks for them.
 - Break complex topics into separate focused searches (overview, recent developments, specifics, verification).
 - For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
@@ -44,7 +45,7 @@ Query formulation best practices:
         query: {
           type: 'string',
           description:
-            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments").`,
+            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}.`,
         },
         num_results: {
           type: 'number',
