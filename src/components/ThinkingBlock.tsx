@@ -81,6 +81,10 @@ function getToolCallHeaderText(
   return remainingToolCalls.length > 0 ? `${baseText} (+${remainingToolCalls.length} more)` : baseText
 }
 
+function getActiveSearchItemText(query: string, index: number): string {
+  return `${index + 1}. Searching web: "${query}"`
+}
+
 function getCompletedToolBlockText(block: ThinkingBlockType): string {
   const toolName = block.toolName || (block.type === 'searching' ? 'web_search' : '')
   const mcpLabel = formatMcpToolLabel(toolName, block.toolOutput?.metadata)
@@ -661,12 +665,27 @@ export default function ThinkingBlock({
     primarySearchQuery ? { query: primarySearchQuery } : undefined
   )
   const searchingLabel = searchingMode === 'extract' ? 'Extracting from web' : 'Searching web'
+  const activeSearchToolCalls = hasActiveToolCalls
+    ? activeToolCalls.filter((toolCall) => toolCall.name === 'web_search')
+    : []
+  const isActiveSearchBatch =
+    hasActiveToolCalls &&
+    activeSearchToolCalls.length > 0 &&
+    activeSearchToolCalls.length === activeToolCalls.length
+  const activeSearchBatchQueries = isActiveSearchBatch
+    ? activeSearchToolCalls
+        .map((toolCall) => String(toolCall.arguments?.query || '').trim())
+        .filter(Boolean)
+    : []
+  const visibleSearchQueries =
+    isActiveSearchBatch && activeSearchBatchQueries.length > 0
+      ? activeSearchBatchQueries
+      : activeSearchQueries
+  const hasVisibleSearchQueryList = visibleSearchQueries.length > 0
   const searchingText =
-    activeSearchQueries.length > 1
-      ? `${searchingLabel}: "${primarySearchQuery}" (+${activeSearchQueries.length - 1} more)`
-      : primarySearchQuery
-        ? `${searchingLabel}: "${primarySearchQuery}"`
-        : searchingLabel
+    primarySearchQuery
+      ? `${searchingLabel}: "${primarySearchQuery}"`
+      : searchingLabel
 
   return (
     <div className="thinking-blocks-container">
@@ -696,7 +715,11 @@ export default function ThinkingBlock({
                     )}
                   </span>
                   <AITextLoading
-                    text={getToolCallHeaderText(activeToolCalls)}
+                    text={
+                      isActiveSearchBatch
+                        ? 'Searching web'
+                        : getToolCallHeaderText(activeToolCalls)
+                    }
                     animationKey="tool-calling"
                   />
                 </span>
@@ -755,7 +778,9 @@ export default function ThinkingBlock({
                 </div>
               </motion.div>
             )}
-            {isExpanded && extraActiveToolCalls.length > 0 && (
+            {isExpanded &&
+              !isActiveSearchBatch &&
+              extraActiveToolCalls.length > 0 && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -767,9 +792,35 @@ export default function ThinkingBlock({
                 style={{ overflow: 'hidden' }}
               >
                 <div className="thinking-content thinking-active-tool-list">
-                  {extraActiveToolCalls.map((toolCall, index) => (
-                    <div key={`${toolCall.name}-${index}`} className="thinking-active-tool-item">
-                      {index + 2}. {getToolCallText(toolCall)}
+                  {isActiveSearchBatch
+                    ? activeSearchBatchQueries.map((query, index) => (
+                        <div key={`${query}-${index}`} className="thinking-active-tool-item">
+                          {getActiveSearchItemText(query, index)}
+                        </div>
+                      ))
+                    : extraActiveToolCalls.map((toolCall, index) => (
+                        <div key={`${toolCall.name}-${index}`} className="thinking-active-tool-item">
+                          {index + 2}. {getToolCallText(toolCall)}
+                        </div>
+                      ))}
+                </div>
+              </motion.div>
+            )}
+            {isExpanded && hasVisibleSearchQueryList && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{
+                  height: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                  opacity: { duration: 0.15, ease: 'easeInOut' },
+                }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className="thinking-content thinking-active-tool-list">
+                  {visibleSearchQueries.map((query, index) => (
+                    <div key={`${query}-${index}`} className="thinking-active-tool-item">
+                      {getActiveSearchItemText(query, index)}
                     </div>
                   ))}
                 </div>
