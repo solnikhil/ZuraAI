@@ -192,4 +192,64 @@ describe('toolManager web search batch policy', () => {
     expect(processed.results[0]?.toolCall.arguments.query).toBe('Claude code leak Anthropic 2026')
     expect(processed.executionSummary.executedWebSearchQueries).toEqual(['Claude code leak Anthropic 2026'])
   })
+
+  it('rejects whitespace-only required string arguments before execution', async () => {
+    const response = buildToolResponse([
+      { id: 'search-1', name: 'web_search', arguments: { query: '   ' } },
+    ])
+
+    const processed = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      executionPolicy: {
+        remainingWebSearchBudget: 1,
+        priorWebSearchQueries: [],
+      },
+    })
+
+    expect(mocks.executeToolCalls).not.toHaveBeenCalled()
+    expect(processed.executionSummary).toEqual({
+      attemptedWebSearchCount: 0,
+      executedWebSearchCount: 0,
+      executedWebSearchQueries: [],
+    })
+    expect(processed.results[0]?.result.success).toBe(false)
+    expect(processed.results[0]?.result.error).toContain("Please provide 'query'")
+  })
+
+  it('trims web_search queries before execution and tracking', async () => {
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => [
+      {
+        toolCall,
+        result: {
+          success: true,
+          data: { results: [{ title: String(toolCall.arguments.query) }] },
+          metadata: { origin: 'builtin-main' as const },
+        },
+      },
+    ])
+
+    const response = buildToolResponse([
+      { id: 'search-1', name: 'web_search', arguments: { query: '  zura ai architecture  ' } },
+    ])
+
+    const processed = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      executionPolicy: {
+        remainingWebSearchBudget: 1,
+        priorWebSearchQueries: [],
+      },
+    })
+
+    expect(mocks.executeToolCalls).toHaveBeenCalledWith([
+      expect.objectContaining({
+        arguments: expect.objectContaining({
+          query: 'zura ai architecture',
+        }),
+      }),
+    ])
+    expect(processed.results[0]?.toolCall.arguments.query).toBe('zura ai architecture')
+    expect(processed.executionSummary.executedWebSearchQueries).toEqual(['zura ai architecture'])
+  })
 })

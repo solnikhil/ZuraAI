@@ -44,6 +44,19 @@ type FormattedToolResults = OpenRouterToolResultMessage[]
  * Validate that all required parameters are present in tool arguments
  * Returns an error message if validation fails, null if valid
  */
+function isMissingRequiredParameterValue(value: unknown, toolDef: ToolDescriptor, param: string): boolean {
+  if (value === undefined || value === null) {
+    return true
+  }
+
+  const schema = toolDef.parameters.properties[param]
+  if (schema?.type === 'string') {
+    return typeof value !== 'string' || value.trim() === ''
+  }
+
+  return value === ''
+}
+
 function validateRequiredParameters(toolCall: ToolCall, availableTools: ToolDescriptor[]): string | null {
   const toolDef = getToolByName(toolCall.name, availableTools)
 
@@ -60,8 +73,7 @@ function validateRequiredParameters(toolCall: ToolCall, availableTools: ToolDesc
 
   for (const param of requiredParams) {
     const value = toolCall.arguments[param]
-    // Check if parameter is missing, null, undefined, or empty string
-    if (value === undefined || value === null || value === '') {
+    if (isMissingRequiredParameterValue(value, toolDef, param)) {
       missingParams.push(param)
     }
   }
@@ -145,7 +157,8 @@ function normalizeWebSearchToolCall(toolCall: ToolCall, userContextText?: string
     return toolCall
   }
 
-  const normalizedQuery = normalizeWebSearchQueryYear(toolCall.arguments.query, userContextText)
+  const trimmedQuery = toolCall.arguments.query.trim()
+  const normalizedQuery = normalizeWebSearchQueryYear(trimmedQuery, userContextText).trim()
   if (normalizedQuery === toolCall.arguments.query) {
     return toolCall
   }
