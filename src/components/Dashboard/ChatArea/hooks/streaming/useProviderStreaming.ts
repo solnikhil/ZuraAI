@@ -23,6 +23,7 @@ import {
   buildRecoverySynthesisMessages,
   buildResponseWithFallback,
   buildThinkingBlocksFromResults,
+  shouldRetryUngroundedSearchSynthesis,
   computeStreamMetrics,
   fillMissingUsage,
   getStreamingUpdateInterval,
@@ -211,6 +212,9 @@ export function useProviderStreaming({
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
 
+      const shouldRecoverSearchSynthesis = (content: string) =>
+        !content.trim() || shouldRetryUngroundedSearchSynthesis(content)
+
       const updateStreamingState = (updates: Record<string, unknown>) => {
         if (options.syncToStreamingContext !== false) {
           updateStreaming(updates)
@@ -247,6 +251,17 @@ export function useProviderStreaming({
         activeThinking = ''
         activeThinkingStartTime = null
         return true
+      }
+
+      const resetAccumulatedAnswerForRetry = () => {
+        accumulatedContent = ''
+        updateStreamingState({
+          content: '',
+          phase: 'reasoning',
+        })
+        updateStreamingMessage(options.sessionId, options.messageId, {
+          content: '',
+        })
       }
 
       const runRound = async (
@@ -764,25 +779,32 @@ export function useProviderStreaming({
 
           if (
             hasSearchResults(savedToolResults) &&
-            !accumulatedContent.trim() &&
+            shouldRecoverSearchSynthesis(accumulatedContent) &&
             lastSynthesisContext.formattedResults.length > 0
           ) {
+            const recoveryReason = !accumulatedContent.trim() ? 'blank-answer' : 'ungrounded-answer'
             logResearchLoop('final-synthesis-recovery', {
               totalSearchCount: lastSynthesisContext.totalSearchCount,
               researchRound: lastSynthesisContext.researchRound,
               afterPriorSynthesis: didRunFinalSynthesis,
+              reason: recoveryReason,
             })
 
             const recoveryModes: Array<'final' | 'recovery' | 'plain-text-only'> = didRunFinalSynthesis
               ? ['recovery', 'plain-text-only']
               : ['final', 'recovery', 'plain-text-only']
 
+            if (accumulatedContent.trim()) {
+              resetAccumulatedAnswerForRetry()
+            }
+
             for (const mode of recoveryModes) {
               const recoveryRound = await runNoToolsSynthesisAttempt(lastSynthesisContext, mode)
-              if (
-                recoveryRound.roundFinishReason !== 'tool_calls' &&
-                accumulatedContent.trim()
-              ) {
+              const needsRetry =
+                recoveryRound.roundFinishReason === 'tool_calls' ||
+                shouldRecoverSearchSynthesis(accumulatedContent)
+
+              if (!needsRetry) {
                 break
               }
 
@@ -792,10 +814,15 @@ export function useProviderStreaming({
                 researchRound: lastSynthesisContext.researchRound,
                 finishReason: recoveryRound.roundFinishReason,
                 hasContent: Boolean(accumulatedContent.trim()),
+                stillUngrounded: shouldRetryUngroundedSearchSynthesis(accumulatedContent),
               })
+
+              if (shouldRecoverSearchSynthesis(accumulatedContent)) {
+                resetAccumulatedAnswerForRetry()
+              }
             }
 
-            if (!accumulatedContent.trim()) {
+            if (shouldRecoverSearchSynthesis(accumulatedContent)) {
               const fallbackContent = buildFallbackAnswerFromToolResults(savedToolResults)
               if (fallbackContent) {
                 accumulatedContent = fallbackContent

@@ -1084,6 +1084,107 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('retries post-search synthesis when the provider falls back to a knowledge-cutoff answer', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"epstein files latest findings 2026"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 2) {
+          yield {
+            type: 'text-delta',
+            delta:
+              'The latest findings as of my knowledge cutoff in 2023 are limited. Consult official documentation or recent peer-reviewed literature for newer updates.',
+          }
+          yield { type: 'finish', finishReason: 'stop' }
+          return
+        }
+
+        yield {
+          type: 'text-delta',
+          delta:
+            'The February 2026 release reported a large tranche of Epstein-related documents, but reporting emphasized that many names appeared only in peripheral records and not as evidence of wrongdoing.',
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'epstein files latest findings 2026')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('epstein files latest findings 2026'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'Tell me about epstein files latest findings' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(3)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe(
+      'The February 2026 release reported a large tranche of Epstein-related documents, but reporting emphasized that many names appeared only in peripheral records and not as evidence of wrongdoing.'
+    )
+    expect(streamResult.content).not.toContain('knowledge cutoff')
+  })
+
   it('retries plain-text-only synthesis when no-tools follow-ups still return tool calls', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0

@@ -33,6 +33,14 @@ export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
 export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
 
+const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
+  /\bknowledge cutoff\b/i,
+  /\bmy training data\b/i,
+  /\bi (?:can't|cannot|do not|don't) (?:browse|access|verify) (?:the )?(?:web|internet|current|real-time|up-to-date)/i,
+  /\bconsult official documentation\b/i,
+  /\bconsult (?:official documentation|recent peer-reviewed literature)\b/i,
+]
+
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
   return UPDATE_INTERVAL
@@ -507,4 +515,11 @@ export function buildFallbackAnswerFromToolResults(
     `The provider returned web search results${queryLead}, but no final written synthesis. Strongest visible findings from the gathered results:`,
     ...evidenceLines,
   ].join('\n')
+}
+
+export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {
+  const normalized = content.replace(/\s+/g, ' ').trim()
+  if (!normalized) return false
+
+  return UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS.some((pattern) => pattern.test(normalized))
 }

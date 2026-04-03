@@ -10,6 +10,7 @@ import {
   FINAL_SYNTHESIS_RECOVERY_PROMPT,
   getThinkingTranscript,
   publishStreamingToolResults,
+  shouldRetryUngroundedSearchSynthesis,
 } from './streamingUtils'
 
 describe('streamingUtils final synthesis helpers', () => {
@@ -206,5 +207,21 @@ describe('streamingUtils final synthesis helpers', () => {
       .map((message) => String(message.content))
 
     expect(systemMessages).toEqual(['Research context'])
+  })
+
+  it('flags knowledge-cutoff fallback text as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        'The latest findings as of my knowledge cutoff in 2023 are limited. Consult official documentation for newer updates.'
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag grounded synthesized answers as failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        'The February 2026 release included court records, flight logs, and contact-book references, but many allegations remained unverified.'
+      )
+    ).toBe(false)
   })
 })

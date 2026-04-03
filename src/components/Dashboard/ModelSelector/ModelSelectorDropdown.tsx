@@ -1,20 +1,11 @@
 /**
- * ModelSelectorDropdown component - renders the dropdown overlay
- *
+ * ModelSelectorDropdown component - renders the model picker dialog body.
  */
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Star, Check } from 'lucide-react'
+import { Star, Check, Search } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels, ModelSelectorCompactMode } from './types'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
 import { ModelIcon } from './ModelIcon'
 import {
@@ -33,9 +24,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
 import { cn } from '@/lib/utils'
 
-/**
- * Provider configuration
- */
 const PROVIDERS = [
   { key: 'openrouter', title: 'OpenRouter' },
   { key: 'perplexity', title: 'Perplexity' },
@@ -45,45 +33,54 @@ const PROVIDERS = [
   { key: 'ollama', title: 'Ollama' },
 ] as const
 
-/**
- * Props for ModelSelectorDropdown
- */
 export interface ModelSelectorDropdownProps {
-  /** Reference for the search input */
   searchInputRef: React.RefObject<HTMLInputElement | null>
-  /** Current search query */
   searchQuery: string
-  /** Handler for search query changes */
   onSearchChange: (query: string) => void
-  /** Current view mode */
   viewMode: ViewMode
-  /** Handler for view mode changes */
   onViewModeChange: (mode: ViewMode) => void
-  /** Currently selected provider */
   selectedProvider: string
-  /** Handler for provider selection */
   onProviderSelect: (provider: string) => void
-  /** Models to display */
   currentModels: ModelWithProvider[]
-  /** Grouped models by provider */
   groupedModels: GroupedModels
-  /** Currently selected model code */
   selectedModelCode: string
-  /** Currently selected model provider */
   selectedModelProvider: string
-  /** Favorite model codes */
   favoriteModels: string[]
-  /** Handler for model selection */
   onModelSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
-  /** Handler for toggling favorites */
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
-  /** Auto-compact mode based on available window width */
   compactMode?: ModelSelectorCompactMode
+  focusedIndex?: number
+  onFocusedIndexChange?: (index: number) => void
 }
 
-/**
- * Get stagger delay based on speed setting
- */
+function KeyHint({
+  keys,
+  label,
+}: {
+  keys: string[]
+  label: string
+}): React.ReactElement {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
+      {keys.map((key) => (
+        <kbd
+          key={key}
+          className="inline-flex min-w-5 items-center justify-center rounded border border-border/70 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+        >
+          {key}
+        </kbd>
+      ))}
+      <span>{label}</span>
+    </span>
+  )
+}
+
+function getProviderTitle(key: string): string {
+  if (key === 'favorites') return 'Favorites'
+  const provider = PROVIDERS.find((entry) => entry.key === key)
+  return provider?.title ?? key
+}
+
 function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
   switch (speed) {
     case 'fast':
@@ -95,17 +92,14 @@ function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
   }
 }
 
-/**
- * Get density padding classes
- */
 function getDensityClasses(density: 'compact' | 'comfortable' | 'spacious'): string {
   switch (density) {
     case 'compact':
       return 'py-1.5'
     case 'spacious':
-      return 'py-3.5'
+      return 'py-3'
     default:
-      return 'py-2.5'
+      return 'py-2'
   }
 }
 
@@ -118,10 +112,6 @@ function getResponsiveDensity(
   return density
 }
 
-/**
- * ModelSelectorDropdown component
- * Renders the dropdown overlay with vertical provider sidebar and model list
- */
 export function ModelSelectorDropdown({
   searchInputRef,
   searchQuery,
@@ -138,9 +128,13 @@ export function ModelSelectorDropdown({
   onModelSelect,
   onToggleFavorite,
   compactMode = 'none',
+  focusedIndex = -1,
+  onFocusedIndexChange,
 }: ModelSelectorDropdownProps): React.ReactElement {
   const { settings } = useSettings()
   const { setDashboardView, setActiveSettingsSection } = useAppShell()
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const modelSelector = settings.modelSelector || {
     sidebarPosition: 'left',
     sidebarShowLabels: true,
@@ -163,11 +157,10 @@ export function ModelSelectorDropdown({
     staggerSpeed: 'normal',
   }
 
-  // Focus search input when dropdown opens
   useEffect(() => {
     if (!modelSelector.showSearch) return
     const timer = setTimeout(() => {
-      const input = document.querySelector('[data-slot="command-input"]') as HTMLInputElement
+      const input = inputRef.current
       if (input) {
         input.focus()
         if (searchInputRef && 'current' in searchInputRef) {
@@ -178,22 +171,33 @@ export function ModelSelectorDropdown({
     return () => clearTimeout(timer)
   }, [modelSelector.showSearch, searchInputRef])
 
-  // Determine active tab key (favorites or provider)
-  const activeTabKey = viewMode === 'favorites' ? 'favorites' : selectedProvider
+  useEffect(() => {
+    if (focusedIndex < 0) return
+    const target = itemRefs.current[focusedIndex]
+    target?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex, currentModels])
 
+  const activeTabKey = viewMode === 'favorites' ? 'favorites' : selectedProvider
   const staggerDelay = getStaggerDelay(modelSelector.staggerSpeed)
   const responsiveDensity = getResponsiveDensity(modelSelector.itemDensity, compactMode)
   const densityClasses = getDensityClasses(responsiveDensity)
-  const isCompact = compactMode !== 'none'
   const isTight = compactMode === 'tight'
-
-  const sidebarShowLabels = isCompact ? false : modelSelector.sidebarShowLabels
-  const sidebarShowModelCount = isTight ? false : modelSelector.sidebarShowModelCount
+  const sidebarShowModelCount = !isTight && modelSelector.sidebarShowModelCount
   const showDescriptions = modelSelector.showDescriptions && !isTight
   const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
   const showContextLength = modelSelector.showContextLength !== false && !isTight
   const emptyStateHeading =
     viewMode === 'favorites' ? 'No favorite models yet' : 'No models configured'
+  const listSummaryLabel =
+    viewMode === 'favorites'
+      ? `${currentModels.length} favorite${currentModels.length === 1 ? '' : 's'}`
+      : `${currentModels.length} available model${currentModels.length === 1 ? '' : 's'}`
+  const listSummaryNote =
+    viewMode === 'favorites'
+      ? 'Pinned for quick access'
+      : searchQuery.trim()
+        ? 'Matching across enabled providers'
+        : getProviderTitle(selectedProvider)
 
   const handleOpenProviders = () => {
     setActiveSettingsSection('providers')
@@ -202,143 +206,194 @@ export function ModelSelectorDropdown({
 
   return (
     <div
-      className={`flex h-full overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'flex-row-reverse' : ''}`}
+      className={cn(
+        'flex h-full min-h-0 overflow-hidden',
+        modelSelector.sidebarPosition === 'right' && 'flex-row-reverse'
+      )}
     >
-      <ProviderSidebar
+      <ProviderRail
         activeTabKey={activeTabKey}
         groupedModels={groupedModels}
         favoriteModels={favoriteModels}
-        sidebarShowLabels={sidebarShowLabels}
         sidebarShowModelCount={sidebarShowModelCount}
         enableAnimations={modelSelector.enableAnimations}
         sidebarPosition={modelSelector.sidebarPosition}
         onTabSelect={(key) => {
           if (key === 'favorites') {
             onViewModeChange('favorites')
-          } else {
-            onProviderSelect(key)
-            onViewModeChange('all')
+            onFocusedIndexChange?.(-1)
+            return
           }
+          onProviderSelect(key)
+          onViewModeChange('all')
+          onFocusedIndexChange?.(-1)
         }}
       />
 
       <div
-        className={`flex-1 flex flex-col overflow-hidden ${modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l'} border-border/50 relative`}
-      >
-        {modelSelector.showSearch && (
-          <div className={cn('border-b border-border/50', isTight ? 'px-2 py-1.5' : 'px-3 py-2')}>
-            <Command className="rounded-none border-0" shouldFilter={false}>
-              <CommandInput
-                placeholder="Search models..."
-                value={searchQuery}
-                onValueChange={onSearchChange}
-                className={isCompact ? 'h-9 text-sm' : 'h-10'}
-              />
-            </Command>
-          </div>
+        className={cn(
+          'relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]',
+          modelSelector.sidebarPosition === 'right' ? 'border-r' : 'border-l',
+          'border-border/50'
         )}
-        <Command className="flex-1 rounded-none border-0" shouldFilter={false}>
-          <CommandList className="max-h-full">
-            <CommandEmpty>
-              <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-foreground">{emptyStateHeading}</div>
-                  <div className="max-w-xs text-sm leading-6 text-muted-foreground">
-                    {viewMode === 'favorites'
-                      ? 'Star a model after enabling a provider to pin it here for quick access.'
-                      : 'Enable a provider in Settings, add your API key or local model, then come back to select it.'}
-                  </div>
-                </div>
-                <Button type="button" size="sm" onClick={handleOpenProviders}>
-                  Open Provider Settings
-                </Button>
-              </div>
-            </CommandEmpty>
-            {currentModels.length > 0 && (
-              <CommandGroup
-                heading={
-                  viewMode === 'favorites'
-                    ? 'Favorites'
-                    : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
-                }
-              >
+      >
+        <PickerHeader
+          inputRef={inputRef}
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
+          showSearch={modelSelector.showSearch}
+          compactMode={compactMode}
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between border-b border-border/40 px-5 py-3">
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/85">
+              {listSummaryLabel}
+            </span>
+            <span className="text-[11px] text-muted-foreground/70">{listSummaryNote}</span>
+          </div>
+
+          <div
+            role="listbox"
+            aria-label="Available models"
+            className="custom-scrollbar flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-3.5"
+          >
+            {currentModels.length === 0 ? (
+              <EmptyState
+                heading={emptyStateHeading}
+                viewMode={viewMode}
+                onOpenProviders={handleOpenProviders}
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
                 <AnimatePresence mode="wait">
-                  {modelSelector.enableAnimations ? (
-                    <motion.div
-                      key={activeTabKey}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="flex flex-col gap-1"
-                    >
-                      {currentModels.map((model, index) => (
-                        <ModelItem
-                          key={`${model.provider}-${model.code}`}
-                          model={model}
-                          index={index}
-                          staggerDelay={staggerDelay}
-                          densityClasses={densityClasses}
-                          isActive={
-                            selectedModelCode === model.code &&
-                            selectedModelProvider === model.provider
-                          }
-                          isFavorite={favoriteModels.includes(model.code)}
-                          modelSelector={modelSelector}
-                          compactMode={compactMode}
-                          showDescriptions={showDescriptions}
-                          showCapabilityBadges={showCapabilityBadges}
-                          showContextLength={showContextLength}
-                          animationsEnabled={modelSelector.enableAnimations}
-                          onSelect={onModelSelect}
-                          onToggleFavorite={onToggleFavorite}
-                        />
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {currentModels.map((model) => (
-                        <ModelItem
-                          key={`${model.provider}-${model.code}`}
-                          model={model}
-                          index={0}
-                          staggerDelay={0}
-                          densityClasses={densityClasses}
-                          isActive={
-                            selectedModelCode === model.code &&
-                            selectedModelProvider === model.provider
-                          }
-                          isFavorite={favoriteModels.includes(model.code)}
-                          modelSelector={modelSelector}
-                          compactMode={compactMode}
-                          showDescriptions={showDescriptions}
-                          showCapabilityBadges={showCapabilityBadges}
-                          showContextLength={showContextLength}
-                          animationsEnabled={modelSelector.enableAnimations}
-                          onSelect={onModelSelect}
-                          onToggleFavorite={onToggleFavorite}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-2" key={activeTabKey}>
+                    {currentModels.map((model, index) => (
+                      <ModelItem
+                        key={`${model.provider}-${model.code}`}
+                        ref={(element) => {
+                          itemRefs.current[index] = element
+                        }}
+                        model={model}
+                        index={index}
+                        staggerDelay={staggerDelay}
+                        densityClasses={densityClasses}
+                        isActive={
+                          selectedModelCode === model.code &&
+                          selectedModelProvider === model.provider
+                        }
+                        isFavorite={favoriteModels.includes(model.code)}
+                        isFocused={focusedIndex === index}
+                        modelSelector={modelSelector}
+                        compactMode={compactMode}
+                        showDescriptions={showDescriptions}
+                        showCapabilityBadges={showCapabilityBadges}
+                        showContextLength={showContextLength}
+                        animationsEnabled={modelSelector.enableAnimations}
+                        onSelect={onModelSelect}
+                        onToggleFavorite={onToggleFavorite}
+                        onHover={() => onFocusedIndexChange?.(index)}
+                      />
+                    ))}
+                  </div>
                 </AnimatePresence>
-              </CommandGroup>
+              </div>
             )}
-          </CommandList>
-        </Command>
+          </div>
+
+          <PickerFooter />
+        </div>
       </div>
     </div>
   )
 }
 
-/**
- * ProviderSidebar component - vertical sidebar with provider tabs
- */
-function ProviderSidebar({
+function PickerHeader({
+  inputRef,
+  searchQuery,
+  onSearchChange,
+  showSearch,
+  compactMode,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>
+  searchQuery: string
+  onSearchChange: (query: string) => void
+  showSearch: boolean
+  compactMode: ModelSelectorCompactMode
+}): React.ReactElement | null {
+  if (!showSearch) return null
+
+  const isCompact = compactMode !== 'none'
+
+  return (
+    <div className={cn('border-b border-border/50 px-5', isCompact ? 'py-3' : 'py-3.5')}>
+      <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-[color-mix(in_srgb,var(--theme-surface-elevated)_88%,black_12%)] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground/80">
+          <Search size={16} />
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search models, providers, or capabilities"
+          className={cn(
+            'h-6 min-w-0 flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground/65',
+            isCompact && 'text-sm'
+          )}
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({
+  heading,
+  viewMode,
+  onOpenProviders,
+}: {
+  heading: string
+  viewMode: ViewMode
+  onOpenProviders: () => void
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+      <div className="space-y-1">
+        <div className="text-sm font-medium text-foreground">{heading}</div>
+        <div className="max-w-xs text-sm leading-6 text-muted-foreground">
+          {viewMode === 'favorites'
+            ? 'Star a model after enabling a provider to pin it here for faster switching.'
+            : 'Enable a provider in Settings, add your API key or local model, then come back to select it.'}
+        </div>
+      </div>
+      <Button type="button" size="sm" onClick={onOpenProviders}>
+        Open Provider Settings
+      </Button>
+    </div>
+  )
+}
+
+function PickerFooter(): React.ReactElement {
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-border/50 px-5 py-3">
+      <span className="text-[11px] text-muted-foreground/65">
+        Enter applies the highlighted model to this chat
+      </span>
+      <div className="flex items-center gap-3">
+        <KeyHint keys={['Up/Down']} label="Navigate" />
+        <KeyHint keys={['Enter']} label="Select" />
+        <KeyHint keys={['Esc']} label="Close" />
+      </div>
+    </div>
+  )
+}
+
+function ProviderRail({
   activeTabKey,
   groupedModels,
   favoriteModels,
-  sidebarShowLabels,
   sidebarShowModelCount,
   enableAnimations,
   sidebarPosition,
@@ -347,7 +402,6 @@ function ProviderSidebar({
   activeTabKey: string
   groupedModels: GroupedModels
   favoriteModels: string[]
-  sidebarShowLabels: boolean
   sidebarShowModelCount: boolean
   enableAnimations: boolean
   sidebarPosition: 'left' | 'right'
@@ -357,51 +411,42 @@ function ProviderSidebar({
     return groupedModels[providerKey as keyof GroupedModels]?.length || 0
   }
 
-  // Count models that are actually favorited
-  const favoritesCount = favoriteModels.length
-
-  const sidebarWidth = sidebarShowLabels ? 'w-[120px]' : 'w-[48px]'
+  const sidebarWidth = 'w-[68px]'
   const borderSide = sidebarPosition === 'right' ? 'border-l' : 'border-r'
 
   return (
     <div
       data-sidebar
-      className={`${sidebarWidth} flex flex-col ${borderSide} border-border/50 bg-muted/20 shrink-0 relative z-10`}
+      className={`${sidebarWidth} custom-scrollbar relative z-10 flex shrink-0 flex-col overflow-x-hidden overflow-y-auto ${borderSide} border-border/50 bg-[color-mix(in_srgb,var(--theme-surface)_91%,black_9%)]`}
     >
-      <SidebarItem
-        key="favorites"
-        isActive={activeTabKey === 'favorites'}
-        onClick={() => onTabSelect('favorites')}
-        icon={<Star size={16} />}
-        label={sidebarShowLabels ? 'Favorites' : undefined}
-        count={sidebarShowModelCount ? favoritesCount : undefined}
-        enableAnimations={enableAnimations}
-      />
-
-      <div className="h-px bg-border/50 mx-2 my-1" />
-
-      {/* Provider Tabs - only show providers that have models (disabled providers have empty lists) */}
-      {PROVIDERS.filter((provider) => getModelCount(provider.key) > 0).map((provider) => {
-        const count = getModelCount(provider.key)
-        return (
+      <div className="px-2 py-3">
+        <div className="flex flex-col gap-1.5">
           <SidebarItem
-            key={provider.key}
-            isActive={activeTabKey === provider.key}
-            onClick={() => onTabSelect(provider.key)}
-            icon={<ProviderLogo provider={provider.key} size={16} />}
-            label={sidebarShowLabels ? provider.title : undefined}
-            count={sidebarShowModelCount ? count : undefined}
+            isActive={activeTabKey === 'favorites'}
+            onClick={() => onTabSelect('favorites')}
+            icon={<Star size={16} />}
+            label="Favorites"
+            count={sidebarShowModelCount ? favoriteModels.length : undefined}
             enableAnimations={enableAnimations}
           />
-        )
-      })}
+
+          {PROVIDERS.filter((provider) => getModelCount(provider.key) > 0).map((provider) => (
+            <SidebarItem
+              key={provider.key}
+              isActive={activeTabKey === provider.key}
+              onClick={() => onTabSelect(provider.key)}
+              icon={<ProviderLogo provider={provider.key} size={16} />}
+              label={provider.title}
+              count={sidebarShowModelCount ? getModelCount(provider.key) : undefined}
+              enableAnimations={enableAnimations}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
 
-/**
- * SidebarItem component
- */
 function SidebarItem({
   isActive,
   onClick,
@@ -413,11 +458,11 @@ function SidebarItem({
   isActive: boolean
   onClick: () => void
   icon: React.ReactNode
-  label?: string
+  label: string
   count?: number
   enableAnimations: boolean
 }): React.ReactElement {
-  const Button = enableAnimations ? motion.button : 'button'
+  const ButtonComponent = enableAnimations ? motion.button : 'button'
   const buttonProps = enableAnimations
     ? {
         whileHover: { scale: 1.02 },
@@ -426,60 +471,60 @@ function SidebarItem({
     : {}
 
   return (
-    <Button
-      {...buttonProps}
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
-        onClick()
-      }}
-      onMouseDown={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
-      }}
-      onPointerDown={(e) => {
-        e.stopPropagation()
-        e.preventDefault()
-      }}
-      className={`
-        relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
-        w-full
-        ${label ? 'justify-start' : 'justify-center'}
-        ${
-          isActive
-            ? 'bg-primary/10 text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-        }
-      `}
-    >
-      {icon}
-      {label && <span className="truncate">{label}</span>}
-      {count !== undefined && count > 0 && (
-        <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">{count}</span>
-      )}
-      {isActive && enableAnimations && (
-        <motion.div
-          layoutId="provider-active"
-          className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r"
-          initial={false}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        />
-      )}
-      {isActive && !enableAnimations && (
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r" />
-      )}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ButtonComponent
+          {...buttonProps}
+          type="button"
+          aria-label={count !== undefined ? `${label} (${count})` : label}
+          onClick={(event) => {
+            event.stopPropagation()
+            event.preventDefault()
+            onClick()
+          }}
+          onMouseDown={(event) => {
+            event.stopPropagation()
+            event.preventDefault()
+          }}
+          onPointerDown={(event) => {
+            event.stopPropagation()
+            event.preventDefault()
+          }}
+          className={cn(
+            'relative flex h-11 w-full cursor-pointer items-center justify-center rounded-xl border text-sm font-medium transition-colors',
+            isActive
+              ? 'border-primary/25 bg-primary/12 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+              : 'border-transparent text-muted-foreground hover:border-border/60 hover:bg-muted/35 hover:text-foreground'
+          )}
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/10">
+            {icon}
+          </span>
+          {count !== undefined && count > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface-elevated)] px-1 text-[10px] font-semibold text-muted-foreground">
+              {count}
+            </span>
+          )}
+          {isActive && enableAnimations && (
+            <motion.div
+              layoutId="provider-active"
+              className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary"
+              initial={false}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            />
+          )}
+          {isActive && !enableAnimations && (
+            <div className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary" />
+          )}
+        </ButtonComponent>
+      </TooltipTrigger>
+      <TooltipContent side="right" className="text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
-/**
- * ModelItem component
- */
-/**
- * CapabilityBadge - styled pill badge with icon and/or text
- * Supports icon-only, text-only, or both based on capabilityBadgeDisplay setting
- */
 function CapabilityBadge({
   capKey,
   display,
@@ -490,7 +535,6 @@ function CapabilityBadge({
   const style = CAPABILITY_BADGE_STYLES[capKey]
   if (!style) return null
   const Icon = style.icon
-
   const showIcon = display === 'icon' || display === 'both'
   const showText = display === 'text' || display === 'both'
 
@@ -498,14 +542,13 @@ function CapabilityBadge({
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className="inline-flex items-center justify-center gap-1 shrink-0 rounded-md font-semibold transition-opacity hover:opacity-90"
+          className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-white/15 font-semibold transition-opacity hover:opacity-90"
           style={{
             background: style.gradient,
             color: style.iconColor,
             padding: display === 'icon' ? '4px' : '3px 6px',
             minWidth: display === 'icon' ? 20 : undefined,
             boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-            border: '1px solid rgba(255,255,255,0.15)',
           }}
         >
           {showIcon && <Icon size={display === 'icon' ? 12 : 10} className="shrink-0" />}
@@ -519,41 +562,54 @@ function CapabilityBadge({
   )
 }
 
-function ModelItem({
-  model,
-  index,
-  staggerDelay,
-  densityClasses,
-  isActive,
-  isFavorite,
-  modelSelector,
-  compactMode,
-  showDescriptions,
-  showCapabilityBadges,
-  showContextLength,
-  animationsEnabled,
-  onSelect,
-  onToggleFavorite,
-}: {
-  model: ModelWithProvider
-  index: number
-  staggerDelay: number
-  densityClasses: string
-  isActive: boolean
-  isFavorite: boolean
-  modelSelector: ModelSelectorSettings
-  compactMode: ModelSelectorCompactMode
-  showDescriptions: boolean
-  showCapabilityBadges: boolean
-  showContextLength: boolean
-  animationsEnabled: boolean
-  onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
-  onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
-}): React.ReactElement {
+const ModelItem = React.forwardRef<
+  HTMLDivElement,
+  {
+    model: ModelWithProvider
+    index: number
+    staggerDelay: number
+    densityClasses: string
+    isActive: boolean
+    isFavorite: boolean
+    isFocused: boolean
+    modelSelector: ModelSelectorSettings
+    compactMode: ModelSelectorCompactMode
+    showDescriptions: boolean
+    showCapabilityBadges: boolean
+    showContextLength: boolean
+    animationsEnabled: boolean
+    onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
+    onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
+    onHover: () => void
+  }
+>(function ModelItem(
+  {
+    model,
+    index,
+    staggerDelay,
+    densityClasses,
+    isActive,
+    isFavorite,
+    isFocused,
+    modelSelector,
+    compactMode,
+    showDescriptions,
+    showCapabilityBadges,
+    showContextLength,
+    animationsEnabled,
+    onSelect,
+    onToggleFavorite,
+    onHover,
+  },
+  ref
+): React.ReactElement {
   const { color } = getModelAttributes(model)
   const capabilities = getCapabilitiesForModelPicker(model)
   const isCompact = compactMode !== 'none'
   const isTight = compactMode === 'tight'
+  const isHighlighted = isActive || isFocused
+  const metadataColumnWidth = isTight ? 104 : isCompact ? 148 : 220
+  const rowGridTemplate = `auto minmax(0,1fr) ${metadataColumnWidth}px 56px 32px 18px`
 
   const ItemWrapper = animationsEnabled ? motion.div : 'div'
   const wrapperProps = animationsEnabled
@@ -569,72 +625,67 @@ function ModelItem({
       }
     : {}
 
-  const activeIndicator = () => {
-    switch (modelSelector.activeIndicatorStyle) {
-      case 'checkmark':
-        return <Check size={14} className="text-primary" />
-      case 'highlight':
-        return <div className="h-full w-1 bg-primary rounded-l absolute left-0 top-0 bottom-0" />
-      default:
-        return <div className="h-2 w-2 rounded-full bg-primary" />
-    }
-  }
-
   return (
     <ItemWrapper {...wrapperProps}>
-      <CommandItem
-        value={`${model.code} ${model.displayName}`}
-        onSelect={() => onSelect(model)}
+      <div
+        ref={ref}
+        role="option"
+        aria-selected={isActive}
+        tabIndex={0}
+        onClick={() => onSelect(model)}
+        onFocus={onHover}
+        onMouseEnter={onHover}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onSelect(model)
+          }
+        }}
+        style={{ gridTemplateColumns: rowGridTemplate }}
         className={cn(
-          'flex items-center rounded-lg relative transition-colors',
-          isTight ? 'gap-2 px-2' : isCompact ? 'gap-2.5 px-2.5' : 'gap-3 px-3',
+          'group relative grid w-full items-center rounded-2xl border text-left transition-colors',
+          isTight ? 'gap-x-2.5 gap-y-2 px-3 py-2.5' : isCompact ? 'gap-x-3 gap-y-2 px-3.5 py-3' : 'gap-x-3.5 gap-y-2 px-4 py-3.5',
           densityClasses,
-          isActive && modelSelector.activeIndicatorStyle === 'highlight' ? 'bg-primary/10' : '',
-          !isActive ? 'hover:bg-muted/50' : ''
+          isHighlighted
+            ? 'border-primary/30 bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-surface-elevated)_90%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+            : 'border-border/30 bg-[color-mix(in_srgb,var(--theme-surface-elevated)_84%,black_16%)] hover:border-border/60 hover:bg-[color-mix(in_srgb,var(--theme-surface-elevated)_88%,black_12%)]'
         )}
       >
-        {modelSelector.showProviderLogos ? (
-          <div
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
-              isCompact ? 'h-7 w-7' : 'h-8 w-8'
-            )}
-          >
+        <div
+          className={cn(
+            'flex shrink-0 items-center justify-center rounded-xl border border-white/5 bg-black/10',
+            isCompact ? 'h-9 w-9' : 'h-10 w-10'
+          )}
+        >
+          {modelSelector.showProviderLogos ? (
             <ModelIcon
               model={model}
               icon={getModelAttributes(model).icon}
               color={color}
-              size={isCompact ? 18 : 22}
+              size={isCompact ? 20 : 24}
             />
-          </div>
-        ) : (
-          <div
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
-              isCompact ? 'h-7 w-7' : 'h-8 w-8'
-            )}
-          >
-            {getModelAttributes(model).icon}
-          </div>
-        )}
-        <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn('truncate font-medium', isTight ? 'text-[13px]' : 'text-sm')}>
-              {removeEmojis(model.displayName)}
-            </span>
-          </div>
-          {showDescriptions && (
-            <span className="text-xs text-muted-foreground truncate">
-              {getModelDescription(model)}
-            </span>
+          ) : (
+            getModelAttributes(model).icon
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-foreground">
+            {removeEmojis(model.displayName)}
+          </div>
+          {showDescriptions && (
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+              {getModelDescription(model)}
+            </div>
+          )}
+        </div>
+
+        <div className="flex min-w-0 shrink-0 items-center justify-end">
           {showCapabilityBadges && capabilities.length > 0 && (
             <div
               className={cn(
-                'flex items-center gap-1.5 flex-wrap justify-end',
-                isCompact ? 'max-w-[132px]' : 'max-w-[160px]'
+                'scrollbar-hide flex min-w-0 items-center justify-end gap-1.5 overflow-x-auto overflow-y-hidden whitespace-nowrap pr-0.5',
+                isTight ? 'max-w-[104px]' : isCompact ? 'max-w-[148px]' : 'max-w-[220px]'
               )}
             >
               {capabilities.map((capKey) => (
@@ -646,28 +697,35 @@ function ModelItem({
               ))}
             </div>
           )}
+        </div>
+
+        <div className="flex h-full shrink-0 items-center justify-end">
           {showContextLength &&
             (() => {
               const ctx = getModelContextLength(model)
               const formatted = ctx != null ? formatContextLength(ctx) : ''
               return formatted ? (
-                <span className="text-xs text-muted-foreground font-medium shrink-0">
+                <span className="w-14 shrink-0 text-right text-xs font-medium text-muted-foreground">
                   {formatted}
                 </span>
               ) : null
             })()}
+        </div>
+
+        <div className="flex h-full shrink-0 items-center justify-end">
           {modelSelector.showFavoriteStars && (
             <button
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                event.preventDefault()
+                onToggleFavorite(model.code, event as unknown as React.MouseEvent)
               }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="p-1 hover:bg-muted rounded transition-colors"
+              onPointerDown={(event) => event.stopPropagation()}
+              className="rounded-lg p-1 transition-colors hover:bg-muted"
               style={{
                 color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
-                opacity: isFavorite ? 1 : 0.4,
+                opacity: isFavorite ? 1 : 0.45,
               }}
             >
               {animationsEnabled ? (
@@ -682,11 +740,20 @@ function ModelItem({
               )}
             </button>
           )}
-          {isActive && activeIndicator()}
         </div>
-      </CommandItem>
+
+        <div className="flex h-full shrink-0 items-center justify-center">
+          {isActive ? (
+            modelSelector.activeIndicatorStyle === 'checkmark' ? (
+              <Check size={14} className="text-primary" />
+            ) : (
+              <div className="h-2 w-2 rounded-full bg-primary" />
+            )
+          ) : null}
+        </div>
+      </div>
     </ItemWrapper>
   )
-}
+})
 
 export default ModelSelectorDropdown

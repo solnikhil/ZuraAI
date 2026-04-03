@@ -25,9 +25,9 @@ export function useResponsiveModelSelector(
   }, [])
 
   const baseDropdownWidth = {
-    compact: 420,
-    wide: 640,
-    default: 520,
+    compact: 560,
+    wide: 920,
+    default: 780,
   }[dropdownWidth]
 
   const effectiveDropdownWidth = useMemo(() => {
@@ -36,13 +36,13 @@ export function useResponsiveModelSelector(
   }, [baseDropdownWidth, viewportSize.width])
 
   const compactMode: ModelSelectorCompactMode = useMemo(() => {
-    if (effectiveDropdownWidth <= 380) return 'tight'
-    if (effectiveDropdownWidth <= 460) return 'compact'
+    if (effectiveDropdownWidth <= 430) return 'tight'
+    if (effectiveDropdownWidth <= 560) return 'compact'
     return 'none'
   }, [effectiveDropdownWidth])
 
   const effectiveDropdownHeight = useMemo(() => {
-    return Math.max(160, Math.min(484, viewportSize.height - 24))
+    return Math.max(180, Math.min(540, viewportSize.height - 32))
   }, [viewportSize.height])
 
   const triggerLabelMaxWidth = minimal
