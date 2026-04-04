@@ -116,13 +116,7 @@ export default function ModelSelector({
           maxHeight: 'calc(100vh - 24px)',
         }}
         onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          // Allow interaction with elements inside the popover, including sidebar
-          const target = e.target as HTMLElement
-          if (target.closest('[data-slot="popover-content"]') || target.closest('[data-sidebar]')) {
-            e.preventDefault()
-          }
-        }}
+        onFocusOutside={(e) => e.preventDefault()}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: -4 }}

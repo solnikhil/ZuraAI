@@ -462,7 +462,7 @@ function ModelItem({
       value={`${model.code} ${model.displayName}`}
       onSelect={() => onSelect(model)}
       className={cn(
-        'flex items-center relative transition-colors border-b border-border/20 last:border-b-0',
+        'flex items-center relative transition-colors',
         'gap-3 px-4',
         densityClasses,
         isActive ? 'bg-primary/8' : 'hover:bg-muted/50'
