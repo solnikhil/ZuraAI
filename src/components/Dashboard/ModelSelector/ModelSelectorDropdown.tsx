@@ -4,7 +4,6 @@
  */
 
 import React, { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Star } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels, ModelSelectorCompactMode } from './types'
 import {
@@ -76,20 +75,6 @@ export interface ModelSelectorDropdownProps {
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
   /** Auto-compact mode based on available window width */
   compactMode?: ModelSelectorCompactMode
-}
-
-/**
- * Get stagger delay based on speed setting
- */
-function getStaggerDelay(speed: 'fast' | 'normal' | 'slow'): number {
-  switch (speed) {
-    case 'fast':
-      return 0.02
-    case 'slow':
-      return 0.05
-    default:
-      return 0.03
-  }
 }
 
 /**
@@ -179,7 +164,6 @@ export function ModelSelectorDropdown({
   // Clear sidebar highlight when searching across all providers
   const activeTabKey = searchQuery.trim() ? '' : viewMode === 'favorites' ? 'favorites' : selectedProvider
 
-  const staggerDelay = getStaggerDelay(modelSelector.staggerSpeed)
   const responsiveDensity = getResponsiveDensity(modelSelector.itemDensity, compactMode)
   const densityClasses = getDensityClasses(responsiveDensity)
   const isCompact = compactMode !== 'none'
@@ -207,7 +191,6 @@ export function ModelSelectorDropdown({
         favoriteModels={favoriteModels}
         sidebarShowLabels={sidebarShowLabels}
         sidebarShowModelCount={sidebarShowModelCount}
-        enableAnimations={modelSelector.enableAnimations}
         sidebarPosition={modelSelector.sidebarPosition}
         onTabSelect={(key) => {
           if (key === 'favorites') {
@@ -257,66 +240,26 @@ export function ModelSelectorDropdown({
                     : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
                 }
               >
-                <AnimatePresence mode="wait">
-                  {modelSelector.enableAnimations ? (
-                    <motion.div
-                      key={activeTabKey}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="flex flex-col"
-                    >
-                      {currentModels.map((model, index) => (
-                        <ModelItem
-                          key={`${model.provider}-${model.code}`}
-                          model={model}
-                          index={index}
-                          staggerDelay={staggerDelay}
-                          densityClasses={densityClasses}
-                          isActive={
-                            selectedModelCode === model.code &&
-                            selectedModelProvider === model.provider
-                          }
-                          isFavorite={favoriteModels.includes(model.code)}
-                          modelSelector={modelSelector}
-                          compactMode={compactMode}
-                          showDescriptions={showDescriptions}
-                          showCapabilityBadges={showCapabilityBadges}
-
-                          animationsEnabled={modelSelector.enableAnimations}
-                          onSelect={onModelSelect}
-                          onToggleFavorite={onToggleFavorite}
-                        />
-                      ))}
-                    </motion.div>
-                  ) : (
-                    <div className="flex flex-col">
-                      {currentModels.map((model) => (
-                        <ModelItem
-                          key={`${model.provider}-${model.code}`}
-                          model={model}
-                          index={0}
-                          staggerDelay={0}
-                          densityClasses={densityClasses}
-                          isActive={
-                            selectedModelCode === model.code &&
-                            selectedModelProvider === model.provider
-                          }
-                          isFavorite={favoriteModels.includes(model.code)}
-                          modelSelector={modelSelector}
-                          compactMode={compactMode}
-                          showDescriptions={showDescriptions}
-                          showCapabilityBadges={showCapabilityBadges}
-
-                          animationsEnabled={modelSelector.enableAnimations}
-                          onSelect={onModelSelect}
-                          onToggleFavorite={onToggleFavorite}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </AnimatePresence>
+                <div className="flex flex-col">
+                  {currentModels.map((model) => (
+                    <ModelItem
+                      key={`${model.provider}-${model.code}`}
+                      model={model}
+                      densityClasses={densityClasses}
+                      isActive={
+                        selectedModelCode === model.code &&
+                        selectedModelProvider === model.provider
+                      }
+                      isFavorite={favoriteModels.includes(model.code)}
+                      modelSelector={modelSelector}
+                      compactMode={compactMode}
+                      showDescriptions={showDescriptions}
+                      showCapabilityBadges={showCapabilityBadges}
+                      onSelect={onModelSelect}
+                      onToggleFavorite={onToggleFavorite}
+                    />
+                  ))}
+                </div>
               </CommandGroup>
             )}
           </CommandList>
@@ -335,7 +278,6 @@ function ProviderSidebar({
   favoriteModels,
   sidebarShowLabels,
   sidebarShowModelCount,
-  enableAnimations,
   sidebarPosition,
   onTabSelect,
 }: {
@@ -344,7 +286,6 @@ function ProviderSidebar({
   favoriteModels: string[]
   sidebarShowLabels: boolean
   sidebarShowModelCount: boolean
-  enableAnimations: boolean
   sidebarPosition: 'left' | 'right'
   onTabSelect: (key: string) => void
 }): React.ReactElement {
@@ -370,7 +311,6 @@ function ProviderSidebar({
         icon={<Star size={16} />}
         label={sidebarShowLabels ? 'Favorites' : undefined}
         count={sidebarShowModelCount ? favoritesCount : undefined}
-        enableAnimations={enableAnimations}
       />
 
       <div className="h-px bg-border/50 mx-2 my-1" />
@@ -386,7 +326,6 @@ function ProviderSidebar({
             icon={<ProviderLogo provider={provider.key} size={16} />}
             label={sidebarShowLabels ? provider.title : undefined}
             count={sidebarShowModelCount ? count : undefined}
-            enableAnimations={enableAnimations}
           />
         )
       })}
@@ -403,26 +342,15 @@ function SidebarItem({
   icon,
   label,
   count,
-  enableAnimations,
 }: {
   isActive: boolean
   onClick: () => void
   icon: React.ReactNode
   label?: string
   count?: number
-  enableAnimations: boolean
 }): React.ReactElement {
-  const Button = enableAnimations ? motion.button : 'button'
-  const buttonProps = enableAnimations
-    ? {
-        whileHover: { scale: 1.02 },
-        whileTap: { scale: 0.98 },
-      }
-    : {}
-
   return (
-    <Button
-      {...buttonProps}
+    <button
       type="button"
       onClick={(e) => {
         e.stopPropagation()
@@ -453,18 +381,10 @@ function SidebarItem({
       {count !== undefined && count > 0 && (
         <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">{count}</span>
       )}
-      {isActive && enableAnimations && (
-        <motion.div
-          layoutId="provider-active"
-          className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r"
-          initial={false}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        />
-      )}
-      {isActive && !enableAnimations && (
+      {isActive && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r" />
       )}
-    </Button>
+    </button>
   )
 }
 
@@ -512,8 +432,6 @@ function CapabilityBadge({
 
 function ModelItem({
   model,
-  index,
-  staggerDelay,
   densityClasses,
   isActive,
   isFavorite,
@@ -521,13 +439,10 @@ function ModelItem({
   compactMode,
   showDescriptions,
   showCapabilityBadges,
-  animationsEnabled,
   onSelect,
   onToggleFavorite,
 }: {
   model: ModelWithProvider
-  index: number
-  staggerDelay: number
   densityClasses: string
   isActive: boolean
   isFavorite: boolean
@@ -535,7 +450,6 @@ function ModelItem({
   compactMode: ModelSelectorCompactMode
   showDescriptions: boolean
   showCapabilityBadges: boolean
-  animationsEnabled: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }): React.ReactElement {
@@ -543,83 +457,58 @@ function ModelItem({
   const capabilities = getCapabilitiesForModelPicker(model)
   const isTight = compactMode === 'tight'
 
-  const ItemWrapper = animationsEnabled ? motion.div : 'div'
-  const wrapperProps = animationsEnabled
-    ? {
-        initial: { opacity: 0, x: -8 },
-        animate: { opacity: 1, x: 0 },
-        transition: {
-          delay: index * staggerDelay,
-          type: 'spring' as const,
-          stiffness: 400,
-          damping: 30,
-        },
-      }
-    : {}
-
   return (
-    <ItemWrapper {...wrapperProps}>
-      <CommandItem
-        value={`${model.code} ${model.displayName}`}
-        onSelect={() => onSelect(model)}
-        className={cn(
-          'flex items-center relative transition-colors border-b border-border/20 last:border-b-0',
-          'gap-3 px-4',
-          densityClasses,
-          isActive ? 'bg-primary/8' : 'hover:bg-muted/50'
-        )}
-      >
-        <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className={cn('truncate font-semibold', isTight ? 'text-[13px]' : 'text-sm')}>
-              {removeEmojis(model.displayName)}
-            </span>
-            {badge}
-            {modelSelector.showFavoriteStars && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  onToggleFavorite(model.code, e as unknown as React.MouseEvent)
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="p-0.5 hover:bg-muted rounded transition-colors shrink-0"
-                style={{
-                  color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
-                  opacity: isFavorite ? 1 : 0.4,
-                }}
-              >
-                {animationsEnabled ? (
-                  <motion.div
-                    animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
-                    transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                  >
-                    <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
-                  </motion.div>
-                ) : (
-                  <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
-                )}
-              </button>
-            )}
-          </div>
-          {showDescriptions && (
-            <span className="text-xs text-muted-foreground truncate">
-              {getModelDescription(model)}
-            </span>
+    <CommandItem
+      value={`${model.code} ${model.displayName}`}
+      onSelect={() => onSelect(model)}
+      className={cn(
+        'flex items-center relative transition-colors border-b border-border/20 last:border-b-0',
+        'gap-3 px-4',
+        densityClasses,
+        isActive ? 'bg-primary/8' : 'hover:bg-muted/50'
+      )}
+    >
+      <div className="flex flex-1 flex-col gap-0.5 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={cn('truncate font-semibold', isTight ? 'text-[13px]' : 'text-sm')}>
+            {removeEmojis(model.displayName)}
+          </span>
+          {badge}
+          {modelSelector.showFavoriteStars && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="p-0.5 hover:bg-muted rounded transition-colors shrink-0"
+              style={{
+                color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
+                opacity: isFavorite ? 1 : 0.4,
+              }}
+            >
+              <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
+            </button>
           )}
         </div>
-        {showCapabilityBadges && capabilities.length > 0 && (
-          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
-            {capabilities.map((capKey) => (
-              <CapabilityBadge
-                key={capKey}
-                capKey={capKey}
-              />
-            ))}
-          </div>
+        {showDescriptions && (
+          <span className="text-xs text-muted-foreground truncate">
+            {getModelDescription(model)}
+          </span>
         )}
-      </CommandItem>
-    </ItemWrapper>
+      </div>
+      {showCapabilityBadges && capabilities.length > 0 && (
+        <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+          {capabilities.map((capKey) => (
+            <CapabilityBadge
+              key={capKey}
+              capKey={capKey}
+            />
+          ))}
+        </div>
+      )}
+    </CommandItem>
   )
 }
 
