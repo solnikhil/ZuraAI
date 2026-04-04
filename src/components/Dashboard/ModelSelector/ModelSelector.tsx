@@ -48,7 +48,7 @@ export default function ModelSelector({
   }
 
   const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } =
-    useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal, currentModels.length)
+    useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal)
   const { animationsEnabled } = useMotionPreferences()
 
   return (

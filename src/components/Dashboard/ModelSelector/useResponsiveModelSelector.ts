@@ -3,8 +3,7 @@ import type { ModelSelectorCompactMode } from './types'
 
 export function useResponsiveModelSelector(
   dropdownWidth: 'compact' | 'default' | 'wide',
-  minimal?: boolean,
-  modelCount?: number
+  minimal?: boolean
 ): {
   compactMode: ModelSelectorCompactMode
   effectiveDropdownWidth: number
@@ -43,19 +42,8 @@ export function useResponsiveModelSelector(
   }, [effectiveDropdownWidth])
 
   const effectiveDropdownHeight = useMemo(() => {
-    const maxViewportHeight = Math.max(160, Math.min(484, viewportSize.height - 24))
-    if (modelCount == null || modelCount === 0) {
-      // Empty state gets a separate minimum
-      return Math.min(280, maxViewportHeight)
-    }
-    // Adaptive: calculate based on actual model count
-    const rowHeight = 52
-    const searchBarHeight = 52
-    const groupHeadingHeight = 32
-    const padding = 16
-    const contentHeight = searchBarHeight + groupHeadingHeight + padding + modelCount * rowHeight
-    return Math.max(280, Math.min(contentHeight, maxViewportHeight))
-  }, [viewportSize.height, modelCount])
+    return Math.max(160, Math.min(484, viewportSize.height - 24))
+  }, [viewportSize.height])
 
   const triggerLabelMaxWidth = minimal
     ? compactMode === 'tight'

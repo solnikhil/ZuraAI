@@ -5,7 +5,7 @@
 
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Star, Check } from 'lucide-react'
+import { Star } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels, ModelSelectorCompactMode } from './types'
 import {
   Command,
@@ -16,14 +16,11 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
-import { ModelIcon } from './ModelIcon'
 import {
   getModelAttributes,
   getModelDescription,
   getCapabilitiesForModelPicker,
   CAPABILITY_BADGE_STYLES,
-  formatContextLength,
-  getModelContextLength,
 } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import { ProviderLogo } from '@/components/shared'
@@ -192,7 +189,6 @@ export function ModelSelectorDropdown({
   const sidebarShowModelCount = isTight ? false : modelSelector.sidebarShowModelCount
   const showDescriptions = modelSelector.showDescriptions && !isTight
   const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
-  const showContextLength = modelSelector.showContextLength !== false && !isTight
   const emptyStateHeading =
     viewMode === 'favorites' ? 'No favorite models yet' : 'No models configured'
 
@@ -269,7 +265,7 @@ export function ModelSelectorDropdown({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.15 }}
-                      className="flex flex-col gap-1"
+                      className="flex flex-col"
                     >
                       {currentModels.map((model, index) => (
                         <ModelItem
@@ -287,7 +283,7 @@ export function ModelSelectorDropdown({
                           compactMode={compactMode}
                           showDescriptions={showDescriptions}
                           showCapabilityBadges={showCapabilityBadges}
-                          showContextLength={showContextLength}
+
                           animationsEnabled={modelSelector.enableAnimations}
                           onSelect={onModelSelect}
                           onToggleFavorite={onToggleFavorite}
@@ -295,7 +291,7 @@ export function ModelSelectorDropdown({
                       ))}
                     </motion.div>
                   ) : (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col">
                       {currentModels.map((model) => (
                         <ModelItem
                           key={`${model.provider}-${model.code}`}
@@ -312,7 +308,7 @@ export function ModelSelectorDropdown({
                           compactMode={compactMode}
                           showDescriptions={showDescriptions}
                           showCapabilityBadges={showCapabilityBadges}
-                          showContextLength={showContextLength}
+
                           animationsEnabled={modelSelector.enableAnimations}
                           onSelect={onModelSelect}
                           onToggleFavorite={onToggleFavorite}
@@ -481,34 +477,30 @@ function SidebarItem({
  */
 function CapabilityBadge({
   capKey,
-  display,
 }: {
   capKey: string
-  display: 'icon' | 'text' | 'both'
+  display?: 'icon' | 'text' | 'both'
 }): React.ReactElement | null {
   const style = CAPABILITY_BADGE_STYLES[capKey]
   if (!style) return null
   const Icon = style.icon
 
-  const showIcon = display === 'icon' || display === 'both'
-  const showText = display === 'text' || display === 'both'
+  // Extract the primary vibrant color from the gradient for the icon
+  const primaryColor = style.gradient.match(/#[0-9a-f]{6}/i)?.[0] || style.iconColor
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className="inline-flex items-center justify-center gap-1 shrink-0 rounded-md font-semibold transition-opacity hover:opacity-90"
+          className="inline-flex items-center justify-center shrink-0 rounded-full transition-opacity hover:opacity-80"
           style={{
-            background: style.gradient,
-            color: style.iconColor,
-            padding: display === 'icon' ? '4px' : '3px 6px',
-            minWidth: display === 'icon' ? 20 : undefined,
-            boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
-            border: '1px solid rgba(255,255,255,0.15)',
+            background: `${primaryColor}18`,
+            color: primaryColor,
+            width: 22,
+            height: 22,
           }}
         >
-          {showIcon && <Icon size={display === 'icon' ? 12 : 10} className="shrink-0" />}
-          {showText && <span className="text-[10px] leading-tight">{style.label}</span>}
+          <Icon size={13} className="shrink-0" />
         </div>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">
@@ -529,7 +521,6 @@ function ModelItem({
   compactMode,
   showDescriptions,
   showCapabilityBadges,
-  showContextLength,
   animationsEnabled,
   onSelect,
   onToggleFavorite,
@@ -544,14 +535,12 @@ function ModelItem({
   compactMode: ModelSelectorCompactMode
   showDescriptions: boolean
   showCapabilityBadges: boolean
-  showContextLength: boolean
   animationsEnabled: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
 }): React.ReactElement {
-  const { color } = getModelAttributes(model)
+  const { badge } = getModelAttributes(model)
   const capabilities = getCapabilitiesForModelPicker(model)
-  const isCompact = compactMode !== 'none'
   const isTight = compactMode === 'tight'
 
   const ItemWrapper = animationsEnabled ? motion.div : 'div'
@@ -568,60 +557,50 @@ function ModelItem({
       }
     : {}
 
-  const activeIndicator = () => {
-    switch (modelSelector.activeIndicatorStyle) {
-      case 'checkmark':
-        return <Check size={14} className="text-primary" />
-      case 'highlight':
-        return <div className="h-full w-1 bg-primary rounded-l absolute left-0 top-0 bottom-0" />
-      default:
-        return <div className="h-2 w-2 rounded-full bg-primary" />
-    }
-  }
-
   return (
     <ItemWrapper {...wrapperProps}>
       <CommandItem
         value={`${model.code} ${model.displayName}`}
         onSelect={() => onSelect(model)}
         className={cn(
-          'flex items-center rounded-lg relative transition-colors',
-          isTight ? 'gap-2 px-2' : isCompact ? 'gap-2.5 px-2.5' : 'gap-3 px-3',
+          'flex items-center relative transition-colors border-b border-border/20 last:border-b-0',
+          'gap-3 px-4',
           densityClasses,
-          isActive ? 'bg-primary/8 border border-primary/20' : '',
-          isActive && modelSelector.activeIndicatorStyle === 'highlight' ? 'bg-primary/10' : '',
-          !isActive ? 'hover:bg-muted/50' : ''
+          isActive ? 'bg-primary/8' : 'hover:bg-muted/50'
         )}
       >
-        {modelSelector.showProviderLogos ? (
-          <div
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
-              isCompact ? 'h-7 w-7' : 'h-8 w-8'
-            )}
-          >
-            <ModelIcon
-              model={model}
-              icon={getModelAttributes(model).icon}
-              color={color}
-              size={isCompact ? 18 : 22}
-            />
-          </div>
-        ) : (
-          <div
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-lg bg-muted/50',
-              isCompact ? 'h-7 w-7' : 'h-8 w-8'
-            )}
-          >
-            {getModelAttributes(model).icon}
-          </div>
-        )}
         <div className="flex flex-1 flex-col gap-0.5 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn('truncate font-medium', isTight ? 'text-[13px]' : 'text-sm')}>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={cn('truncate font-semibold', isTight ? 'text-[13px]' : 'text-sm')}>
               {removeEmojis(model.displayName)}
             </span>
+            {badge}
+            {modelSelector.showFavoriteStars && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  onToggleFavorite(model.code, e as unknown as React.MouseEvent)
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="p-0.5 hover:bg-muted rounded transition-colors shrink-0"
+                style={{
+                  color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
+                  opacity: isFavorite ? 1 : 0.4,
+                }}
+              >
+                {animationsEnabled ? (
+                  <motion.div
+                    animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
+                    transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                  >
+                    <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
+                  </motion.div>
+                ) : (
+                  <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
+                )}
+              </button>
+            )}
           </div>
           {showDescriptions && (
             <span className="text-xs text-muted-foreground truncate">
@@ -629,61 +608,16 @@ function ModelItem({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 flex-nowrap justify-end">
-          {showCapabilityBadges && capabilities.length > 0 && (
-            <div
-              className={cn(
-                'flex items-center gap-1.5 flex-nowrap overflow-hidden justify-end',
-                isCompact ? 'max-w-[132px]' : 'max-w-[160px]'
-              )}
-            >
-              {capabilities.map((capKey) => (
-                <CapabilityBadge
-                  key={capKey}
-                  capKey={capKey}
-                  display={modelSelector.capabilityBadgeDisplay ?? 'both'}
-                />
-              ))}
-            </div>
-          )}
-          {showContextLength &&
-            (() => {
-              const ctx = getModelContextLength(model)
-              const formatted = ctx != null ? formatContextLength(ctx) : ''
-              return formatted ? (
-                <span className="text-xs text-muted-foreground font-medium shrink-0">
-                  {formatted}
-                </span>
-              ) : null
-            })()}
-          {modelSelector.showFavoriteStars && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                onToggleFavorite(model.code, e as unknown as React.MouseEvent)
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="p-1 hover:bg-muted rounded transition-colors"
-              style={{
-                color: isFavorite ? 'var(--theme-favorite)' : 'var(--theme-text-muted)',
-                opacity: isFavorite ? 1 : 0.4,
-              }}
-            >
-              {animationsEnabled ? (
-                <motion.div
-                  animate={isFavorite ? { scale: [1, 1.3, 1] } : {}}
-                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-                >
-                  <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
-                </motion.div>
-              ) : (
-                <Star size={12} fill={isFavorite ? 'var(--theme-favorite)' : 'none'} />
-              )}
-            </button>
-          )}
-          {isActive && activeIndicator()}
-        </div>
+        {showCapabilityBadges && capabilities.length > 0 && (
+          <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
+            {capabilities.map((capKey) => (
+              <CapabilityBadge
+                key={capKey}
+                capKey={capKey}
+              />
+            ))}
+          </div>
+        )}
       </CommandItem>
     </ItemWrapper>
   )
