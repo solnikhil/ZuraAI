@@ -347,34 +347,19 @@ export function useModelSelector(): UseModelSelectorReturn {
     [updateSettings, modelSelector.autoCloseOnSelect]
   )
 
-  // Keyboard navigation handlers
+  // Keyboard navigation handler — cmdk handles ArrowUp/ArrowDown/Enter internally,
+  // so we only need to handle Escape here.
   const handleKeyboardNav = useCallback(
     (e: KeyboardEvent) => {
       if (!isOpen) return
 
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          setFocusedIndex((prev) => (prev < currentModels.length - 1 ? prev + 1 : 0))
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          setFocusedIndex((prev) => (prev > 0 ? prev - 1 : currentModels.length - 1))
-          break
-        case 'Enter':
-          if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
-            e.preventDefault()
-            handleSelect(currentModels[focusedIndex])
-          }
-          break
-        case 'Escape':
-          e.preventDefault()
-          setIsOpen(false)
-          setFocusedIndex(-1)
-          break
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setIsOpen(false)
+        setFocusedIndex(-1)
       }
     },
-    [isOpen, currentModels, focusedIndex, handleSelect]
+    [isOpen]
   )
 
   // Attach keyboard event listener when dropdown is open
