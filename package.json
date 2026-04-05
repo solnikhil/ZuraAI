@@ -110,7 +110,8 @@
     "publish": {
       "provider": "github",
       "owner": "solnikhil",
-      "repo": "ZuraAI"
+      "repo": "ZuraAI",
+      "releaseType": "release"
     },
     "win": {
       "target": [
@@ -122,7 +123,9 @@
         }
       ],
       "icon": "build/icon.ico",
-      "executableName": "ZuraAI"
+      "executableName": "ZuraAI",
+      "publisherName": "Nikhil",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,

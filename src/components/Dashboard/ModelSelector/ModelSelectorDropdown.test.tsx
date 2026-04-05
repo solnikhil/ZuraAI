@@ -49,6 +49,55 @@ vi.mock('../../../contexts/AppShellContext', () => ({
 }))
 
 describe('ModelSelectorDropdown', () => {
+  it('renders the search input above the provider rail', () => {
+    const { container } = render(
+      <ModelSelectorDropdown
+        searchInputRef={{ current: null }}
+        searchQuery=""
+        onSearchChange={vi.fn()}
+        viewMode="all"
+        onViewModeChange={vi.fn()}
+        selectedProvider="fireworks"
+        onProviderSelect={vi.fn()}
+        currentModels={[
+          {
+            code: 'accounts/fireworks/models/deepseek-v3p2',
+            displayName: 'DeepSeek V3.2',
+            provider: 'fireworks',
+          },
+        ]}
+        groupedModels={{
+          alibaba: [],
+          fireworks: [
+            {
+              code: 'accounts/fireworks/models/deepseek-v3p2',
+              displayName: 'DeepSeek V3.2',
+              provider: 'fireworks',
+            },
+          ],
+          groq: [],
+          ollama: [],
+          openrouter: [],
+          perplexity: [],
+        }}
+        focusedIndex={-1}
+        selectedModelCode="accounts/fireworks/models/deepseek-v3p2"
+        selectedModelProvider="fireworks"
+        favoriteModels={[]}
+        onModelSelect={vi.fn()}
+        onToggleFavorite={vi.fn()}
+        onFocusedIndexChange={vi.fn()}
+      />
+    )
+
+    const searchInput = screen.getByPlaceholderText('Search models, providers...')
+    const sidebar = container.querySelector('[data-sidebar]')
+
+    expect(searchInput).toBeInTheDocument()
+    expect(sidebar).toBeInTheDocument()
+    expect(searchInput.compareDocumentPosition(sidebar as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('shows Fireworks in the provider sidebar when Fireworks models are available', () => {
     render(
       <ModelSelectorDropdown

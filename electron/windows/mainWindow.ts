@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { deferredInitializer } from '../startup/deferredInit'
 
@@ -64,13 +64,14 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
-      devTools: options?.devTools ?? true,
+      devTools: options?.devTools ?? !app.isPackaged,
+      backgroundThrottling: false,
       spellcheck: false,
       additionalArguments: ['--process-name=ZuraAI-Dashboard'],
     },
     autoHideMenuBar: true,
-    // Solid background eliminates the visible DWM frame border on Windows.
-    // Frosted mode switches this to transparent at runtime via setNativeBlur().
+    // Keep the main window on a solid background to avoid transparent border artifacts
+    // and compositor instability on Windows.
     backgroundColor: '#14120B',
     show: false,
   })
@@ -133,26 +134,5 @@ export function showMainWindow(): void {
     mainWindow.focus()
   } else {
     createMainWindow()
-  }
-}
-
-/**
- * Toggle native background blur (acrylic on Windows, vibrancy on macOS).
- * Also toggles the window backgroundColor between transparent (for acrylic
- * compositing) and solid (to hide the DWM frame border in normal mode).
- */
-export function setNativeBlur(enabled: boolean): void {
-  if (!mainWindow) return
-
-  try {
-    if (process.platform === 'win32') {
-      // Transparent background is required for acrylic; solid hides the DWM border
-      mainWindow.setBackgroundColor(enabled ? '#00000000' : '#14120B')
-      mainWindow.setBackgroundMaterial(enabled ? 'acrylic' : 'none')
-    } else if (process.platform === 'darwin') {
-      mainWindow.setVibrancy(enabled ? 'sidebar' : (null as any))
-    }
-  } catch {
-    // Ignore if unsupported (e.g. Windows 10)
   }
 }

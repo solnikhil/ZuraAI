@@ -337,7 +337,6 @@ if (!hasSettingsChanges && !hasMcpChanges) {
 
             {normalizedActiveSection === 'experimental' && (
               <ExperimentalSection
-                frostedSidebar={pendingSettings.frostedSidebar}
                 frostedPrompt={pendingSettings.frostedPrompt}
                 sidebarAutoHideOnResize={pendingSettings.sidebarAutoHideOnResize}
                 onChange={(changes) => handleChange(changes)}

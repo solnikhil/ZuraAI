@@ -39,7 +39,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     assignFolder,
   } = useChatHistory()
   const { settingsUI } = useSettingsUI()
-  const { frostedSidebar, chatSelectedOverlayStyle = 'linear' } = settingsUI
+  const { chatSelectedOverlayStyle = 'linear' } = settingsUI
   const userStripPadding = 8
 
   // Sidebar state
@@ -47,9 +47,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
-  // Glassmorphism styles
-  const shouldApplyGlass = frostedSidebar && !sidebarHidden
-
   // Settings navigation items
   const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
     usage: <ChartNoAxesCombined size={18} />,
@@ -287,7 +284,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     sidebarHidden ? 'sidebar-container--hidden' : '',
     sidebarCollapsed ? 'sidebar-container--collapsed' : 'sidebar-container--expanded',
     isResizing ? 'sidebar-container--resizing' : '',
-    shouldApplyGlass ? 'frosted' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -299,7 +295,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
       : sidebarCollapsed
         ? `${SIDEBAR_COLLAPSED_WIDTH_PX}px`
         : `${sidebarWidth}px`,
-    background: shouldApplyGlass ? 'transparent' : 'var(--theme-sidebar-solid)',
+    background: 'var(--theme-sidebar-solid)',
     borderRight: '0px solid transparent',
     boxShadow: 'none',
     pointerEvents: sidebarHidden ? 'none' : 'auto',
@@ -315,7 +311,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
         groupedSessions={groupedSessions}
         folders={folders}
         chatSelectedOverlayStyle={chatSelectedOverlayStyle}
-        isFrosted={shouldApplyGlass}
+        isFrosted={false}
         currentSessionId={currentSessionId}
         streamingSessionId={null}
         focusIndex={focusIndex}

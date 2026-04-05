@@ -19,6 +19,7 @@ import {
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
+import { DEFAULT_MODEL_SELECTOR_SETTINGS } from './modelSelectorDefaults'
 
 /**
  * State returned by the useModelSelector hook
@@ -76,11 +77,7 @@ export interface UseModelSelectorReturn {
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
 
-  const modelSelector = settings.modelSelector || {
-    defaultView: 'lastUsed',
-    rememberProvider: true,
-    autoCloseOnSelect: true,
-  }
+  const modelSelector = settings.modelSelector || DEFAULT_MODEL_SELECTOR_SETTINGS
 
   // Determine initial view mode based on settings
   const getInitialViewMode = (): ViewMode => {

@@ -168,7 +168,6 @@ function SettingsContextBridge({ children }: { children: React.ReactNode }) {
         'titleBarShowChatTitle',
         'titleBarShowModel',
         'commandBar',
-        'frostedSidebar',
         'frostedPrompt',
         'sidebarAutoHideOnResize',
         'chatBubbleStyle',
@@ -455,8 +454,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
     // Initialize activeTheme if missing (new theme system)
     if (!parsed.activeTheme) parsed.activeTheme = defaultSettings.activeTheme
-    // Initialize frostedSidebar if missing (glassmorphism effect)
-    if (parsed.frostedSidebar === undefined) parsed.frostedSidebar = defaultSettings.frostedSidebar
+    // Ignore legacy frostedSidebar values from older builds.
+    delete (parsed as Record<string, unknown>).frostedSidebar
     // Initialize frostedPrompt if missing (glassmorphism effect)
     if (parsed.frostedPrompt === undefined) parsed.frostedPrompt = defaultSettings.frostedPrompt
     // Initialize sidebarAutoHideOnResize if missing
@@ -533,7 +532,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       titleBarShowChatTitle: combinedSettings.titleBarShowChatTitle,
       titleBarShowModel: combinedSettings.titleBarShowModel,
       commandBar: combinedSettings.commandBar,
-      frostedSidebar: combinedSettings.frostedSidebar,
       frostedPrompt: combinedSettings.frostedPrompt,
       sidebarAutoHideOnResize: combinedSettings.sidebarAutoHideOnResize,
       promptAutoHide: combinedSettings.promptAutoHide,

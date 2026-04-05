@@ -1,6 +1,6 @@
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
 import os from 'os'
-import { setNativeBlur, showAboutWindow } from '../windows'
+import { showAboutWindow } from '../windows'
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -77,20 +77,6 @@ function getPlatformLabel(platform: NodeJS.Platform, version?: string): string {
  * explicit, and safe to call from UI code.
  */
 export function registerSystemHandlers(): void {
-  /**
-   * Applies native blur styling to the main window.
-   *
-   * Channel: `set-native-blur`
-   * Type: fire-and-forget event
-   *
-   * This is intentionally a simple boolean toggle because the renderer should
-   * not be allowed to pass arbitrary window styling options into the main
-   * process.
-   */
-  ipcMain.on('set-native-blur', (_event, enabled: boolean) => {
-    setNativeBlur(!!enabled)
-  })
-
   /**
    * Native window controls exposed to the custom renderer title bar.
    *
@@ -235,9 +221,9 @@ ipcMain.handle('app-info:open-about-window', () => {
    * Channel: `window-resize`
    * Type: request/response
    *
-   * This exists to support custom transparent/frosted window chrome where
-   * native resize affordances may not be available. Input is treated as
-   * untrusted and validated defensively before any bounds are applied.
+   * This exists to support the custom frameless shell on Windows where native
+   * resize affordances may not be available. Input is treated as untrusted and
+   * validated defensively before any bounds are applied.
    */
   ipcMain.handle('window-resize', (event, newBounds: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender)
@@ -299,7 +285,6 @@ ipcMain.handle('app-info:open-about-window', () => {
  * would otherwise throw.
  */
 export function unregisterSystemHandlers(): void {
-  ipcMain.removeAllListeners('set-native-blur')
   ipcMain.removeHandler('window-resize')
   ipcMain.removeHandler('window-controls:minimize')
   ipcMain.removeHandler('window-controls:toggle-maximize')

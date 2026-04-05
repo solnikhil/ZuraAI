@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { AppShellProvider, useAppShell } from '../contexts/AppShellContext'
-import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
-import { useSettings } from '../contexts/SettingsContext'
 import { useSettingsUI } from '../contexts/SettingsUIContext'
 import TitleBar from './TitleBar'
 import ResizeHandles from './ResizeHandles'
@@ -15,10 +13,9 @@ const SIDEBAR_AUTO_HIDE_THRESHOLD_PX = 900
 function AppShellContent() {
     const navigate = useNavigate()
     const location = useLocation()
-    const { settings } = useSettings()
     const { settingsUI } = useSettingsUI()
-    const { frostedSidebar, sidebarAutoHideOnResize } = settingsUI
-    const { sidebarCollapsed, sidebarHidden, sidebarWidth, setSidebarHidden, isResizingSidebar } = useAppShell()
+    const { sidebarAutoHideOnResize } = settingsUI
+    const { setSidebarHidden } = useAppShell()
     const isDev = import.meta.env.DEV
     const hasRunInitialSidebarAutoHideCheckRef = useRef(false)
     const lastSidebarAutoHideWidthRef = useRef<number | null>(null)
@@ -73,11 +70,6 @@ function AppShellContent() {
             if (debounceTimer) clearTimeout(debounceTimer)
         }
     }, [hasSidebar, sidebarAutoHideOnResize, setSidebarHidden])
-    const sidebarWidthPx = sidebarHidden
-        ? 0
-        : (sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH_PX : sidebarWidth)
-    const titlebarHeightPx = settings.titleBarDensity === 'compact' ? 36 : 44
-
     // Detect Windows platform (same pattern as TitleBar)
     const isWindows = useMemo(() => {
         return navigator.platform.toLowerCase().includes('win')
@@ -132,22 +124,6 @@ function AppShellContent() {
         }
     }, [isDev])
 
-    // Toggle frosted-mode class on html element + notify main process for native blur
-    useEffect(() => {
-        if (frostedSidebar) {
-            document.documentElement.classList.add('frosted-mode')
-        } else {
-            document.documentElement.classList.remove('frosted-mode')
-        }
-        // Toggle native OS blur (acrylic on Windows, vibrancy on macOS)
-        try {
-            (window as any).ipcRenderer?.send('set-native-blur', frostedSidebar)
-        } catch {}
-        return () => {
-            document.documentElement.classList.remove('frosted-mode')
-        }
-    }, [frostedSidebar])
-
     useEffect(() => {
         const handleMouseUp = (e: MouseEvent) => {
             // Button 3 is "Back", Button 4 is "Forward"
@@ -164,40 +140,10 @@ function AppShellContent() {
 
     return (
         <AppContextMenu>
-            <div className="app-frame" style={{
-                backgroundColor: frostedSidebar ? 'transparent' : 'var(--theme-background)',
-                position: 'relative'
-            }}>
-                {/* Glass panel covering full sidebar column (titlebar + content) for frosted mode.
-                    A single backdrop-filter layer avoids the Chromium compositing seam that appeared
-                    when the titlebar glass strip and this panel each had their own backdrop-filter.
-                    During active sidebar resize, we hint the compositor with will-change and
-                    simplify the backdrop-filter to avoid expensive per-frame GPU recomposition. */}
-                {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
-                    <div style={{
-                        position: 'absolute',
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: `${sidebarWidthPx}px`,
-                        background: `linear-gradient(180deg, rgba(10, 10, 14, 0.46) 0px, rgba(6, 6, 10, 0.33) ${titlebarHeightPx}px, rgba(6, 6, 10, 0.3) 100%)`,
-                        borderRight: 'none',
-                        boxShadow: 'none',
-                        backdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
-                        WebkitBackdropFilter: isResizingSidebar ? 'blur(12px)' : 'var(--frosted-glass-filter)',
-                        zIndex: 0,
-                        pointerEvents: 'none',
-                        boxSizing: 'border-box',
-                        willChange: isResizingSidebar ? 'width' : 'auto',
-                        transition: isResizingSidebar ? 'none' : undefined,
-                    }} />
-                )}
+            <div className="app-frame">
                 <TitleBar />
                 <CommandPalette />
-                <div className="app-content" style={{
-                    backgroundColor: frostedSidebar ? 'transparent' : undefined,
-                    borderTop: 'none'
-                }}>
+                <div className="app-content">
                     <Outlet />
                 </div>
                 {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}

@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom'
 import { useChatHistory } from '../contexts/ChatHistoryContext'
 import { Settings, useSettings } from '../contexts/SettingsContext'
 import { useAppShell } from '../contexts/AppShellContext'
-import { useSettingsUI } from '../contexts/SettingsUIContext'
 import { SETTINGS_SECTION_MAP, type SettingsSectionId } from '../constants/settingsSections'
 import { SIDEBAR_COLLAPSED_WIDTH_PX } from '../constants/sidebar'
 import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
@@ -39,9 +38,6 @@ export default function TitleBar() {
         toggleSidebarHidden,
         isResizingSidebar,
     } = useAppShell()
-    const { settingsUI } = useSettingsUI()
-    const { frostedSidebar } = settingsUI
-
     const isDashboardRoute = location.pathname === '/' || location.pathname === '/dashboard'
     const isSettingsRoute = location.pathname === '/settings'
     const isLegacyChatRoute = location.pathname === '/chat'
@@ -145,22 +141,10 @@ export default function TitleBar() {
                 hasSidebar ? 'app-titlebar--with-sidebar' : null,
                 isMacOS ? 'app-titlebar--macos' : null,
                 !isMacOS ? 'app-titlebar--custom-controls' : null,
-                frostedSidebar ? 'app-titlebar--frosted' : null,
             ].filter(Boolean).join(' ')}
             style={{}}
             onDoubleClick={handleTitleBarDoubleClick}
         >
-            {/* Sidebar region overlay: glass in frosted mode, solid in non-frosted mode */}
-            {frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
-                <div
-                    className="app-titlebar__sidebar-glass"
-                    style={{
-                        width: `${sidebarWidthPx}px`,
-                        willChange: isResizingSidebar ? 'width' : 'auto',
-                        transition: isResizingSidebar ? 'none' : undefined,
-                    }}
-                />
-            )}
             {/* Content-side titlebar background should always match the main content panel */}
             {hasSidebar && (
                 <div
@@ -173,8 +157,7 @@ export default function TitleBar() {
                 />
             )}
 
-            {/* Non-frosted mode: solid surface overlay so titlebar above sidebar matches sidebar color */}
-            {!frostedSidebar && hasSidebar && sidebarWidthPx > 0 && (
+            {hasSidebar && sidebarWidthPx > 0 && (
                 <div
                     className="app-titlebar__sidebar-solid"
                     style={{

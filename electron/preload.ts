@@ -38,7 +38,7 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<string>(['set-native-blur'])
+const SEND_CHANNELS = new Set<string>()
 
 const INVOKE_CHANNELS = new Set<string>([
   // Chat store
@@ -56,7 +56,7 @@ const INVOKE_CHANNELS = new Set<string>([
   // Tools
   'execute-tool',
 
-  // Window resize (frosted mode)
+  // Window resize
   'window-resize',
 
   // Updater
@@ -147,13 +147,13 @@ contextBridge.exposeInMainWorld(
     checkForUpdates: () => ipcRenderer.invoke('updater:check-for-updates'),
     quitAndInstall: () => ipcRenderer.invoke('updater:quit-and-install'),
     getVersion: () => ipcRenderer.invoke('updater:get-version'),
-    onUpdateAvailable: (callback: () => void) => {
-      const listener = () => callback()
+    onUpdateAvailable: (callback: (version: string) => void) => {
+      const listener = (_event: IpcRendererEvent, version: string) => callback(version)
       ipcRenderer.on('update-available', listener)
       return () => ipcRenderer.off('update-available', listener)
     },
-    onUpdateDownloaded: (callback: () => void) => {
-      const listener = () => callback()
+    onUpdateDownloaded: (callback: (version: string) => void) => {
+      const listener = (_event: IpcRendererEvent, version: string) => callback(version)
       ipcRenderer.on('update-downloaded', listener)
       return () => ipcRenderer.off('update-downloaded', listener)
     },

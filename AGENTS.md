@@ -63,7 +63,7 @@ Core capabilities:
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
-- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync, global context menu via AppContextMenu)
+- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
 - `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts` — thin compatibility wrapper over the shared provider registry for dashboard chat provider normalization/tests
@@ -119,7 +119,7 @@ Core capabilities:
 - **Main Window** (`electron/windows/mainWindow.ts`)
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
-  - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
+  - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled and a solid background path for stable compositor behavior
   - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
@@ -137,7 +137,7 @@ Core capabilities:
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
-  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
+  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, and route-level shell behavior
   - `/` is a dashboard alias
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
@@ -162,8 +162,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls` is a **separate dedicated bridge** exposed from preload for minimize / maximize / close state, rather than part of the generic `window.ipcRenderer` allowlists.
 
 **Allowlisted channels (as implemented today):**
-- `SEND_CHANNELS`:
-  - `set-native-blur`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
@@ -204,8 +202,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
-- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
+- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
+- Legacy persisted `frostedSidebar` values are ignored during settings hydration; the app no longer exposes or applies a frosted sidebar mode.
 - Search API preferences are persisted in renderer settings; Tavily search speed now uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process.
 - Search API preferences are persisted in renderer settings; Tavily search speed uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process. The same pre-IPC resolver also applies `settings.webSearchIncludeImages`, so Tavily image fetching and the chat image carousel can be disabled per user without changing the model-facing tool schema.
 
@@ -287,7 +286,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Legacy `softenedContrast: boolean` is migrated to `themeContrast: number` (true → 85, false/undefined → 100).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
-- Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
+- The main shell now uses solid titlebar/sidebar surfaces; there is no renderer-to-main native blur toggle for the main window.
 
 #### Renderer Performance Tracking
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
@@ -323,7 +322,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Sidebar Width Resizing
 - Sidebar width is user-resizable from the dashboard via a right-edge drag handle in `src/components/Dashboard/Sidebar.tsx`.
 - The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
-- Current shell width calculations (sidebar panel, frosted glass continuation, titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
+- Current shell width calculations (sidebar panel and titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
 #### Chat Title Generation Controls
 - Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.

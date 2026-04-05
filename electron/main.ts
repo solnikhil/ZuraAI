@@ -19,8 +19,6 @@ const DIST_PATH = process.env.DIST || path.join(__dirname, '../dist')
 process.env.DIST = DIST_PATH
 process.env.PUBLIC = app.isPackaged ? DIST_PATH : path.join(__dirname, '../public')
 
-// Fix cursor flickering during window resize on Windows
-app.commandLine.appendSwitch('disable-gpu-compositing')
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 // Disable window animations
@@ -126,11 +124,11 @@ app.whenReady().then(async () => {
   deferredInitializer.markIPCReady()
 
   // Defer auto-updater initialization (only in production)
-  // The updater itself adds an additional 5-second delay before checking
+  // The updater itself adds an additional 10-second delay before checking
   deferredInitializer.registerTask({
     name: 'auto-updater',
     priority: 'low',
-    delayMs: 0, // Start immediately after window visible, updater adds its own 5s delay
+    delayMs: 0, // Start immediately after window visible, updater adds its own 10s delay
     execute: async () => {
       initializeAutoUpdater(getMainWindow)
       console.log('[MAIN] Auto-updater initialized')
