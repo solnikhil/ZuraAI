@@ -1,82 +1,125 @@
 import { app, ipcMain, BrowserWindow } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater, type UpdateInfo } from 'electron-updater'
 
-// Production mode check
 const isProduction = app.isPackaged
 
-// Auto-update interval reference
-let autoUpdateInterval: NodeJS.Timeout | null = null
-let initialUpdateTimeout: NodeJS.Timeout | null = null
+// Check every 12 hours after the initial check
+const UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
 
-// Delay before first update check (5 seconds after window visible)
-const INITIAL_UPDATE_DELAY_MS = 5000
+// Delay before first check (10s after window visible)
+const INITIAL_DELAY_MS = 10_000
+
+let updateInterval: NodeJS.Timeout | null = null
+let initialTimeout: NodeJS.Timeout | null = null
 
 /**
- * Initialize the auto-updater with event handlers
- * This function should be called after the main window is visible.
- * The actual update check is deferred by 5 seconds.
- *
- * @param getMainWindow Function to get the main window for update lifecycle events
+ * Configure autoUpdater defaults. Called once before any checks.
  */
-export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
-  if (!isProduction) {
-    console.log('[UPDATER] Skipping auto-updater initialization in development mode')
-    return
+function configureAutoUpdater(): void {
+  // Let the app notify the user — don't silently download in the background
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
+
+  // Allow downgrade in case a rollback release is published
+  autoUpdater.allowDowngrade = false
+
+  // Use the standard electron-updater logger routed through console
+  autoUpdater.logger = {
+    info: (msg: unknown) => console.log('[UPDATER]', msg),
+    warn: (msg: unknown) => console.warn('[UPDATER]', msg),
+    error: (msg: unknown) => console.error('[UPDATER]', msg),
+    debug: (msg: unknown) => console.log('[UPDATER:DEBUG]', msg),
   }
-
-  // Defer initial update check by 5 seconds after this function is called
-  // This ensures the window is fully visible and responsive before checking
-  initialUpdateTimeout = setTimeout(() => {
-    console.log('[UPDATER] Starting initial update check (5s after window visible)')
-    autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
-      console.error('[UPDATER] Auto-update check failed:', err)
-    })
-    initialUpdateTimeout = null
-  }, INITIAL_UPDATE_DELAY_MS)
-
-  // Check for updates every 4 hours
-  autoUpdateInterval = setInterval(
-    () => {
-      autoUpdater.checkForUpdatesAndNotify().catch((err: Error) => {
-        console.error('[UPDATER] Auto-update check failed:', err)
-      })
-    },
-    4 * 60 * 60 * 1000
-  )
-
-  // Handle update events
-  autoUpdater.on('update-available', () => {
-    const mainWindow = getMainWindow()
-    if (mainWindow) {
-      mainWindow.webContents.send('update-available')
-    }
-  })
-
-  autoUpdater.on('update-downloaded', () => {
-    const mainWindow = getMainWindow()
-    if (mainWindow) {
-      mainWindow.webContents.send('update-downloaded')
-    }
-  })
-
-  autoUpdater.on('error', (error: Error) => {
-    console.error('[UPDATER] Auto-updater error:', error)
-  })
 }
 
 /**
- * Register auto-updater IPC handlers
+ * Perform a single update check. Resolves with the update info or null.
+ */
+async function checkOnce(): Promise<UpdateInfo | null> {
+  try {
+    const result = await autoUpdater.checkForUpdates()
+    return result?.updateInfo ?? null
+  } catch (err) {
+    console.error('[UPDATER] Check failed:', err)
+    return null
+  }
+}
+
+/**
+ * Initialize the auto-updater event pipeline and schedule checks.
+ */
+export function initializeAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
+  if (!isProduction) {
+    console.log('[UPDATER] Skipping initialization in development mode')
+    return
+  }
+
+  configureAutoUpdater()
+
+  // ---- Event handlers ----
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[UPDATER] Checking for update...')
+  })
+
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    console.log(`[UPDATER] Update available: v${info.version}`)
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-available', info.version)
+    }
+    // Start the download now that we know an update exists
+    autoUpdater.downloadUpdate().catch((err) => {
+      console.error('[UPDATER] Download failed:', err)
+    })
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[UPDATER] Already up to date')
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(
+      `[UPDATER] Download progress: ${progress.percent.toFixed(1)}% (${(progress.transferred / 1_048_576).toFixed(1)}/${(progress.total / 1_048_576).toFixed(1)} MB)`
+    )
+  })
+
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    console.log(`[UPDATER] Update downloaded: v${info.version}`)
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('update-downloaded', info.version)
+    }
+  })
+
+  autoUpdater.on('error', (err: Error) => {
+    console.error('[UPDATER] Error:', err.message)
+  })
+
+  // ---- Scheduling ----
+
+  initialTimeout = setTimeout(() => {
+    initialTimeout = null
+    void checkOnce()
+  }, INITIAL_DELAY_MS)
+
+  updateInterval = setInterval(() => {
+    void checkOnce()
+  }, UPDATE_INTERVAL_MS)
+}
+
+/**
+ * Register IPC handlers the renderer can call.
  */
 export function registerUpdaterHandlers(): void {
-  ipcMain.handle('updater:check-for-updates', () => {
-    if (isProduction) {
-      return autoUpdater.checkForUpdatesAndNotify()
-    }
-    return Promise.resolve(null)
+  ipcMain.handle('updater:check-for-updates', async () => {
+    if (!isProduction) return null
+    return checkOnce()
   })
 
   ipcMain.handle('updater:quit-and-install', () => {
     if (isProduction) {
+      // isSilent=false so the user sees the installer, isForceRunAfter=true to relaunch
       autoUpdater.quitAndInstall(false, true)
     }
     return true
@@ -88,7 +131,7 @@ export function registerUpdaterHandlers(): void {
 }
 
 /**
- * Unregister auto-updater IPC handlers
+ * Unregister IPC handlers (called on will-quit).
  */
 export function unregisterUpdaterHandlers(): void {
   ipcMain.removeHandler('updater:check-for-updates')
@@ -97,15 +140,15 @@ export function unregisterUpdaterHandlers(): void {
 }
 
 /**
- * Clean up auto-updater resources
+ * Cancel pending timers.
  */
 export function cleanupAutoUpdater(): void {
-  if (initialUpdateTimeout) {
-    clearTimeout(initialUpdateTimeout)
-    initialUpdateTimeout = null
+  if (initialTimeout) {
+    clearTimeout(initialTimeout)
+    initialTimeout = null
   }
-  if (autoUpdateInterval) {
-    clearInterval(autoUpdateInterval)
-    autoUpdateInterval = null
+  if (updateInterval) {
+    clearInterval(updateInterval)
+    updateInterval = null
   }
 }

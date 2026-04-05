@@ -7,7 +7,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { useSettingsUI } from '../../../contexts/SettingsUIContext'
 import { Copy, Edit2, Pin, Trash2 } from '../../icons'
 import DeleteChatAlertDialog from './DeleteChatAlertDialog'
 import type { ChatRowAction } from './ChatRow'
@@ -23,9 +22,7 @@ export default function ChatRowContextMenu({
   onAction,
   children,
 }: ChatRowContextMenuProps) {
-  const { settingsUI } = useSettingsUI()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const isFrosted = settingsUI.frostedSidebar
 
   const handleAction = (action: ChatRowAction) => {
     if (action === 'delete') {
@@ -40,20 +37,7 @@ export default function ChatRowContextMenu({
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-        <ContextMenuContent
-          style={
-            isFrosted
-              ? {
-                  background:
-                    'linear-gradient(180deg, rgba(22, 24, 30, 0.74) 0%, rgba(14, 16, 22, 0.68) 100%)',
-                  border:
-                    '1px solid color-mix(in srgb, var(--theme-border) 72%, rgba(255, 255, 255, 0.2) 28%)',
-                  backdropFilter: 'blur(14px) saturate(120%)',
-                  WebkitBackdropFilter: 'blur(14px) saturate(120%)',
-                }
-              : undefined
-          }
-        >
+        <ContextMenuContent>
           <ContextMenuGroup>
             <ContextMenuItem onSelect={() => handleAction('rename')}>
               <Edit2 size={14} />

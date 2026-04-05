@@ -102,3 +102,6 @@ local/
 # Profiling artifacts
 Heatmap/
 *.heapsnapshot
+
+# Case studies
+CASE STUDY - SCIRA/

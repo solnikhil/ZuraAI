@@ -36,8 +36,8 @@ export interface UpdaterAPI {
     checkForUpdates: () => Promise<unknown>
     quitAndInstall: () => Promise<boolean>
     getVersion: () => Promise<string>
-    onUpdateAvailable: (callback: () => void) => () => void
-    onUpdateDownloaded: (callback: () => void) => () => void
+    onUpdateAvailable: (callback: (version: string) => void) => () => void
+    onUpdateDownloaded: (callback: (version: string) => void) => () => void
 }
 
 export interface AppRuntimeInfo {

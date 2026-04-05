@@ -178,6 +178,61 @@ describe('ThinkingBlock behavior', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows batched web searches simultaneously while they are running', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3b"
+        activeBlockKey="message-3b:0:tool"
+        thinking=""
+        activeToolCalls={[
+          {
+            name: 'web_search',
+            arguments: { query: 'openai responses api pricing' },
+          },
+          {
+            name: 'web_search',
+            arguments: { query: 'openai responses api rate limits' },
+          },
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Searching web')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('1. Searching web: "openai responses api pricing"')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('2. Searching web: "openai responses api rate limits"')
+    ).toBeInTheDocument()
+  })
+
+  it('shows completed batched search queries together in the active search state', async () => {
+    render(
+      <ThinkingBlock
+        messageId="message-3c"
+        activeBlockKey="message-3c:1:searching"
+        thinking=""
+        isSearching={true}
+        searchQueries={[
+          'electron app updater release notes',
+          'electron app updater windows installer behavior',
+        ]}
+      />
+    )
+
+    expect(
+      await screen.findByText('Searching web: "electron app updater release notes"')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('1. Searching web: "electron app updater release notes"')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('2. Searching web: "electron app updater windows installer behavior"')
+    ).toBeInTheDocument()
+  })
+
   it('renders completed MCP tool blocks with the same inline timeline treatment', async () => {
     render(
       <ThinkingBlock

@@ -11,7 +11,12 @@ import {
     ToolCallResult,
 } from '../tools/toolManager'
 import { ToolCall } from '../tools/executor'
-import type { OpenRouterResponse } from '../tools/types'
+import {
+    isSkippedBuiltinToolResult,
+    type ToolCallingResponse,
+    type ToolExecutionPolicy,
+    type ToolExecutionSummary,
+} from '../tools/types'
 import { getAllToolDefinitions, getBuiltinToolDefinitions } from '../tools/definitions'
 import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
@@ -117,14 +122,16 @@ export function useToolCalling() {
     }
 
     const handleToolCalls = async (
-        response: OpenRouterResponse,
-        onToolStart?: (toolCall: ToolCall) => void,
-        onToolComplete?: (result: ToolCallResult) => void
-    ): Promise<{
+        response: ToolCallingResponse,
+    onToolStart?: (toolCall: ToolCall) => void,
+    onToolComplete?: (result: ToolCallResult) => void,
+    executionPolicy?: ToolExecutionPolicy
+  ): Promise<{
         hasTools: boolean
         toolResults: ToolCallResult[]
         formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
         needsFollowUp: boolean
+        executionSummary: ToolExecutionSummary
     }> => {
         if (!canUseToolsNow() || !responseHasToolCalls(response, settings.modelProvider)) {
             return {
@@ -132,6 +139,11 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                executionSummary: {
+                    attemptedWebSearchCount: 0,
+                    executedWebSearchCount: 0,
+                    executedWebSearchQueries: [],
+                },
             }
         }
 
@@ -139,11 +151,12 @@ export function useToolCalling() {
 
         try {
             const enabledToolsForProcessing = getEnabledToolsForProvider()
-            const { results, formattedResults } = await processToolCalls(response, {
+            const { results, formattedResults, executionSummary } = await processToolCalls(response, {
                 provider: settings.modelProvider,
                 model: settings.aiModel,
                 enabledTools: enabledToolsForProcessing,
                 availableTools,
+                executionPolicy,
                 onToolStart: (toolCall) => {
                     setToolState((prev) => ({
                         ...prev,
@@ -153,8 +166,10 @@ export function useToolCalling() {
                 },
                 onToolComplete: (result) => {
                     setToolState((prev) => {
-                        const isWebSearch = result.toolCall.name === 'web_search'
-                        const searchDelta = isWebSearch ? 1 : 0
+                        const isExecutedWebSearch =
+                            result.toolCall.name === 'web_search' &&
+                            !isSkippedBuiltinToolResult(result.result.metadata)
+                        const searchDelta = isExecutedWebSearch ? 1 : 0
 
                         return {
                             ...prev,
@@ -179,6 +194,7 @@ export function useToolCalling() {
                 toolResults: results,
                 formattedResults,
                 needsFollowUp: shouldRequestToolFollowUp(results, formattedResults),
+                executionSummary,
             }
         } catch (error: unknown) {
             setToolState((prev) => ({ ...prev, isProcessingTools: false }))
@@ -189,6 +205,11 @@ export function useToolCalling() {
                 toolResults: [],
                 formattedResults: [],
                 needsFollowUp: false,
+                executionSummary: {
+                    attemptedWebSearchCount: 0,
+                    executedWebSearchCount: 0,
+                    executedWebSearchQueries: [],
+                },
             }
         }
     }

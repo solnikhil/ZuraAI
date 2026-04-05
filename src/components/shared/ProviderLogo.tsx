@@ -18,6 +18,7 @@ export type ProviderType =
   | 'groq'
   | 'minimax'
   | 'alibaba'
+  | 'fireworks'
 
 /**
  * Size variants for the provider logo
@@ -60,6 +61,7 @@ const PROVIDER_FALLBACK_ICONS: Record<string, React.ComponentType<{ size?: numbe
   ollama: Database,
   minimax: Brain,
   alibaba: Cloud,
+  fireworks: Sparkles,
 }
 
 /**
@@ -73,6 +75,23 @@ const PROVIDER_COLORS: Record<string, string> = {
   ollama: '#339af0',
   minimax: '#6366f1',
   alibaba: '#ff6a00',
+  fireworks: '#ef4444',
+}
+
+const PROVIDER_LOGO_EXTENSIONS: Record<string, 'png' | 'svg'> = {
+  fireworks: 'svg',
+}
+
+const PROVIDER_LOGO_ADJUSTMENTS: Record<
+  string,
+  { scale?: number; translateX?: number; translateY?: number }
+> = {
+  openrouter: { scale: 1.12, translateX: -0.5 },
+  perplexity: { scale: 0.9 },
+  groq: { scale: 1.22 },
+  fireworks: { scale: 0.94, translateY: 0.25 },
+  alibaba: { scale: 1.08 },
+  ollama: { scale: 1.04, translateY: 0.25 },
 }
 
 /**
@@ -116,22 +135,42 @@ export function ProviderLogo({
 
   const pixelSize = getPixelSize(size)
   const normalizedProvider = provider.toLowerCase()
+  const adjustment = PROVIDER_LOGO_ADJUSTMENTS[normalizedProvider] || {}
+  const logoTransform = [
+    `translate(${adjustment.translateX ?? 0}px, ${adjustment.translateY ?? 0}px)`,
+    `scale(${adjustment.scale ?? 1})`,
+  ].join(' ')
 
   // Try to render the image first
   if (!imgError) {
+    const extension = PROVIDER_LOGO_EXTENSIONS[normalizedProvider] || 'png'
     return (
-      <img
-        src={`./provider-logos/${normalizedProvider}.png`}
-        alt={`${provider} logo`}
-        onError={() => setImgError(true)}
+      <span
         className={className}
         style={{
           width: `${pixelSize}px`,
           height: `${pixelSize}px`,
-          objectFit: 'contain',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
           ...style,
         }}
-      />
+      >
+        <img
+          src={`./provider-logos/${normalizedProvider}.${extension}`}
+          alt={`${provider} logo`}
+          onError={() => setImgError(true)}
+          style={{
+            width: `${pixelSize}px`,
+            height: `${pixelSize}px`,
+            objectFit: 'contain',
+            transform: logoTransform,
+            transformOrigin: 'center',
+            display: 'block',
+          }}
+        />
+      </span>
     )
   }
 
@@ -142,11 +181,24 @@ export function ProviderLogo({
 
     if (FallbackIcon) {
       return (
-        <FallbackIcon
-          size={pixelSize}
-          // @ts-ignore - color prop is valid for lucide icons
-          color={color}
-        />
+        <span
+          className={className}
+          style={{
+            width: `${pixelSize}px`,
+            height: `${pixelSize}px`,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            ...style,
+          }}
+        >
+          <FallbackIcon
+            size={pixelSize}
+            // @ts-ignore - color prop is valid for lucide icons
+            color={color}
+          />
+        </span>
       )
     }
   }
@@ -171,9 +223,16 @@ export function getProviderLogoColor(provider: string): string {
  * @returns True if provider is known
  */
 export function isKnownProvider(provider: string): provider is ProviderType {
-  return ['ollama', 'perplexity', 'openrouter', 'gemini', 'groq', 'minimax', 'alibaba'].includes(
-    provider.toLowerCase()
-  )
+  return [
+    'ollama',
+    'perplexity',
+    'openrouter',
+    'gemini',
+    'groq',
+    'minimax',
+    'alibaba',
+    'fireworks',
+  ].includes(provider.toLowerCase())
 }
 
 export default ProviderLogo

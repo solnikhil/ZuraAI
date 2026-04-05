@@ -11,7 +11,7 @@ This file is the single source of truth for how an automated coding agent should
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (OpenRouter, Ollama, Perplexity, Groq, Alibaba Cloud)
+- Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
@@ -56,18 +56,23 @@ Core capabilities:
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
 - `electron/mcp/transports/` — MCP transport foundation primitives and concrete transport implementations
 - `electron/tools/` — main-process tool implementations (IPC registry is restricted)
+  - `electron/tools/web-search/` — built-in web-search intent classification, backend adapters (Tavily / DuckDuckGo), result normalization, and orchestration service
 - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
-- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, frosted-mode sync, global context menu via AppContextMenu)
+- `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
 - `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts` — primary dashboard chat pipeline (streaming + tools)
+- `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts` — thin compatibility wrapper over the shared provider registry for dashboard chat provider normalization/tests
+- `src/components/Dashboard/ChatArea/hooks/streaming/providerStreamClient.ts` — normalized provider stream client adapters that convert provider chunks into shared streaming events
+- `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` — shared streaming orchestrator for send/regenerate flows, tool loops, reasoning blocks, and final commits
+- `src/providers/` — provider registry, capabilities/auth metadata, endpoint defaults, retry policy, and shared streaming/title/model constants
 - `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
-- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers
+- `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers; SSE parsing accepts `data:` with/without spaces, CRLF framing, multi-line payloads, and terminal flushes
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
 - `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
@@ -114,7 +119,7 @@ Core capabilities:
 - **Main Window** (`electron/windows/mainWindow.ts`)
   - Loads `#/dashboard` (HashRouter)
   - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
-  - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled to avoid separator artifacts in frosted mode
+  - Windows uses a hidden title bar with **renderer-driven window controls** (`window.windowControls.*`), with native `titleBarOverlay` disabled and a solid background path for stable compositor behavior
   - Global right-click context menu is handled via a **React/Radix UI context menu** (`src/components/AppContextMenu.tsx`) wrapped around the app shell, providing copy/paste/cut, undo/redo, select all, open link in browser, and inspect element (dev only) actions
   - External links are opened via `shell.openExternal` through the `window.shell.openExternal` IPC bridge
 
@@ -132,7 +137,7 @@ Core capabilities:
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
-  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, frosted-mode sync, and route-level shell behavior
+  - `src/components/AppShellLayout.tsx` owns the title bar, command palette, Windows resize handles, and route-level shell behavior
   - `/` is a dashboard alias
   - `/about` is intentionally outside `AppShellLayout` and renders a standalone About window surface (`src/components/AboutWindow.tsx`)
 
@@ -157,8 +162,6 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `window.windowControls` is a **separate dedicated bridge** exposed from preload for minimize / maximize / close state, rather than part of the generic `window.ipcRenderer` allowlists.
 
 **Allowlisted channels (as implemented today):**
-- `SEND_CHANNELS`:
-  - `set-native-blur`
 - `INVOKE_CHANNELS`:
   - `chat-store:get-all`, `chat-store:save-all`, `chat-store:migrate`, `chat-store:get-all-folders`, `chat-store:save-folders`
   - `secure-storage:get`, `secure-storage:set`, `secure-storage:get-all`
@@ -199,8 +202,11 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
-- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, frosted-mode blur sync, command palette, and Windows resize handles.
+- Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
+- Legacy persisted `frostedSidebar` values are ignored during settings hydration; the app no longer exposes or applies a frosted sidebar mode.
+- Search API preferences are persisted in renderer settings; Tavily search speed now uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process.
+- Search API preferences are persisted in renderer settings; Tavily search speed uses `settings.tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) and omitted `web_search.search_depth` values are resolved in the renderer tool executor before the request crosses into the main process. The same pre-IPC resolver also applies `settings.webSearchIncludeImages`, so Tavily image fetching and the chat image carousel can be disabled per user without changing the model-facing tool schema.
 
 #### MCP Runtime Foundation
 - Shared MCP contracts and naming helpers live in `src/mcp/types.ts`.
@@ -232,6 +238,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 
 #### Dashboard Chat (Streaming + Tools + History)
 - Main orchestration: `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`
+- Shared provider metadata: `src/providers/providerRegistry.ts`
+- Shared stream orchestration: `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`
+- Compatibility provider/runtime wrapper: `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts`
 - State/persistence: `src/contexts/ChatHistoryContext.tsx`
   - Electron path: `window.ipcRenderer.invoke('chat-store:get-all'|'chat-store:save-all'|'chat-store:migrate')`
   - Main storage: `electron/chatStore.ts` → `chat-history.json` under `app.getPath('userData')`, written through same-directory temp-file replacement to reduce corruption risk during crashes or interrupted writes
@@ -239,8 +248,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/openrouter.ts` (`streamOpenRouterCompletion`)
   - `src/services/groq.ts` (`streamGroqCompletion`)
   - `src/services/alibaba.ts` (`streamAlibabaCompletion`)
+  - `src/services/fireworks.ts` (`streamFireworksCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
+- Provider services now only own request shaping, transport parsing, and provider-specific chunk normalization. `providerStreamClient.ts` converts those outputs into normalized events (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator.
+- Send and regenerate now use the same normalized provider-stream pipeline. Regeneration no longer maintains a separate direct-stream code path.
+- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
+- Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
+- Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
   - `src/hooks/useToolCalling.ts` → `src/tools/toolManager.ts` → `src/tools/executor.ts`
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
@@ -252,12 +267,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Completed MCP tool executions are now appended into persisted `thinkingBlocks` as inline tool-history entries (alongside web search/search blocks) so the renderer can replay MCP activity inside the same thought timeline instead of only in the generic post-message tool card area.
   - Completed MCP and built-in tool results are pushed into the active streaming state as soon as they finish, so generic tool runs remain visible in-chat before the assistant emits its follow-up answer.
   - Final streaming commits now persist tool-only responses too; an assistant turn no longer needs non-empty text content for tool results, reasoning blocks, or approval outcomes to survive the handoff from `StreamingContext` into chat history.
+  - Research-mode finalization now runs bounded no-tools synthesis retries inside `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts`: after tool rounds finish, the orchestrator first requests a normal final synthesis, then escalates to stricter recovery prompts including a plain-text-only pass if the provider still returns blank output or `tool_calls` despite tools being disabled. If every no-tools pass still returns no answer, the renderer falls back to a neutral summary built from preserved `web_search` results so the turn does not end as an empty `tool_calls` response.
   - OpenRouter image-generation models now flow through the same chat pipeline: renderer model metadata persists `inputModalities` / `outputModalities`, `src/services/openrouter.ts` sends `modalities` to `/api/v1/chat/completions` for image-capable models, the streaming hook captures `delta.images` payloads, and generated images are persisted back into chat history `files` so assistant image outputs render inline in the dashboard.
 
 #### Skills-Based Research (`settings.skills`)
 - Research capability is now controlled by built-in skills, not direct tool toggles.
 - Built-in skill: `web_research` (`settings.skills.web_research`).
 - When enabled, the model can call `web_search` directly and decide whether follow-up searches are needed. No separate structured/planned built-in research mode currently exists.
+- Shared follow-up search policy now lives in `src/components/Dashboard/ChatArea/hooks/streaming/researchLoopPolicy.ts`. The shared orchestrator in `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` now supports batched parallel `web_search` fan-out within a single provider turn, while still enforcing a hard per-response cap of 8 executed searches, repeated-query/facet breaking, and a forced final synthesis pass with tools disabled once the loop should stop.
 - Tool schema exposure is skill-gated in renderer:
   - Skill OFF: expose no built-in web research tools
   - Skill ON: expose `web_search`
@@ -269,7 +286,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Legacy `softenedContrast: boolean` is migrated to `themeContrast: number` (true → 85, false/undefined → 100).
 - Window controls are driven from renderer (`src/components/TitleBar.tsx`) through `window.windowControls` (preload) → `window-controls:*` IPC handlers (`electron/ipc/systemHandlers.ts`). Main emits `window-controls:state` on maximize/unmaximize/fullscreen transitions.
 - The titlebar info menu (`src/components/TitleBarInfoMenu.tsx`) uses `window.updater` for release actions and `window.appInfo` for both runtime/build metadata (`app-info:get`) and launching the separate About window (`app-info:open-about-window`).
-- Frosted/native blur mode is toggled from renderer via `set-native-blur` (preload allowlist) and applied in main window via `setNativeBlur`.
+- The main shell now uses solid titlebar/sidebar surfaces; there is no renderer-to-main native blur toggle for the main window.
 
 #### Renderer Performance Tracking
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
@@ -277,12 +294,12 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
 
 #### Response Streaming Cadence
-- Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts` (`120ms`).
+- Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts`, backed by shared provider constants in `src/providers/providerRegistry.ts` (`120ms`).
 
 #### Model Enablement (Provider Hub)
 - Provider model rows in `src/components/Settings/sections/ProviderHubSection.tsx` support per-model enable/disable toggles.
-- Model records in settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`) now support optional `enabled?: boolean`.
-- Provider-level toggles are persisted in `settings.providerEnabled` (`openrouter`, `ollama`, `perplexity`, `groq`, `alibaba`) and are independent from whether API keys/endpoints are filled.
+- Model records in active settings arrays (`configuredModels`, `ollamaModels`, `perplexityModels`, `groqModels`, `alibabaModels`, `fireworksModels`) support optional `enabled?: boolean`.
+- Provider-level toggles are persisted in `settings.providerEnabled` for the active provider surface (`alibaba`, `fireworks`, `groq`, `ollama`, `openrouter`, `perplexity`) and are independent from whether API keys/endpoints are filled.
 - Dashboard model selector (`src/components/Dashboard/ModelSelector/useModelSelector.ts`) only lists models where `enabled !== false`, from providers that are both manually enabled (`settings.providerEnabled[provider] !== false`) and configured (key/endpoint present).
 
 #### Command Palette Quick-Send
@@ -305,7 +322,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Sidebar Width Resizing
 - Sidebar width is user-resizable from the dashboard via a right-edge drag handle in `src/components/Dashboard/Sidebar.tsx`.
 - The resize interaction is renderer-only: pointer drag updates `AppShellContext` width state in real time and clamps to shared bounds from `src/constants/sidebar.ts`.
-- Current shell width calculations (sidebar panel, frosted glass continuation, titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
+- Current shell width calculations (sidebar panel and titlebar overlays) consume `sidebarWidth` from `AppShellContext` when not hidden/collapsed.
 
 #### Chat Title Generation Controls
 - Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
@@ -322,7 +339,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Persisted settings are sanitized before write; secret API key fields are stripped and sourced from secure storage instead.
   - MCP server drafts are not persisted here; Phase 2 MCP edits live only in renderer memory until the user saves or discards them.
   - Model arrays may include optional `enabled` flags per model entry to control selector visibility.
-  - Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+- Provider-level enablement map: `providerEnabled` (per-provider manual on/off state, independent from API key presence).
+  - Search API preference: `tavilySearchDepthPreference` (`auto`, `ultra-fast`, `fast`, `basic`, `advanced`) controls the default Tavily `search_depth` used when the model omits it.
   - Title generation settings:
     - `titleModelProvider` (provider used for title generation)
     - `titleModel` (model used for title generation)
@@ -355,7 +373,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Secure storage: `secure-storage.json` (`electron/secureStorage.ts`)
   - Encryption: `safeStorage` is required for reads/writes; the app no longer falls back to plaintext persistence when OS-backed encryption is unavailable
   - Legacy plaintext secret entries from older builds are only migrated forward into encrypted values when `safeStorage` is available
-  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `tavilyApiKey`
+  - Stored API keys: `openRouterApiKey`, `perplexityApiKey`, `groqApiKey`, `alibabaApiKey`, `fireworksApiKey`, `tavilyApiKey`
   - Also stores MCP secret entries under deterministic keys like `mcp.server.<serverId>.(env|header|token).<name>`
   - The preload batch read bridge (`secure-storage:get-all`) is restricted to the provider-key allowlist above; MCP secret entries never hydrate into renderer settings payloads.
 - No dedicated performance metrics file is persisted by the app.
@@ -369,12 +387,20 @@ Tool execution is intentionally restricted.
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
   - Execution: `src/tools/executor.ts` keeps built-in IPC execution for `web_search` and routes namespaced MCP tools through the dedicated `window.mcp.executeTool(...)` bridge
+    - Before invoking built-in `web_search`, the renderer resolves omitted `search_depth` values from `settings.tavilySearchDepthPreference`; `auto` applies a lightweight query heuristic and manual modes inject the selected Tavily tier directly.
+    - `src/tools/toolManager.ts` applies the renderer-side batch execution policy for `web_search`: duplicate/facet-deduping within the current assistant response, remaining-budget enforcement, synthetic skipped tool results for over-budget or duplicate calls, and parallel execution for the executable subset of the batch.
   - MCP resources and prompts are not merged into the model tool surface; the renderer only exposes them through user-driven browsing/preview flows in the MCP library UI.
 
 - Main process side:
   - Tool IPC: `electron/tools/index.ts` (restricted registry: `web_search`)
   - MCP tool IPC: `electron/mcp/index.ts` (`mcp:execute-tool`, `mcp:resolve-approval`) with approval gating handled by `electron/mcp/mcpApprovalManager.ts`
   - Web search: `electron/tools/webSearch.ts`
+    - `electron/tools/webSearch.ts` is a thin facade over the modular service in `electron/tools/web-search/`
+    - `electron/tools/web-search/intent.ts` classifies query-vs-URL-vs-extract intents and reformulates weak search queries
+    - `electron/tools/web-search/backends/tavily.ts` owns Tavily search/extract transport calls
+    - `electron/tools/web-search/backends/duckduckgo.ts` owns the DuckDuckGo fallback path
+    - `electron/tools/web-search/helpers.ts` normalizes results, images, snippets, sources, and displayed links into the shared web-search result shape
+    - Tavily search depth now accepts `ultra-fast`, `fast`, `basic`, and `advanced`; invalid values are still normalized to `basic` in main as a defensive fallback.
     - Input classification happens at the top of `executeWebSearch`:
       - **URL-dominant input** (URL only) → Tavily **Extract** (`/extract`) with `format: markdown`, `extract_depth: basic`
       - **Query + URL** → Tavily **Extract** (`/extract`) with attached `query`, `chunks_per_source`, `extract_depth: advanced`
@@ -390,6 +416,7 @@ There is currently no built-in trusted browser-testing workflow; any replacement
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)
 - Groq: `src/services/groq.ts` (OpenAI-compatible)
 - Alibaba Cloud: `src/services/alibaba.ts` (DashScope/Tongyi Qwen; OpenAI-compatible at dashscope-intl.aliyuncs.com/compatible-mode/v1)
+- Fireworks: `src/services/fireworks.ts` (OpenAI-compatible inference) plus `src/services/fireworksModels.ts` for the serverless model catalog used by Provider Hub
 - Ollama: `src/services/ollama.ts` (local server; tools supported for compatible models)
 - Perplexity: `src/services/perplexity.ts` (native web/research; excluded from external tools)
 - Chat title generation: `src/services/titleGenerator.ts` (uses `settings.titleModelProvider`, `settings.titleModel`, `settings.titleGenerationPrompt`)
@@ -456,3 +483,4 @@ Update **this file’s “Architecture”** whenever you:
 - Add/enable tools or change tool execution policy
 - Add a new AI provider or change provider/tool support rules
 - Change build outputs/packaging assumptions (`dist/`, `dist-electron/`, installer)
+

@@ -19,14 +19,6 @@
 }
 
 
-/* Frosted titlebar - transparent base so the left glass panel shows through */
-
-.app-titlebar--frosted {
-    background: transparent !important;
-    border-bottom: none;
-}
-
-
 /* Non-frosted: solid surface panel above sidebar so titlebar matches sidebar color */
 
 .app-titlebar__sidebar-solid {
@@ -51,36 +43,6 @@
     background: var(--theme-sidebar-solid);
     z-index: 0;
     pointer-events: none;
-}
-
-
-/* Frosted sidebar glass extension into titlebar (uses shared vars - matches sidebar) */
-
-.app-titlebar__sidebar-glass {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    /* Tinting + blur are now provided by the single full-height continuation panel
-       in AppShellLayout so we avoid a double-backdrop-filter compositing seam. */
-    background: transparent;
-    border-right: none;
-    box-shadow: none;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.app-titlebar__sidebar-glass::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 1px;
-    pointer-events: none;
-    background: color-mix(in srgb, var(--theme-border) 96%, rgba(255, 255, 255, 0.06));
 }
 
 

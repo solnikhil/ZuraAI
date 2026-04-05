@@ -3,7 +3,6 @@ export {
     createMainWindow,
     getMainWindow,
     resolveDistPath,
-    setNativeBlur,
 } from './mainWindow'
 
 export {

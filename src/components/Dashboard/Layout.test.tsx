@@ -46,7 +46,6 @@ const mockChatHistory = {
 
 const mockSettingsUI = {
     settingsUI: {
-        frostedSidebar: false,
         frostedPrompt: false,
         theme: 'dark',
         activeTheme: 'dark-default',
@@ -61,6 +60,9 @@ const mockSettingsUI = {
             showRecents: true,
             maxRecents: 3,
             enableTabAutocomplete: true,
+            overlayOpacity: 45,
+            paletteWidth: 'default' as const,
+            palettePosition: 'center' as const,
         },
     },
     updateSettingsUI: vi.fn(),

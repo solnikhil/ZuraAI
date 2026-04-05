@@ -25,6 +25,7 @@ interface StreamingMessageProps {
       currentRound: number
       maxRounds: number
       currentSearch?: string
+      currentSearches?: string[]
       isSearching: boolean
     }
     researchPlan?: {

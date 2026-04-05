@@ -19,6 +19,9 @@
     --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
     --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
     --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+    --interactive-hover-bg: color-mix(in srgb, var(--theme-surface) 92%, rgba(255, 255, 255, 0.04));
+    --interactive-hover-border: rgba(255, 255, 255, 0.05);
+    --interactive-hover-shadow: none;
 }
 
 
@@ -154,10 +157,10 @@
 .theme-menu-item:hover,
 .theme-menu-item:focus-visible,
 .theme-menu-item[data-state='open'] {
-    background: var(--theme-surface-hover);
-    border-color: var(--theme-border);
+    background: var(--interactive-hover-bg);
+    border-color: transparent;
     color: var(--theme-text-primary);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: var(--interactive-hover-shadow);
 }
 
 .theme-menu-shortcut {
@@ -177,10 +180,10 @@
 .theme-control-btn.is-active,
 .theme-control-btn[data-state='open'],
 .theme-control-btn[aria-expanded='true'] {
-    background: var(--theme-surface-hover);
-    border-color: var(--theme-border);
+    background: var(--interactive-hover-bg);
+    border-color: transparent;
     color: var(--theme-text-primary);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    box-shadow: var(--interactive-hover-shadow);
 }
 
 .theme-control-btn:active {
@@ -397,9 +400,23 @@
 
 .message-action-surface:hover,
 .message-action-surface:focus-visible {
-    background: var(--theme-surface-hover);
-    border-color: var(--theme-border);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: var(--interactive-hover-bg);
+    border-color: transparent;
+    box-shadow: var(--interactive-hover-shadow);
+}
+
+.theme-hover-surface {
+    border: 1px solid transparent;
+    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-hover-surface:hover,
+.theme-hover-surface:focus-visible,
+.theme-hover-surface[data-active='true'],
+.theme-hover-surface[data-selected='true'] {
+    background: var(--interactive-hover-bg);
+    border-color: transparent;
+    box-shadow: var(--interactive-hover-shadow);
 }
 
 @media (prefers-reduced-motion: reduce) {

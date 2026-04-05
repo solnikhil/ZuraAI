@@ -5,6 +5,7 @@
  */
 
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
+import { getProviderEndpoint } from '../providers'
 
 /**
  * OpenRouter API model response structure
@@ -59,7 +60,7 @@ export async function fetchOpenRouterModels(apiKey?: string): Promise<OpenRouter
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  const response = await fetch('https://openrouter.ai/api/v1/models', {
+  const response = await fetch(getProviderEndpoint('openrouter', 'modelCatalogUrl')!, {
     method: 'GET',
     headers,
   })

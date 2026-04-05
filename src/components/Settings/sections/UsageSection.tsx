@@ -33,11 +33,12 @@ export function UsageSection({
   const formatTps = (value: number): string => value > 0 ? `${value.toLocaleString()} tok/s` : 'N/A'
 
   const providerName: Record<UsageProvider, string> = {
+    alibaba: 'Alibaba',
+    fireworks: 'Fireworks',
+    groq: 'Groq',
+    ollama: 'Ollama',
     openrouter: 'OpenRouter',
     perplexity: 'Perplexity',
-    groq: 'Groq',
-    alibaba: 'Alibaba',
-    ollama: 'Ollama',
     unknown: 'Unknown',
   }
 

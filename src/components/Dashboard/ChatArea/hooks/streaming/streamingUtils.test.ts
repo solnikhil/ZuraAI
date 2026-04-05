@@ -2,11 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
+  buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
+  buildRecoverySynthesisMessages,
   FINAL_SYNTHESIS_PROMPT,
+  FINAL_SYNTHESIS_RECOVERY_PROMPT,
   getThinkingTranscript,
   publishStreamingToolResults,
+  shouldRetryUngroundedSearchSynthesis,
 } from './streamingUtils'
 
 describe('streamingUtils final synthesis helpers', () => {
@@ -21,6 +25,21 @@ describe('streamingUtils final synthesis helpers', () => {
     )
 
     expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_PROMPT })
+    expect(messages.some((message) => message.role === 'tool')).toBe(true)
+    expect(messages.some((message) => message.content === 'research context')).toBe(true)
+  })
+
+  it('builds a recovery synthesis instruction when the first synthesis returns empty', () => {
+    const messages = buildRecoverySynthesisMessages(
+      'research context',
+      6,
+      8,
+      [{ role: 'user', content: 'Why is Silicon Valley famous?' }],
+      { role: 'assistant', content: 'I will search more.', tool_calls: [] },
+      [{ role: 'tool', content: 'search result' }]
+    )
+
+    expect(messages[0]).toEqual({ role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT })
     expect(messages.some((message) => message.role === 'tool')).toBe(true)
     expect(messages.some((message) => message.content === 'research context')).toBe(true)
   })
@@ -145,5 +164,64 @@ describe('streamingUtils final synthesis helpers', () => {
         executionTime: 42,
       },
     })
+  })
+
+  it('does not append a search timeline block for skipped web_search results', () => {
+    const blocks = buildThinkingBlocksFromResults(
+      [
+        {
+          toolCall: {
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: { query: 'zura ai overview' },
+          },
+          result: {
+            success: false,
+            error: 'Skipped duplicate web_search query in this response.',
+            metadata: {
+              origin: 'builtin-main' as const,
+              executionDisposition: 'skipped' as const,
+              skippedReason: 'duplicate-query' as const,
+            },
+          },
+        },
+      ],
+      []
+    )
+
+    expect(blocks).toEqual([])
+  })
+
+  it('does not inject a hard stop prompt just because several research rounds have occurred', () => {
+    const messages = buildFollowUpMessages(
+      'Research context',
+      5,
+      5,
+      [{ role: 'user', content: 'Find sources' }],
+      { role: 'assistant', content: '', tool_calls: [] },
+      [{ role: 'tool', content: 'Results', tool_call_id: 'call_1' }]
+    )
+
+    const systemMessages = messages
+      .filter((message) => message.role === 'system')
+      .map((message) => String(message.content))
+
+    expect(systemMessages).toEqual(['Research context'])
+  })
+
+  it('flags knowledge-cutoff fallback text as a failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        'The latest findings as of my knowledge cutoff in 2023 are limited. Consult official documentation for newer updates.'
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag grounded synthesized answers as failed post-search synthesis', () => {
+    expect(
+      shouldRetryUngroundedSearchSynthesis(
+        'The February 2026 release included court records, flight logs, and contact-book references, but many allegations remained unverified.'
+      )
+    ).toBe(false)
   })
 })

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { executeWebSearch } from './webSearch'
 
 vi.mock('../secureStorage', () => ({
@@ -14,9 +14,16 @@ const { getSecureValueAsync } = await import('../secureStorage')
 const { search: duckDuckScrapeSearch } = await import('duck-duck-scrape')
 
 describe('executeWebSearch', () => {
+    let consoleErrorSpy: ReturnType<typeof vi.spyOn>
+
     beforeEach(() => {
         vi.clearAllMocks()
         vi.mocked(getSecureValueAsync).mockResolvedValue('')
+        consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+        consoleErrorSpy.mockRestore()
     })
 
     describe('argument handling', () => {
@@ -43,7 +50,7 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledWith('test', expect.any(Object))
         })
 
-        it('clamps num_results to 1-20', async () => {
+        it('clamps num_results to 1-4', async () => {
             vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
                 results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
                 noResults: false,
@@ -55,15 +62,48 @@ describe('executeWebSearch', () => {
             expect(duckDuckScrapeSearch).toHaveBeenCalledTimes(2)
         })
 
-        it('coerces search_depth to basic or advanced', async () => {
-            vi.mocked(duckDuckScrapeSearch).mockResolvedValue({
-                results: [{ title: 'A', url: 'https://a.com', description: 'A' }],
-                noResults: false,
-                vqd: 'x'
-            } as any)
+        it('passes fast search_depth through to Tavily search', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
 
-            await executeWebSearch({ query: 'test', search_depth: 'advanced' as any })
-            expect(duckDuckScrapeSearch).toHaveBeenCalled()
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [{ title: 'T', url: 'https://t.com', content: 'T' }],
+                        images: []
+                    })
+            })
+            globalThis.fetch = fetchMock as any
+
+            await executeWebSearch({ query: 'test', search_depth: 'fast' as any })
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.search_depth).toBe('fast')
+
+            globalThis.fetch = originalFetch
+        })
+
+        it('coerces invalid search_depth values back to basic', async () => {
+            vi.mocked(getSecureValueAsync).mockResolvedValue('tvly-test-key')
+
+            const originalFetch = globalThis.fetch
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: () =>
+                    Promise.resolve({
+                        results: [{ title: 'T', url: 'https://t.com', content: 'T' }],
+                        images: []
+                    })
+            })
+            globalThis.fetch = fetchMock as any
+
+            await executeWebSearch({ query: 'test', search_depth: 'instant' as any })
+
+            const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+            expect(body.search_depth).toBe('basic')
+
+            globalThis.fetch = originalFetch
         })
     })
 
@@ -251,7 +291,7 @@ describe('executeWebSearch', () => {
             expect(result.data?.results?.[0]).toMatchObject({
                 url: 'https://foo.com/docs/api',
                 source: 'foo.com',
-                displayed_link: 'foo.com › docs › api'
+                displayed_link: 'foo.com > docs > api'
             })
 
             globalThis.fetch = originalFetch
@@ -393,6 +433,15 @@ describe('executeWebSearch', () => {
             const result = await executeWebSearch({ query: 'test' })
             expect(result.success).toBe(false)
             expect(result.error).toContain('Network error')
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                '[web_search] request failed',
+                expect.objectContaining({
+                    stage: 'search-with-duckduckgo',
+                    query: 'test',
+                    hasTavilyKey: false,
+                    error: 'Network error'
+                })
+            )
         })
     })
 
@@ -439,3 +488,4 @@ describe('executeWebSearch', () => {
         })
     })
 })
+

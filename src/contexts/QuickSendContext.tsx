@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 interface QuickSendContextValue {
   /** Message waiting to be sent, or null */
@@ -30,10 +38,13 @@ export function QuickSendProvider({ children }: { children: ReactNode }) {
     return msg
   }, [])
 
+  const contextValue = useMemo(
+    () => ({ pendingMessage, queueMessage, consumeMessage }),
+    [pendingMessage, queueMessage, consumeMessage]
+  )
+
   return (
-    <QuickSendContext.Provider value={{ pendingMessage, queueMessage, consumeMessage }}>
-      {children}
-    </QuickSendContext.Provider>
+    <QuickSendContext.Provider value={contextValue}>{children}</QuickSendContext.Provider>
   )
 }
 

@@ -28,6 +28,7 @@ export interface StreamingMessageState {
     currentRound: number
     maxRounds: number
     currentSearch?: string
+    currentSearches?: string[]
     isSearching: boolean
   }
   /** Tool results from function calls */

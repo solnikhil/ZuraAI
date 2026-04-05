@@ -1,5 +1,3 @@
-import React from 'react'
-import { Ellipsis } from '../../icons'
 import type { ChatSession } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
@@ -10,11 +8,9 @@ interface ChatRowProps {
   selectedOverlayStyle: ChatSelectedOverlayStyle
   isFrosted: boolean
   isActive: boolean
-  isMenuOpen: boolean
   isFocused: boolean
   isStreaming: boolean
   onSelect: (id: string) => void
-  renderMoreButton?: (className: string) => React.ReactNode
 }
 
 function getSelectedOverlayStyles(style: ChatSelectedOverlayStyle, isFrosted: boolean) {
@@ -104,11 +100,9 @@ export default function ChatRow({
   selectedOverlayStyle,
   isFrosted,
   isActive,
-  isMenuOpen,
   isFocused,
   isStreaming,
   onSelect,
-  renderMoreButton,
 }: ChatRowProps) {
   const rowClasses = [
     'sidebar-chat-row',
@@ -122,12 +116,6 @@ export default function ChatRow({
     ? getSelectedOverlayStyles(selectedOverlayStyle, isFrosted)
     : undefined
 
-  const getMoreBtnClass = () => {
-    if (isActive) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--always'
-    if (isMenuOpen) return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--visible'
-    return 'sidebar-chat-row__more-btn sidebar-chat-row__more-btn--hidden'
-  }
-
   return (
     <div
       onClick={() => onSelect(session.id)}
@@ -138,6 +126,7 @@ export default function ChatRow({
               background: selectedOverlay.background,
               border: selectedOverlay.border,
               boxShadow: selectedOverlay.boxShadow,
+              marginRight: 6,
             }
           : undefined
       }
@@ -150,15 +139,7 @@ export default function ChatRow({
         <div className="sidebar-chat-row__title-row">
           <span className="sidebar-chat-row__title">{session.title}</span>
 
-          {isStreaming ? (
-            <div className="sidebar-chat-row__streaming-dot" />
-          ) : (
-            renderMoreButton?.(getMoreBtnClass()) ?? (
-              <button aria-label="Chat options" className={getMoreBtnClass()}>
-                <Ellipsis size={14} />
-              </button>
-            )
-          )}
+          {isStreaming ? <div className="sidebar-chat-row__streaming-dot" /> : null}
         </div>
       </div>
 

@@ -1,10 +1,15 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
+import { getProviderEndpoint } from '../providers'
 
 /**
  * Groq API Service
  * Uses OpenAI-compatible API at https://api.groq.com/openai/v1/chat/completions
  */
+
+const GROQ_CHAT_COMPLETIONS_URL =
+    getProviderEndpoint('groq', 'chatCompletionsUrl') ??
+    'https://api.groq.com/openai/v1/chat/completions'
 
 export interface GroqResponse {
     id: string
@@ -107,7 +112,7 @@ export async function* streamGroqCompletion(
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
         method: "POST",
         headers: {
             "Authorization": `Bearer ${apiKey}`,
@@ -144,6 +149,7 @@ export const generateGroqCompletion = async (
         max_tokens?: number
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+        signal?: AbortSignal
     }
 ): Promise<GroqResponse> => {
     if (!apiKey) {
@@ -168,13 +174,14 @@ export const generateGroqCompletion = async (
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
             method: "POST",
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            signal: options?.signal
         })
 
         if (!response.ok) {

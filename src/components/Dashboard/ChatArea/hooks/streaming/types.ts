@@ -9,8 +9,10 @@ import type {
   ThinkingBlock,
   ToolCallResult,
 } from '../../../../../contexts/ChatHistoryContext'
-import type { OpenRouterResponse } from '../../../../../tools/types'
+import type { ToolCallingResponse } from '../../../../../tools/types'
+import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
 import type { MessageContent, ToolDefinition } from '../../../../../services/types'
+import type { ActiveProviderId } from '../../../../../providers'
 
 /**
  * Common streaming result returned by all provider hooks
@@ -45,6 +47,60 @@ export interface StreamingResult {
   latency?: number
   /** Finish reason from the API */
   finishReason?: string
+}
+
+export type { FileAttachment }
+
+export interface NormalizedUsage {
+  inputTokens: number
+  outputTokens: number
+  totalTokens: number
+  thinkingTokens?: number
+  cachedInputTokens?: number
+  cachedOutputTokens?: number
+}
+
+export interface NormalizedToolCallDelta {
+  index?: number
+  id?: string
+  type?: 'function'
+  function?: {
+    name?: string
+    arguments?: string
+  }
+}
+
+export type NormalizedStreamEvent =
+  | { type: 'text-delta'; delta: string }
+  | { type: 'reasoning-delta'; delta: string }
+  | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
+  | { type: 'file-delta'; files: FileAttachment[] }
+  | { type: 'usage'; usage: NormalizedUsage }
+  | { type: 'citation'; citations: string[] }
+  | { type: 'finish'; finishReason?: string | null }
+  | { type: 'error'; error: Error }
+
+export interface StreamRequest {
+  provider: ActiveProviderId
+  model: string
+  messages: Array<{
+    role: string
+    content: string | MessageContent[]
+    images?: string[]
+    tool_calls?: unknown[]
+    thinking?: string
+  }>
+  temperature?: number
+  maxTokens?: number
+  streamResponses?: boolean
+  tools?: ToolDefinition[] | null
+  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+  modalities?: Array<'text' | 'image'>
+  signal?: AbortSignal
+}
+
+export interface ProviderStreamClient {
+  stream: (request: StreamRequest) => AsyncGenerator<NormalizedStreamEvent, void, unknown>
 }
 
 /**
@@ -102,6 +158,7 @@ export type FlushCallback = () => void
 export interface HandleToolCallsOptions {
   onToolStart?: (toolCall: { id: string; name: string; arguments: Record<string, unknown> }) => void
   onToolComplete?: (result: ToolCallResult) => void
+  executionPolicy?: ToolExecutionPolicy
 }
 
 /**
@@ -111,13 +168,14 @@ export interface ToolCallingHook {
   canUseTools: boolean
   getToolsForRequest: () => ToolDefinition[] | null
   handleToolCalls: (
-    response: OpenRouterResponse,
+    response: ToolCallingResponse,
     options?: HandleToolCallsOptions
   ) => Promise<{
     hasTools: boolean
     toolResults: ToolCallResult[]
     formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
     needsFollowUp: boolean
+    executionSummary: ToolExecutionSummary
   }>
   getResearchContext: (searchCount: number, maxRounds: number) => string
 }
@@ -134,10 +192,11 @@ export interface StreamingSettings {
   /** Web search prompt appended when Web Search is enabled */
   webSearchPrompt?: string
   // Provider-specific API keys
+  alibabaApiKey?: string
+  fireworksApiKey?: string
+  groqApiKey?: string
   ollamaUrl?: string
   openRouterApiKey?: string
-  configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
   perplexityApiKey?: string
-  groqApiKey?: string
-  alibabaApiKey?: string
+  configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

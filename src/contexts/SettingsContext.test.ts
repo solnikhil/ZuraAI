@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { migrateConfiguredModelCode } from './SettingsContext'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -79,6 +80,11 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.groqApiKey).toBe('')
     })
 
+    it('defaults Tavily search depth preference to auto', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.tavilySearchDepthPreference).toBe('auto')
+    })
+
     it('includes valid modelProvider in defaults', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       const validProviders = ['openrouter', 'ollama', 'perplexity', 'groq']
@@ -98,6 +104,44 @@ describe('SettingsContext Provider Integration', () => {
     it('default title generation display mode is instant', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
+    })
+
+    it('includes Kimi K2.5 in default Fireworks models', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.fireworksModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'accounts/fireworks/models/kimi-k2p5',
+            displayName: 'Kimi K2.5',
+          }),
+        ])
+      )
+    })
+
+    it('includes Kimi K2.5 Turbo in default Fireworks models', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.fireworksModels).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+            displayName: 'Kimi K2.5 Turbo',
+          }),
+        ])
+      )
+    })
+
+    it('migrates legacy Fireworks turbo model ids to the supported router id', () => {
+      expect(
+        migrateConfiguredModelCode({
+          code: 'accounts/fireworks/models/kimi-k2p5-turbo',
+          displayName: 'Kimi K2.5 Turbo',
+          enabled: true,
+        })
+      ).toEqual({
+        code: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+        displayName: 'Kimi K2.5 Turbo',
+        enabled: true,
+      })
     })
   })
 })

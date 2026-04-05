@@ -22,11 +22,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function extractUpdateVersion(result: unknown): string | null {
   if (!isRecord(result)) return null
 
+  // checkForUpdates() now returns UpdateInfo directly from the main process
+  const version = result.version
+  if (typeof version === 'string' && version.trim().length > 0) return version
+
+  // Fallback: handle wrapped { updateInfo: { version } } shape
   const updateInfo = result.updateInfo
   if (!isRecord(updateInfo)) return null
-
-  const version = updateInfo.version
-  return typeof version === 'string' && version.trim().length > 0 ? version : null
+  const nestedVersion = updateInfo.version
+  return typeof nestedVersion === 'string' && nestedVersion.trim().length > 0
+    ? nestedVersion
+    : null
 }
 
 export default function TitleBarInfoMenu() {
@@ -51,14 +57,14 @@ export default function TitleBarInfoMenu() {
   useEffect(() => {
     if (!window.updater) return
 
-    const removeAvailableListener = window.updater.onUpdateAvailable(() => {
+    const removeAvailableListener = window.updater.onUpdateAvailable((version) => {
       setUpdateState('available')
-      showToast('Update found. ZuraAI is downloading it now.', 'info')
+      showToast(`Update v${version} found. Downloading now...`, 'info')
     })
 
-    const removeDownloadedListener = window.updater.onUpdateDownloaded(() => {
+    const removeDownloadedListener = window.updater.onUpdateDownloaded((version) => {
       setUpdateState('downloaded')
-      showToast('Update downloaded. You can install it from the info menu.', 'success')
+      showToast(`Update v${version} ready. Install it from the info menu.`, 'success')
     })
 
     return () => {

@@ -1,33 +1,37 @@
 // Utility functions for managing API keys in secure storage
 
 type SecureStorageKey =
+    | 'alibabaApiKey'
+    | 'fireworksApiKey'
+    | 'groqApiKey'
     | 'openRouterApiKey'
     | 'perplexityApiKey'
-    | 'groqApiKey'
     | 'tavilyApiKey'
-    | 'alibabaApiKey'
 
 const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
+    'alibabaApiKey',
+    'fireworksApiKey',
+    'groqApiKey',
     'openRouterApiKey',
     'perplexityApiKey',
-    'groqApiKey',
     'tavilyApiKey',
-    'alibabaApiKey',
 ]
 
 export async function loadApiKeysFromSecureStorage(): Promise<{
+    alibabaApiKey: string
+    fireworksApiKey: string
+    groqApiKey: string
     openRouterApiKey: string
     perplexityApiKey: string
-    groqApiKey: string
     tavilyApiKey: string
-    alibabaApiKey: string
 }> {
     const defaults = {
+        alibabaApiKey: '',
+        fireworksApiKey: '',
+        groqApiKey: '',
         openRouterApiKey: '',
         perplexityApiKey: '',
-        groqApiKey: '',
         tavilyApiKey: '',
-        alibabaApiKey: '',
     }
 
     if (!window.secureStorage) {
@@ -35,39 +39,43 @@ export async function loadApiKeysFromSecureStorage(): Promise<{
     }
 
     try {
-        // Single IPC roundtrip instead of 5 individual calls
+        // Single IPC roundtrip instead of 6 individual calls
         if (window.secureStorage.getAll) {
             const all = await window.secureStorage.getAll()
             return {
+                alibabaApiKey: all.alibabaApiKey || '',
+                fireworksApiKey: all.fireworksApiKey || '',
+                groqApiKey: all.groqApiKey || '',
                 openRouterApiKey: all.openRouterApiKey || '',
                 perplexityApiKey: all.perplexityApiKey || '',
-                groqApiKey: all.groqApiKey || '',
                 tavilyApiKey: all.tavilyApiKey || '',
-                alibabaApiKey: all.alibabaApiKey || '',
             }
         }
 
         // Fallback for older preload (shouldn't happen, but safe)
         const [
+            alibabaApiKey,
+            fireworksApiKey,
+            groqApiKey,
             openRouterApiKey,
             perplexityApiKey,
-            groqApiKey,
             tavilyApiKey,
-            alibabaApiKey,
         ] = await Promise.all([
+            window.secureStorage.get('alibabaApiKey'),
+            window.secureStorage.get('fireworksApiKey'),
+            window.secureStorage.get('groqApiKey'),
             window.secureStorage.get('openRouterApiKey'),
             window.secureStorage.get('perplexityApiKey'),
-            window.secureStorage.get('groqApiKey'),
             window.secureStorage.get('tavilyApiKey'),
-            window.secureStorage.get('alibabaApiKey'),
         ])
 
         return {
+            alibabaApiKey: alibabaApiKey || '',
+            fireworksApiKey: fireworksApiKey || '',
+            groqApiKey: groqApiKey || '',
             openRouterApiKey: openRouterApiKey || '',
             perplexityApiKey: perplexityApiKey || '',
-            groqApiKey: groqApiKey || '',
             tavilyApiKey: tavilyApiKey || '',
-            alibabaApiKey: alibabaApiKey || '',
         }
     } catch (error) {
         console.error('[SecureApiKeys] Failed to load:', error)

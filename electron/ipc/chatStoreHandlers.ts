@@ -19,8 +19,8 @@ export function registerChatStoreHandlers(): void {
    * Used during app startup and refresh flows so the renderer can rebuild its
    * in-memory chat state from the canonical on-disk store.
    */
-  ipcMain.handle('chat-store:get-all', () => {
-    return chatStore.getAllSessions()
+  ipcMain.handle('chat-store:get-all', async () => {
+    return chatStore.getAllSessionsAsync()
   })
 
   /**
@@ -30,8 +30,8 @@ export function registerChatStoreHandlers(): void {
    * (creating chats, renaming them, updating messages, deleting threads, etc.)
    * and the main process commits that array to disk.
    */
-  ipcMain.handle('chat-store:save-all', (_event, sessions) => {
-    chatStore.saveAllSessions(sessions)
+  ipcMain.handle('chat-store:save-all', async (_event, sessions) => {
+    await chatStore.saveAllSessionsAsync(sessions)
     return true
   })
 
@@ -42,7 +42,7 @@ export function registerChatStoreHandlers(): void {
    * chat history in the renderer. Once received here, the data is normalized and
    * written into the current main-process-backed storage location.
    */
-  ipcMain.handle('chat-store:migrate', (_event, localStorageData) => {
+  ipcMain.handle('chat-store:migrate', async (_event, localStorageData) => {
     chatStore.migrateFromLocalStorage(localStorageData)
     return true
   })
@@ -53,8 +53,8 @@ export function registerChatStoreHandlers(): void {
    * Folders are stored separately from session content so the renderer can
    * rebuild sidebar organization state independently from chat message payloads.
    */
-  ipcMain.handle('chat-store:get-all-folders', () => {
-    return chatStore.getAllFolders()
+  ipcMain.handle('chat-store:get-all-folders', async () => {
+    return chatStore.getAllFoldersAsync()
   })
 
   /**
@@ -62,8 +62,8 @@ export function registerChatStoreHandlers(): void {
    *
    * Called when users create, rename, reorder, or remove folders in the chat UI.
    */
-  ipcMain.handle('chat-store:save-folders', (_event, folders) => {
-    chatStore.saveFolders(folders)
+  ipcMain.handle('chat-store:save-folders', async (_event, folders) => {
+    await chatStore.saveFoldersAsync(folders)
     return true
   })
 }

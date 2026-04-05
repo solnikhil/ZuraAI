@@ -44,25 +44,28 @@ export function ModelIcon({ model, icon, color, size = 24 }: ModelIconProps): Re
     )
   }
 
+  // Scale padding and icon size proportionally based on the size prop
+  const scaledPadding = Math.round(size * 0.4)
+  const scaledIconSize = Math.round(size * 0.8)
+
   return (
     <div
       style={{
-        padding: size === 24 ? '10px' : '0',
-        borderRadius: size === 24 ? '10px' : '0',
+        padding: `${scaledPadding}px`,
+        borderRadius: `${Math.round(size * 0.4)}px`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background:
-          size === 24 ? `linear-gradient(145deg, ${color}22, transparent)` : 'transparent',
+        background: `linear-gradient(145deg, ${color}22, transparent)`,
         color: color,
       }}
     >
       {React.isValidElement(icon) ? (
         React.cloneElement(icon as React.ReactElement<{ size?: number }>, {
-          size: size === 24 ? 20 : 14,
+          size: scaledIconSize,
         })
       ) : (
-        <MessageSquare size={size === 24 ? 20 : 14} />
+        <MessageSquare size={scaledIconSize} />
       )}
     </div>
   )

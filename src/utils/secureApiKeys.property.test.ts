@@ -2,7 +2,7 @@
  * Property-Based Tests for Secure API Keys Storage
  *
  * These tests verify the correctness properties for secure storage of API keys
- * including OpenRouter, Perplexity, Groq, Tavily, and Alibaba.
+ * including OpenRouter, Perplexity, Groq, Tavily, Alibaba, and Fireworks.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -61,9 +61,15 @@ describe('Secure API Keys Property Tests', () => {
       'perplexityApiKey',
       'groqApiKey',
       'tavilyApiKey',
-      'alibabaApiKey'
+      'alibabaApiKey',
+      'fireworksApiKey'
     ) as fc.Arbitrary<
-      'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'
+      | 'openRouterApiKey'
+      | 'perplexityApiKey'
+      | 'groqApiKey'
+      | 'tavilyApiKey'
+      | 'alibabaApiKey'
+      | 'fireworksApiKey'
     >
 
     it('should return identical value after save and load for any API key', async () => {
@@ -115,6 +121,26 @@ describe('Secure API Keys Property Tests', () => {
       )
     })
 
+    it('should preserve fireworksApiKey specifically through round-trip', async () => {
+      await fc.assert(
+        fc.asyncProperty(apiKeyArb, async (keyValue) => {
+          mockSecureStorage.set.mockResolvedValue(true)
+
+          mockSecureStorage.get.mockImplementation((key: string) =>
+            Promise.resolve(key === 'fireworksApiKey' ? keyValue : '')
+          )
+
+          const saveResult = await saveApiKeyToSecureStorage('fireworksApiKey', keyValue)
+          expect(saveResult).toBe(true)
+
+          const loadedKeys = await loadApiKeysFromSecureStorage()
+
+          expect(loadedKeys.fireworksApiKey).toBe(keyValue)
+        }),
+        { numRuns: 100 }
+      )
+    })
+
     it('should return empty string for missing keys', async () => {
       await fc.assert(
         fc.asyncProperty(apiKeyNameArb, async (keyName) => {
@@ -140,6 +166,7 @@ describe('Secure API Keys Property Tests', () => {
             groqApiKey: apiKeyArb,
             tavilyApiKey: apiKeyArb,
             alibabaApiKey: apiKeyArb,
+            fireworksApiKey: apiKeyArb,
           }),
           async (allKeys) => {
             mockSecureStorage.get.mockImplementation((key: string) =>
@@ -155,6 +182,7 @@ describe('Secure API Keys Property Tests', () => {
             expect(loadedKeys.groqApiKey).toBe(allKeys.groqApiKey)
             expect(loadedKeys.tavilyApiKey).toBe(allKeys.tavilyApiKey)
             expect(loadedKeys.alibabaApiKey).toBe(allKeys.alibabaApiKey)
+            expect(loadedKeys.fireworksApiKey).toBe(allKeys.fireworksApiKey)
           }
         ),
         { numRuns: 100 }
@@ -186,9 +214,15 @@ describe('Secure API Keys Property Tests', () => {
         'perplexityApiKey',
         'groqApiKey',
         'tavilyApiKey',
-        'alibabaApiKey'
+        'alibabaApiKey',
+        'fireworksApiKey'
       ) as fc.Arbitrary<
-        'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'tavilyApiKey' | 'alibabaApiKey'
+        | 'openRouterApiKey'
+        | 'perplexityApiKey'
+        | 'groqApiKey'
+        | 'tavilyApiKey'
+        | 'alibabaApiKey'
+        | 'fireworksApiKey'
       >
 
       await fc.assert(
@@ -222,6 +256,7 @@ describe('Secure API Keys Property Tests', () => {
             // Settings object with alibabaApiKey
             const settings = {
               alibabaApiKey: alibabaKey,
+              fireworksApiKey: '',
             }
 
             // Migrate
@@ -249,6 +284,7 @@ describe('Secure API Keys Property Tests', () => {
             // Settings object with alibabaApiKey
             const settings = {
               alibabaApiKey: alibabaKey,
+              fireworksApiKey: '',
             }
 
             // Migrate
@@ -277,6 +313,7 @@ describe('Secure API Keys Property Tests', () => {
           // Settings object with empty alibabaApiKey
           const settings = {
             alibabaApiKey: emptyKey,
+            fireworksApiKey: '',
           }
 
           // Migrate

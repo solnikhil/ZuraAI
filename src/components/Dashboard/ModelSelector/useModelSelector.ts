@@ -10,9 +10,16 @@ import {
   listOllamaModels,
   enrichOllamaModelsWithContext,
 } from '../../../services/ollama'
+import {
+  DEFAULT_OLLAMA_URL,
+  getActiveProviderIds,
+  hasProviderAccess,
+  type ActiveProviderId,
+} from '../../../providers'
 import { filterModels } from '../../../utils/modelUtils'
 import { removeEmojis } from '../../../utils/textUtils'
 import type { ModelWithProvider, ViewMode, GroupedModels } from './types'
+import { DEFAULT_MODEL_SELECTOR_SETTINGS } from './modelSelectorDefaults'
 
 /**
  * State returned by the useModelSelector hook
@@ -70,11 +77,7 @@ export interface UseModelSelectorReturn {
 export function useModelSelector(): UseModelSelectorReturn {
   const { settings, updateSettings } = useSettings()
 
-  const modelSelector = settings.modelSelector || {
-    defaultView: 'lastUsed',
-    rememberProvider: true,
-    autoCloseOnSelect: true,
-  }
+  const modelSelector = settings.modelSelector || DEFAULT_MODEL_SELECTOR_SETTINGS
 
   // Determine initial view mode based on settings
   const getInitialViewMode = (): ViewMode => {
@@ -88,42 +91,18 @@ export function useModelSelector(): UseModelSelectorReturn {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>(getInitialViewMode())
-  const validProviders = ['openrouter', 'perplexity', 'groq', 'ollama', 'alibaba'] as const
-  const providerEnabled = settings.providerEnabled || {}
+  const validProviders = getActiveProviderIds()
 
   const isProviderEnabled = useCallback(
     (provider: string): boolean => {
-      const manuallyEnabled = providerEnabled[provider as keyof typeof providerEnabled] !== false
-      if (!manuallyEnabled) return false
-
-      switch (provider) {
-        case 'ollama':
-          return Boolean(settings.ollamaUrl?.trim())
-        case 'openrouter':
-          return Boolean(settings.openRouterApiKey?.trim())
-        case 'perplexity':
-          return Boolean(settings.perplexityApiKey?.trim())
-        case 'groq':
-          return Boolean(settings.groqApiKey?.trim())
-        case 'alibaba':
-          return Boolean(settings.alibabaApiKey?.trim())
-        default:
-          return false
-      }
+      return hasProviderAccess(settings, provider)
     },
-    [
-      providerEnabled,
-      settings.ollamaUrl,
-      settings.openRouterApiKey,
-      settings.perplexityApiKey,
-      settings.groqApiKey,
-      settings.alibabaApiKey,
-    ]
+    [settings]
   )
 
   const [selectedProvider, setSelectedProviderState] = useState<string>(() => {
     if (modelSelector.rememberProvider && settings.modelProvider) {
-      const p = settings.modelProvider
+      const p = settings.modelProvider as ActiveProviderId
       return (validProviders as readonly string[]).includes(p) ? p : 'openrouter'
     }
     return 'openrouter'
@@ -132,11 +111,12 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Wrapper to accept string type
   const setSelectedProvider = (provider: string) => setSelectedProviderState(provider)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-    ollama: false,
-    perplexity: false,
-    openrouter: false,
-    groq: false,
     alibaba: false,
+    fireworks: false,
+    groq: false,
+    ollama: false,
+    openrouter: false,
+    perplexity: false,
   })
 
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -190,7 +170,7 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
     if (prevOpenRef.current) return // Already fetched for this open session
     prevOpenRef.current = true
-    const url = settings.ollamaUrl?.trim() || 'http://localhost:11434'
+    const url = settings.ollamaUrl?.trim() || DEFAULT_OLLAMA_URL
     const existing = (settings.ollamaModels || []).map((m) => [m.code, m.enabled] as const)
     const refresh = async () => {
       try {
@@ -220,30 +200,35 @@ export function useModelSelector(): UseModelSelectorReturn {
   const allModels = useMemo((): ModelWithProvider[] => {
     const models: ModelWithProvider[] = []
 
-    if (isProviderEnabled('ollama') && settings.ollamaModels) {
-      settings.ollamaModels
+    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
+      settings.alibabaModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
+        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
     }
-    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
-      settings.perplexityModels
+    if (isProviderEnabled('fireworks') && settings.fireworksModels) {
+      settings.fireworksModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
-    }
-    if (isProviderEnabled('openrouter') && settings.configuredModels) {
-      settings.configuredModels
-        .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
+        .forEach((m) => models.push({ ...m, provider: 'fireworks' }))
     }
     if (isProviderEnabled('groq') && settings.groqModels) {
       settings.groqModels
         .filter((m) => m.enabled !== false)
         .forEach((m) => models.push({ ...m, provider: 'groq' }))
     }
-    if (isProviderEnabled('alibaba') && settings.alibabaModels) {
-      settings.alibabaModels
+    if (isProviderEnabled('ollama') && settings.ollamaModels) {
+      settings.ollamaModels
         .filter((m) => m.enabled !== false)
-        .forEach((m) => models.push({ ...m, provider: 'alibaba' }))
+        .forEach((m) => models.push({ ...m, provider: 'ollama' }))
+    }
+    if (isProviderEnabled('openrouter') && settings.configuredModels) {
+      settings.configuredModels
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'openrouter' }))
+    }
+    if (isProviderEnabled('perplexity') && settings.perplexityModels) {
+      settings.perplexityModels
+        .filter((m) => m.enabled !== false)
+        .forEach((m) => models.push({ ...m, provider: 'perplexity' }))
     }
     return models
   }, [settings, isProviderEnabled])
@@ -256,11 +241,12 @@ export function useModelSelector(): UseModelSelectorReturn {
   // Group models by provider
   const groupedModels = useMemo((): GroupedModels => {
     return {
-      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
-      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
-      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
-      groq: filteredModels.filter((m) => m.provider === 'groq'),
       alibaba: filteredModels.filter((m) => m.provider === 'alibaba'),
+      fireworks: filteredModels.filter((m) => m.provider === 'fireworks'),
+      groq: filteredModels.filter((m) => m.provider === 'groq'),
+      ollama: filteredModels.filter((m) => m.provider === 'ollama'),
+      openrouter: filteredModels.filter((m) => m.provider === 'openrouter'),
+      perplexity: filteredModels.filter((m) => m.provider === 'perplexity'),
     }
   }, [filteredModels])
 
@@ -281,6 +267,32 @@ export function useModelSelector(): UseModelSelectorReturn {
     }
     return allModels.filter((m) => m.provider === selectedProvider)
   }, [searchQuery, filteredModels, viewMode, favoriteModels, allModels, selectedProvider])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (searchQuery.trim()) return
+    if (viewMode !== 'all') return
+    if (currentModels.length > 0) return
+
+    const nextProvider = validProviders.find(
+      (provider) =>
+        isProviderEnabled(provider) &&
+        allModels.some((model) => model.provider === provider)
+    )
+
+    if (nextProvider && nextProvider !== selectedProvider) {
+      setSelectedProvider(nextProvider)
+    }
+  }, [
+    allModels,
+    currentModels.length,
+    isOpen,
+    isProviderEnabled,
+    searchQuery,
+    selectedProvider,
+    validProviders,
+    viewMode,
+  ])
 
   // Find current model
   const currentModel = useMemo(() => {
@@ -358,34 +370,44 @@ export function useModelSelector(): UseModelSelectorReturn {
     [updateSettings, modelSelector.autoCloseOnSelect]
   )
 
-  // Keyboard navigation handlers
+  // Keyboard navigation handler — cmdk handles ArrowUp/ArrowDown/Enter internally,
+  // so we only need to handle Escape here.
   const handleKeyboardNav = useCallback(
     (e: KeyboardEvent) => {
       if (!isOpen) return
 
-      switch (e.key) {
-        case 'ArrowDown':
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (currentModels.length === 0) return
+        setFocusedIndex((prev) => (prev + 1 + currentModels.length) % currentModels.length)
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (currentModels.length === 0) return
+        setFocusedIndex((prev) => {
+          const baseIndex = prev < 0 ? 0 : prev
+          return (baseIndex - 1 + currentModels.length) % currentModels.length
+        })
+        return
+      }
+
+      if (e.key === 'Enter') {
+        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
           e.preventDefault()
-          setFocusedIndex((prev) => (prev < currentModels.length - 1 ? prev + 1 : 0))
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          setFocusedIndex((prev) => (prev > 0 ? prev - 1 : currentModels.length - 1))
-          break
-        case 'Enter':
-          if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
-            e.preventDefault()
-            handleSelect(currentModels[focusedIndex])
-          }
-          break
-        case 'Escape':
-          e.preventDefault()
-          setIsOpen(false)
-          setFocusedIndex(-1)
-          break
+          handleSelect(currentModels[focusedIndex])
+        }
+        return
+      }
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setIsOpen(false)
+        setFocusedIndex(-1)
       }
     },
-    [isOpen, currentModels, focusedIndex, handleSelect]
+    [currentModels, focusedIndex, handleSelect, isOpen]
   )
 
   // Attach keyboard event listener when dropdown is open

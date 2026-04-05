@@ -3,7 +3,7 @@
  *
  *
  * These tests verify the correctness properties defined in the design document:
- * - Property 1: Custom controls render only in frosted Windows mode
+ * - Property 1: Custom controls render on every non-macOS platform
  * - Property 5: macOS never renders custom window controls
  * - Property 6: All custom control buttons exclude drag region
  *
@@ -20,7 +20,6 @@ import '@testing-library/jest-dom'
 // Mutable mock state that property tests will mutate per iteration
 const mockSettingsUI = {
   settingsUI: {
-    frostedSidebar: false,
     frostedPrompt: false,
     theme: 'dark' as const,
     activeTheme: 'dark-default',
@@ -35,6 +34,9 @@ const mockSettingsUI = {
       showRecents: true,
       maxRecents: 3,
       enableTabAutocomplete: true,
+      overlayOpacity: 45,
+      paletteWidth: 'default' as const,
+      palettePosition: 'center' as const,
     },
   },
   updateSettingsUI: vi.fn(),
@@ -185,10 +187,7 @@ const platformArbitrary: fc.Arbitrary<Platform> = fc.constantFrom('win32', 'darw
 /**
  * Arbitrary for the combined test input for Property 1
  */
-const conditionalRenderingArbitrary = fc.record({
-  frostedSidebar: fc.boolean(),
-  platform: platformArbitrary,
-})
+const platformOnlyArbitrary = fc.record({ platform: platformArbitrary })
 
 // Global test setup
 
@@ -203,7 +202,6 @@ beforeEach(() => {
   }
 
   // Reset mock state to defaults
-  mockSettingsUI.settingsUI.frostedSidebar = false
   mockAppShell.sidebarCollapsed = false
   mockAppShell.sidebarHidden = false
 })
@@ -216,7 +214,7 @@ afterEach(() => {
 
 /**
  *
- * *For any* combination of `frostedSidebar` (true/false) and platform (win32/darwin/linux),
+ * *For any* platform (win32/darwin/linux),
  * the TitleBar should render custom minimize, maximize/restore, and close buttons
  * if and only if the platform is not macOS (native overlay is disabled).
  *
@@ -224,10 +222,9 @@ afterEach(() => {
 describe('Property 1: Custom controls render on all non-macOS platforms', () => {
   it('should render custom window control buttons iff platform is not macOS', () => {
     fc.assert(
-      fc.property(conditionalRenderingArbitrary, ({ frostedSidebar, platform }) => {
-        // Arrange: set the platform and frostedSidebar state
+      fc.property(platformOnlyArbitrary, ({ platform }) => {
+        // Arrange: set the platform state
         setNavigatorPlatform(platformToNavigatorString(platform))
-        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
         // Act: render TitleBar
         const { queryByLabelText } = render(React.createElement(TitleBar))
@@ -258,10 +255,9 @@ describe('Property 1: Custom controls render on all non-macOS platforms', () => 
 
   it('should always use WindowControlButtons wrapper on non-macOS platforms', () => {
     fc.assert(
-      fc.property(conditionalRenderingArbitrary, ({ frostedSidebar, platform }) => {
+      fc.property(platformOnlyArbitrary, ({ platform }) => {
         // Arrange
         setNavigatorPlatform(platformToNavigatorString(platform))
-        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
         // Act
         const { container } = render(React.createElement(TitleBar))
@@ -415,7 +411,7 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
 
 /**
  *
- * *For any* value of `frostedSidebar` (true or false), when the platform is macOS,
+ * When the platform is macOS,
  * the TitleBar should never render custom minimize, maximize/restore, or close
  * window control buttons.
  *
@@ -423,10 +419,9 @@ describe('Property 2: Maximize/restore icon reflects window state', () => {
 describe('Property 5: macOS never renders custom window controls', () => {
   it('should never render custom minimize, maximize/restore, or close buttons on macOS', () => {
     fc.assert(
-      fc.property(fc.boolean(), (frostedSidebar) => {
+      fc.property(fc.constant(true), () => {
         // Arrange: fix platform to macOS
         setNavigatorPlatform('MacIntel')
-        mockSettingsUI.settingsUI.frostedSidebar = frostedSidebar
 
         // Act
         const { queryByLabelText, container } = render(React.createElement(TitleBar))
@@ -461,9 +456,8 @@ describe('Property 5: macOS never renders custom window controls', () => {
  */
 describe('Property 6: All custom control buttons exclude drag region', () => {
   it('should have no-drag class on all custom control buttons when rendered via TitleBar', () => {
-    // Arrange: frosted=true, platform=win32 to ensure controls render
+    // Arrange: use Windows to ensure controls render
     setNavigatorPlatform('Win32')
-    mockSettingsUI.settingsUI.frostedSidebar = true
 
     const { container } = render(React.createElement(TitleBar))
 

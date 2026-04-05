@@ -1637,26 +1637,28 @@
 .skills-row__logo {
     width: 42px;
     height: 42px;
-    border-radius: 12px;
+    border-radius: 11px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     position: relative;
-    color: color-mix(in srgb, var(--theme-accent) 82%, #8ecfff);
-    background: linear-gradient(150deg, rgba(14, 32, 52, 0.98), rgba(6, 13, 24, 0.98));
-    border: 1px solid color-mix(in srgb, var(--theme-accent) 24%, rgba(0, 0, 0, 0.6));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 -12px 24px rgba(0, 0, 0, 0.28), 0 8px 18px rgba(0, 0, 0, 0.34);
-    transition: all 0.22s ease;
+    color: color-mix(in srgb, var(--theme-text-secondary) 80%, var(--theme-accent) 20%);
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--theme-surface) 94%, transparent) 0%,
+            color-mix(in srgb, var(--theme-background) 88%, transparent) 100%);
+    border: 1px solid color-mix(in srgb, var(--theme-border) 86%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
 }
 
 .skills-row__logo::after {
     content: '';
     position: absolute;
-    inset: 3px;
-    border-radius: 9px;
-    border: 1px solid color-mix(in srgb, var(--theme-accent) 14%, transparent);
-    opacity: 0.7;
+    inset: 4px;
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--theme-accent) 10%, transparent);
+    opacity: 0.85;
     pointer-events: none;
 }
 
@@ -1664,16 +1666,16 @@
 .skills-row__logo img {
     position: relative;
     z-index: 1;
+    display: block;
 }
 
 .skills-row__logo--enabled {
-    color: color-mix(in srgb, var(--theme-accent) 90%, #a0e8ff);
-    background: linear-gradient(150deg, rgba(18, 42, 66, 0.98), rgba(8, 18, 34, 0.98));
-    border-color: color-mix(in srgb, var(--theme-accent) 34%, rgba(0, 0, 0, 0.56));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09),
-        inset 0 -12px 26px rgba(0, 0, 0, 0.3),
-        0 8px 18px rgba(6, 26, 38, 0.36),
-        0 0 20px color-mix(in srgb, var(--theme-accent) 12%, transparent);
+    color: color-mix(in srgb, var(--theme-accent) 72%, white 28%);
+    background: linear-gradient(180deg,
+            color-mix(in srgb, var(--theme-surface) 82%, var(--theme-accent) 18%) 0%,
+            color-mix(in srgb, var(--theme-background) 86%, var(--theme-accent) 14%) 100%);
+    border-color: color-mix(in srgb, var(--theme-accent) 26%, var(--theme-border) 74%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .skills-row__content {

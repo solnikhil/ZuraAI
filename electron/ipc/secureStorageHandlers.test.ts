@@ -50,6 +50,7 @@ describe('registerSecureStorageHandlers', () => {
       .mockResolvedValueOnce('groq-key')
       .mockResolvedValueOnce('tavily-key')
       .mockResolvedValueOnce('alibaba-key')
+      .mockResolvedValueOnce('fireworks-key')
 
     const { registerSecureStorageHandlers } = await import('./secureStorageHandlers')
     registerSecureStorageHandlers()
@@ -63,9 +64,10 @@ describe('registerSecureStorageHandlers', () => {
       groqApiKey: 'groq-key',
       tavilyApiKey: 'tavily-key',
       alibabaApiKey: 'alibaba-key',
+      fireworksApiKey: 'fireworks-key',
     })
 
-    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(5)
+    expect(secureStorageMocks.getSecureValueAsync).toHaveBeenCalledTimes(6)
     expect(secureStorageMocks.getSecureValueAsync).not.toHaveBeenCalledWith('mcp.server.demo.token')
   })
 })

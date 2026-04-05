@@ -35,6 +35,7 @@ URL-aware behavior:
 Query formulation best practices:
 - Keep queries concise (under 400 chars). Use search keywords, not full sentences.
 - Use keyword-focused phrasing: "OpenAI GPT-5 release date ${new Date().getFullYear()}" not "Can you tell me when OpenAI will release GPT-5?"
+- If you need a year and the user did not specify one, use only ${new Date().getFullYear()}. Do not add older years or multi-year ranges unless the user explicitly asks for them.
 - Break complex topics into separate focused searches (overview, recent developments, specifics, verification).
 - For current events or news, use topic="news" and time_range when relevant.`,
     parameters: {
@@ -44,20 +45,19 @@ Query formulation best practices:
         query: {
           type: 'string',
           description:
-            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments").`,
+            `Search query. For URL tasks, include the URL directly (with optional instruction). Examples: "https://foo.com/article" or "summarize this https://foo.com/article". For general search, use concise keywords (e.g. "X market size ${new Date().getFullYear()}", "latest AI developments"). If you include a year without user guidance, use only ${new Date().getFullYear()}.`,
         },
         num_results: {
           type: 'number',
           description:
-            'Number of results to return (default: 10, max: 20). For broad discovery questions (e.g. "list all AI providers with free API", "what X offer Y"), use 15-20 to maximize coverage.',
-          default: 10,
+            'Number of results to return per call (default: 4, max: 4). Keep each search focused and lightweight. If coverage is still incomplete, call web_search again with a new angle rather than requesting a larger batch in one call.',
+          default: 4,
         },
         search_depth: {
           type: 'string',
           description:
-            'Search depth: "basic" for quick results, "advanced" for specific/detailed information (higher relevance)',
-          enum: ['basic', 'advanced'],
-          default: 'basic',
+            'Tavily search depth. Use "ultra-fast" for the lowest latency, "fast" for a quick balanced search, "basic" for standard coverage, and "advanced" for maximum depth and relevance. If omitted, the app applies the user-selected Search APIs default.',
+          enum: ['ultra-fast', 'fast', 'basic', 'advanced'],
         },
         time_range: {
           type: 'string',

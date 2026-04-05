@@ -3,13 +3,21 @@ import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProviderHubSection } from './ProviderHubSection'
 
+Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+  value: vi.fn(),
+  writable: true,
+})
+
 describe('ProviderHubSection', () => {
   const baseProps = {
     openRouterApiKey: '',
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
+    fireworksApiKey: '',
     tavilyApiKey: '',
+    tavilySearchDepthPreference: 'auto' as const,
+    webSearchIncludeImages: true,
     ollamaUrl: 'http://localhost:11434',
     aiModel: 'x-ai/grok-4.1-fast',
     modelProvider: 'openrouter' as const,
@@ -21,6 +29,7 @@ describe('ProviderHubSection', () => {
     perplexityModels: [{ code: 'sonar', displayName: 'Sonar' }],
     groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama 3.1 8B Instant' }],
     alibabaModels: [{ code: 'qwen-plus', displayName: 'Qwen Plus' }],
+    fireworksModels: [{ code: 'accounts/fireworks/models/deepseek-v3p2', displayName: 'DeepSeek V3.2' }],
     ollamaModels: [{ code: 'qwen3:8b', displayName: 'qwen3:8b' }],
     maxTokens: 8000,
     onChange: vi.fn(),
@@ -250,5 +259,48 @@ describe('ProviderHubSection', () => {
     })
 
     fetchMock.mockRestore()
+  })
+
+  it('shows Fireworks catalog controls in provider detail view', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('Fast inference platform with an official serverless model catalog.'))
+
+    expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
+    expect(screen.getByText('DeepSeek V3.2')).toBeInTheDocument()
+  })
+
+  it('renders the Fireworks provider row with the compact site icon', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    const img = screen.getByAltText('fireworks logo')
+    expect(img).toHaveStyle({ width: '20px', height: '20px' })
+  })
+
+  it('updates Tavily search speed preference from Search APIs settings', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByText('AI-optimized search for web_search. Add a key for best results.'))
+    fireEvent.click(screen.getByRole('combobox'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Lightning' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ tavilySearchDepthPreference: 'ultra-fast' })
+    )
+  })
+
+  it('updates Tavily image preference from Search APIs settings', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search APIs' }))
+    fireEvent.click(screen.getByText('AI-optimized search for web_search. Add a key for best results.'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Include web search images' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ webSearchIncludeImages: false })
+    )
   })
 })

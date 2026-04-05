@@ -10,9 +10,21 @@ export type ToolCategory = 'search' | 'utility' | 'system' | 'browser' | 'mcp'
 
 export interface BuiltinToolExecutionMetadata {
     origin: 'builtin-main' | 'builtin-renderer'
+    executionDisposition?: 'executed' | 'skipped'
+    skippedReason?: 'budget' | 'duplicate-query' | 'duplicate-facet'
 }
 
 export type ToolExecutionMetadata = BuiltinToolExecutionMetadata | McpToolExecutionMetadata
+
+export function isSkippedBuiltinToolResult(
+    metadata?: ToolExecutionMetadata
+): boolean {
+    return Boolean(
+        metadata &&
+        (metadata.origin === 'builtin-main' || metadata.origin === 'builtin-renderer') &&
+        metadata.executionDisposition === 'skipped'
+    )
+}
 
 export interface ToolInputSchema extends McpJsonSchema {
     type: 'object'
@@ -81,6 +93,18 @@ export interface ToolCallResult {
     result: ToolResult
 }
 
+export interface ToolExecutionPolicy {
+    remainingWebSearchBudget?: number
+    priorWebSearchQueries?: string[]
+    userContextText?: string
+}
+
+export interface ToolExecutionSummary {
+    attemptedWebSearchCount: number
+    executedWebSearchCount: number
+    executedWebSearchQueries: string[]
+}
+
 // ==================== Provider-specific response types ====================
 
 /**
@@ -91,6 +115,8 @@ export interface OpenRouterMessage {
     content: string | null
     tool_calls?: OpenRouterToolCall[]
 }
+
+export interface ToolCallingMessage extends OpenRouterMessage {}
 
 /**
  * OpenRouter/OpenAI tool call format
@@ -110,6 +136,13 @@ export interface OpenRouterToolCall {
 export interface OpenRouterResponse {
     choices: Array<{
         message: OpenRouterMessage
+        finish_reason?: string | null
+    }>
+}
+
+export interface ToolCallingResponse {
+    choices: Array<{
+        message: ToolCallingMessage
         finish_reason?: string | null
     }>
 }

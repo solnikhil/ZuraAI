@@ -1,5 +1,6 @@
 import { ChatMessage, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
+import { getProviderEndpoint } from '../providers'
 
 /**
  * Citation/search result from Perplexity API
@@ -9,6 +10,10 @@ export interface PerplexityCitation {
   url: string
   date?: string
 }
+
+const PERPLEXITY_CHAT_COMPLETIONS_URL =
+  getProviderEndpoint('perplexity', 'chatCompletionsUrl') ??
+  'https://api.perplexity.ai/chat/completions'
 
 export interface PerplexityResponse {
   id: string
@@ -145,7 +150,7 @@ export async function* streamPerplexityCompletion(
     requestBody.max_tokens = options.max_tokens
   }
 
-  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+  const response = await fetch(PERPLEXITY_CHAT_COMPLETIONS_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -185,6 +190,7 @@ export const generatePerplexityCompletion = async (
   options?: {
     temperature?: number
     max_tokens?: number
+    signal?: AbortSignal
   }
 ): Promise<PerplexityResponse> => {
   if (!apiKey) {
@@ -206,13 +212,14 @@ export const generatePerplexityCompletion = async (
   }
 
   const makeRequest = async (body: PerplexityRequestBody) => {
-    const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    const res = await fetch(PERPLEXITY_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     })
     return res
   }

@@ -91,9 +91,6 @@ export interface SettingsUI {
     palettePosition: 'top' | 'center' | 'lower'
   }
 
-  // Frosted sidebar (glassmorphism effect)
-  frostedSidebar: boolean
-
   // Frosted prompt (glassmorphism effect)
   frostedPrompt: boolean
 
@@ -142,7 +139,6 @@ export const defaultSettingsUI: SettingsUI = {
     paletteWidth: 'default',
     palettePosition: 'center',
   },
-  frostedSidebar: false,
   frostedPrompt: false,
   sidebarAutoHideOnResize: true,
   promptAutoHide: {

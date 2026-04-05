@@ -12,16 +12,34 @@ import type {
   Message,
 } from '../../../../../contexts/ChatHistoryContext'
 import type { MessageContent } from '../../../../../services/types'
-import type { OpenRouterResponse } from '../../../../../tools/types'
+import type { ToolCallingResponse } from '../../../../../tools/types'
+import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
+import {
+  STREAM_MAX_RESEARCH_ROUNDS,
+  STREAM_RESEARCH_SAFETY_CAP,
+  STREAM_UPDATE_INTERVAL_MS,
+} from '../../../../../providers'
 
 // Constants
 
-export const UPDATE_INTERVAL = 120 // ms – normal update cadence
-export const SAFETY_CAP = 50 // absolute max research rounds
-export const MAX_RESEARCH_ROUNDS = 6 // practical cap before forcing final answer
+export const UPDATE_INTERVAL = STREAM_UPDATE_INTERVAL_MS
+export const SAFETY_CAP = STREAM_RESEARCH_SAFETY_CAP
+export const MAX_RESEARCH_ROUNDS = STREAM_MAX_RESEARCH_ROUNDS
 export const FINAL_SYNTHESIS_PROMPT =
-  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned.\n\n'
+  '\n\n*** FINAL SYNTHESIS REQUIRED *** You have enough search results. Do not call any more tools or web_search. Provide your final synthesized answer now using only the results already returned. If the results are inconclusive, say that clearly, summarize the strongest relevant evidence, and state what could not be verified. Never return an empty response.\n\n'
+export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
+  '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
+export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
+  '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
+
+const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
+  /\bknowledge cutoff\b/i,
+  /\bmy training data\b/i,
+  /\bi (?:can't|cannot|do not|don't) (?:browse|access|verify) (?:the )?(?:web|internet|current|real-time|up-to-date)/i,
+  /\bconsult official documentation\b/i,
+  /\bconsult (?:official documentation|recent peer-reviewed literature)\b/i,
+]
 
 /** Compute per-chunk UI update cadence. */
 export function getStreamingUpdateInterval(): number {
@@ -120,16 +138,16 @@ export function buildResponseWithFallback(
   reconstructedMessage: { role: string; content: string; tool_calls?: unknown[] },
   messages: Array<{ role: string; content?: string | unknown; [key: string]: unknown }>,
   reasoning?: string
-): OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
+): ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } } {
   const lastUserMsg = [...messages].reverse().find((m) => m?.role === 'user')
   const lastUserContent = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : undefined
   return {
-    choices: [{ message: reconstructedMessage as OpenRouterResponse['choices'][0]['message'] }],
+    choices: [{ message: reconstructedMessage as ToolCallingResponse['choices'][0]['message'] }],
     _fallbackContext: {
       lastUserMessage: lastUserContent,
       reasoning: reasoning || undefined,
     },
-  } as OpenRouterResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } }
+  } as ToolCallingResponse & { _fallbackContext?: { lastUserMessage?: string; reasoning?: string } }
 }
 
 // Thinking blocks
@@ -143,8 +161,12 @@ export function buildThinkingBlocksFromResults(
   for (const tr of toolResults) {
     const args = tr.toolCall.arguments
     const normalizedArgs = typeof args === 'object' ? args : { query: args }
+    const wasSkipped = isSkippedBuiltinToolResult(tr.result?.metadata)
 
     if (tr.toolCall.name === 'web_search') {
+      if (wasSkipped) {
+        continue
+      }
       const q = typeof args === 'object' ? (args as Record<string, unknown>)?.query : args
       blocks.push({
         type: 'searching',
@@ -278,9 +300,16 @@ export function extractSearchQuery(webSearchCalls: ToolCallResult[]): string {
   return String(typeof args === 'object' ? (args as Record<string, unknown>)?.query : args) || ''
 }
 
+function isExecutedWebSearchResult(result: ToolCallResult): boolean {
+  return (
+    result.toolCall.name === 'web_search' &&
+    !isSkippedBuiltinToolResult(result.result?.metadata)
+  )
+}
+
 /** Check if tool results contain web search calls. */
 export function hasSearchResults(toolResults: ToolCallResult[] | undefined): boolean {
-  return (toolResults || []).some((r) => r?.toolCall?.name === 'web_search')
+  return (toolResults || []).some((r) => isExecutedWebSearchResult(r))
 }
 
 // Initial tool result processing
@@ -301,8 +330,9 @@ export function processInitialToolResults(
   searchQuery: string
 } {
   const webSearchCalls = toolResults.filter((tr) => tr.toolCall.name === 'web_search')
-  const hasSearchCalls = webSearchCalls.length > 0
-  const searchQuery = hasSearchCalls ? extractSearchQuery(webSearchCalls) : ''
+  const executedWebSearchCalls = webSearchCalls.filter((tr) => isExecutedWebSearchResult(tr))
+  const hasSearchCalls = executedWebSearchCalls.length > 0
+  const searchQuery = hasSearchCalls ? extractSearchQuery(executedWebSearchCalls) : ''
   const updatedThinkingBlocks = toolResults.length > 0
     ? buildThinkingBlocksFromResults(toolResults, localThinkingBlocks)
     : localThinkingBlocks
@@ -331,20 +361,14 @@ export function computeStreamMetrics(
 /** Build the follow-up message array for a research loop iteration */
 export function buildFollowUpMessages(
   researchContextMsg: string,
-  researchRound: number,
-  totalSearchCount: number,
+  _researchRound: number,
+  _totalSearchCount: number,
   optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
   lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
 ): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
   const messages: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
-  if (researchRound >= 4) {
-    messages.push({
-      role: 'system',
-      content: `\n\n*** STOP SEARCHING *** You have ${totalSearchCount} search results. Your next response MUST be your final synthesized answer. Do NOT call web_search again. Provide your comparison now.\n\n`,
-    })
-  }
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
 }
@@ -371,6 +395,48 @@ export function buildFinalSynthesisMessages(
   ]
 }
 
+export function buildRecoverySynthesisMessages(
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
+  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  return [
+    { role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
+}
+
+export function buildPlainTextOnlySynthesisMessages(
+  researchContextMsg: string,
+  researchRound: number,
+  totalSearchCount: number,
+  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
+  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
+): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+  return [
+    { role: 'system', content: FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT },
+    ...buildFollowUpMessages(
+      researchContextMsg,
+      researchRound,
+      totalSearchCount,
+      optimizedHistory,
+      lastAssistantMessage,
+      formattedResults
+    ),
+  ]
+}
+
 // Horizontal rule stripping
 
 /** Strip standalone --- (markdown horizontal rule) from content when web search was used */
@@ -380,4 +446,80 @@ export function stripStandaloneHorizontalRule(content: string): string {
     .replace(/\n\s*---\s*\n?\s*$/g, '\n') // trailing ---
     .replace(/^\s*---\s*\n?\s*/g, '') // leading ---
     .trimEnd()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeSummaryText(value: unknown, maxLength: number): string {
+  const normalized = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) return ''
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, maxLength - 3).trimEnd()}...`
+}
+
+export function buildFallbackAnswerFromToolResults(
+  toolResults: ToolCallResult[] | undefined
+): string | null {
+  const webSearchCalls = (toolResults || []).filter(
+    (result) => result.toolCall.name === 'web_search' && result.result?.success
+  )
+  if (webSearchCalls.length === 0) return null
+
+  const querySummaries = [...new Set(
+    webSearchCalls
+      .map((result) => normalizeSummaryText(result.toolCall.arguments?.query, 80))
+      .filter(Boolean)
+  )]
+
+  const evidenceLines: string[] = []
+  for (const result of webSearchCalls) {
+    const data = result.result?.data
+    if (!isRecord(data) || !Array.isArray(data.results)) continue
+
+    for (const entry of data.results) {
+      if (!isRecord(entry)) continue
+
+      const title = normalizeSummaryText(entry.title, 100)
+      const snippet = normalizeSummaryText(entry.snippet, 180)
+      if (!title && !snippet) continue
+
+      evidenceLines.push(
+        title && snippet ? `- ${title}: ${snippet}` : `- ${title || snippet}`
+      )
+
+      if (evidenceLines.length >= 3) {
+        break
+      }
+    }
+
+    if (evidenceLines.length >= 3) {
+      break
+    }
+  }
+
+  const queryLead =
+    querySummaries.length > 0
+      ? ` for ${querySummaries.map((query) => `"${query}"`).join(', ')}`
+      : ''
+
+  if (evidenceLines.length === 0) {
+    return `The provider returned web search results${queryLead}, but no final written synthesis. The gathered search results are preserved above.`
+  }
+
+  return [
+    `The provider returned web search results${queryLead}, but no final written synthesis. Strongest visible findings from the gathered results:`,
+    ...evidenceLines,
+  ].join('\n')
+}
+
+export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {
+  const normalized = content.replace(/\s+/g, ' ').trim()
+  if (!normalized) return false
+
+  return UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS.some((pattern) => pattern.test(normalized))
 }

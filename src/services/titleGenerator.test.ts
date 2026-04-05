@@ -27,11 +27,13 @@ vi.mock('../utils/openRouterKey', () => ({
 const { generateChatTitle } = await import('./titleGenerator')
 const { generateGroqCompletion } = await import('./groq')
 const { generateOpenRouterCompletion } = await import('./openrouter')
+const { generateOllamaCompletion } = await import('./ollama')
 
 describe('generateChatTitle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
@@ -85,6 +87,77 @@ describe('generateChatTitle', () => {
     )
   })
 
+  it('skips image-only OpenRouter models when resolving a fallback title model', async () => {
+    vi.mocked(generateOpenRouterCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'Release Notes Digest' } }],
+    } as never)
+
+    const result = await generateChatTitle('Summarize the release notes for the sidebar update', {
+      titleModelProvider: 'openrouter',
+      openRouterApiKey: 'or-key',
+      configuredModels: [
+        {
+          code: 'openrouter/image-only-model',
+          displayName: 'Image Only',
+          outputModalities: ['image'],
+          modelType: 'image',
+          enabled: true,
+        },
+        {
+          code: 'openrouter/text-model',
+          displayName: 'Text Model',
+          outputModalities: ['text'],
+          enabled: true,
+        },
+      ],
+    })
+
+    expect(result).toBe('Release Notes Digest')
+    expect(generateOpenRouterCompletion).toHaveBeenCalledWith(
+      'or-key',
+      'text-model',
+      [
+        {
+          role: 'user',
+          content: expect.stringContaining(
+            'User message: "Summarize the release notes for the sidebar update"'
+          ),
+        },
+      ],
+      { temperature: 0.3, max_tokens: 20 },
+    )
+  })
+
+  it('uses the active chat provider when no explicit title model is configured', async () => {
+    vi.mocked(generateGroqCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'Planning Thread Summary' } }],
+    } as never)
+
+    const result = await generateChatTitle('Summarize this planning thread', {
+      titleModelProvider: 'openrouter',
+      titleModel: '',
+      modelProvider: 'groq',
+      aiModel: 'groq-primary',
+      groqApiKey: 'groq-key',
+      configuredModels: [{ code: 'openrouter/meta-llama/llama-3.3', displayName: 'Llama 3.3' }],
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    })
+
+    expect(result).toBe('Planning Thread Summary')
+    expect(generateGroqCompletion).toHaveBeenCalledWith(
+      'groq-key',
+      'groq-primary',
+      [
+        {
+          role: 'user',
+          content: expect.stringContaining('User message: "Summarize this planning thread"'),
+        },
+      ],
+      { temperature: 0.3 },
+    )
+    expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
+  })
+
   it('falls back to a clipped user-message title after a non-auth provider failure without another configured provider', async () => {
     vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('Temporary upstream failure'))
 
@@ -113,5 +186,56 @@ describe('generateChatTitle', () => {
 
     expect(result).toBe('Need a title...')
     expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
+  })
+
+  it('does not treat Ollama as configured for title fallback when no URL is present', async () => {
+    vi.mocked(generateGroqCompletion).mockRejectedValue(new Error('Temporary upstream failure'))
+
+    const result = await generateChatTitle('Summarize this planning thread', {
+      titleModelProvider: 'groq',
+      titleModel: 'groq-primary',
+      groqApiKey: 'groq-key',
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+      ollamaModels: [{ code: 'llama3.2', displayName: 'Llama 3.2' }],
+      ollamaUrl: '',
+    })
+
+    expect(result).toBe('Summarize this planning...')
+    expect(generateOllamaCompletion).not.toHaveBeenCalled()
+  })
+
+  it('falls back to another configured provider when the selected title provider fails', async () => {
+    vi.mocked(generateOpenRouterCompletion).mockRejectedValue(
+      new Error('403 Key limit exceeded (total limit)')
+    )
+    vi.mocked(generateGroqCompletion).mockResolvedValue({
+      choices: [{ message: { content: 'Groq Rescue Title' } }],
+    } as never)
+
+    const result = await generateChatTitle('Need a title for this web search session', {
+      titleModelProvider: 'openrouter',
+      titleModel: 'openrouter/meta-llama/llama-3.3',
+      modelProvider: 'groq',
+      aiModel: 'groq-primary',
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      configuredModels: [{ code: 'openrouter/meta-llama/llama-3.3', displayName: 'Llama 3.3' }],
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    })
+
+    expect(result).toBe('Groq Rescue Title')
+    expect(generateGroqCompletion).toHaveBeenCalledWith(
+      'groq-key',
+      'groq-primary',
+      [
+        {
+          role: 'user',
+          content: expect.stringContaining(
+            'User message: "Need a title for this web search session"'
+          ),
+        },
+      ],
+      { temperature: 0.3 },
+    )
   })
 })

@@ -3,31 +3,20 @@ import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 
 export interface ExperimentalSectionProps {
-  frostedSidebar: boolean
   frostedPrompt: boolean
   sidebarAutoHideOnResize: boolean
   onChange: (changes: {
-    frostedSidebar?: boolean
     frostedPrompt?: boolean
     sidebarAutoHideOnResize?: boolean
   }) => void
 }
 
 export function ExperimentalSection({
-  frostedSidebar,
   frostedPrompt,
   sidebarAutoHideOnResize,
   onChange,
 }: ExperimentalSectionProps): React.ReactElement {
   const toggles = [
-    {
-      key: 'frostedSidebar' as const,
-      label: 'Frosted sidebar',
-      description: 'Show a semi-transparent glass effect on the sidebar.',
-      checked: frostedSidebar,
-      onToggle: (checked: boolean) => onChange({ frostedSidebar: checked }),
-      ariaLabel: 'Enable frosted sidebar',
-    },
     {
       key: 'frostedPrompt' as const,
       label: 'Frosted prompt area',

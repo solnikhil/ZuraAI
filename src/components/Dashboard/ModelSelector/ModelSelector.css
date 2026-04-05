@@ -119,3 +119,23 @@
   outline: 2px solid var(--theme-info);
   outline-offset: 2px;
 }
+
+/* The model picker is heavily hovered and keyboard-navigated. Avoid glass blur here
+   so item highlight changes do not trigger expensive repaints inside Electron. */
+.model-selector-popover {
+  background: color-mix(in srgb, var(--theme-surface) 98%, var(--theme-background) 2%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  contain: layout paint style;
+}
+
+.model-selector-popover [data-slot='command-item'] {
+  transition:
+    background-color 80ms ease-out,
+    color 80ms ease-out;
+}
+
+.model-selector-popover [data-slot='command-item']:hover,
+.model-selector-popover [data-slot='command-item'][data-selected='true'] {
+  will-change: background-color;
+}

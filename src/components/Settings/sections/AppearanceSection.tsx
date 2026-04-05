@@ -24,6 +24,8 @@ import {
   getThemesByCategory,
 } from '../../../themes/themeRegistry'
 import { applyThemeToDocument } from '../../../themes/themeUtils'
+import { getTitleEligibleModels } from '../../../utils/titleGenerationModels'
+import { getActiveProviderDefinitions, type ActiveProviderId } from '../../../providers'
 
 function clampNumber(value: number, min: number, max: number): number {
   if (Number.isNaN(value)) return min
@@ -189,14 +191,13 @@ export interface AppearanceSectionProps {
   onParamsConsumed?: () => void
 }
 
-type TitleProviderKey = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+type TitleProviderKey = ActiveProviderId
 
 const TITLE_PROVIDER_OPTIONS: Array<{ key: TitleProviderKey; label: string }> = [
-  { key: 'openrouter', label: 'OpenRouter' },
-  { key: 'groq', label: 'Groq' },
-  { key: 'alibaba', label: 'Alibaba Cloud' },
-  { key: 'perplexity', label: 'Perplexity' },
-  { key: 'ollama', label: 'Ollama' },
+  ...getActiveProviderDefinitions().map((provider) => ({
+    key: provider.id as TitleProviderKey,
+    label: provider.label,
+  })),
 ]
 
 export function AppearanceSection({
@@ -234,18 +235,20 @@ export function AppearanceSection({
 
   const titleProviderModelMap = useMemo(
     () => ({
+      alibaba: settings.alibabaModels || [],
+      fireworks: settings.fireworksModels || [],
+      groq: settings.groqModels || [],
+      ollama: settings.ollamaModels || [],
       openrouter: settings.configuredModels || [],
       perplexity: settings.perplexityModels || [],
-      groq: settings.groqModels || [],
-      alibaba: settings.alibabaModels || [],
-      ollama: settings.ollamaModels || [],
     }),
     [
+      settings.alibabaModels,
+      settings.fireworksModels,
+      settings.groqModels,
+      settings.ollamaModels,
       settings.configuredModels,
       settings.perplexityModels,
-      settings.groqModels,
-      settings.alibabaModels,
-      settings.ollamaModels,
     ]
   )
 
@@ -253,8 +256,9 @@ export function AppearanceSection({
   const titleProviderEnabledModels = titleProviderModelsAll.filter(
     (model) => model.enabled !== false
   )
-  const titleProviderModels =
+  const titleProviderModels = getTitleEligibleModels(
     titleProviderEnabledModels.length > 0 ? titleProviderEnabledModels : titleProviderModelsAll
+  )
   const titleModelOptions = titleProviderModels.map((model) => ({
     value: model.code,
     label: model.displayName,
@@ -270,7 +274,9 @@ export function AppearanceSection({
   const handleTitleProviderChange = (provider: TitleProviderKey) => {
     const nextModelsAll = titleProviderModelMap[provider] || []
     const nextEnabled = nextModelsAll.filter((model) => model.enabled !== false)
-    const nextCandidates = nextEnabled.length > 0 ? nextEnabled : nextModelsAll
+    const nextCandidates = getTitleEligibleModels(
+      nextEnabled.length > 0 ? nextEnabled : nextModelsAll
+    )
     const nextTitleModel = nextCandidates.some((model) => model.code === settings.titleModel)
       ? settings.titleModel
       : nextCandidates[0]?.code || settings.titleModel
@@ -1042,52 +1048,6 @@ export function AppearanceSection({
 
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show sidebar labels</h3>
-            <div className="settings-list-row__description">
-              Display provider names alongside icons
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().sidebarShowLabels}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    sidebarShowLabels: checked,
-                  },
-                })
-              }
-              aria-label="Show sidebar labels"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show model count badges</h3>
-            <div className="settings-list-row__description">
-              Display number of models per provider
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().sidebarShowModelCount}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    sidebarShowModelCount: checked,
-                  },
-                })
-              }
-              aria-label="Show model count badges"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Dropdown width</h3>
             <div className="settings-list-row__description">Control the overall selector size</div>
           </div>
@@ -1187,29 +1147,6 @@ export function AppearanceSection({
             </div>
           </div>
         )}
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show provider logos</h3>
-            <div className="settings-list-row__description">
-              Use provider logos instead of fallback icons
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showProviderLogos}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showProviderLogos: checked,
-                  },
-                })
-              }
-              aria-label="Show provider logos"
-            />
-          </div>
-        </div>
 
         <div className="settings-list-row">
           <div className="settings-list-row__meta">

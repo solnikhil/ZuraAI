@@ -1,5 +1,6 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
 import { parseSSEStream } from './streamUtils'
+import { getProviderEndpoint } from '../providers'
 
 /**
  * Alibaba Cloud DashScope API Service
@@ -7,7 +8,9 @@ import { parseSSEStream } from './streamUtils'
  * Supports Qwen models (qwen-plus, qwen-max, qwen-flash, qwen-turbo, etc.)
  */
 
-const ALIBABA_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+const ALIBABA_BASE_URL =
+    getProviderEndpoint('alibaba', 'baseUrl') ??
+    'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
 
 export interface AlibabaResponse {
     id: string
@@ -149,6 +152,7 @@ export const generateAlibabaCompletion = async (
         max_tokens?: number
         tools?: ToolDefinition[]
         toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+        signal?: AbortSignal
     }
 ): Promise<AlibabaResponse> => {
     if (!apiKey) {
@@ -177,7 +181,8 @@ export const generateAlibabaCompletion = async (
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json"
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
     })
 
     if (!response.ok) {

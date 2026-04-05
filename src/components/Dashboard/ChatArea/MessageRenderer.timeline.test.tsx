@@ -1,13 +1,16 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOL_FOLLOW_UP_SPLIT_MARKER } from './messageTimeline'
+
+let mockWebSearchIncludeImages = true
 
 vi.mock('../../../contexts/SettingsContext', () => ({
   useSettings: () => ({
     settings: {
       aiModel: 'test-model',
       chatBubbleStyle: 'solid',
+      webSearchIncludeImages: mockWebSearchIncludeImages,
     },
   }),
 }))
@@ -21,12 +24,14 @@ vi.mock('../../ThinkingBlock', () => ({
     thinking,
     isThinking,
     isSearching,
+    searchQueries,
     activeToolCalls,
     completedBlocks,
   }: {
     thinking?: string
     isThinking?: boolean
     isSearching?: boolean
+    searchQueries?: string[]
     activeToolCalls?: Array<{ name: string }>
     completedBlocks?: Array<{ content?: string; query?: string; toolName?: string }>
   }) => (
@@ -36,6 +41,7 @@ vi.mock('../../ThinkingBlock', () => ({
       ))}
       {isThinking ? <span>Connecting</span> : null}
       {isSearching ? <span>Searching</span> : null}
+      {searchQueries?.length ? <span>{searchQueries.join(' | ')}</span> : null}
       {activeToolCalls?.length ? <span>Tool Active</span> : null}
       {thinking ? <span>{thinking}</span> : null}
     </div>
@@ -57,6 +63,83 @@ vi.mock('./attachmentUtils', () => ({
 import { MessageRenderer } from './MessageRenderer'
 
 describe('MessageRenderer follow-up timeline', () => {
+  beforeEach(() => {
+    mockWebSearchIncludeImages = true
+  })
+
+  it('renders web search images when the preference is enabled', async () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-images-on',
+          role: 'assistant',
+          content: 'Here are the results.',
+          timestamp: 1,
+          toolResults: [
+            {
+              toolCall: {
+                id: 'tool-images-on',
+                name: 'web_search',
+                arguments: { query: 'cursor pricing' },
+              },
+              result: {
+                success: true,
+                data: {
+                  source: 'tavily',
+                  results: [],
+                  images: [
+                    { url: 'https://example.com/one.png', description: 'One' },
+                    { url: 'https://example.com/two.png', description: 'Two' },
+                  ],
+                },
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('2 images from search')).toBeInTheDocument()
+    })
+  })
+
+  it('hides web search images when the preference is disabled', async () => {
+    mockWebSearchIncludeImages = false
+
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-images-off',
+          role: 'assistant',
+          content: 'Here are the results.',
+          timestamp: 1,
+          toolResults: [
+            {
+              toolCall: {
+                id: 'tool-images-off',
+                name: 'web_search',
+                arguments: { query: 'cursor pricing' },
+              },
+              result: {
+                success: true,
+                data: {
+                  source: 'tavily',
+                  results: [],
+                  images: [{ url: 'https://example.com/one.png', description: 'One' }],
+                },
+              },
+            },
+          ],
+        }}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText('1 image from search')).not.toBeInTheDocument()
+    })
+  })
+
   it('renders follow-up thinking below the existing streamed content', async () => {
     const baseMessage = {
       id: 'message-1',
@@ -212,5 +295,31 @@ describe('MessageRenderer follow-up timeline', () => {
 
     expect(container).toHaveTextContent('Initial reasoning')
     expect(screen.getAllByText('Connecting')).toHaveLength(1)
+  })
+
+  it('passes parallel active search queries to the thinking block', async () => {
+    render(
+      <MessageRenderer
+        message={{
+          id: 'message-4',
+          role: 'assistant',
+          content: '',
+          timestamp: 1,
+          researchStatus: {
+            currentRound: 1,
+            maxRounds: 0,
+            currentSearch: 'zura ai overview',
+            currentSearches: ['zura ai overview', 'zura ai pricing', 'zura ai docs'],
+            isSearching: true,
+          },
+        }}
+        isStreaming={true}
+        streamPhase="searching"
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('zura ai overview | zura ai pricing | zura ai docs')).toBeInTheDocument()
+    })
   })
 })

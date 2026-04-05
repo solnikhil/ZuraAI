@@ -4,8 +4,13 @@
 
 import { getCapabilitiesFromModel } from '@/utils/modelUtils'
 import type { ChatMessage, MessageContent } from '@/services/types'
-
-export type AttachmentProvider = 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+import {
+  DEFAULT_ATTACHMENT_MAX_SIZE_BYTES,
+  getProviderModels,
+  providerSupportsVisionUploads as providerSupportsVisionUploadsFromRegistry,
+  type ProviderId,
+} from '@/providers'
+export type AttachmentProvider = ProviderId
 
 export interface AttachedFile {
   id: string
@@ -35,11 +40,12 @@ interface ModelLike {
 interface AttachmentSettingsLike {
   aiModel: string
   modelProvider: AttachmentProvider
+  alibabaModels?: ModelLike[]
   configuredModels?: ModelLike[]
+  fireworksModels?: ModelLike[]
+  groqModels?: ModelLike[]
   ollamaModels?: ModelLike[]
   perplexityModels?: ModelLike[]
-  groqModels?: ModelLike[]
-  alibabaModels?: ModelLike[]
 }
 
 export type ComposerMessage = ChatMessage & {
@@ -53,8 +59,6 @@ export interface ConversationMessage {
   files?: AttachedFile[]
 }
 
-const DEFAULT_MAX_SIZE_BYTES = 20 * 1024 * 1024
-
 function getFileFingerprint(file: Pick<AttachedFile, 'name' | 'size' | 'mimeType'>) {
   return `${file.name}::${file.size}::${file.mimeType}`
 }
@@ -66,22 +70,6 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-}
-
-function getModelsForProvider(settings: AttachmentSettingsLike, provider: AttachmentProvider) {
-  switch (provider) {
-    case 'ollama':
-      return settings.ollamaModels || []
-    case 'perplexity':
-      return settings.perplexityModels || []
-    case 'groq':
-      return settings.groqModels || []
-    case 'alibaba':
-      return settings.alibabaModels || []
-    case 'openrouter':
-    default:
-      return settings.configuredModels || []
-  }
 }
 
 export function isImageAttachment(file: Pick<AttachedFile, 'type' | 'mimeType'>) {
@@ -128,7 +116,7 @@ export async function processFiles(
   options?: ProcessFilesOptions
 ): Promise<AttachedFile[]> {
   const fileArray = Array.from(files)
-  const maxSize = options?.maxSizeBytes || DEFAULT_MAX_SIZE_BYTES
+  const maxSize = options?.maxSizeBytes || DEFAULT_ATTACHMENT_MAX_SIZE_BYTES
   const processedFiles: AttachedFile[] = []
 
   for (const [index, file] of fileArray.entries()) {
@@ -159,11 +147,11 @@ export async function processFiles(
 }
 
 export function providerSupportsVisionUploads(provider: AttachmentProvider) {
-  return provider === 'openrouter' || provider === 'groq' || provider === 'alibaba' || provider === 'ollama'
+  return providerSupportsVisionUploadsFromRegistry(provider)
 }
 
 export function currentModelSupportsVision(settings: AttachmentSettingsLike) {
-  const models = getModelsForProvider(settings, settings.modelProvider)
+  const models = getProviderModels(settings, settings.modelProvider)
   const matchedModel =
     models.find((model) => model.code === settings.aiModel) || {
       code: settings.aiModel,
@@ -230,5 +218,8 @@ export function buildProviderMessages(
   messages: ConversationMessage[],
   provider: AttachmentProvider
 ): ComposerMessage[] {
+  if (provider === 'ollama' && !providerSupportsVisionUploadsFromRegistry(provider)) {
+    return messages.map((message) => ({ role: message.role, content: message.content }))
+  }
   return messages.map((message) => toProviderMessage(message, provider))
 }

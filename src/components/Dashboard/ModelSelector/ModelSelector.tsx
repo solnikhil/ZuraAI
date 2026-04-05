@@ -38,6 +38,7 @@ export default function ModelSelector({
     setSearchQuery,
     setViewMode,
     setSelectedProvider,
+    setFocusedIndex,
     setIsOpen,
     toggleFavorite,
     handleSelect,
@@ -107,7 +108,7 @@ export default function ModelSelector({
         </motion.button>
       </PopoverTrigger>
       <PopoverContent
-        className="theme-menu-surface overflow-hidden p-0"
+        className="theme-menu-surface model-selector-popover overflow-hidden p-0"
         align={popoverAlign}
         style={{
           width: `${effectiveDropdownWidth}px`,
@@ -116,31 +117,39 @@ export default function ModelSelector({
           maxHeight: 'calc(100vh - 24px)',
         }}
         onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          // Allow interaction with elements inside the popover, including sidebar
-          const target = e.target as HTMLElement
-          if (target.closest('[data-slot="popover-content"]') || target.closest('[data-sidebar]')) {
-            e.preventDefault()
-          }
-        }}
+        onFocusOutside={(e) => e.preventDefault()}
       >
-        <ModelSelectorDropdown
-          searchInputRef={searchInputRef}
-          searchQuery={state.searchQuery}
-          onSearchChange={setSearchQuery}
-          viewMode={state.viewMode}
-          onViewModeChange={setViewMode}
-          selectedProvider={state.selectedProvider}
-          onProviderSelect={setSelectedProvider}
-          currentModels={currentModels}
-          groupedModels={groupedModels}
-          selectedModelCode={settings.aiModel}
-          selectedModelProvider={settings.modelProvider}
-          favoriteModels={settings.favoriteModels || []}
-          onModelSelect={handleSelect}
-          onToggleFavorite={toggleFavorite}
-          compactMode={compactMode}
-        />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{
+            type: 'spring',
+            stiffness: 500,
+            damping: 32,
+            mass: 0.8,
+          }}
+          className="h-full"
+        >
+          <ModelSelectorDropdown
+            searchInputRef={searchInputRef}
+            searchQuery={state.searchQuery}
+            onSearchChange={setSearchQuery}
+            viewMode={state.viewMode}
+            onViewModeChange={setViewMode}
+            selectedProvider={state.selectedProvider}
+            onProviderSelect={setSelectedProvider}
+            currentModels={currentModels}
+            groupedModels={groupedModels}
+            focusedIndex={state.focusedIndex}
+            selectedModelCode={settings.aiModel}
+            selectedModelProvider={settings.modelProvider}
+            favoriteModels={settings.favoriteModels || []}
+            onModelSelect={handleSelect}
+            onToggleFavorite={toggleFavorite}
+            onFocusedIndexChange={setFocusedIndex}
+            compactMode={compactMode}
+          />
+        </motion.div>
       </PopoverContent>
     </Popover>
   )

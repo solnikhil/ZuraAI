@@ -1,6 +1,7 @@
 // Tool Executor - Executes tools via IPC to main process
 
 import { ToolResult, ToolCall, ToolCallResult, isMcpNamespacedToolName } from './types'
+import { resolveWebSearchArgsForExecution } from './webSearchPreferences'
 
 // Re-export types for backward compatibility
 export type { ToolResult, ToolCall, ToolCallResult }
@@ -51,6 +52,8 @@ export async function executeTool(toolName: string, args: Record<string, unknown
                 error: 'IPC not available - tools only work in Electron'
             }
         }
+
+        const resolvedArgs = resolveWebSearchArgsForExecution(toolName, args)
         
         // Add timeout handling (and ensure the timer is cleared)
         let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -64,7 +67,7 @@ export async function executeTool(toolName: string, args: Record<string, unknown
         let result: { success: boolean; data?: unknown; error?: string }
         try {
             result = await Promise.race([
-                window.ipcRenderer.invoke('execute-tool', toolName, args),
+                window.ipcRenderer.invoke('execute-tool', toolName, resolvedArgs),
                 timeoutPromise
             ]) as { success: boolean; data?: unknown; error?: string }
         } finally {

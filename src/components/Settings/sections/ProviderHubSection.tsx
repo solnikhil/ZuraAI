@@ -43,14 +43,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
+import type {
+  ConfiguredModel,
+  TavilySearchDepthPreference,
+} from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
+import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
-import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
+import {
+  DEFAULT_OLLAMA_URL,
+  getActiveProviderDefinitions,
+  getProviderEndpoint,
+  type ProviderId,
+} from '../../../providers'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
-type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
+type ProviderKey = ProviderId
 type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
@@ -60,58 +69,46 @@ interface ProviderDefinition {
   description: string
   apiKeyField?: keyof Pick<
     ProviderHubSectionProps,
-    'openRouterApiKey' | 'perplexityApiKey' | 'groqApiKey' | 'alibabaApiKey'
+    'alibabaApiKey' | 'fireworksApiKey' | 'groqApiKey' | 'openRouterApiKey' | 'perplexityApiKey'
   >
 }
 
-const PROVIDERS: ProviderDefinition[] = [
-  {
-    key: 'openrouter',
-    name: 'OpenRouter',
-    description: 'OpenRouter provides access to many frontier models through one API.',
-    apiKeyField: 'openRouterApiKey',
-  },
-  {
-    key: 'groq',
-    name: 'Groq',
-    description: 'Ultra-low-latency model inference for high-speed chat experiences.',
-    apiKeyField: 'groqApiKey',
-  },
-  {
-    key: 'alibaba',
-    name: 'Alibaba Cloud',
-    description: 'Qwen models via DashScope API (Tongyi).',
-    apiKeyField: 'alibabaApiKey',
-  },
-  {
-    key: 'perplexity',
-    name: 'Perplexity',
-    description: 'Research-focused model provider with search-native reasoning models.',
-    apiKeyField: 'perplexityApiKey',
-  },
-  {
-    key: 'ollama',
-    name: 'Ollama',
-    description: 'Run local models privately on your machine with local networking.',
-  },
-]
+const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((provider) => ({
+  key: provider.id as ProviderKey,
+  name: provider.label,
+  description: provider.description,
+  apiKeyField:
+    provider.id === 'openrouter'
+      ? 'openRouterApiKey'
+      : provider.id === 'groq'
+        ? 'groqApiKey'
+        : provider.id === 'alibaba'
+          ? 'alibabaApiKey'
+          : provider.id === 'fireworks'
+            ? 'fireworksApiKey'
+          : provider.id === 'perplexity'
+            ? 'perplexityApiKey'
+            : undefined,
+}))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
-  openrouter: 'https://openrouter.ai/api/v1',
-  perplexity: 'https://api.perplexity.ai',
-  groq: 'https://api.groq.com/openai/v1',
-  ollama: 'http://localhost:11434',
-  alibaba: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
+  fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
+  groq: getProviderEndpoint('groq', 'baseUrl') || '',
+  ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
+  openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
+  perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
 }
 
 const CATALOG_BASE_BACKGROUND = '#212121'
 const CATALOG_CARD_BACKGROUND = '#2c2c2c'
 const DEFAULT_PROVIDER_ENABLED: Record<ProviderKey, boolean> = {
-  openrouter: true,
-  perplexity: true,
+  alibaba: true,
+  fireworks: true,
   groq: true,
   ollama: true,
-  alibaba: true,
+  openrouter: true,
+  perplexity: true,
 }
 
 type SearchApiKey = 'tavily'
@@ -148,40 +145,48 @@ interface ModelBasic {
 }
 
 export interface ProviderHubSectionProps {
+  alibabaApiKey: string
+  fireworksApiKey: string
+  groqApiKey: string
   openRouterApiKey: string
   perplexityApiKey: string
-  groqApiKey: string
-  alibabaApiKey: string
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
+  webSearchIncludeImages: boolean
   ollamaUrl: string
   aiModel: string
-  modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+  modelProvider: ProviderKey
   providerEnabled?: ProviderEnabledMap
   configuredModels: ConfiguredModel[]
-  perplexityModels: ModelBasic[]
-  groqModels: ModelBasic[]
   alibabaModels: ModelBasic[]
+  fireworksModels: ModelBasic[]
+  groqModels: ModelBasic[]
   ollamaModels: ModelBasic[]
+  perplexityModels: ModelBasic[]
   maxTokens: number
   initialProvider?: ProviderKey
   initialManageMode?: ManageMode
   onParamsConsumed?: () => void
   onChange: (
     changes: Partial<{
+      alibabaApiKey: string
+      fireworksApiKey: string
+      groqApiKey: string
       openRouterApiKey: string
       perplexityApiKey: string
-      groqApiKey: string
-      alibabaApiKey: string
       tavilyApiKey: string
+      tavilySearchDepthPreference: TavilySearchDepthPreference
+      webSearchIncludeImages: boolean
       ollamaUrl: string
       configuredModels: ConfiguredModel[]
-      perplexityModels: ConfiguredModel[]
-      groqModels: ConfiguredModel[]
       alibabaModels: ConfiguredModel[]
+      fireworksModels: ConfiguredModel[]
+      groqModels: ConfiguredModel[]
       ollamaModels: ConfiguredModel[]
+      perplexityModels: ConfiguredModel[]
       maxTokens: number
       aiModel: string
-      modelProvider: 'openrouter' | 'ollama' | 'perplexity' | 'groq' | 'alibaba'
+      modelProvider: ProviderKey
       providerEnabled: ProviderEnabledMap
     }>
   ) => void
@@ -192,7 +197,10 @@ export function ProviderHubSection({
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
+  fireworksApiKey,
   tavilyApiKey,
+  tavilySearchDepthPreference,
+  webSearchIncludeImages,
   ollamaUrl,
   aiModel,
   modelProvider,
@@ -201,25 +209,30 @@ export function ProviderHubSection({
   perplexityModels,
   groqModels,
   alibabaModels,
+  fireworksModels,
   ollamaModels,
   initialProvider,
   initialManageMode,
   onParamsConsumed,
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
+  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey =>
+    provider || 'openrouter'
+
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(
     initialProvider ? 'detail' : 'catalog'
   )
   const [providerModelQuery, setProviderModelQuery] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey>(
-    initialProvider ?? 'openrouter'
+    normalizeVisibleProvider(initialProvider)
   )
   const [searchApiView, setSearchApiView] = useState<'catalog' | 'detail'>('catalog')
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
     model: ConfiguredModel
@@ -259,7 +272,7 @@ export function ProviderHubSection({
   useEffect(() => {
     if (initialProvider != null || initialManageMode != null) {
       if (initialProvider != null) {
-        setSelectedProvider(initialProvider)
+        setSelectedProvider(normalizeVisibleProvider(initialProvider))
         setProviderView('detail')
       }
       if (initialManageMode != null) {
@@ -274,6 +287,7 @@ export function ProviderHubSection({
     perplexity: perplexityModels,
     groq: groqModels,
     alibaba: alibabaModels,
+    fireworks: fireworksModels,
     ollama: ollamaModels,
   }
 
@@ -329,6 +343,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') return perplexityApiKey ?? ''
     if (provider.apiKeyField === 'groqApiKey') return groqApiKey ?? ''
     if (provider.apiKeyField === 'alibabaApiKey') return alibabaApiKey ?? ''
+    if (provider.apiKeyField === 'fireworksApiKey') return fireworksApiKey ?? ''
     return ''
   }
 
@@ -339,6 +354,7 @@ export function ProviderHubSection({
       groq: providerEnabled?.groq !== false,
       ollama: providerEnabled?.ollama !== false,
       alibaba: providerEnabled?.alibaba !== false,
+      fireworks: providerEnabled?.fireworks !== false,
     }
   }, [
     providerEnabled?.openrouter,
@@ -346,6 +362,7 @@ export function ProviderHubSection({
     providerEnabled?.groq,
     providerEnabled?.ollama,
     providerEnabled?.alibaba,
+    providerEnabled?.fireworks,
   ])
 
   const isProviderEnabled = (provider: ProviderDefinition): boolean =>
@@ -357,6 +374,7 @@ export function ProviderHubSection({
     if (provider.apiKeyField === 'perplexityApiKey') onChange({ perplexityApiKey: value })
     if (provider.apiKeyField === 'groqApiKey') onChange({ groqApiKey: value })
     if (provider.apiKeyField === 'alibabaApiKey') onChange({ alibabaApiKey: value })
+    if (provider.apiKeyField === 'fireworksApiKey') onChange({ fireworksApiKey: value })
   }
 
   const setProviderEnabled = (providerKey: ProviderKey, enabled: boolean) => {
@@ -390,17 +408,32 @@ export function ProviderHubSection({
     onChange(updates)
   }
 
-  const addCustomModel = (model: ConfiguredModel) => {
-    const exists = configuredModels.some((item) => item.code === model.code)
+  const getModelsForProvider = (provider: ProviderKey): ConfiguredModel[] => {
+    return (providerModelMap[provider] as ConfiguredModel[] | undefined) || []
+  }
+
+  const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
+    if (provider === 'openrouter') updates.configuredModels = models
+    if (provider === 'perplexity') updates.perplexityModels = models
+    if (provider === 'groq') updates.groqModels = models
+    if (provider === 'alibaba') updates.alibabaModels = models
+    if (provider === 'fireworks') updates.fireworksModels = models
+    if (provider === 'ollama') updates.ollamaModels = models
+    onChange(updates)
+  }
+
+  const addCustomModel = (model: ConfiguredModel, provider: ProviderKey = selectedProviderDef.key) => {
+    const currentModels = getModelsForProvider(provider)
+    const exists = currentModels.some((item) => item.code === model.code)
     if (exists) {
-      onChange({
-        configuredModels: configuredModels.map((item) =>
-          item.code === model.code ? { ...item, ...model } : item
-        ),
-      })
+      setModelsForProvider(
+        provider,
+        currentModels.map((item) => (item.code === model.code ? { ...item, ...model } : item))
+      )
       return
     }
-    onChange({ configuredModels: [...configuredModels, model] })
+    setModelsForProvider(provider, [...currentModels, model])
   }
 
   const toggleModelEnabled = (provider: ProviderKey, modelCode: string, checked: boolean) => {
@@ -415,6 +448,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (!checked && modelProvider === provider && aiModel === modelCode) {
@@ -440,6 +474,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     onChange(updates)
@@ -454,6 +489,7 @@ export function ProviderHubSection({
     if (provider === 'perplexity') updates.perplexityModels = updatedModels
     if (provider === 'groq') updates.groqModels = updatedModels
     if (provider === 'alibaba') updates.alibabaModels = updatedModels
+    if (provider === 'fireworks') updates.fireworksModels = updatedModels
     if (provider === 'ollama') updates.ollamaModels = updatedModels
 
     if (modelProvider === provider && aiModel === modelCode) {
@@ -578,6 +614,23 @@ export function ProviderHubSection({
         })
         if (!response.ok && response.status !== 400) {
           throw new Error(`Alibaba Cloud check failed (${response.status}).`)
+        }
+      } else if (selectedProviderDef.key === 'fireworks') {
+        const response = await fetch(`${endpoint}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${selectedKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: connectivityModel,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+          }),
+          signal: controller.signal,
+        })
+        if (!response.ok && response.status !== 400) {
+          throw new Error(`Fireworks check failed (${response.status}).`)
         }
       } else {
         throw new Error(
@@ -950,11 +1003,16 @@ export function ProviderHubSection({
                     className="border-border bg-secondary pl-9"
                   />
                 </div>
-                {selectedProviderDef.key === 'openrouter' && (
+                {(selectedProviderDef.key === 'openrouter' ||
+                  selectedProviderDef.key === 'fireworks') && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setOpenRouterSearchDialogOpen(true)}
+                    onClick={() =>
+                      selectedProviderDef.key === 'openrouter'
+                        ? setOpenRouterSearchDialogOpen(true)
+                        : setFireworksSearchDialogOpen(true)
+                    }
                     className="gap-2"
                   >
                     <Search size={14} />
@@ -997,6 +1055,7 @@ export function ProviderHubSection({
               apis={SEARCH_APIS}
               selectedApi={selectedSearchApi}
               tavilyApiKey={tavilyApiKey}
+              tavilySearchDepthPreference={tavilySearchDepthPreference}
               onCardClick={(api) => {
                 setSelectedSearchApi(api.key)
                 setSearchApiView('detail')
@@ -1011,6 +1070,8 @@ export function ProviderHubSection({
         <SearchApiDetail
           api={SEARCH_APIS.find((a) => a.key === selectedSearchApi)!}
           tavilyApiKey={tavilyApiKey}
+          tavilySearchDepthPreference={tavilySearchDepthPreference}
+          webSearchIncludeImages={webSearchIncludeImages}
           onBack={() => setSearchApiView('catalog')}
           onChange={onChange}
         />
@@ -1019,7 +1080,7 @@ export function ProviderHubSection({
       <CreateCustomModelDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onCreate={addCustomModel}
+        onCreate={(model) => addCustomModel(model, selectedProviderDef.key)}
       />
 
       <CreateCustomModelDialog
@@ -1071,9 +1132,19 @@ export function ProviderHubSection({
         <OpenRouterModelSearchDialog
           open={openRouterSearchDialogOpen}
           onOpenChange={setOpenRouterSearchDialogOpen}
-          onAddModel={addCustomModel}
+          onAddModel={(model) => addCustomModel(model, 'openrouter')}
           apiKey={openRouterApiKey}
           existingModelCodes={configuredModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'fireworks' && (
+        <FireworksModelSearchDialog
+          open={fireworksSearchDialogOpen}
+          onOpenChange={setFireworksSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'fireworks')}
+          apiKey={fireworksApiKey}
+          existingModelCodes={fireworksModels.map((m) => m.code)}
         />
       )}
     </div>
@@ -1224,7 +1295,6 @@ function ModelGroup({
       )}
       {models.map((model) => {
         const enabled = model.enabled !== false
-        const capabilities = getCapabilitiesFromModel(model as ConfiguredModel)
         const handleToggle = () => onToggleModel(model.code, !enabled)
         return (
           <motion.div
@@ -1244,25 +1314,6 @@ function ModelGroup({
                 <div className="truncate text-sm font-medium text-foreground">
                   {model.displayName}
                 </div>
-                {capabilities.length > 0 && (
-                  <div className="flex items-center gap-1 flex-wrap shrink-0">
-                    {capabilities.map((capKey) => {
-                      const badgeConfig = CAPABILITY_BADGES[capKey]
-                      if (!badgeConfig) return null
-                      const Icon = badgeConfig.icon
-                      return (
-                        <div
-                          key={capKey}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground"
-                          title={badgeConfig.label}
-                        >
-                          <Icon size={10} />
-                          <span>{badgeConfig.label}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
               </div>
               <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {model.code}
@@ -1337,15 +1388,34 @@ function SearchApiSection({
   apis,
   selectedApi,
   tavilyApiKey,
+  tavilySearchDepthPreference,
   onCardClick,
   onTavilyDisable,
 }: {
   apis: SearchApiDefinition[]
   selectedApi: SearchApiKey
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
   onCardClick: (api: SearchApiDefinition) => void
   onTavilyDisable: () => void
 }): React.ReactElement {
+  const getDepthSummary = (preference: TavilySearchDepthPreference): string => {
+    switch (preference) {
+      case 'auto':
+        return 'Auto speed'
+      case 'ultra-fast':
+        return 'Lightning'
+      case 'fast':
+        return 'Fast'
+      case 'basic':
+        return 'Standard'
+      case 'advanced':
+        return 'Thorough'
+      default:
+        return 'Auto speed'
+    }
+  }
+
   return (
     <div className="mt-3 first:mt-0">
       <div className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -1409,6 +1479,11 @@ function SearchApiSection({
               <p className="mt-3 min-h-[50px] text-sm text-muted-foreground">
                 {api.shortDescription || api.description}
               </p>
+              {api.key === 'tavily' && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Default search speed: {getDepthSummary(tavilySearchDepthPreference)}
+                </div>
+              )}
               <div className="mt-4 border-t border-border pt-2" />
             </div>
           )
@@ -1421,11 +1496,15 @@ function SearchApiSection({
 function SearchApiDetail({
   api,
   tavilyApiKey,
+  tavilySearchDepthPreference,
+  webSearchIncludeImages,
   onBack,
   onChange,
 }: {
   api: SearchApiDefinition
   tavilyApiKey: string
+  tavilySearchDepthPreference: TavilySearchDepthPreference
+  webSearchIncludeImages: boolean
   onBack: () => void
   onChange: ProviderHubSectionProps['onChange']
 }): React.ReactElement {
@@ -1497,6 +1576,42 @@ function SearchApiDetail({
                     >
                       {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
+                  </div>
+                }
+              />
+              <DetailField
+                label="Search Speed"
+                description="Sets the default Tavily search depth when the model does not specify one. Auto lets the app choose per query."
+                control={
+                  <Select
+                    value={tavilySearchDepthPreference}
+                    onValueChange={(value: TavilySearchDepthPreference) =>
+                      onChange({ tavilySearchDepthPreference: value })
+                    }
+                  >
+                    <SelectTrigger className="border-border bg-secondary">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto</SelectItem>
+                      <SelectItem value="ultra-fast">Lightning</SelectItem>
+                      <SelectItem value="fast">Fast</SelectItem>
+                      <SelectItem value="basic">Standard</SelectItem>
+                      <SelectItem value="advanced">Thorough</SelectItem>
+                    </SelectContent>
+                  </Select>
+                }
+              />
+              <DetailField
+                label="Result Images"
+                description="Include image results in web_search responses and show the inline image strip in chat."
+                control={
+                  <div className="flex justify-end">
+                    <Switch
+                      checked={webSearchIncludeImages}
+                      onCheckedChange={(checked) => onChange({ webSearchIncludeImages: checked })}
+                      aria-label="Include web search images"
+                    />
                   </div>
                 }
               />

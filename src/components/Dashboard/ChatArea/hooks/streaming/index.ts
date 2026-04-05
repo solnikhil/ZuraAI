@@ -9,36 +9,24 @@
 // Types
 export type {
   StreamingResult,
-  ProviderStreamingOptions,
-  ToolCallingOptions,
-  OpenRouterStreamingOptions,
+  NormalizedStreamEvent,
+  NormalizedToolCallDelta,
+  NormalizedUsage,
+  ProviderStreamClient,
+  StreamRequest,
   UpdateStreamingCallback,
-  FlushCallback,
   ToolCallingHook,
   StreamingSettings,
 } from './types'
 
-// Provider-specific streaming hooks
-export { useOllamaStreaming } from './useOllamaStreaming'
-export type { UseOllamaStreamingOptions, UseOllamaStreamingReturn } from './useOllamaStreaming'
-
-export { usePerplexityStreaming } from './usePerplexityStreaming'
+export { createProviderStreamClient } from './providerStreamClient'
+export { useProviderStreaming } from './useProviderStreaming'
+export { formatProviderStreamError } from './streamErrorUtils'
 export type {
-  UsePerplexityStreamingOptions,
-  UsePerplexityStreamingReturn,
-} from './usePerplexityStreaming'
-
-export { useGroqStreaming } from './useGroqStreaming'
-export type { UseGroqStreamingOptions, UseGroqStreamingReturn } from './useGroqStreaming'
-
-export { useOpenRouterStreaming } from './useOpenRouterStreaming'
-export type {
-  UseOpenRouterStreamingOptions,
-  UseOpenRouterStreamingReturn,
-} from './useOpenRouterStreaming'
-
-export { useAlibabaStreaming } from './useAlibabaStreaming'
-export type { UseAlibabaStreamingOptions, UseAlibabaStreamingReturn } from './useAlibabaStreaming'
+  ProviderStreamingRunOptions,
+  UseProviderStreamingOptions,
+  UseProviderStreamingReturn,
+} from './useProviderStreaming'
 
 // Tool calling hook for streaming
 export { useStreamingToolCalls } from './useStreamingToolCalls'
