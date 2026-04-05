@@ -50,7 +50,6 @@ import type {
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
-import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
 import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderDefinitions,
@@ -1296,7 +1295,6 @@ function ModelGroup({
       )}
       {models.map((model) => {
         const enabled = model.enabled !== false
-        const capabilities = getCapabilitiesFromModel(model as ConfiguredModel)
         const handleToggle = () => onToggleModel(model.code, !enabled)
         return (
           <motion.div
@@ -1316,25 +1314,6 @@ function ModelGroup({
                 <div className="truncate text-sm font-medium text-foreground">
                   {model.displayName}
                 </div>
-                {capabilities.length > 0 && (
-                  <div className="flex items-center gap-1 flex-wrap shrink-0">
-                    {capabilities.map((capKey) => {
-                      const badgeConfig = CAPABILITY_BADGES[capKey]
-                      if (!badgeConfig) return null
-                      const Icon = badgeConfig.icon
-                      return (
-                        <div
-                          key={capKey}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground"
-                          title={badgeConfig.label}
-                        >
-                          <Icon size={10} />
-                          <span>{badgeConfig.label}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
               </div>
               <div className="mt-1 inline-flex rounded bg-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {model.code}

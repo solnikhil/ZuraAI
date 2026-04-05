@@ -271,6 +271,32 @@ export function useModelSelector(): UseModelSelectorReturn {
     return allModels.filter((m) => m.provider === selectedProvider)
   }, [searchQuery, filteredModels, viewMode, favoriteModels, allModels, selectedProvider])
 
+  useEffect(() => {
+    if (!isOpen) return
+    if (searchQuery.trim()) return
+    if (viewMode !== 'all') return
+    if (currentModels.length > 0) return
+
+    const nextProvider = validProviders.find(
+      (provider) =>
+        isProviderEnabled(provider) &&
+        allModels.some((model) => model.provider === provider)
+    )
+
+    if (nextProvider && nextProvider !== selectedProvider) {
+      setSelectedProvider(nextProvider)
+    }
+  }, [
+    allModels,
+    currentModels.length,
+    isOpen,
+    isProviderEnabled,
+    searchQuery,
+    selectedProvider,
+    validProviders,
+    viewMode,
+  ])
+
   // Find current model
   const currentModel = useMemo(() => {
     return allModels.find(
@@ -353,13 +379,38 @@ export function useModelSelector(): UseModelSelectorReturn {
     (e: KeyboardEvent) => {
       if (!isOpen) return
 
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (currentModels.length === 0) return
+        setFocusedIndex((prev) => (prev + 1 + currentModels.length) % currentModels.length)
+        return
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (currentModels.length === 0) return
+        setFocusedIndex((prev) => {
+          const baseIndex = prev < 0 ? 0 : prev
+          return (baseIndex - 1 + currentModels.length) % currentModels.length
+        })
+        return
+      }
+
+      if (e.key === 'Enter') {
+        if (focusedIndex >= 0 && focusedIndex < currentModels.length) {
+          e.preventDefault()
+          handleSelect(currentModels[focusedIndex])
+        }
+        return
+      }
+
       if (e.key === 'Escape') {
         e.preventDefault()
         setIsOpen(false)
         setFocusedIndex(-1)
       }
     },
-    [isOpen]
+    [currentModels, focusedIndex, handleSelect, isOpen]
   )
 
   // Attach keyboard event listener when dropdown is open

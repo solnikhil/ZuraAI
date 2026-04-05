@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const selectItemClassName =
-  'theme-menu-item relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-2 pr-8 pl-2.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--theme-surface-hover)] data-[highlighted]:text-[var(--theme-text-primary)] data-[highlighted]:border-[var(--theme-border)] data-[highlighted]:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+  'theme-menu-item relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-2 pr-8 pl-2.5 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-[var(--interactive-hover-bg)] data-[highlighted]:text-[var(--theme-text-primary)] data-[highlighted]:border-[var(--interactive-hover-border)] data-[highlighted]:shadow-[var(--interactive-hover-shadow)]'
 
 function Select({
   ...props

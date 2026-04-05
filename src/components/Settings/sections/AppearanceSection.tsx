@@ -1048,52 +1048,6 @@ export function AppearanceSection({
 
         <div className="settings-list-row">
           <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show sidebar labels</h3>
-            <div className="settings-list-row__description">
-              Display provider names alongside icons
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().sidebarShowLabels}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    sidebarShowLabels: checked,
-                  },
-                })
-              }
-              aria-label="Show sidebar labels"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show model count badges</h3>
-            <div className="settings-list-row__description">
-              Display number of models per provider
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().sidebarShowModelCount}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    sidebarShowModelCount: checked,
-                  },
-                })
-              }
-              aria-label="Show model count badges"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
             <h3 className="settings-list-row__label">Dropdown width</h3>
             <div className="settings-list-row__description">Control the overall selector size</div>
           </div>
@@ -1193,29 +1147,6 @@ export function AppearanceSection({
             </div>
           </div>
         )}
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Show provider logos</h3>
-            <div className="settings-list-row__description">
-              Use provider logos instead of fallback icons
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <Switch
-              checked={getModelSelector().showProviderLogos}
-              onCheckedChange={(checked) =>
-                updateSettings({
-                  modelSelector: {
-                    ...getModelSelector(),
-                    showProviderLogos: checked,
-                  },
-                })
-              }
-              aria-label="Show provider logos"
-            />
-          </div>
-        </div>
 
         <div className="settings-list-row">
           <div className="settings-list-row__meta">

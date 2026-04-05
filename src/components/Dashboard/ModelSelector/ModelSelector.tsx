@@ -38,6 +38,7 @@ export default function ModelSelector({
     setSearchQuery,
     setViewMode,
     setSelectedProvider,
+    setFocusedIndex,
     setIsOpen,
     toggleFavorite,
     handleSelect,
@@ -107,7 +108,7 @@ export default function ModelSelector({
         </motion.button>
       </PopoverTrigger>
       <PopoverContent
-        className="theme-menu-surface overflow-hidden p-0"
+        className="theme-menu-surface model-selector-popover overflow-hidden p-0"
         align={popoverAlign}
         style={{
           width: `${effectiveDropdownWidth}px`,
@@ -139,11 +140,13 @@ export default function ModelSelector({
             onProviderSelect={setSelectedProvider}
             currentModels={currentModels}
             groupedModels={groupedModels}
+            focusedIndex={state.focusedIndex}
             selectedModelCode={settings.aiModel}
             selectedModelProvider={settings.modelProvider}
             favoriteModels={settings.favoriteModels || []}
             onModelSelect={handleSelect}
             onToggleFavorite={toggleFavorite}
+            onFocusedIndexChange={setFocusedIndex}
             compactMode={compactMode}
           />
         </motion.div>

@@ -3,7 +3,7 @@
  *
  */
 
-import React, { useEffect } from 'react'
+import React, { memo, useEffect } from 'react'
 import { Star } from 'lucide-react'
 import type { ModelWithProvider, ViewMode, GroupedModels, ModelSelectorCompactMode } from './types'
 import {
@@ -11,7 +11,6 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
 } from '@/components/ui/command'
 import { Button } from '@/components/ui/button'
@@ -25,7 +24,6 @@ import { removeEmojis } from '../../../utils/textUtils'
 import { ProviderLogo } from '@/components/shared'
 import { useSettings } from '../../../contexts/SettingsContext'
 import { useAppShell } from '../../../contexts/AppShellContext'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ModelSelectorSettings } from '../../../contexts/SettingsUIContext'
 import { cn } from '@/lib/utils'
 
@@ -63,6 +61,8 @@ export interface ModelSelectorDropdownProps {
   currentModels: ModelWithProvider[]
   /** Grouped models by provider */
   groupedModels: GroupedModels
+  /** Keyboard-focused model index */
+  focusedIndex: number
   /** Currently selected model code */
   selectedModelCode: string
   /** Currently selected model provider */
@@ -73,6 +73,8 @@ export interface ModelSelectorDropdownProps {
   onModelSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   /** Handler for toggling favorites */
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
+  /** Handler for focused index changes */
+  onFocusedIndexChange: (index: number) => void
   /** Auto-compact mode based on available window width */
   compactMode?: ModelSelectorCompactMode
 }
@@ -114,11 +116,13 @@ export function ModelSelectorDropdown({
   onProviderSelect,
   currentModels,
   groupedModels,
+  focusedIndex,
   selectedModelCode,
   selectedModelProvider,
   favoriteModels,
   onModelSelect,
   onToggleFavorite,
+  onFocusedIndexChange,
   compactMode = 'none',
 }: ModelSelectorDropdownProps): React.ReactElement {
   const { settings } = useSettings()
@@ -160,6 +164,14 @@ export function ModelSelectorDropdown({
     return () => clearTimeout(timer)
   }, [modelSelector.showSearch, searchInputRef])
 
+  useEffect(() => {
+    if (focusedIndex < 0) return
+    const focusedItem = document.querySelector(
+      `[data-model-index="${focusedIndex}"]`
+    ) as HTMLElement | null
+    focusedItem?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex])
+
   // Determine active tab key (favorites or provider)
   // Clear sidebar highlight when searching across all providers
   const activeTabKey = searchQuery.trim() ? '' : viewMode === 'favorites' ? 'favorites' : selectedProvider
@@ -169,8 +181,6 @@ export function ModelSelectorDropdown({
   const isCompact = compactMode !== 'none'
   const isTight = compactMode === 'tight'
 
-  const sidebarShowLabels = isCompact ? false : modelSelector.sidebarShowLabels
-  const sidebarShowModelCount = isTight ? false : modelSelector.sidebarShowModelCount
   const showDescriptions = modelSelector.showDescriptions && !isTight
   const showCapabilityBadges = modelSelector.showCapabilityBadges && !isTight
   const emptyStateHeading =
@@ -188,9 +198,6 @@ export function ModelSelectorDropdown({
       <ProviderSidebar
         activeTabKey={activeTabKey}
         groupedModels={groupedModels}
-        favoriteModels={favoriteModels}
-        sidebarShowLabels={sidebarShowLabels}
-        sidebarShowModelCount={sidebarShowModelCount}
         sidebarPosition={modelSelector.sidebarPosition}
         onTabSelect={(key) => {
           if (key === 'favorites') {
@@ -217,35 +224,33 @@ export function ModelSelectorDropdown({
             </div>
           )}
           <CommandList className="flex-1 max-h-full">
-            <CommandEmpty>
-              <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium text-foreground">{emptyStateHeading}</div>
-                  <div className="max-w-xs text-sm leading-6 text-muted-foreground">
-                    {viewMode === 'favorites'
-                      ? 'Star a model after enabling a provider to pin it here for quick access.'
-                      : 'Enable a provider in Settings, add your API key or local model, then come back to select it.'}
+            {currentModels.length === 0 && (
+              <CommandEmpty>
+                <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-foreground">{emptyStateHeading}</div>
+                    <div className="max-w-xs text-sm leading-6 text-muted-foreground">
+                      {viewMode === 'favorites'
+                        ? 'Star a model after enabling a provider to pin it here for quick access.'
+                        : 'Enable a provider in Settings, add your API key or local model, then come back to select it.'}
+                    </div>
                   </div>
+                  <Button type="button" size="sm" onClick={handleOpenProviders}>
+                    Open Provider Settings
+                  </Button>
                 </div>
-                <Button type="button" size="sm" onClick={handleOpenProviders}>
-                  Open Provider Settings
-                </Button>
-              </div>
-            </CommandEmpty>
+              </CommandEmpty>
+            )}
             {currentModels.length > 0 && (
-              <CommandGroup
-                heading={
-                  viewMode === 'favorites'
-                    ? 'Favorites'
-                    : PROVIDERS.find((p) => p.key === selectedProvider)?.title || 'Models'
-                }
-              >
+              <CommandGroup>
                 <div className="flex flex-col">
-                  {currentModels.map((model) => (
+                  {currentModels.map((model, index) => (
                     <ModelItem
                       key={`${model.provider}-${model.code}`}
+                      index={index}
                       model={model}
                       densityClasses={densityClasses}
+                      isFocused={focusedIndex === index}
                       isActive={
                         selectedModelCode === model.code &&
                         selectedModelProvider === model.provider
@@ -257,6 +262,7 @@ export function ModelSelectorDropdown({
                       showCapabilityBadges={showCapabilityBadges}
                       onSelect={onModelSelect}
                       onToggleFavorite={onToggleFavorite}
+                      onFocusedIndexChange={onFocusedIndexChange}
                     />
                   ))}
                 </div>
@@ -272,20 +278,14 @@ export function ModelSelectorDropdown({
 /**
  * ProviderSidebar component - vertical sidebar with provider tabs
  */
-function ProviderSidebar({
+const ProviderSidebar = memo(function ProviderSidebar({
   activeTabKey,
   groupedModels,
-  favoriteModels,
-  sidebarShowLabels,
-  sidebarShowModelCount,
   sidebarPosition,
   onTabSelect,
 }: {
   activeTabKey: string
   groupedModels: GroupedModels
-  favoriteModels: string[]
-  sidebarShowLabels: boolean
-  sidebarShowModelCount: boolean
   sidebarPosition: 'left' | 'right'
   onTabSelect: (key: string) => void
 }): React.ReactElement {
@@ -294,9 +294,7 @@ function ProviderSidebar({
   }
 
   // Count models that are actually favorited
-  const favoritesCount = favoriteModels.length
-
-  const sidebarWidth = sidebarShowLabels ? 'w-[120px]' : 'w-[48px]'
+  const sidebarWidth = 'w-[56px]'
   const borderSide = sidebarPosition === 'right' ? 'border-l' : 'border-r'
 
   return (
@@ -308,50 +306,44 @@ function ProviderSidebar({
         key="favorites"
         isActive={activeTabKey === 'favorites'}
         onClick={() => onTabSelect('favorites')}
-        icon={<Star size={16} />}
-        label={sidebarShowLabels ? 'Favorites' : undefined}
-        count={sidebarShowModelCount ? favoritesCount : undefined}
+        icon={<Star size={18} />}
+        ariaLabel="Favorites"
       />
-
-      <div className="h-px bg-border/50 mx-2 my-1" />
 
       {/* Provider Tabs - only show providers that have models (disabled providers have empty lists) */}
       {PROVIDERS.filter((provider) => getModelCount(provider.key) > 0).map((provider) => {
-        const count = getModelCount(provider.key)
         return (
           <SidebarItem
             key={provider.key}
             isActive={activeTabKey === provider.key}
             onClick={() => onTabSelect(provider.key)}
-            icon={<ProviderLogo provider={provider.key} size={16} />}
-            label={sidebarShowLabels ? provider.title : undefined}
-            count={sidebarShowModelCount ? count : undefined}
+            icon={<ProviderLogo provider={provider.key} size={20} />}
+            ariaLabel={provider.title}
           />
         )
       })}
     </div>
   )
-}
+})
 
 /**
  * SidebarItem component
  */
-function SidebarItem({
+const SidebarItem = memo(function SidebarItem({
   isActive,
   onClick,
   icon,
-  label,
-  count,
+  ariaLabel,
 }: {
   isActive: boolean
   onClick: () => void
   icon: React.ReactNode
-  label?: string
-  count?: number
+  ariaLabel: string
 }): React.ReactElement {
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={(e) => {
         e.stopPropagation()
         e.preventDefault()
@@ -366,27 +358,23 @@ function SidebarItem({
         e.preventDefault()
       }}
       className={`
-        relative flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer
+        theme-hover-surface relative flex items-center justify-center rounded-[10px] px-3 py-3.5 text-sm font-medium transition-colors cursor-pointer
         w-full
-        ${label ? 'justify-start' : 'justify-center'}
         ${
           isActive
-            ? 'bg-primary/10 text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            ? 'text-foreground'
+            : 'text-muted-foreground hover:text-foreground'
         }
       `}
+      data-active={isActive ? 'true' : undefined}
     >
       {icon}
-      {label && <span className="truncate">{label}</span>}
-      {count !== undefined && count > 0 && (
-        <span className="ml-auto text-xs opacity-60 bg-muted px-1.5 py-0.5 rounded">{count}</span>
-      )}
       {isActive && (
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r" />
       )}
     </button>
   )
-}
+})
 
 /**
  * ModelItem component
@@ -397,8 +385,10 @@ function SidebarItem({
  */
 function CapabilityBadge({
   capKey,
+  showTooltip,
 }: {
   capKey: string
+  showTooltip: boolean
   display?: 'icon' | 'text' | 'both'
 }): React.ReactElement | null {
   const style = CAPABILITY_BADGE_STYLES[capKey]
@@ -409,30 +399,27 @@ function CapabilityBadge({
   const primaryColor = style.gradient.match(/#[0-9a-f]{6}/i)?.[0] || style.iconColor
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className="inline-flex items-center justify-center shrink-0 rounded-full transition-opacity hover:opacity-80"
-          style={{
-            background: `${primaryColor}18`,
-            color: primaryColor,
-            width: 22,
-            height: 22,
-          }}
-        >
-          <Icon size={13} className="shrink-0" />
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs">
-        {style.tooltip}
-      </TooltipContent>
-    </Tooltip>
+    <div
+      className="inline-flex items-center justify-center shrink-0 rounded-full transition-opacity hover:opacity-80"
+      style={{
+        background: `${primaryColor}18`,
+        color: primaryColor,
+        width: 22,
+        height: 22,
+      }}
+      title={showTooltip ? style.tooltip : undefined}
+      aria-label={style.tooltip}
+    >
+      <Icon size={13} className="shrink-0" />
+    </div>
   )
 }
 
-function ModelItem({
+const ModelItem = memo(function ModelItem({
+  index,
   model,
   densityClasses,
+  isFocused,
   isActive,
   isFavorite,
   modelSelector,
@@ -441,9 +428,12 @@ function ModelItem({
   showCapabilityBadges,
   onSelect,
   onToggleFavorite,
+  onFocusedIndexChange,
 }: {
+  index: number
   model: ModelWithProvider
   densityClasses: string
+  isFocused: boolean
   isActive: boolean
   isFavorite: boolean
   modelSelector: ModelSelectorSettings
@@ -452,21 +442,28 @@ function ModelItem({
   showCapabilityBadges: boolean
   onSelect: (model: ModelWithProvider, e?: React.MouseEvent) => void
   onToggleFavorite: (modelCode: string, e: React.MouseEvent) => void
+  onFocusedIndexChange: (index: number) => void
 }): React.ReactElement {
   const { badge } = getModelAttributes(model)
   const capabilities = getCapabilitiesForModelPicker(model)
   const isTight = compactMode === 'tight'
 
   return (
-    <CommandItem
-      value={`${model.code} ${model.displayName}`}
-      onSelect={() => onSelect(model)}
+    <div
+      role="option"
+      data-model-index={index}
+      onClick={(e) => onSelect(model, e)}
+      onMouseEnter={() => onFocusedIndexChange(index)}
       className={cn(
-        'flex items-center relative transition-colors',
+        'theme-hover-surface flex w-full items-center relative rounded-[10px] text-left outline-hidden',
         'gap-3 px-4',
         densityClasses,
-        isActive ? 'bg-primary/8' : 'hover:bg-muted/50'
+        isActive || isFocused ? 'text-foreground' : 'hover:text-foreground'
       )}
+      aria-current={isActive ? 'true' : undefined}
+      aria-selected={isFocused}
+      data-active={isActive ? 'true' : undefined}
+      tabIndex={-1}
     >
       <div className="flex flex-1 flex-col gap-0.5 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -504,12 +501,13 @@ function ModelItem({
             <CapabilityBadge
               key={capKey}
               capKey={capKey}
+              showTooltip={modelSelector.showInfoTooltips}
             />
           ))}
         </div>
       )}
-    </CommandItem>
+    </div>
   )
-}
+})
 
 export default ModelSelectorDropdown
