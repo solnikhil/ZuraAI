@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Box, ChartNoAxesCombined, Cloud, Paintbrush, FlaskConical, FileText, Wrench } from '../icons'
 
 import { useChatHistory } from '../../contexts/ChatHistoryContext'
 import { useAppShell } from '../../contexts/AppShellContext'
 import { useSettingsUI } from '../../contexts/SettingsUIContext'
-import { SETTINGS_SECTIONS, type SettingsSectionId } from '../../constants/settingsSections'
-
-import SidebarHeader from './Sidebar/SidebarHeader'
-import SidebarChatList from './Sidebar/SidebarChatList'
 import SidebarSearchOverlay from './Sidebar/SidebarSearchOverlay'
 import { groupSessions } from './Sidebar/utils/groupSessions'
 import type { ChatRowAction } from './Sidebar/ChatRow'
 import { SIDEBAR_COLLAPSED_WIDTH_PX, clampSidebarWidth } from '../../constants/sidebar'
 import './Sidebar/Sidebar.css'
+import SidebarChatView from './SidebarChatView'
+import SidebarSettingsView from './SidebarSettingsView'
 
 interface SidebarProps {
   view: 'chat' | 'settings'
@@ -47,23 +44,6 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
-  // Settings navigation items
-  const settingsIcons: Record<SettingsSectionId, React.ReactNode> = {
-    usage: <ChartNoAxesCombined size={18} />,
-    providers: <Cloud size={18} />,
-    mcp: <Box size={18} />,
-    skills: <Wrench size={18} />,
-    themes: <Paintbrush size={18} />,
-    systemprompt: <FileText size={18} />,
-    experimental: <FlaskConical size={18} />,
-  }
-
-  const navItems = SETTINGS_SECTIONS.map((section) => ({
-    id: section.id,
-    label: section.navLabel,
-    icon: settingsIcons[section.id],
-  }))
-
   // Group sessions for sidebar list
   const groupedSessions = useMemo(() => groupSessions(sessions, folders), [sessions, folders])
 
@@ -302,64 +282,32 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
     transition: isResizing ? 'none' : undefined,
   }
 
-  // Chat content view
-  const renderChatContent = () => (
-    <div className={`sidebar-view sidebar-view--chat ${view === 'chat' ? 'active' : 'inactive'}`}>
-      <SidebarHeader onNewChat={clearCurrentSession} onOpenSearch={openSearchOverlay} />
-
-      <SidebarChatList
-        groupedSessions={groupedSessions}
-        folders={folders}
-        chatSelectedOverlayStyle={chatSelectedOverlayStyle}
-        isFrosted={false}
-        currentSessionId={currentSessionId}
-        streamingSessionId={null}
-        focusIndex={focusIndex}
-        flatVisibleSessions={flatVisibleSessions}
-        sessionIndexMap={sessionIndexMap}
-        bottomPadding={userStripPadding}
-        onSelectSession={switchSession}
-        onContextAction={handleContextAction}
-        onRenameConfirm={handleRenameConfirm}
-        onDropSessionToFolder={handleDropSessionToFolder}
-        onKeyDown={handleKeyDown}
-      />
-    </div>
-  )
-
-  // Settings content view
-  const renderSettingsContent = () => (
-    <div
-      className={`sidebar-view sidebar-view--settings ${view === 'settings' ? 'active' : 'inactive'}`}
-    >
-      <div className="sidebar-settings-content">
-        {navItems.map((item, index) => (
-          <button
-            key={item.id}
-            onClick={() => onNavigateSettings(item.id)}
-            className={`sidebar-nav-item sidebar-nav-item--settings sidebar-animate-item ${activeSettingsSection === item.id ? 'active' : ''}`}
-            style={{
-              fontSize: '0.9rem',
-              justifyContent: 'flex-start',
-              animationDelay: `${index * 0.05}s`,
-              minWidth: 0,
-              overflow: 'hidden',
-              width: '100%',
-            }}
-          >
-            <div className="sidebar-nav-item__icon">{item.icon}</div>
-            <span className="sidebar-nav-item__label">{item.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-
   return (
     <div className={containerClasses} style={containerStyle}>
       <div className="sidebar__inner">
-        {renderChatContent()}
-        {renderSettingsContent()}
+        <SidebarChatView
+          active={view === 'chat'}
+          groupedSessions={groupedSessions}
+          folders={folders}
+          chatSelectedOverlayStyle={chatSelectedOverlayStyle}
+          currentSessionId={currentSessionId}
+          focusIndex={focusIndex}
+          flatVisibleSessions={flatVisibleSessions}
+          sessionIndexMap={sessionIndexMap}
+          bottomPadding={userStripPadding}
+          onNewChat={clearCurrentSession}
+          onOpenSearch={openSearchOverlay}
+          onSelectSession={switchSession}
+          onContextAction={handleContextAction}
+          onRenameConfirm={handleRenameConfirm}
+          onDropSessionToFolder={handleDropSessionToFolder}
+          onKeyDown={handleKeyDown}
+        />
+        <SidebarSettingsView
+          active={view === 'settings'}
+          activeSettingsSection={activeSettingsSection}
+          onNavigateSettings={onNavigateSettings}
+        />
       </div>
 
       <SidebarSearchOverlay
