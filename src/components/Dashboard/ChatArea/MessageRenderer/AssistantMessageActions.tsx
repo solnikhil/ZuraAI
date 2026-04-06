@@ -166,36 +166,13 @@ export function AssistantMessageActions({
       {shouldShowInfoTooltip && (
         <div
           ref={infoTriggerRef}
-          className={messageActionButtonClassName}
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '6px',
-            cursor: 'pointer',
-            flexShrink: 0,
-            overflow: 'visible',
-            minWidth: '22px',
-            minHeight: '22px',
-            animationDelay: '120ms',
-          }}
+          className={`info-trigger-btn ${messageActionButtonClassName}`}
+          data-active={popoverPosition !== null ? 'true' : undefined}
+          style={{ animationDelay: '120ms' }}
           onMouseEnter={handleTriggerMouseEnter}
           onMouseLeave={handleTriggerMouseLeave}
         >
-          <div style={{ position: 'relative', display: 'flex' }}>
-            <Info
-              size={MESSAGE_ACTION_ICON_SIZE}
-              style={{
-                cursor: 'pointer',
-                color: 'var(--theme-text-muted)',
-                flexShrink: 0,
-                display: 'block',
-                width: `${MESSAGE_ACTION_ICON_SIZE}px`,
-                height: `${MESSAGE_ACTION_ICON_SIZE}px`,
-              }}
-            />
-          </div>
+          <Info size={13} />
         </div>
       )}
 
@@ -205,6 +182,7 @@ export function AssistantMessageActions({
         createPortal(
           <div
             ref={infoPopoverRef}
+            className="info-popover-enter"
             onMouseEnter={handlePopoverMouseEnter}
             onMouseLeave={handlePopoverMouseLeave}
             style={{

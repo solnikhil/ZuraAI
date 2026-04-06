@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-const RESPONSE_INFO_WIDTH = 260
+const RESPONSE_INFO_WIDTH = 280
 const RESPONSE_INFO_PADDING = 12
 const RESPONSE_INFO_HIDE_DELAY_MS = 120
 const RESPONSE_INFO_OFFSET_X = 14

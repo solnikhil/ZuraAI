@@ -31,6 +31,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export interface OpenRouterStreamChunk {
     id: string
+    model?: string
     choices: Array<{
         delta?: {
             content?: string
@@ -78,6 +79,7 @@ export interface OpenRouterStreamChunk {
 
 export interface OpenRouterResponse {
     id: string
+    model?: string
     choices: Array<{
         message: {
             role: string

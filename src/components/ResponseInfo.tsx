@@ -1,4 +1,4 @@
-import { Info, Zap, Clock } from './icons'
+import { Zap, Clock } from './icons'
 
 interface UsageData {
     inputTokens?: number
@@ -33,105 +33,231 @@ export default function ResponseInfo({ model, latency, usage, finishReason, requ
     const outputTokens = usage?.outputTokens ?? usage?.completion_tokens ?? usage?.eval_count ?? 0
     const totalTokens = usage?.totalTokens ?? usage?.total_tokens ?? 0
 
+    const tokenMax = Math.max(inputTokens, outputTokens, 1)
+
     return (
         <div style={{
             backgroundColor: 'var(--theme-surface)',
-            border: '1px solid var(--theme-border)',
-            borderRadius: '12px',
-            padding: '16px',
-            width: '260px',
-            boxShadow: 'var(--theme-shadow-md)',
+            border: '1px solid color-mix(in srgb, var(--theme-border) 60%, transparent)',
+            borderRadius: '14px',
+            padding: '0',
+            width: '280px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.28), 0 1px 3px rgba(0,0,0,0.12)',
             color: 'var(--theme-text-primary)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '12px'
+            overflow: 'hidden',
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--theme-text-tertiary)', fontSize: '13px', fontWeight: 500 }}>
-                <Info size={14} />
-                Response Info
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Model</span>
+            {/* Header */}
+            <div style={{
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid color-mix(in srgb, var(--theme-border) 40%, transparent)',
+                background: 'color-mix(in srgb, var(--theme-accent) 4%, var(--theme-surface))',
+            }}>
+                <span style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: 'var(--theme-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                }}>Response Stats</span>
                 <span style={{
                     background: 'var(--theme-accent-muted)',
                     color: 'var(--theme-accent)',
-                    padding: '3px 10px',
-                    borderRadius: '10px',
-                    fontSize: '11px',
+                    padding: '3px 9px',
+                    borderRadius: '8px',
+                    fontSize: '10.5px',
                     fontWeight: 600,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
-                    maxWidth: '160px',
+                    maxWidth: '150px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
                 }}>
                     <Zap size={10} fill="currentColor" />
                     {displayModel}
                 </span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Generation Time</span>
-                <span style={{ fontSize: '13px', color: 'var(--theme-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={12} />
-                    {formattedDuration}
-                </span>
+            {/* Stats Grid */}
+            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Time + Stop Reason row */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{
+                        flex: 1,
+                        background: 'var(--theme-surface-hover)',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Clock size={11} style={{ color: 'var(--theme-text-muted)', opacity: 0.7 }} />
+                            <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Latency</span>
+                        </div>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                            {formattedDuration}
+                        </span>
+                    </div>
+
+                    {finishReason && (
+                        <div style={{
+                            flex: 1,
+                            background: 'var(--theme-surface-hover)',
+                            borderRadius: '10px',
+                            padding: '10px 12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                        }}>
+                            <span style={{ fontSize: '10px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Stop</span>
+                            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--theme-text-primary)' }}>
+                                {finishReason}
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                {typeof requestedMaxTokens === 'number' && (
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0 2px',
+                    }}>
+                        <span style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Max Tokens</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                            {fmt(requestedMaxTokens)}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {(finishReason || typeof requestedMaxTokens === 'number') && (
-                <>
-                    <div style={{ height: '1px', background: 'var(--theme-border)' }} />
-                    {typeof requestedMaxTokens === 'number' && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Requested Max</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)' }}>{fmt(requestedMaxTokens)}</span>
-                        </div>
-                    )}
-                    {finishReason && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Stop Reason</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)' }}>{finishReason}</span>
-                        </div>
-                    )}
-                </>
-            )}
-
+            {/* Token Usage Section */}
             {usage && (
-                <>
-                    <div style={{ height: '1px', background: 'var(--theme-border)' }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--theme-text-muted)' }}>Token Usage</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                            <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Input</div>
-                                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(inputTokens)}</div>
-                            </div>
-                            <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Output</div>
-                                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(outputTokens)}</div>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '12px', color: 'var(--theme-text-muted)' }}>Total Tokens</span>
-                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(totalTokens)}</span>
-                        </div>
-                        {(usage.tps !== undefined || usage.ttft !== undefined) && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>Speed</div>
-                                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmtTps(usage.tps)} t/s</div>
-                                </div>
-                                <div style={{ background: 'var(--theme-surface-hover)', padding: '6px 10px', borderRadius: '6px', textAlign: 'center' }}>
-                                    <div style={{ fontSize: '11px', color: 'var(--theme-text-muted)' }}>First Token</div>
-                                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>{fmt(usage.ttft)}ms</div>
-                                </div>
-                            </div>
-                        )}
+                <div style={{
+                    borderTop: '1px solid color-mix(in srgb, var(--theme-border) 40%, transparent)',
+                    padding: '12px 16px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px',
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: 'var(--theme-surface-hover)',
+                        borderRadius: '10px',
+                        padding: '8px 12px',
+                    }}>
+                        <span style={{
+                            fontSize: '10px',
+                            fontWeight: 600,
+                            color: 'var(--theme-text-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                        }}>Tokens</span>
+                        <span style={{
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: 'var(--theme-text-primary)',
+                            fontVariantNumeric: 'tabular-nums',
+                        }}>{fmt(totalTokens)}</span>
                     </div>
-                </>
+
+                    {/* Token bars */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* Input tokens */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '10.5px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Input</span>
+                                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                    {fmt(inputTokens)}
+                                </span>
+                            </div>
+                            <div style={{
+                                height: '4px',
+                                borderRadius: '2px',
+                                background: 'color-mix(in srgb, var(--theme-border) 30%, transparent)',
+                                overflow: 'hidden',
+                            }}>
+                                <div style={{
+                                    height: '100%',
+                                    borderRadius: '2px',
+                                    width: `${Math.max((inputTokens / tokenMax) * 100, 2)}%`,
+                                    background: 'var(--theme-accent)',
+                                    opacity: 0.6,
+                                    transition: 'width 0.3s ease',
+                                }} />
+                            </div>
+                        </div>
+
+                        {/* Output tokens */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '10.5px', color: 'var(--theme-text-muted)', fontWeight: 500 }}>Output</span>
+                                <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--theme-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                    {fmt(outputTokens)}
+                                </span>
+                            </div>
+                            <div style={{
+                                height: '4px',
+                                borderRadius: '2px',
+                                background: 'color-mix(in srgb, var(--theme-border) 30%, transparent)',
+                                overflow: 'hidden',
+                            }}>
+                                <div style={{
+                                    height: '100%',
+                                    borderRadius: '2px',
+                                    width: `${Math.max((outputTokens / tokenMax) * 100, 2)}%`,
+                                    background: 'var(--theme-accent)',
+                                    opacity: 0.85,
+                                    transition: 'width 0.3s ease',
+                                }} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Speed / TTFT row */}
+                    {(usage.tps !== undefined || usage.ttft !== undefined) && (
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+                            {usage.tps !== undefined && (
+                                <div style={{
+                                    flex: 1,
+                                    background: 'var(--theme-surface-hover)',
+                                    borderRadius: '8px',
+                                    padding: '8px 10px',
+                                    textAlign: 'center',
+                                }}>
+                                    <div style={{ fontSize: '10px', color: 'var(--theme-text-muted)', marginBottom: '2px' }}>Speed</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--theme-accent)', fontVariantNumeric: 'tabular-nums' }}>
+                                        {fmtTps(usage.tps)} <span style={{ fontSize: '10px', fontWeight: 500, opacity: 0.7 }}>t/s</span>
+                                    </div>
+                                </div>
+                            )}
+                            {usage.ttft !== undefined && (
+                                <div style={{
+                                    flex: 1,
+                                    background: 'var(--theme-surface-hover)',
+                                    borderRadius: '8px',
+                                    padding: '8px 10px',
+                                    textAlign: 'center',
+                                }}>
+                                    <div style={{ fontSize: '10px', color: 'var(--theme-text-muted)', marginBottom: '2px' }}>First Token</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--theme-text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                        {fmt(usage.ttft)}<span style={{ fontSize: '10px', fontWeight: 500, opacity: 0.6 }}>ms</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     )
