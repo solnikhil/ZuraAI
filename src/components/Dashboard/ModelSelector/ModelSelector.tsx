@@ -17,16 +17,14 @@ import {
 } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import './ModelSelector.css'
-
 export interface ModelSelectorProps {
   minimal?: boolean
   popoverAlign?: 'start' | 'center' | 'end'
 }
-
 export default function ModelSelector({
   minimal,
   popoverAlign = 'start',
-}: ModelSelectorProps): React.ReactElement {
+}: ModelSelectorProps) {
   const { settings } = useSettings()
   const {
     state,
@@ -43,22 +41,17 @@ export default function ModelSelector({
     toggleFavorite,
     handleSelect,
   } = useModelSelector()
-
-  const modelSelector = settings.modelSelector || {
-    dropdownWidth: 'default',
-  }
-
   const { compactMode, effectiveDropdownWidth, effectiveDropdownHeight, triggerLabelMaxWidth } =
-    useResponsiveModelSelector(modelSelector.dropdownWidth || 'default', minimal)
+    useResponsiveModelSelector(settings.modelSelector?.dropdownWidth || 'default', minimal)
   const { animationsEnabled } = useMotionPreferences()
-
+  const triggerTitle = `${currentName} - ${settings.modelProvider || 'auto'}`
   return (
     <Popover open={state.isOpen} onOpenChange={setIsOpen} modal={false}>
       <PopoverTrigger asChild>
         <motion.button
           aria-haspopup="dialog"
           aria-expanded={state.isOpen}
-          title={`${currentName} — ${settings.modelProvider || 'auto'}`}
+          title={triggerTitle}
           whileHover={!minimal ? maybeAnimate(animationsEnabled, { scale: 1.01 }) : undefined}
           whileTap={maybeAnimate(animationsEnabled, minimal ? { scale: 0.995 } : { scale: 0.99 })}
           transition={{
