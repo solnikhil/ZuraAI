@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto'
 
 import type {
-  McpExposurePolicy,
   McpNamespacedTool,
   McpPromptManifest,
   McpPromptResult,
@@ -17,6 +16,31 @@ import type {
 import { createMcpNamespacedToolIdentity } from '../../src/mcp/types'
 
 import { McpConnection, type McpConnectionOptions } from './mcpConnection'
+import {
+  ensureUniqueNamespacedTools,
+  getUserVisibleExposure,
+  isServerContentVisible,
+  isToolAllowedForServer,
+} from './mcpManagerPolicies'
+import {
+  buildPersistedServerRuntimeMetadata,
+  clonePromptManifest,
+  clonePromptResult,
+  cloneReadResourceResult,
+  cloneResourceManifest,
+  cloneRuntimeState,
+  cloneServer,
+  createInitialRuntimeState,
+  hasPersistedRuntimeMetadataChanged,
+  mergeRuntimeStateWithServer,
+} from './mcpManagerState'
+import {
+  createPromptCacheKey,
+  createResourceCacheKey,
+  getOptionalTrimmedString,
+  isRecord,
+  normalizeServerId,
+} from './mcpManagerUtils'
 import {
   loadMcpServers,
   normalizeMcpServerConfig,
@@ -343,13 +367,15 @@ export class McpManager {
       return []
     }
 
-    return runtimeState.tools.map((manifest) => ({
-      ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
-      manifest: {
-        ...manifest,
-        inputSchema: { ...manifest.inputSchema },
-        annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
-      },
+    return runtimeState.tools
+      .filter((manifest) => isToolAllowedForServer(server, manifest.name))
+      .map((manifest) => ({
+        ...createMcpNamespacedToolIdentity(server.id, server.name, manifest.name),
+        manifest: {
+          ...manifest,
+          inputSchema: { ...manifest.inputSchema },
+          annotations: manifest.annotations ? { ...manifest.annotations } : undefined,
+        },
       }))
   }
 
@@ -605,17 +631,9 @@ export class McpManager {
       return
     }
 
-    const nextServer: McpServerConfig = {
-      ...server,
-      lastKnownTools: runtimeState.tools.map((tool) => ({
-        ...tool,
-        inputSchema: { ...tool.inputSchema },
-        annotations: tool.annotations ? { ...tool.annotations } : undefined,
-      })),
-      lastKnownResources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
-      lastKnownPrompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
-      lastConnectionError: runtimeState.lastConnectionError ?? null,
-      lastConnectionTime: runtimeState.lastConnectionTime ?? null,
+    const nextServer = buildPersistedServerRuntimeMetadata(server, runtimeState)
+    if (!hasPersistedRuntimeMetadataChanged(server, nextServer)) {
+      return
     }
 
     this.servers.set(serverId, nextServer)
@@ -649,225 +667,4 @@ export class McpManager {
       }
     }
   }
-}
-
-function createInitialRuntimeState(server: McpServerConfig): McpServerRuntimeState {
-  return {
-    serverId: server.id,
-    status: 'disconnected',
-    error: undefined,
-    lastConnectionError: server.lastConnectionError ?? null,
-    lastConnectionTime: server.lastConnectionTime ?? null,
-    tools: server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
-    resources: server.lastKnownResources ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource)) : [],
-    prompts: server.lastKnownPrompts ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt)) : [],
-    capabilities: {
-      tools: false,
-      resources: false,
-      prompts: false,
-    },
-    lastUpdatedAt: new Date().toISOString(),
-  }
-}
-
-function mergeRuntimeStateWithServer(
-  server: McpServerConfig,
-  runtimeState: McpServerRuntimeState | undefined
-): McpServerRuntimeState {
-  return {
-    serverId: server.id,
-    status: runtimeState?.status ?? 'disconnected',
-    error: runtimeState?.error,
-    lastConnectionError: runtimeState?.lastConnectionError ?? server.lastConnectionError ?? null,
-    lastConnectionTime: runtimeState?.lastConnectionTime ?? server.lastConnectionTime ?? null,
-    tools: runtimeState?.tools ? runtimeState.tools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : server.lastKnownTools ? server.lastKnownTools.map((tool) => ({ ...tool, inputSchema: { ...tool.inputSchema } })) : [],
-    resources: runtimeState?.resources
-      ? runtimeState.resources.map((resource) => cloneResourceManifest(resource))
-      : server.lastKnownResources
-        ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
-        : [],
-    prompts: runtimeState?.prompts
-      ? runtimeState.prompts.map((prompt) => clonePromptManifest(prompt))
-      : server.lastKnownPrompts
-        ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
-        : [],
-    capabilities: runtimeState?.capabilities
-      ? { ...runtimeState.capabilities }
-      : {
-          tools: false,
-          resources: false,
-          prompts: false,
-        },
-    connectionInfo: runtimeState?.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,
-    lastUpdatedAt: new Date().toISOString(),
-  }
-}
-
-function cloneServer(server: McpServerConfig): McpServerConfig {
-  return {
-    ...server,
-    args: server.args ? [...server.args] : [],
-    env: server.env ? server.env.map((entry) => ({ ...entry })) : [],
-    headers: server.headers ? server.headers.map((entry) => ({ ...entry })) : [],
-    toolAllowlist: server.toolAllowlist ? [...server.toolAllowlist] : [],
-    toolBlocklist: server.toolBlocklist ? [...server.toolBlocklist] : [],
-    lastKnownTools: server.lastKnownTools
-      ? server.lastKnownTools.map((tool) => ({
-          ...tool,
-          inputSchema: { ...tool.inputSchema },
-          annotations: tool.annotations ? { ...tool.annotations } : undefined,
-        }))
-      : [],
-    lastKnownResources: server.lastKnownResources
-      ? server.lastKnownResources.map((resource) => cloneResourceManifest(resource))
-      : [],
-    lastKnownPrompts: server.lastKnownPrompts
-      ? server.lastKnownPrompts.map((prompt) => clonePromptManifest(prompt))
-      : [],
-  }
-}
-
-function cloneRuntimeState(runtimeState: McpServerRuntimeState): McpServerRuntimeState {
-  return {
-    ...runtimeState,
-    tools: runtimeState.tools.map((tool) => ({
-      ...tool,
-      inputSchema: { ...tool.inputSchema },
-      annotations: tool.annotations ? { ...tool.annotations } : undefined,
-    })),
-    resources: (runtimeState.resources ?? []).map((resource) => cloneResourceManifest(resource)),
-    prompts: (runtimeState.prompts ?? []).map((prompt) => clonePromptManifest(prompt)),
-    capabilities: { ...runtimeState.capabilities },
-    connectionInfo: runtimeState.connectionInfo ? { ...runtimeState.connectionInfo } : undefined,
-  }
-}
-
-function cloneResourceManifest(resource: McpResourceManifest): McpResourceManifest {
-  return {
-    ...resource,
-    annotations: resource.annotations ? { ...resource.annotations } : undefined,
-  }
-}
-
-function clonePromptManifest(prompt: McpPromptManifest): McpPromptManifest {
-  return {
-    ...prompt,
-    arguments: prompt.arguments ? prompt.arguments.map((argument) => ({ ...argument })) : [],
-  }
-}
-
-function cloneReadResourceResult(result: McpResourceReadResult): McpResourceReadResult {
-  return {
-    contents: result.contents.map((item) => ({ ...item })),
-  }
-}
-
-function clonePromptResult(result: McpPromptResult): McpPromptResult {
-  return {
-    description: result.description,
-    messages: result.messages.map((message) => ({ ...message })),
-  }
-}
-
-function getUserVisibleExposure(): McpExposurePolicy {
-  return {
-    userVisible: true,
-    modelVisible: false,
-    requiresExplicitUserAction: true,
-  }
-}
-
-function isServerContentVisible(
-  server: McpServerConfig,
-  runtimeState: McpServerRuntimeState | undefined
-): runtimeState is McpServerRuntimeState {
-  return Boolean(
-    runtimeState &&
-      runtimeState.status === 'connected' &&
-      server.enabled === true &&
-      server.trustState === 'trusted'
-  )
-}
-
-function isToolAllowedForServer(server: McpServerConfig, toolName: string): boolean {
-  const normalizedToolName = toolName.trim().toLowerCase()
-  const allowlist = new Set((server.toolAllowlist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
-  const blocklist = new Set((server.toolBlocklist ?? []).map((entry) => entry.trim().toLowerCase()).filter(Boolean))
-
-  if (blocklist.has(normalizedToolName)) {
-    return false
-  }
-
-  return allowlist.size === 0 || allowlist.has(normalizedToolName)
-}
-
-function createResourceCacheKey(serverId: string, uri: string): string {
-  return `${serverId}::resource::${uri}`
-}
-
-function createPromptCacheKey(serverId: string, promptName: string, args: Record<string, unknown>): string {
-  return `${serverId}::prompt::${promptName}::${stableStringify(args)}`
-}
-
-function stableStringify(value: unknown): string {
-  if (value == null || typeof value !== 'object') {
-    return JSON.stringify(value)
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(',')}]`
-  }
-
-  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
-    left.localeCompare(right)
-  )
-
-  return `{${entries
-    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue)}`)
-    .join(',')}}`
-}
-
-function normalizeServerId(serverId: string): string {
-  if (typeof serverId !== 'string' || !serverId.trim()) {
-    throw new Error('Invalid MCP server id')
-  }
-
-  return serverId.trim()
-}
-
-function getOptionalTrimmedString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function ensureUniqueNamespacedTools(tools: McpNamespacedTool[]): McpNamespacedTool[] {
-  const counts = new Map<string, number>()
-
-  return tools.map((tool) => {
-    const duplicateCount = counts.get(tool.namespacedName) ?? 0
-    counts.set(tool.namespacedName, duplicateCount + 1)
-
-    if (duplicateCount === 0) {
-      return tool
-    }
-
-    const suffix = toCollisionSafeSlug(tool.serverId)
-    return {
-      ...tool,
-      serverSlug: `${tool.serverSlug}_${suffix}`,
-      namespacedName: `mcp__${tool.serverSlug}_${suffix}__${tool.toolSlug}`,
-    }
-  })
-}
-
-function toCollisionSafeSlug(serverId: string): string {
-  return serverId
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 12) || 'server'
 }

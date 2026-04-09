@@ -220,19 +220,9 @@ export function parseToolCallsFromResponse(
   response: ProviderResponse,
   provider: string
 ): ToolCall[] {
-  switch (provider) {
-    case 'openrouter':
-    case 'groq':
-    case 'ollama':
-    case 'alibaba':
-    case 'fireworks':
-      return parseOpenRouterToolCalls(response as OpenRouterResponse)
-    case 'perplexity':
-      // EXCLUDED: This provider has native capabilities
-      return []
-    default:
-      return []
-  }
+  return providerSupportsTools(provider)
+    ? parseOpenRouterToolCalls(response as OpenRouterResponse)
+    : []
 }
 
 /**
@@ -240,19 +230,7 @@ export function parseToolCallsFromResponse(
  * EXCLUDED: perplexity (see header comment)
  */
 export function responseHasToolCalls(response: ProviderResponse, provider: string): boolean {
-  switch (provider) {
-    case 'openrouter':
-    case 'groq':
-    case 'ollama':
-    case 'alibaba':
-    case 'fireworks':
-      return hasToolCalls(response as OpenRouterResponse)
-    case 'perplexity':
-      // EXCLUDED: This provider has native capabilities
-      return false
-    default:
-      return false
-  }
+  return providerSupportsTools(provider) && hasToolCalls(response as OpenRouterResponse)
 }
 
 /**
@@ -266,19 +244,9 @@ export function formatResultsForProvider(
 ): FormattedToolResults {
   const toolResults = results.map((r) => r.result)
 
-  switch (provider) {
-    case 'openrouter':
-    case 'groq':
-    case 'ollama':
-    case 'alibaba':
-    case 'fireworks':
-      return formatToolResultsForOpenRouter(toolCalls, toolResults)
-    case 'perplexity':
-      // EXCLUDED: This provider has native capabilities
-      return []
-    default:
-      return []
-  }
+  return providerSupportsTools(provider)
+    ? formatToolResultsForOpenRouter(toolCalls, toolResults)
+    : []
 }
 
 /**
@@ -428,21 +396,9 @@ export function buildMessagesWithToolResults(
   toolResults: FormattedToolResults,
   provider: string
 ): ProviderMessage[] {
-  switch (provider) {
-    case 'openrouter':
-    case 'groq':
-    case 'ollama':
-    case 'alibaba':
-    case 'fireworks':
-      return [...originalMessages, assistantMessage, ...toolResults] as ProviderMessage[]
-
-    case 'perplexity':
-      // EXCLUDED: This provider has native capabilities
-      return originalMessages
-
-    default:
-      return originalMessages
-  }
+  return providerSupportsTools(provider)
+    ? ([...originalMessages, assistantMessage, ...toolResults] as ProviderMessage[])
+    : originalMessages
 }
 
 /**

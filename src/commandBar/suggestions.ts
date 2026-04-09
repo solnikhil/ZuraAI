@@ -1,4 +1,6 @@
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
+import type { ProviderId } from '../providers/providerTypes'
+
+export type ProviderKey = ProviderId
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
@@ -220,6 +222,13 @@ function buildBaseSuggestions(
       subtitle: 'Qwen models via DashScope',
       keywords: ['alibaba', 'qwen', 'dashscope', 'tongyi'],
       action: { type: 'open_settings_section', section: 'providers', provider: 'alibaba' },
+    },
+    {
+      id: 'go-settings-fireworks',
+      title: 'Fireworks Settings',
+      subtitle: 'Serverless and routed models',
+      keywords: ['fireworks', 'serverless', 'kimi', 'deepseek'],
+      action: { type: 'open_settings_section', section: 'providers', provider: 'fireworks' },
     },
     {
       id: 'go-settings-search-apis',

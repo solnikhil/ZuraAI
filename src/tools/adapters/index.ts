@@ -20,6 +20,7 @@
 // Tool Adapters - Convert tool definitions to provider-specific formats
 
 export * from './openrouter'
+export * from './openrouterToolCalls'
 
 import type { ToolDescriptor } from '../types'
 import {
@@ -38,23 +39,11 @@ export function convertToolsForProvider(
   tools: ToolDescriptor[],
   provider: ProviderId
 ): ProviderToolFormat | null {
-  switch (provider) {
-    case 'openrouter':
-    case 'groq':
-    case 'ollama':
-    case 'alibaba':
-    case 'fireworks':
-      // All use OpenAI-compatible format
-      return convertToOpenRouterFormat(tools)
-
-    case 'perplexity':
-      // EXCLUDED: Perplexity has native search
-      // DO NOT add tool support for this provider
-      return null
-
-    default:
-      return null
+  if (!providerHasToolSupport(provider)) {
+    return null
   }
+
+  return convertToOpenRouterFormat(tools)
 }
 
 /**

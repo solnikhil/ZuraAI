@@ -96,6 +96,18 @@ const liveRegionStyle: React.CSSProperties = {
   border: 0,
 }
 
+const paletteWidthMap: Record<string, number> = {
+  narrow: 440,
+  default: 560,
+  wide: 680,
+}
+
+const palettePositionMap: Record<string, string> = {
+  top: '12%',
+  center: '20%',
+  lower: '30%',
+}
+
 /* ── component ── */
 
 export default function CommandPalette() {
@@ -128,15 +140,6 @@ export default function CommandPalette() {
   const { commandBar } = settingsUI
   const isCommandPaletteEnabled = commandBar.enabled !== false
 
-  const widthMap = Object.create(null) as Record<string, number>
-  widthMap.narrow = 440
-  widthMap.default = 560
-  widthMap.wide = 680
-  const positionMap = Object.create(null) as Record<string, string>
-  positionMap.top = '12%'
-  positionMap.center = '20%'
-  positionMap.lower = '30%'
-
   const dynamicOverlayStyle = useMemo<React.CSSProperties>(
     () => ({
       ...overlayStyle,
@@ -148,8 +151,8 @@ export default function CommandPalette() {
   const dynamicContentStyle = useMemo<React.CSSProperties>(
     () => ({
       ...contentStyle,
-      maxWidth: widthMap[commandBar.paletteWidth ?? 'default'] ?? 560,
-      top: positionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
+      maxWidth: paletteWidthMap[commandBar.paletteWidth ?? 'default'] ?? 560,
+      top: palettePositionMap[commandBar.palettePosition ?? 'center'] ?? '20%',
     }),
     [commandBar.paletteWidth, commandBar.palettePosition]
   )
@@ -294,7 +297,7 @@ export default function CommandPalette() {
   }, [navigate])
 
   const runAction = useCallback(
-    async (action: CommandBarAction): Promise<boolean> => {
+    (action: CommandBarAction): boolean => {
       switch (action.type) {
         case 'open_dashboard_view':
           ensureDashboardRoute()
@@ -400,9 +403,9 @@ export default function CommandPalette() {
   }, [])
 
   const runSuggestion = useCallback(
-    async (suggestion: CommandBarSuggestion) => {
+    (suggestion: CommandBarSuggestion) => {
       const inputSnapshot = query
-      const didRun = await runAction(suggestion.action)
+      const didRun = runAction(suggestion.action)
       if (didRun) {
         recordHistory(suggestion, inputSnapshot)
       }
@@ -414,13 +417,13 @@ export default function CommandPalette() {
   /* ── keyboard navigation inside the palette ── */
 
   const handleInputKeyDown = useCallback(
-    async (event: React.KeyboardEvent<HTMLInputElement>) => {
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
       // Shift+Enter: quick-send the current query as a chat message
       if (event.key === 'Enter' && event.shiftKey) {
         event.preventDefault()
         const content = query.trim()
         if (content) {
-          const didRun = await runAction({ type: 'send_chat_message', content })
+          const didRun = runAction({ type: 'send_chat_message', content })
           if (didRun) {
             closePalette()
           }
@@ -445,7 +448,7 @@ export default function CommandPalette() {
           const allItems = [...displayedRecents, ...suggestions]
           const selected = allItems[highlightIndex]
           if (selected) {
-            await runSuggestion(selected)
+            runSuggestion(selected)
           }
           return
         }

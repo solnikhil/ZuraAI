@@ -21,6 +21,7 @@ import React, {
 } from 'react'
 import { getThemeById, getDefaultTheme } from '../themes/themeRegistry'
 import { applyThemeToDocument } from '../themes/themeUtils'
+import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type ChatBubbleStyle = 'solid' | 'glass' | 'outline' | 'gradient' | 'elevated' | 'terminal'
 export type ChatSelectedOverlayStyle = 'linear' | 'notion' | 'slack' | 'discord' | 'github'
@@ -316,7 +317,7 @@ export function useSettingsUI() {
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined
     if (import.meta.hot) {
-      console.warn('[SettingsUIContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr('SettingsUIContext', '[SettingsUIContext] Context undefined during HMR, using defaults')
       return {
         settingsUI: defaultSettingsUI,
         updateSettingsUI: () => {},

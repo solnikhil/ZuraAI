@@ -19,7 +19,12 @@ import {
   Video,
 } from 'lucide-react'
 import { modelSupportsTools } from '../tools/adapters'
-import type { ProviderId } from '../providers'
+import {
+  getActiveProviderIds,
+  getProviderAccentColor,
+  getProviderDefinition,
+  type ProviderId,
+} from '../providers'
 
 /**
  * Model information interface
@@ -505,14 +510,9 @@ export function getModelContextLength(model: { maxContext?: number }): number | 
  * @returns Record of provider to models array
  */
 export function groupModelsByProvider<T extends ModelInfo>(models: T[]): Record<string, T[]> {
-  const groups: Record<string, T[]> = {
-    ollama: [],
-    perplexity: [],
-    openrouter: [],
-    groq: [],
-    alibaba: [],
-    fireworks: [],
-  }
+  const groups = Object.fromEntries(
+    getActiveProviderIds().map((providerId) => [providerId, [] as T[]])
+  ) as Record<string, T[]>
 
   models.forEach((model) => {
     if (groups[model.provider]) {
@@ -527,12 +527,30 @@ export function groupModelsByProvider<T extends ModelInfo>(models: T[]): Record<
  * Provider configuration with colors and icons
  */
 export const PROVIDER_CONFIG = {
-  openrouter: { title: 'OpenRouter', color: '#a855f7' },
-  perplexity: { title: 'Perplexity', color: '#22c55e' },
-  groq: { title: 'Groq', color: '#f97316' },
-  ollama: { title: 'Ollama', color: '#339af0' },
-  alibaba: { title: 'Alibaba Cloud', color: '#ff6a00' },
-  fireworks: { title: 'Fireworks', color: '#ef4444' },
+  openrouter: {
+    title: getProviderDefinition('openrouter').label,
+    color: getProviderAccentColor('openrouter'),
+  },
+  perplexity: {
+    title: getProviderDefinition('perplexity').label,
+    color: getProviderAccentColor('perplexity'),
+  },
+  groq: {
+    title: getProviderDefinition('groq').label,
+    color: getProviderAccentColor('groq'),
+  },
+  ollama: {
+    title: getProviderDefinition('ollama').label,
+    color: getProviderAccentColor('ollama'),
+  },
+  alibaba: {
+    title: getProviderDefinition('alibaba').label,
+    color: getProviderAccentColor('alibaba'),
+  },
+  fireworks: {
+    title: getProviderDefinition('fireworks').label,
+    color: getProviderAccentColor('fireworks'),
+  },
 } as const
 
 /**

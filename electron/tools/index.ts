@@ -5,6 +5,7 @@
 import { ipcMain } from 'electron'
 import { executeWebSearch } from './webSearch'
 import type { WebSearchArgs } from './webSearch'
+import { isBuiltinMainToolName, type BuiltinMainToolName } from '../../src/tools/builtinTools'
 
 import type { ToolResult, ToolHandler } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -12,7 +13,7 @@ export type { ToolResult, ToolHandler } from './types'
 /**
  * Registry of all tool handlers (restricted)
  */
-const toolHandlers: Record<string, ToolHandler> = {
+const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(args as WebSearchArgs),
 }
 
@@ -22,6 +23,13 @@ const toolHandlers: Record<string, ToolHandler> = {
  */
 export function registerToolHandlers(): void {
   ipcMain.handle('execute-tool', async (_event, toolName: string, args: unknown): Promise<ToolResult> => {
+    if (!isBuiltinMainToolName(toolName)) {
+      return {
+        success: false,
+        error: `Tool "${String(toolName)}" is disabled.`
+      }
+    }
+
     const handler = toolHandlers[toolName]
 
     if (!handler) {

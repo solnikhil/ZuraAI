@@ -27,6 +27,7 @@ import { defaultWebSearchPrompt } from '../prompts/defaultWebSearchPrompt'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import { defaultSkillsSettings, type SkillsSettings } from '../skills'
 import type { ProviderId } from '../providers/providerTypes'
+import { warnOnceDuringHmr } from './hmrWarnings'
 
 // Todo item structure (shared with main Settings)
 export interface TodoItem {
@@ -722,7 +723,10 @@ export function useSettingsConfig() {
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined
     if (import.meta.hot) {
-      console.warn('[SettingsConfigContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'SettingsConfigContext',
+        '[SettingsConfigContext] Context undefined during HMR, using defaults'
+      )
       return {
         settingsConfig: defaultSettingsConfig,
         updateSettingsConfig: () => {},

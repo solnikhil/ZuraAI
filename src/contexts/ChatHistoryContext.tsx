@@ -15,6 +15,7 @@ import type { ToolExecutionMetadata } from '../tools/types'
 import { useSettings } from './SettingsContext'
 import { ChatSessionManager, type SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
+import { warnOnceDuringHmr } from './hmrWarnings'
 
 // Re-export SessionMetadata for consumers
 export type { SessionMetadata } from './ChatSessionManager'
@@ -943,7 +944,7 @@ export function useChatHistory() {
     // Return safe defaults to prevent the throw from cascading to ErrorBoundary
     // and tearing down the entire component tree (which resets all contexts).
     if (import.meta.hot) {
-      console.warn('[ChatHistoryContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr('ChatHistoryContext', '[ChatHistoryContext] Context undefined during HMR, using defaults')
       const noop = () => {}
       return {
         sessions: [],
@@ -998,7 +999,10 @@ export function useChatHistoryActions() {
   const context = useContext(ChatHistoryContext)
   if (context === undefined) {
     if (import.meta.hot) {
-      console.warn('[ChatHistoryContext] Actions context undefined during HMR, using defaults')
+      warnOnceDuringHmr(
+        'ChatHistoryContext.actions',
+        '[ChatHistoryContext] Actions context undefined during HMR, using defaults'
+      )
       const noop = () => {}
       return {
         createSession: () => '' as string,

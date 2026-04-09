@@ -1,4 +1,3 @@
-import React from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Cpu } from 'lucide-react'
 import { useSettings } from '../../../contexts/SettingsContext'

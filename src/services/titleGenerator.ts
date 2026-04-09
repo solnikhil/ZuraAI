@@ -1,10 +1,3 @@
-import { generateAlibabaCompletion } from './alibaba'
-import { generateFireworksCompletion } from './fireworks'
-import { generateGroqCompletion } from './groq'
-import { generateOllamaCompletion } from './ollama'
-import { generateOpenRouterCompletion } from './openrouter'
-import { generatePerplexityCompletion } from './perplexity'
-import { getOpenRouterApiKey } from '../utils/openRouterKey'
 import { getTitleEligibleModels } from '../utils/titleGenerationModels'
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
 import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
@@ -15,6 +8,7 @@ import {
   normalizeProviderId,
   type ActiveProviderId,
 } from '../providers'
+import { generateProviderTitleText } from '../providers/providerRuntime'
 
 type TitleProvider = ActiveProviderId
 
@@ -80,9 +74,6 @@ const enforceThreeWords = (title: string): string => {
 
 const sanitizeTitle = (title: string): string =>
   title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/g, '')
-
-const stripOpenRouterPrefix = (modelId: string): string =>
-  modelId.startsWith('openrouter/') ? modelId.replace('openrouter/', '') : modelId
 
 const resolveTitleProvider = (settings: TitleGenerationSettings): TitleProvider => {
   const requestedTitleProvider = normalizeProviderId(settings.titleModelProvider)
@@ -275,73 +266,7 @@ async function generateTitleWithProvider(
   prompt: string,
   settings: TitleGenerationSettings
 ): Promise<string> {
-  if (provider === 'groq') {
-    if (!settings.groqApiKey) throw new Error('Groq API key missing for title generation.')
-    const result = await generateGroqCompletion(
-      settings.groqApiKey,
-      model,
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3 }
-    )
-    return result.choices?.[0]?.message?.content || ''
-  }
-
-  if (provider === 'perplexity') {
-    if (!settings.perplexityApiKey) {
-      throw new Error('Perplexity API key missing for title generation.')
-    }
-    const result = await generatePerplexityCompletion(
-      settings.perplexityApiKey,
-      model,
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 }
-    )
-    return result.choices?.[0]?.message?.content || ''
-  }
-
-  if (provider === 'ollama') {
-    const ollamaUrl = settings.ollamaUrl?.trim()
-    if (!ollamaUrl) throw new Error('Ollama URL missing for title generation.')
-    const result = await generateOllamaCompletion(
-      ollamaUrl,
-      model,
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3 }
-    )
-    return result.message?.content || ''
-  }
-
-  if (provider === 'alibaba') {
-    if (!settings.alibabaApiKey) throw new Error('Alibaba API key missing for title generation.')
-    const result = await generateAlibabaCompletion(
-      settings.alibabaApiKey,
-      model,
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 }
-    )
-    return result.choices?.[0]?.message?.content || ''
-  }
-
-  if (provider === 'fireworks') {
-    if (!settings.fireworksApiKey) throw new Error('Fireworks API key missing for title generation.')
-    const result = await generateFireworksCompletion(
-      settings.fireworksApiKey,
-      model,
-      [{ role: 'user', content: prompt }],
-      { temperature: 0.3, max_tokens: 20 }
-    )
-    return result.choices?.[0]?.message?.content || ''
-  }
-
-  const openRouterKey = getOpenRouterApiKey(settings.openRouterApiKey)
-  if (!openRouterKey) throw new Error('OpenRouter API key missing for title generation.')
-  const result = await generateOpenRouterCompletion(
-    openRouterKey,
-    stripOpenRouterPrefix(model),
-    [{ role: 'user', content: prompt }],
-    { temperature: 0.3, max_tokens: 20 }
-  )
-  return result.choices?.[0]?.message?.content || ''
+  return generateProviderTitleText(settings, provider, model, prompt)
 }
 
 function logTitleGenerationFailures(failures: TitleGenerationFailure[], fallbackTitle: string): void {

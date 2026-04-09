@@ -9,6 +9,13 @@ import type {
   ThinkingBlock,
   ToolCallResult,
 } from '../../../../../contexts/ChatHistoryContext'
+import type {
+  NormalizedStreamEvent,
+  NormalizedToolCallDelta,
+  NormalizedUsage,
+  ProviderRuntimeSettings,
+  ProviderRuntimeStreamRequest,
+} from '../../../../../providers/providerRuntimeTypes'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
 import type { MessageContent, ToolDefinition } from '../../../../../services/types'
@@ -51,53 +58,9 @@ export interface StreamingResult {
 
 export type { FileAttachment }
 
-export interface NormalizedUsage {
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  thinkingTokens?: number
-  cachedInputTokens?: number
-  cachedOutputTokens?: number
-}
+export type { NormalizedStreamEvent, NormalizedToolCallDelta, NormalizedUsage }
 
-export interface NormalizedToolCallDelta {
-  index?: number
-  id?: string
-  type?: 'function'
-  function?: {
-    name?: string
-    arguments?: string
-  }
-}
-
-export type NormalizedStreamEvent =
-  | { type: 'text-delta'; delta: string }
-  | { type: 'reasoning-delta'; delta: string }
-  | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
-  | { type: 'file-delta'; files: FileAttachment[] }
-  | { type: 'usage'; usage: NormalizedUsage }
-  | { type: 'citation'; citations: string[] }
-  | { type: 'finish'; finishReason?: string | null }
-  | { type: 'error'; error: Error }
-
-export interface StreamRequest {
-  provider: ActiveProviderId
-  model: string
-  messages: Array<{
-    role: string
-    content: string | MessageContent[]
-    images?: string[]
-    tool_calls?: unknown[]
-    thinking?: string
-  }>
-  temperature?: number
-  maxTokens?: number
-  streamResponses?: boolean
-  tools?: ToolDefinition[] | null
-  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
-  modalities?: Array<'text' | 'image'>
-  signal?: AbortSignal
-}
+export interface StreamRequest extends ProviderRuntimeStreamRequest {}
 
 export interface ProviderStreamClient {
   stream: (request: StreamRequest) => AsyncGenerator<NormalizedStreamEvent, void, unknown>
@@ -183,20 +146,10 @@ export interface ToolCallingHook {
 /**
  * Settings required for streaming
  */
-export interface StreamingSettings {
+export interface StreamingSettings extends ProviderRuntimeSettings {
   aiModel: string
-  modelProvider: string
-  temperature: number
-  maxTokens: number
-  streamResponses: boolean
+  modelProvider: ActiveProviderId
   /** Web search prompt appended when Web Search is enabled */
   webSearchPrompt?: string
-  // Provider-specific API keys
-  alibabaApiKey?: string
-  fireworksApiKey?: string
-  groqApiKey?: string
-  ollamaUrl?: string
-  openRouterApiKey?: string
-  perplexityApiKey?: string
   configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

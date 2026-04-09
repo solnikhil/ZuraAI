@@ -39,6 +39,7 @@ import {
   UI_SETTING_KEYS,
   type Settings,
 } from './settingsStore'
+import { warnOnceDuringHmr } from './hmrWarnings'
 
 // Re-export types for backward compatibility
 export type { TodoItem }
@@ -226,7 +227,7 @@ export function useSettings() {
   if (context === undefined) {
     // During HMR, the context may temporarily be undefined
     if (import.meta.hot) {
-      console.warn('[SettingsContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr('SettingsContext', '[SettingsContext] Context undefined during HMR, using defaults')
       return {
         settings: defaultSettings,
         updateSettings: () => {},

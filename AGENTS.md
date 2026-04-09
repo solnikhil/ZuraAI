@@ -50,7 +50,10 @@ Core capabilities:
 - `electron/windows/` — main window, tray
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
-- `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, and connection lifecycle coordination
+- `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
+- `electron/mcp/mcpManagerState.ts` — MCP manager clone/state helpers plus persisted runtime-metadata diffing
+- `electron/mcp/mcpManagerPolicies.ts` — MCP manager exposure policy helpers, tool allow/block enforcement, and namespaced-tool collision handling
+- `electron/mcp/mcpManagerUtils.ts` — MCP manager cache-key helpers and shared input normalization utilities
 - `electron/mcp/index.ts` — MCP IPC registration, singleton manager access, and renderer state broadcasts
 - `electron/mcp/mcpStorage.ts` — MCP server metadata persistence + secret resolution helpers
 - `electron/secureStorage.ts` — encrypted key storage via `safeStorage` (JSON under `userData`)
@@ -60,7 +63,7 @@ Core capabilities:
 - `electron/updater.ts` — auto-updater (production only)
 
 - `src/` — React/Vite **renderer**
-  - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, markdown preloading, applies saved theme, renders `App`
+  - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
   - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
@@ -69,14 +72,16 @@ Core capabilities:
 - `src/components/Dashboard/ChatArea/hooks/chatProviderRuntime.ts` — thin compatibility wrapper over the shared provider registry for dashboard chat provider normalization/tests
 - `src/components/Dashboard/ChatArea/hooks/streaming/providerStreamClient.ts` — normalized provider stream client adapters that convert provider chunks into shared streaming events
 - `src/components/Dashboard/ChatArea/hooks/streaming/useProviderStreaming.ts` — shared streaming orchestrator for send/regenerate flows, tool loops, reasoning blocks, and final commits
-- `src/providers/` — provider registry, capabilities/auth metadata, endpoint defaults, retry policy, and shared streaming/title/model constants
+- `src/providers/` — provider registry, capabilities/auth metadata, endpoint defaults, retry policy, centralized provider runtime adapters (`providerRuntime.ts`), shared provider-runtime contracts (`providerRuntimeTypes.ts`), and shared streaming/title/model constants
 - `src/utils/rendererPerformance.ts` — renderer-local performance tracker used for TTI-aware lazy loading
+- `src/utils/startupPreloads.ts` — deferred startup preload scheduler for non-critical settings and markdown chunks
 - `src/services/` — AI provider integrations (HTTP calls; streaming + non-streaming)
 - `src/services/streamUtils.ts` — shared SSE (`parseSSEStream`) and NDJSON (`parseNDJSONStream`) stream parsing utilities used by all providers; SSE parsing accepts `data:` with/without spaces, CRLF framing, multi-line payloads, and terminal flushes
 - `src/skills/` — built-in skill catalog + settings normalization/migration + skill/tool gating helpers
 - `src/mcp/` — shared MCP contracts, draft helpers, and renderer MCP runtime/settings context
 - `src/components/Settings/sections/McpSection.tsx` — MCP Settings UI for server CRUD, secret-masked forms, and connect/disconnect controls
-- `src/tools/` — tool schema + adapters + runtime tool registry/execution coordinator
+- `src/tools/` — shared built-in tool manifest (`builtinTools.ts`), tool schema + adapters + runtime tool registry/execution coordinator
+  - `src/tools/adapters/openrouterToolCalls.ts` — provider-agnostic OpenRouter tool-call parsing, JSON repair, and fallback query inference shared by OpenRouter-compatible adapters
 
 - `dist/` — renderer build output (generated)
 - `dist-electron/` — electron build output (generated)
@@ -201,7 +206,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
-- Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, preloads markdown rendering, applies saved theme settings, and then mounts `App`.
+- Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, applies saved theme settings, mounts `App`, and then hands non-critical preloads to `src/utils/startupPreloads.ts`.
+- `src/utils/startupPreloads.ts` keeps startup focused on first paint by deferring settings-chunk warming to idle time and delaying markdown preloading until the renderer is TTI/idle.
 - Shared shell behavior lives in `src/components/AppShellLayout.tsx`, which wraps dashboard/settings/chat routes and coordinates title bar state, command palette, and Windows resize handles.
 - Renderer settings are split between `SettingsUIContext` and `SettingsConfigContext`, with the combined `SettingsContext` retained as a compatibility layer.
 - Legacy persisted `frostedSidebar` values are ignored during settings hydration; the app no longer exposes or applies a frosted sidebar mode.
@@ -232,6 +238,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - `electron/mcp/transports/websocket.ts` now performs real remote connects with secret-backed header support, close-code diagnostics, heartbeat/pong staleness handling, and retry/backoff on initial connection attempts. Remote WebSocket remains gated behind `ZURA_ENABLE_EXPERIMENTAL_MCP_REMOTE_TRANSPORTS=true`.
 - `electron/mcp/mcpConnection.ts` sits above transports and now handles the MCP `initialize` handshake, capability capture, `tools/list` discovery, `resources/list` discovery, `prompts/list` discovery, `tools/call` execution, `resources/read`, `prompts/get`, runtime metadata caching, remote reconnect loops, and last-success/last-error connection metadata.
 - `electron/mcp/mcpManager.ts` sits above storage + connections and now manages configured server registration, connection lifecycle, trusted-tool exposure, trusted resource/prompt exposure, on-demand resource/prompt reads, runtime-state subscriptions, and active connected-tool aggregation/execution.
+- MCP manager helper responsibilities are split across `electron/mcp/mcpManagerState.ts`, `electron/mcp/mcpManagerPolicies.ts`, and `electron/mcp/mcpManagerUtils.ts`; the manager now skips redundant runtime-metadata saves when persisted tool/resource/prompt/error metadata has not changed.
 - `electron/mcp/mcpApprovalManager.ts` tracks pending approval requests, auto-rejects expired prompts, and rejects queued requests when a server disconnects, updates, or the app shuts down.
 - `electron/mcp/index.ts` exposes the current MCP runtime to renderer through narrow IPC handlers, executes namespaced MCP tools through the approval manager, serves trusted resource/prompt reads through dedicated on-demand IPC calls, and broadcasts `McpRuntimeSnapshot` updates (including `pendingApprovals`) to all windows.
 - MCP resources and prompts are intentionally **user-visible only** in the current release shape: trusted connected servers can surface them to the renderer, but they are not exposed as model-callable tools and require explicit user action for preview or composer insertion.
@@ -251,9 +258,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - `src/services/fireworks.ts` (`streamFireworksCompletion`)
   - `src/services/ollama.ts` (`streamOllamaCompletion`)
   - `src/services/perplexity.ts` (`streamPerplexityCompletion`)
-- Provider services now only own request shaping, transport parsing, and provider-specific chunk normalization. `providerStreamClient.ts` converts those outputs into normalized events (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator.
+- Provider services now only own request shaping and transport parsing. `src/providers/providerRuntime.ts` is the centralized execution layer for provider-specific streaming/non-streaming calls, title-generation text extraction, OpenRouter model normalization, and normalized event emission (`text-delta`, `reasoning-delta`, `tool-call-delta`, `file-delta`, `usage`, `citation`, `finish`, `error`) consumed by the shared orchestrator; `providerStreamClient.ts` is now a thin wrapper over that runtime.
 - Send and regenerate now use the same normalized provider-stream pipeline. Regeneration no longer maintains a separate direct-stream code path.
-- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
+- Provider capabilities, auth checks, default endpoints, retry policy, tool support, image support, provider accent colors, and title/model selector provider availability are resolved through `src/providers/providerRegistry.ts` instead of repeated provider switches.
 - Fireworks is a first-class active provider again. It participates in provider selection, chat dispatch, title generation, model enablement, tool-capability checks, usage metrics, and the shared streaming pipeline through the provider registry.
 - Fireworks model discovery now has a dedicated serverless catalog path in `src/services/fireworksModels.ts`, surfaced from `src/components/Settings/sections/FireworksModelSearchDialog.tsx` through Provider Hub in the same custom-model workflow style as OpenRouter.
 - Tool calling:
@@ -261,6 +268,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - Built-in main-process tools still execute through `window.ipcRenderer.invoke('execute-tool', toolName, args)`.
   - Namespaced MCP tools now execute through `window.mcp.executeTool(toolName, args)` so built-ins and MCP stay on separate IPC paths.
   - Main tool registry: `electron/tools/index.ts` (restricted)
+  - OpenRouter-compatible tool-call parsing/recovery now lives in `src/tools/adapters/openrouterToolCalls.ts`, keeping `src/tools/adapters/openrouter.ts` focused on request/response formatting.
 - Active-response renderer state is split between persisted chat history and ephemeral `StreamingContext` data in `src/contexts/StreamingContext.tsx`.
   - `StreamingContext` now tracks an explicit per-response `phase` (`reasoning`, `searching`, `tool`, `answering`) so the thinking/search UI stays stable across multi-search loops without persisting transient renderer-only state.
   - Reasoning is now segmented per round: in-flight `streamingState.thinking` represents only the current active thought, while completed reasoning rounds are appended to `thinkingBlocks` alongside search blocks so resumed research continues in a new block instead of extending the previous one.
@@ -327,7 +335,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 #### Chat Title Generation Controls
 - Title generation configuration UI lives in **Appearance** (`src/components/Settings/sections/AppearanceSection.tsx`) for provider/model selection and sidebar reveal mode.
 - Title generation prompt editing lives in **System Prompt** (`src/components/Settings/sections/SystemPromptSection.tsx`) as a dedicated prompt block.
-- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`.
+- Runtime generation is handled by `src/services/titleGenerator.ts` using `settings.titleModelProvider`, `settings.titleModel`, and `settings.titleGenerationPrompt`, with provider-specific title requests routed through `src/providers/providerRuntime.ts`.
 - New-session title reveal behavior is applied in `src/components/Dashboard/ChatArea/hooks/useStreamingChat.ts`:
   - `instant`: apply generated title immediately
   - `typewriter`: progressively reveal generated title in sidebar
@@ -382,7 +390,8 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 Tool execution is intentionally restricted.
 
 - Renderer side:
-  - Built-in tool schemas: `src/tools/definitions.ts` (`web_search` definition)
+- Built-in main-process tool manifest: `src/tools/builtinTools.ts` (shared `web_search` manifest and built-in tool names)
+- Built-in tool schemas: `src/tools/definitions.ts` (renderer-facing definitions derived from `builtinTools.ts`)
   - Runtime MCP tool adapter: `src/tools/mcpRegistry.ts` maps connected MCP tools into generic request-time descriptors
   - Skill gating + runtime merge: `src/hooks/useToolCalling.ts` + `src/skills/index.ts` decide which built-in tools are exposed and merge them with eligible MCP tools at request time
   - Provider adapters: `src/tools/adapters/*` (Perplexity is explicitly excluded)
@@ -410,7 +419,7 @@ Tool execution is intentionally restricted.
 
 There is currently no built-in trusted browser-testing workflow; any replacement must be documented here when introduced.
 
-**Note:** The main-process built-in tool registry remains intentionally restricted; built-in main-process tools must still be explicitly defined in `src/tools/definitions.ts`, skill-gated in renderer, and registered in `electron/tools/index.ts`. MCP tool execution is separate, namespaced, and only available for servers that are enabled, connected, trusted, and allowed by the current approval policy.
+**Note:** The main-process built-in tool registry remains intentionally restricted; built-in main-process tools now flow from the shared manifest in `src/tools/builtinTools.ts`, stay skill-gated in renderer through `src/tools/definitions.ts` / `src/hooks/useToolCalling.ts`, and still require explicit handler registration in `electron/tools/index.ts`. MCP tool execution is separate, namespaced, and only available for servers that are enabled, connected, trusted, and allowed by the current approval policy.
 
 ### Providers
 - OpenRouter: `src/services/openrouter.ts` (OpenAI-compatible tool calling)

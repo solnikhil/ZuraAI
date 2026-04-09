@@ -2,10 +2,12 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useSettings } from './SettingsContext'
 import { SIDEBAR_DEFAULT_WIDTH_PX, clampSidebarWidth } from '../constants/sidebar'
 import { normalizeSettingsSection } from '../constants/settingsSections'
+import type { ProviderId } from '../providers/providerTypes'
+import { warnOnceDuringHmr } from './hmrWarnings'
 
 export type DashboardView = 'chat' | 'settings'
 
-export type ProviderKey = 'openrouter' | 'perplexity' | 'groq' | 'ollama' | 'alibaba'
+export type ProviderKey = ProviderId
 
 export interface SettingsSectionParams {
   provider?: ProviderKey
@@ -237,7 +239,7 @@ export function useAppShell() {
     // During HMR, the context may temporarily be undefined
     // Return a safe default to prevent crashes during hot reload
     if (import.meta.hot) {
-      console.warn('[AppShellContext] Context undefined during HMR, using defaults')
+      warnOnceDuringHmr('AppShellContext', '[AppShellContext] Context undefined during HMR, using defaults')
       return {
         dashboardView: 'chat' as DashboardView,
         setDashboardView: () => {},

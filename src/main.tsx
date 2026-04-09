@@ -5,17 +5,12 @@ import { getDefaultTheme, getThemeById } from './themes/themeRegistry'
 import { applyThemeToDocument } from './themes/themeUtils'
 import { initializeRendererPerformance } from './utils/rendererPerformance'
 import { injectLazyImageStyles } from './components/shared/LazyImage'
-import { preloadMarkdown } from './utils/markdownPreloader'
-import { preloadSettings } from './components/Settings/settingsLoader'
+import { scheduleNonCriticalPreloads } from './utils/startupPreloads'
 import './index.css'
 
 initializeRendererPerformance()
 
 injectLazyImageStyles()
-
-// Eagerly preload markdown rendering pipeline so chat messages render with
-// formatting immediately, avoiding a flash of unstyled/raw markdown text.
-preloadMarkdown()
 
 // Apply the saved theme before the first render to avoid a flash of defaults.
 const savedSettings = localStorage.getItem('zura-settings')
@@ -52,8 +47,6 @@ if (savedSettings) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<App />)
 
-// Warm the settings chunk in the background so its styles are ready before the
-// user opens the settings view for the first time.
-window.setTimeout(() => {
-  void preloadSettings()
-}, 0)
+// Keep startup focused on first paint, then warm heavy optional chunks once
+// the renderer is interactive and idle.
+scheduleNonCriticalPreloads()

@@ -40,6 +40,7 @@ export interface ProviderDefinition {
   label: string
   description: string
   activeSurface: boolean
+  accentColor: string
   capabilities: ProviderCapabilities
   endpoints: ProviderEndpoints
   retryPolicy: ProviderRetryPolicy
@@ -175,6 +176,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'OpenRouter',
     description: 'OpenRouter provides access to many frontier models through one API.',
     activeSurface: true,
+    accentColor: '#a855f7',
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
@@ -206,6 +208,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'Groq',
     description: 'Ultra-low-latency model inference for high-speed chat experiences.',
     activeSurface: true,
+    accentColor: '#f97316',
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
@@ -236,6 +239,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'Alibaba Cloud',
     description: 'Qwen models via DashScope API (Tongyi).',
     activeSurface: true,
+    accentColor: '#ff6a00',
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
@@ -266,6 +270,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'Perplexity',
     description: 'Research-focused model provider with search-native reasoning models.',
     activeSurface: true,
+    accentColor: '#22c55e',
     capabilities: {
       supportsStreaming: true,
       supportsTools: false,
@@ -296,6 +301,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'Ollama',
     description: 'Run local models privately on your machine with local networking.',
     activeSurface: true,
+    accentColor: '#339af0',
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
@@ -326,6 +332,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     label: 'Fireworks',
     description: 'Fast inference platform with an official serverless model catalog.',
     activeSurface: true,
+    accentColor: '#ef4444',
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
@@ -446,6 +453,10 @@ export function getProviderCredentialError(
   provider?: string | null
 ): string | null {
   return getProviderDefinition(provider).auth.getCredentialError(settings)
+}
+
+export function getProviderAccentColor(provider: string | null | undefined): string {
+  return getProviderDefinition(provider).accentColor
 }
 
 export function getAvailableModelOptions(
