@@ -66,6 +66,7 @@ vi.mock('../../../utils/chatExport', () => ({
 
 const mockQueueMessage = vi.fn()
 const mockConsumeMessage = vi.fn(() => null)
+const mockOpenPerformanceWindow = vi.fn()
 
 vi.mock('../../../contexts/QuickSendContext', () => ({
   useQuickSend: () => ({
@@ -74,6 +75,14 @@ vi.mock('../../../contexts/QuickSendContext', () => ({
     consumeMessage: mockConsumeMessage,
   }),
 }))
+
+Object.defineProperty(window, 'performanceMonitor', {
+  configurable: true,
+  writable: true,
+  value: {
+    openWindow: mockOpenPerformanceWindow,
+  },
+})
 
 // Mock Radix Dialog Portal to render inline
 vi.mock('@radix-ui/react-dialog', async () => {
@@ -208,6 +217,31 @@ describe('CommandPalette unit tests', () => {
       const listbox = container.querySelector('[role="listbox"]')
       expect(listbox?.textContent).toContain('Recent')
       expect(listbox?.textContent).toContain('Commands')
+    })
+  })
+
+  describe('performance action', () => {
+    it('opens the dedicated performance window from the command palette', async () => {
+      render(<CommandPalette />)
+
+      act(() => {
+        pressCtrlSpace()
+      })
+
+      const input = screen.getByRole('combobox')
+      act(() => {
+        fireEvent.change(input, { target: { value: 'performance' } })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('Performance')).toBeInTheDocument()
+      })
+
+      act(() => {
+        fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+      })
+
+      expect(mockOpenPerformanceWindow).toHaveBeenCalledTimes(1)
     })
   })
 

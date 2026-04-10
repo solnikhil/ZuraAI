@@ -10,6 +10,11 @@ import type {
     McpServerRuntimeState,
     McpToolExecutionResult,
 } from './mcp/types'
+import type {
+    DiagnosticsExportResult,
+    DiagnosticsSnapshot,
+    DiagnosticsTraceState,
+} from './performance/types'
 
 export interface IElectronAPI {
     on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void
@@ -67,6 +72,15 @@ export interface WindowControlsAPI {
     onWindowState: (callback: (state: { isMaximized: boolean }) => void) => () => void
 }
 
+export interface PerformanceMonitorAPI {
+    openWindow: () => Promise<void>
+    getSnapshot: () => Promise<DiagnosticsSnapshot>
+    subscribe: (callback: (snapshot: DiagnosticsSnapshot) => void) => () => void
+    startTrace: () => Promise<DiagnosticsTraceState>
+    stopTrace: () => Promise<DiagnosticsTraceState>
+    exportBundle: () => Promise<DiagnosticsExportResult>
+}
+
 export interface ShellAPI {
     openExternal: (url: string) => Promise<void>
 }
@@ -99,6 +113,7 @@ declare global {
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
         appInfo: AppInfoAPI
+        performanceMonitor: PerformanceMonitorAPI
         windowControls: WindowControlsAPI
         shell: ShellAPI
         devTools: DevToolsAPI

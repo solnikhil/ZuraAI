@@ -237,31 +237,43 @@ export const defaultSettingsConfig: SettingsConfig = {
   ],
   alibabaModels: [
     // === Commercial (enabled) ===
-    { code: 'qwen3-max', displayName: 'Qwen3 Max', enabled: true, maxContext: 128000 },
+    { code: 'qwen3-max', displayName: 'Qwen3 Max', enabled: true, maxContext: 262144 },
+    {
+      code: 'qwen3-max-2026-01-23',
+      displayName: 'Qwen3 Max (2026-01-23)',
+      enabled: true,
+      maxContext: 262144,
+    },
     {
       code: 'qwen3-max-preview',
       displayName: 'Qwen3 Max Preview',
-      enabled: true,
+      enabled: false,
       maxContext: 128000,
     },
     { code: 'qwen-max', displayName: 'Qwen Max', enabled: true, maxContext: 128000 },
-    { code: 'qwen3.5-plus', displayName: 'Qwen3.5 Plus', enabled: true, maxContext: 128000 },
-    { code: 'qwen-plus', displayName: 'Qwen Plus', enabled: true, maxContext: 128000 },
-    { code: 'qwen-flash', displayName: 'Qwen Flash', enabled: true, maxContext: 128000 },
-    { code: 'qwen-turbo', displayName: 'Qwen Turbo', enabled: true, maxContext: 128000 },
+    { code: 'qwen3.5-plus', displayName: 'Qwen3.5 Plus', enabled: true, maxContext: 1000000 },
+    {
+      code: 'qwen3.5-flash',
+      displayName: 'Qwen3.5 Flash',
+      enabled: true,
+      maxContext: 1000000,
+    },
+    { code: 'qwen-plus', displayName: 'Qwen Plus', enabled: true, maxContext: 1000000 },
+    { code: 'qwen-flash', displayName: 'Qwen Flash', enabled: true, maxContext: 1000000 },
+    { code: 'qwen-turbo', displayName: 'Qwen Turbo', enabled: false, maxContext: 1000000 },
     { code: 'qwq-plus', displayName: 'QwQ Plus', enabled: true, maxContext: 128000 },
     // Qwen-Coder (specialized)
     {
       code: 'qwen3-coder-plus',
       displayName: 'Qwen3 Coder Plus',
       enabled: true,
-      maxContext: 128000,
+      maxContext: 1000000,
     },
     {
       code: 'qwen3-coder-flash',
       displayName: 'Qwen3 Coder Flash',
       enabled: true,
-      maxContext: 128000,
+      maxContext: 1000000,
     },
     // === Thinking models (enabled) ===
     {
@@ -301,6 +313,9 @@ export const defaultSettingsConfig: SettingsConfig = {
       maxContext: 131072,
     },
     { code: 'qwen3.5-397b-a17b', displayName: 'Qwen3.5 397B', enabled: true, maxContext: 131072 },
+    { code: 'qwen3.5-122b-a10b', displayName: 'Qwen3.5 122B', enabled: true, maxContext: 262144 },
+    { code: 'qwen3.5-27b', displayName: 'Qwen3.5 27B', enabled: true, maxContext: 262144 },
+    { code: 'qwen3.5-35b-a3b', displayName: 'Qwen3.5 35B A3B', enabled: true, maxContext: 262144 },
     // === Open source (enabled) ===
     { code: 'qwen3-235b-a22b', displayName: 'Qwen3 235B', enabled: true, maxContext: 131072 },
     { code: 'qwen3-32b', displayName: 'Qwen3 32B', enabled: true, maxContext: 32768 },
@@ -359,6 +374,12 @@ export const defaultSettingsConfig: SettingsConfig = {
       enabled: false,
       maxContext: 128000,
     },
+    {
+      code: 'qwen-plus-2025-12-01',
+      displayName: 'Qwen Plus (2025-12-01)',
+      enabled: false,
+      maxContext: 1000000,
+    },
     { code: 'qwen-max-latest', displayName: 'Qwen Max Latest', enabled: false, maxContext: 128000 },
     {
       code: 'qwen-max-2025-01-25',
@@ -370,7 +391,7 @@ export const defaultSettingsConfig: SettingsConfig = {
       code: 'qwen-flash-2025-07-28',
       displayName: 'Qwen Flash (2025-07-28)',
       enabled: false,
-      maxContext: 128000,
+      maxContext: 1000000,
     },
     {
       code: 'qwen-turbo-latest',
@@ -388,7 +409,25 @@ export const defaultSettingsConfig: SettingsConfig = {
       code: 'qwen3.5-plus-2026-02-15',
       displayName: 'Qwen3.5 Plus (2026-02-15)',
       enabled: false,
-      maxContext: 128000,
+      maxContext: 1000000,
+    },
+    {
+      code: 'qwen3.5-flash-2026-02-23',
+      displayName: 'Qwen3.5 Flash (2026-02-23)',
+      enabled: false,
+      maxContext: 1000000,
+    },
+    {
+      code: 'qwen3-coder-plus-2025-09-23',
+      displayName: 'Qwen3 Coder Plus (2025-09-23)',
+      enabled: false,
+      maxContext: 1000000,
+    },
+    {
+      code: 'qwen3-coder-flash-2025-07-28',
+      displayName: 'Qwen3 Coder Flash (2025-07-28)',
+      enabled: false,
+      maxContext: 1000000,
     },
     { code: 'qwen-plus-us', displayName: 'Qwen Plus US', enabled: false, maxContext: 128000 },
     { code: 'qwen-flash-us', displayName: 'Qwen Flash US', enabled: false, maxContext: 128000 },

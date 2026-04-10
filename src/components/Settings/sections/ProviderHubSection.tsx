@@ -10,7 +10,7 @@ import {
   EyeOff,
   Globe,
   Loader2,
-  Lock,
+  ShieldCheck,
   MoreVertical,
   Plus,
   Search,
@@ -31,8 +31,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -48,6 +46,7 @@ import type {
   TavilySearchDepthPreference,
 } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
+import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import {
@@ -235,6 +234,7 @@ export function ProviderHubSection({
   const [showApiKey, setShowApiKey] = useState(false)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
@@ -962,10 +962,19 @@ export function ProviderHubSection({
               )}
 
               <p className="mt-5 inline-flex items-center gap-2 text-xs text-muted-foreground">
-                <Lock size={13} />
+                <ShieldCheck size={13} />
                 <span>
-                  Your key and proxy URL will be encrypted using
-                  <span className="ml-1 text-cyan-300">AES-GCM</span> encryption algorithm
+                  Your key and proxy URL are stored in{' '}
+                  <a
+                    href="https://www.electronjs.org/docs/latest/api/safe-storage"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      window.shell?.openExternal('https://www.electronjs.org/docs/latest/api/safe-storage')
+                    }}
+                    className="text-cyan-300 underline decoration-cyan-300/40 underline-offset-2 transition hover:decoration-cyan-300"
+                  >
+                    Electron secure storage
+                  </a>
                 </span>
               </p>
             </div>
@@ -1021,15 +1030,22 @@ export function ProviderHubSection({
                   />
                 </div>
                 {(selectedProviderDef.key === 'openrouter' ||
-                  selectedProviderDef.key === 'fireworks') && (
+                  selectedProviderDef.key === 'fireworks' ||
+                  selectedProviderDef.key === 'alibaba') && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      selectedProviderDef.key === 'openrouter'
-                        ? setOpenRouterSearchDialogOpen(true)
-                        : setFireworksSearchDialogOpen(true)
-                    }
+                    onClick={() => {
+                      if (selectedProviderDef.key === 'openrouter') {
+                        setOpenRouterSearchDialogOpen(true)
+                        return
+                      }
+                      if (selectedProviderDef.key === 'fireworks') {
+                        setFireworksSearchDialogOpen(true)
+                        return
+                      }
+                      setAlibabaSearchDialogOpen(true)
+                    }}
                     className="gap-2"
                   >
                     <Search size={14} />
@@ -1118,13 +1134,20 @@ export function ProviderHubSection({
       />
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="border-border bg-card sm:max-w-[420px]">
+        <DialogContent
+          className="border-border bg-card sm:max-w-[420px]"
+          showCloseButton={false}
+        >
           <DialogHeader>
             <DialogTitle>Delete Model</DialogTitle>
             <DialogDescription>
               {modelToDelete && (
                 <>
-                  Remove &quot;{modelToDelete.displayName}&quot; from your model list?
+                  Remove{' '}
+                  <span className="inline-flex rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">
+                    &quot;{modelToDelete.displayName}&quot;
+                  </span>{' '}
+                  from your model list?
                   {modelToDelete.provider === 'ollama' && (
                     <span className="mt-2 block text-muted-foreground">
                       Ollama models will reappear when you refresh the model list.
@@ -1134,7 +1157,7 @@ export function ProviderHubSection({
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
               Cancel
             </Button>
@@ -1144,6 +1167,16 @@ export function ProviderHubSection({
           </div>
         </DialogContent>
       </Dialog>
+
+      {selectedProviderDef.key === 'alibaba' && (
+        <AlibabaModelSearchDialog
+          open={alibabaSearchDialogOpen}
+          onOpenChange={setAlibabaSearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'alibaba')}
+          apiKey={alibabaApiKey}
+          existingModelCodes={alibabaModels.map((m) => m.code)}
+        />
+      )}
 
       {selectedProviderDef.key === 'openrouter' && (
         <OpenRouterModelSearchDialog
@@ -1362,11 +1395,9 @@ function ModelGroup({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel inset>{model.displayName}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
+                    onSelect={(e) => {
+                      e.preventDefault()
                       onEditModel(model)
                     }}
                   >
@@ -1374,8 +1405,8 @@ function ModelGroup({
                     Edit
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
+                    onSelect={(e) => {
+                      e.preventDefault()
                       onDeleteModel(model)
                     }}
                     variant="destructive"

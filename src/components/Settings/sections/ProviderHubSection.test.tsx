@@ -8,6 +8,32 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   writable: true,
 })
 
+function createAlibabaCatalogHtml(): string {
+  const payload = JSON.stringify([
+    '$',
+    '$L22',
+    null,
+    {
+      data: {
+        '0': [
+          {
+            modelId: 'qwen3-coder-next',
+            name: 'Qwen3-Coder-Next',
+            feature: 'Qwen3, Agentic Coding',
+            description: 'Multi-turn tool interactions, future-ready development support',
+            modelType: 'Flagship',
+            launchDate: '2026-02-20',
+            order: '1.000000000',
+          },
+        ],
+      },
+    },
+  ])
+
+  const encodedPayload = payload.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+  return `<html><body><script>self.__next_f.push([1,"12:${encodedPayload}"])</script></body></html>`
+}
+
 describe('ProviderHubSection', () => {
   const baseProps = {
     openRouterApiKey: '',
@@ -156,7 +182,11 @@ describe('ProviderHubSection', () => {
     fireEvent.click(deleteItem)
 
     expect(screen.getByText('Delete Model')).toBeInTheDocument()
-    expect(screen.getByText(/Remove "Grok 4.1 Fast"/)).toBeInTheDocument()
+    expect(
+      screen.getByText((content, element) =>
+        element?.textContent === 'Remove "Grok 4.1 Fast" from your model list?'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
   })
 
@@ -314,6 +344,54 @@ describe('ProviderHubSection', () => {
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ openRouterDebug: true })
+    )
+  })
+
+  it('shows Add from Catalog for Alibaba provider', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+
+    expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
+  })
+
+  it('opens Alibaba catalog dialog and surfaces the missing-key error', async () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('Add Model from Alibaba Catalog')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Add an Alibaba API key before loading the catalog.')
+    ).toBeInTheDocument()
+  })
+
+  it('adds an Alibaba catalog model to alibabaModels', async () => {
+    const onChange = vi.fn()
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => createAlibabaCatalogHtml(),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} alibabaApiKey="ali-key" onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('Qwen3-Coder-Next')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alibabaModels: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'qwen3-coder-next',
+            displayName: 'Qwen3-Coder-Next',
+            supportsToolCall: true,
+          }),
+        ]),
+      })
     )
   })
 })

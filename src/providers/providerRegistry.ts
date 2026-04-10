@@ -118,6 +118,10 @@ const PROVIDER_TOOL_MODEL_PREFIXES: Record<ProviderId, string[]> = {
     'qwen3-max',
     'qwen3-max-preview',
     'qwen3.5-plus',
+    'qwen3.5-flash',
+    'qwen3.5-122b',
+    'qwen3.5-27b',
+    'qwen3.5-35b-a3b',
     'qwen3-32b',
     'qwen3-14b',
     'qwen3-8b',
@@ -251,6 +255,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     endpoints: {
       baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
       chatCompletionsUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions',
+      modelCatalogUrl: 'https://modelstudio.alibabacloud.com/',
     },
     retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
     auth: {

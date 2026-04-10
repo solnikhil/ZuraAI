@@ -9,6 +9,7 @@ export function getSuggestionIcon(suggestion: CommandBarSuggestion): { Icon: Rea
   // Navigation actions
   if (suggestion.id === 'go-settings') return { Icon: SettingsIcon, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
   if (suggestion.id === 'go-chat') return { Icon: LayoutDashboard, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
+  if (suggestion.id === 'open-performance') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }
 
   // Settings section actions
   if (suggestion.id === 'go-settings-usage') return { Icon: ChartNoAxesCombined, iconClass: 'app-titlebar__commandbar-item-icon--navigate' }

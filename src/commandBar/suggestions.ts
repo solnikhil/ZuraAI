@@ -4,6 +4,7 @@ export type ProviderKey = ProviderId
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
+  | { type: 'open_performance_window' }
   | {
       type: 'open_settings_section'
       section: string
@@ -159,6 +160,13 @@ function buildBaseSuggestions(
       subtitle: 'Dashboard',
       keywords: ['dashboard', 'home', 'conversation'],
       action: { type: 'open_dashboard_view', view: 'chat' },
+    },
+    {
+      id: 'open-performance',
+      title: 'Performance',
+      subtitle: 'Live diagnostics, memory, CPU, and tracing',
+      keywords: ['performance', 'monitor', 'diagnostics', 'memory', 'cpu', 'trace', 'profiler'],
+      action: { type: 'open_performance_window' },
     },
     {
       id: 'go-settings',

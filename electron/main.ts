@@ -3,6 +3,7 @@ import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
 import { createMainWindow, getMainWindow, createTray, destroyTray } from './windows'
+import { resetPerformanceMonitorService } from './diagnostics/performanceMonitor'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
@@ -26,6 +27,7 @@ app.commandLine.appendSwitch('wm-window-animations-disabled')
 
 const WINDOWS_APP_ID = 'in.zuraai.desktop'
 const APP_NAME = 'ZuraAI'
+const STARTUP_LOG_PREFIX = '[startup]'
 let isAwaitingMcpShutdown = false
 let hasCompletedMcpShutdown = false
 
@@ -61,6 +63,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   unregisterMcpHandlers()
   cleanupAutoUpdater()
+  resetPerformanceMonitorService()
   destroyTray()
 })
 
@@ -78,7 +81,7 @@ app.on('before-quit', (event) => {
   isAwaitingMcpShutdown = true
   void shutdownMcpManager()
     .catch((error) => {
-      console.error('[MAIN] Failed to shut down MCP manager cleanly:', error)
+      console.error(`${STARTUP_LOG_PREFIX} MCP shutdown failed`, error)
     })
     .finally(() => {
       hasCompletedMcpShutdown = true
@@ -100,9 +103,9 @@ app.whenReady().then(async () => {
       execute: async () => {
         try {
           const name = await installExtension(REACT_DEVELOPER_TOOLS)
-          console.log(`[MAIN] Added Extension: ${name}`)
+          console.log(`${STARTUP_LOG_PREFIX} devtools installed: ${name}`)
         } catch (err) {
-          console.log('[MAIN] DevTools installation error:', err)
+          console.warn(`${STARTUP_LOG_PREFIX} devtools install skipped`, err)
         }
       },
     })
@@ -131,7 +134,7 @@ app.whenReady().then(async () => {
     delayMs: 0, // Start immediately after window visible, updater adds its own 10s delay
     execute: async () => {
       initializeAutoUpdater(getMainWindow)
-      console.log('[MAIN] Auto-updater initialized')
+      console.log(`${STARTUP_LOG_PREFIX} auto-updater initialized`)
     },
   })
 

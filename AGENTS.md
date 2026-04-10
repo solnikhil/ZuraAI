@@ -46,8 +46,10 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
-  - `electron/startup/` — deferred startup orchestration and startup metrics
+- `electron/startup/` — deferred startup orchestration and startup metrics
+- `electron/diagnostics/performanceMonitor.ts` — main-process diagnostics service for live `app.getAppMetrics()` sampling, GPU metadata capture, Chromium tracing, and diagnostics bundle export
 - `electron/windows/` — main window, tray
+  - `electron/windows/performanceWindow.ts` — dedicated Performance utility window lifecycle and route loading
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
 - `electron/mcp/mcpManager.ts` — MCP server registry, runtime state aggregation, connection lifecycle coordination, and cache/persistence orchestration across the extracted MCP manager helper modules
@@ -64,7 +66,8 @@ Core capabilities:
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/components/PerformanceWindow.tsx` — standalone Performance utility-window surface for live metrics, GPU state, tracing controls, and diagnostics export status
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
@@ -133,12 +136,19 @@ Core capabilities:
   - Opens from the titlebar info menu via `window.appInfo.openAboutWindow()` → `app-info:open-about-window`
   - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
+- **Performance Window** (`electron/windows/performanceWindow.ts`)
+  - Loads `#/performance` in its own `BrowserWindow`
+  - Opens from the command palette or renderer IPC via `window.performanceMonitor.openWindow()` → `performance-monitor:open-window`
+  - Uses the shared preload bridge, native OS window chrome, utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
+
 - **Dev vs prod loading**
-  - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-  - In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
+- In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
+- In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
+ - The Performance utility window follows the same hash-route loading pattern with `#/performance`
 
 - **Renderer route fallback**
-  - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
+- `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about` and `#/performance`.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
@@ -182,6 +192,9 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
   - listens for: `window-controls:state`
 - `window.appInfo`
   - invokes: `app-info:get`, `app-info:open-about-window`
+- `window.performanceMonitor`
+  - invokes: `performance-monitor:open-window`, `performance-monitor:get-snapshot`, `performance-monitor:subscribe`, `performance-monitor:unsubscribe`, `performance-monitor:start-trace`, `performance-monitor:stop-trace`, `performance-monitor:export-bundle`
+  - listens for: `performance-monitor:snapshot`
 - `window.shell`
   - invokes: `shell:open-external` (opens URLs in default browser; only http/https allowed)
 - `window.devTools`
@@ -204,6 +217,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Main-process startup uses `electron/startup/deferredInit.ts` to defer non-critical work until the main window is visible.
 - Current deferred tasks include delayed React DevTools install in development and deferred auto-updater initialization after first paint.
 - Main-process startup also denies Chromium permission requests/checks on the default session and relies on explicit IPC bridges plus `shell.openExternal` for outbound navigation instead of granting renderer permissions.
+- The performance diagnostics singleton is created on first use through `electron/diagnostics/performanceMonitor.ts`, immediately samples GPU status best-effort, and keeps only a bounded in-memory history ring buffer instead of continuous disk logging.
 - MCP startup integration now registers `electron/mcp/index.ts` handlers during `app.whenReady()`, initializes the singleton MCP manager with renderer-facing client info, and auto-connects only servers where both `enabled` and `autoConnect` are true.
 - App shutdown now performs an MCP disconnect pass before quit completes so managed transports can exit cleanly.
 - Renderer startup in `src/main.tsx` initializes compatibility polyfills, renderer performance tracking, injects lazy-image styles, applies saved theme settings, mounts `App`, and then hands non-critical preloads to `src/utils/startupPreloads.ts`.
@@ -300,6 +314,14 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - Renderer startup/performance metrics are tracked locally in `src/utils/rendererPerformance.ts`.
 - The tracker is initialized in `src/main.tsx` and consumed by `src/hooks/useLazyLoad.ts` for TTI-aware lazy loading.
 - There is no longer a main-process performance-monitor IPC pipeline or persisted performance metrics log.
+
+#### Main-Process Performance Diagnostics
+- `electron/diagnostics/performanceMonitor.ts` is the trusted diagnostics layer for the dedicated Performance window.
+- Live monitor snapshots are sourced from `app.getAppMetrics()` on a default 1-second cadence while subscribers are active, then normalized into stable app-specific process groups (`main`, `renderer`, `gpu`, `utility`, `network`, `storage`, `other`) with window labels/route hints where a `BrowserWindow` PID can be resolved.
+- GPU diagnostics use `app.getGPUFeatureStatus()` plus `app.getGPUInfo('basic')` after `gpu-info-update`, and degrade into explicit `pending` / `unavailable` / `error` states instead of blank renderer panels.
+- Chromium tracing is explicit and single-session only: `contentTracing.startRecording()` / `stopRecording()` are invoked only from user actions in the Performance window.
+- Diagnostics export is main-process only. The user picks a destination folder, and the main process writes a bundle containing `summary.json`, `summary.md`, `metrics.json`, and `trace.json` when a completed trace artifact exists.
+- The renderer never writes diagnostics files directly; it renders snapshots from `window.performanceMonitor`, requests trace transitions, and requests exports through the dedicated preload bridge.
 
 #### Response Streaming Cadence
 - Streaming updates use a fixed cadence from `getStreamingUpdateInterval()` in `src/components/Dashboard/ChatArea/hooks/streaming/streamingUtils.ts`, backed by shared provider constants in `src/providers/providerRegistry.ts` (`120ms`).

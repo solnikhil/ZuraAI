@@ -1,6 +1,7 @@
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
-import os from 'os'
-import { showAboutWindow } from '../windows'
+import { getPerformanceMonitorService } from '../diagnostics/performanceMonitor'
+import { getAppRuntimeInfo } from '../runtimeInfo'
+import { showAboutWindow, showPerformanceWindow } from '../windows'
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -47,25 +48,6 @@ function ensureWindowStateListeners(win: BrowserWindow): void {
   })
 
   windowStateListenersAttached.add(win)
-}
-
-function getPlatformLabel(platform: NodeJS.Platform, version?: string): string {
-  if (platform === 'win32') {
-    const match = version?.match(/(\d+)\.(\d+)\.(\d+)/)
-    if (match) {
-      const build = parseInt(match[3], 10)
-      if (build >= 22000) return 'Windows 11'
-    }
-    return 'Windows 10'
-  }
-  switch (platform) {
-    case 'darwin':
-      return 'macOS'
-    case 'linux':
-      return 'Linux'
-    default:
-      return platform
-  }
 }
 
 /**
@@ -140,27 +122,7 @@ export function registerSystemHandlers(): void {
    * Type: request/response
    */
   ipcMain.handle('app-info:get', () => {
-    const systemVersion = typeof process.getSystemVersion === 'function'
-      ? process.getSystemVersion()
-      : os.release()
-
-    // Get git info from build-time env variables
-    const commitHash = process.env.VITE_GIT_COMMIT_HASH || 'unknown'
-    const commitDate = process.env.VITE_GIT_COMMIT_DATE || 'unknown'
-
-    return {
-      appName: app.getName(),
-      appVersion: app.getVersion(),
-      channel: app.isPackaged ? 'Installed build' : 'Development build',
-      isPackaged: app.isPackaged,
-      electronVersion: process.versions.electron ?? 'Unknown',
-      chromiumVersion: process.versions.chrome ?? 'Unknown',
-      nodeVersion: process.versions.node ?? 'Unknown',
-      v8Version: process.versions.v8 ?? 'Unknown',
-      osVersion: `${getPlatformLabel(process.platform, systemVersion)} ${systemVersion} (${os.arch()})`,
-      commitHash,
-      commitDate,
-    }
+    return getAppRuntimeInfo()
   })
 
   /**
@@ -171,6 +133,35 @@ export function registerSystemHandlers(): void {
    */
 ipcMain.handle('app-info:open-about-window', () => {
     showAboutWindow()
+  })
+
+  ipcMain.handle('performance-monitor:open-window', () => {
+    showPerformanceWindow()
+  })
+
+  ipcMain.handle('performance-monitor:get-snapshot', async () => {
+    return getPerformanceMonitorService().getSnapshot()
+  })
+
+  ipcMain.handle('performance-monitor:subscribe', (event) => {
+    getPerformanceMonitorService().subscribe(event.sender)
+  })
+
+  ipcMain.handle('performance-monitor:unsubscribe', (event) => {
+    getPerformanceMonitorService().unsubscribe(event.sender)
+  })
+
+  ipcMain.handle('performance-monitor:start-trace', async () => {
+    return getPerformanceMonitorService().startTrace()
+  })
+
+  ipcMain.handle('performance-monitor:stop-trace', async () => {
+    return getPerformanceMonitorService().stopTrace()
+  })
+
+  ipcMain.handle('performance-monitor:export-bundle', async (event) => {
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    return getPerformanceMonitorService().exportBundle(ownerWindow)
   })
 
   /**
@@ -292,6 +283,13 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:is-maximized')
   ipcMain.removeHandler('app-info:get')
   ipcMain.removeHandler('app-info:open-about-window')
+  ipcMain.removeHandler('performance-monitor:open-window')
+  ipcMain.removeHandler('performance-monitor:get-snapshot')
+  ipcMain.removeHandler('performance-monitor:subscribe')
+  ipcMain.removeHandler('performance-monitor:unsubscribe')
+  ipcMain.removeHandler('performance-monitor:start-trace')
+  ipcMain.removeHandler('performance-monitor:stop-trace')
+  ipcMain.removeHandler('performance-monitor:export-bundle')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
 }
