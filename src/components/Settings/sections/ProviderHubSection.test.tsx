@@ -35,6 +35,8 @@ function createAlibabaCatalogHtml(): string {
 }
 
 describe('ProviderHubSection', () => {
+  const openExternal = vi.fn()
+
   const baseProps = {
     openRouterApiKey: '',
     openRouterDebug: false,
@@ -61,6 +63,13 @@ describe('ProviderHubSection', () => {
     maxTokens: 8000,
     onChange: vi.fn(),
   }
+
+  beforeEach(() => {
+    openExternal.mockReset()
+    window.shell = {
+      openExternal,
+    }
+  })
 
   it('renders providers controls', () => {
     render(<ProviderHubSection {...baseProps} />)
@@ -168,6 +177,15 @@ describe('ProviderHubSection', () => {
         expect.objectContaining({ code: 'x-ai/grok-4.1-fast', displayName: 'Grok 4.1 Fast (Edited)' }),
       ]),
     }))
+  })
+
+  it('opens the selected provider dashboard from the detail header', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /open openrouter dashboard/i }))
+
+    expect(openExternal).toHaveBeenCalledWith('https://openrouter.ai/settings/keys')
   })
 
   it('opens delete confirmation when Delete is clicked in model dropdown', async () => {

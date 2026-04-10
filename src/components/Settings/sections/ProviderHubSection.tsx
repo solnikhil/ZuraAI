@@ -8,6 +8,7 @@ import {
   Edit2,
   Eye,
   EyeOff,
+  ExternalLink,
   Globe,
   Loader2,
   ShieldCheck,
@@ -97,6 +98,14 @@ const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
   ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
   openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
   perplexity: getProviderEndpoint('perplexity', 'baseUrl') || '',
+}
+
+const PROVIDER_DASHBOARD_URLS: Partial<Record<ProviderKey, string>> = {
+  alibaba: 'https://dashscope.console.aliyun.com/',
+  fireworks: 'https://fireworks.ai/account/api-keys',
+  groq: 'https://console.groq.com/keys',
+  openrouter: 'https://openrouter.ai/settings/keys',
+  perplexity: 'https://www.perplexity.ai/settings/api',
 }
 
 const CATALOG_BASE_BACKGROUND = '#212121'
@@ -297,6 +306,7 @@ export function ProviderHubSection({
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
   const providerModels = providerModelMap[selectedProviderDef.key] || []
+  const providerDashboardUrl = PROVIDER_DASHBOARD_URLS[selectedProviderDef.key]
 
   useEffect(() => {
     if (providerModels.length === 0) {
@@ -741,21 +751,37 @@ export function ProviderHubSection({
                 <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">
                   {selectedProviderDef.name}
                 </span>
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
-                  <CircleHelp size={12} />
-                </span>
+                {providerDashboardUrl ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 rounded-full border border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    onClick={() => window.shell?.openExternal(providerDashboardUrl)}
+                    aria-label={`Open ${selectedProviderDef.name} dashboard`}
+                    title={`Open ${selectedProviderDef.name} dashboard`}
+                  >
+                    <ExternalLink size={12} />
+                  </Button>
+                ) : (
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-muted-foreground">
+                    <CircleHelp size={12} />
+                  </span>
+                )}
               </div>
-              <Switch
-                className="provider-hub-toggle"
-                checked={isProviderEnabled(selectedProviderDef)}
-                onCheckedChange={(checked) => {
-                  setProviderEnabled(selectedProviderDef.key, checked)
-                  if (checked) {
-                    apiKeyOrEndpointInputRef.current?.focus()
-                  }
-                }}
-                aria-label={`Enable ${selectedProviderDef.name}`}
-              />
+              <div className="flex items-center gap-2">
+                <Switch
+                  className="provider-hub-toggle"
+                  checked={isProviderEnabled(selectedProviderDef)}
+                  onCheckedChange={(checked) => {
+                    setProviderEnabled(selectedProviderDef.key, checked)
+                    if (checked) {
+                      apiKeyOrEndpointInputRef.current?.focus()
+                    }
+                  }}
+                  aria-label={`Enable ${selectedProviderDef.name}`}
+                />
+              </div>
             </div>
 
             <div className="border-t border-border pt-6">
