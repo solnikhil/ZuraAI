@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { ChevronDown, ChevronRight } from './icons'
 
 import type {
   DiagnosticsExportResult,
@@ -45,6 +46,62 @@ function pickTopProcesses(processes: DiagnosticsProcessMetricRow[]): Diagnostics
       return right.workingSetSizeKb - left.workingSetSizeKb
     })
     .slice(0, 12)
+}
+
+function getProcessSignals(process: DiagnosticsProcessMetricRow): string[] {
+  const signals: string[] = []
+
+  if (process.cpuPercent >= 20) {
+    signals.push(`High CPU load at ${formatPercent(process.cpuPercent)}.`)
+  } else if (process.cpuPercent >= 8) {
+    signals.push(`Moderate CPU activity at ${formatPercent(process.cpuPercent)}.`)
+  }
+
+  if (process.workingSetSizeKb >= 700 * 1024) {
+    signals.push(`Very high working set at ${formatMbFromKb(process.workingSetSizeKb)}.`)
+  } else if (process.workingSetSizeKb >= 300 * 1024) {
+    signals.push(`Elevated working set at ${formatMbFromKb(process.workingSetSizeKb)}.`)
+  }
+
+  if (process.privateBytesKb >= 400 * 1024) {
+    signals.push(`Large private allocation at ${formatMbFromKb(process.privateBytesKb)}.`)
+  }
+
+  if (process.idleWakeupsPerSecond != null && process.idleWakeupsPerSecond >= 150) {
+    signals.push(`Frequent wakeups at ${process.idleWakeupsPerSecond.toFixed(1)}/s.`)
+  }
+
+  if (process.group === 'renderer') {
+    signals.push('Renderer pressure can show up as jank, slow paints, or input delay.')
+  }
+  if (process.group === 'gpu') {
+    signals.push('GPU pressure can correlate with compositor stalls, video issues, or animation hitching.')
+  }
+  if (process.group === 'network') {
+    signals.push('Network service activity usually points to request churn, streaming, or cache work.')
+  }
+
+  if (signals.length === 0) {
+    signals.push('No obvious hotspot signal from the current sample. Check if spikes happen intermittently.')
+  }
+
+  return signals
+}
+
+function getProcessNextStep(process: DiagnosticsProcessMetricRow): string {
+  if (process.group === 'renderer') {
+    return 'Check what this window is rendering right now, then compare its memory growth over the next few samples.'
+  }
+  if (process.group === 'gpu') {
+    return 'Look for heavy animation, canvas/video work, or compositor-heavy surfaces in the active windows.'
+  }
+  if (process.group === 'network') {
+    return 'Look for repeated requests, streaming responses, or sync loops that keep the network service busy.'
+  }
+  if (process.group === 'main') {
+    return 'Check main-process timers, IPC fan-out, and any window or tray event loops that may be staying hot.'
+  }
+  return 'Watch a few more samples and compare CPU, working set, and private bytes for movement.'
 }
 
 function ChartPanel({
@@ -128,7 +185,9 @@ function OverviewItem({ label, value }: { label: string; value: string }) {
 }
 
 export default function PerformanceWindow() {
+  const traceControlsEnabled = false
   const [snapshot, setSnapshot] = useState<DiagnosticsSnapshot | null>(null)
+  const [expandedProcessId, setExpandedProcessId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -236,8 +295,8 @@ export default function PerformanceWindow() {
   const traceStatus = snapshot?.trace.status ?? 'idle'
 
   return (
-    <div className="min-h-screen bg-[var(--theme-background)] text-[var(--theme-text-primary)]">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[var(--theme-background)] text-[var(--theme-text-primary)]">
+      <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-4 p-4">
         <header className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-3">
           <div>
             <div className="text-[0.78rem] font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]">
@@ -262,7 +321,8 @@ export default function PerformanceWindow() {
               type="button"
               className="rounded-lg border border-[var(--theme-border)] px-3 py-2 text-sm"
               onClick={startTrace}
-              disabled={traceStatus === 'recording' || isTracePending}
+              disabled={!traceControlsEnabled || traceStatus === 'recording' || isTracePending}
+              title={!traceControlsEnabled ? 'Temporarily disabled' : undefined}
             >
               Start trace
             </button>
@@ -270,7 +330,8 @@ export default function PerformanceWindow() {
               type="button"
               className="rounded-lg border border-[var(--theme-border)] px-3 py-2 text-sm"
               onClick={stopTrace}
-              disabled={traceStatus !== 'recording' || isTracePending}
+              disabled={!traceControlsEnabled || traceStatus !== 'recording' || isTracePending}
+              title={!traceControlsEnabled ? 'Temporarily disabled' : undefined}
             >
               Stop trace
             </button>
@@ -278,7 +339,8 @@ export default function PerformanceWindow() {
               type="button"
               className="rounded-lg bg-[var(--theme-text-primary)] px-3 py-2 text-sm font-medium text-[var(--theme-background)]"
               onClick={exportBundle}
-              disabled={isExportPending}
+              disabled={!traceControlsEnabled || isExportPending}
+              title={!traceControlsEnabled ? 'Temporarily disabled' : undefined}
             >
               {isExportPending ? 'Exporting...' : 'Export diagnostics bundle'}
             </button>
@@ -301,6 +363,130 @@ export default function PerformanceWindow() {
           </section>
         ) : snapshot ? (
           <>
+            <section className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-secondary)]">
+                    Process Table
+                  </div>
+                  <div className="text-sm text-[var(--theme-text-secondary)]">
+                    Top CPU and memory consumers from the latest sample.
+                  </div>
+                </div>
+                <div className="text-right text-xs text-[var(--theme-text-secondary)]">
+                  <div>Total CPU {formatPercent(snapshot.totals.cpuPercent)}</div>
+                  <div>Working Set {formatMbFromKb(snapshot.totals.workingSetSizeKb)}</div>
+                </div>
+              </div>
+
+              {topProcesses.length === 0 ? (
+                <div className="text-sm text-[var(--theme-text-secondary)]">
+                  No process metrics are currently available.
+                </div>
+              ) : (
+                <div className="overflow-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="text-[0.72rem] uppercase tracking-[0.12em] text-[var(--theme-text-secondary)]">
+                      <tr>
+                        <th className="px-2 py-2">Role</th>
+                        <th className="px-2 py-2">Group</th>
+                        <th className="px-2 py-2">CPU</th>
+                        <th className="px-2 py-2">Working Set</th>
+                        <th className="px-2 py-2">Private</th>
+                        <th className="px-2 py-2">PID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topProcesses.map((process) => {
+                        const isExpanded = expandedProcessId === process.id
+                        const detailLabel = process.windowRoute ?? process.serviceName ?? process.type
+                        const signals = getProcessSignals(process)
+
+                        return (
+                          <Fragment key={process.id}>
+                            <tr
+                              className="border-t border-[var(--theme-border)] cursor-pointer transition-colors hover:bg-[var(--theme-background)]/50"
+                              onClick={() => {
+                                setExpandedProcessId((current) => current === process.id ? null : process.id)
+                              }}
+                            >
+                              <td className="px-2 py-2">
+                                <button
+                                  type="button"
+                                  className="flex items-start gap-2 text-left"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setExpandedProcessId((current) => current === process.id ? null : process.id)
+                                  }}
+                                >
+                                  <span className="mt-0.5 text-[var(--theme-text-secondary)]">
+                                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                  </span>
+                                  <span>
+                                    <div>{process.label}</div>
+                                    <div className="text-xs text-[var(--theme-text-secondary)]">
+                                      {detailLabel}
+                                    </div>
+                                  </span>
+                                </button>
+                              </td>
+                              <td className="px-2 py-2 uppercase">{process.group}</td>
+                              <td className="px-2 py-2">{formatPercent(process.cpuPercent)}</td>
+                              <td className="px-2 py-2">{formatMbFromKb(process.workingSetSizeKb)}</td>
+                              <td className="px-2 py-2">{formatMbFromKb(process.privateBytesKb)}</td>
+                              <td className="px-2 py-2 font-mono text-xs">{process.pid}</td>
+                            </tr>
+                            {isExpanded ? (
+                              <tr className="border-t border-[var(--theme-border)] bg-[var(--theme-background)]/60">
+                                <td colSpan={6} className="px-4 py-4">
+                                  <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr]">
+                                    <div>
+                                      <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--theme-text-secondary)]">
+                                        Hotspot Read
+                                      </div>
+                                      <div className="space-y-2 text-sm text-[var(--theme-text-primary)]">
+                                        {signals.map((signal) => (
+                                          <div key={signal}>{signal}</div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--theme-text-secondary)]">
+                                        Breakdown
+                                      </div>
+                                      <div className="space-y-1 text-sm">
+                                        <div>Peak Working Set: {formatMbFromKb(process.peakWorkingSetSizeKb)}</div>
+                                        <div>Private Bytes: {formatMbFromKb(process.privateBytesKb)}</div>
+                                        <div>Shared Bytes: {formatMbFromKb(process.sharedBytesKb)}</div>
+                                        <div>
+                                          Idle Wakeups: {process.idleWakeupsPerSecond != null
+                                            ? `${process.idleWakeupsPerSecond.toFixed(1)}/s`
+                                            : 'Unavailable'}
+                                        </div>
+                                        <div>Sandboxed: {process.sandboxed ? 'Yes' : 'No'}</div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--theme-text-secondary)]">
+                                        Next Step
+                                      </div>
+                                      <div className="text-sm text-[var(--theme-text-primary)]">
+                                        {getProcessNextStep(process)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
             <section className="grid grid-cols-2 gap-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-4 md:grid-cols-4 xl:grid-cols-8">
               <OverviewItem label="App" value={`v${snapshot.overview.app.appVersion}`} />
               <OverviewItem label="Electron" value={snapshot.overview.app.electronVersion} />
@@ -339,62 +525,7 @@ export default function PerformanceWindow() {
               />
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-              <section className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-secondary)]">
-                      Process Table
-                    </div>
-                    <div className="text-sm text-[var(--theme-text-secondary)]">
-                      Top CPU and memory consumers from the latest sample.
-                    </div>
-                  </div>
-                  <div className="text-right text-xs text-[var(--theme-text-secondary)]">
-                    <div>Total CPU {formatPercent(snapshot.totals.cpuPercent)}</div>
-                    <div>Working Set {formatMbFromKb(snapshot.totals.workingSetSizeKb)}</div>
-                  </div>
-                </div>
-
-                {topProcesses.length === 0 ? (
-                  <div className="text-sm text-[var(--theme-text-secondary)]">
-                    No process metrics are currently available.
-                  </div>
-                ) : (
-                  <div className="overflow-auto">
-                    <table className="min-w-full text-left text-sm">
-                      <thead className="text-[0.72rem] uppercase tracking-[0.12em] text-[var(--theme-text-secondary)]">
-                        <tr>
-                          <th className="px-2 py-2">Role</th>
-                          <th className="px-2 py-2">Group</th>
-                          <th className="px-2 py-2">CPU</th>
-                          <th className="px-2 py-2">Working Set</th>
-                          <th className="px-2 py-2">Private</th>
-                          <th className="px-2 py-2">PID</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {topProcesses.map((process) => (
-                          <tr key={process.id} className="border-t border-[var(--theme-border)]">
-                            <td className="px-2 py-2">
-                              <div>{process.label}</div>
-                              <div className="text-xs text-[var(--theme-text-secondary)]">
-                                {process.windowRoute ?? process.serviceName ?? process.type}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2 uppercase">{process.group}</td>
-                            <td className="px-2 py-2">{formatPercent(process.cpuPercent)}</td>
-                            <td className="px-2 py-2">{formatMbFromKb(process.workingSetSizeKb)}</td>
-                            <td className="px-2 py-2">{formatMbFromKb(process.privateBytesKb)}</td>
-                            <td className="px-2 py-2 font-mono text-xs">{process.pid}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-
+            <section className="grid gap-4 xl:grid-cols-2">
               <div className="flex flex-col gap-4">
                 <section className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-4">
                   <div className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.14em] text-[var(--theme-text-secondary)]">

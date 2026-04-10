@@ -26,11 +26,17 @@ function showFallbackError(win: BrowserWindow, message: string): void {
   win.webContents
     .executeJavaScript(
       `(function() {
-        var s = document.getElementById('fallback-spinner');
         var t = document.getElementById('fallback-text');
         var h = document.getElementById('fallback-slow');
-        if (s) s.style.display = 'none';
-        if (t) { t.textContent = '${escaped}'; t.style.color = '#d6d3d1'; }
+        if (t) {
+          t.textContent = '${escaped}';
+          t.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+          t.style.fontSize = '14px';
+          t.style.color = '#d6d3d1';
+          t.style.opacity = '1';
+          t.style.animation = 'none';
+          t.style.letterSpacing = 'normal';
+        }
         if (h) { h.textContent = 'Try restarting the app.'; h.style.opacity = '1'; }
         return true;
       })()`

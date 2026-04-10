@@ -56,9 +56,9 @@ interface HistorySample {
   snapshot: DiagnosticsSnapshot
 }
 
-function bytesToKb(value: number | undefined): number {
+function normalizeKb(value: number | undefined): number {
   if (!Number.isFinite(value)) return 0
-  return Math.max(0, Math.round((value ?? 0) / 1024))
+  return Math.max(0, Math.round(value ?? 0))
 }
 
 function getSharedBytes(memory: ProcessMetric['memory']): number | undefined {
@@ -193,10 +193,10 @@ export function normalizeProcessMetric(
     idleWakeupsPerSecond: Number.isFinite(metric.cpu.idleWakeupsPerSecond)
       ? Number(metric.cpu.idleWakeupsPerSecond.toFixed(2))
       : null,
-    workingSetSizeKb: bytesToKb(metric.memory.workingSetSize),
-    peakWorkingSetSizeKb: bytesToKb(metric.memory.peakWorkingSetSize),
-    privateBytesKb: bytesToKb(metric.memory.privateBytes),
-    sharedBytesKb: bytesToKb(getSharedBytes(metric.memory)),
+    workingSetSizeKb: normalizeKb(metric.memory.workingSetSize),
+    peakWorkingSetSizeKb: normalizeKb(metric.memory.peakWorkingSetSize),
+    privateBytesKb: normalizeKb(metric.memory.privateBytes),
+    sharedBytesKb: normalizeKb(getSharedBytes(metric.memory)),
     creationTime: Number.isFinite(metric.creationTime) ? metric.creationTime : null,
     sandboxed: Boolean(metric.sandboxed),
     serviceName,
