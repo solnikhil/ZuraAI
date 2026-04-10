@@ -140,6 +140,9 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!parsed.ollamaUrl) parsed.ollamaUrl = defaultSettings.ollamaUrl
   if (!parsed.ollamaModels) parsed.ollamaModels = defaultSettings.ollamaModels
   if (!parsed.perplexityApiKey) parsed.perplexityApiKey = defaultSettings.perplexityApiKey
+  if (typeof parsed.openRouterDebug !== 'boolean') {
+    parsed.openRouterDebug = defaultSettings.openRouterDebug
+  }
   if (!parsed.perplexityModels) {
     parsed.perplexityModels = defaultSettings.perplexityModels
   } else {
@@ -243,6 +246,12 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     parsed.maxTokens <= 1000
   ) {
     parsed.maxTokens = 8000
+  }
+
+  // Streaming is the only supported chat mode in the current UI.
+  // Older installs may still have `streamResponses: false` persisted from a legacy default.
+  if (typeof parsed.streamResponses !== 'boolean' || parsed.streamResponses === false) {
+    parsed.streamResponses = true
   }
 
   if (!parsed.todos) parsed.todos = []
@@ -389,6 +398,7 @@ export function getInitialUISettings(settings: Settings): Partial<SettingsUI> {
 export function getInitialConfigSettings(settings: Settings): Partial<SettingsConfig> {
   return {
     openRouterApiKey: settings.openRouterApiKey,
+    openRouterDebug: settings.openRouterDebug,
     perplexityApiKey: settings.perplexityApiKey,
     groqApiKey: settings.groqApiKey,
     tavilyApiKey: settings.tavilyApiKey,

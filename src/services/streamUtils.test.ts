@@ -23,6 +23,22 @@ async function collect<T>(stream: AsyncIterable<T>): Promise<T[]> {
 }
 
 describe('streamUtils', () => {
+  it('parses single-line SSE events incrementally without blank-line separators', async () => {
+    const reader = createReader([
+      'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n',
+      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}\n',
+      'data: [DONE]\n',
+    ])
+
+    const chunks = await collect(parseSSEStream<{
+      id: string
+      choices: Array<{ delta: { content: string } }>
+    }>(reader))
+
+    expect(chunks).toHaveLength(2)
+    expect(chunks.map(chunk => chunk.choices[0].delta.content).join('')).toBe('Hello')
+  })
+
   it('parses the final SSE event without a trailing newline', async () => {
     const reader = createReader([
       'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n',

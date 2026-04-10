@@ -141,6 +141,7 @@ export type { ToolCall, ToolCallResult }
 export interface ToolManagerConfig {
   provider: ProviderId
   model: string
+  modelSupportsTools?: boolean
   enabledTools?: string[] // If not provided, all tools enabled
   availableTools?: ToolDescriptor[]
   executionPolicy?: ToolExecutionPolicy
@@ -199,7 +200,11 @@ export function getToolsForProvider(config: ToolManagerConfig) {
     return null
   }
 
-  if (!modelSupportsTools(config.provider, config.model)) {
+  if (config.modelSupportsTools === false) {
+    return null
+  }
+
+  if (config.modelSupportsTools !== true && !modelSupportsTools(config.provider, config.model)) {
     return null
   }
 

@@ -3,6 +3,7 @@ import type {
     McpToolExecutionMetadata,
     McpToolLookupRecord,
 } from '../mcp/types'
+import type { ReasoningDetail } from '../services/types'
 
 export type ToolOrigin = 'builtin-main' | 'builtin-renderer' | 'mcp'
 
@@ -114,6 +115,8 @@ export interface OpenRouterMessage {
     role: string
     content: string | null
     tool_calls?: OpenRouterToolCall[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
 }
 
 export interface ToolCallingMessage extends OpenRouterMessage {}

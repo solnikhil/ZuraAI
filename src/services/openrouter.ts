@@ -1,4 +1,10 @@
-import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
+import {
+    ChatMessage,
+    ReasoningDetail,
+    ToolDefinition,
+    parseErrorResponse,
+    extractErrorMessage
+} from './types'
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint, getProviderRetryPolicy } from '../providers'
 
@@ -43,13 +49,7 @@ export interface OpenRouterStreamChunk {
                 }
             }>
             reasoning?: string
-            reasoning_details?: Array<{
-                id: string | null
-                format: string
-                index?: number
-                type?: 'summary' | 'encrypted' | 'text'
-                [key: string]: any
-            }>
+            reasoning_details?: ReasoningDetail[]
             tool_calls?: Array<{
                 index?: number
                 id?: string
@@ -91,13 +91,7 @@ export interface OpenRouterResponse {
                 }
             }>
             reasoning?: string
-            reasoning_details?: Array<{
-                id: string | null
-                format: string
-                index?: number
-                type?: 'summary' | 'encrypted' | 'text'
-                [key: string]: any
-            }>
+            reasoning_details?: ReasoningDetail[]
             tool_calls?: Array<{
                 id: string
                 type: string
@@ -132,7 +126,7 @@ interface OpenRouterRequestBody {
         image_size?: string
     }
     temperature?: number
-    max_tokens?: number
+    max_completion_tokens?: number
     tools?: ToolDefinition[]
     tool_choice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
     response_format?: {
@@ -149,6 +143,35 @@ interface OpenRouterRequestBody {
         exclude?: boolean
         enabled?: boolean
     }
+}
+
+function logOpenRouterDebug(enabled: boolean | undefined, event: string, details?: Record<string, unknown>): void {
+    if (!enabled) return
+    console.debug('[openrouter-debug]', event, details || {})
+}
+
+function summarizeMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+    return messages.map((message, index) => {
+        const rawContent =
+            typeof message.content === 'string'
+                ? message.content
+                : Array.isArray(message.content)
+                    ? message.content
+                        .map((part) => ('text' in part && typeof part.text === 'string' ? part.text : '[non-text]'))
+                        .join(' ')
+                    : ''
+        const content = rawContent.trim()
+
+        return {
+            index,
+            role: message.role,
+            contentLength: content.length,
+            contentPreview: content.slice(0, 160),
+            hasToolCalls: Array.isArray((message as ChatMessage & { tool_calls?: unknown[] }).tool_calls)
+                ? ((message as ChatMessage & { tool_calls?: unknown[] }).tool_calls?.length || 0) > 0
+                : false,
+        }
+    })
 }
 
 export async function* streamOpenRouterCompletion(
@@ -172,6 +195,7 @@ export async function* streamOpenRouterCompletion(
             exclude?: boolean
             enabled?: boolean
         }
+        debug?: boolean
         signal?: AbortSignal
     }
 ): AsyncGenerator<OpenRouterStreamChunk, void, unknown> {
@@ -195,7 +219,7 @@ export async function* streamOpenRouterCompletion(
         requestBody.image_config = options.imageConfig
     }
     if (options?.maxTokens !== undefined) {
-        requestBody.max_tokens = options.maxTokens
+        requestBody.max_completion_tokens = options.maxTokens
     }
     if (options?.tools && options.tools.length > 0) {
         requestBody.tools = options.tools
@@ -208,6 +232,16 @@ export async function* streamOpenRouterCompletion(
     if (options?.reasoning) {
         requestBody.reasoning = options.reasoning
     }
+    logOpenRouterDebug(options?.debug, 'request.start', {
+        model,
+        messageCount: messages.length,
+        messages: summarizeMessages(messages),
+        toolCount: options?.tools?.length || 0,
+        toolChoice: options?.toolChoice || 'provider-default',
+        modalities: options?.modalities,
+        reasoning: options?.reasoning,
+        imageConfig: options?.imageConfig,
+    })
 
     // Retry loop for the initial HTTP request (before streaming starts)
     let response: Response | null = null
@@ -249,6 +283,12 @@ export async function* streamOpenRouterCompletion(
         throw new Error(`[${response.status}] ${errorMessage}`)
     }
 
+    logOpenRouterDebug(options?.debug, 'request.connected', {
+        model,
+        status: response?.status,
+        contentType: response?.headers.get('content-type') || '',
+    })
+
     if (!response || !response.ok) {
         throw lastError || new Error('OpenRouter stream request failed after retries')
     }
@@ -263,6 +303,25 @@ export async function* streamOpenRouterCompletion(
         providerName: 'OpenRouter',
         onParsed(parsed: unknown) {
             const chunk = parsed as any
+            logOpenRouterDebug(options?.debug, 'stream.chunk', {
+                id: chunk?.id,
+                model: chunk?.model,
+                finishReason: chunk?.choices?.[0]?.finish_reason || null,
+                contentLength: chunk?.choices?.[0]?.delta?.content?.length || 0,
+                contentPreview: (chunk?.choices?.[0]?.delta?.content || '').slice(0, 120),
+                reasoningLength:
+                    chunk?.choices?.[0]?.delta?.reasoning?.length ||
+                    chunk?.choices?.[0]?.delta?.reasoning_details?.length ||
+                    0,
+                toolCalls:
+                    chunk?.choices?.[0]?.delta?.tool_calls?.map((toolCall: any) => ({
+                        index: toolCall?.index,
+                        id: toolCall?.id,
+                        name: toolCall?.function?.name,
+                        argumentsPreview: (toolCall?.function?.arguments || '').slice(0, 120),
+                    })) || [],
+                usage: chunk?.usage,
+            })
             // OpenRouter can send error objects inside the SSE stream
             // when the upstream provider fails mid-generation
             if (chunk.error) {
@@ -271,7 +330,7 @@ export async function* streamOpenRouterCompletion(
                 const provider = chunk.error.metadata?.provider_name || ''
                 const raw = chunk.error.metadata?.raw || ''
                 const detail = provider ? ` (provider: ${provider})` : ''
-                const rawDetail = raw && raw !== errorMsg ? ` — ${String(raw).slice(0, 200)}` : ''
+                const rawDetail = raw && raw !== errorMsg ? ` - ${String(raw).slice(0, 200)}` : ''
                 throw new Error(`${code} ${errorMsg}${detail}${rawDetail}`)
             }
             return chunk as OpenRouterStreamChunk
@@ -304,7 +363,7 @@ export async function generateOpenRouterCompletion(
         requestBody.temperature = options.temperature
     }
     if (options?.max_tokens !== undefined) {
-        requestBody.max_tokens = options.max_tokens
+        requestBody.max_completion_tokens = options.max_tokens
     }
 
     const response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {

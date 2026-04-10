@@ -106,13 +106,20 @@
   background: transparent;
 }
 .sidebar-container ::-webkit-scrollbar-thumb {
-  background: var(--theme-border);
+  background: transparent;
   border-radius: 2px;
+  transition: background 0.12s ease;
 }
-.sidebar-container ::-webkit-scrollbar-thumb:hover {
+.sidebar-container:hover ::-webkit-scrollbar-thumb,
+.sidebar-container:focus-within ::-webkit-scrollbar-thumb {
+  background: var(--theme-border);
+}
+.sidebar-container:hover ::-webkit-scrollbar-thumb:hover,
+.sidebar-container:focus-within ::-webkit-scrollbar-thumb:hover {
   background: var(--theme-border-hover);
 }
-.sidebar-container ::-webkit-scrollbar-thumb:active {
+.sidebar-container:hover ::-webkit-scrollbar-thumb:active,
+.sidebar-container:focus-within ::-webkit-scrollbar-thumb:active {
   background: var(--theme-border-active);
 }
 

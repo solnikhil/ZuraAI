@@ -22,6 +22,7 @@ import { shouldRequestToolFollowUp } from '../tools/followUpPolicy'
 import { shouldEnableTools } from '../utils/promptSelection'
 import { getWebResearchToolExposure } from '../skills'
 import { createMcpToolRegistry } from '../tools/mcpRegistry'
+import type { ProviderId } from '../providers'
 
 export interface ToolCallState {
     activeToolCalls: ToolCall[]
@@ -87,6 +88,43 @@ export function useToolCalling() {
         return [...new Set([...enabledTools, ...runtimeMcpToolNames])]
     }
 
+    const normalizeSelectedModelCode = (provider: ProviderId, modelCode: string): string => {
+        const trimmed = modelCode.trim()
+        if (provider === 'openrouter' && trimmed.startsWith('openrouter/')) {
+            return trimmed.slice('openrouter/'.length)
+        }
+
+        return trimmed
+    }
+
+    const getCurrentModelSupportsTools = (): boolean | undefined => {
+        const provider = settings.modelProvider
+        const selectedModelCode = normalizeSelectedModelCode(provider, settings.aiModel)
+
+        const providerModels = provider === 'openrouter'
+            ? settings.configuredModels
+            : provider === 'groq'
+                ? settings.groqModels
+                : provider === 'alibaba'
+                    ? settings.alibabaModels
+                    : provider === 'fireworks'
+                        ? settings.fireworksModels
+                        : provider === 'ollama'
+                            ? settings.ollamaModels
+                            : provider === 'perplexity'
+                                ? settings.perplexityModels
+                                : []
+
+        const selectedModel = providerModels.find((model) => {
+            const candidateCode = normalizeSelectedModelCode(provider, model.code)
+            return candidateCode === selectedModelCode
+        })
+
+        return typeof selectedModel?.supportsToolCall === 'boolean'
+            ? selectedModel.supportsToolCall
+            : undefined
+    }
+
     const canUseToolsNow = (): boolean => {
         if (!shouldEnableTools(settings)) {
             return false
@@ -100,6 +138,7 @@ export function useToolCalling() {
         const tools = getToolsForProvider({
             provider: settings.modelProvider,
             model: settings.aiModel,
+            modelSupportsTools: getCurrentModelSupportsTools(),
             enabledTools,
             availableTools,
         })
@@ -116,6 +155,7 @@ export function useToolCalling() {
         return getToolsForProvider({
             provider: settings.modelProvider,
             model: settings.aiModel,
+            modelSupportsTools: getCurrentModelSupportsTools(),
             enabledTools,
             availableTools,
         })

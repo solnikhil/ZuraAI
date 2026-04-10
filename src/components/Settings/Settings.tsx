@@ -289,6 +289,7 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 fireworksApiKey={pendingSettings.fireworksApiKey}
                 groqApiKey={pendingSettings.groqApiKey}
                 openRouterApiKey={pendingSettings.openRouterApiKey}
+                openRouterDebug={pendingSettings.openRouterDebug}
                 perplexityApiKey={pendingSettings.perplexityApiKey}
                 tavilyApiKey={pendingSettings.tavilyApiKey}
                 tavilySearchDepthPreference={pendingSettings.tavilySearchDepthPreference}

@@ -114,6 +114,121 @@ function getSyntheticErrorArgs(toolName: string): Record<string, unknown> {
   return Object.fromEntries(toolDef.parameters.required.map((param) => [param, '']))
 }
 
+function parseXmlToolCallArgs(toolName: string, innerContent: string): Record<string, unknown> | null {
+  const toolDef = getToolByName(toolName)
+  const requiredParams = toolDef?.parameters.required || []
+
+  const argMatches = Array.from(
+    innerContent.matchAll(/<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/gi)
+  )
+
+  const args: Record<string, unknown> = {}
+  for (const match of argMatches) {
+    const key = match[1]?.trim()
+    const value = match[2]?.trim()
+    if (!key || !value) continue
+    args[key] = value
+  }
+
+  if (Object.keys(args).length > 0) {
+    return args
+  }
+
+  if (requiredParams.length === 1) {
+    const [requiredParam] = requiredParams
+    const normalizedParam = escapeRegExp(requiredParam)
+
+    const wrappedMatch = innerContent.match(
+      new RegExp(`<${normalizedParam}>([\\s\\S]*?)<\\/${normalizedParam}>`, 'i')
+    )
+    if (wrappedMatch?.[1]?.trim()) {
+      return { [requiredParam]: wrappedMatch[1].trim() }
+    }
+
+    const genericArgsBlock = innerContent.match(/<arguments>([\s\S]*?)<\/arguments>/i)?.[1]
+    if (genericArgsBlock) {
+      const nestedMatch = genericArgsBlock.match(
+        new RegExp(`<${normalizedParam}>([\\s\\S]*?)<\\/${normalizedParam}>`, 'i')
+      )
+      if (nestedMatch?.[1]?.trim()) {
+        return { [requiredParam]: nestedMatch[1].trim() }
+      }
+    }
+  }
+
+  const taggedPairs = Array.from(innerContent.matchAll(/<([a-zA-Z0-9_:-]+)>([\s\S]*?)<\/\1>/g))
+  if (taggedPairs.length > 0) {
+    const taggedArgs: Record<string, unknown> = {}
+
+    for (const [, key, value] of taggedPairs) {
+      if (!key || !value) continue
+      if (['tool_call', 'tool_name', 'arguments'].includes(key.toLowerCase())) continue
+
+      const trimmedValue = value.trim()
+      if (!trimmedValue || /<[^>]+>/.test(trimmedValue)) continue
+      taggedArgs[key.trim()] = trimmedValue
+    }
+
+    if (Object.keys(taggedArgs).length > 0) {
+      return taggedArgs
+    }
+  }
+
+  const fallbackQuery = extractFallbackQuery(toolName, { reasoning: innerContent })
+  return fallbackQuery ? { query: fallbackQuery } : null
+}
+
+export function extractXmlToolCallsFromContent(
+  content: string | null | undefined,
+  fallbackContext?: ToolCallFallbackContext | null
+): { toolCalls: ToolCall[]; cleanedContent: string } {
+  const rawContent = typeof content === 'string' ? content : ''
+  if (!rawContent.trim()) {
+    return { toolCalls: [], cleanedContent: '' }
+  }
+
+  const matches = Array.from(rawContent.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/gi))
+  if (matches.length === 0) {
+    return { toolCalls: [], cleanedContent: rawContent }
+  }
+
+  const toolCalls: ToolCall[] = []
+
+  matches.forEach((match, index) => {
+    const innerContent = match[1]?.trim() || ''
+    if (!innerContent) return
+
+    const toolName =
+      innerContent.match(/<tool_name>([\s\S]*?)<\/tool_name>/i)?.[1]?.trim() ||
+      innerContent.match(/^([a-zA-Z0-9_]+)/)?.[1]?.trim()
+    if (!toolName) return
+
+    let args = parseXmlToolCallArgs(toolName, innerContent)
+
+    if (!args) {
+      const fallbackQuery = extractFallbackQuery(toolName, fallbackContext)
+      if (fallbackQuery) {
+        args = { query: fallbackQuery }
+      } else {
+        args = getSyntheticErrorArgs(toolName)
+      }
+    }
+
+    toolCalls.push({
+      id: `content-tool-call-${index + 1}`,
+      name: toolName,
+      arguments: args,
+    })
+  })
+
+  const cleanedContent = rawContent
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  return { toolCalls, cleanedContent }
+}
+
 function extractFallbackQuery(
   toolName: string,
   fallbackContext?: ToolCallFallbackContext | null
@@ -251,12 +366,16 @@ export function parseOpenRouterToolCalls(
   response: OpenRouterResponse & { _fallbackContext?: ToolCallFallbackContext }
 ): ToolCall[] {
   const message = response.choices?.[0]?.message
+  const fallbackContext = response._fallbackContext
 
-  if (!message?.tool_calls || message.tool_calls.length === 0) {
+  if (!message) {
     return []
   }
 
-  const fallbackContext = response._fallbackContext
+  if (!message.tool_calls || message.tool_calls.length === 0) {
+    return extractXmlToolCallsFromContent(message.content, fallbackContext).toolCalls
+  }
+
   const toolCalls: ToolCall[] = []
 
   message.tool_calls.forEach((toolCall: OpenRouterToolCall) => {
@@ -305,5 +424,7 @@ export function parseOpenRouterToolCalls(
 
 export function hasToolCalls(response: OpenRouterResponse): boolean {
   const message = response.choices?.[0]?.message
-  return Boolean(message?.tool_calls && message.tool_calls.length > 0)
+  if (!message) return false
+  if (message.tool_calls && message.tool_calls.length > 0) return true
+  return extractXmlToolCallsFromContent(message.content).toolCalls.length > 0
 }

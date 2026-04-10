@@ -11,6 +11,7 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
 describe('ProviderHubSection', () => {
   const baseProps = {
     openRouterApiKey: '',
+    openRouterDebug: false,
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
@@ -301,6 +302,18 @@ describe('ProviderHubSection', () => {
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ webSearchIncludeImages: false })
+    )
+  })
+
+  it('updates OpenRouter debug preference from provider settings', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable OpenRouter debug logging' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ openRouterDebug: true })
     )
   })
 })

@@ -277,6 +277,108 @@ describe('useProviderStreaming', () => {
     )
   })
 
+  it('preserves OpenRouter reasoning_details on tool-call follow-up messages', async () => {
+    let capturedResponse: any
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        {
+          type: 'reasoning-delta',
+          delta: 'Need a current source.',
+        },
+        {
+          type: 'reasoning-details',
+          details: [{
+            id: 'reasoning-1',
+            format: 'anthropic-claude-v1',
+            type: 'reasoning.summary',
+            summary: 'Need a current source.',
+          }],
+        },
+        {
+          type: 'tool-call-delta',
+          delta: [{
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'web_search', arguments: '{"query":"zura ai latest docs"}' },
+          }],
+        },
+        { type: 'finish', finishReason: 'tool_calls' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockImplementation(async (response) => {
+      capturedResponse = response
+      return {
+        hasTools: true,
+        toolResults: [buildWebSearchToolResult('call_1', 'zura ai latest docs')],
+        formattedResults: [],
+        needsFollowUp: false,
+        executionSummary: buildExecutionSummary('zura ai latest docs'),
+      }
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'anthropic/claude-sonnet-4.5',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4.5',
+      sessionId: 'session-1',
+      messageId: 'message-reasoning',
+      messages: [{ role: 'user', content: 'latest docs?' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(capturedResponse.choices[0].message).toEqual(
+      expect.objectContaining({
+        tool_calls: [
+          expect.objectContaining({
+            id: 'call_1',
+          }),
+        ],
+        reasoning_details: [
+          expect.objectContaining({
+            id: 'reasoning-1',
+            type: 'reasoning.summary',
+          }),
+        ],
+      })
+    )
+  })
+
   it('preserves stripped pre-tool text as a thinking block for non-reasoning models', async () => {
     mocks.createProviderStreamClient.mockReturnValue({
       stream: streamFrom([
@@ -379,6 +481,97 @@ describe('useProviderStreaming', () => {
         ]),
       })
     )
+  })
+
+  it('recovers XML-style tool markup from content without leaking it into the final message', async () => {
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: streamFrom([
+        {
+          type: 'text-delta',
+          delta:
+            '<tool_call>web_search <arg_key>query</arg_key><arg_value>global gay population percentage statistics</arg_value></tool_call>',
+        },
+        { type: 'finish', finishReason: 'stop' },
+      ]),
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [
+        buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+      ],
+      formattedResults: [],
+      needsFollowUp: false,
+      executionSummary: buildExecutionSummary('global gay population percentage statistics'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterDebug: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-xml',
+      messages: [{ role: 'user', content: 'fact check this' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(handleToolCalls).toHaveBeenCalledTimes(1)
+    expect(streamResult.content).toBe('')
+    expect(streamResult.toolResults).toEqual([
+      buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+    ])
+    expect(updateStreamingMessage).toHaveBeenLastCalledWith(
+      'session-1',
+      'message-xml',
+      expect.objectContaining({
+        content: '',
+        toolResults: [
+          buildWebSearchToolResult('content-tool-call-1', 'global gay population percentage statistics'),
+        ],
+      })
+    )
+    expect(debugSpy).toHaveBeenCalledWith(
+      '[openrouter-debug]',
+      'xml-tool-call-recovered',
+      expect.objectContaining({
+        toolNames: ['web_search'],
+      })
+    )
+    debugSpy.mockRestore()
   })
 
   it('supports parallel web_search batches until the total executed cap is reached', async () => {

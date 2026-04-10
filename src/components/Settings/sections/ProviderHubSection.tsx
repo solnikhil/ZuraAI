@@ -149,6 +149,7 @@ export interface ProviderHubSectionProps {
   fireworksApiKey: string
   groqApiKey: string
   openRouterApiKey: string
+  openRouterDebug: boolean
   perplexityApiKey: string
   tavilyApiKey: string
   tavilySearchDepthPreference: TavilySearchDepthPreference
@@ -173,6 +174,7 @@ export interface ProviderHubSectionProps {
       fireworksApiKey: string
       groqApiKey: string
       openRouterApiKey: string
+      openRouterDebug: boolean
       perplexityApiKey: string
       tavilyApiKey: string
       tavilySearchDepthPreference: TavilySearchDepthPreference
@@ -194,6 +196,7 @@ export interface ProviderHubSectionProps {
 
 export function ProviderHubSection({
   openRouterApiKey,
+  openRouterDebug,
   perplexityApiKey,
   groqApiKey,
   alibabaApiKey,
@@ -790,6 +793,20 @@ export function ProviderHubSection({
                         >
                           {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
+                      </div>
+                    }
+                  />
+
+                  <DetailField
+                    label="Debug Logging"
+                    description="Log OpenRouter request summaries, chunk/tool-call traces, and XML tool-call recovery events to the DevTools console."
+                    control={
+                      <div className="flex justify-end">
+                        <Switch
+                          checked={openRouterDebug}
+                          onCheckedChange={(checked) => onChange({ openRouterDebug: checked })}
+                          aria-label="Enable OpenRouter debug logging"
+                        />
                       </div>
                     }
                   />

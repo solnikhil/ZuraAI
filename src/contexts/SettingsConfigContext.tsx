@@ -66,6 +66,7 @@ export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 export interface SettingsConfig {
   // API Keys
   openRouterApiKey: string
+  openRouterDebug: boolean
   perplexityApiKey: string
   groqApiKey: string
   tavilyApiKey: string
@@ -130,6 +131,7 @@ export interface SettingsConfig {
 export const defaultSettingsConfig: SettingsConfig = {
   // API Keys
   openRouterApiKey: '',
+  openRouterDebug: false,
   perplexityApiKey: '',
   groqApiKey: '',
   tavilyApiKey: '',
@@ -523,7 +525,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   maxTokens: 8000,
   systemPrompt: defaultSystemPrompt,
   webSearchPrompt: defaultWebSearchPrompt,
-  streamResponses: false,
+  streamResponses: true,
 
   // Tool settings
   toolsEnabled: true,

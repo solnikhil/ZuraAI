@@ -77,6 +77,12 @@ describe('createProviderStreamClient', () => {
           delta: {
             content: 'Hi',
             reasoning: 'Think',
+            reasoning_details: [{
+              id: 'r1',
+              format: 'text',
+              type: 'reasoning.text',
+              text: 'Think',
+            }],
             tool_calls: [{
               index: 0,
               id: 'call_1',
@@ -132,6 +138,15 @@ describe('createProviderStreamClient', () => {
       { type: 'text-delta', delta: 'Hi' },
       { type: 'reasoning-delta', delta: 'Think' },
       {
+        type: 'reasoning-details',
+        details: [{
+          id: 'r1',
+          format: 'text',
+          type: 'reasoning.text',
+          text: 'Think',
+        }],
+      },
+      {
         type: 'tool-call-delta',
         delta: [{
           index: 0,
@@ -161,6 +176,137 @@ describe('createProviderStreamClient', () => {
       },
       { type: 'finish', finishReason: 'tool_calls' },
     ])
+  })
+
+  it('extracts OpenRouter reasoning summaries when text reasoning is not present', async () => {
+    mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{
+          delta: {
+            reasoning_details: [{
+              id: 'r2',
+              format: 'anthropic-claude-v1',
+              type: 'reasoning.summary',
+              summary: 'Planned the answer in two steps.',
+            }],
+          },
+          finish_reason: 'stop',
+        }],
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'anthropic/claude-sonnet-4.5',
+        modelProvider: 'openrouter',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        openRouterApiKey: 'or-key',
+      },
+      'openrouter'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4.5',
+      messages: [{ role: 'user', content: 'hello' }],
+      temperature: 0.4,
+      maxTokens: 2048,
+      streamResponses: true,
+    }))
+
+    expect(events).toEqual([
+      { type: 'reasoning-delta', delta: 'Planned the answer in two steps.' },
+      {
+        type: 'reasoning-details',
+        details: [{
+          id: 'r2',
+          format: 'anthropic-claude-v1',
+          type: 'reasoning.summary',
+          summary: 'Planned the answer in two steps.',
+        }],
+      },
+      { type: 'finish', finishReason: 'stop' },
+    ])
+  })
+
+  it('forces OpenRouter chat requests through the streaming path even when streamResponses is false', async () => {
+    mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{
+          delta: {
+            content: 'Streamed anyway',
+          },
+          finish_reason: 'stop',
+        }],
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'openai/gpt-4.1',
+        modelProvider: 'openrouter',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: false,
+        openRouterApiKey: 'or-key',
+      },
+      'openrouter'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: false,
+    }))
+
+    expect(mocks.generateOpenRouterCompletion).not.toHaveBeenCalled()
+    expect(mocks.streamOpenRouterCompletion).toHaveBeenCalled()
+    expect(events).toEqual([
+      { type: 'text-delta', delta: 'Streamed anyway' },
+      { type: 'finish', finishReason: 'stop' },
+    ])
+  })
+
+  it('breaks large OpenRouter text chunks into progressive deltas for smoother token streaming', async () => {
+    mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
+      yield {
+        choices: [{
+          delta: {
+            content: 'This response arrived as one large buffered chunk.',
+          },
+          finish_reason: 'stop',
+        }],
+      }
+    })
+
+    const client = createProviderStreamClient(
+      {
+        aiModel: 'openai/gpt-4.1',
+        modelProvider: 'openrouter',
+        temperature: 0.4,
+        maxTokens: 2048,
+        streamResponses: true,
+        openRouterApiKey: 'or-key',
+      },
+      'openrouter'
+    )
+
+    const events = await collect(client.stream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      messages: [{ role: 'user', content: 'hello' }],
+      streamResponses: true,
+    }))
+
+    const textDeltas = events.filter((event) => event.type === 'text-delta')
+    expect(textDeltas.length).toBeGreaterThan(1)
+    expect(textDeltas.map((event: any) => event.delta).join('')).toBe(
+      'This response arrived as one large buffered chunk.'
+    )
+    expect(events.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' })
   })
 
   it('falls back to non-streaming Ollama completion and forwards abort signals', async () => {

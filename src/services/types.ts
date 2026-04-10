@@ -8,6 +8,8 @@ export interface ChatMessage {
     content: string | MessageContent[]
     name?: string
     tool_call_id?: string
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
 }
 
 export interface MessageContent {
@@ -16,6 +18,17 @@ export interface MessageContent {
     image_url?: {
         url: string
     }
+}
+
+export interface ReasoningDetail {
+    id: string | null
+    format: string
+    index?: number
+    type?: 'summary' | 'encrypted' | 'text' | 'reasoning.summary' | 'reasoning.encrypted' | 'reasoning.text'
+    text?: string
+    summary?: string
+    content?: string
+    [key: string]: unknown
 }
 
 // Tool definition format (OpenAI-compatible)
@@ -83,7 +96,7 @@ export function extractErrorMessage(
         if (metadata.raw && typeof metadata.raw === 'string' && metadata.raw !== baseMessage) {
             // Truncate raw upstream error to keep message readable
             const snippet = metadata.raw.slice(0, 200)
-            parts.push(`— ${snippet}`)
+            parts.push(`- ${snippet}`)
         }
     }
 
