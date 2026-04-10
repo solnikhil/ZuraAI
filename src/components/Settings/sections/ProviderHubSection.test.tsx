@@ -36,6 +36,7 @@ function createAlibabaCatalogHtml(): string {
 
 describe('ProviderHubSection', () => {
   const openExternal = vi.fn()
+  const fetchMock = vi.fn()
 
   const baseProps = {
     openRouterApiKey: '',
@@ -66,9 +67,11 @@ describe('ProviderHubSection', () => {
 
   beforeEach(() => {
     openExternal.mockReset()
+    fetchMock.mockReset()
     window.shell = {
       openExternal,
     }
+    vi.stubGlobal('fetch', fetchMock)
   })
 
   it('renders providers controls', () => {
@@ -179,6 +182,48 @@ describe('ProviderHubSection', () => {
     }))
   })
 
+  it('auto-fills OpenRouter model specs when a model id is entered', async () => {
+    const onChange = vi.fn()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'openai/gpt-4o-mini',
+            name: 'GPT-4o Mini',
+            description: 'Fast multimodal model',
+            context_length: 128000,
+            architecture: {
+              input_modalities: ['text', 'image'],
+              output_modalities: ['text'],
+            },
+            supported_parameters: ['tools', 'temperature', 'top_p'],
+            pricing: {
+              web_search: '0.01',
+            },
+          },
+        ],
+      }),
+    })
+
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
+
+    const modelIdInput = screen.getByPlaceholderText(/please enter the model id/i)
+    fireEvent.change(modelIdInput, { target: { value: 'openai/gpt-4o-mini' } })
+    fireEvent.blur(modelIdInput)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('GPT-4o Mini')).toBeInTheDocument()
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(screen.getByDisplayValue('128000')).toBeInTheDocument()
+    expect(screen.getByText(/model spec loaded from openrouter/i)).toBeInTheDocument()
+  })
+
   it('opens the selected provider dashboard from the detail header', () => {
     render(<ProviderHubSection {...baseProps} />)
 
@@ -228,6 +273,23 @@ describe('ProviderHubSection', () => {
     }))
     expect(onChange.mock.calls[0][0].configuredModels).not.toContainEqual(
       expect.objectContaining({ code: 'x-ai/grok-4.1-fast' })
+    )
+  })
+
+  it('removes all models for the selected provider when confirmed', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /remove all/i }))
+
+    expect(screen.getByText('Remove All Models')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^remove all$/i }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configuredModels: [],
+      })
     )
   })
 

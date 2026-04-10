@@ -255,6 +255,7 @@ export function ProviderHubSection({
     modelCode: string
     displayName: string
   } | null>(null)
+  const [clearModelsConfirmOpen, setClearModelsConfirmOpen] = useState(false)
   const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] = useState(false)
   const [connectivityModel, setConnectivityModel] = useState('')
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
@@ -536,6 +537,22 @@ export function ProviderHubSection({
       setModelToDelete(null)
     }
     setDeleteConfirmOpen(false)
+  }
+
+  const clearModelsForProvider = (provider: ProviderKey) => {
+    const updates: Partial<ProviderHubSectionProps> & { [key: string]: unknown } = {}
+    if (provider === 'openrouter') updates.configuredModels = []
+    if (provider === 'perplexity') updates.perplexityModels = []
+    if (provider === 'groq') updates.groqModels = []
+    if (provider === 'alibaba') updates.alibabaModels = []
+    if (provider === 'fireworks') updates.fireworksModels = []
+    if (provider === 'ollama') updates.ollamaModels = []
+    onChange(updates)
+  }
+
+  const handleClearModelsConfirm = () => {
+    clearModelsForProvider(selectedProviderDef.key)
+    setClearModelsConfirmOpen(false)
   }
 
   const runConnectivityCheck = async () => {
@@ -825,7 +842,7 @@ export function ProviderHubSection({
 
                   <DetailField
                     label="Debug Logging"
-                    description="Log OpenRouter request summaries, chunk/tool-call traces, and XML tool-call recovery events to the DevTools console."
+                    description=""
                     control={
                       <div className="flex justify-end">
                         <Switch
@@ -1042,7 +1059,7 @@ export function ProviderHubSection({
                 </button>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto]">
+              <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
                 <div className="relative">
                   <Search
                     size={16}
@@ -1078,6 +1095,16 @@ export function ProviderHubSection({
                     Add from Catalog
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setClearModelsConfirmOpen(true)}
+                  disabled={providerModels.length === 0}
+                  className="gap-2 text-rose-300 hover:text-rose-200"
+                >
+                  <Trash2 size={14} />
+                  Remove All
+                </Button>
                 <Button
                   variant="outline"
                   size="icon"
@@ -1139,6 +1166,8 @@ export function ProviderHubSection({
       <CreateCustomModelDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
+        provider={selectedProviderDef.key}
+        providerApiKey={getProviderApiKey(selectedProviderDef)}
         onCreate={(model) => addCustomModel(model, selectedProviderDef.key)}
       />
 
@@ -1148,6 +1177,8 @@ export function ProviderHubSection({
           setEditDialogOpen(open)
           if (!open) setModelToEdit(null)
         }}
+        provider={modelToEdit?.provider}
+        providerApiKey={modelToEdit ? getProviderApiKey(PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ?? selectedProviderDef) : ''}
         onCreate={addCustomModel}
         initialModel={modelToEdit?.model}
         onUpdate={(updated) => {
@@ -1189,6 +1220,37 @@ export function ProviderHubSection({
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={clearModelsConfirmOpen} onOpenChange={setClearModelsConfirmOpen}>
+        <DialogContent
+          className="border-border bg-card sm:max-w-[440px]"
+          showCloseButton={false}
+        >
+          <DialogHeader>
+            <DialogTitle>Remove All Models</DialogTitle>
+            <DialogDescription>
+              Remove all models from{' '}
+              <span className="inline-flex rounded bg-secondary px-1.5 py-0.5 text-foreground">
+                {selectedProviderDef.name}
+              </span>
+              ?
+              {selectedProviderDef.key === 'ollama' && (
+                <span className="mt-2 block text-muted-foreground">
+                  Ollama models will reappear when you refresh the model list.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setClearModelsConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleClearModelsConfirm}>
+              Remove All
             </Button>
           </div>
         </DialogContent>
