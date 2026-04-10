@@ -281,7 +281,6 @@ export default function ChatArea() {
         >
           <div style={{ textAlign: 'center' }}>
             <GradientText
-              animationSpeed={4}
               showBorder={false}
               useThemeAccent={true}
               className="zura-title"

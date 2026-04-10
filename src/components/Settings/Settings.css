@@ -89,7 +89,7 @@
     border-radius: 13px !important;
     position: relative;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid var(--theme-border);
     display: inline-flex;
     align-items: center;
@@ -121,7 +121,7 @@
     top: 50% !important;
     left: 3px;
     transform: translateY(-50%);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
     pointer-events: none;
     display: block;
@@ -155,7 +155,7 @@
     border-radius: 12px;
     color: var(--theme-text-secondary);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .btn-signout:hover {
@@ -709,7 +709,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     padding: 20px;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .limits-section:hover {
@@ -775,7 +775,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     padding: 20px;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .settings-section-card h3 {
@@ -831,7 +831,7 @@
     font-size: 0.9rem;
     width: 280px;
     max-width: 100%;
-    transition: all 0.25s ease;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
     box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
@@ -857,7 +857,7 @@
     color: var(--theme-text-primary);
     font-size: 0.9rem;
     width: 100%;
-    transition: all 0.25s ease;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
     font-family: inherit;
 }
@@ -889,7 +889,7 @@
     min-height: 120px;
     resize: vertical;
     font-family: inherit;
-    transition: all 0.25s ease;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
     box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
@@ -912,7 +912,7 @@
     font-size: 0.9rem;
     min-width: 160px;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
     box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
@@ -935,7 +935,7 @@
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .btn-primary:hover {
@@ -953,7 +953,7 @@
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: background-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .btn-secondary:hover {
@@ -971,7 +971,7 @@
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 
 .btn-danger:hover {
@@ -1002,7 +1002,7 @@
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .tab-btn:hover {
@@ -1033,7 +1033,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 10px;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 
 .model-item:hover {
@@ -1090,7 +1090,7 @@
     border: 1px solid var(--theme-border);
     border-radius: 12px;
     cursor: pointer;
-    transition: all 0.25s ease;
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 
 .tool-item:hover {
@@ -1229,7 +1229,7 @@
     text-align: left;
     font-size: 0.85rem;
     font-weight: 500;
-    transition: all 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
     width: 100%;
     box-sizing: border-box;
 }
@@ -1488,7 +1488,7 @@
     font-size: 0.78rem;
     font-weight: 550;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
 }
 
 .settings-section-chip:hover {
@@ -1763,7 +1763,7 @@
     font-weight: 560;
     line-height: 1;
     letter-spacing: 0.01em;
-    transition: all 0.18s ease;
+    transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
 .skills-row__status--enabled {
@@ -1780,7 +1780,7 @@
 .skills-row__menu {
     color: var(--theme-text-muted);
     border-radius: 10px;
-    transition: all 0.15s ease;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .skills-row__menu:hover {
@@ -1881,7 +1881,7 @@
     font-size: 0.82rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.16s ease;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
 }
 
 .settings-savebar__button:disabled {
@@ -2268,7 +2268,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.16s ease;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .settings-row-button:hover {
@@ -2475,7 +2475,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.16s ease;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .settings-prompt-toggle:hover {
@@ -2679,7 +2679,7 @@
     font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .theme-filter-btn:hover {
@@ -2708,7 +2708,7 @@
     border: 1px solid var(--theme-border);
     background: var(--theme-surface-subtle);
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
     position: relative;
 }
 

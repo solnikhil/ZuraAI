@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { migrateConfiguredModelCode } from './SettingsContext'
+import { normalizeStoredSettings } from './settingsStore'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -106,6 +107,16 @@ describe('SettingsContext Provider Integration', () => {
       expect(defaultSettingsConfig.titleGenerationDisplayMode).toBe('instant')
     })
 
+    it('defaults streamResponses to true', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.streamResponses).toBe(true)
+    })
+
+    it('defaults OpenRouter debug logging to false', async () => {
+      const { defaultSettingsConfig } = await import('./SettingsConfigContext')
+      expect(defaultSettingsConfig.openRouterDebug).toBe(false)
+    })
+
     it('includes Kimi K2.5 in default Fireworks models', async () => {
       const { defaultSettingsConfig } = await import('./SettingsConfigContext')
       expect(defaultSettingsConfig.fireworksModels).toEqual(
@@ -142,6 +153,16 @@ describe('SettingsContext Provider Integration', () => {
         displayName: 'Kimi K2.5 Turbo',
         enabled: true,
       })
+    })
+
+    it('normalizes legacy persisted streamResponses false back to true', () => {
+      const normalized = normalizeStoredSettings(JSON.stringify({ streamResponses: false }))
+      expect(normalized.streamResponses).toBe(true)
+    })
+
+    it('normalizes missing openRouterDebug to false', () => {
+      const normalized = normalizeStoredSettings(JSON.stringify({}))
+      expect(normalized.openRouterDebug).toBe(false)
     })
   })
 })

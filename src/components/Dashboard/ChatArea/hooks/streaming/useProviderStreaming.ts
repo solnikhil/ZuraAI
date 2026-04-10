@@ -5,12 +5,14 @@ import type {
   ThinkingBlock,
   ToolCallResult,
 } from '../../../../../contexts/ChatHistoryContext'
+import type { ReasoningDetail } from '../../../../../services/types'
 import { cleanSonarResponse } from '../../../../../services/perplexity'
 import {
   providerSupportsTools,
   providerUsesNativeSearch,
   type ActiveProviderId,
 } from '../../../../../providers'
+import { extractXmlToolCallsFromContent } from '../../../../../tools/adapters/openrouterToolCalls'
 import {
   SAFETY_CAP,
   MAX_RESEARCH_ROUNDS,
@@ -61,6 +63,8 @@ export interface ProviderStreamingRunOptions {
     images?: string[]
     tool_calls?: unknown[]
     thinking?: string
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
   }>
   startTime: number
   researchMaxRounds: number
@@ -69,6 +73,16 @@ export interface ProviderStreamingRunOptions {
   enableTools?: boolean
   syncToStreamingContext?: boolean
   modalities?: Array<'text' | 'image'>
+  reasoning?: {
+    max_tokens?: number
+    effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+    exclude?: boolean
+    enabled?: boolean
+  }
+  imageConfig?: {
+    aspect_ratio?: string
+    image_size?: string
+  }
   toolEventCallbacks?: HandleToolCallsOptions
 }
 
@@ -162,7 +176,13 @@ function buildResearchStatus(
 }
 
 interface SynthesisContext {
-  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] }
+  lastAssistantMessage: {
+    role: 'assistant'
+    content: string
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
   totalSearchCount: number
   researchRound: number
@@ -178,11 +198,18 @@ export function useProviderStreaming({
   const { updateStreaming } = useStreamingActions()
   const updateInterval = getStreamingUpdateInterval()
   const shouldLogResearchLoop = import.meta.env.DEV
+  const shouldLogOpenRouterDebug = settings.openRouterDebug === true
 
   const logResearchLoop = (event: string, details?: Record<string, unknown>) => {
     if (!shouldLogResearchLoop) return
 
     console.debug('[research-loop]', event, details || {})
+  }
+
+  const logOpenRouterDebug = (event: string, details?: Record<string, unknown>) => {
+    if (!shouldLogOpenRouterDebug) return
+
+    console.debug('[openrouter-debug]', event, details || {})
   }
 
   const runProviderStream = useCallback(
@@ -274,6 +301,7 @@ export function useProviderStreaming({
         const roundStartContent = accumulatedContent
         let roundContent = ''
         let roundToolCalls: DeltaToolCall[] = []
+        let roundReasoningDetails: ReasoningDetail[] = []
         let roundFinishReason: string | null = null
         let roundUsage = emptyUsage()
         let strippedToolPrelude = false
@@ -297,6 +325,8 @@ export function useProviderStreaming({
           tools: roundOptions?.tools === undefined ? tools : roundOptions.tools,
           toolChoice: roundOptions?.toolChoice,
           modalities: options.modalities,
+          reasoning: options.reasoning,
+          imageConfig: options.imageConfig,
           signal: options.signal,
         })) {
           switch (event.type) {
@@ -316,13 +346,14 @@ export function useProviderStreaming({
                 updateStreamingMessage(options.sessionId, options.messageId, completedThinkingUpdate)
               }
 
-              const hadAccumulatedContent = accumulatedContent.length > 0
               accumulatedContent += event.delta
               roundContent += event.delta
               if (event.delta) {
                 updateStreamingState({
                   phase: 'answering',
-                  ...(!hadAccumulatedContent ? { content: accumulatedContent } : {}),
+                  // Keep the isolated active-message view in sync on every delta.
+                  // Persisted chat-history writes stay throttled separately.
+                  content: accumulatedContent,
                 })
               }
               persistProgress()
@@ -342,6 +373,9 @@ export function useProviderStreaming({
                 files: generatedFiles,
               })
               persistProgress()
+              break
+            case 'reasoning-details':
+              roundReasoningDetails.push(...event.details)
               break
             case 'tool-call-delta':
               if (!strippedToolPrelude && accumulatedContent !== roundStartContent) {
@@ -391,9 +425,41 @@ export function useProviderStreaming({
         if (roundFinishReason === 'tool_calls' && hasValidRoundToolCalls) {
           accumulatedContent = roundStartContent
         }
-        const finalRoundContent = providerUsesNativeSearch(provider)
+        let finalRoundContent = providerUsesNativeSearch(provider)
           ? cleanSonarResponse(accumulatedContent, citations)
           : accumulatedContent
+
+        if (
+          provider === 'openrouter' &&
+          toolsAvailable &&
+          !hasValidRoundToolCalls &&
+          finalRoundContent.includes('<tool_call>')
+        ) {
+          const extracted = extractXmlToolCallsFromContent(finalRoundContent, {
+            lastUserMessage: getUserContextText(roundMessages),
+            reasoning: getThinkingTranscript(localThinkingBlocks),
+          })
+
+          if (extracted.toolCalls.length > 0) {
+            logOpenRouterDebug('xml-tool-call-recovered', {
+              model,
+              toolNames: extracted.toolCalls.map((toolCall) => toolCall.name),
+              cleanedContentLength: extracted.cleanedContent.length,
+              rawContentPreview: finalRoundContent.slice(0, 240),
+            })
+            roundToolCalls = extracted.toolCalls.map((toolCall, index) => ({
+              index,
+              id: toolCall.id,
+              type: 'function',
+              function: {
+                name: toolCall.name,
+                arguments: JSON.stringify(toolCall.arguments),
+              },
+            }))
+            finalRoundContent = extracted.cleanedContent
+            roundFinishReason = 'tool_calls'
+          }
+        }
 
         updateStreamingState({
           content: finalRoundContent,
@@ -419,7 +485,7 @@ export function useProviderStreaming({
           finishReason = roundFinishReason
         }
 
-        return { roundContent, roundToolCalls, roundFinishReason }
+        return { roundContent, roundToolCalls, roundReasoningDetails, roundFinishReason }
       }
 
       const runNoToolsSynthesisAttempt = async (
@@ -479,10 +545,14 @@ export function useProviderStreaming({
         finishReason === 'tool_calls' &&
         initialRound.roundToolCalls.filter((toolCall) => toolCall?.id).length > 0
       ) {
-        const reconstructedMessage = reconstructToolCallMessage(
-          initialRound.roundContent,
-          initialRound.roundToolCalls
-        )
+            const reconstructedMessage = reconstructToolCallMessage(
+              initialRound.roundContent,
+              initialRound.roundToolCalls,
+              {
+                reasoning: getThinkingTranscript(localThinkingBlocks),
+                reasoningDetails: initialRound.roundReasoningDetails,
+              }
+            )
         let toolResult = await toolCalling.handleToolCalls(
           buildResponseWithFallback(
             reconstructedMessage,
@@ -644,7 +714,11 @@ export function useProviderStreaming({
 
             const reconstructedFollowUp = reconstructToolCallMessage(
               followUpRound.roundContent,
-              followUpRound.roundToolCalls
+              followUpRound.roundToolCalls,
+              {
+                reasoning: getThinkingTranscript(localThinkingBlocks),
+                reasoningDetails: followUpRound.roundReasoningDetails,
+              }
             )
             lastAssistantMessage = reconstructedFollowUp
             const nextToolResult = await toolCalling.handleToolCalls(

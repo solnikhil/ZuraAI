@@ -99,8 +99,11 @@ function withDefaultWeight(
   defaultWeight: IconWeight = 'regular',
   displayName?: string
 ): Icon {
+  const normalizedDefaultWeight: IconWeight =
+    defaultWeight === 'duotone' ? 'regular' : defaultWeight
+
   const Wrapped = forwardRef<SVGSVGElement, IconProps>((props, ref) => (
-    <Component ref={ref} {...props} weight={props.weight ?? defaultWeight} />
+    <Component ref={ref} {...props} weight={props.weight ?? normalizedDefaultWeight} />
   ))
 
   Wrapped.displayName = displayName ?? Component.displayName ?? 'PremiumIcon'

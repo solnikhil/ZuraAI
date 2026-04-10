@@ -28,7 +28,7 @@ import {
   streamPerplexityCompletion,
   type PerplexityResponse,
 } from '../services/perplexity'
-import type { ChatMessage } from '../services/types'
+import type { ChatMessage, ReasoningDetail } from '../services/types'
 import { DEFAULT_OLLAMA_URL } from './providerRegistry'
 import type { ActiveProviderId } from './providerTypes'
 import type {
@@ -40,6 +40,52 @@ import type {
   ProviderRuntimeStreamRequest as StreamRequest,
 } from './providerRuntimeTypes'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
+
+function extractOpenRouterReasoningDelta(
+  reasoningDetails:
+    | Array<{
+        type?: string
+        text?: string
+        summary?: string
+        content?: string
+      }>
+    | undefined,
+  fallbackReasoning?: string
+): string {
+  if (Array.isArray(reasoningDetails) && reasoningDetails.length > 0) {
+    const parts = reasoningDetails
+      .map((detail) => {
+        if (!detail || typeof detail !== 'object') return ''
+
+        if (
+          (detail.type === 'reasoning.text' || detail.type === 'text') &&
+          typeof detail.text === 'string'
+        ) {
+          return detail.text
+        }
+
+        if (
+          (detail.type === 'reasoning.summary' || detail.type === 'summary') &&
+          typeof detail.summary === 'string'
+        ) {
+          return detail.summary
+        }
+
+        if (typeof detail.content === 'string') {
+          return detail.content
+        }
+
+        return ''
+      })
+      .filter((part) => part.length > 0)
+
+    if (parts.length > 0) {
+      return parts.join('')
+    }
+  }
+
+  return fallbackReasoning || ''
+}
 
 type OpenAiCompatibleResponse =
   | OpenRouterResponse
@@ -112,6 +158,10 @@ function normalizeToolCalls(
   }))
 }
 
+function normalizeReasoningDetails(details: ReasoningDetail[] | undefined): ReasoningDetail[] {
+  return Array.isArray(details) ? details.filter((detail) => detail && typeof detail === 'object') : []
+}
+
 function normalizeUsage(
   usage:
     | {
@@ -140,6 +190,33 @@ function normalizeUsage(
     cachedInputTokens: usage.prompt_cache_tokens,
     cachedOutputTokens: usage.completion_cache_tokens,
   }
+}
+
+const smoothStreamingSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function splitForProgressiveStreaming(delta: string): string[] {
+  if (!delta) return []
+  if (delta.length <= 24) return [delta]
+
+  const units = delta.match(/\S+\s*|\s+/g) || [delta]
+  const pieces: string[] = []
+  let buffer = ''
+
+  for (const unit of units) {
+    if ((buffer + unit).length > 12 && buffer.length > 0) {
+      pieces.push(buffer)
+      buffer = unit
+      continue
+    }
+
+    buffer += unit
+  }
+
+  if (buffer) {
+    pieces.push(buffer)
+  }
+
+  return pieces.length > 1 ? pieces : [delta]
 }
 
 async function* emitOpenAiCompatibleResponse(
@@ -350,16 +427,9 @@ export async function* streamProviderEvents(
     case 'openrouter': {
       const apiKey = getProviderCredential(settings, 'openrouter')
       if (request.streamResponses === false) {
-        const response = await generateOpenRouterCompletion(apiKey, normalizedModel, request.messages, {
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          signal: request.signal,
-        })
-        yield* emitOpenAiCompatibleResponse(response, {
-          responsePrefix: normalizedModel,
-          includeReasoning: true,
-        })
-        return
+        console.warn(
+          '[ZuraAI] Ignoring streamResponses=false for OpenRouter chat requests; dashboard chat requires streaming.'
+        )
       }
 
       for await (const chunk of streamOpenRouterCompletion(apiKey, normalizedModel, request.messages, {
@@ -368,25 +438,33 @@ export async function* streamProviderEvents(
         tools: request.tools || undefined,
         toolChoice: request.toolChoice,
         modalities: request.modalities,
+        imageConfig: request.imageConfig,
+        reasoning: request.reasoning,
+        debug: settings.openRouterDebug,
         signal: request.signal,
       })) {
         const delta = chunk.choices?.[0]?.delta?.content || ''
         if (delta) {
-          yield { type: 'text-delta', delta }
-        }
-
-        const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning || ''
-        if (reasoningDelta) {
-          yield { type: 'reasoning-delta', delta: reasoningDelta }
+          const progressiveDeltas = splitForProgressiveStreaming(delta)
+          for (let index = 0; index < progressiveDeltas.length; index += 1) {
+            yield { type: 'text-delta', delta: progressiveDeltas[index] }
+            if (progressiveDeltas.length > 1 && index < progressiveDeltas.length - 1) {
+              await smoothStreamingSleep(10)
+            }
+          }
         }
 
         const reasoningDetails = chunk.choices?.[0]?.delta?.reasoning_details
-        if (reasoningDetails?.length) {
-          for (const detail of reasoningDetails) {
-            if (detail.type === 'text' && typeof detail.content === 'string') {
-              yield { type: 'reasoning-delta', delta: detail.content }
-            }
-          }
+        const reasoningDelta = extractOpenRouterReasoningDelta(
+          reasoningDetails,
+          chunk.choices?.[0]?.delta?.reasoning || ''
+        )
+        const normalizedReasoningDetails = normalizeReasoningDetails(reasoningDetails)
+        if (reasoningDelta) {
+          yield { type: 'reasoning-delta', delta: reasoningDelta }
+        }
+        if (normalizedReasoningDetails.length > 0) {
+          yield { type: 'reasoning-details', details: normalizedReasoningDetails }
         }
 
         const toolCalls = chunk.choices?.[0]?.delta?.tool_calls

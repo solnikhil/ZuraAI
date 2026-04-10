@@ -40,6 +40,36 @@ export async function* parseSSEStream<T>(
         }
     }
 
+    const parseSingleLineEvent = (line: string): { chunks?: T[]; done?: true } | null | 'incomplete' => {
+        if (line === '' || line.startsWith(':')) return null
+
+        const separatorIndex = line.indexOf(':')
+        const field = separatorIndex >= 0 ? line.slice(0, separatorIndex) : line
+        let value = separatorIndex >= 0 ? line.slice(separatorIndex + 1) : ''
+        if (value.startsWith(' ')) {
+            value = value.slice(1)
+        }
+
+        if (field !== 'data') {
+            return 'incomplete'
+        }
+
+        if (value.trim() === '[DONE]') {
+            return { done: true }
+        }
+
+        try {
+            const chunk = parsePayload(value)
+            if (chunk === null) return null
+            return { chunks: [chunk] }
+        } catch (e) {
+            if (e instanceof SyntaxError) {
+                return 'incomplete'
+            }
+            throw e
+        }
+    }
+
     const parseEvent = (eventBlock: string): { chunks?: T[]; done?: true } | null => {
         if (eventBlock.trim() === '') return null
 
@@ -70,6 +100,11 @@ export async function* parseSSEStream<T>(
             if (chunk === null) return null
             return { chunks: [chunk] }
         } catch (e) {
+            // Propagate application-level errors from onParsed (e.g. OpenRouter in-stream
+            // error objects) instead of silently swallowing them as parse failures.
+            if (e instanceof Error && options?.onParsed && !(e instanceof SyntaxError)) {
+                throw e
+            }
             if (dataLines.length > 1) {
                 const chunks: T[] = []
                 for (const line of dataLines) {
@@ -116,6 +151,29 @@ export async function* parseSSEStream<T>(
                 const eventBlock = buffer.slice(0, match.index)
                 buffer = buffer.slice(match.index + match[0].length)
                 const result = parseEvent(eventBlock)
+                if (!result) continue
+                if (result.done) {
+                    return
+                }
+                for (const chunk of result.chunks || []) {
+                    if (options?.onChunk) {
+                        options.onChunk(chunk)
+                    }
+                    yield chunk
+                }
+            }
+
+            while (!buffer.match(/\r?\n\r?\n/)) {
+                const newlineIndex = buffer.indexOf('\n')
+                if (newlineIndex < 0) break
+
+                const line = buffer.slice(0, newlineIndex).replace(/\r$/, '')
+                const result = parseSingleLineEvent(line)
+                if (result === 'incomplete') {
+                    break
+                }
+
+                buffer = buffer.slice(newlineIndex + 1)
                 if (!result) continue
                 if (result.done) {
                     return

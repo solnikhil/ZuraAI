@@ -97,22 +97,47 @@
   background: transparent;
 }
 
-/* ── Scrollbar (scoped to sidebar) ─────────────────────────── */
+/* ── Scrollbar (scoped to sidebar chat list) ───────────────── */
 
-.sidebar-container ::-webkit-scrollbar {
-  width: 4px;
+.sidebar-chatlist__scroller {
+  overflow-x: hidden !important;
+  scrollbar-width: none;
 }
-.sidebar-container ::-webkit-scrollbar-track {
+
+.sidebar-chatlist__virtuoso {
+  padding-right: 8px;
+  transition: padding-right 0.12s ease;
+}
+
+.sidebar-chatlist__scroller::-webkit-scrollbar {
+  width: 0;
+}
+.sidebar-chatlist__scroller::-webkit-scrollbar-track {
   background: transparent;
 }
-.sidebar-container ::-webkit-scrollbar-thumb {
+.sidebar-chatlist__scroller::-webkit-scrollbar-thumb {
   background: var(--theme-border);
   border-radius: 2px;
+  transition: background 0.12s ease;
 }
-.sidebar-container ::-webkit-scrollbar-thumb:hover {
+.sidebar-container:hover .sidebar-chatlist__scroller,
+.sidebar-container:focus-within .sidebar-chatlist__scroller {
+  scrollbar-width: thin;
+}
+.sidebar-container:hover .sidebar-chatlist__virtuoso,
+.sidebar-container:focus-within .sidebar-chatlist__virtuoso {
+  padding-right: 14px;
+}
+.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar,
+.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover,
+.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:hover {
   background: var(--theme-border-hover);
 }
-.sidebar-container ::-webkit-scrollbar-thumb:active {
+.sidebar-container:hover .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:active,
+.sidebar-container:focus-within .sidebar-chatlist__scroller::-webkit-scrollbar-thumb:active {
   background: var(--theme-border-active);
 }
 
@@ -326,7 +351,6 @@
 }
 
 .sidebar-chatlist__scroller {
-  overflow-x: hidden !important;
 }
 
 .sidebar-chatlist__listbox {

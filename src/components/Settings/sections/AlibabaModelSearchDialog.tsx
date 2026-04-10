@@ -1,11 +1,5 @@
-/**
- * OpenRouter Model Search Dialog
- * Search and add models from OpenRouter API catalog with auto-mapped capabilities
- *
- */
-
-import React, { useState, useEffect, useMemo } from 'react'
-import { Search, Loader2, Plus, X } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { Loader2, Plus, RefreshCcw, Search, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -16,15 +10,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
-  fetchOpenRouterModels,
-  mapOpenRouterModelToConfiguredModel,
-  searchOpenRouterModels,
-  type OpenRouterModel,
-} from '../../../services/openrouterModels'
+  fetchAlibabaModels,
+  mapAlibabaModelToConfiguredModel,
+  searchAlibabaModels,
+  type AlibabaCatalogModel,
+} from '../../../services/alibabaModels'
 import type { ConfiguredModel } from '@/contexts/SettingsConfigContext'
-import { getCapabilitiesFromModel, CAPABILITY_BADGES } from '../../../utils/modelUtils'
+import { CAPABILITY_BADGES, getCapabilitiesFromModel } from '../../../utils/modelUtils'
 
-interface OpenRouterModelSearchDialogProps {
+interface AlibabaModelSearchDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAddModel: (model: ConfiguredModel) => void
@@ -32,42 +26,50 @@ interface OpenRouterModelSearchDialogProps {
   existingModelCodes?: string[]
 }
 
-export function OpenRouterModelSearchDialog({
+export function AlibabaModelSearchDialog({
   open,
   onOpenChange,
   onAddModel,
   apiKey,
   existingModelCodes = [],
-}: OpenRouterModelSearchDialogProps): React.ReactElement {
+}: AlibabaModelSearchDialogProps): React.ReactElement {
   const [searchQuery, setSearchQuery] = useState('')
-  const [models, setModels] = useState<OpenRouterModel[]>([])
+  const [models, setModels] = useState<AlibabaCatalogModel[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (open && models.length === 0) {
-      setLoading(true)
-      setError(null)
-      fetchOpenRouterModels(apiKey)
-        .then((fetchedModels) => {
-          setModels(fetchedModels)
-          setLoading(false)
-        })
-        .catch((err) => {
-          setError(err.message ?? 'Failed to fetch models')
-          setLoading(false)
-        })
+  const loadModels = useCallback(() => {
+    if (!apiKey?.trim()) {
+      setError('Add an Alibaba API key before loading the catalog.')
+      return
     }
-  }, [open, apiKey, models.length])
+
+    setLoading(true)
+    setError(null)
+    fetchAlibabaModels(apiKey)
+      .then((fetchedModels) => {
+        setModels(fetchedModels)
+        setLoading(false)
+      })
+      .catch((err) => {
+        setError(err.message ?? 'Failed to fetch models')
+        setLoading(false)
+      })
+  }, [apiKey])
+
+  useEffect(() => {
+    if (open) {
+      loadModels()
+    }
+  }, [open, loadModels])
 
   const filteredModels = useMemo(() => {
-    if (!searchQuery.trim()) return models.slice(0, 50)
-    return searchOpenRouterModels(models, searchQuery).slice(0, 100)
+    if (!searchQuery.trim()) return models
+    return searchAlibabaModels(models, searchQuery)
   }, [models, searchQuery])
 
-  const handleAddModel = (apiModel: OpenRouterModel) => {
-    const configuredModel = mapOpenRouterModelToConfiguredModel(apiModel)
-    onAddModel(configuredModel)
+  const handleAddModel = (apiModel: AlibabaCatalogModel) => {
+    onAddModel(mapAlibabaModelToConfiguredModel(apiModel))
     onOpenChange(false)
     setSearchQuery('')
   }
@@ -76,16 +78,27 @@ export function OpenRouterModelSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="border-border bg-card p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col"
-        showCloseButton={false}
-      >
+      <DialogContent className="border-border bg-card p-0 sm:max-w-[900px] max-h-[85vh] flex flex-col">
         <DialogHeader className="border-b border-border px-6 py-4">
-          <DialogTitle>Add Model from OpenRouter Catalog</DialogTitle>
-          <DialogDescription>
-            Search and add models from OpenRouter. Capabilities are automatically detected from the
-            API.
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <DialogTitle>Add Model from Alibaba Catalog</DialogTitle>
+              <DialogDescription>
+                Search and add official Qwen models from Alibaba Cloud Model Studio. The catalog is
+                refreshed whenever you open this dialog, and you can refresh it manually here too.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadModels}
+              disabled={loading}
+              className="gap-2 shrink-0"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              Refresh
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="px-6 py-4 border-b border-border">
@@ -97,7 +110,7 @@ export function OpenRouterModelSearchDialog({
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search models by name, ID, or description..."
+              placeholder="Search Alibaba models by name, ID, or description..."
               className="pl-9 border-border bg-secondary"
             />
           </div>
@@ -114,23 +127,7 @@ export function OpenRouterModelSearchDialog({
           {error && (
             <div className="py-8 text-center">
               <div className="text-sm text-destructive mb-2">{error}</div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setError(null)
-                  setLoading(true)
-                  fetchOpenRouterModels(apiKey)
-                    .then((fetchedModels) => {
-                      setModels(fetchedModels)
-                      setLoading(false)
-                    })
-                    .catch((err) => {
-                      setError(err.message ?? 'Failed to fetch models')
-                      setLoading(false)
-                    })
-                }}
-              >
+              <Button variant="outline" size="sm" onClick={loadModels}>
                 Retry
               </Button>
             </div>
@@ -146,7 +143,7 @@ export function OpenRouterModelSearchDialog({
               ) : (
                 <div className="space-y-2">
                   {filteredModels.map((model) => {
-                    const configuredModel = mapOpenRouterModelToConfiguredModel(model)
+                    const configuredModel = mapAlibabaModelToConfiguredModel(model)
                     const capabilities = getCapabilitiesFromModel(configuredModel)
                     const isAdded = isModelAdded(model.id)
 
@@ -158,7 +155,7 @@ export function OpenRouterModelSearchDialog({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-medium text-sm text-foreground truncate">
-                              {model.name}
+                              {model.displayName}
                             </span>
                             {isAdded && (
                               <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary shrink-0">

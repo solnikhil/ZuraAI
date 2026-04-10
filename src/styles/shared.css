@@ -22,6 +22,8 @@
     --interactive-hover-bg: color-mix(in srgb, var(--theme-surface) 92%, rgba(255, 255, 255, 0.04));
     --interactive-hover-border: rgba(255, 255, 255, 0.05);
     --interactive-hover-shadow: none;
+    --interactive-hover-lift: -1px;
+    --interactive-hover-scale: 0.985;
 }
 
 
@@ -149,18 +151,50 @@
 }
 
 .theme-menu-item {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     border: 1px solid transparent;
     color: var(--theme-text-secondary);
-    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+    background: transparent;
+    transition:
+        color var(--motion-duration-fast) var(--motion-ease-standard),
+        background-color var(--motion-duration-fast) var(--motion-ease-standard),
+        border-color var(--motion-duration-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+        transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-menu-item::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--interactive-hover-bg);
+    opacity: 0;
+    transform: scale(var(--interactive-hover-scale));
+    transform-origin: center;
+    transition:
+        opacity var(--motion-duration-fast) var(--motion-ease-emphasized),
+        transform var(--motion-duration-normal) var(--motion-ease-emphasized);
+    pointer-events: none;
 }
 
 .theme-menu-item:hover,
 .theme-menu-item:focus-visible,
 .theme-menu-item[data-state='open'] {
-    background: var(--interactive-hover-bg);
     border-color: transparent;
     color: var(--theme-text-primary);
     box-shadow: var(--interactive-hover-shadow);
+    transform: translateY(var(--interactive-hover-lift));
+}
+
+.theme-menu-item:hover::before,
+.theme-menu-item:focus-visible::before,
+.theme-menu-item[data-state='open']::before {
+    opacity: 1;
+    transform: scale(1);
 }
 
 .theme-menu-shortcut {
@@ -169,10 +203,33 @@
 }
 
 .theme-control-btn {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     background: transparent;
     border: 1px solid transparent;
     color: var(--theme-text-secondary);
-    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard), transform var(--motion-duration-micro) var(--motion-ease-standard);
+    transition:
+        color var(--motion-duration-fast) var(--motion-ease-standard),
+        background-color var(--motion-duration-fast) var(--motion-ease-standard),
+        border-color var(--motion-duration-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+        transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-control-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--interactive-hover-bg);
+    opacity: 0;
+    transform: scale(var(--interactive-hover-scale));
+    transition:
+        opacity var(--motion-duration-fast) var(--motion-ease-emphasized),
+        transform var(--motion-duration-normal) var(--motion-ease-emphasized);
+    pointer-events: none;
 }
 
 .theme-control-btn:hover,
@@ -180,10 +237,19 @@
 .theme-control-btn.is-active,
 .theme-control-btn[data-state='open'],
 .theme-control-btn[aria-expanded='true'] {
-    background: var(--interactive-hover-bg);
     border-color: transparent;
     color: var(--theme-text-primary);
     box-shadow: var(--interactive-hover-shadow);
+    transform: translateY(var(--interactive-hover-lift));
+}
+
+.theme-control-btn:hover::before,
+.theme-control-btn:focus-visible::before,
+.theme-control-btn.is-active::before,
+.theme-control-btn[data-state='open']::before,
+.theme-control-btn[aria-expanded='true']::before {
+    opacity: 1;
+    transform: scale(1);
 }
 
 .theme-control-btn:active {
@@ -444,31 +510,92 @@
 }
 
 .message-action-surface {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     background: transparent;
     border: 1px solid transparent;
     border-radius: 10px;
-    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+    transition:
+        color var(--motion-duration-fast) var(--motion-ease-standard),
+        background-color var(--motion-duration-fast) var(--motion-ease-standard),
+        border-color var(--motion-duration-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+        transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.message-action-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--interactive-hover-bg);
+    opacity: 0;
+    transform: scale(var(--interactive-hover-scale));
+    transition:
+        opacity var(--motion-duration-fast) var(--motion-ease-emphasized),
+        transform var(--motion-duration-normal) var(--motion-ease-emphasized);
+    pointer-events: none;
 }
 
 .message-action-surface:hover,
 .message-action-surface:focus-visible {
-    background: var(--interactive-hover-bg);
     border-color: transparent;
     box-shadow: var(--interactive-hover-shadow);
+    transform: translateY(var(--interactive-hover-lift));
+}
+
+.message-action-surface:hover::before,
+.message-action-surface:focus-visible::before {
+    opacity: 1;
+    transform: scale(1);
 }
 
 .theme-hover-surface {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
     border: 1px solid transparent;
-    transition: color var(--motion-duration-fast) var(--motion-ease-standard), background-color var(--motion-duration-fast) var(--motion-ease-standard), border-color var(--motion-duration-fast) var(--motion-ease-standard), box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+    background: transparent;
+    transition:
+        color var(--motion-duration-fast) var(--motion-ease-standard),
+        background-color var(--motion-duration-fast) var(--motion-ease-standard),
+        border-color var(--motion-duration-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+        transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.theme-hover-surface::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--interactive-hover-bg);
+    opacity: 0;
+    transform: scale(var(--interactive-hover-scale));
+    transition:
+        opacity var(--motion-duration-fast) var(--motion-ease-emphasized),
+        transform var(--motion-duration-normal) var(--motion-ease-emphasized);
+    pointer-events: none;
 }
 
 .theme-hover-surface:hover,
 .theme-hover-surface:focus-visible,
 .theme-hover-surface[data-active='true'],
 .theme-hover-surface[data-selected='true'] {
-    background: var(--interactive-hover-bg);
     border-color: transparent;
     box-shadow: var(--interactive-hover-shadow);
+    transform: translateY(var(--interactive-hover-lift));
+}
+
+.theme-hover-surface:hover::before,
+.theme-hover-surface:focus-visible::before,
+.theme-hover-surface[data-active='true']::before,
+.theme-hover-surface[data-selected='true']::before {
+    opacity: 1;
+    transform: scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -476,5 +603,20 @@
     .info-popover-enter,
     .theme-section-enter {
         animation: none;
+    }
+
+    .theme-menu-item,
+    .theme-control-btn,
+    .message-action-surface,
+    .theme-hover-surface {
+        transform: none !important;
+    }
+
+    .theme-menu-item::before,
+    .theme-control-btn::before,
+    .message-action-surface::before,
+    .theme-hover-surface::before {
+        transition-duration: 0.01ms !important;
+        transform: none !important;
     }
 }

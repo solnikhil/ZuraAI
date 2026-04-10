@@ -18,7 +18,7 @@ import type {
 } from '../../../../../providers/providerRuntimeTypes'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
-import type { MessageContent, ToolDefinition } from '../../../../../services/types'
+import type { MessageContent, ReasoningDetail, ToolDefinition } from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
 
 /**
@@ -81,6 +81,8 @@ export interface ProviderStreamingOptions {
     images?: string[]
     tool_calls?: unknown[]
     thinking?: string
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
   }>
   /** Start time for latency calculation */
   startTime: number

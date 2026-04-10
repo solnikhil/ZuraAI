@@ -11,7 +11,7 @@ import type {
   ToolCallResult,
   Message,
 } from '../../../../../contexts/ChatHistoryContext'
-import type { MessageContent } from '../../../../../services/types'
+import type { MessageContent, ReasoningDetail } from '../../../../../services/types'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 import { isSkippedBuiltinToolResult } from '../../../../../tools/types'
 import type { UpdateStreamingCallback } from './types'
@@ -119,7 +119,14 @@ export function accumulateDeltaToolCalls(
 // Reconstructing assistant messages / responses
 
 /** Reconstruct an assistant message with tool calls from accumulated data */
-export function reconstructToolCallMessage(content: string, toolCallsAccumulator: DeltaToolCall[]) {
+export function reconstructToolCallMessage(
+  content: string,
+  toolCallsAccumulator: DeltaToolCall[],
+  options?: {
+    reasoning?: string
+    reasoningDetails?: ReasoningDetail[]
+  }
+) {
   return {
     role: 'assistant' as const,
     content,
@@ -130,6 +137,8 @@ export function reconstructToolCallMessage(content: string, toolCallsAccumulator
         type: 'function' as const,
         function: { name: tc.function?.name || '', arguments: tc.function?.arguments || '' },
       })),
+    ...(options?.reasoning ? { reasoning: options.reasoning } : {}),
+    ...(options?.reasoningDetails?.length ? { reasoning_details: options.reasoningDetails } : {}),
   }
 }
 
@@ -363,11 +372,35 @@ export function buildFollowUpMessages(
   researchContextMsg: string,
   _researchRound: number,
   _totalSearchCount: number,
-  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
-  lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
+  optimizedHistory: Array<{
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }>,
+  lastAssistantMessage: {
+    role: string
+    content: string
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
-  const messages: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> = []
+): Array<{
+  role: string
+  content: string | MessageContent[]
+  tool_calls?: unknown[]
+  reasoning?: string
+  reasoning_details?: ReasoningDetail[]
+}> {
+  const messages: Array<{
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }> = []
   if (researchContextMsg) messages.push({ role: 'system', content: researchContextMsg })
   messages.push(...optimizedHistory, lastAssistantMessage, ...formattedResults)
   return messages
@@ -378,10 +411,28 @@ export function buildFinalSynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
-  lastAssistantMessage: { role: string; content: string; tool_calls?: unknown[] },
+  optimizedHistory: Array<{
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }>,
+  lastAssistantMessage: {
+    role: string
+    content: string
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+): Array<{
+  role: string
+  content: string | MessageContent[]
+  tool_calls?: unknown[]
+  reasoning?: string
+  reasoning_details?: ReasoningDetail[]
+}> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PROMPT },
     ...buildFollowUpMessages(
@@ -399,10 +450,28 @@ export function buildRecoverySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
-  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  optimizedHistory: Array<{
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }>,
+  lastAssistantMessage: {
+    role: 'assistant'
+    content: string
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+): Array<{
+  role: string
+  content: string | MessageContent[]
+  tool_calls?: unknown[]
+  reasoning?: string
+  reasoning_details?: ReasoningDetail[]
+}> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_RECOVERY_PROMPT },
     ...buildFollowUpMessages(
@@ -420,10 +489,28 @@ export function buildPlainTextOnlySynthesisMessages(
   researchContextMsg: string,
   researchRound: number,
   totalSearchCount: number,
-  optimizedHistory: Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }>,
-  lastAssistantMessage: { role: 'assistant'; content: string; tool_calls?: unknown[] },
+  optimizedHistory: Array<{
+    role: string
+    content: string | MessageContent[]
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  }>,
+  lastAssistantMessage: {
+    role: 'assistant'
+    content: string
+    tool_calls?: unknown[]
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
+  },
   formattedResults: Array<{ role: string; content: string; tool_call_id?: string }>
-): Array<{ role: string; content: string | MessageContent[]; tool_calls?: unknown[] }> {
+): Array<{
+  role: string
+  content: string | MessageContent[]
+  tool_calls?: unknown[]
+  reasoning?: string
+  reasoning_details?: ReasoningDetail[]
+}> {
   return [
     { role: 'system', content: FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT },
     ...buildFollowUpMessages(

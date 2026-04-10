@@ -12,6 +12,7 @@ import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
+import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
@@ -267,6 +268,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       streamResponses: settings.streamResponses,
       webSearchPrompt: settings.webSearchPrompt,
       ollamaUrl: settings.ollamaUrl,
+      openRouterDebug: settings.openRouterDebug,
       openRouterApiKey: settings.openRouterApiKey,
       configuredModels: settings.configuredModels,
       perplexityApiKey: settings.perplexityApiKey,
@@ -282,6 +284,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.streamResponses,
       settings.webSearchPrompt,
       settings.ollamaUrl,
+      settings.openRouterDebug,
       settings.openRouterApiKey,
       settings.configuredModels,
       settings.perplexityApiKey,
@@ -465,6 +468,18 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         startStreaming(targetSessionId!, streamingMessageId)
 
         // Use composed provider-specific streaming hooks
+        const currentModel =
+          provider === 'openrouter'
+            ? settings.configuredModels?.find((m) => m.code === settings.aiModel)
+            : undefined
+        const openRouterReasoning =
+          provider === 'openrouter' &&
+          inferOpenRouterSupportsDeepThinking(
+            currentModel || { code: settings.aiModel, displayName: settings.aiModel }
+          )
+            ? { enabled: true }
+            : undefined
+
         const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
@@ -477,6 +492,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           signal: abortControllerRef.current?.signal,
           enableTools: true,
           syncToStreamingContext: true,
+          reasoning: openRouterReasoning,
         })
 
         // Commit streaming content to the session
@@ -691,6 +707,12 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                   modality === 'text' || modality === 'image'
               ) || ['image', 'text']
             : undefined
+        const openRouterReasoning =
+          inferOpenRouterSupportsDeepThinking(
+            openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
+          )
+            ? { enabled: true }
+            : undefined
 
         const apiMessages = buildProviderMessages(
           buildOptimizedContext(
@@ -716,6 +738,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             enableTools: false,
             syncToStreamingContext: false,
             modalities: openRouterModalities,
+            reasoning: openRouterReasoning,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {

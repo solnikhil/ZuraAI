@@ -68,6 +68,20 @@ describe('toolManager MCP coexistence', () => {
     ])
   })
 
+  it('respects explicit model tool capability overrides', () => {
+    const availableTools = [...getBuiltinToolDefinitions(), ...createRuntimeTools()]
+
+    const tools = getToolsForProvider({
+      provider: 'openrouter',
+      model: 'anthropic/claude-3.5-sonnet',
+      modelSupportsTools: false,
+      enabledTools: ['web_search', 'mcp__filesystem__read_file'],
+      availableTools,
+    })
+
+    expect(tools).toBeNull()
+  })
+
   it('includes MCP runtime tools in the prompt summary with server metadata', () => {
     const availableTools = [...getBuiltinToolDefinitions(), ...createRuntimeTools()]
 

@@ -11,7 +11,6 @@ import type { ChatSession, Folder } from '../../../contexts/ChatHistoryContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 
 const CHAT_LIST_BASE_HORIZONTAL_PADDING = 8
-const CHAT_LIST_SCROLLBAR_GUTTER = 6
 
 interface SidebarChatListProps {
   groupedSessions: GroupedSessions
@@ -286,6 +285,7 @@ export default function SidebarChatList({
     <>
       <div className="sidebar-chatlist">
         <Virtuoso
+          className="sidebar-chatlist__virtuoso"
           data={sidebarItems}
           itemContent={renderItem}
           components={{
@@ -323,7 +323,7 @@ export default function SidebarChatList({
           style={{
             height: '100%',
             paddingLeft: CHAT_LIST_BASE_HORIZONTAL_PADDING,
-            paddingRight: CHAT_LIST_BASE_HORIZONTAL_PADDING + CHAT_LIST_SCROLLBAR_GUTTER,
+            paddingRight: CHAT_LIST_BASE_HORIZONTAL_PADDING,
           }}
         />
       </div>

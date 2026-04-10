@@ -1,4 +1,4 @@
-import type { MessageContent, ToolDefinition } from '../services/types'
+import type { MessageContent, ReasoningDetail, ToolDefinition } from '../services/types'
 import type { ActiveProviderId } from './providerTypes'
 
 export interface ProviderRuntimeFileAttachment {
@@ -32,6 +32,7 @@ export interface NormalizedToolCallDelta {
 export type NormalizedStreamEvent =
   | { type: 'text-delta'; delta: string }
   | { type: 'reasoning-delta'; delta: string }
+  | { type: 'reasoning-details'; details: ReasoningDetail[] }
   | { type: 'tool-call-delta'; delta: NormalizedToolCallDelta[] }
   | { type: 'file-delta'; files: ProviderRuntimeFileAttachment[] }
   | { type: 'usage'; usage: NormalizedUsage }
@@ -48,6 +49,8 @@ export interface ProviderRuntimeStreamRequest {
     images?: string[]
     tool_calls?: unknown[]
     thinking?: string
+    reasoning?: string
+    reasoning_details?: ReasoningDetail[]
   }>
   temperature?: number
   maxTokens?: number
@@ -55,6 +58,16 @@ export interface ProviderRuntimeStreamRequest {
   tools?: ToolDefinition[] | null
   toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
   modalities?: Array<'text' | 'image'>
+  reasoning?: {
+    max_tokens?: number
+    effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none'
+    exclude?: boolean
+    enabled?: boolean
+  }
+  imageConfig?: {
+    aspect_ratio?: string
+    image_size?: string
+  }
   signal?: AbortSignal
 }
 
@@ -66,6 +79,7 @@ export interface ProviderRuntimeSettings {
   fireworksApiKey?: string
   groqApiKey?: string
   ollamaUrl?: string
+  openRouterDebug?: boolean
   openRouterApiKey?: string
   perplexityApiKey?: string
 }

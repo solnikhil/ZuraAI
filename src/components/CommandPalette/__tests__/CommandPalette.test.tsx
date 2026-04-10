@@ -211,6 +211,7 @@ describe('CommandPalette unit tests', () => {
     })
   })
 
+
   describe('non-empty query flat list', () => {
     it('shows flat list without group headers when query is non-empty', () => {
       const { container } = render(<CommandPalette />)

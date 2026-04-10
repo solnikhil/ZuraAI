@@ -7,6 +7,17 @@
 import type { ConfiguredModel } from '../contexts/SettingsConfigContext'
 import { getProviderEndpoint } from '../providers'
 
+const OPENROUTER_REASONING_MODEL_PATTERNS = [
+  /\bthinking\b/i,
+  /\breason(?:ing)?\b/i,
+  /\bdeepseek[-_/ ]?r1\b/i,
+  /\bqwq\b/i,
+  /\bo1\b/i,
+  /\bo3\b/i,
+  /\bo4(?:[-_/ ]mini(?:[-_/ ]high)?)?\b/i,
+  /\br1[-_/ ]/i,
+]
+
 /**
  * OpenRouter API model response structure
  */
@@ -126,6 +137,25 @@ export function mapOpenRouterModelToConfiguredModel(apiModel: OpenRouterModel): 
         )
     ),
   }
+}
+
+export function inferOpenRouterSupportsDeepThinking(
+  model:
+    | Pick<ConfiguredModel, 'code' | 'displayName' | 'supportsDeepThinking'>
+    | { code?: string; displayName?: string; supportsDeepThinking?: boolean }
+    | null
+    | undefined
+): boolean {
+  if (!model) return false
+  if (model.supportsDeepThinking === true) return true
+
+  const haystack = [model.code, model.displayName]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+
+  if (!haystack) return false
+
+  return OPENROUTER_REASONING_MODEL_PATTERNS.some((pattern) => pattern.test(haystack))
 }
 
 /**

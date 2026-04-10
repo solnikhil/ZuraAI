@@ -8,9 +8,39 @@ Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
   writable: true,
 })
 
+function createAlibabaCatalogHtml(): string {
+  const payload = JSON.stringify([
+    '$',
+    '$L22',
+    null,
+    {
+      data: {
+        '0': [
+          {
+            modelId: 'qwen3-coder-next',
+            name: 'Qwen3-Coder-Next',
+            feature: 'Qwen3, Agentic Coding',
+            description: 'Multi-turn tool interactions, future-ready development support',
+            modelType: 'Flagship',
+            launchDate: '2026-02-20',
+            order: '1.000000000',
+          },
+        ],
+      },
+    },
+  ])
+
+  const encodedPayload = payload.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')
+  return `<html><body><script>self.__next_f.push([1,"12:${encodedPayload}"])</script></body></html>`
+}
+
 describe('ProviderHubSection', () => {
+  const openExternal = vi.fn()
+  const fetchMock = vi.fn()
+
   const baseProps = {
     openRouterApiKey: '',
+    openRouterDebug: false,
     perplexityApiKey: '',
     groqApiKey: '',
     alibabaApiKey: '',
@@ -34,6 +64,15 @@ describe('ProviderHubSection', () => {
     maxTokens: 8000,
     onChange: vi.fn(),
   }
+
+  beforeEach(() => {
+    openExternal.mockReset()
+    fetchMock.mockReset()
+    window.shell = {
+      openExternal,
+    }
+    vi.stubGlobal('fetch', fetchMock)
+  })
 
   it('renders providers controls', () => {
     render(<ProviderHubSection {...baseProps} />)
@@ -143,6 +182,57 @@ describe('ProviderHubSection', () => {
     }))
   })
 
+  it('auto-fills OpenRouter model specs when a model id is entered', async () => {
+    const onChange = vi.fn()
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: 'openai/gpt-4o-mini',
+            name: 'GPT-4o Mini',
+            description: 'Fast multimodal model',
+            context_length: 128000,
+            architecture: {
+              input_modalities: ['text', 'image'],
+              output_modalities: ['text'],
+            },
+            supported_parameters: ['tools', 'temperature', 'top_p'],
+            pricing: {
+              web_search: '0.01',
+            },
+          },
+        ],
+      }),
+    })
+
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /add custom model/i }))
+
+    const modelIdInput = screen.getByPlaceholderText(/please enter the model id/i)
+    fireEvent.change(modelIdInput, { target: { value: 'openai/gpt-4o-mini' } })
+    fireEvent.blur(modelIdInput)
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('GPT-4o Mini')).toBeInTheDocument()
+    })
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(screen.getByDisplayValue('128000')).toBeInTheDocument()
+    expect(screen.getByText(/model spec loaded from openrouter/i)).toBeInTheDocument()
+  })
+
+  it('opens the selected provider dashboard from the detail header', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /open openrouter dashboard/i }))
+
+    expect(openExternal).toHaveBeenCalledWith('https://openrouter.ai/settings/keys')
+  })
+
   it('opens delete confirmation when Delete is clicked in model dropdown', async () => {
     render(<ProviderHubSection {...baseProps} />)
 
@@ -155,7 +245,11 @@ describe('ProviderHubSection', () => {
     fireEvent.click(deleteItem)
 
     expect(screen.getByText('Delete Model')).toBeInTheDocument()
-    expect(screen.getByText(/Remove "Grok 4.1 Fast"/)).toBeInTheDocument()
+    expect(
+      screen.getByText((content, element) =>
+        element?.textContent === 'Remove "Grok 4.1 Fast" from your model list?'
+      )
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
   })
 
@@ -179,6 +273,23 @@ describe('ProviderHubSection', () => {
     }))
     expect(onChange.mock.calls[0][0].configuredModels).not.toContainEqual(
       expect.objectContaining({ code: 'x-ai/grok-4.1-fast' })
+    )
+  })
+
+  it('removes all models for the selected provider when confirmed', async () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('button', { name: /remove all/i }))
+
+    expect(screen.getByText('Remove All Models')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^remove all$/i }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configuredModels: [],
+      })
     )
   })
 
@@ -301,6 +412,66 @@ describe('ProviderHubSection', () => {
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ webSearchIncludeImages: false })
+    )
+  })
+
+  it('updates OpenRouter debug preference from provider settings', () => {
+    const onChange = vi.fn()
+    render(<ProviderHubSection {...baseProps} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('OpenRouter provides access to many frontier models through one API.'))
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable OpenRouter debug logging' }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ openRouterDebug: true })
+    )
+  })
+
+  it('shows Add from Catalog for Alibaba provider', () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+
+    expect(screen.getByRole('button', { name: /add from catalog/i })).toBeInTheDocument()
+  })
+
+  it('opens Alibaba catalog dialog and surfaces the missing-key error', async () => {
+    render(<ProviderHubSection {...baseProps} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('Add Model from Alibaba Catalog')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Add an Alibaba API key before loading the catalog.')
+    ).toBeInTheDocument()
+  })
+
+  it('adds an Alibaba catalog model to alibabaModels', async () => {
+    const onChange = vi.fn()
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      text: async () => createAlibabaCatalogHtml(),
+    } as Response)
+
+    render(<ProviderHubSection {...baseProps} alibabaApiKey="ali-key" onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('Qwen models via DashScope API (Tongyi).'))
+    fireEvent.click(screen.getByRole('button', { name: /add from catalog/i }))
+
+    expect(await screen.findByText('Qwen3-Coder-Next')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        alibabaModels: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'qwen3-coder-next',
+            displayName: 'Qwen3-Coder-Next',
+            supportsToolCall: true,
+          }),
+        ]),
+      })
     )
   })
 })

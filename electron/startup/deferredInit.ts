@@ -84,6 +84,7 @@ export class DeferredInitializer {
   private isExecuting = false
   private windowVisiblePromise: Promise<void> | null = null
   private windowVisibleResolve: (() => void) | null = null
+  private readonly logPrefix = '[startup]'
 
   constructor() {
     this.metrics = {
@@ -206,7 +207,7 @@ export class DeferredInitializer {
    */
   async executeAfterWindowVisible(): Promise<void> {
     if (this.isExecuting) {
-      console.warn('[DeferredInit] Already executing tasks')
+      this.logWarn('deferred execution already in progress')
       return
     }
 
@@ -215,7 +216,7 @@ export class DeferredInitializer {
     // Do not begin deferred work until the user can already see the window.
     await this.waitForWindowVisible()
 
-    console.log(`[DeferredInit] Window visible, executing ${this.tasks.length} deferred tasks`)
+    this.logInfo(`window visible; running ${this.tasks.length} deferred task(s)`)
 
     for (const task of this.tasks) {
       try {
@@ -230,14 +231,15 @@ export class DeferredInitializer {
         await task.execute()
 
         this.recordPhase(`deferred:${task.name}`, 'end')
-        console.log(
-          `[DeferredInit] Completed: ${task.name} (${task.priority}, ${task.delayMs}ms delay)`
+        const duration = this.metrics.phases[`deferred:${task.name}`]?.durationMs ?? 0
+        this.logInfo(
+          `task complete: ${task.name} | priority=${task.priority} | delay=${task.delayMs}ms | duration=${duration}ms`
         )
       } catch (error) {
         // Failures are logged but do not abort the remaining task queue. That
         // keeps one non-critical startup task from preventing later tasks from
         // running.
-        console.error(`[DeferredInit] Failed: ${task.name}`, error)
+        this.logError(`task failed: ${task.name}`, error)
         this.recordPhase(`deferred:${task.name}`, 'end')
       }
     }
@@ -245,7 +247,7 @@ export class DeferredInitializer {
     this.markFullyLoaded()
     this.isExecuting = false
 
-    console.log('[DeferredInit] All deferred tasks completed')
+    this.logInfo('deferred startup complete')
     this.logMetrics()
   }
 
@@ -265,41 +267,62 @@ export class DeferredInitializer {
    */
   logMetrics(): void {
     const m = this.metrics
-    const timeToVisible = m.windowVisibleAt - m.processStartAt
-    const timeToFullyLoaded = m.fullyLoadedAt - m.processStartAt
+    const duration = (start: number, end: number): number | 'n/a' =>
+      start > 0 && end > 0 ? end - start : 'n/a'
 
-    console.log('\n[DeferredInit] STARTUP PERFORMANCE METRICS')
-    console.log('[DeferredInit] ------------------------------------------------------------')
-    console.log(
-      `[DeferredInit] Process Start -> App Ready:   ${String(m.appReadyAt - m.processStartAt).padStart(6)}ms`
-    )
-    console.log(
-      `[DeferredInit] App Ready -> Window Created:  ${String(m.windowCreatedAt - m.appReadyAt).padStart(6)}ms`
-    )
-    console.log(
-      `[DeferredInit] Window Created -> Visible:    ${String(m.windowVisibleAt - m.windowCreatedAt).padStart(6)}ms`
-    )
-    console.log(
-      `[DeferredInit] IPC Ready:                    ${String(m.ipcReadyAt - m.processStartAt).padStart(6)}ms`
-    )
-    console.log('[DeferredInit] ------------------------------------------------------------')
-    console.log(
-      `[DeferredInit] Time to Window Visible:       ${String(timeToVisible).padStart(6)}ms`
-    )
-    console.log(
-      `[DeferredInit] Time to Fully Loaded:         ${String(timeToFullyLoaded).padStart(6)}ms`
-    )
-    console.log('[DeferredInit] ------------------------------------------------------------')
-    console.log('[DeferredInit] Deferred Task Phases:')
+    const timeToVisible = duration(m.processStartAt, m.windowVisibleAt)
+    const timeToFullyLoaded = duration(m.processStartAt, m.fullyLoadedAt)
 
-    for (const [name, phase] of Object.entries(m.phases)) {
-      if (name.startsWith('deferred:')) {
-        const taskName = name.replace('deferred:', '').substring(0, 25).padEnd(25)
-        console.log(`[DeferredInit]   ${taskName} ${String(phase.durationMs).padStart(6)}ms`)
-      }
+    this.logInfo('startup timing summary')
+    console.table([
+      {
+        phase: 'process -> app ready',
+        durationMs: duration(m.processStartAt, m.appReadyAt),
+      },
+      {
+        phase: 'app ready -> window created',
+        durationMs: duration(m.appReadyAt, m.windowCreatedAt),
+      },
+      {
+        phase: 'window created -> visible',
+        durationMs: duration(m.windowCreatedAt, m.windowVisibleAt),
+      },
+      {
+        phase: 'process -> IPC ready',
+        durationMs: duration(m.processStartAt, m.ipcReadyAt),
+      },
+      {
+        phase: 'time to window visible',
+        durationMs: timeToVisible,
+      },
+      {
+        phase: 'time to fully loaded',
+        durationMs: timeToFullyLoaded,
+      },
+    ])
+
+    const deferredTaskRows = Object.entries(m.phases)
+      .filter(([name]) => name.startsWith('deferred:'))
+      .map(([name, phase]) => ({
+        task: name.replace('deferred:', ''),
+        durationMs: phase.durationMs,
+      }))
+
+    if (deferredTaskRows.length > 0) {
+      console.table(deferredTaskRows)
     }
+  }
 
-    console.log('[DeferredInit] ------------------------------------------------------------\n')
+  private logInfo(message: string): void {
+    console.log(`${this.logPrefix} ${message}`)
+  }
+
+  private logWarn(message: string): void {
+    console.warn(`${this.logPrefix} ${message}`)
+  }
+
+  private logError(message: string, error: unknown): void {
+    console.error(`${this.logPrefix} ${message}`, error)
   }
 
   /**

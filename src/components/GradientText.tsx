@@ -7,7 +7,6 @@ interface GradientTextProps {
     children: ReactNode;
     className?: string;
     colors?: string[];
-    animationSpeed?: number;
     showBorder?: boolean;
     useThemeAccent?: boolean;
 }
@@ -16,7 +15,6 @@ export default function GradientText({
     children,
     className = '',
     colors = ['#40ffaa', '#4079ff', '#40ffaa', '#4079ff', '#40ffaa'],
-    animationSpeed = 8,
     showBorder = false,
     useThemeAccent = false
 }: GradientTextProps) {
@@ -39,7 +37,6 @@ export default function GradientText({
     
     const gradientStyle = {
         backgroundImage: `linear-gradient(to right, ${gradientColors.join(', ')})`,
-        animationDuration: `${animationSpeed}s`
     };
 
     return (

@@ -15,6 +15,46 @@ function isExternalHttpUrl(url: string): boolean {
   return true
 }
 
+/**
+ * Show an error message in the fallback UI embedded in index.html.
+ * Replaces the "Loading" text with the error, hides the spinner, and shows the hint.
+ * If the renderer is crashed, loads a minimal inline error page instead.
+ */
+function showFallbackError(win: BrowserWindow, message: string): void {
+  const escaped = message.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n')
+
+  win.webContents
+    .executeJavaScript(
+      `(function() {
+        var t = document.getElementById('fallback-text');
+        var h = document.getElementById('fallback-slow');
+        if (t) {
+          t.textContent = '${escaped}';
+          t.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+          t.style.fontSize = '14px';
+          t.style.color = '#d6d3d1';
+          t.style.opacity = '1';
+          t.style.animation = 'none';
+          t.style.letterSpacing = 'normal';
+        }
+        if (h) { h.textContent = 'Try restarting the app.'; h.style.opacity = '1'; }
+        return true;
+      })()`
+    )
+    .catch(() => {
+      // webContents is dead — load an inline error page
+      const safe = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const html = `data:text/html;charset=utf-8,${encodeURIComponent(`<!DOCTYPE html>
+<html><body style="margin:0;position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#14120B;color:#d6d3d1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;padding:2rem;">
+<div style="font-size:14px;">${safe}</div>
+<div style="font-size:12px;color:#57534e;margin-top:16px;">Try restarting the app.</div>
+</body></html>`)}`
+      win.loadURL(html).catch(() => {})
+    })
+
+  if (!win.isVisible()) win.show()
+}
+
 // Global reference to main window
 let mainWindow: BrowserWindow | null = null
 
@@ -109,6 +149,32 @@ export function createMainWindow(options?: MainWindowOptions): BrowserWindow {
 
   void loadPromise.catch((error) => {
     console.error('[MAIN] Failed to load main window:', error)
+    showFallbackError(mainWindow!, String(error?.message || error))
+  })
+
+  // Handle page load failures (e.g. dev server not running, file not found)
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL) => {
+      console.error(
+        `[MAIN] did-fail-load: code=${errorCode} desc="${errorDescription}" url="${validatedURL}"`
+      )
+      // -3 is ERR_ABORTED which fires on normal navigation, ignore it
+      if (errorCode === -3) return
+      showFallbackError(
+        mainWindow!,
+        `Failed to load: ${errorDescription} (code ${errorCode})\nURL: ${validatedURL}`
+      )
+    }
+  )
+
+  // Handle renderer process crashes
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[MAIN] Renderer process gone:', details.reason, details.exitCode)
+    showFallbackError(
+      mainWindow!,
+      `Renderer process ${details.reason}${details.exitCode != null ? ` (exit code ${details.exitCode})` : ''}`
+    )
   })
 
   mainWindow.on('closed', () => {

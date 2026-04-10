@@ -46,7 +46,7 @@ Core capabilities:
   - `electron/main.ts` — app lifecycle, IPC registration, tray, windows, updater, tool handlers
   - `electron/preload.ts` — **contextBridge** API + IPC allowlists (security boundary)
   - `electron/ipc/` — `ipcMain` handlers (chat store, secure storage, system actions)
-  - `electron/startup/` — deferred startup orchestration and startup metrics
+- `electron/startup/` — deferred startup orchestration and startup metrics
 - `electron/windows/` — main window, tray
 - `electron/chatStore.ts` — chat history persistence (JSON under `app.getPath('userData')`)
 - `electron/mcp/mcpConnection.ts` — MCP initialize/tool-discovery connection orchestration
@@ -64,7 +64,7 @@ Core capabilities:
 
 - `src/` — React/Vite **renderer**
   - `src/main.tsx` — renderer entrypoint; initializes performance tracking, lazy-image styles, applies saved theme, mounts `App`, and schedules non-critical preloads after first paint
-  - `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
+- `src/App.tsx` — routes (`#/dashboard`, `#/settings`, `#/chat`) under `AppShellLayout`, plus wildcard `*` fallback to a dedicated 404 renderer view
 - `src/contexts/` — app state (split settings contexts, chat history, app shell, quick-send)
 - `src/components/AppShellLayout.tsx` — shared renderer shell (title bar, command palette, resize handles, solid shell surfaces, global context menu via AppContextMenu)
 - `src/components/AppContextMenu.tsx` — global right-click context menu (copy/paste/cut, undo/redo, select all, open link, inspect element)
@@ -134,11 +134,12 @@ Core capabilities:
   - Uses the shared preload bridge, native OS window chrome, fixed utility-window sizing, `skipTaskbar: true`, and `sandbox: true`
 
 - **Dev vs prod loading**
-  - In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
-  - In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
+- In dev, windows load `${process.env.VITE_DEV_SERVER_URL}#/...`
+- In prod, windows load `dist/index.html` with the target route hash (`dashboard`, `about`, etc.)
 
 - **Renderer route fallback**
-  - `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
+- `src/App.tsx` defines `Route path="*"` to render the `NotFound404` component (`src/components/ui/demo.tsx`) for unknown hash routes.
+ - Standalone utility routes outside `AppShellLayout` currently include `#/about`.
 
 - **Shared shell layout**
   - `src/App.tsx` wraps `/`, `/dashboard`, `/settings`, and `/chat` in `AppShellLayout`
