@@ -12,11 +12,6 @@ import type {
   McpServerRuntimeState,
   McpToolExecutionResult,
 } from '../src/mcp/types'
-import type {
-  DiagnosticsExportResult,
-  DiagnosticsSnapshot,
-  DiagnosticsTraceState,
-} from '../src/performance/types'
 
 const preloadLog = (message: string) => {
   console.log(`[PRELOAD] ${message}`)
@@ -90,7 +85,6 @@ const MCP_INVOKE_CHANNELS = new Set<string>([
 ])
 
 const MCP_ON_CHANNELS = new Set<string>(['mcp:state-changed'])
-const PERFORMANCE_MONITOR_ON_CHANNELS = new Set<string>(['performance-monitor:snapshot'])
 
 function assertAllowed(
   kind: 'send' | 'invoke' | 'on' | 'off',
@@ -171,30 +165,6 @@ contextBridge.exposeInMainWorld(
   Object.freeze({
     get: () => ipcRenderer.invoke('app-info:get'),
     openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
-  })
-)
-
-contextBridge.exposeInMainWorld(
-  'performanceMonitor',
-  Object.freeze({
-    openWindow: () => ipcRenderer.invoke('performance-monitor:open-window'),
-    getSnapshot: () => ipcRenderer.invoke('performance-monitor:get-snapshot') as Promise<DiagnosticsSnapshot>,
-    subscribe: (callback: (snapshot: DiagnosticsSnapshot) => void) => {
-      assertAllowed('on', 'performance-monitor:snapshot', PERFORMANCE_MONITOR_ON_CHANNELS)
-      const listener = (_event: IpcRendererEvent, snapshot: DiagnosticsSnapshot) => {
-        callback(snapshot)
-      }
-      ipcRenderer.on('performance-monitor:snapshot', listener)
-      void ipcRenderer.invoke('performance-monitor:subscribe')
-      return () => {
-        assertAllowed('off', 'performance-monitor:snapshot', PERFORMANCE_MONITOR_ON_CHANNELS)
-        void ipcRenderer.invoke('performance-monitor:unsubscribe')
-        ipcRenderer.removeListener('performance-monitor:snapshot', listener)
-      }
-    },
-    startTrace: () => ipcRenderer.invoke('performance-monitor:start-trace') as Promise<DiagnosticsTraceState>,
-    stopTrace: () => ipcRenderer.invoke('performance-monitor:stop-trace') as Promise<DiagnosticsTraceState>,
-    exportBundle: () => ipcRenderer.invoke('performance-monitor:export-bundle') as Promise<DiagnosticsExportResult>,
   })
 )
 

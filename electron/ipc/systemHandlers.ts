@@ -1,7 +1,6 @@
 import { app, ipcMain, BrowserWindow, shell } from 'electron'
-import { getPerformanceMonitorService } from '../diagnostics/performanceMonitor'
 import { getAppRuntimeInfo } from '../runtimeInfo'
-import { showAboutWindow, showPerformanceWindow } from '../windows'
+import { showAboutWindow } from '../windows'
 
 /**
  * Tracks which windows already have window-state listeners attached.
@@ -135,35 +134,6 @@ ipcMain.handle('app-info:open-about-window', () => {
     showAboutWindow()
   })
 
-  ipcMain.handle('performance-monitor:open-window', () => {
-    showPerformanceWindow()
-  })
-
-  ipcMain.handle('performance-monitor:get-snapshot', async () => {
-    return getPerformanceMonitorService().getSnapshot()
-  })
-
-  ipcMain.handle('performance-monitor:subscribe', (event) => {
-    getPerformanceMonitorService().subscribe(event.sender)
-  })
-
-  ipcMain.handle('performance-monitor:unsubscribe', (event) => {
-    getPerformanceMonitorService().unsubscribe(event.sender)
-  })
-
-  ipcMain.handle('performance-monitor:start-trace', async () => {
-    return getPerformanceMonitorService().startTrace()
-  })
-
-  ipcMain.handle('performance-monitor:stop-trace', async () => {
-    return getPerformanceMonitorService().stopTrace()
-  })
-
-  ipcMain.handle('performance-monitor:export-bundle', async (event) => {
-    const ownerWindow = BrowserWindow.fromWebContents(event.sender) ?? undefined
-    return getPerformanceMonitorService().exportBundle(ownerWindow)
-  })
-
   /**
    * Opens a URL in the default browser.
    *
@@ -283,13 +253,6 @@ export function unregisterSystemHandlers(): void {
   ipcMain.removeHandler('window-controls:is-maximized')
   ipcMain.removeHandler('app-info:get')
   ipcMain.removeHandler('app-info:open-about-window')
-  ipcMain.removeHandler('performance-monitor:open-window')
-  ipcMain.removeHandler('performance-monitor:get-snapshot')
-  ipcMain.removeHandler('performance-monitor:subscribe')
-  ipcMain.removeHandler('performance-monitor:unsubscribe')
-  ipcMain.removeHandler('performance-monitor:start-trace')
-  ipcMain.removeHandler('performance-monitor:stop-trace')
-  ipcMain.removeHandler('performance-monitor:export-bundle')
   ipcMain.removeHandler('shell:open-external')
   ipcMain.removeHandler('devtools:inspect-element')
 }

@@ -4,7 +4,6 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AboutWindow from './components/AboutWindow'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
-import PerformanceWindow from './components/PerformanceWindow'
 import NotFound404 from './components/ui/demo'
 import { SettingsProvider } from './contexts/SettingsContext'
 import { ChatHistoryProvider } from './contexts/ChatHistoryContext'
@@ -48,7 +47,6 @@ function App() {
                     <Router>
                       <Routes>
                         <Route path="/about" element={<AboutWindow />} />
-                        <Route path="/performance" element={<PerformanceWindow />} />
                         <Route element={<AppShellLayout />}>
                           <Route path="/" element={<DashboardLayout />} />
                           <Route path="/dashboard" element={<DashboardLayout />} />

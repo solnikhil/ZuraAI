@@ -118,16 +118,6 @@ describe('commandBar suggestions', () => {
       expect(skillsSuggestion).toBeDefined()
       expect(skillsSuggestion?.title).toBe('Skills Settings')
     })
-
-    it('offers the Performance monitor when typing diagnostics terms', () => {
-      const suggestions = getCommandBarSuggestions('performance trace', {
-        hasCurrentSession: false,
-      })
-
-      const performanceSuggestion = suggestions.find((s) => s.id === 'open-performance')
-      expect(performanceSuggestion).toBeDefined()
-      expect(performanceSuggestion?.title).toBe('Performance')
-    })
   })
 })
 

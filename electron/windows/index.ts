@@ -11,11 +11,6 @@ export {
 } from './aboutWindow'
 
 export {
-    createPerformanceWindow,
-    showPerformanceWindow,
-} from './performanceWindow'
-
-export {
     createTray,
     destroyTray
 } from './tray'

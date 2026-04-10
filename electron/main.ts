@@ -3,7 +3,6 @@ import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
 import { createMainWindow, getMainWindow, createTray, destroyTray } from './windows'
-import { resetPerformanceMonitorService } from './diagnostics/performanceMonitor'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
@@ -63,7 +62,6 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   unregisterMcpHandlers()
   cleanupAutoUpdater()
-  resetPerformanceMonitorService()
   destroyTray()
 })
 

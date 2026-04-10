@@ -303,9 +303,6 @@ export default function CommandPalette() {
           ensureDashboardRoute()
           ensureDashboardView(action.view)
           return true
-        case 'open_performance_window':
-          void window.performanceMonitor.openWindow()
-          return true
         case 'open_settings_section': {
           ensureDashboardRoute()
           ensureDashboardView('settings')
