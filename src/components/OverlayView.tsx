@@ -17,6 +17,7 @@ export default function OverlayView() {
   const { showToast } = useToast()
   const streamingState = useStreamingState()
   const [input, setInput] = useState('')
+  const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('compact')
 
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
@@ -31,6 +32,18 @@ export default function OverlayView() {
     () => toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
     [toolState.toolResults]
   )
+  const isCompact = overlayMode === 'compact'
+
+  const syncOverlayMode = useCallback(async () => {
+    try {
+      const state = await window.overlay.getState()
+      if (state.mode === 'compact' || state.mode === 'expanded') {
+        setOverlayMode(state.mode)
+      }
+    } catch {
+      // Overlay mode is optional UI state; keep the existing layout if the bridge fails.
+    }
+  }, [])
 
   const handleSend = useCallback(async () => {
     const content = input.trim()
@@ -52,8 +65,10 @@ export default function OverlayView() {
       const state = await window.overlay.getState()
       if (state.mode === 'expanded') {
         await window.overlay.collapse()
+        setOverlayMode('compact')
       } else {
         await window.overlay.expand()
+        setOverlayMode('expanded')
       }
     } catch {
       showToast('Unable to resize the Overlay right now.', 'error')
@@ -77,6 +92,10 @@ export default function OverlayView() {
   }, [])
 
   useEffect(() => {
+    void syncOverlayMode()
+  }, [syncOverlayMode])
+
+  useEffect(() => {
     if (!window.overlay?.onPendingPrompt) return
 
     const unsubscribe = window.overlay.onPendingPrompt((prompt: string) => {
@@ -94,6 +113,8 @@ export default function OverlayView() {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden',
         background:
           'radial-gradient(circle at top right, rgba(178, 111, 255, 0.12), transparent 38%), linear-gradient(180deg, #18140f 0%, #14120b 100%)',
         color: 'var(--theme-text-primary)',
@@ -105,19 +126,21 @@ export default function OverlayView() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 12,
-          padding: '12px 14px',
+          padding: isCompact ? '10px 12px' : '12px 14px',
           borderBottom: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
           WebkitAppRegion: 'drag',
         } as React.CSSProperties}
       >
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.92rem' }}>
             <MessageCircle size={15} />
             <span>Overlay</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
-            Compact desktop access to the current Zura session
-          </div>
+          {!isCompact ? (
+            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
+              Compact desktop access to the current Zura session
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -164,7 +187,7 @@ export default function OverlayView() {
 
       <ScrollArea
         className="flex-1"
-        viewportStyle={{ padding: '14px 14px 176px', minHeight: 0 }}
+        viewportStyle={{ padding: isCompact ? '10px 12px 12px' : '14px 14px 18px', minHeight: 0 }}
         style={{ minHeight: 0 }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -174,14 +197,16 @@ export default function OverlayView() {
                 border: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
                 background: 'color-mix(in srgb, var(--theme-surface) 86%, transparent)',
                 borderRadius: 16,
-                padding: 18,
+                padding: isCompact ? 14 : 18,
               }}
             >
-              <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>
-                Ask without opening the dashboard
+              <div style={{ fontSize: isCompact ? '0.92rem' : '1rem', fontWeight: 600, marginBottom: 6 }}>
+                {isCompact ? 'Quick prompt' : 'Ask without opening the dashboard'}
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--theme-text-muted)' }}>
-                The overlay reuses your current providers, tools, MCP servers, and chat history.
+              <div style={{ fontSize: '0.82rem', color: 'var(--theme-text-muted)' }}>
+                {isCompact
+                  ? 'Use the overlay for fast follow-ups and hand off to the full app when needed.'
+                  : 'The overlay reuses your current providers, tools, MCP servers, and chat history.'}
               </div>
             </div>
           ) : (
@@ -259,22 +284,20 @@ export default function OverlayView() {
 
       <div
         style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          padding: '12px 14px 14px',
+          padding: isCompact ? '10px 12px 12px' : '12px 14px 14px',
+          borderTop: '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
           background:
-            'linear-gradient(180deg, rgba(20, 18, 11, 0) 0%, rgba(20, 18, 11, 0.82) 22%, rgba(20, 18, 11, 0.98) 100%)',
+            'linear-gradient(180deg, rgba(20, 18, 11, 0.78) 0%, rgba(20, 18, 11, 0.94) 100%)',
+          backdropFilter: 'blur(18px)',
         }}
       >
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
-            padding: 12,
-            borderRadius: 18,
+            gap: 8,
+            padding: isCompact ? 10 : 12,
+            borderRadius: 16,
             border: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
             background: 'color-mix(in srgb, var(--theme-surface) 92%, transparent)',
           }}
@@ -289,10 +312,10 @@ export default function OverlayView() {
               }
             }}
             placeholder="Message ZuraAI..."
-            rows={3}
+            rows={isCompact ? 2 : 3}
             style={{
               width: '100%',
-              minHeight: 72,
+              minHeight: isCompact ? 52 : 72,
               resize: 'none',
               background: 'transparent',
               border: 'none',
@@ -306,7 +329,11 @@ export default function OverlayView() {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
-              {isLoading ? 'Working through the current chat pipeline' : 'Enter to send, Shift+Enter for newline'}
+              {isLoading
+                ? 'Working through the current chat pipeline'
+                : isCompact
+                  ? 'Enter to send'
+                  : 'Enter to send, Shift+Enter for newline'}
             </div>
 
             <button

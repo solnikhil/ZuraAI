@@ -1,33 +1,35 @@
 import React, { useCallback, useEffect, useRef } from 'react'
 
+import { Send } from './icons'
+
 export default function PromptPopupView() {
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    inputRef.current?.focus()
+    textareaRef.current?.focus()
   }, [])
 
   useEffect(() => {
     if (!window.promptPopup?.onFocus) return
 
     const unsubscribe = window.promptPopup.onFocus(() => {
-      inputRef.current?.focus()
+      textareaRef.current?.focus()
     })
 
     return unsubscribe
   }, [])
 
   const handleSubmit = useCallback(() => {
-    const content = inputRef.current?.value?.trim()
+    const content = textareaRef.current?.value?.trim()
     if (!content) return
 
     void window.promptPopup.submit(content)
-    inputRef.current!.value = ''
+    textareaRef.current!.value = ''
   }, [])
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'Enter') {
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault()
         handleSubmit()
       }
@@ -40,45 +42,34 @@ export default function PromptPopupView() {
   )
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#1a1710',
-        padding: '0 8px',
-      }}
-    >
-      <input
-        ref={inputRef}
-        type="text"
-        onKeyDown={handleKeyDown}
-        placeholder="Ask ZuraAI..."
-        autoFocus
-        style={{
-          width: '100%',
-          height: 36,
-          padding: '0 14px',
-          borderRadius: 18,
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'rgba(255, 255, 255, 0.05)',
-          color: '#e8e4dc',
-          fontSize: '0.9rem',
-          fontFamily: 'inherit',
-          outline: 'none',
-          caretColor: 'var(--theme-accent, #b26cff)',
-        }}
-      />
-      <style>{`
-        input:focus {
-          border-color: rgba(178, 108, 255, 0.4);
-          box-shadow: 0 0 0 2px rgba(178, 108, 255, 0.15);
-        }
-        input::placeholder {
-          color: rgba(232, 228, 220, 0.35);
-        }
-      `}</style>
+    <div className="prompt-popup-root">
+      <div className="prompt-popup-composer">
+        <div className="prompt-popup-header">
+          <div className="prompt-popup-title">Quick Ask</div>
+          <div className="prompt-popup-subtitle">Send to the overlay without opening the full app.</div>
+        </div>
+        <div className="prompt-popup-textarea-wrap">
+          <textarea
+            ref={textareaRef}
+            className="prompt-popup-textarea"
+            onKeyDown={handleKeyDown}
+            placeholder="Ask ZuraAI..."
+            autoFocus
+            rows={3}
+          />
+        </div>
+        <div className="prompt-popup-actions">
+          <span className="prompt-popup-hint">Enter to send, Shift+Enter for newline</span>
+          <button
+            type="button"
+            className="prompt-popup-send"
+            onClick={handleSubmit}
+          >
+            <Send size={14} />
+            <span>Send</span>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

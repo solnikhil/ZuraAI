@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS: OverlaySettings = {
 }
 
 const WINDOW_HEIGHTS = {
-  compact: 220,
+  compact: 320,
   expanded: 560,
 } as const
 

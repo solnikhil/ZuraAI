@@ -328,7 +328,11 @@ export function normalizeStoredSettings(raw: string | null): Settings {
 // Migrate legacy buddyOverlay key to overlay
   const legacyRecord = parsed as Record<string, unknown>
   if (legacyRecord.buddyOverlay && typeof legacyRecord.buddyOverlay === 'object' && !parsed.overlay) {
-    parsed.overlay = legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>
+    parsed.overlay = {
+      ...defaultSettings.overlay,
+      ...(legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>),
+      anchor: 'right',
+    }
   }
   delete legacyRecord.buddyOverlay
 
