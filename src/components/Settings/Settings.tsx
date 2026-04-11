@@ -7,6 +7,7 @@ import { useMcp } from '../../mcp/McpContext'
 import { checkOllamaStatus, listOllamaModels, enrichOllamaModelsWithContext } from '../../services/ollama'
 import { saveApiKeyToSecureStorage } from '../../utils/secureApiKeys'
 import { UsageSection } from './sections/UsageSection'
+import { OverlaySection } from './sections/OverlaySection'
 import { McpSection } from './sections/McpSection'
 import { ProviderHubSection } from './sections/ProviderHubSection'
 import { SkillsSection } from './sections/SkillsSection'
@@ -306,6 +307,13 @@ if (!hasSettingsChanges && !hasMcpChanges) {
                 perplexityModels={pendingSettings.perplexityModels}
                 maxTokens={pendingSettings.maxTokens}
                 onChange={handleChange}
+              />
+            )}
+
+{normalizedActiveSection === 'overlay' && (
+              <OverlaySection
+                overlay={pendingSettings.overlay}
+                onChange={(changes) => handleChange(changes)}
               />
             )}
 

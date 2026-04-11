@@ -60,6 +60,15 @@ type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 export type TavilySearchDepth = 'ultra-fast' | 'fast' | 'basic' | 'advanced'
 export type TavilySearchDepthPreference = 'auto' | TavilySearchDepth
 
+export interface OverlaySettings {
+  enabled: boolean
+  launchOnStartup: boolean
+  hotkey: string
+  anchor: 'right'
+  compactWidth: number
+  expandedWidth: number
+}
+
 /**
  * Configuration-related settings that change infrequently
  */
@@ -123,6 +132,7 @@ export interface SettingsConfig {
   rememberLastChatSession: boolean
   rememberLastSettingsSection: boolean
   rememberLastDashboardView: boolean
+  overlay: OverlaySettings
 }
 
 /**
@@ -155,32 +165,28 @@ export const defaultSettingsConfig: SettingsConfig = {
   ollamaUrl: 'http://localhost:11434',
   ollamaModels: [],
   perplexityModels: [
-    // Sonar Models (2025)
-    { code: 'sonar', displayName: 'Sonar', maxContext: 200000 },
-    { code: 'sonar-pro', displayName: 'Sonar Pro', maxContext: 200000 },
-    { code: 'sonar-reasoning', displayName: 'Sonar Reasoning', maxContext: 200000 },
-    { code: 'sonar-reasoning-pro', displayName: 'Sonar Reasoning Pro', maxContext: 200000 },
-    { code: 'sonar-deep-research', displayName: 'Sonar Deep Research', maxContext: 200000 },
-    // Llama 3.1 Sonar Variants (128k Context)
+    { code: 'sonar', displayName: 'Sonar', maxContext: 128000, supportsWebSearch: true },
     {
-      code: 'llama-3.1-sonar-small-128k-online',
-      displayName: 'Llama 3.1 Sonar Small 128k Online',
-      maxContext: 131072,
+      code: 'sonar-pro',
+      displayName: 'Sonar Pro',
+      maxContext: 128000,
+      supportsWebSearch: true,
     },
     {
-      code: 'llama-3.1-sonar-medium-128k-online',
-      displayName: 'Llama 3.1 Sonar Medium 128k Online',
-      maxContext: 131072,
+      code: 'sonar-reasoning-pro',
+      displayName: 'Sonar Reasoning Pro',
+      maxContext: 128000,
+      modelType: 'reasoning',
+      supportsDeepThinking: true,
+      supportsWebSearch: true,
     },
     {
-      code: 'llama-3.1-sonar-large-128k-online',
-      displayName: 'Llama 3.1 Sonar Large 128k Online',
-      maxContext: 131072,
-    },
-    {
-      code: 'llama-3.1-sonar-huge-128k-online',
-      displayName: 'Llama 3.1 Sonar Huge 128k Online',
-      maxContext: 131072,
+      code: 'sonar-deep-research',
+      displayName: 'Sonar Deep Research',
+      maxContext: 128000,
+      modelType: 'reasoning',
+      supportsDeepThinking: true,
+      supportsWebSearch: true,
     },
   ],
   groqModels: [
@@ -465,7 +471,8 @@ export const defaultSettingsConfig: SettingsConfig = {
       supportsVision: true,
       supportsDeepThinking: true,
       modelType: 'chat',
-      description: 'Full-access Fireworks router for Kimi K2.5 Turbo via the OpenAI-compatible inference API',
+      description:
+        'Full-access Fireworks router for Kimi K2.5 Turbo via the OpenAI-compatible inference API',
     },
     {
       code: 'accounts/fireworks/models/deepseek-r1',
@@ -595,6 +602,14 @@ export const defaultSettingsConfig: SettingsConfig = {
   rememberLastChatSession: true,
   rememberLastSettingsSection: true,
   rememberLastDashboardView: true,
+  overlay: {
+    enabled: false,
+    launchOnStartup: false,
+    hotkey: 'CommandOrControl+Shift+/',
+    anchor: 'right',
+    compactWidth: 360,
+    expandedWidth: 460,
+  },
 }
 
 interface SettingsConfigContextType {
@@ -639,7 +654,7 @@ export function SettingsConfigProvider({
   useEffect(() => {
     const current = settingsConfig.alibabaModels ?? []
     const defaultList = defaultSettingsConfig.alibabaModels
-    const needsExpansion = current.length < defaultList.length
+    const needsExpansion = current.length > 0 && current.length < defaultList.length
     if (needsExpansion && defaultList.length > 0) {
       const merged = defaultList.map((d) => {
         const existing = current.find((m) => m.code === d.code)

@@ -11,6 +11,9 @@ export type { ProviderHubSectionProps } from './ProviderHubSection'
 
 export { CreateCustomModelDialog } from './CreateCustomModelDialog'
 
+export { OverlaySection } from './OverlaySection'
+export type { OverlaySectionProps } from './OverlaySection'
+
 export { AppearanceSection } from './AppearanceSection'
 export type { AppearanceSectionProps } from './AppearanceSection'
 

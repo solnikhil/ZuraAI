@@ -164,5 +164,21 @@ describe('SettingsContext Provider Integration', () => {
       const normalized = normalizeStoredSettings(JSON.stringify({}))
       expect(normalized.openRouterDebug).toBe(false)
     })
+
+    it('preserves an explicitly emptied provider model list', () => {
+      const normalized = normalizeStoredSettings(
+        JSON.stringify({
+          groqModels: [],
+          alibabaModels: [],
+          fireworksModels: [],
+          perplexityModels: [],
+        })
+      )
+
+      expect(normalized.groqModels).toEqual([])
+      expect(normalized.alibabaModels).toEqual([])
+      expect(normalized.fireworksModels).toEqual([])
+      expect(normalized.perplexityModels).toEqual([])
+    })
   })
 })

@@ -30,6 +30,9 @@ describe('providerRegistry', () => {
 
   it('resolves endpoints and retry policy from the registry', () => {
     expect(getProviderEndpoint('openrouter', 'chatCompletionsUrl')).toContain('/chat/completions')
+    expect(getProviderEndpoint('perplexity', 'modelCatalogUrl')).toContain(
+      '/api-reference/sonar-post'
+    )
     expect(getProviderEndpoint('ollama', 'defaultLocalUrl')).toBe(DEFAULT_OLLAMA_URL)
     expect(getProviderRetryPolicy('openrouter')).toMatchObject({
       maxRetries: 3,

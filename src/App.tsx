@@ -2,6 +2,9 @@ import { lazy, Suspense } from 'react'
 import { MotionConfig } from 'framer-motion'
 import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import AboutWindow from './components/AboutWindow'
+import OverlaySync from './components/OverlaySync'
+import OverlayView from './components/OverlayView'
+import PromptPopupView from './components/PromptPopupView'
 import DashboardLayout from './components/Dashboard/Layout'
 import AppShellLayout from './components/AppShellLayout'
 import NotFound404 from './components/ui/demo'
@@ -44,9 +47,12 @@ function App() {
               <ChatHistoryProvider>
                 <StreamingProvider>
                   <QuickSendProvider>
+                    <OverlaySync />
                     <Router>
                       <Routes>
-                        <Route path="/about" element={<AboutWindow />} />
+<Route path="/about" element={<AboutWindow />} />
+                        <Route path="/overlay" element={<OverlayView />} />
+                        <Route path="/prompt-popup" element={<PromptPopupView />} />
                         <Route element={<AppShellLayout />}>
                           <Route path="/" element={<DashboardLayout />} />
                           <Route path="/dashboard" element={<DashboardLayout />} />

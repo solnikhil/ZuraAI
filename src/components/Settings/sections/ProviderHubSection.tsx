@@ -42,14 +42,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ProviderLogo, SkillLogo } from '@/components/shared'
-import type {
-  ConfiguredModel,
-  TavilySearchDepthPreference,
-} from '@/contexts/SettingsConfigContext'
+import type { ConfiguredModel, TavilySearchDepthPreference } from '@/contexts/SettingsConfigContext'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
+import { PerplexityModelSearchDialog } from './PerplexityModelSearchDialog'
 import {
   DEFAULT_OLLAMA_URL,
   getActiveProviderDefinitions,
@@ -86,9 +84,9 @@ const PROVIDERS: ProviderDefinition[] = getActiveProviderDefinitions().map((prov
           ? 'alibabaApiKey'
           : provider.id === 'fireworks'
             ? 'fireworksApiKey'
-          : provider.id === 'perplexity'
-            ? 'perplexityApiKey'
-            : undefined,
+            : provider.id === 'perplexity'
+              ? 'perplexityApiKey'
+              : undefined,
 }))
 
 const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
@@ -227,8 +225,7 @@ export function ProviderHubSection({
   onParamsConsumed,
   onChange,
 }: ProviderHubSectionProps): React.ReactElement {
-  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey =>
-    provider || 'openrouter'
+  const normalizeVisibleProvider = (provider?: ProviderKey): ProviderKey => provider || 'openrouter'
 
   const [manageMode, setManageMode] = useState<ManageMode>(initialManageMode ?? 'providers')
   const [providerView, setProviderView] = useState<ProviderView>(
@@ -245,6 +242,7 @@ export function ProviderHubSection({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
   const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
+  const [perplexitySearchDialogOpen, setPerplexitySearchDialogOpen] = useState(false)
   const [modelToEdit, setModelToEdit] = useState<{
     provider: ProviderKey
     model: ConfiguredModel
@@ -437,7 +435,10 @@ export function ProviderHubSection({
     onChange(updates)
   }
 
-  const addCustomModel = (model: ConfiguredModel, provider: ProviderKey = selectedProviderDef.key) => {
+  const addCustomModel = (
+    model: ConfiguredModel,
+    provider: ProviderKey = selectedProviderDef.key
+  ) => {
     const currentModels = getModelsForProvider(provider)
     const exists = currentModels.some((item) => item.code === model.code)
     if (exists) {
@@ -882,7 +883,7 @@ export function ProviderHubSection({
                     description="Test if API key and proxy URL are correctly configured"
                     control={
                       <div className="space-y-2">
-                       <div className="flex gap-2">
+                        <div className="flex gap-2">
                           <Select
                             value={connectivityModel}
                             onValueChange={(value) => {
@@ -1012,7 +1013,9 @@ export function ProviderHubSection({
                     href="https://www.electronjs.org/docs/latest/api/safe-storage"
                     onClick={(e) => {
                       e.preventDefault()
-                      window.shell?.openExternal('https://www.electronjs.org/docs/latest/api/safe-storage')
+                      window.shell?.openExternal(
+                        'https://www.electronjs.org/docs/latest/api/safe-storage'
+                      )
                     }}
                     className="text-cyan-300 underline decoration-cyan-300/40 underline-offset-2 transition hover:decoration-cyan-300"
                   >
@@ -1074,7 +1077,8 @@ export function ProviderHubSection({
                 </div>
                 {(selectedProviderDef.key === 'openrouter' ||
                   selectedProviderDef.key === 'fireworks' ||
-                  selectedProviderDef.key === 'alibaba') && (
+                  selectedProviderDef.key === 'alibaba' ||
+                  selectedProviderDef.key === 'perplexity') && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1085,6 +1089,10 @@ export function ProviderHubSection({
                       }
                       if (selectedProviderDef.key === 'fireworks') {
                         setFireworksSearchDialogOpen(true)
+                        return
+                      }
+                      if (selectedProviderDef.key === 'perplexity') {
+                        setPerplexitySearchDialogOpen(true)
                         return
                       }
                       setAlibabaSearchDialogOpen(true)
@@ -1178,7 +1186,14 @@ export function ProviderHubSection({
           if (!open) setModelToEdit(null)
         }}
         provider={modelToEdit?.provider}
-        providerApiKey={modelToEdit ? getProviderApiKey(PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ?? selectedProviderDef) : ''}
+        providerApiKey={
+          modelToEdit
+            ? getProviderApiKey(
+                PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ??
+                  selectedProviderDef
+              )
+            : ''
+        }
         onCreate={addCustomModel}
         initialModel={modelToEdit?.model}
         onUpdate={(updated) => {
@@ -1191,10 +1206,7 @@ export function ProviderHubSection({
       />
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent
-          className="border-border bg-card sm:max-w-[420px]"
-          showCloseButton={false}
-        >
+        <DialogContent className="border-border bg-card sm:max-w-[420px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete Model</DialogTitle>
             <DialogDescription>
@@ -1226,10 +1238,7 @@ export function ProviderHubSection({
       </Dialog>
 
       <Dialog open={clearModelsConfirmOpen} onOpenChange={setClearModelsConfirmOpen}>
-        <DialogContent
-          className="border-border bg-card sm:max-w-[440px]"
-          showCloseButton={false}
-        >
+        <DialogContent className="border-border bg-card sm:max-w-[440px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Remove All Models</DialogTitle>
             <DialogDescription>
@@ -1283,6 +1292,16 @@ export function ProviderHubSection({
           onAddModel={(model) => addCustomModel(model, 'fireworks')}
           apiKey={fireworksApiKey}
           existingModelCodes={fireworksModels.map((m) => m.code)}
+        />
+      )}
+
+      {selectedProviderDef.key === 'perplexity' && (
+        <PerplexityModelSearchDialog
+          open={perplexitySearchDialogOpen}
+          onOpenChange={setPerplexitySearchDialogOpen}
+          onAddModel={(model) => addCustomModel(model, 'perplexity')}
+          apiKey={perplexityApiKey}
+          existingModelCodes={perplexityModels.map((m) => m.code)}
         />
       )}
     </div>

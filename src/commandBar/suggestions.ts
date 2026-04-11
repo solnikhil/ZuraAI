@@ -4,6 +4,7 @@ export type ProviderKey = ProviderId
 
 export type CommandBarAction =
   | { type: 'open_dashboard_view'; view: 'chat' | 'settings' }
+  | { type: 'toggle_overlay' }
   | {
       type: 'open_settings_section'
       section: string
@@ -166,6 +167,20 @@ function buildBaseSuggestions(
       subtitle: 'Providers & configuration',
       keywords: ['providers', 'config', 'api keys', 'models'],
       action: { type: 'open_dashboard_view', view: 'settings' },
+    },
+    {
+      id: 'toggle-overlay',
+      title: 'Toggle Overlay',
+      subtitle: 'Show or hide the compact desktop chat',
+      keywords: ['overlay', 'desktop chat', 'floating', 'compact'],
+      action: { type: 'toggle_overlay' },
+    },
+    {
+      id: 'go-settings-overlay',
+      title: 'Extensions Settings',
+      subtitle: 'Overlay and future extension surfaces',
+      keywords: ['extensions', 'overlay', 'shortcut', 'desktop chat'],
+      action: { type: 'open_settings_section', section: 'overlay' },
     },
     {
       id: 'go-settings-usage',

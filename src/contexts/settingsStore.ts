@@ -51,6 +51,32 @@ const LEGACY_FIREWORKS_MODEL_ID_MAP: Record<string, string> = {
   'accounts/fireworks/models/kimi-k2p5-turbo-instruct': 'accounts/fireworks/routers/kimi-k2p5-turbo',
 }
 
+function mergeProviderModelsWithDefaults<T extends { code: string; enabled?: boolean }>(
+  storedModels: unknown,
+  defaultModels: T[]
+): T[] {
+  if (storedModels === undefined || storedModels === null) {
+    return defaultModels
+  }
+
+  if (!Array.isArray(storedModels)) {
+    return defaultModels
+  }
+
+  if (storedModels.length === 0) {
+    return []
+  }
+
+  const mergedDefaults = defaultModels.map((defaultModel) => {
+    const existing = storedModels.find((model: { code: string }) => model.code === defaultModel.code)
+    return existing ? { ...defaultModel, enabled: existing.enabled ?? defaultModel.enabled } : defaultModel
+  })
+  const defaultCodes = new Set(defaultModels.map((model) => model.code))
+  const customModels = storedModels.filter((model: { code: string }) => !defaultCodes.has(model.code))
+
+  return [...mergedDefaults, ...customModels]
+}
+
 export function stripSecretSettings<T extends Record<string, unknown>>(raw: T): T {
   const sanitized = { ...raw }
   for (const key of SECRET_SETTING_KEYS) {
@@ -146,35 +172,27 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   if (!parsed.perplexityModels) {
     parsed.perplexityModels = defaultSettings.perplexityModels
   } else {
-    parsed.perplexityModels = defaultSettings.perplexityModels.map((d) => {
-      const existing = parsed.perplexityModels.find((m: { code: string }) => m.code === d.code)
-      return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-    })
+    parsed.perplexityModels = mergeProviderModelsWithDefaults(
+      parsed.perplexityModels,
+      defaultSettings.perplexityModels
+    )
   }
 
   if (!parsed.groqApiKey) parsed.groqApiKey = defaultSettings.groqApiKey
   if (!parsed.groqModels) {
     parsed.groqModels = defaultSettings.groqModels
   } else {
-    parsed.groqModels = defaultSettings.groqModels.map((d) => {
-      const existing = parsed.groqModels.find((m: { code: string }) => m.code === d.code)
-      return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-    })
+    parsed.groqModels = mergeProviderModelsWithDefaults(
+      parsed.groqModels,
+      defaultSettings.groqModels
+    )
   }
 
   if (!parsed.alibabaApiKey) parsed.alibabaApiKey = defaultSettings.alibabaApiKey
-  const userAlibaba = parsed.alibabaModels
-  const mergedAlibaba = defaultSettings.alibabaModels.map((d) => {
-    const existing = Array.isArray(userAlibaba)
-      ? userAlibaba.find((m: { code: string }) => m.code === d.code)
-      : undefined
-    return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-  })
-  const defaultCodes = new Set(defaultSettings.alibabaModels.map((d) => d.code))
-  const customModels = Array.isArray(userAlibaba)
-    ? userAlibaba.filter((m: { code: string }) => !defaultCodes.has(m.code))
-    : []
-  parsed.alibabaModels = [...mergedAlibaba, ...customModels]
+  parsed.alibabaModels = mergeProviderModelsWithDefaults(
+    parsed.alibabaModels,
+    defaultSettings.alibabaModels
+  )
 
   if (!parsed.fireworksApiKey) parsed.fireworksApiKey = defaultSettings.fireworksApiKey
   if (parsed.aiModel && LEGACY_FIREWORKS_MODEL_ID_MAP[parsed.aiModel]) {
@@ -183,17 +201,10 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   const userFireworks = Array.isArray(parsed.fireworksModels)
     ? parsed.fireworksModels.map((model) => migrateConfiguredModelCode(model))
     : parsed.fireworksModels
-  const mergedFireworks = defaultSettings.fireworksModels.map((d) => {
-    const existing = Array.isArray(userFireworks)
-      ? userFireworks.find((m: { code: string }) => m.code === d.code)
-      : undefined
-    return existing ? { ...d, enabled: existing.enabled ?? d.enabled } : d
-  })
-  const defaultFireworksCodes = new Set(defaultSettings.fireworksModels.map((d) => d.code))
-  const customFireworksModels = Array.isArray(userFireworks)
-    ? userFireworks.filter((m: { code: string }) => !defaultFireworksCodes.has(m.code))
-    : []
-  parsed.fireworksModels = [...mergedFireworks, ...customFireworksModels]
+  parsed.fireworksModels = mergeProviderModelsWithDefaults(
+    userFireworks,
+    defaultSettings.fireworksModels
+  )
 
   const deprecatedGroqModelMap: Record<string, string> = {
     'llama-4-scout': 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -313,6 +324,22 @@ export function normalizeStoredSettings(raw: string | null): Settings {
   }
   if (parsed.rememberLastDashboardView === undefined) {
     parsed.rememberLastDashboardView = defaultSettings.rememberLastDashboardView
+  }
+// Migrate legacy buddyOverlay key to overlay
+  const legacyRecord = parsed as Record<string, unknown>
+  if (legacyRecord.buddyOverlay && typeof legacyRecord.buddyOverlay === 'object' && !parsed.overlay) {
+    parsed.overlay = legacyRecord.buddyOverlay as Partial<typeof defaultSettings.overlay>
+  }
+  delete legacyRecord.buddyOverlay
+
+  if (!parsed.overlay || typeof parsed.overlay !== 'object') {
+    parsed.overlay = defaultSettings.overlay
+  } else {
+    parsed.overlay = {
+      ...defaultSettings.overlay,
+      ...parsed.overlay,
+      anchor: 'right',
+    }
   }
 
   if (!parsed.commandBar) {
@@ -434,5 +461,6 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     rememberLastChatSession: settings.rememberLastChatSession,
     rememberLastSettingsSection: settings.rememberLastSettingsSection,
     rememberLastDashboardView: settings.rememberLastDashboardView,
+    overlay: settings.overlay,
   }
 }

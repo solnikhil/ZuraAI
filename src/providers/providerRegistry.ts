@@ -287,6 +287,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     endpoints: {
       baseUrl: 'https://api.perplexity.ai',
       chatCompletionsUrl: 'https://api.perplexity.ai/chat/completions',
+      modelCatalogUrl: 'https://docs.perplexity.ai/api-reference/sonar-post',
     },
     retryPolicy: OPENAI_COMPATIBLE_RETRY_POLICY,
     auth: {
@@ -405,9 +406,7 @@ export function getProviderEndpoint(
   return getProviderDefinition(provider).endpoints[key]
 }
 
-export function getProviderRetryPolicy(
-  provider: string | null | undefined
-): ProviderRetryPolicy {
+export function getProviderRetryPolicy(provider: string | null | undefined): ProviderRetryPolicy {
   return getProviderDefinition(provider).retryPolicy
 }
 
@@ -464,9 +463,7 @@ export function getProviderAccentColor(provider: string | null | undefined): str
   return getProviderDefinition(provider).accentColor
 }
 
-export function getAvailableModelOptions(
-  settings: ProviderSettingsLike
-): ProviderModelOption[] {
+export function getAvailableModelOptions(settings: ProviderSettingsLike): ProviderModelOption[] {
   const models: ProviderModelOption[] = []
 
   for (const provider of getActiveProviderDefinitions()) {

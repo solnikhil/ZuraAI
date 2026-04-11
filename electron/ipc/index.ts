@@ -3,7 +3,15 @@ import {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
+import {
+  registerOverlayHandlers,
+  unregisterOverlayHandlers,
+} from './overlayHandlers'
 import { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+import {
+  registerPromptPopupHandlers,
+  unregisterPromptPopupHandlers,
+} from './promptPopupHandlers'
 
 /**
  * Registers every main-process IPC handler exposed by the app.
@@ -22,6 +30,8 @@ export function registerAllHandlers(): void {
   // Register each IPC domain in one place so startup order stays explicit.
   registerChatStoreHandlers()
   registerSecureStorageHandlers()
+registerOverlayHandlers()
+  registerPromptPopupHandlers()
   registerSystemHandlers()
 }
 
@@ -37,6 +47,8 @@ export function registerAllHandlers(): void {
 export function unregisterAllHandlers(): void {
   unregisterChatStoreHandlers()
   unregisterSecureStorageHandlers()
+unregisterOverlayHandlers()
+  unregisterPromptPopupHandlers()
   unregisterSystemHandlers()
 }
 
@@ -49,4 +61,12 @@ export {
   registerSecureStorageHandlers,
   unregisterSecureStorageHandlers,
 } from './secureStorageHandlers'
+export {
+  registerOverlayHandlers,
+  unregisterOverlayHandlers,
+} from './overlayHandlers'
 export { registerSystemHandlers, unregisterSystemHandlers } from './systemHandlers'
+export {
+  registerPromptPopupHandlers,
+  unregisterPromptPopupHandlers,
+} from './promptPopupHandlers'

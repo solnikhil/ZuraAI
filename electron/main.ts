@@ -2,7 +2,16 @@ import { app, globalShortcut, session } from 'electron'
 import path from 'path'
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
 
-import { createMainWindow, getMainWindow, createTray, destroyTray } from './windows'
+import {
+  applyOverlaySettings,
+  cleanupOverlay,
+  createMainWindow,
+  createTray,
+  destroyTray,
+  getMainWindow,
+  initializeOverlay,
+  destroyPromptPopup,
+} from './windows'
 import { registerAllHandlers } from './ipc'
 import {
   initializeMcpManager,
@@ -60,6 +69,8 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  cleanupOverlay()
+  destroyPromptPopup()
   unregisterMcpHandlers()
   cleanupAutoUpdater()
   destroyTray()
@@ -123,6 +134,8 @@ app.whenReady().then(async () => {
     },
   })
   deferredInitializer.markIPCReady()
+initializeOverlay()
+  applyOverlaySettings({})
 
   // Defer auto-updater initialization (only in production)
   // The updater itself adds an additional 10-second delay before checking

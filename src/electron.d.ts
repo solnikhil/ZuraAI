@@ -54,6 +54,40 @@ export interface AppRuntimeInfo {
     commitDate: string
 }
 
+export interface OverlaySettings {
+    enabled: boolean
+    launchOnStartup: boolean
+    hotkey: string
+    anchor: 'right'
+    compactWidth: number
+    expandedWidth: number
+}
+
+export interface OverlayState extends OverlaySettings {
+    visible: boolean
+    mode: 'hidden' | 'compact' | 'expanded'
+    shortcutRegistered: boolean
+}
+
+export interface OverlayAPI {
+    show: () => Promise<OverlayState>
+    hide: () => Promise<OverlayState>
+    toggle: () => Promise<OverlayState>
+    expand: () => Promise<OverlayState>
+    collapse: () => Promise<OverlayState>
+    getState: () => Promise<OverlayState>
+    focusMainWindow: () => Promise<void>
+    applySettings: (settings: Partial<OverlaySettings>) => Promise<OverlayState>
+    onPendingPrompt: (callback: (prompt: string) => void) => () => void
+}
+
+export interface PromptPopupAPI {
+    show: () => Promise<void>
+    hide: () => Promise<void>
+    submit: (prompt: string) => Promise<void>
+    onFocus: (callback: () => void) => () => void
+}
+
 export interface AppInfoAPI {
     get: () => Promise<AppRuntimeInfo>
     openAboutWindow: () => Promise<void>
@@ -98,6 +132,8 @@ declare global {
         ipcRenderer: IElectronAPI
         secureStorage: SecureStorageAPI
         updater: UpdaterAPI
+overlay: OverlayAPI
+        promptPopup: PromptPopupAPI
         appInfo: AppInfoAPI
         windowControls: WindowControlsAPI
         shell: ShellAPI

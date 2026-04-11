@@ -175,6 +175,21 @@ export default function TitleBarInfoMenu() {
     })
   }, [showToast])
 
+const handleToggleOverlay = useCallback(() => {
+    if (!window.overlay?.toggle) {
+      showToast('Overlay is not available in this environment.', 'error')
+      return
+    }
+
+    void window.overlay.toggle().then((state) => {
+      if (!state.enabled) {
+        showToast('Enable Overlay in Extension settings before opening it.', 'warning')
+      }
+    }).catch(() => {
+      showToast('Unable to toggle the Overlay right now.', 'error')
+    })
+  }, [showToast])
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -242,6 +257,13 @@ export default function TitleBarInfoMenu() {
         <DropdownMenuSeparator className="-mx-1 my-1" />
 
         <DropdownMenuGroup>
+          <DropdownMenuItem
+            className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
+            onSelect={handleToggleOverlay}
+          >
+            <span className="truncate">Toggle Overlay</span>
+          </DropdownMenuItem>
+
           <DropdownMenuItem
             className="flex cursor-pointer items-center rounded-md px-2 py-1.5 text-xs"
             onSelect={handleOpenAbout}

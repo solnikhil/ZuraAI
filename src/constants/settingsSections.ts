@@ -1,6 +1,7 @@
 export type SettingsSectionId =
   | 'usage'
   | 'providers'
+  | 'overlay'
   | 'mcp'
   | 'skills'
   | 'themes'
@@ -29,6 +30,13 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     title: 'Providers & Models',
     description: 'Configure model providers, API credentials, and search integrations.',
     keywords: ['models', 'openrouter', 'groq', 'perplexity', 'ollama', 'alibaba', 'tavily'],
+  },
+  {
+    id: 'overlay',
+    navLabel: 'Extensions',
+    title: 'Extensions',
+    description: 'Manage desktop add-ons like the Overlay and future extension surfaces.',
+    keywords: ['extensions', 'overlay', 'desktop overlay', 'shortcut', 'compact chat'],
   },
   {
     id: 'mcp',
@@ -78,6 +86,8 @@ const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   models: 'providers',
   preferences: 'providers',
   servers: 'mcp',
+overlay: 'overlay',
+  buddyoverlay: 'overlay',
   commandbar: 'themes',
   notifications: 'usage',
 }

@@ -12,6 +12,7 @@ import type {
   McpServerRuntimeState,
   McpToolExecutionResult,
 } from '../src/mcp/types'
+import type { OverlaySettings, OverlayState } from '../src/electron'
 
 const preloadLog = (message: string) => {
   console.log(`[PRELOAD] ${message}`)
@@ -65,7 +66,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:get-version',
 ])
 
-const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded'])
+const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt'])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:list-servers',
@@ -161,10 +162,44 @@ contextBridge.exposeInMainWorld(
 )
 
 contextBridge.exposeInMainWorld(
+  'overlay',
+  Object.freeze({
+    show: () => ipcRenderer.invoke('overlay:show') as Promise<OverlayState>,
+    hide: () => ipcRenderer.invoke('overlay:hide') as Promise<OverlayState>,
+    toggle: () => ipcRenderer.invoke('overlay:toggle') as Promise<OverlayState>,
+    expand: () => ipcRenderer.invoke('overlay:expand') as Promise<OverlayState>,
+    collapse: () => ipcRenderer.invoke('overlay:collapse') as Promise<OverlayState>,
+    getState: () => ipcRenderer.invoke('overlay:get-state') as Promise<OverlayState>,
+    focusMainWindow: () => ipcRenderer.invoke('overlay:focus-main-window') as Promise<void>,
+    applySettings: (settings: Partial<OverlaySettings>) =>
+      ipcRenderer.invoke('overlay:apply-settings', settings) as Promise<OverlayState>,
+    onPendingPrompt: (callback: (prompt: string) => void) => {
+      const listener = (_event: IpcRendererEvent, prompt: string) => callback(prompt)
+      ipcRenderer.on('overlay:pending-prompt', listener)
+      return () => ipcRenderer.removeListener('overlay:pending-prompt', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
   'appInfo',
   Object.freeze({
     get: () => ipcRenderer.invoke('app-info:get'),
     openAboutWindow: () => ipcRenderer.invoke('app-info:open-about-window'),
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'promptPopup',
+  Object.freeze({
+    show: () => ipcRenderer.invoke('prompt-popup:show') as Promise<void>,
+    hide: () => ipcRenderer.invoke('prompt-popup:hide') as Promise<void>,
+    submit: (prompt: string) => ipcRenderer.invoke('prompt-popup:submit', prompt) as Promise<void>,
+    onFocus: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('prompt-popup:focus', listener)
+      return () => ipcRenderer.removeListener('prompt-popup:focus', listener)
+    },
   })
 )
 
