@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   appendCompletedThinkingBlock,
+  buildSearchSynthesisFailureMessage,
   buildFollowUpMessages,
   buildThinkingBlocksFromResults,
   buildFinalSynthesisMessages,
   buildRecoverySynthesisMessages,
   FINAL_SYNTHESIS_PROMPT,
   FINAL_SYNTHESIS_RECOVERY_PROMPT,
+  SEARCH_SYNTHESIS_FAILURE_MESSAGE,
   getThinkingTranscript,
   publishStreamingToolResults,
   shouldRetryUngroundedSearchSynthesis,
@@ -122,6 +124,28 @@ describe('streamingUtils final synthesis helpers', () => {
     expect(updateStreamingMessage).toHaveBeenCalledWith('session-1', 'message-1', {
       toolResults,
     })
+  })
+
+  it('builds a clean hard-failure message when search results exist but synthesis fails', () => {
+    expect(
+      buildSearchSynthesisFailureMessage([
+        {
+          toolCall: {
+            id: 'search-1',
+            name: 'web_search',
+            arguments: { query: 'qwen 3.6 plus thinking' },
+          },
+          result: {
+            success: true,
+            data: { results: [{ title: 'Result' }] },
+          },
+        },
+      ])
+    ).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+  })
+
+  it('does not build a synthesis failure message without successful web results', () => {
+    expect(buildSearchSynthesisFailureMessage([])).toBeNull()
   })
 
   it('builds inline tool timeline blocks for completed MCP executions', () => {

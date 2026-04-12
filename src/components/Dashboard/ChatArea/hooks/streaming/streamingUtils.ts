@@ -32,6 +32,8 @@ export const FINAL_SYNTHESIS_RECOVERY_PROMPT =
   '\n\n*** FINAL ANSWER REQUIRED *** Your previous synthesis attempt returned no answer. Do not call any tools or web_search. Respond with at least one concise paragraph using only the results already returned. If the evidence is inconclusive, say so directly and summarize what was checked.\n\n'
 export const FINAL_SYNTHESIS_PLAIN_TEXT_ONLY_PROMPT =
   '\n\n*** PLAIN TEXT ONLY FINAL ANSWER REQUIRED *** You must respond with plain assistant text only. Do not emit tool_calls, function calls, JSON, XML, markdown code fences, or any request for more searching. Do not call any tools or web_search. Write at least one concise paragraph using only the returned search results. If the evidence is inconclusive, say so directly and summarize the strongest relevant findings.\n\n'
+export const SEARCH_SYNTHESIS_FAILURE_MESSAGE =
+  'I gathered web search results, but the provider failed to produce a final written answer. The search results are still available above.'
 
 const UNGROUNDED_SEARCH_SYNTHESIS_PATTERNS = [
   /\bknowledge cutoff\b/i,
@@ -539,69 +541,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function normalizeSummaryText(value: unknown, maxLength: number): string {
-  const normalized = String(value || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!normalized) return ''
-  if (normalized.length <= maxLength) return normalized
-  return `${normalized.slice(0, maxLength - 3).trimEnd()}...`
-}
-
-export function buildFallbackAnswerFromToolResults(
+export function buildSearchSynthesisFailureMessage(
   toolResults: ToolCallResult[] | undefined
 ): string | null {
-  const webSearchCalls = (toolResults || []).filter(
+  const hasSuccessfulWebSearch = (toolResults || []).some(
     (result) => result.toolCall.name === 'web_search' && result.result?.success
   )
-  if (webSearchCalls.length === 0) return null
 
-  const querySummaries = [...new Set(
-    webSearchCalls
-      .map((result) => normalizeSummaryText(result.toolCall.arguments?.query, 80))
-      .filter(Boolean)
-  )]
-
-  const evidenceLines: string[] = []
-  for (const result of webSearchCalls) {
-    const data = result.result?.data
-    if (!isRecord(data) || !Array.isArray(data.results)) continue
-
-    for (const entry of data.results) {
-      if (!isRecord(entry)) continue
-
-      const title = normalizeSummaryText(entry.title, 100)
-      const snippet = normalizeSummaryText(entry.snippet, 180)
-      if (!title && !snippet) continue
-
-      evidenceLines.push(
-        title && snippet ? `- ${title}: ${snippet}` : `- ${title || snippet}`
-      )
-
-      if (evidenceLines.length >= 3) {
-        break
-      }
-    }
-
-    if (evidenceLines.length >= 3) {
-      break
-    }
-  }
-
-  const queryLead =
-    querySummaries.length > 0
-      ? ` for ${querySummaries.map((query) => `"${query}"`).join(', ')}`
-      : ''
-
-  if (evidenceLines.length === 0) {
-    return `The provider returned web search results${queryLead}, but no final written synthesis. The gathered search results are preserved above.`
-  }
-
-  return [
-    `The provider returned web search results${queryLead}, but no final written synthesis. Strongest visible findings from the gathered results:`,
-    ...evidenceLines,
-  ].join('\n')
+  return hasSuccessfulWebSearch ? SEARCH_SYNTHESIS_FAILURE_MESSAGE : null
 }
 
 export function shouldRetryUngroundedSearchSynthesis(content: string): boolean {

@@ -68,6 +68,7 @@ export interface ProviderRuntimeStreamRequest {
     aspect_ratio?: string
     image_size?: string
   }
+  enableThinking?: boolean
   signal?: AbortSignal
 }
 

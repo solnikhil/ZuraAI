@@ -248,7 +248,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
       supportsStreaming: true,
       supportsTools: true,
       supportsVisionUploads: true,
-      supportsReasoning: false,
+      supportsReasoning: true,
       supportsImageGeneration: false,
       supportsNativeSearch: false,
     },

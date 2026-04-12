@@ -154,4 +154,5 @@ export interface StreamingSettings extends ProviderRuntimeSettings {
   /** Web search prompt appended when Web Search is enabled */
   webSearchPrompt?: string
   configuredModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
+  alibabaModels?: import('../../../../../contexts/SettingsConfigContext').ConfiguredModel[]
 }

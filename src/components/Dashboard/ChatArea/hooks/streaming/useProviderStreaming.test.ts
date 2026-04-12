@@ -17,6 +17,7 @@ vi.mock('./providerStreamClient', () => ({
 }))
 
 import { useProviderStreaming } from './useProviderStreaming'
+import { SEARCH_SYNTHESIS_FAILURE_MESSAGE } from './streamingUtils'
 
 function streamFrom(events: Array<Record<string, unknown>>) {
   return async function* () {
@@ -190,11 +191,13 @@ describe('useProviderStreaming', () => {
               function: { name: 'web_search', arguments: '{"query":"zura"}' },
             }],
           }
+          yield { type: 'usage', usage: { inputTokens: 11, outputTokens: 4, totalTokens: 15 } }
           yield { type: 'finish', finishReason: 'tool_calls' }
           return
         }
 
         yield { type: 'text-delta', delta: 'Final answer from follow-up.' }
+        yield { type: 'usage', usage: { inputTokens: 3, outputTokens: 6, totalTokens: 9 } }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -267,11 +270,23 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.messages.some((message) => message.role === 'tool')).toBe(true)
     expect(streamResult.content).toBe('Final answer from follow-up.')
     expect(streamResult.toolResults).toEqual([toolResult])
+    expect(streamResult.usage).toEqual(
+      expect.objectContaining({
+        inputTokens: 3,
+        outputTokens: 6,
+        totalTokens: 9,
+      })
+    )
     expect(updateStreamingMessage).toHaveBeenLastCalledWith(
       'session-1',
       'message-1',
       expect.objectContaining({
         content: 'Final answer from follow-up.',
+        usage: expect.objectContaining({
+          inputTokens: 3,
+          outputTokens: 6,
+          totalTokens: 9,
+        }),
         toolResults: [toolResult],
       })
     )
@@ -1467,7 +1482,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.finishReason).toBe('stop')
   })
 
-  it('falls back to a neutral search summary when all synthesis attempts end blank', async () => {
+  it('shows a clean failure message when all synthesis attempts end blank', async () => {
     const streamCalls: Array<{ toolChoice?: unknown }> = []
     let invocation = 0
 
@@ -1565,10 +1580,8 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[1]?.toolChoice).toBe('none')
     expect(streamCalls[2]?.toolChoice).toBe('none')
     expect(streamCalls[3]?.toolChoice).toBe('none')
-    expect(streamResult.content).toContain(
-      'The provider returned web search results for "diddy 50 cent hit allegation", but no final written synthesis.'
-    )
-    expect(streamResult.finishReason).toBe('stop')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.finishReason).toBeUndefined()
     expect(streamResult.toolResults).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1578,5 +1591,194 @@ describe('useProviderStreaming', () => {
         }),
       ])
     )
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      expect.objectContaining({
+        content: SEARCH_SYNTHESIS_FAILURE_MESSAGE,
+      })
+    )
+  })
+
+  it('shows the same clean failure message when every synthesis retry stays ungrounded', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"qwen 3.6 plus thinking mode"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        yield {
+          type: 'text-delta',
+          delta:
+            'The latest findings as of my knowledge cutoff are limited. Consult official documentation for newer updates.',
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'qwen 3.6 plus thinking mode')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('qwen 3.6 plus thinking mode'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'is qwen 3.6 plus a thinking model' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(4)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamCalls[3]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.finishReason).toBeUndefined()
+    expect(streamResult.toolResults).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          toolCall: expect.objectContaining({
+            name: 'web_search',
+          }),
+        }),
+      ])
+    )
+  })
+
+  it('shows the same clean failure message when every synthesis retry returns tool calls', async () => {
+    const streamCalls: Array<{ toolChoice?: unknown }> = []
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { toolChoice?: unknown }) {
+        streamCalls.push({ toolChoice: request.toolChoice })
+        invocation += 1
+
+        if (invocation <= 4) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [{
+              index: 0,
+              id: `call_${invocation}`,
+              type: 'function',
+              function: { name: 'web_search', arguments: '{"query":"qwen plus model studio docs"}' },
+            }],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+      },
+    })
+
+    const updateStreamingMessage = vi.fn()
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [buildWebSearchToolResult('call_1', 'qwen plus model studio docs')],
+      formattedResults: [{ role: 'tool', tool_call_id: 'call_1', content: 'search results' }],
+      needsFollowUp: true,
+      executionSummary: buildExecutionSummary('qwen plus model studio docs'),
+    })
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+          modelProvider: 'fireworks',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          fireworksApiKey: 'fw-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () => [{
+            type: 'function',
+            function: {
+              name: 'web_search',
+              description: 'Search the web',
+              parameters: { type: 'object', properties: {} },
+            },
+          }],
+          handleToolCalls,
+          getResearchContext: () => 'Research context',
+        },
+        updateStreamingMessage,
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'fireworks',
+      model: 'accounts/fireworks/routers/kimi-k2p5-turbo',
+      sessionId: 'session-1',
+      messageId: 'message-1',
+      messages: [{ role: 'user', content: 'is qwen plus a thinking model' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 1,
+      syncToStreamingContext: false,
+      enableTools: true,
+    })
+
+    expect(streamCalls).toHaveLength(4)
+    expect(streamCalls[1]?.toolChoice).toBe('none')
+    expect(streamCalls[2]?.toolChoice).toBe('none')
+    expect(streamCalls[3]?.toolChoice).toBe('none')
+    expect(streamResult.content).toBe(SEARCH_SYNTHESIS_FAILURE_MESSAGE)
+    expect(streamResult.finishReason).toBeUndefined()
   })
 })

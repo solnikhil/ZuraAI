@@ -259,7 +259,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   }, [updateStreamingMessage, updateStreaming])
 
   // Convert settings to StreamingSettings type for hooks
-  const streamingSettings: StreamingSettings = useMemo(
+const streamingSettings: StreamingSettings = useMemo(
     () => ({
       aiModel: settings.aiModel,
       modelProvider: settings.modelProvider,
@@ -271,6 +271,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       openRouterDebug: settings.openRouterDebug,
       openRouterApiKey: settings.openRouterApiKey,
       configuredModels: settings.configuredModels,
+      alibabaModels: settings.alibabaModels,
       perplexityApiKey: settings.perplexityApiKey,
       groqApiKey: settings.groqApiKey,
       alibabaApiKey: settings.alibabaApiKey,
@@ -287,6 +288,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       settings.openRouterDebug,
       settings.openRouterApiKey,
       settings.configuredModels,
+      settings.alibabaModels,
       settings.perplexityApiKey,
       settings.groqApiKey,
       settings.alibabaApiKey,
@@ -467,7 +469,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         streamingMessageRef.current = { sessionId: targetSessionId!, messageId: streamingMessageId }
         startStreaming(targetSessionId!, streamingMessageId)
 
-        // Use composed provider-specific streaming hooks
+// Use composed provider-specific streaming hooks
         const currentModel =
           provider === 'openrouter'
             ? settings.configuredModels?.find((m) => m.code === settings.aiModel)
@@ -480,6 +482,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             ? { enabled: true }
             : undefined
 
+        const alibabaModel = provider === 'alibaba'
+          ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
+          : undefined
+        const alibabaEnableThinking =
+          provider === 'alibaba' && alibabaModel?.supportsDeepThinking
+            ? true
+            : undefined
+
         const streamResult = await runProviderStream({
           provider,
           model: settings.aiModel,
@@ -490,9 +500,10 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           researchMaxRounds,
           forceWebSearch,
           signal: abortControllerRef.current?.signal,
-          enableTools: true,
+enableTools: true,
           syncToStreamingContext: true,
           reasoning: openRouterReasoning,
+          enableThinking: alibabaEnableThinking,
         })
 
         // Commit streaming content to the session
@@ -707,11 +718,19 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                   modality === 'text' || modality === 'image'
               ) || ['image', 'text']
             : undefined
-        const openRouterReasoning =
+const openRouterReasoning =
           inferOpenRouterSupportsDeepThinking(
             openRouterModel || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
           )
             ? { enabled: true }
+            : undefined
+
+        const alibabaModelForRegen = effectiveSettings.modelProvider === 'alibaba'
+          ? (effectiveSettings.alibabaModels || []).find((m) => m.code === effectiveSettings.aiModel)
+          : undefined
+        const alibabaEnableThinkingForRegen =
+          effectiveSettings.modelProvider === 'alibaba' && alibabaModelForRegen?.supportsDeepThinking
+            ? true
             : undefined
 
         const apiMessages = buildProviderMessages(
@@ -735,10 +754,11 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             researchMaxRounds: 0,
             forceWebSearch: false,
             signal: abortControllerRef.current?.signal,
-            enableTools: false,
+enableTools: false,
             syncToStreamingContext: false,
             modalities: openRouterModalities,
             reasoning: openRouterReasoning,
+            enableThinking: alibabaEnableThinkingForRegen,
           })
 
           updateStreamingMessage(currentSessionId, streamingMessageId, {
