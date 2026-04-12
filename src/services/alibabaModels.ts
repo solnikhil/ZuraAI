@@ -263,3 +263,28 @@ export function searchAlibabaModels(
     )
   })
 }
+
+const ALIBABA_THINKING_MODEL_PATTERNS = [
+  /\bqwq[-_]/i,
+  /\bqwen3\.5[-_]/i,
+  /\bqwen3[-_]/i,
+]
+
+export function inferAlibabaSupportsDeepThinking(
+  model:
+    | Pick<ConfiguredModel, 'code' | 'displayName' | 'supportsDeepThinking'>
+    | { code?: string; displayName?: string; supportsDeepThinking?: boolean }
+    | null
+    | undefined
+): boolean {
+  if (!model) return false
+  if (model.supportsDeepThinking === true) return true
+
+  const haystack = [model.code, model.displayName]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+
+  if (!haystack) return false
+
+  return ALIBABA_THINKING_MODEL_PATTERNS.some((pattern) => pattern.test(haystack))
+}

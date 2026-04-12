@@ -13,6 +13,7 @@ import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { inferOpenRouterSupportsDeepThinking } from '../../../../services/openrouterModels'
+import { inferAlibabaSupportsDeepThinking } from '../../../../services/alibabaModels'
 import { buildOptimizedContext } from '../../../../utils/tokenUtils'
 import { getEffectiveSystemPrompt } from '../../../../utils/promptSelection'
 import { StreamingThrottler } from '../../../../utils/streamingThrottler'
@@ -486,7 +487,9 @@ const streamingSettings: StreamingSettings = useMemo(
           ? (settings.alibabaModels || []).find((m) => m.code === settings.aiModel)
           : undefined
         const alibabaEnableThinking =
-          provider === 'alibaba' && alibabaModel?.supportsDeepThinking
+          provider === 'alibaba' && inferAlibabaSupportsDeepThinking(
+            alibabaModel || { code: settings.aiModel, displayName: settings.aiModel }
+          )
             ? true
             : undefined
 
@@ -729,7 +732,9 @@ const openRouterReasoning =
           ? (effectiveSettings.alibabaModels || []).find((m) => m.code === effectiveSettings.aiModel)
           : undefined
         const alibabaEnableThinkingForRegen =
-          effectiveSettings.modelProvider === 'alibaba' && alibabaModelForRegen?.supportsDeepThinking
+          effectiveSettings.modelProvider === 'alibaba' && inferAlibabaSupportsDeepThinking(
+            alibabaModelForRegen || { code: effectiveSettings.aiModel, displayName: effectiveSettings.aiModel }
+          )
             ? true
             : undefined
 
