@@ -52,6 +52,8 @@ let registeredShortcut: string | null = null
 let shortcutRegistered = false
 let initialized = false
 let destroyOnClose = false
+let isDragging = false
+let dragOffset = { x: 0, y: 0 }
 
 function clampWidth(width: number, fallback: number): number {
   if (!Number.isFinite(width)) return fallback
@@ -334,6 +336,29 @@ export async function focusMainWindow(): Promise<void> {
 
 export function getOverlayWindow(): BrowserWindow | null {
   return overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow : null
+}
+
+export function startOverlayDrag(cursorX: number, cursorY: number): void {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  isDragging = true
+  const bounds = overlayWindow.getBounds()
+  dragOffset.x = cursorX - bounds.x
+  dragOffset.y = cursorY - bounds.y
+}
+
+export function moveOverlayDrag(cursorX: number, cursorY: number): void {
+  if (!isDragging || !overlayWindow || overlayWindow.isDestroyed()) return
+  const bounds = overlayWindow.getBounds()
+  overlayWindow.setBounds({
+    x: cursorX - dragOffset.x,
+    y: cursorY - dragOffset.y,
+    width: bounds.width,
+    height: bounds.height,
+  })
+}
+
+export function endOverlayDrag(): void {
+  isDragging = false
 }
 
 export async function showOverlayAtPosition(cursorX: number, cursorY: number): Promise<BrowserWindow | null> {

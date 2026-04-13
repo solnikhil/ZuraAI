@@ -79,6 +79,9 @@ export interface OverlayAPI {
     focusMainWindow: () => Promise<void>
     applySettings: (settings: Partial<OverlaySettings>) => Promise<OverlayState>
     onPendingPrompt: (callback: (prompt: string) => void) => () => void
+    dragStart: (cursorX: number, cursorY: number) => void
+    dragMove: (cursorX: number, cursorY: number) => void
+    dragEnd: () => void
 }
 
 export interface PromptPopupAPI {

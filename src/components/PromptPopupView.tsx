@@ -1,34 +1,31 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSettings } from '../contexts/SettingsContext'
+import { Plus, FlaskConical, Globe } from './icons'
+import { Send } from 'lucide-react'
 
-import { FlaskConical, Globe, Plus } from './icons'
-
-function VoiceGlyph(): React.ReactElement {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="2" />
-      <path d="M6 11a6 6 0 0 0 12 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M9 21h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function UpArrowGlyph(): React.ReactElement {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 17V7M12 7l-4.5 4.5M12 7l4.5 4.5"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
+function truncateModelName(name: string, maxLen: number = 12): string {
+  if (!name) return 'Auto'
+  return name.length > maxLen ? name.slice(0, maxLen - 1) + '…' : name
 }
 
 export default function PromptPopupView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { settings } = useSettings()
+
+  const modelName = useMemo(() => {
+    const allModels: Array<{ code: string; displayName: string }> = [
+      ...(settings.ollamaModels || []),
+      ...(settings.perplexityModels || []),
+      ...(settings.configuredModels || []),
+      ...(settings.groqModels || []),
+      ...(settings.alibabaModels || []),
+      ...(settings.fireworksModels || []),
+    ]
+    const match = allModels.find((m) => m.code === settings.aiModel)
+    const raw = match?.displayName || settings.aiModel?.split('/').pop() || 'Auto'
+    return truncateModelName(raw.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim(), 12)
+  }, [settings.aiModel, settings.ollamaModels, settings.perplexityModels, settings.configuredModels, settings.groqModels, settings.alibabaModels, settings.fireworksModels])
 
   useEffect(() => {
     const previousBodyBackground = document.body.style.background
@@ -81,66 +78,75 @@ export default function PromptPopupView() {
     [handleSubmit]
   )
 
+  const handleTextareaInput = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 80) + 'px'
+  }, [])
+
   return (
     <div className="prompt-popup-root">
       <div className="prompt-popup-composer">
-        <div className="prompt-popup-actions">
-          <div className="prompt-popup-tools">
+        <textarea
+          ref={textareaRef}
+          className="prompt-popup-textarea"
+          onKeyDown={handleKeyDown}
+          onInput={handleTextareaInput}
+          placeholder="Ask anything…"
+          autoFocus
+          rows={1}
+        />
+        <div className="prompt-popup-footer">
+          <div className="prompt-popup-footer-left">
             <button
               type="button"
-              className="prompt-popup-tool-button"
-              aria-label="Add attachment"
-              title="Add attachment"
+              className="prompt-popup-plus"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Actions"
+              title="Actions"
             >
-              <Plus size={21} strokeWidth={1.9} />
+              <Plus size={14} strokeWidth={2.5} />
             </button>
-            <button
-              type="button"
-              className="prompt-popup-tool-button"
-              aria-label="Browse the web"
-              title="Browse the web"
-            >
-              <Globe size={19} strokeWidth={1.9} />
-            </button>
-            <button
-              type="button"
-              className="prompt-popup-tool-button"
-              aria-label="Thinking mode"
-              title="Thinking mode"
-            >
-              <FlaskConical size={19} strokeWidth={1.9} />
-            </button>
-            <div className="prompt-popup-model-badge">5.4 Thinking</div>
+            {menuOpen && (
+              <div className="prompt-popup-menu">
+                <button
+                  type="button"
+                  className="prompt-popup-menu-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Globe size={14} />
+                  <span>Add file</span>
+                </button>
+                <button
+                  type="button"
+                  className="prompt-popup-menu-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <FlaskConical size={14} />
+                  <span>Manage MCPs</span>
+                </button>
+                <button
+                  type="button"
+                  className="prompt-popup-menu-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <span className="prompt-popup-menu-icon-spark">✦</span>
+                  <span>Manage Skills</span>
+                </button>
+              </div>
+            )}
+            <span className="prompt-popup-model">{modelName}</span>
           </div>
-          <div className="prompt-popup-textarea-wrap">
-            <textarea
-              ref={textareaRef}
-              className="prompt-popup-textarea"
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything"
-              autoFocus
-              rows={1}
-            />
-          </div>
-          <div className="prompt-popup-submit-cluster">
-            <button
-              type="button"
-              className="prompt-popup-voice-button"
-              aria-label="Voice input"
-              title="Voice input"
-            >
-              <VoiceGlyph />
-            </button>
-            <button
-              type="button"
-              className="prompt-popup-send"
-              onClick={handleSubmit}
-              aria-label="Send"
-              title="Send"
-            >
-              <UpArrowGlyph />
-            </button>
-          </div>
+          <button
+            type="button"
+            className="prompt-popup-send"
+            onClick={handleSubmit}
+            aria-label="Send"
+            title="Send"
+          >
+            <Send size={15} strokeWidth={2.2} />
+          </button>
         </div>
       </div>
     </div>

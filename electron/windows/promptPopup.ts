@@ -4,9 +4,9 @@ import path from 'path'
 import { resolveDistPath } from './mainWindow'
 import { showOverlayAtPosition } from './overlayWindow'
 
-const POPUP_WIDTH = 560
-const POPUP_HEIGHT = 92
-const POPUP_MARGIN = 12
+const POPUP_WIDTH = 520
+const POPUP_HEIGHT = 220
+const POPUP_MARGIN = 10
 
 let promptPopup: BrowserWindow | null = null
 

@@ -39,7 +39,11 @@ contextBridge.exposeInMainWorld('windowControls', {
 // Only allow a small set of channels to be used by the renderer.
 // This prevents arbitrary IPC access if the renderer is compromised.
 
-const SEND_CHANNELS = new Set<string>()
+const SEND_CHANNELS = new Set<string>([
+  'overlay:drag-start',
+  'overlay:drag-move',
+  'overlay:drag-end',
+])
 
 const INVOKE_CHANNELS = new Set<string>([
   // Chat store
@@ -177,6 +181,15 @@ contextBridge.exposeInMainWorld(
       const listener = (_event: IpcRendererEvent, prompt: string) => callback(prompt)
       ipcRenderer.on('overlay:pending-prompt', listener)
       return () => ipcRenderer.removeListener('overlay:pending-prompt', listener)
+    },
+    dragStart: (cursorX: number, cursorY: number) => {
+      ipcRenderer.send('overlay:drag-start', cursorX, cursorY)
+    },
+    dragMove: (cursorX: number, cursorY: number) => {
+      ipcRenderer.send('overlay:drag-move', cursorX, cursorY)
+    },
+    dragEnd: () => {
+      ipcRenderer.send('overlay:drag-end')
     },
   })
 )

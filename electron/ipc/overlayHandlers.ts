@@ -8,6 +8,9 @@ import {
   getOverlayState,
   hideOverlay,
   showOverlay,
+  startOverlayDrag,
+  moveOverlayDrag,
+  endOverlayDrag,
   toggleOverlay,
   type OverlaySettings,
 } from '../windows/overlayWindow'
@@ -43,6 +46,15 @@ export function registerOverlayHandlers(): void {
   ipcMain.handle('overlay:apply-settings', (_event, settings: unknown) =>
     applyOverlaySettings(sanitizeOverlaySettings(settings))
   )
+  ipcMain.on('overlay:drag-start', (_event, cursorX: number, cursorY: number) => {
+    startOverlayDrag(cursorX, cursorY)
+  })
+  ipcMain.on('overlay:drag-move', (_event, cursorX: number, cursorY: number) => {
+    moveOverlayDrag(cursorX, cursorY)
+  })
+  ipcMain.on('overlay:drag-end', () => {
+    endOverlayDrag()
+  })
 }
 
 export function unregisterOverlayHandlers(): void {
@@ -54,4 +66,7 @@ export function unregisterOverlayHandlers(): void {
   ipcMain.removeHandler('overlay:get-state')
   ipcMain.removeHandler('overlay:focus-main-window')
   ipcMain.removeHandler('overlay:apply-settings')
+  ipcMain.removeAllListeners('overlay:drag-start')
+  ipcMain.removeAllListeners('overlay:drag-move')
+  ipcMain.removeAllListeners('overlay:drag-end')
 }
