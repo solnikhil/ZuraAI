@@ -82,6 +82,7 @@ export interface OverlayAPI {
     dragStart: (cursorX: number, cursorY: number) => void
     dragMove: (cursorX: number, cursorY: number) => void
     dragEnd: () => void
+    navigateSettings: (section: string) => void
 }
 
 export interface PromptPopupAPI {

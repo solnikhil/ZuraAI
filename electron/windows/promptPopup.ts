@@ -4,8 +4,8 @@ import path from 'path'
 import { resolveDistPath } from './mainWindow'
 import { showOverlayAtPosition } from './overlayWindow'
 
-const POPUP_WIDTH = 520
-const POPUP_HEIGHT = 220
+const POPUP_WIDTH = 500
+const POPUP_HEIGHT = 236
 const POPUP_MARGIN = 10
 
 let promptPopup: BrowserWindow | null = null
@@ -39,7 +39,7 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
     y,
     width: POPUP_WIDTH,
     height: POPUP_HEIGHT,
-    minWidth: 500,
+    minWidth: 480,
     minHeight: POPUP_HEIGHT,
     maxWidth: 640,
     maxHeight: POPUP_HEIGHT,
@@ -53,10 +53,11 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
+    transparent: true,
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
     focusable: true,
-    backgroundMaterial: 'acrylic',
+    backgroundMaterial: 'none',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

@@ -140,10 +140,11 @@ function createOverlayWindow(): BrowserWindow {
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#14120B',
+    transparent: true,
+    backgroundColor: '#00000000',
     hasShadow: false,
     autoHideMenuBar: true,
-    backgroundMaterial: 'acrylic',
+    backgroundMaterial: 'none',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

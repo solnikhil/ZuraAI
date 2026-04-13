@@ -44,6 +44,7 @@ const SEND_CHANNELS = new Set<string>([
   'overlay:drag-move',
   'overlay:drag-end',
   'open-model-selector',
+  'overlay:navigate-settings',
 ])
 
 const INVOKE_CHANNELS = new Set<string>([
@@ -71,7 +72,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:get-version',
 ])
 
-const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt', 'model-selector:open'])
+const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt', 'model-selector:open', 'settings:navigate'])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:list-servers',
@@ -191,6 +192,9 @@ contextBridge.exposeInMainWorld(
     },
     dragEnd: () => {
       ipcRenderer.send('overlay:drag-end')
+    },
+    navigateSettings: (section: string) => {
+      ipcRenderer.send('overlay:navigate-settings', section)
     },
   })
 )

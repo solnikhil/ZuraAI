@@ -33,6 +33,7 @@ export default function OverlayView() {
     [toolState.toolResults]
   )
   const isCompact = overlayMode === 'compact'
+  const hasConversation = messages.length > 0 || isLoading || visibleLiveToolResults.length > 0
 
   const syncOverlayMode = useCallback(async () => {
     try {
@@ -92,6 +93,36 @@ export default function OverlayView() {
   }, [])
 
   useEffect(() => {
+    const previousBodyBackground = document.body.style.background
+    const previousBodyBackgroundColor = document.body.style.backgroundColor
+    const previousDocumentBackground = document.documentElement.style.background
+    const previousDocumentBackgroundColor = document.documentElement.style.backgroundColor
+    const root = document.getElementById('root')
+    const previousRootBackground = root?.style.background
+    const previousRootBackgroundColor = root?.style.backgroundColor
+
+    document.body.style.background = 'transparent'
+    document.body.style.backgroundColor = 'transparent'
+    document.documentElement.style.background = 'transparent'
+    document.documentElement.style.backgroundColor = 'transparent'
+    if (root) {
+      root.style.background = 'transparent'
+      root.style.backgroundColor = 'transparent'
+    }
+
+    return () => {
+      document.body.style.background = previousBodyBackground
+      document.body.style.backgroundColor = previousBodyBackgroundColor
+      document.documentElement.style.background = previousDocumentBackground
+      document.documentElement.style.backgroundColor = previousDocumentBackgroundColor
+      if (root) {
+        root.style.background = previousRootBackground ?? ''
+        root.style.backgroundColor = previousRootBackgroundColor ?? ''
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     void syncOverlayMode()
   }, [syncOverlayMode])
 
@@ -107,6 +138,226 @@ export default function OverlayView() {
     return unsubscribe
   }, [isLoading, sendMessage])
 
+  if (isCompact) {
+    return (
+      <div
+        style={{
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          padding: '10px',
+          background: 'transparent',
+          color: 'var(--theme-text-primary)',
+          outline: 'none',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginBottom: 8,
+            paddingRight: 2,
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleOpenMainApp}
+            className="overlay__compact-control"
+            aria-label="Open in main app"
+            title="Open in main app"
+          >
+            <PanelLeft size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleMode}
+            className="overlay__compact-control"
+            aria-label="Expand overlay"
+            title="Expand overlay"
+          >
+            <ChevronDown size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={handleHide}
+            className="overlay__compact-control"
+            aria-label="Hide overlay"
+            title="Hide overlay"
+          >
+            <X size={13} />
+          </button>
+        </div>
+
+        {hasConversation ? (
+          <div
+            style={{
+              borderRadius: '18px 18px 0 0',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: 'none',
+              background: 'rgba(18, 18, 20, 0.96)',
+              overflow: 'hidden',
+              minHeight: 0,
+            }}
+          >
+            <ScrollArea
+              className="flex-1"
+              viewportStyle={{ padding: '12px 14px 10px', minHeight: 0 }}
+              style={{ maxHeight: '190px', minHeight: 0 }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {messages.map((message, index) => {
+                  const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
+                  const isStreamingMessage = isLoading && isLastAssistant
+
+                  return (
+                    <div key={message.id}>
+                      {isStreamingMessage ? (
+                        <StreamingMessage
+                          message={message}
+                          sessionId={currentSessionId!}
+                          activeToolCalls={toolState.activeToolCalls}
+                          onCopy={handleCopy}
+                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                        />
+                      ) : (
+                        <MessageRenderer
+                          message={message}
+                          isStreaming={false}
+                          sessionId={currentSessionId || undefined}
+                          onCopy={handleCopy}
+                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                        />
+                      )}
+
+                      {isLastAssistant && visibleLiveToolResults.length > 0 && (
+                        <div style={{ marginTop: 8, marginBottom: 14 }}>
+                          {visibleLiveToolResults.map((result, resultIndex) => (
+                            <ToolResultDisplay
+                              key={`${message.id}-tool-${resultIndex}`}
+                              toolName={result.toolCall.name}
+                              result={result.result.success ? result.result.data : undefined}
+                              error={result.result.success ? undefined : result.result.error}
+                              metadata={result.result?.metadata}
+                              toolArguments={result.toolCall.arguments}
+                              executionTime={result.result?.executionTime}
+                              sessionId={currentSessionId || undefined}
+                              messageId={message.id}
+                              toolResultIndex={resultIndex}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {!isLoading &&
+                  toolState.activeToolCalls.map((toolCall, index) => (
+                    <div key={`active-tool-${index}`}>
+                      <ToolCallIndicator
+                        toolName={toolCall.name}
+                        status="executing"
+                        arguments={toolCall.arguments}
+                      />
+                    </div>
+                  ))}
+
+                {isLoading && streamingState?.content ? (
+                  <div
+                    style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--theme-text-muted)',
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    Streaming response...
+                  </div>
+                ) : null}
+              </div>
+            </ScrollArea>
+          </div>
+        ) : null}
+
+        <div
+          className="prompt-popup-composer"
+          style={{
+            borderRadius: hasConversation ? '0 0 18px 18px' : '18px',
+          }}
+        >
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                void handleSend()
+              }
+
+              if (event.key === 'Escape') {
+                void handleHide()
+              }
+            }}
+            placeholder="Ask anything..."
+            rows={2}
+            className="prompt-popup-textarea"
+            style={{
+              minHeight: 52,
+            }}
+          />
+
+          <div className="prompt-popup-footer" style={{ justifyContent: 'space-between' }}>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--theme-text-muted)',
+                paddingLeft: 6,
+              }}
+            >
+              {isLoading ? 'Working...' : hasConversation ? 'Continue here' : 'Enter to send'}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isLoading) {
+                  stopStreaming()
+                  return
+                }
+                void handleSend()
+              }}
+              className="prompt-popup-send"
+            >
+              {isLoading ? 'Stop' : <Send size={15} strokeWidth={2.2} />}
+            </button>
+          </div>
+        </div>
+
+        <style>{`
+          .overlay__compact-control {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(18, 18, 20, 0.9);
+            color: rgba(235, 235, 240, 0.8);
+            cursor: pointer;
+            transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+          }
+          .overlay__compact-control:hover {
+            background: rgba(28, 28, 32, 0.96);
+            color: rgba(255, 255, 255, 0.96);
+            border-color: rgba(255, 255, 255, 0.16);
+          }
+        `}</style>
+      </div>
+    )
+  }
+
   return (
     <div
       style={{
@@ -115,7 +366,8 @@ export default function OverlayView() {
         flexDirection: 'column',
         position: 'relative',
         overflow: 'hidden',
-        background: 'rgba(20, 18, 11, 0.85)',
+        padding: isCompact ? '10px' : undefined,
+        background: isCompact ? 'transparent' : 'rgba(20, 18, 11, 0.85)',
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
@@ -126,35 +378,42 @@ export default function OverlayView() {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 12,
-          padding: isCompact ? '10px 12px' : '12px 14px',
-          borderBottom: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
+          padding: isCompact ? '8px 8px 4px 12px' : '12px 14px',
+          borderBottom: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
           WebkitAppRegion: 'drag',
+          minHeight: isCompact ? 36 : undefined,
+          borderRadius: isCompact ? '16px 16px 0 0' : undefined,
+          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : undefined,
+          border: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
+          borderBottomColor: isCompact ? 'transparent' : undefined,
         } as React.CSSProperties}
       >
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.92rem' }}>
-            <MessageCircle size={15} />
-            <span>Overlay</span>
-          </div>
-          {!isCompact ? (
+        {isCompact ? <div style={{ minWidth: 0, flex: 1 }} /> : (
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: '0.92rem' }}>
+              <MessageCircle size={15} />
+              <span>Overlay</span>
+            </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
               Compact desktop access to the current Zura session
             </div>
-          ) : null}
-        </div>
+          </div>
+        )}
 
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <button
-            type="button"
-            onClick={handleCreateChat}
-            className="overlay__icon-button"
-            aria-label="Start a new chat"
-            title="New chat"
-          >
-            <MessageCircle size={14} />
-          </button>
+          {!isCompact ? (
+            <button
+              type="button"
+              onClick={handleCreateChat}
+              className="overlay__icon-button"
+              aria-label="Start a new chat"
+              title="New chat"
+            >
+              <MessageCircle size={14} />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleOpenMainApp}
@@ -187,27 +446,35 @@ export default function OverlayView() {
 
       <ScrollArea
         className="flex-1"
-        viewportStyle={{ padding: isCompact ? '10px 12px 12px' : '14px 14px 18px', minHeight: 0 }}
-        style={{ minHeight: 0 }}
+        viewportStyle={{
+          padding: isCompact ? '0 12px 10px' : '14px 14px 18px',
+          minHeight: 0,
+        }}
+        style={{
+          minHeight: 0,
+          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : undefined,
+          borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
+          borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
+        }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {messages.length === 0 ? (
+          {!hasConversation ? (
             <div
               style={{
-                border: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
-                background: 'color-mix(in srgb, var(--theme-surface) 86%, transparent)',
-                borderRadius: 16,
-                padding: isCompact ? 14 : 18,
+                padding: isCompact ? '6px 2px 2px' : 18,
+                minHeight: isCompact ? 84 : undefined,
               }}
             >
-              <div style={{ fontSize: isCompact ? '0.92rem' : '1rem', fontWeight: 600, marginBottom: 6 }}>
-                {isCompact ? 'Quick prompt' : 'Ask without opening the dashboard'}
-              </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--theme-text-muted)' }}>
-                {isCompact
-                  ? 'Use the overlay for fast follow-ups and hand off to the full app when needed.'
-                  : 'The overlay reuses your current providers, tools, MCP servers, and chat history.'}
-              </div>
+              {!isCompact ? (
+                <>
+                  <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>
+                    Ask without opening the dashboard
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--theme-text-muted)' }}>
+                    The overlay reuses your current providers, tools, MCP servers, and chat history.
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : (
             messages.map((message, index) => {
@@ -284,22 +551,23 @@ export default function OverlayView() {
 
       <div
         style={{
-          padding: isCompact ? '10px 12px 12px' : '12px 14px 14px',
-          borderTop: '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
-          background:
-            'linear-gradient(180deg, rgba(20, 18, 11, 0.78) 0%, rgba(20, 18, 11, 0.94) 100%)',
-          backdropFilter: 'blur(18px)',
+          padding: isCompact ? '0 10px 10px' : '12px 14px 14px',
+          borderTop: isCompact ? 'none' : '1px solid color-mix(in srgb, var(--theme-border) 72%, transparent)',
+          background: isCompact
+            ? 'transparent'
+            : 'linear-gradient(180deg, rgba(20, 18, 11, 0.78) 0%, rgba(20, 18, 11, 0.94) 100%)',
         }}
       >
         <div
+          className={isCompact ? 'prompt-popup-composer' : undefined}
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 8,
             padding: isCompact ? 10 : 12,
-            borderRadius: 16,
-            border: '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
-            background: 'color-mix(in srgb, var(--theme-surface) 92%, transparent)',
+            borderRadius: isCompact ? 18 : 16,
+            border: isCompact ? undefined : '1px solid color-mix(in srgb, var(--theme-border) 88%, transparent)',
+            background: isCompact ? undefined : 'color-mix(in srgb, var(--theme-surface) 92%, transparent)',
           }}
         >
           <textarea
@@ -313,6 +581,7 @@ export default function OverlayView() {
             }}
             placeholder="Message ZuraAI..."
             rows={isCompact ? 2 : 3}
+            className={isCompact ? 'prompt-popup-textarea' : undefined}
             style={{
               width: '100%',
               minHeight: isCompact ? 52 : 72,
@@ -321,18 +590,28 @@ export default function OverlayView() {
               border: 'none',
               outline: 'none',
               color: 'var(--theme-text-primary)',
-              fontSize: '0.9rem',
+              fontSize: isCompact ? undefined : '0.9rem',
               fontFamily: 'inherit',
               lineHeight: 1.45,
+              padding: isCompact ? '0 2px' : undefined,
             }}
           />
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)' }}>
+          <div
+            className={isCompact ? 'prompt-popup-footer' : undefined}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--theme-text-muted)',
+                paddingLeft: isCompact ? 6 : undefined,
+              }}
+            >
               {isLoading
                 ? 'Working through the current chat pipeline'
                 : isCompact
-                  ? 'Enter to send'
+                  ? 'Mini overlay'
                   : 'Enter to send, Shift+Enter for newline'}
             </div>
 
@@ -345,7 +624,7 @@ export default function OverlayView() {
                 }
                 void handleSend()
               }}
-              className="overlay__send-button"
+              className={isCompact ? 'prompt-popup-send' : 'overlay__send-button'}
             >
               {isLoading ? (
                 'Stop'
