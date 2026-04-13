@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { ArrowLeft, EyeIcon, EyeOffIcon, SettingsIcon } from './icons'
+import { ArrowLeft, PanelLeft, SettingsIcon } from './icons'
 
 interface TitleBarSidebarControlsProps {
   hasSidebar: boolean
@@ -42,7 +42,7 @@ export default function TitleBarSidebarControls({
             aria-label={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
             title={sidebarHidden ? 'Show sidebar' : 'Hide sidebar'}
           >
-            {sidebarHidden ? <EyeIcon size={18} /> : <EyeOffIcon size={18} />}
+            <PanelLeft size={16} />
           </button>
           <button
             type="button"

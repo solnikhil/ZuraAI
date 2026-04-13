@@ -237,7 +237,6 @@
 }
 
 .app-titlebar__icon-btn:active {
-    transform: translateY(0.5px);
 }
 
 .app-titlebar__icon-btn:focus-visible {
