@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { SkillLogo } from '@/components/shared'
 import { ToolCallIndicator, ToolResultDisplay } from '@/tools/ui'
 
 import { useChatHistory } from '../contexts/ChatHistoryContext'
@@ -10,7 +11,7 @@ import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
-import { ChevronDown, MessageCircle, PanelLeft, Send, X } from './icons'
+import { ChevronDown, MessageCircle, PanelLeft, Send, Wrench, X } from './icons'
 
 export default function OverlayView() {
   const { sessions, currentSessionId, createSession } = useChatHistory()
@@ -92,6 +93,15 @@ export default function OverlayView() {
     void navigator.clipboard.writeText(content)
   }, [])
 
+  const handleNavigateSettings = useCallback((section: string) => {
+    try {
+      window.overlay.navigateSettings(section)
+      void window.overlay.hide()
+    } catch {
+      showToast('Unable to open settings right now.', 'error')
+    }
+  }, [showToast])
+
   useEffect(() => {
     const previousBodyBackground = document.body.style.background
     const previousBodyBackgroundColor = document.body.style.backgroundColor
@@ -146,146 +156,105 @@ export default function OverlayView() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
-          padding: '10px',
           background: 'transparent',
           color: 'var(--theme-text-primary)',
           outline: 'none',
         }}
       >
         <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginBottom: 8,
-            paddingRight: 2,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleOpenMainApp}
-            className="overlay__compact-control"
-            aria-label="Open in main app"
-            title="Open in main app"
-          >
-            <PanelLeft size={13} />
-          </button>
-          <button
-            type="button"
-            onClick={handleToggleMode}
-            className="overlay__compact-control"
-            aria-label="Expand overlay"
-            title="Expand overlay"
-          >
-            <ChevronDown size={13} />
-          </button>
-          <button
-            type="button"
-            onClick={handleHide}
-            className="overlay__compact-control"
-            aria-label="Hide overlay"
-            title="Hide overlay"
-          >
-            <X size={13} />
-          </button>
-        </div>
-
-        {hasConversation ? (
-          <div
-            style={{
-              borderRadius: '18px 18px 0 0',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderBottom: 'none',
-              background: 'rgba(18, 18, 20, 0.96)',
-              overflow: 'hidden',
-              minHeight: 0,
-            }}
-          >
-            <ScrollArea
-              className="flex-1"
-              viewportStyle={{ padding: '12px 14px 10px', minHeight: 0 }}
-              style={{ maxHeight: '190px', minHeight: 0 }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {messages.map((message, index) => {
-                  const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
-                  const isStreamingMessage = isLoading && isLastAssistant
-
-                  return (
-                    <div key={message.id}>
-                      {isStreamingMessage ? (
-                        <StreamingMessage
-                          message={message}
-                          sessionId={currentSessionId!}
-                          activeToolCalls={toolState.activeToolCalls}
-                          onCopy={handleCopy}
-                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
-                        />
-                      ) : (
-                        <MessageRenderer
-                          message={message}
-                          isStreaming={false}
-                          sessionId={currentSessionId || undefined}
-                          onCopy={handleCopy}
-                          onRegenerate={(instruction) => regenerateMessage(message, instruction)}
-                        />
-                      )}
-
-                      {isLastAssistant && visibleLiveToolResults.length > 0 && (
-                        <div style={{ marginTop: 8, marginBottom: 14 }}>
-                          {visibleLiveToolResults.map((result, resultIndex) => (
-                            <ToolResultDisplay
-                              key={`${message.id}-tool-${resultIndex}`}
-                              toolName={result.toolCall.name}
-                              result={result.result.success ? result.result.data : undefined}
-                              error={result.result.success ? undefined : result.result.error}
-                              metadata={result.result?.metadata}
-                              toolArguments={result.toolCall.arguments}
-                              executionTime={result.result?.executionTime}
-                              sessionId={currentSessionId || undefined}
-                              messageId={message.id}
-                              toolResultIndex={resultIndex}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-
-                {!isLoading &&
-                  toolState.activeToolCalls.map((toolCall, index) => (
-                    <div key={`active-tool-${index}`}>
-                      <ToolCallIndicator
-                        toolName={toolCall.name}
-                        status="executing"
-                        arguments={toolCall.arguments}
-                      />
-                    </div>
-                  ))}
-
-                {isLoading && streamingState?.content ? (
-                  <div
-                    style={{
-                      fontSize: '0.75rem',
-                      color: 'var(--theme-text-muted)',
-                      letterSpacing: '0.02em',
-                    }}
-                  >
-                    Streaming response...
-                  </div>
-                ) : null}
-              </div>
-            </ScrollArea>
-          </div>
-        ) : null}
-
-        <div
           className="prompt-popup-composer"
           style={{
-            borderRadius: hasConversation ? '0 0 18px 18px' : '18px',
+            borderRadius: 18,
           }}
         >
+          {hasConversation ? (
+            <div
+              style={{
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                maxHeight: 190,
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <ScrollArea
+                className="flex-1"
+                viewportStyle={{ padding: '12px 14px 10px', minHeight: 0 }}
+                style={{ maxHeight: 190, minHeight: 0 }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {messages.map((message, index) => {
+                    const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
+                    const isStreamingMessage = isLoading && isLastAssistant
+
+                    return (
+                      <div key={message.id}>
+                        {isStreamingMessage ? (
+                          <StreamingMessage
+                            message={message}
+                            sessionId={currentSessionId!}
+                            activeToolCalls={toolState.activeToolCalls}
+                            onCopy={handleCopy}
+                            onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                          />
+                        ) : (
+                          <MessageRenderer
+                            message={message}
+                            isStreaming={false}
+                            sessionId={currentSessionId || undefined}
+                            onCopy={handleCopy}
+                            onRegenerate={(instruction) => regenerateMessage(message, instruction)}
+                          />
+                        )}
+
+                        {isLastAssistant && visibleLiveToolResults.length > 0 && (
+                          <div style={{ marginTop: 8, marginBottom: 14 }}>
+                            {visibleLiveToolResults.map((result, resultIndex) => (
+                              <ToolResultDisplay
+                                key={`${message.id}-tool-${resultIndex}`}
+                                toolName={result.toolCall.name}
+                                result={result.result.success ? result.result.data : undefined}
+                                error={result.result.success ? undefined : result.result.error}
+                                metadata={result.result?.metadata}
+                                toolArguments={result.toolCall.arguments}
+                                executionTime={result.result?.executionTime}
+                                sessionId={currentSessionId || undefined}
+                                messageId={message.id}
+                                toolResultIndex={resultIndex}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {!isLoading &&
+                    toolState.activeToolCalls.map((toolCall, index) => (
+                      <div key={`active-tool-${index}`}>
+                        <ToolCallIndicator
+                          toolName={toolCall.name}
+                          status="executing"
+                          arguments={toolCall.arguments}
+                        />
+                      </div>
+                    ))}
+
+                  {isLoading && streamingState?.content ? (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--theme-text-muted)',
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      Streaming response...
+                    </div>
+                  ) : null}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : null}
+
           <textarea
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -308,34 +277,38 @@ export default function OverlayView() {
           />
 
           <div className="prompt-popup-footer" style={{ justifyContent: 'space-between' }}>
-            <div
-              style={{
-                fontSize: '0.75rem',
-                color: 'var(--theme-text-muted)',
-                paddingLeft: 6,
-              }}
-            >
+            <div style={{ fontSize: '0.75rem', color: 'var(--theme-text-muted)', paddingLeft: 6 }}>
               {isLoading ? 'Working...' : hasConversation ? 'Continue here' : 'Enter to send'}
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (isLoading) {
-                  stopStreaming()
-                  return
-                }
-                void handleSend()
-              }}
-              className="prompt-popup-send"
-            >
-              {isLoading ? 'Stop' : <Send size={15} strokeWidth={2.2} />}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleHide}
+                className="overlay__compact-dismiss"
+                aria-label="Hide overlay"
+                title="Hide overlay"
+              >
+                <X size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLoading) {
+                    stopStreaming()
+                    return
+                  }
+                  void handleSend()
+                }}
+                className="prompt-popup-send"
+              >
+                {isLoading ? 'Stop' : <Send size={15} strokeWidth={2.2} />}
+              </button>
+            </div>
           </div>
         </div>
 
         <style>{`
-          .overlay__compact-control {
+          .overlay__compact-dismiss {
             width: 28px;
             height: 28px;
             display: inline-flex;
@@ -348,7 +321,7 @@ export default function OverlayView() {
             cursor: pointer;
             transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
           }
-          .overlay__compact-control:hover {
+          .overlay__compact-dismiss:hover {
             background: rgba(28, 28, 32, 0.96);
             color: rgba(255, 255, 255, 0.96);
             border-color: rgba(255, 255, 255, 0.16);
@@ -597,6 +570,36 @@ export default function OverlayView() {
             }}
           />
 
+          {!isCompact && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                paddingLeft: 4,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => handleNavigateSettings('mcp')}
+                className="overlay__quick-action"
+                title="MCP Servers settings"
+              >
+                <Wrench size={12} />
+                <span>MCP Servers</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavigateSettings('skills')}
+                className="overlay__quick-action"
+                title="Skills & Capabilities settings"
+              >
+                <SkillLogo skill="tavily" size={12} />
+                <span>Skills</span>
+              </button>
+            </div>
+          )}
+
           <div
             className={isCompact ? 'prompt-popup-footer' : undefined}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
@@ -670,6 +673,28 @@ export default function OverlayView() {
           font-size: 0.82rem;
           font-weight: 600;
           cursor: pointer;
+        }
+        .overlay__quick-action {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+          background: color-mix(in srgb, var(--theme-surface) 45%, transparent);
+          color: var(--theme-text-secondary);
+          font-size: 0.72rem;
+          font-weight: 500;
+          font-family: inherit;
+          cursor: pointer;
+          transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+          white-space: nowrap;
+          line-height: 1.4;
+        }
+        .overlay__quick-action:hover {
+          color: var(--theme-text-primary);
+          background: color-mix(in srgb, var(--theme-surface-hover) 70%, transparent);
+          border-color: color-mix(in srgb, var(--theme-border-hover) 60%, transparent);
         }
       `}</style>
     </div>

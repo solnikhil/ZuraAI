@@ -145,7 +145,7 @@ export async function submitPrompt(prompt: string): Promise<void> {
 
   hidePromptPopup()
 
-  const overlayWin = await showOverlayAtPosition(anchorX, anchorY)
+  const overlayWin = await showOverlayAtPosition(anchorX, anchorY, popupBounds ?? undefined)
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.webContents.send('overlay:pending-prompt', prompt)
   }

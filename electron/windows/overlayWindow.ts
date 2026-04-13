@@ -55,6 +55,13 @@ let destroyOnClose = false
 let isDragging = false
 let dragOffset = { x: 0, y: 0 }
 
+interface OverlayAnchorBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 function clampWidth(width: number, fallback: number): number {
   if (!Number.isFinite(width)) return fallback
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)))
@@ -362,7 +369,11 @@ export function endOverlayDrag(): void {
   isDragging = false
 }
 
-export async function showOverlayAtPosition(cursorX: number, cursorY: number): Promise<BrowserWindow | null> {
+export async function showOverlayAtPosition(
+  cursorX: number,
+  cursorY: number,
+  anchorBounds?: OverlayAnchorBounds
+): Promise<BrowserWindow | null> {
   if (!overlaySettings.enabled) {
     return null
   }
@@ -372,11 +383,15 @@ export async function showOverlayAtPosition(cursorX: number, cursorY: number): P
   const win = createOverlayWindow()
   const display = screen.getDisplayNearestPoint({ x: cursorX, y: cursorY })
   const workArea = display.workArea
-  const { width, height } = getModeDimensions(overlayMode)
+  const { width: defaultWidth, height } = getModeDimensions(overlayMode)
+  const width = anchorBounds?.width ?? defaultWidth
 
-  const x = Math.max(workArea.x, Math.min(cursorX - width / 2, workArea.x + workArea.width - width - WINDOW_MARGIN))
-  const anchoredTopY = cursorY - height - WINDOW_MARGIN
-  const y = Math.max(workArea.y, Math.min(anchoredTopY, workArea.y + workArea.height - height - WINDOW_MARGIN))
+  const x = anchorBounds
+    ? Math.max(workArea.x, Math.min(anchorBounds.x, workArea.x + workArea.width - width))
+    : Math.max(workArea.x, Math.min(cursorX - width / 2, workArea.x + workArea.width - width - WINDOW_MARGIN))
+  const y = anchorBounds
+    ? Math.max(workArea.y, Math.min(anchorBounds.y + anchorBounds.height - height, workArea.y + workArea.height - height))
+    : Math.max(workArea.y, Math.min(cursorY - height - WINDOW_MARGIN, workArea.y + workArea.height - height - WINDOW_MARGIN))
 
   win.setBounds({ x, y, width, height }, false)
   win.show()
