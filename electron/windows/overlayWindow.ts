@@ -138,7 +138,9 @@ function createOverlayWindow(): BrowserWindow {
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#14120B',
+    backgroundColor: '#00000000',
+    transparent: true,
+    hasShadow: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

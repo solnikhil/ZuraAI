@@ -115,8 +115,7 @@ export default function OverlayView() {
         flexDirection: 'column',
         position: 'relative',
         overflow: 'hidden',
-        background:
-          'radial-gradient(circle at top right, rgba(178, 111, 255, 0.12), transparent 38%), linear-gradient(180deg, #18140f 0%, #14120b 100%)',
+        background: 'transparent',
         color: 'var(--theme-text-primary)',
       }}
     >
