@@ -115,8 +115,9 @@ export default function OverlayView() {
         flexDirection: 'column',
         position: 'relative',
         overflow: 'hidden',
-        background: 'transparent',
+        background: 'rgba(20, 18, 11, 0.85)',
         color: 'var(--theme-text-primary)',
+        outline: 'none',
       }}
     >
       <div

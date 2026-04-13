@@ -140,10 +140,10 @@ function createOverlayWindow(): BrowserWindow {
     show: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#00000000',
-    transparent: true,
+    backgroundColor: '#14120B',
     hasShadow: false,
     autoHideMenuBar: true,
+    backgroundMaterial: 'acrylic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -374,7 +374,8 @@ export async function showOverlayAtPosition(cursorX: number, cursorY: number): P
   const { width, height } = getModeDimensions(overlayMode)
 
   const x = Math.max(workArea.x, Math.min(cursorX - width / 2, workArea.x + workArea.width - width - WINDOW_MARGIN))
-  const y = Math.max(workArea.y, Math.min(cursorY + WINDOW_MARGIN, workArea.y + workArea.height - height - WINDOW_MARGIN))
+  const anchoredTopY = cursorY - height - WINDOW_MARGIN
+  const y = Math.max(workArea.y, Math.min(anchoredTopY, workArea.y + workArea.height - height - WINDOW_MARGIN))
 
   win.setBounds({ x, y, width, height }, false)
   win.show()

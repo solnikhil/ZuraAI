@@ -27,7 +27,12 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
   }
 
   const distPath = resolveDistPath(__dirname)
-  const { x, y } = clampToWorkArea(cursorX - POPUP_WIDTH / 2, cursorY + POPUP_MARGIN, POPUP_WIDTH, POPUP_HEIGHT)
+  const { x, y } = clampToWorkArea(
+    cursorX - POPUP_WIDTH / 2,
+    cursorY - Math.round(POPUP_HEIGHT / 2),
+    POPUP_WIDTH,
+    POPUP_HEIGHT
+  )
 
   promptPopup = new BrowserWindow({
     x,
@@ -51,7 +56,7 @@ function createPromptPopup(cursorX: number, cursorY: number): BrowserWindow {
     backgroundColor: '#00000000',
     autoHideMenuBar: true,
     focusable: true,
-    transparent: true,
+    backgroundMaterial: 'acrylic',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -89,7 +94,12 @@ export function showPromptPopup(): void {
   const { x: cursorX, y: cursorY } = screen.getCursorScreenPoint()
 
   if (promptPopup && !promptPopup.isDestroyed()) {
-    const { x, y } = clampToWorkArea(cursorX - POPUP_WIDTH / 2, cursorY + POPUP_MARGIN, POPUP_WIDTH, POPUP_HEIGHT)
+    const { x, y } = clampToWorkArea(
+      cursorX - POPUP_WIDTH / 2,
+      cursorY - Math.round(POPUP_HEIGHT / 2),
+      POPUP_WIDTH,
+      POPUP_HEIGHT
+    )
     promptPopup.setBounds({ x, y, width: POPUP_WIDTH, height: POPUP_HEIGHT })
     promptPopup.show()
     promptPopup.focus()
@@ -123,11 +133,18 @@ export async function submitPrompt(prompt: string): Promise<void> {
     return
   }
 
-  const { x: cursorX, y: cursorY } = screen.getCursorScreenPoint()
+  const popupBounds =
+    promptPopup && !promptPopup.isDestroyed()
+      ? promptPopup.getBounds()
+      : null
+
+  const fallbackCursorPoint = screen.getCursorScreenPoint()
+  const anchorX = popupBounds ? popupBounds.x + Math.round(popupBounds.width / 2) : fallbackCursorPoint.x
+  const anchorY = popupBounds ? popupBounds.y + popupBounds.height : fallbackCursorPoint.y
 
   hidePromptPopup()
 
-  const overlayWin = await showOverlayAtPosition(cursorX, cursorY)
+  const overlayWin = await showOverlayAtPosition(anchorX, anchorY)
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.webContents.send('overlay:pending-prompt', prompt)
   }

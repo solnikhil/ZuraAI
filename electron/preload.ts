@@ -43,6 +43,7 @@ const SEND_CHANNELS = new Set<string>([
   'overlay:drag-start',
   'overlay:drag-move',
   'overlay:drag-end',
+  'open-model-selector',
 ])
 
 const INVOKE_CHANNELS = new Set<string>([
@@ -70,7 +71,7 @@ const INVOKE_CHANNELS = new Set<string>([
   'updater:get-version',
 ])
 
-const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt'])
+const ON_CHANNELS = new Set<string>(['update-available', 'update-downloaded', 'prompt-popup:focus', 'overlay:pending-prompt', 'model-selector:open'])
 
 const MCP_INVOKE_CHANNELS = new Set<string>([
   'mcp:list-servers',
@@ -208,6 +209,9 @@ contextBridge.exposeInMainWorld(
     show: () => ipcRenderer.invoke('prompt-popup:show') as Promise<void>,
     hide: () => ipcRenderer.invoke('prompt-popup:hide') as Promise<void>,
     submit: (prompt: string) => ipcRenderer.invoke('prompt-popup:submit', prompt) as Promise<void>,
+    openModelSelector: () => {
+      ipcRenderer.send('open-model-selector')
+    },
     onFocus: (callback: () => void) => {
       const listener = () => callback()
       ipcRenderer.on('prompt-popup:focus', listener)

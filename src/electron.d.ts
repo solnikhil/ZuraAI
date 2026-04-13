@@ -88,6 +88,7 @@ export interface PromptPopupAPI {
     show: () => Promise<void>
     hide: () => Promise<void>
     submit: (prompt: string) => Promise<void>
+    openModelSelector: () => void
     onFocus: (callback: () => void) => () => void
 }
 

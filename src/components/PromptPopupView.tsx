@@ -78,6 +78,11 @@ export default function PromptPopupView() {
     [handleSubmit]
   )
 
+  const handleOpenModelSelector = useCallback(() => {
+    void window.promptPopup.hide()
+    window.promptPopup.openModelSelector()
+  }, [])
+
   const handleTextareaInput = useCallback(() => {
     const el = textareaRef.current
     if (!el) return
@@ -136,7 +141,15 @@ export default function PromptPopupView() {
                 </button>
               </div>
             )}
-            <span className="prompt-popup-model">{modelName}</span>
+            <button
+              type="button"
+              className="prompt-popup-model"
+              onClick={() => { handleOpenModelSelector() }}
+              aria-label="Change model"
+              title={modelName}
+            >
+              {modelName}
+            </button>
           </div>
           <button
             type="button"
