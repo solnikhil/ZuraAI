@@ -26,6 +26,8 @@ export interface OverlayState {
   anchor: 'right'
   compactWidth: number
   expandedWidth: number
+  promptAutoHideEnabled: boolean
+  promptAutoHideTimeout: number
 }
 
 const DEFAULT_SETTINGS: OverlaySettings = {

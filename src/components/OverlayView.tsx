@@ -11,7 +11,7 @@ import { MessageRenderer } from './Dashboard/ChatArea/MessageRenderer'
 import { StreamingMessage } from './Dashboard/ChatArea/StreamingMessage'
 import { useStreamingChat } from './Dashboard/ChatArea/hooks'
 import { shouldHideGenericToolResultCard } from './Dashboard/ChatArea/toolResultVisibility'
-import { PanelLeft, Send, Square, X } from './icons'
+import { Send, Square, X } from './icons'
 import { usePromptAutoHide } from './Dashboard/ChatArea/hooks/usePromptAutoHide'
 
 export default function OverlayView() {
@@ -22,7 +22,6 @@ export default function OverlayView() {
   const [input, setInput] = useState('')
   const [overlayMode, setOverlayMode] = useState<'compact' | 'expanded'>('expanded')
   const [promptFocused, setPromptFocused] = useState(false)
-  const [composerHovered, setComposerHovered] = useState(false)
 
   const currentSession = sessions.find((session) => session.id === currentSessionId) || null
   const messages = currentSession?.messages || []
@@ -69,15 +68,6 @@ export default function OverlayView() {
     resetTimer()
     await sendMessage(content, [])
   }, [input, isLoading, resetTimer, sendMessage])
-
-  const handleOpenMainApp = useCallback(async () => {
-    try {
-      await window.overlay.focusMainWindow()
-      await window.overlay.hide()
-    } catch {
-      showToast('Unable to hand off to the main app right now.', 'error')
-    }
-  }, [showToast])
 
   const handleHide = useCallback(async () => {
     try {
@@ -160,6 +150,17 @@ export default function OverlayView() {
 
     return unsubscribe
   }, [isLoading, sendMessage])
+
+  useEffect(() => {
+    const handleEscapeClose = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      void handleHide()
+    }
+
+    window.addEventListener('keydown', handleEscapeClose)
+    return () => window.removeEventListener('keydown', handleEscapeClose)
+  }, [handleHide])
 
   if (isCompact) {
     return (
@@ -330,7 +331,7 @@ export default function OverlayView() {
           : 'linear-gradient(180deg, rgba(16, 20, 28, 0.16) 0%, rgba(12, 16, 24, 0.24) 100%)',
         backdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
         WebkitBackdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
-        border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.18)',
+        border: 'none',
         borderRadius: isCompact ? undefined : 16,
         boxShadow: isCompact
           ? undefined
@@ -505,13 +506,7 @@ export default function OverlayView() {
           }}
           onMouseEnter={() => {
             if (!isCompact) {
-              setComposerHovered(true)
               resetTimer()
-            }
-          }}
-          onMouseLeave={() => {
-            if (!isCompact) {
-              setComposerHovered(false)
             }
           }}
         >
@@ -529,6 +524,12 @@ export default function OverlayView() {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 void handleSend()
+                return
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                void handleHide()
               }
             }}
             placeholder={isCompact ? 'Message ZuraAI...' : 'Ask anything...'}
@@ -586,42 +587,6 @@ export default function OverlayView() {
                 </>
               )}
             </button>
-
-            {!isCompact ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  right: -48,
-                  bottom: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  opacity: composerHovered ? 1 : 0,
-                  transform: composerHovered ? 'translateX(0)' : 'translateX(8px)',
-                  pointerEvents: composerHovered ? 'auto' : 'none',
-                  transition: 'opacity 160ms ease, transform 180ms ease',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handleOpenMainApp}
-                  className="overlay__icon-button"
-                  aria-label="Open in main app"
-                  title="Open in main app"
-                >
-                  <PanelLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleHide}
-                  className="overlay__icon-button"
-                  aria-label="Hide overlay"
-                  title="Hide overlay"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
@@ -647,24 +612,6 @@ export default function OverlayView() {
         .overlay__glass-shell > * {
           position: relative;
           z-index: 1;
-        }
-        .overlay__icon-button {
-          width: 34px;
-          height: 34px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.18);
-          background: rgba(24, 28, 36, 0.34);
-          color: var(--theme-text-secondary);
-          cursor: pointer;
-          transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
-        }
-        .overlay__icon-button:hover {
-          color: var(--theme-text-primary);
-          background: rgba(36, 40, 50, 0.48);
-          border-color: rgba(255, 255, 255, 0.28);
         }
         .overlay__send-button {
           width: 40px;

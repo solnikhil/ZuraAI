@@ -242,7 +242,7 @@ The renderer never imports Electron APIs directly; it uses what preload exposes.
 - The global Overlay hotkey opens the Overlay window directly at the cursor position in expanded mode (single-step flow).
 - Prompt Popup remains available as an optional path; submitting from it opens the Overlay at the cursor position and sends the prompt text via `overlay:pending-prompt`.
 - `OverlaySync` runs inside the shared provider tree and mirrors persisted `settings.overlay` values into the trusted overlay runtime through the dedicated preload bridge. If startup auto-open is enabled, the main window renderer triggers the initial overlay show after settings hydrate.
-- Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, and `expandedWidth`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
+- Overlay preferences are persisted in the existing sanitized renderer settings blob under `settings.overlay` with `enabled`, `launchOnStartup`, `hotkey`, `anchor`, `compactWidth`, `expandedWidth`, `promptAutoHideEnabled`, and `promptAutoHideTimeout`. No new secure-storage or Overlay-only settings file is introduced for Phase 1.
 - Main-shell navigation history is now tracked entirely in the renderer through `AppShellProvider` + `src/contexts/appShellNavigation.ts`; both the titlebar arrows and side-mouse buttons call the same history controller instead of using raw `react-router` delta navigation.
 
 #### MCP Runtime Foundation

@@ -246,6 +246,44 @@ export function OverlaySection({
               />
 
               <DetailField
+                label="Overlay Prompt Auto-Hide"
+                description="Hide the Overlay prompt area after inactivity. Hover near the bottom or press any key to reveal it."
+                control={
+                  <div className="flex justify-end">
+                    <Switch
+                      className="provider-hub-toggle"
+                      checked={overlay.promptAutoHideEnabled ?? false}
+                      onCheckedChange={(promptAutoHideEnabled) => updateOverlay({ promptAutoHideEnabled })}
+                      aria-label="Enable Overlay prompt auto-hide"
+                      disabled={!overlay.enabled}
+                    />
+                  </div>
+                }
+              />
+
+              <DetailField
+                label="Overlay Prompt Auto-Hide Timeout"
+                description={`Seconds of inactivity before the Overlay prompt hides (${overlay.promptAutoHideTimeout ?? 120}s).`}
+                control={
+                  <div className="space-y-2 w-full">
+                    <input
+                      type="range"
+                      min={30}
+                      max={600}
+                      step={10}
+                      value={overlay.promptAutoHideTimeout ?? 120}
+                      onChange={(event) =>
+                        updateOverlay({ promptAutoHideTimeout: Number(event.target.value) })
+                      }
+                      disabled={!overlay.enabled || !(overlay.promptAutoHideEnabled ?? false)}
+                      aria-label="Overlay prompt auto-hide timeout"
+                    />
+                    <div className="settings-inline-note">{overlay.promptAutoHideTimeout ?? 120}s</div>
+                  </div>
+                }
+              />
+
+              <DetailField
                 label="Overlay Anchor"
                 description="Phase 1 locks overlay docking to the right side of the active display work area."
                 control={<div className="settings-inline-note"><code>{overlay.anchor}</code></div>}
