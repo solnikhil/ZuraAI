@@ -328,32 +328,58 @@ export default function OverlayView() {
         padding: isCompact ? '10px' : undefined,
         background: isCompact
           ? 'transparent'
-          : 'linear-gradient(180deg, rgba(16, 20, 28, 0.16) 0%, rgba(12, 16, 24, 0.24) 100%)',
-        backdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
-        WebkitBackdropFilter: isCompact ? undefined : 'blur(22px) saturate(135%)',
+          : 'linear-gradient(180deg, rgba(14, 18, 26, 0.56) 0%, rgba(12, 16, 24, 0.66) 100%)',
+        backdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
+        WebkitBackdropFilter: isCompact ? undefined : 'blur(18px) saturate(128%)',
         border: 'none',
         borderRadius: isCompact ? undefined : 16,
         boxShadow: isCompact
           ? undefined
-          : 'inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 16px 36px rgba(0, 0, 0, 0.24)',
+          : 'inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 18px 42px rgba(0, 0, 0, 0.34)',
         color: 'var(--theme-text-primary)',
         outline: 'none',
       }}
     >
+      {!isCompact ? (
+        <div
+          aria-hidden="true"
+          className="overlay__drag-strip"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 18,
+            WebkitAppRegion: 'drag',
+            cursor: 'move',
+            zIndex: 2,
+          } as React.CSSProperties}
+        />
+      ) : null}
+
       <ScrollArea
         className="flex-1"
         viewportStyle={{
-          padding: isCompact ? '0 12px 10px' : '14px 10px 16px',
+          padding: isCompact ? '0 12px 10px' : '18px 10px 16px',
           minHeight: 0,
         }}
         style={{
           minHeight: 0,
-          background: isCompact ? 'rgba(18, 18, 20, 0.96)' : 'transparent',
+          background: isCompact
+            ? 'rgba(18, 18, 20, 0.96)'
+            : 'linear-gradient(180deg, rgba(8, 10, 14, 0.18) 0%, rgba(8, 10, 14, 0.3) 100%)',
           borderLeft: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
           borderRight: isCompact ? '1px solid rgba(255, 255, 255, 0.1)' : undefined,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            textShadow: '0 1px 1px rgba(0, 0, 0, 0.42)',
+          }}
+        >
           {!hasConversation ? (
             <div
               style={{
@@ -495,12 +521,12 @@ export default function OverlayView() {
             gap: 6,
             padding: isCompact ? 10 : '8px 10px 8px',
             borderRadius: isCompact ? 18 : 20,
-            border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.16)',
+            border: isCompact ? undefined : '1px solid rgba(255, 255, 255, 0.14)',
             background: isCompact
               ? undefined
-              : 'linear-gradient(180deg, rgba(12, 16, 24, 0.34) 0%, rgba(10, 14, 22, 0.42) 100%)',
-            backdropFilter: isCompact ? undefined : 'blur(12px) saturate(125%)',
-            WebkitBackdropFilter: isCompact ? undefined : 'blur(12px) saturate(125%)',
+              : 'linear-gradient(180deg, rgba(10, 14, 22, 0.72) 0%, rgba(8, 12, 20, 0.8) 100%)',
+            backdropFilter: isCompact ? undefined : 'blur(10px) saturate(120%)',
+            WebkitBackdropFilter: isCompact ? undefined : 'blur(10px) saturate(120%)',
             position: 'relative',
             overflow: 'visible',
           }}
@@ -588,10 +614,23 @@ export default function OverlayView() {
               )}
             </button>
           </div>
+
         </div>
       </div>
 
       <style>{`
+        @keyframes overlayAssistantActionsReveal {
+          from {
+            opacity: 0;
+            filter: blur(8px);
+            transform: translate(-8px, -8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            filter: blur(0);
+            transform: translate(0, 0) scale(1);
+          }
+        }
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
           .overlay__glass-shell {
             background: rgba(12, 14, 20, 0.9) !important;
@@ -604,14 +643,26 @@ export default function OverlayView() {
           border-radius: inherit;
           pointer-events: none;
           background:
-            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0) 68%),
-            radial-gradient(100% 70% at 50% 118%, rgba(10, 12, 18, 0.38) 0%, rgba(10, 12, 18, 0) 70%),
-            radial-gradient(64% 108% at -8% 50%, rgba(12, 16, 24, 0.24) 0%, rgba(12, 16, 24, 0) 72%),
-            radial-gradient(64% 108% at 108% 50%, rgba(12, 16, 24, 0.24) 0%, rgba(12, 16, 24, 0) 72%);
+            linear-gradient(180deg, rgba(10, 12, 18, 0.16) 0%, rgba(10, 12, 18, 0.2) 100%),
+            radial-gradient(120% 52% at 50% -14%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 70%),
+            radial-gradient(100% 70% at 50% 118%, rgba(8, 10, 16, 0.44) 0%, rgba(8, 10, 16, 0) 72%),
+            radial-gradient(64% 108% at -8% 50%, rgba(10, 14, 22, 0.28) 0%, rgba(10, 14, 22, 0) 74%),
+            radial-gradient(64% 108% at 108% 50%, rgba(10, 14, 22, 0.28) 0%, rgba(10, 14, 22, 0) 74%);
         }
         .overlay__glass-shell > * {
           position: relative;
           z-index: 1;
+        }
+        @media (hover: hover) and (pointer: fine) {
+          .overlay__glass-shell .assistant-message-shell .assistant-message-actions {
+            transform: translate(-8px, -8px) scale(0.985);
+          }
+
+          .overlay__glass-shell .assistant-message-shell:hover .assistant-message-actions,
+          .overlay__glass-shell .assistant-message-shell:focus-within .assistant-message-actions,
+          .overlay__glass-shell .assistant-message-actions[data-active='true'] {
+            animation: overlayAssistantActionsReveal 260ms var(--motion-ease-emphasized) 80ms both;
+          }
         }
         .overlay__send-button {
           width: 40px;
